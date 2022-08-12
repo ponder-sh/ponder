@@ -1,0 +1,22 @@
+type FeedItem @entity(immutable: true) {
+  id: ID!
+  timestamp: Int!
+  feedIndex: Int!
+  type: String!
+
+  " All "
+  from: String!
+
+  " AlignmentVote "
+  vote: Boolean
+
+  " ButtonInput | InputVote  | OrderButtonInput"
+  inputIndex: Int
+  " ButtonInput | InputVote  | OrderButtonInput"
+  buttonIndex: Int
+}
+
+type Player @entity {
+  id: ID!
+  account: String!
+}

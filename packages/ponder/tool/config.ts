@@ -1,7 +1,7 @@
 // This could be provided as CLI params?
 const toolConfigRaw = {
   pathToUserConfigFile: "ponder.config.js",
-  pathToSchemaFile: "schema.gql",
+  pathToSchemaFile: "schema.graphql",
   pathToGeneratedDir: "generated",
 };
 
