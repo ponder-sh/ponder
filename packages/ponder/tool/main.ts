@@ -1,30 +1,23 @@
-import { toolConfig } from "./config";
 import { db } from "./db";
 import { getInitialLogs } from "./fetchLogs";
+import { getConfig } from "./getConfig";
 import { migrateDb } from "./migrateDb";
 import { processLogs } from "./processLogs";
-import { processSchema } from "./processSchema";
-import { parseConfig } from "./processUserConfig";
-import { typegen } from "./typechain";
 import { codegen } from "./typegen";
 
 const main = async () => {
-  // const { default: rawConfig } = await import(toolConfig.pathToUserConfigFile);
-  // const config = parseConfig(rawConfig);
+  const config = await getConfig();
 
-  // const typegenResult = await typegen(config);
-  // console.log(`Successfully generated ${typegenResult.filesGenerated} types`);
+  const tablesCount = await migrateDb();
+  console.log(`Successfully created ${tablesCount} tables`);
 
-  // const initialLogsResult = await getInitialLogs(config);
-  // console.log(`Successfully fetched ${initialLogsResult.length} logs`);
+  const generatedFileCount = await codegen(config);
+  console.log(`Successfully generated ${generatedFileCount} type files`);
 
-  // await codegen(config);
+  const initialLogsResult = await getInitialLogs(config);
+  console.log(`Successfully fetched ${initialLogsResult.length} logs`);
 
-  // await processLogs(initialLogsResult);
-
-  // await processSchema();
-
-  await migrateDb();
+  await processLogs(initialLogsResult);
 
   db.destroy();
 };

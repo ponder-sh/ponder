@@ -7,17 +7,17 @@ import {
 
 const handleAlignmentVote: AlignmentVoteHandler = (params) => {
   const { from, vote, alignment } = params;
-  console.log("processing alignment vote:", { from, vote, alignment });
+  // console.log("processing alignment vote:", { from, vote, alignment });
 };
 
 const handleButtonInput: ButtonInputHandler = (params) => {
   const { from, buttonIndex, inputIndex } = params;
-  console.log("processing button input:", { from, buttonIndex, inputIndex });
+  // console.log("processing button input:", { from, buttonIndex, inputIndex });
 };
 
 const handleSetConfig: SetConfigHandler = (params) => {
   const { config } = params;
-  console.log("processing set config:", { config });
+  // console.log("processing set config:", { config });
 };
 
 const handlers: EthPlaysV0Handlers = {

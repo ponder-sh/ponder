@@ -1,6 +1,6 @@
 import { runTypeChain } from "typechain";
 
-import type { PonderConfig } from "./processUserConfig";
+import type { PonderConfig } from "./getConfig";
 
 const typegen = async (config: PonderConfig) => {
   const cwd = process.cwd();

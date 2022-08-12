@@ -1,6 +1,8 @@
 import { providers, utils } from "ethers";
 import fs from "fs";
 
+import { toolConfig } from "./config";
+
 interface RawPonderConfig {
   rpcUrls: { [chainId: number]: string };
   sources: {
@@ -24,7 +26,9 @@ interface PonderConfig {
   }[];
 }
 
-const parseConfig = (rawConfig: unknown): PonderConfig => {
+const getConfig = async () => {
+  const { default: rawConfig } = await import(toolConfig.pathToUserConfigFile);
+
   // TODO: Validate config
   const validatedConfig = rawConfig as RawPonderConfig;
 
@@ -58,5 +62,5 @@ const parseConfig = (rawConfig: unknown): PonderConfig => {
   return config;
 };
 
-export { parseConfig };
+export { getConfig };
 export type { PonderConfig };

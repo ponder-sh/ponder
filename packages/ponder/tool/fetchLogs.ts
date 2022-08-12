@@ -1,7 +1,7 @@
 import type { Log } from "@ethersproject/providers";
 import { BigNumber, Contract, utils } from "ethers";
 
-import type { PonderConfig } from "./processUserConfig";
+import type { PonderConfig } from "./getConfig";
 
 const getInitialLogs = async (config: PonderConfig) => {
   const logs: utils.LogDescription[] = [];

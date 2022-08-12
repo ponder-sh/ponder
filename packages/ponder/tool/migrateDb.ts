@@ -38,6 +38,8 @@ const migrateDb = async () => {
       table.timestamps();
     });
   }
+
+  return dbDefinition.length;
 };
 
 export { migrateDb };
