@@ -56,11 +56,11 @@ contract SeedScript is Script {
         ethPlays.submitButtonInput(6);
         vm.warp(block.timestamp + 61);
 
-        ethPlays.submitAlignmentVote(false);
+        // ethPlays.submitAlignmentVote(false);
         ethPlays.submitButtonInput(3);
         vm.warp(block.timestamp + 61);
 
-        ethPlays.submitAlignmentVote(false);
+        // ethPlays.submitAlignmentVote(false);
         ethPlays.submitButtonInput(2);
         vm.warp(block.timestamp + 61);
 
@@ -72,11 +72,11 @@ contract SeedScript is Script {
         ethPlays.submitButtonInput(6);
         vm.warp(block.timestamp + 61);
 
-        ethPlays.submitAlignmentVote(false);
+        // ethPlays.submitAlignmentVote(false);
         ethPlays.submitButtonInput(3);
         vm.warp(block.timestamp + 61);
 
-        ethPlays.submitAlignmentVote(false);
+        // ethPlays.submitAlignmentVote(false);
         ethPlays.submitButtonInput(2);
         vm.warp(block.timestamp + 61);
 
@@ -88,11 +88,11 @@ contract SeedScript is Script {
         ethPlays.submitButtonInput(6);
         vm.warp(block.timestamp + 61);
 
-        ethPlays.submitAlignmentVote(false);
+        // ethPlays.submitAlignmentVote(false);
         ethPlays.submitButtonInput(3);
         vm.warp(block.timestamp + 61);
 
-        ethPlays.submitAlignmentVote(false);
+        // ethPlays.submitAlignmentVote(false);
         ethPlays.submitButtonInput(2);
         vm.warp(block.timestamp + 61);
 
