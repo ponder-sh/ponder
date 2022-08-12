@@ -7,11 +7,14 @@
   },
   "scripts": {
     "build": "esbuild `find tool \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
-    "dev": "node dist/server.js",
+    "dev": "pnpm run build && node dist/server.js",
+    "parser": "pnpm run build && node dist/configParser.js",
+    "scraper": "pnpm run build && node dist/eventScraper.js",
     "prettier": "prettier --write src",
     "lint": "eslint src"
   },
   "dependencies": {
+    "ethers": "^5.6.9",
     "express": "^4.18.1",
     "express-graphql": "^0.12.0",
     "graphql": "^16.2.0"
