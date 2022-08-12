@@ -47,6 +47,22 @@ contract SeedScript is Script {
 
         setUp();
         registerAccounts();
+        ethPlays.setConfig(
+            EthPlaysV0.EthPlaysV0Config(
+                true, // bool isActive;
+                985, // uint256 alignmentDecayRate;
+                1, // uint256 alignmentVoteCooldown;
+                40e18, // uint256 chaosVoteReward;
+                20, // uint256 orderDuration;
+                30, // uint256 chaosInputRewardCooldown;
+                20e18, // uint256 chaosInputReward;
+                20e18, // uint256 orderInputReward;
+                20e18, // uint256 chatCost;
+                200e18, // uint256 rareCandyCost;
+                90, // uint256 controlAuctionDuration;
+                30 // uint256 controlDuration;
+            )
+        );
 
         vm.stopBroadcast();
 
