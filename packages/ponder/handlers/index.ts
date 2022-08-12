@@ -9,7 +9,6 @@ const handleAlignmentVote: AlignmentVoteHandler = ({
   alignment,
 }) => {
   console.log("processing alignment vote!!", { from, vote, alignment });
-  return null;
 };
 
 const handlers: EthPlaysV0Handlers = {

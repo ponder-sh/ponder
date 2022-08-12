@@ -2,6 +2,7 @@ import rawConfig from "../ponder.config.js";
 import { codegen } from "./codegen";
 import { parseConfig } from "./configParser";
 import { getInitialLogs } from "./fetchLogs";
+import { processLogs } from "./processLogs";
 import { typegen } from "./typegen";
 
 const main = async () => {
@@ -14,6 +15,8 @@ const main = async () => {
   console.log(`Successfully fetched ${initialLogsResult.length} logs`);
 
   await codegen(config);
+
+  await processLogs(initialLogsResult);
 };
 
 main().catch(console.error);
