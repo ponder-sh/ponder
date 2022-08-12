@@ -14,12 +14,16 @@ ${header}
 export { BigNumber } from 'ethers';
 `;
 
-const importTypeString = `
+const imports = `
 ${header}
 import { BigNumber } from "./common";
+
+type Context = {
+  db: any;
+}
 `;
 
-const codegen = async (config: PonderConfig) => {
+const generateHandlers = async (config: PonderConfig) => {
   let generatedFileCount = 0;
 
   fs.writeFileSync(
@@ -54,7 +58,7 @@ const codegen = async (config: PonderConfig) => {
     `;
 
     const final =
-      importTypeString +
+      imports +
       eventHandlersTypeString +
       contractHandlersTypeString +
       exportTypeString;
@@ -82,7 +86,7 @@ const generateEventHandlerType = (
 
   const eventHandlerTypes = `
   type ${eventName}Params = ${parameterType}
-  type ${eventName}Handler = (params: ${eventName}Params) => void;
+  type ${eventName}Handler = (params: ${eventName}Params, context: Context) => void;
   `;
 
   return {
@@ -122,4 +126,4 @@ const generateParamsType = (params: ParamType[]): string => {
   return `{ ${childTypes}}`;
 };
 
-export { codegen };
+export { generateHandlers };

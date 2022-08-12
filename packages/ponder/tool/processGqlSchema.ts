@@ -8,6 +8,17 @@ import {
 
 import { toolConfig } from "./config";
 
+type DbSchema = {
+  tables: {
+    name: string;
+    columns: {
+      name: string;
+      type: string;
+      notNull: boolean;
+    }[];
+  }[];
+};
+
 const schemaHeader = `
 "Directs the executor to process this type as a Ponder entity."
 directive @entity(
@@ -15,7 +26,7 @@ directive @entity(
 ) on OBJECT
 `;
 
-const processSchema = async () => {
+const processGqlSchema = async (): Promise<DbSchema> => {
   const schemaBody = fs.readFileSync(toolConfig.pathToSchemaFile).toString();
   const schemaSource = schemaHeader + schemaBody;
   const schema = buildSchema(schemaSource);
@@ -28,26 +39,26 @@ const processSchema = async () => {
     return !!entityDirective;
   });
 
-  const dbDefinition = entities.map(getTableDefinitionForEntity);
+  const tables = entities.map(getTableForEntity);
 
-  return dbDefinition;
+  return { tables: tables };
 };
 
-const getTableDefinitionForEntity = (entity: GraphQLNamedType) => {
+const getTableForEntity = (entity: GraphQLNamedType) => {
   if (entity.astNode?.kind !== "ObjectTypeDefinition") {
     throw new Error("@entity directive must only be applied to object types.");
   }
 
   const fields = entity.astNode.fields || [];
-  const columnDefinitions = fields.map(getColumnDefinitionForField);
+  const columns = fields.map(getColumnForField);
 
   return {
-    tableName: entity.name,
-    columnDefinitions: columnDefinitions,
+    name: entity.name,
+    columns: columns,
   };
 };
 
-const getColumnDefinitionForField = (field: FieldDefinitionNode) => {
+const getColumnForField = (field: FieldDefinitionNode) => {
   let notNull = false;
   let type = field.type;
 
@@ -62,10 +73,11 @@ const getColumnDefinitionForField = (field: FieldDefinitionNode) => {
   }
 
   return {
-    columnName: field.name.value,
+    name: field.name.value,
     type: type.name.value,
     notNull: notNull,
   };
 };
 
-export { processSchema };
+export { processGqlSchema };
+export type { DbSchema };

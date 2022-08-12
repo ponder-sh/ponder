@@ -1,6 +1,8 @@
 import { build } from "esbuild";
 import { utils } from "ethers";
 
+import { db } from "./db";
+
 const processLogs = async (logs: utils.LogDescription[]) => {
   // TODO: handle cases where this doesn't build properly...?
   await build({
@@ -19,8 +21,11 @@ const processLogs = async (logs: utils.LogDescription[]) => {
       continue;
     }
 
+    const params = { ...log.args };
+    const context = { db: db };
+
     // YAY we're running user code here!
-    handler(log.args);
+    await handler(params, context);
   }
 };
 

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { processSchema } from "./processSchema";
+import type { DbSchema } from "./processGqlSchema";
 
 type KnexColumnType = "string" | "boolean" | "integer";
 
@@ -10,36 +10,36 @@ const gqlToKnexTypeMap: { [gqlType: string]: KnexColumnType | undefined } = {
   String: "string",
 };
 
-const migrateDb = async () => {
-  const dbDefinition = await processSchema();
+const migrateDb = async (dbSchema: DbSchema) => {
+  const { tables } = dbSchema;
 
-  for (const tableDefinition of dbDefinition) {
-    await db.schema.createTable(tableDefinition.tableName, (table) => {
-      // Add a column for each one specified in the tableDefinition.
-      for (const columnDefinition of tableDefinition.columnDefinitions) {
+  for (const table of tables) {
+    await db.schema.createTable(table.name, (knexTable) => {
+      // Add a column for each one specified in the table.
+      for (const column of table.columns) {
         // Handle the ID field manually.
-        if (columnDefinition.type === "ID") {
-          table.increments();
+        if (column.type === "ID") {
+          knexTable.increments();
           continue;
         }
 
-        const knexColumnType = gqlToKnexTypeMap[columnDefinition.type];
+        const knexColumnType = gqlToKnexTypeMap[column.type];
         if (!knexColumnType) {
-          throw new Error(`Unhandled GQL type: ${columnDefinition.type}`);
+          throw new Error(`Unhandled GQL type: ${column.type}`);
         }
 
-        if (columnDefinition.notNull) {
-          table[knexColumnType](columnDefinition.columnName).notNullable();
+        if (column.notNull) {
+          knexTable[knexColumnType](column.name).notNullable();
         } else {
-          table[knexColumnType](columnDefinition.columnName);
+          knexTable[knexColumnType](column.name);
         }
       }
 
-      table.timestamps();
+      knexTable.timestamps();
     });
   }
 
-  return dbDefinition.length;
+  return tables.length;
 };
 
 export { migrateDb };
