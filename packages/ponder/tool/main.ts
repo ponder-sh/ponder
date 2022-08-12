@@ -1,11 +1,12 @@
-import rawConfig from "../ponder.config.js";
-import { codegen } from "./codegen";
-import { parseConfig } from "./configParser";
+import { toolConfig } from "./config";
 import { getInitialLogs } from "./fetchLogs";
 import { processLogs } from "./processLogs";
-import { typegen } from "./typegen";
+import { parseConfig } from "./processUserConfig";
+import { typegen } from "./typechain";
+import { codegen } from "./typegen";
 
 const main = async () => {
+  const { default: rawConfig } = await import(toolConfig.pathToUserConfigFile);
   const config = parseConfig(rawConfig);
 
   const typegenResult = await typegen(config);

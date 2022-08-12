@@ -25,6 +25,8 @@ interface PonderConfig {
 }
 
 const parseConfig = (rawConfig: unknown): PonderConfig => {
+  console.log({ rawConfig });
+
   // TODO: Validate config
   const validatedConfig = rawConfig as RawPonderConfig;
 
