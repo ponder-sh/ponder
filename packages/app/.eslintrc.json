@@ -1,0 +1,11 @@
+{
+  "extends": ["next", "../../.eslintrc.json", "plugin:react-hooks/recommended"],
+  "rules": {
+    "react-hooks/exhaustive-deps": [
+      "warn",
+      {
+        "additionalHooks": "^use(Promise|PromiseFn)$"
+      }
+    ]
+  }
+}

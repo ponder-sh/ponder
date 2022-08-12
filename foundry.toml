@@ -1,0 +1,17 @@
+# Ideally this file would live inside packages/contracts, but VSCode doesn't
+# know how to resolve Solidity imports for the workspace without opening the
+# contracts directory separately.
+#
+# See https://github.com/holic/web3-scaffold/pull/23
+
+[default]
+src = 'packages/contracts/src'
+test = 'packages/contracts/test'
+out = 'packages/contracts/out'
+cache_path = 'packages/contracts/cache'
+libs = ['packages/contracts/lib']
+verbosity = 2
+bytecode_hash = 'none'
+solc_version = '0.8.13'
+extra_output_files = ['abi']
+script = 'packages/contracts/script'
