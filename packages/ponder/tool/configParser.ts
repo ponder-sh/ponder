@@ -4,21 +4,23 @@ import fs from "fs";
 interface RawPonderConfig {
   rpcUrls: { [chainId: number]: string };
   sources: {
+    name: string;
     type: string;
     chainId: number;
-    abi: string;
     address: string;
+    abi: string;
   }[];
 }
 
 interface PonderConfig {
   providers: { [chainId: number]: providers.JsonRpcProvider };
   sources: {
+    name: string;
     type: string;
     chainId: number;
     address: string;
-    abi: utils.Interface;
     abiPath: string;
+    abi: utils.Interface;
   }[];
 }
 

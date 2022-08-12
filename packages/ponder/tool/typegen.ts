@@ -12,7 +12,7 @@ const typegen = async (config: PonderConfig) => {
     cwd,
     filesToProcess: abiFilePaths,
     allFiles: abiFilePaths,
-    outDir: "generated/types",
+    outDir: "generated/typechain",
     target: "ethers-v5",
   });
 

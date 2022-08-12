@@ -1,6 +1,7 @@
 import rawConfig from "../ponder.config.js";
+import { codegen } from "./codegen";
 import { parseConfig } from "./configParser";
-import { getInitialLogs } from "./eventScraper";
+import { getInitialLogs } from "./fetchLogs";
 import { typegen } from "./typegen";
 
 const main = async () => {
@@ -11,6 +12,8 @@ const main = async () => {
 
   const initialLogsResult = await getInitialLogs(config);
   console.log(`Successfully fetched ${initialLogsResult.length} logs`);
+
+  await codegen(config);
 };
 
 main().catch(console.error);

@@ -8,7 +8,7 @@
   "scripts": {
     "build": "esbuild `find tool \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
     "dev": "pnpm run build && node dist/server.js",
-    "main": "pnpm run build && node dist/main.js",
+    "main": "pnpm run build --log-level=silent && node dist/main.js",
     "prettier": "prettier --write src",
     "lint": "eslint src"
   },

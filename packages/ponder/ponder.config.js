@@ -4,6 +4,7 @@ module.exports = {
   },
   sources: [
     {
+      name: "EthPlaysV0",
       type: "evm",
       chainId: 31337,
       abi: "../contracts/out/EthPlaysV0.sol/EthPlaysV0.json",
