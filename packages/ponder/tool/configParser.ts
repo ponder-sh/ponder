@@ -18,10 +18,11 @@ interface PonderConfig {
     chainId: number;
     address: string;
     abi: utils.Interface;
+    abiPath: string;
   }[];
 }
 
-const parseConfig = (rawConfig: any): PonderConfig => {
+const parseConfig = (rawConfig: unknown): PonderConfig => {
   // TODO: Validate config
   const validatedConfig = rawConfig as RawPonderConfig;
 
@@ -36,12 +37,14 @@ const parseConfig = (rawConfig: any): PonderConfig => {
   }, {});
 
   const hydratedSources = validatedConfig.sources.map((source) => {
-    const abiString = fs.readFileSync(source.abi).toString();
-    // TODO: Validate / throw an error if this fails
-
+    // TODO: Validate / throw an error if this ABI parsing nonsense fails
+    const abiObject = JSON.parse(fs.readFileSync(source.abi).toString());
+    const abiString = abiObject.abi
+      ? JSON.stringify(abiObject.abi)
+      : JSON.stringify(abiObject);
     const abi = new utils.Interface(abiString);
 
-    return { ...source, abi: abi };
+    return { ...source, abiPath: source.abi, abi: abi };
   });
 
   const config = {

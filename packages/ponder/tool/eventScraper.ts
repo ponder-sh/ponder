@@ -1,36 +1,36 @@
-import { Contract, providers } from "ethers";
+import type { Log } from "@ethersproject/providers";
+import { BigNumber, Contract, utils } from "ethers";
 
-import rawConfig from "../ponder.config.js";
 import type { PonderConfig } from "./configParser";
-import { parseConfig } from "./configParser";
 
-const bootstrapEventData = async (config: PonderConfig) => {
-  // Figure out on which block the source contract was deployed:
-  config.sources.forEach(async (source) => {
+const getInitialLogs = async (config: PonderConfig) => {
+  const logs: utils.LogDescription[] = [];
+
+  for (const source of config.sources) {
     const provider = config.providers[source.chainId];
     const contract = new Contract(source.address, source.abi, provider);
 
-    const toBlock = await contract.provider.getBlockNumber();
-    console.log({ toBlock });
-
-    const limit = 1;
+    // TODO: Figure out which block the contract was deployed on
     let fromBlock = 0;
+    const toBlock = await contract.provider.getBlockNumber();
+    const limit = 2000;
 
-    while (fromBlock <= toBlock + limit) {
-      const logs = await provider.getLogs({
-        address: contract.address,
-        fromBlock: fromBlock,
-      });
+    while (fromBlock < toBlock) {
+      const rawLogs: Log[] = await provider.send("eth_getLogs", [
+        {
+          address: [contract.address],
+          fromBlock: BigNumber.from(fromBlock).toHexString(),
+          toBlock: BigNumber.from(toBlock).toHexString(),
+        },
+      ]);
+      const parsedLogs = rawLogs.map((log) => contract.interface.parseLog(log));
+      logs.push(...parsedLogs);
 
-      console.log({
-        fromBlock,
-        logs,
-      });
-
-      fromBlock += limit;
+      fromBlock = Math.min(fromBlock + limit, toBlock);
     }
-  });
+  }
+
+  return logs;
 };
 
-const config = parseConfig(rawConfig);
-bootstrapEventData(config);
+export { getInitialLogs };
