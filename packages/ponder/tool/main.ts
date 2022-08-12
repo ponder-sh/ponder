@@ -1,5 +1,7 @@
 import { toolConfig } from "./config";
+import { db } from "./db";
 import { getInitialLogs } from "./fetchLogs";
+import { migrateDb } from "./migrateDb";
 import { processLogs } from "./processLogs";
 import { processSchema } from "./processSchema";
 import { parseConfig } from "./processUserConfig";
@@ -20,7 +22,11 @@ const main = async () => {
 
   // await processLogs(initialLogsResult);
 
-  await processSchema();
+  // await processSchema();
+
+  await migrateDb();
+
+  db.destroy();
 };
 
 main().catch(console.error);

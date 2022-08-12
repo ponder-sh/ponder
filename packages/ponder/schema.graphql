@@ -19,4 +19,5 @@ type FeedItem @entity(immutable: true) {
 type Player @entity {
   id: ID!
   account: String!
+  score: Int
 }

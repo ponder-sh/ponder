@@ -1,6 +1,10 @@
 import fs from "fs";
-import type { FieldDefinitionNode, GraphQLNamedType } from "graphql";
-import { buildSchema } from "graphql";
+import {
+  buildSchema,
+  FieldDefinitionNode,
+  GraphQLNamedType,
+  Kind,
+} from "graphql";
 
 import { toolConfig } from "./config";
 
@@ -24,25 +28,44 @@ const processSchema = async () => {
     return !!entityDirective;
   });
 
-  for (const entity of entities) {
-    processEntityType(entity);
-  }
+  const dbDefinition = entities.map(getTableDefinitionForEntity);
+
+  return dbDefinition;
 };
 
-const processEntityType = (entity: GraphQLNamedType) => {
+const getTableDefinitionForEntity = (entity: GraphQLNamedType) => {
   if (entity.astNode?.kind !== "ObjectTypeDefinition") {
     throw new Error("@entity directive must only be applied to object types.");
   }
 
   const fields = entity.astNode.fields || [];
+  const columnDefinitions = fields.map(getColumnDefinitionForField);
 
-  for (const field of fields) {
-    processField(field);
-  }
+  return {
+    tableName: entity.name,
+    columnDefinitions: columnDefinitions,
+  };
 };
 
-const processField = (field: FieldDefinitionNode) => {
-  console.log({ field });
+const getColumnDefinitionForField = (field: FieldDefinitionNode) => {
+  let notNull = false;
+  let type = field.type;
+
+  // If a field is non-nullable, it's TypeNode will be wrapped with another NON_NULL_TYPE TypeNode.
+  if (type.kind === Kind.NON_NULL_TYPE) {
+    notNull = true;
+    type = type.type;
+  }
+
+  if (type.kind === Kind.LIST_TYPE) {
+    throw new Error(`Unhandled TypeNode: ${Kind.LIST_TYPE}`);
+  }
+
+  return {
+    columnName: field.name.value,
+    type: type.name.value,
+    notNull: notNull,
+  };
 };
 
 export { processSchema };
