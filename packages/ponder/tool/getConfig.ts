@@ -3,11 +3,15 @@ import fs from "node:fs";
 
 import { toolConfig } from "./config";
 
+enum SourceKind {
+  EVM = "evm",
+}
+
 interface RawPonderConfig {
   rpcUrls: { [chainId: number]: string };
   sources: {
     name: string;
-    type: string;
+    kind: SourceKind;
     chainId: number;
     address: string;
     abi: string;
@@ -18,7 +22,7 @@ interface PonderConfig {
   providers: { [chainId: number]: providers.JsonRpcProvider };
   sources: {
     name: string;
-    type: string;
+    kind: SourceKind;
     chainId: number;
     address: string;
     abiPath: string;
@@ -62,5 +66,5 @@ const getConfig = async () => {
   return config;
 };
 
-export { getConfig };
+export { getConfig, SourceKind };
 export type { PonderConfig };

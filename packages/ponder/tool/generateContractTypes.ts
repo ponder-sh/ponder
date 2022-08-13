@@ -2,7 +2,7 @@ import { runTypeChain } from "typechain";
 
 import type { PonderConfig } from "./getConfig";
 
-const typegen = async (config: PonderConfig) => {
+const generateContractTypes = async (config: PonderConfig) => {
   const cwd = process.cwd();
 
   const abiFilePaths = config.sources.map((source) => source.abiPath);
@@ -19,4 +19,4 @@ const typegen = async (config: PonderConfig) => {
   return result;
 };
 
-export { typegen };
+export { generateContractTypes };

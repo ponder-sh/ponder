@@ -1,5 +1,5 @@
-import fs from "fs/promises";
 import { buildSchema, GraphQLSchema } from "graphql";
+import fs from "node:fs/promises";
 
 import { toolConfig } from "./config";
 

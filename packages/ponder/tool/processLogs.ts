@@ -1,9 +1,12 @@
 import { build } from "esbuild";
-import { utils } from "ethers";
+import type { utils } from "ethers";
 
-import { db } from "./db";
+import type { AbstractHandlerContext } from "./buildHandlerContext";
 
-const processLogs = async (logs: utils.LogDescription[]) => {
+const processLogs = async (
+  logs: utils.LogDescription[],
+  handlerContext: AbstractHandlerContext
+) => {
   // TODO: handle cases where this doesn't build properly...?
   await build({
     entryPoints: ["./handlers/index"],
@@ -22,10 +25,9 @@ const processLogs = async (logs: utils.LogDescription[]) => {
     }
 
     const params = { ...log.args };
-    const context = { db: db };
 
     // YAY we're running user code here!
-    await handler(params, context);
+    await handler(params, handlerContext);
   }
 };
 

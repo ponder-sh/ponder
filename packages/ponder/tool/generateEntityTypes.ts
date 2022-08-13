@@ -27,7 +27,11 @@ const generateEntityTypes = async (gqlSchema: GraphQLSchema) => {
 
   const final = body;
 
-  fs.writeFileSync(`${toolConfig.pathToGeneratedDir}/schema.ts`, final, "utf8");
+  fs.writeFileSync(
+    `${toolConfig.pathToGeneratedDir}/schema.d.ts`,
+    final,
+    "utf8"
+  );
   generatedFileCount += 1;
 
   return generatedFileCount;
