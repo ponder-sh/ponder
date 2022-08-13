@@ -1,12 +1,9 @@
-import fs from "fs";
 import {
-  buildSchema,
   FieldDefinitionNode,
   GraphQLNamedType,
+  GraphQLSchema,
   Kind,
 } from "graphql";
-
-import { toolConfig } from "./config";
 
 type DbSchema = {
   tables: {
@@ -19,20 +16,9 @@ type DbSchema = {
   }[];
 };
 
-const schemaHeader = `
-"Directs the executor to process this type as a Ponder entity."
-directive @entity(
-  immutable: Boolean = false
-) on OBJECT
-`;
-
-const processGqlSchema = async (): Promise<DbSchema> => {
-  const schemaBody = fs.readFileSync(toolConfig.pathToSchemaFile).toString();
-  const schemaSource = schemaHeader + schemaBody;
-  const schema = buildSchema(schemaSource);
-
+const createDbSchema = async (userSchema: GraphQLSchema): Promise<DbSchema> => {
   // Find all types in the schema that are marked with the @entity directive.
-  const entities = Object.values(schema.getTypeMap()).filter((type) => {
+  const entities = Object.values(userSchema.getTypeMap()).filter((type) => {
     const entityDirective = type.astNode?.directives?.find(
       (directive) => directive.name.value === "entity"
     );
@@ -79,5 +65,5 @@ const getColumnForField = (field: FieldDefinitionNode) => {
   };
 };
 
-export { processGqlSchema };
+export { createDbSchema };
 export type { DbSchema };

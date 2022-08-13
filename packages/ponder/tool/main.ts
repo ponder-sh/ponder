@@ -1,16 +1,22 @@
-import { db } from "./db";
+import { createDbSchema } from "./createDbSchema";
+import { createGqlSchema } from "./createGqlSchema";
 import { getInitialLogs } from "./fetchLogs";
 import { generateContext } from "./generateContext";
 import { generateHandlers } from "./generateHandlers";
 import { getConfig } from "./getConfig";
 import { migrateDb } from "./migrateDb";
-import { processGqlSchema } from "./processGqlSchema";
+import { parseUserSchema } from "./parseUserSchema";
 import { processLogs } from "./processLogs";
+import { startServer } from "./server";
 
 const main = async () => {
   const config = await getConfig();
 
-  const dbSchema = await processGqlSchema();
+  const userSchema = await parseUserSchema();
+
+  const gqlSchema = await createGqlSchema(userSchema);
+
+  const dbSchema = await createDbSchema(userSchema);
 
   const tableCount = await migrateDb(dbSchema);
   console.log(`Successfully created ${tableCount} tables`);
@@ -26,7 +32,7 @@ const main = async () => {
 
   await processLogs(initialLogsResult);
 
-  db.destroy();
+  startServer(gqlSchema);
 };
 
 main().catch(console.error);

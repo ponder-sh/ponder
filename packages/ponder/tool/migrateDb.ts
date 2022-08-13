@@ -1,5 +1,5 @@
+import type { DbSchema } from "./createDbSchema";
 import { db } from "./db";
-import type { DbSchema } from "./processGqlSchema";
 
 type KnexColumnType = "string" | "boolean" | "integer";
 
