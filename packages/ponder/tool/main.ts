@@ -2,6 +2,7 @@ import { createDbSchema } from "./createDbSchema";
 import { createGqlSchema } from "./createGqlSchema";
 import { getInitialLogs } from "./fetchLogs";
 import { generateContext } from "./generateContext";
+import { generateEntityTypes } from "./generateEntityTypes";
 import { generateHandlers } from "./generateHandlers";
 import { generateSchema } from "./generateSchema";
 import { getConfig } from "./getConfig";
@@ -23,7 +24,10 @@ const main = async () => {
   console.log(`Created ${tableCount} tables`);
 
   await generateSchema(gqlSchema);
-  console.log(`Generated schema file`);
+  console.log(`Generated schema.graphql`);
+  await generateEntityTypes(gqlSchema);
+  console.log(`Generated schema.ts`);
+
   const codeFileCount = await generateContext(dbSchema);
   console.log(`Generated ${codeFileCount} entity files`);
   const typeFileCount = await generateHandlers(config);

@@ -1,4 +1,4 @@
-import fs from "fs";
+import fs from "node:fs";
 
 import { toolConfig } from "./config";
 import type { DbSchema } from "./createDbSchema";

@@ -1,5 +1,5 @@
 import { providers, utils } from "ethers";
-import fs from "fs";
+import fs from "node:fs";
 
 import { toolConfig } from "./config";
 

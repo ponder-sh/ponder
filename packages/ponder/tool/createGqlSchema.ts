@@ -19,8 +19,8 @@ import { Knex } from "knex";
 
 import { getEntities } from "./helpers";
 
-type Source = { request: any };
-type Context = { db: Knex<any, unknown[]> };
+type Source = { request: unknown };
+type Context = { db: Knex<Record<string, unknown>, unknown[]> };
 
 type SingularArgs = {
   id: string;

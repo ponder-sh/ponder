@@ -1,6 +1,6 @@
-import fs from "fs";
 import type { GraphQLSchema } from "graphql";
 import { printSchema } from "graphql";
+import fs from "node:fs";
 
 import { toolConfig } from "./config";
 

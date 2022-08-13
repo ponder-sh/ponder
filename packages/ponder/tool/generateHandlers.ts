@@ -1,6 +1,6 @@
 import { EventFragment, ParamType } from "@ethersproject/abi";
 import { Contract } from "ethers";
-import fs from "fs";
+import fs from "node:fs";
 
 import { toolConfig } from "./config";
 import type { PonderConfig } from "./getConfig";
