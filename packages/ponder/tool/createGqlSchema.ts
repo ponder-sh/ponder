@@ -1,5 +1,6 @@
-import {
+import graphql, {
   GraphQLBoolean,
+  GraphQLFieldConfig,
   GraphQLFieldResolver,
   GraphQLFloat,
   GraphQLID,
@@ -7,7 +8,6 @@ import {
   GraphQLInputType,
   GraphQLInt,
   GraphQLList,
-  GraphQLNamedType,
   GraphQLObjectType,
   GraphQLScalarType,
   GraphQLSchema,
@@ -40,14 +40,20 @@ const createGqlSchema = async (
   userSchema: GraphQLSchema
 ): Promise<GraphQLSchema> => {
   // Find all types in the schema that are marked with the @entity directive.
-  const entities = Object.values(userSchema.getTypeMap()).filter((type) => {
-    const entityDirective = type.astNode?.directives?.find(
-      (directive) => directive.name.value === "entity"
-    );
-    return !!entityDirective;
-  });
+  const entities = Object.values(userSchema.getTypeMap())
+    .filter((type): type is GraphQLObjectType => {
+      return type.astNode?.kind !== Kind.OBJECT_TYPE_DEFINITION;
+    })
+    .filter((type) => {
+      const entityDirective = type.astNode?.directives?.find(
+        (directive) => directive.name.value === "entity"
+      );
 
-  const fields: { [fieldName: string]: any } = {};
+      return !!entityDirective;
+    });
+
+  const fields: { [fieldName: string]: GraphQLFieldConfig<Source, Context> } =
+    {};
 
   for (const entity of entities) {
     const singularFieldName =
@@ -68,7 +74,9 @@ const createGqlSchema = async (
   return schema;
 };
 
-const createSingularField = (entity: GraphQLNamedType) => {
+const createSingularField = (
+  entity: GraphQLObjectType
+): GraphQLFieldConfig<Source, Context> => {
   if (entity.astNode?.kind !== Kind.OBJECT_TYPE_DEFINITION) {
     throw new Error(`Invalid node type for entity: ${entity.astNode?.kind}`);
   }
@@ -155,7 +163,9 @@ const stringWhereClauseSuffixes = Object.keys(
   stringWhereClauseSuffixToResolverData
 );
 
-const createPluralField = (entity: GraphQLNamedType) => {
+const createPluralField = (
+  entity: GraphQLObjectType
+): GraphQLFieldConfig<Source, Context> => {
   if (!entity.astNode || entity.astNode.kind !== Kind.OBJECT_TYPE_DEFINITION) {
     throw new Error(`Invalid node type for entity: ${entity.astNode?.kind}`);
   }
