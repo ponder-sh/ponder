@@ -17,6 +17,8 @@ import {
 } from "graphql";
 import { Knex } from "knex";
 
+import { getEntities } from "./helpers";
+
 type Source = { request: any };
 type Context = { db: Knex<any, unknown[]> };
 
@@ -40,18 +42,7 @@ type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 const createGqlSchema = async (
   userSchema: GraphQLSchema
 ): Promise<GraphQLSchema> => {
-  // Find all types in the schema that are marked with the @entity directive.
-  const entities = Object.values(userSchema.getTypeMap())
-    .filter((type): type is GraphQLObjectType => {
-      return type.astNode?.kind === Kind.OBJECT_TYPE_DEFINITION;
-    })
-    .filter((type) => {
-      const entityDirective = type.astNode?.directives?.find(
-        (directive) => directive.name.value === "entity"
-      );
-
-      return !!entityDirective;
-    });
+  const entities = getEntities(userSchema);
 
   const fields: { [fieldName: string]: GraphQLFieldConfig<Source, Context> } =
     {};

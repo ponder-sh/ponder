@@ -1,41 +1,37 @@
 import {
   FieldDefinitionNode,
-  GraphQLNamedType,
+  GraphQLObjectType,
   GraphQLSchema,
   Kind,
 } from "graphql";
 
+import { getEntities } from "./helpers";
+
 type DbSchema = {
-  tables: {
-    name: string;
-    columns: {
-      name: string;
-      type: string;
-      notNull: boolean;
-    }[];
-  }[];
+  tables: DbTable[];
+};
+
+type DbTable = {
+  name: string;
+  columns: DbColumn[];
+};
+
+type DbColumn = {
+  name: string;
+  type: string;
+  notNull: boolean;
 };
 
 const createDbSchema = async (userSchema: GraphQLSchema): Promise<DbSchema> => {
-  // Find all types in the schema that are marked with the @entity directive.
-  const entities = Object.values(userSchema.getTypeMap()).filter((type) => {
-    const entityDirective = type.astNode?.directives?.find(
-      (directive) => directive.name.value === "entity"
-    );
-    return !!entityDirective;
-  });
+  const entities = getEntities(userSchema);
 
   const tables = entities.map(getTableForEntity);
 
   return { tables: tables };
 };
 
-const getTableForEntity = (entity: GraphQLNamedType) => {
-  if (entity.astNode?.kind !== "ObjectTypeDefinition") {
-    throw new Error("@entity directive must only be applied to object types.");
-  }
-
-  const fields = entity.astNode.fields || [];
+const getTableForEntity = (entity: GraphQLObjectType) => {
+  const fields = entity.astNode?.fields || [];
   const columns = fields.map(getColumnForField);
 
   return {

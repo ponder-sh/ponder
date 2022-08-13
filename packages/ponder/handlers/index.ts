@@ -18,11 +18,11 @@ const handleAlignmentVote: AlignmentVoteHandler = async (params, context) => {
   });
 };
 
-const handleButtonInput: ButtonInputHandler = (params) => {
+const handleButtonInput: ButtonInputHandler = async (params) => {
   const { from, buttonIndex, inputIndex } = params;
 };
 
-const handleSetConfig: SetConfigHandler = (params) => {
+const handleSetConfig: SetConfigHandler = async (params) => {
   const { config } = params;
 };
 
