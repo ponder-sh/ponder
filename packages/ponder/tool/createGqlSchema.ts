@@ -1,4 +1,4 @@
-import graphql, {
+import {
   GraphQLBoolean,
   GraphQLFieldConfig,
   GraphQLFieldResolver,
@@ -8,6 +8,7 @@ import graphql, {
   GraphQLInputType,
   GraphQLInt,
   GraphQLList,
+  GraphQLNonNull,
   GraphQLObjectType,
   GraphQLScalarType,
   GraphQLSchema,
@@ -20,7 +21,7 @@ type Source = { request: any };
 type Context = { db: Knex<any, unknown[]> };
 
 type SingularArgs = {
-  id?: string;
+  id: string;
 };
 type SingularResolver = GraphQLFieldResolver<Source, Context, SingularArgs>;
 
@@ -42,7 +43,7 @@ const createGqlSchema = async (
   // Find all types in the schema that are marked with the @entity directive.
   const entities = Object.values(userSchema.getTypeMap())
     .filter((type): type is GraphQLObjectType => {
-      return type.astNode?.kind !== Kind.OBJECT_TYPE_DEFINITION;
+      return type.astNode?.kind === Kind.OBJECT_TYPE_DEFINITION;
     })
     .filter((type) => {
       const entityDirective = type.astNode?.directives?.find(
@@ -77,27 +78,20 @@ const createGqlSchema = async (
 const createSingularField = (
   entity: GraphQLObjectType
 ): GraphQLFieldConfig<Source, Context> => {
-  if (entity.astNode?.kind !== Kind.OBJECT_TYPE_DEFINITION) {
-    throw new Error(`Invalid node type for entity: ${entity.astNode?.kind}`);
-  }
-
   const resolver: SingularResolver = async (_, args, context) => {
     const { db } = context;
     const { id } = args;
-    if (!id) {
-      return null;
-    }
 
-    const records = await db(entity.name).where({ id: id });
+    const query = db(entity.name).where({ id: id });
+    const records = await query;
+
     return records[0] || null;
   };
 
   return {
-    // NOTE: This is weird, I think this entity only happens to conform to the type interface expected.
-    // These GraphQL types are fucking wild.
     type: entity,
     args: {
-      id: { type: GraphQLID },
+      id: { type: new GraphQLNonNull(GraphQLID) },
     },
     resolve: resolver,
   };
@@ -166,11 +160,7 @@ const stringWhereClauseSuffixes = Object.keys(
 const createPluralField = (
   entity: GraphQLObjectType
 ): GraphQLFieldConfig<Source, Context> => {
-  if (!entity.astNode || entity.astNode.kind !== Kind.OBJECT_TYPE_DEFINITION) {
-    throw new Error(`Invalid node type for entity: ${entity.astNode?.kind}`);
-  }
-
-  const entityFields = (entity.astNode.fields || []).map((field) => {
+  const entityFields = (entity.astNode?.fields || []).map((field) => {
     let type = field.type;
 
     // If a field is non-nullable, it's TypeNode will be wrapped with another NON_NULL_TYPE TypeNode.
@@ -235,8 +225,6 @@ const createPluralField = (
     }
   });
 
-  console.log({ whereFields });
-
   const whereInputType = new GraphQLInputObjectType({
     name: `${entity.name}WhereInput`,
     fields: whereFields,
@@ -271,7 +259,7 @@ const createPluralField = (
   };
 
   return {
-    type: new GraphQLList(entity),
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(entity))),
     args: {
       where: { type: whereInputType },
       first: { type: GraphQLInt },

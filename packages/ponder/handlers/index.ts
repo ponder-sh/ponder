@@ -9,15 +9,13 @@ const handleAlignmentVote: AlignmentVoteHandler = async (params, context) => {
   const { db } = context;
   const { from, vote, alignment } = params;
 
-  const insertResult = await db("FeedItem").insert({
+  await db("FeedItem").insert({
     timestamp: 123,
     feedIndex: 456,
     type: "AlignmentVote",
     from: from,
     vote: vote,
   });
-
-  console.log({ insertResult });
 };
 
 const handleButtonInput: ButtonInputHandler = (params) => {

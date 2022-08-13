@@ -3,6 +3,7 @@ import { createGqlSchema } from "./createGqlSchema";
 import { getInitialLogs } from "./fetchLogs";
 import { generateContext } from "./generateContext";
 import { generateHandlers } from "./generateHandlers";
+import { generateSchema } from "./generateSchema";
 import { getConfig } from "./getConfig";
 import { migrateDb } from "./migrateDb";
 import { parseUserSchema } from "./parseUserSchema";
@@ -19,16 +20,17 @@ const main = async () => {
   const dbSchema = await createDbSchema(userSchema);
 
   const tableCount = await migrateDb(dbSchema);
-  console.log(`Successfully created ${tableCount} tables`);
+  console.log(`Created ${tableCount} tables`);
 
+  await generateSchema(gqlSchema);
+  console.log(`Generated schema file`);
   const codeFileCount = await generateContext(dbSchema);
-  console.log(`Successfully generated ${codeFileCount} entity files`);
-
+  console.log(`Generated ${codeFileCount} entity files`);
   const typeFileCount = await generateHandlers(config);
-  console.log(`Successfully generated ${typeFileCount} type files`);
+  console.log(`Generated ${typeFileCount} type files`);
 
   const initialLogsResult = await getInitialLogs(config);
-  console.log(`Successfully fetched ${initialLogsResult.length} logs`);
+  console.log(`Fetched ${initialLogsResult.length} logs`);
 
   await processLogs(initialLogsResult);
 
