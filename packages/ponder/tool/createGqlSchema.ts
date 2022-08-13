@@ -1,7 +1,10 @@
 import {
+  GraphQLBoolean,
   GraphQLFieldResolver,
+  GraphQLFloat,
   GraphQLID,
   GraphQLInputObjectType,
+  GraphQLInputType,
   GraphQLInt,
   GraphQLList,
   GraphQLNamedType,
@@ -92,34 +95,65 @@ const createSingularField = (entity: GraphQLNamedType) => {
   };
 };
 
-// const gqlPrimitiveTo
-// 1) Get the GQL primiitve type
-// 2) add any wrapper types to map below
-// 3) compose that shit in the
-
-const whereClauseSuffixtoSqlOperatorMap = {
-  // _: null,
-  _not: "not",
-  _gt: ">",
-  _lt: "<",
-  _gte: ">=",
-  _lte: "<=",
-  _in: "in",
-  _not_in: "not in",
-  // _contains: null,
-  // _contains_nocase: null,
-  // _not_contains: null,
-  // _not_contains_nocase: null,
-  // _starts_with: null,
-  // _starts_with_nocase: null,
-  // _ends_with: null,
-  // _ends_with_nocase: null,
-  // _not_starts_with: null,
-  // _not_starts_with_nocase: null,
-  // _not_ends_with: null,
-  // _not_ends_with_nocase: null,
+const gqlScalarStringToType: { [key: string]: GraphQLScalarType } = {
+  ID: GraphQLID,
+  Int: GraphQLInt,
+  Float: GraphQLFloat,
+  String: GraphQLString,
+  Boolean: GraphQLBoolean,
 };
-const whereClauseSuffixes = Object.keys(whereClauseSuffixtoSqlOperatorMap);
+
+type WhereFieldResolverData = {
+  operator: string;
+  isList?: boolean;
+  patternPrefix?: string;
+  patternSuffix?: string;
+};
+
+const whereClauseSuffixToResolverData: {
+  [key: string]: WhereFieldResolverData;
+} = {
+  _not: { operator: "!=" },
+  _gt: { operator: ">" },
+  _lt: { operator: "<" },
+  _gte: { operator: ">=" },
+  _lte: { operator: "<=" },
+  _in: { operator: "in", isList: true },
+  _not_in: { operator: "not in", isList: true },
+};
+const whereClauseSuffixes = Object.keys(whereClauseSuffixToResolverData);
+
+const stringWhereClauseSuffixToResolverData: {
+  [key: string]: WhereFieldResolverData;
+} = {
+  _contains: { operator: "like", patternPrefix: "%", patternSuffix: "%" },
+  _contains_nocase: {
+    operator: "like",
+    patternPrefix: "%",
+    patternSuffix: "%",
+  },
+  _not_contains: {
+    operator: "not like",
+    patternPrefix: "%",
+    patternSuffix: "%",
+  },
+  _not_contains_nocase: {
+    operator: "not like",
+    patternPrefix: "%",
+    patternSuffix: "%",
+  },
+  _starts_with: { operator: "like", patternSuffix: "%" },
+  _starts_with_nocase: { operator: "like", patternSuffix: "%" },
+  _ends_with: { operator: "like", patternPrefix: "%" },
+  _ends_with_nocase: { operator: "like", patternPrefix: "%" },
+  _not_starts_with: { operator: "not like", patternSuffix: "%" },
+  _not_starts_with_nocase: { operator: "not like", patternSuffix: "%" },
+  _not_ends_with: { operator: "not like", patternSuffix: "%" },
+  _not_ends_with_nocase: { operator: "not like", patternSuffix: "%" },
+};
+const stringWhereClauseSuffixes = Object.keys(
+  stringWhereClauseSuffixToResolverData
+);
 
 const createPluralField = (entity: GraphQLNamedType) => {
   if (!entity.astNode || entity.astNode.kind !== Kind.OBJECT_TYPE_DEFINITION) {
@@ -127,8 +161,6 @@ const createPluralField = (entity: GraphQLNamedType) => {
   }
 
   const entityFields = (entity.astNode.fields || []).map((field) => {
-    console.log({ name: field.name, type: field.type });
-
     let type = field.type;
 
     // If a field is non-nullable, it's TypeNode will be wrapped with another NON_NULL_TYPE TypeNode.
@@ -136,21 +168,64 @@ const createPluralField = (entity: GraphQLNamedType) => {
       type = type.type;
     }
 
-    console.log({ baseType: type });
+    if (type.kind === Kind.LIST_TYPE) {
+      throw new Error(`Unhandled TypeNode: ${Kind.LIST_TYPE}`);
+    }
 
     return {
       name: field.name.value,
-      // type:
+      type: type.name.value,
     };
   });
 
-  const whereFields: { [key: string]: { type: GraphQLScalarType } } = {};
+  const whereFields: {
+    [key: string]: { type: GraphQLInputType };
+  } = {};
 
+  // This is a helper map constructed during setup that is used by the resolver.
+  const whereFieldNameToResolverData: {
+    [key: string]: {
+      fieldName: string;
+      resolverData: WhereFieldResolverData;
+    };
+  } = {};
+
+  // For each field on the entity, create a bunch of where clause fields.
   entityFields.forEach((entityField) => {
+    // Add the universal where clause suffix fields.
     whereClauseSuffixes.forEach((suffix) => {
-      whereFields[`${entityField.name}${suffix}`] = { type: GraphQLInt }; // compose shit here
+      const whereFieldName = `${entityField.name}${suffix}`;
+      const whereFieldType = gqlScalarStringToType[entityField.type];
+
+      const resolverData = whereClauseSuffixToResolverData[suffix];
+
+      let finalType: GraphQLInputType = whereFieldType;
+      if (resolverData.isList) {
+        finalType = new GraphQLList(whereFieldType);
+      }
+
+      whereFields[whereFieldName] = { type: finalType };
+      whereFieldNameToResolverData[whereFieldName] = {
+        fieldName: entityField.name,
+        resolverData: whereClauseSuffixToResolverData[suffix],
+      };
     });
+
+    // Add the String-only where clause suffix fields.
+    if (entityField.type === "String") {
+      stringWhereClauseSuffixes.forEach((suffix) => {
+        const whereFieldName = `${entityField.name}${suffix}`;
+
+        whereFields[whereFieldName] = { type: GraphQLString };
+        whereFieldNameToResolverData[whereFieldName] = {
+          fieldName: entityField.name,
+          resolverData: stringWhereClauseSuffixToResolverData[suffix],
+        };
+      });
+    }
   });
+
+  console.log({ whereFields });
 
   const whereInputType = new GraphQLInputObjectType({
     name: `${entity.name}WhereInput`,
@@ -163,10 +238,17 @@ const createPluralField = (entity: GraphQLNamedType) => {
 
     const query = db(entity.name);
 
-    // TODO: support a range of queries for all params
     if (where) {
-      if (where.id_gt) {
-        query.where("id", ">", where.id_gt);
+      for (const [field, value] of Object.entries(where)) {
+        const { fieldName, resolverData } = whereFieldNameToResolverData[field];
+        const { operator, patternPrefix, patternSuffix } = resolverData;
+
+        let finalValue = value;
+
+        if (patternPrefix) finalValue = patternPrefix + finalValue;
+        if (patternSuffix) finalValue = finalValue + patternSuffix;
+
+        query.where(fieldName, operator, finalValue);
       }
     }
     if (skip) query.offset(skip);
@@ -179,8 +261,6 @@ const createPluralField = (entity: GraphQLNamedType) => {
   };
 
   return {
-    // NOTE: This is weird, I think this entity only happens to conform to the type interface expected.
-    // These GraphQL types are fucking wild.
     type: new GraphQLList(entity),
     args: {
       where: { type: whereInputType },
