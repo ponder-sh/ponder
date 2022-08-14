@@ -142,7 +142,7 @@ const handleReindex = async () => {
     !state.userHandlers ||
     !state.handlerContext
   ) {
-    console.log(`Attempted to reindex before dev state hydration, cancelling`);
+    // console.log(`Attempted to reindex before dev state hydration, cancelling...`);
     return;
   }
 

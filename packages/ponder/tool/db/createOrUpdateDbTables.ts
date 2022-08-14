@@ -15,14 +15,14 @@ let isInitialized = false;
 const createOrUpdateDbTables = async (dbSchema: DbSchema) => {
   if (isInitialized) {
     // Drop all tables if not running for the first time.
-    await dropTables();
     console.log(`Detected database changes, dropping tables...`);
+    await dropTables();
   } else {
     isInitialized = true;
   }
 
-  await createTables(dbSchema);
   console.log(`Detected database changes, creating tables...`);
+  await createTables(dbSchema);
 };
 
 const dropTables = async () => {
