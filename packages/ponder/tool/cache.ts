@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { readFile, writeFile } from "node:fs/promises";
-import path from "path";
+import path from "node:path";
 
 import { toolConfig } from "./config";
 
@@ -26,7 +26,7 @@ type PonderCache = {
 // eslint-disable-next-line prefer-const
 let cache: PonderCache = {};
 
-const handleHydrateCache = async () => {
+const hydrateCache = async () => {
   try {
     const rawCache = await readFile(
       path.join(pathToPonderDir, "cache.json"),
@@ -91,7 +91,7 @@ const testUserSchemaChanged = async () => {
 
 export {
   cache,
-  handleHydrateCache,
+  hydrateCache,
   testUserConfigChanged,
   testUserHandlersChanged,
   testUserSchemaChanged,

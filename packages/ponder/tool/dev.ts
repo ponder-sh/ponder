@@ -8,7 +8,7 @@ import { buildDbSchema } from "./buildDbSchema";
 import { buildGqlSchema } from "./buildGqlSchema";
 import { buildHandlerContext, HandlerContext } from "./buildHandlerContext";
 import {
-  handleHydrateCache,
+  hydrateCache,
   testUserConfigChanged,
   testUserHandlersChanged,
   testUserSchemaChanged,
@@ -16,6 +16,7 @@ import {
 import { toolConfig } from "./config";
 import { fetchAndProcessLogs } from "./logs/processLogs";
 import { migrateDb } from "./migrateDb";
+import { ensureDirectoriesExist } from "./preflight";
 import type { PonderConfig } from "./readUserConfig";
 import { readUserConfig } from "./readUserConfig";
 import { readUserHandlers, UserHandlers } from "./readUserHandlers";
@@ -28,27 +29,6 @@ import {
   generateSchema,
 } from "./typegen";
 import { generateContextType } from "./typegen/generateContextType";
-
-// dependency graph:
-
-// 	handlers
-// 		processLogs (1 / 2)
-
-// 	config.ponder.js
-// 		generateContractTypes
-// 		generateContextType (1 / 2)
-// 		buildHandlerContext (1 / 2)
-// 			processLogs
-
-// 	schema.graphql
-// 		buildGqlSchema
-// 			generateSchema
-// 			generateEntityTypes
-// 			startServer
-// 		buildDbSchema
-// 			migrateDb
-// 			generateContextType (2 / 2)
-// 			buildHandlerContext (2 / 2)
 
 const { pathToUserHandlersFile, pathToUserConfigFile, pathToUserSchemaFile } =
   toolConfig;
@@ -136,7 +116,7 @@ const handleDbSchemaChanged = async (newDbSchema: DbSchema) => {
   // const oldDbSchema = state.dbSchema;
   state.dbSchema = newDbSchema;
 
-  await migrateDb(newDbSchema);
+  migrateDb(newDbSchema);
 
   if (state.config) {
     generateContextType(state.config, newDbSchema);
@@ -159,7 +139,7 @@ const handleHandlerContextChanged = async (
 };
 
 const dev = async () => {
-  await handleHydrateCache();
+  await Promise.all([hydrateCache(), ensureDirectoriesExist()]);
 
   // NOTE: Might be possible to be more smart about this,
   // but I'm pretty sure these all need to be kicked off here.
