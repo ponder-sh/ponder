@@ -3,6 +3,9 @@ import { GraphQLSchema } from "graphql";
 import type { WatchListener } from "node:fs";
 import { watch } from "node:fs";
 
+import type { DbSchema } from "./buildDbSchema";
+import { buildDbSchema } from "./buildDbSchema";
+import { buildGqlSchema } from "./buildGqlSchema";
 import { buildHandlerContext, HandlerContext } from "./buildHandlerContext";
 import {
   handleHydrateCache,
@@ -10,9 +13,6 @@ import {
   testUserSchemaChanged,
 } from "./cache";
 import { toolConfig } from "./config";
-import type { DbSchema } from "./createDbSchema";
-import { createDbSchema } from "./createDbSchema";
-import { createGqlSchema } from "./createGqlSchema";
 import { getInitialLogs } from "./fetchLogs";
 import { migrateDb } from "./migrateDb";
 import { processLogs } from "./processLogs";
@@ -37,14 +37,14 @@ import { generateContextType } from "./typegen/generateContextType";
 // 		generateContractTypes
 // 		generateContextType (1 / 2)
 // 		buildHandlerContext (1 / 2)
-// 			processLogs (2 / 2)
+// 			processLogs
 
 // 	schema.graphql
-// 		createGqlSchema
+// 		buildGqlSchema
 // 			generateSchema
 // 			generateEntityTypes
 // 			startServer
-// 		createDbSchema
+// 		buildDbSchema
 // 			migrateDb
 // 			generateContextType (2 / 2)
 // 			buildHandlerContext (2 / 2)
@@ -52,9 +52,8 @@ import { generateContextType } from "./typegen/generateContextType";
 const { pathToUserConfigFile, pathToUserSchemaFile } = toolConfig;
 
 type PonderState = {
-  userConfig?: PonderUserConfig;
-  userSchema?: GraphQLSchema;
   config?: PonderConfig;
+  userSchema?: GraphQLSchema;
   gqlSchema?: GraphQLSchema;
   dbSchema?: DbSchema;
   handlerContext?: HandlerContext;
@@ -92,10 +91,10 @@ const handleUserSchemaChanged = async (newUserSchema: GraphQLSchema) => {
   // const oldUserSchema = state.userSchema;
   state.userSchema = newUserSchema;
 
-  const gqlSchema = createGqlSchema(newUserSchema);
+  const gqlSchema = buildGqlSchema(newUserSchema);
   handleGqlSchemaChanged(gqlSchema);
 
-  const dbSchema = createDbSchema(newUserSchema);
+  const dbSchema = buildDbSchema(newUserSchema);
   handleDbSchemaChanged(dbSchema);
 };
 

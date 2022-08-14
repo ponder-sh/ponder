@@ -1,7 +1,7 @@
 import { Contract } from "ethers";
 import { Knex } from "knex";
 
-import type { DbSchema } from "./createDbSchema";
+import type { DbSchema } from "./buildDbSchema";
 import { db } from "./db";
 import { getProviderForSource } from "./helpers";
 import type { PonderConfig } from "./readUserConfig";

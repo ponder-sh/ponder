@@ -39,7 +39,7 @@ type PluralArgs = {
 };
 type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
-const createGqlSchema = (userSchema: GraphQLSchema): GraphQLSchema => {
+const buildGqlSchema = (userSchema: GraphQLSchema): GraphQLSchema => {
   const entities = getEntities(userSchema);
 
   const fields: { [fieldName: string]: GraphQLFieldConfig<Source, Context> } =
@@ -260,4 +260,4 @@ const createPluralField = (
   };
 };
 
-export { createGqlSchema };
+export { buildGqlSchema };

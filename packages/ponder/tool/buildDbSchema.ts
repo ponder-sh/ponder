@@ -22,7 +22,7 @@ type DbColumn = {
   notNull: boolean;
 };
 
-const createDbSchema = (userSchema: GraphQLSchema): DbSchema => {
+const buildDbSchema = (userSchema: GraphQLSchema): DbSchema => {
   const entities = getEntities(userSchema);
 
   const tables = entities.map(getTableForEntity);
@@ -61,5 +61,5 @@ const getColumnForField = (field: FieldDefinitionNode) => {
   };
 };
 
-export { createDbSchema };
+export { buildDbSchema };
 export type { DbSchema };

@@ -1,6 +1,6 @@
+import { buildDbSchema } from "./buildDbSchema";
+import { buildGqlSchema } from "./buildGqlSchema";
 import { buildHandlerContext } from "./buildHandlerContext";
-import { createDbSchema } from "./createDbSchema";
-import { createGqlSchema } from "./createGqlSchema";
 import { getInitialLogs } from "./fetchLogs";
 import { migrateDb } from "./migrateDb";
 import { processLogs } from "./processLogs";
@@ -20,9 +20,9 @@ const main = async () => {
 
   const userSchema = await readUserSchema();
 
-  const gqlSchema = createGqlSchema(userSchema);
+  const gqlSchema = buildGqlSchema(userSchema);
 
-  const dbSchema = createDbSchema(userSchema);
+  const dbSchema = buildDbSchema(userSchema);
 
   await generateContractTypes(config);
   console.log(`Generated contract types`);
