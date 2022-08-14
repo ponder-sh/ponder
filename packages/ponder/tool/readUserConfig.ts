@@ -30,7 +30,7 @@ interface PonderConfig {
   }[];
 }
 
-const getConfig = async () => {
+const readUserConfig = async () => {
   const { default: rawConfig } = await import(toolConfig.pathToUserConfigFile);
 
   // TODO: Validate config
@@ -66,5 +66,5 @@ const getConfig = async () => {
   return config;
 };
 
-export { getConfig, SourceKind };
+export { readUserConfig, SourceKind };
 export type { PonderConfig };

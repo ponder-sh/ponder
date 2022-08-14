@@ -10,7 +10,7 @@ directive @entity(
 ) on OBJECT
 `;
 
-const parseUserSchema = async (): Promise<GraphQLSchema> => {
+const readUserSchema = async (): Promise<GraphQLSchema> => {
   const schemaBody = await fs.readFile(toolConfig.pathToSchemaFile);
   const schemaSource = schemaHeader + schemaBody.toString();
   const schema = buildSchema(schemaSource);
@@ -18,4 +18,4 @@ const parseUserSchema = async (): Promise<GraphQLSchema> => {
   return schema;
 };
 
-export { parseUserSchema };
+export { readUserSchema };

@@ -7,7 +7,7 @@
   },
   "scripts": {
     "build": "esbuild `find tool \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
-    "dev": "pnpm run build && node dist/server.js",
+    "dev": "pnpm run build --log-level=silent && node dist/dev.js",
     "main": "pnpm run build --log-level=silent && node dist/main.js",
     "prettier": "prettier --write src",
     "lint": "eslint src"
@@ -22,6 +22,7 @@
     "ethers": "^5.6.9",
     "express": "^4.18.1",
     "express-graphql": "^0.12.0",
+    "froebel": "^0.21.3",
     "graphql": "^16.2.0",
     "knex": "^2.2.0",
     "sqlite3": "^5.0.11",

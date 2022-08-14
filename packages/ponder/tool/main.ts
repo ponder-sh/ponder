@@ -7,20 +7,20 @@ import { generateContractTypes } from "./generateContractTypes";
 import { generateEntityTypes } from "./generateEntityTypes";
 import { generateHandlerTypes } from "./generateHandlerTypes";
 import { generateSchema } from "./generateSchema";
-import { getConfig } from "./getConfig";
 import { migrateDb } from "./migrateDb";
-import { parseUserSchema } from "./parseUserSchema";
 import { processLogs } from "./processLogs";
+import { readUserConfig } from "./readUserConfig";
+import { readUserSchema } from "./readUserSchema";
 import { startServer } from "./server";
 
 const main = async () => {
-  const config = await getConfig();
+  const config = await readUserConfig();
 
-  const userSchema = await parseUserSchema();
+  const userSchema = await readUserSchema();
 
-  const gqlSchema = await createGqlSchema(userSchema);
+  const gqlSchema = createGqlSchema(userSchema);
 
-  const dbSchema = await createDbSchema(userSchema);
+  const dbSchema = createDbSchema(userSchema);
 
   await generateContractTypes(config);
   console.log(`Generated contract types`);

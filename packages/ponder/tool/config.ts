@@ -1,3 +1,5 @@
+import path from "node:path";
+
 // This could be provided as CLI params?
 const toolConfigRaw = {
   pathToUserConfigFile: "ponder.config.js",
@@ -5,12 +7,12 @@ const toolConfigRaw = {
   pathToGeneratedDir: "generated",
 };
 
-const pwd = process.cwd();
+const dir = process.cwd();
 
 const toolConfig = {
-  pathToUserConfigFile: `${pwd}/${toolConfigRaw.pathToUserConfigFile}`,
-  pathToSchemaFile: `${pwd}/${toolConfigRaw.pathToSchemaFile}`,
-  pathToGeneratedDir: `${pwd}/${toolConfigRaw.pathToGeneratedDir}`,
+  pathToUserConfigFile: path.join(dir, toolConfigRaw.pathToUserConfigFile),
+  pathToSchemaFile: path.join(dir, toolConfigRaw.pathToSchemaFile),
+  pathToGeneratedDir: path.join(dir, toolConfigRaw.pathToGeneratedDir),
 };
 
 export { toolConfig };

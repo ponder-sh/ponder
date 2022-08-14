@@ -39,9 +39,7 @@ type PluralArgs = {
 };
 type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
-const createGqlSchema = async (
-  userSchema: GraphQLSchema
-): Promise<GraphQLSchema> => {
+const createGqlSchema = (userSchema: GraphQLSchema): GraphQLSchema => {
   const entities = getEntities(userSchema);
 
   const fields: { [fieldName: string]: GraphQLFieldConfig<Source, Context> } =

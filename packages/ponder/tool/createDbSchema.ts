@@ -22,7 +22,7 @@ type DbColumn = {
   notNull: boolean;
 };
 
-const createDbSchema = async (userSchema: GraphQLSchema): Promise<DbSchema> => {
+const createDbSchema = (userSchema: GraphQLSchema): DbSchema => {
   const entities = getEntities(userSchema);
 
   const tables = entities.map(getTableForEntity);

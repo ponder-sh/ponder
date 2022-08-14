@@ -3,8 +3,8 @@ import { Knex } from "knex";
 
 import type { DbSchema } from "./createDbSchema";
 import { db } from "./db";
-import type { PonderConfig } from "./getConfig";
-import { SourceKind } from "./getConfig";
+import type { PonderConfig } from "./readUserConfig";
+import { SourceKind } from "./readUserConfig";
 
 type AbstractHandlerContext = {
   entities: {

@@ -1,6 +1,6 @@
 import { runTypeChain } from "typechain";
 
-import type { PonderConfig } from "./getConfig";
+import type { PonderConfig } from "./readUserConfig";
 
 const generateContractTypes = async (config: PonderConfig) => {
   const cwd = process.cwd();
