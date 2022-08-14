@@ -1,4 +1,4 @@
-import { EventFragment, ParamType } from "@ethersproject/abi";
+import type { EventFragment, ParamType } from "@ethersproject/abi";
 import { Contract } from "ethers";
 import { writeFile } from "node:fs/promises";
 
