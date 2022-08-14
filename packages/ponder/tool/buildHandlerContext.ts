@@ -3,10 +3,11 @@ import { Knex } from "knex";
 
 import type { DbSchema } from "./createDbSchema";
 import { db } from "./db";
+import { getProviderForSource } from "./helpers";
 import type { PonderConfig } from "./readUserConfig";
 import { SourceKind } from "./readUserConfig";
 
-type AbstractHandlerContext = {
+type HandlerContext = {
   entities: {
     [key: string]: Knex.QueryBuilder<Record<string, unknown>> | undefined;
   };
@@ -18,7 +19,7 @@ type AbstractHandlerContext = {
 const buildHandlerContext = (
   config: PonderConfig,
   dbSchema: DbSchema
-): AbstractHandlerContext => {
+): HandlerContext => {
   const entityNames = dbSchema.tables.map((table) => table.name);
   const sources = config.sources.filter(
     (source) => source.kind === SourceKind.EVM
@@ -33,8 +34,12 @@ const buildHandlerContext = (
 
   const contracts: { [key: string]: Contract | undefined } = {};
   sources.forEach((source) => {
-    const provider = config.providers[source.chainId];
-    const contract = new Contract(source.address, source.abi, provider);
+    const provider = getProviderForSource(config, source);
+    const contract = new Contract(
+      source.address,
+      source.abiInterface,
+      provider
+    );
     contracts[source.name] = contract;
   });
 
@@ -45,4 +50,4 @@ const buildHandlerContext = (
 };
 
 export { buildHandlerContext };
-export type { AbstractHandlerContext };
+export type { HandlerContext };

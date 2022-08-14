@@ -19,7 +19,7 @@ const generateHandlerTypes = async (config: PonderConfig) => {
   let generatedFileCount = 0;
 
   for (const source of config.sources) {
-    const contract = new Contract(source.address, source.abi);
+    const contract = new Contract(source.address, source.abiInterface);
 
     const eventHandlers = Object.entries(contract.interface.events).map(
       ([eventSignature, event]) =>
@@ -47,7 +47,7 @@ const generateHandlerTypes = async (config: PonderConfig) => {
     generatedFileCount += 1;
   }
 
-  return generatedFileCount;
+  console.log(`Regenerated handler types`);
 };
 
 // HELPERS

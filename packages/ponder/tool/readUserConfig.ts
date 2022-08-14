@@ -1,14 +1,16 @@
-import { providers, utils } from "ethers";
-import fs from "node:fs";
+import { utils } from "ethers";
+import { readFile } from "node:fs/promises";
 
 import { toolConfig } from "./config";
+
+const { pathToUserConfigFile } = toolConfig;
 
 enum SourceKind {
   EVM = "evm",
 }
 
-interface RawPonderConfig {
-  rpcUrls: { [chainId: number]: string };
+interface PonderUserConfig {
+  rpcUrls: { [chainId: number]: string | undefined };
   sources: {
     name: string;
     kind: SourceKind;
@@ -19,52 +21,45 @@ interface RawPonderConfig {
 }
 
 interface PonderConfig {
-  providers: { [chainId: number]: providers.JsonRpcProvider };
+  rpcUrls: { [chainId: number]: string | undefined };
   sources: {
     name: string;
     kind: SourceKind;
     chainId: number;
     address: string;
-    abiPath: string;
-    abi: utils.Interface;
+    abi: string;
+    abiInterface: utils.Interface;
   }[];
 }
 
 const readUserConfig = async () => {
-  const { default: rawConfig } = await import(toolConfig.pathToUserConfigFile);
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const userConfig = require(pathToUserConfigFile);
+
+  // Remove the ponder.config.js module from the require cache,
+  // because we are loading it several times in the same process,
+  // and we need the latest version each time.
+  // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
+  delete require.cache[require.resolve(pathToUserConfigFile)];
+
+  // console.log("found userConfig:", { required });
 
   // TODO: Validate config
-  const validatedConfig = rawConfig as RawPonderConfig;
+  const validatedUserConfig = userConfig as PonderUserConfig;
 
-  const hydratedProviders = Object.entries(validatedConfig.rpcUrls).reduce<{
-    [chainId: number]: providers.JsonRpcProvider;
-  }>((acc, [chainId, rpcUrl]) => {
-    acc[Number(chainId)] = new providers.JsonRpcProvider(
-      rpcUrl,
-      Number(chainId)
-    );
-    return acc;
-  }, {});
+  // Parse ABI files and add interfaces to the config object.
+  const newSources = await Promise.all(
+    validatedUserConfig.sources.map(async (source) => {
+      const abiString = await readFile(source.abi, "utf-8");
+      const abiObject = JSON.parse(abiString).abi;
+      return { ...source, abiInterface: new utils.Interface(abiObject) };
+    })
+  );
 
-  const hydratedSources = validatedConfig.sources.map((source) => {
-    // TODO: Validate / throw an error if this ABI parsing nonsense fails
-    const abiObject = JSON.parse(fs.readFileSync(source.abi).toString());
-    const abiString = abiObject.abi
-      ? JSON.stringify(abiObject.abi)
-      : JSON.stringify(abiObject);
-    const abi = new utils.Interface(abiString);
-
-    return { ...source, abiPath: source.abi, abi: abi };
-  });
-
-  const config = {
-    ...validatedConfig,
-    sources: hydratedSources,
-    providers: hydratedProviders,
-  };
+  const config: PonderConfig = { ...validatedUserConfig, sources: newSources };
 
   return config;
 };
 
 export { readUserConfig, SourceKind };
-export type { PonderConfig };
+export type { PonderConfig, PonderUserConfig };

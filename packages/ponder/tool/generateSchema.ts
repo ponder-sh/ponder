@@ -1,6 +1,6 @@
 import type { GraphQLSchema } from "graphql";
 import { printSchema } from "graphql";
-import fs from "node:fs";
+import { writeFile } from "node:fs/promises";
 
 import { toolConfig } from "./config";
 
@@ -9,20 +9,17 @@ const header = `
 `;
 
 const generateSchema = async (gqlSchema: GraphQLSchema) => {
-  let generatedFileCount = 0;
-
   const body = printSchema(gqlSchema);
 
   const final = header + body;
 
-  fs.writeFileSync(
+  await writeFile(
     `${toolConfig.pathToGeneratedDir}/schema.graphql`,
     final,
     "utf8"
   );
-  generatedFileCount += 1;
 
-  return generatedFileCount;
+  console.log(`Regenerated schema.graphql`);
 };
 
 export { generateSchema };

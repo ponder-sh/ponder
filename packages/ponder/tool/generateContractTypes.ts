@@ -5,10 +5,11 @@ import type { PonderConfig } from "./readUserConfig";
 const generateContractTypes = async (config: PonderConfig) => {
   const cwd = process.cwd();
 
-  const abiFilePaths = config.sources.map((source) => source.abiPath);
+  const abiFilePaths = config.sources.map((source) => source.abi);
 
   // TODO: don't parse all the ABI files again, use the Contract.Interface we already have?
-  const result = await runTypeChain({
+  // TODO: don't generate factory files, we don't need them?
+  await runTypeChain({
     cwd,
     filesToProcess: abiFilePaths,
     allFiles: abiFilePaths,
@@ -16,7 +17,7 @@ const generateContractTypes = async (config: PonderConfig) => {
     target: "ethers-v5",
   });
 
-  return result;
+  console.log(`Regenerated contract types`);
 };
 
 export { generateContractTypes };

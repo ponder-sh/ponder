@@ -1,11 +1,11 @@
 import { build } from "esbuild";
 import type { utils } from "ethers";
 
-import type { AbstractHandlerContext } from "./buildHandlerContext";
+import type { HandlerContext } from "./buildHandlerContext";
 
 const processLogs = async (
   logs: utils.LogDescription[],
-  handlerContext: AbstractHandlerContext
+  handlerContext: HandlerContext
 ) => {
   // TODO: handle cases where this doesn't build properly...?
   await build({

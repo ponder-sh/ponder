@@ -8,10 +8,14 @@ const context = {
   db,
 };
 
-const startServer = (gqlSchema: GraphQLSchema) => {
-  const app = express();
+const PORT = 4000;
+const app = express();
+let isListening = false;
 
-  app.use(
+const restartServer = (gqlSchema: GraphQLSchema) => {
+  console.log({ stack: app.stack });
+
+  const returnedApp = app.use(
     "/graphql",
     graphqlHTTP({
       schema: gqlSchema,
@@ -20,10 +24,19 @@ const startServer = (gqlSchema: GraphQLSchema) => {
     })
   );
 
-  app.listen(4000);
-  console.log("Running a GraphQL API server at http://localhost:4000/graphql");
+  console.log({ stack: returnedApp.stack });
+
+  if (!isListening) {
+    app.listen(PORT);
+    console.log(
+      `Running a GraphQL API server at http://localhost:${PORT}/graphql`
+    );
+    isListening = true;
+  }
+
+  console.log({ stack: returnedApp.stack });
 
   return app;
 };
 
-export { startServer };
+export { restartServer };

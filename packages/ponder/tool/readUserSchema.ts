@@ -11,7 +11,7 @@ directive @entity(
 `;
 
 const readUserSchema = async (): Promise<GraphQLSchema> => {
-  const schemaBody = await fs.readFile(toolConfig.pathToSchemaFile);
+  const schemaBody = await fs.readFile(toolConfig.pathToUserSchemaFile);
   const schemaSource = schemaHeader + schemaBody.toString();
   const schema = buildSchema(schemaSource);
 

@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import { writeFile } from "node:fs/promises";
 
 import { toolConfig } from "./config";
 import type { DbSchema } from "./createDbSchema";
@@ -47,14 +47,14 @@ const generateContextType = async (
 
   const final = header + imports + body;
 
-  fs.writeFileSync(
+  await writeFile(
     `${toolConfig.pathToGeneratedDir}/context.d.ts`,
     final,
     "utf8"
   );
   generatedFileCount += 1;
 
-  return generatedFileCount;
+  console.log(`Regenerated context type`);
 };
 
 export { generateContextType };

@@ -1,14 +1,19 @@
 import type { Log } from "@ethersproject/providers";
 import { BigNumber, Contract, utils } from "ethers";
 
+import { getProviderForSource } from "./helpers";
 import type { PonderConfig } from "./readUserConfig";
 
 const getInitialLogs = async (config: PonderConfig) => {
   const logs: utils.LogDescription[] = [];
 
   for (const source of config.sources) {
-    const provider = config.providers[source.chainId];
-    const contract = new Contract(source.address, source.abi, provider);
+    const provider = getProviderForSource(config, source);
+    const contract = new Contract(
+      source.address,
+      source.abiInterface,
+      provider
+    );
 
     // TODO: Figure out which block the contract was deployed on
     let fromBlock = 0;
