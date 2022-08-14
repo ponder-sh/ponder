@@ -77,9 +77,9 @@ const handleConfigChanged = async (newConfig: PonderConfig) => {
   generateHandlerTypes(newConfig);
 
   // TODO: Uncomment when de-duplicating is better.
-  // if (state.userHandlers && state.handlerContext) {
-  //   fetchAndProcessLogs(newConfig, state.userHandlers, state.handlerContext);
-  // }
+  if (state.userHandlers && state.handlerContext) {
+    fetchAndProcessLogs(newConfig, state.userHandlers, state.handlerContext);
+  }
 
   if (state.dbSchema) {
     generateContextType(newConfig, state.dbSchema);
@@ -133,9 +133,9 @@ const handleHandlerContextChanged = async (
   state.handlerContext = newHandlerContext;
 
   // TODO: Uncomment when de-duplicating is better.
-  // if (state.config && state.userHandlers) {
-  //   fetchAndProcessLogs(state.config, state.userHandlers, newHandlerContext);
-  // }
+  if (state.config && state.userHandlers) {
+    fetchAndProcessLogs(state.config, state.userHandlers, newHandlerContext);
+  }
 };
 
 const dev = async () => {

@@ -1,4 +1,4 @@
-import type { Log } from "@ethersproject/providers";
+import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber, Contract } from "ethers";
 import fastq from "fastq";
 
@@ -32,10 +32,47 @@ const fetchAndProcessLogs = async (
   userHandlers: UserHandlers,
   handlerContext: HandlerContext
 ) => {
+  // STEP 1: Create log worker function in closure
+  const worker = async (log: Log) => {
+    console.log(
+      "processing log with block number:",
+      BigNumber.from(log.blockNumber).toNumber()
+    );
+
+    const source = config.sources.find(
+      (source) => source.address === log.address
+    );
+    if (!source) {
+      throw new Error(`Source not found for log with address: ${log.address}`);
+    }
+
+    const parsedLog = source.abiInterface.parseLog(log);
+    const params = { ...parsedLog.args };
+
+    const sourceHandlers = userHandlers[source.name];
+    if (!sourceHandlers) {
+      throw new Error(`Handlers not found for source: ${source.name}`);
+    }
+
+    const handler = sourceHandlers[parsedLog.name];
+    if (!handler) {
+      throw new Error(
+        `Handler not found for event: ${source.name}-${parsedLog.name}`
+      );
+    }
+
+    // YAY we're running user code here!
+    handler(params, handlerContext);
+  };
+
   const historicalLogCache: HistoricalLogCache = {};
 
   for (const source of config.sources) {
-    const historicalLogData = await createNewFilterForSource(config, source);
+    const historicalLogData = await createNewFilterForSource(
+      config,
+      source,
+      worker
+    );
 
     historicalLogCache[source.address] = historicalLogData;
   }
@@ -43,53 +80,38 @@ const fetchAndProcessLogs = async (
 
 const createNewFilterForSource = async (
   config: PonderConfig,
-  source: PonderConfig["sources"][0]
+  source: PonderConfig["sources"][0],
+  worker: (log: Log) => Promise<void>
 ): Promise<HistoricalLogData> => {
   const provider = getProviderForSource(config, source);
   const contract = new Contract(source.address, source.abiInterface, provider);
 
+  // TODO: Make this entire method work on a per-provider basis
+  // instead of per-contract (AKA per-source)
+  const contracts = [contract.address];
+
   // STEP 1: Set up new filter
-  const latestBlock = await provider.getBlock("latest");
-  const filterStartBlock = latestBlock.number;
+  const { filterStartBlock, filterId } = await createNewFilter(
+    provider,
+    contracts
+  );
 
-  const filterId: string = await provider.send("eth_newFilter", [
-    {
-      fromBlock: BigNumber.from(filterStartBlock).toHexString(),
-      address: [contract.address],
-    },
-  ]);
-
-  // STEP 2: Set up the log queue
-  const worker = async (log: Log) => {
-    console.log(
-      "processing log with block number:",
-      BigNumber.from(log.blockNumber).toNumber()
-    );
-  };
-
+  // STEP 2: Set up the log queue, paused to start
   const queue = fastq.promise(worker, 1);
   queue.pause();
 
   // STEP 3: Register a block handler that adds new logs to the (paused) queue
-  const blockHandler = async () => {
-    const logs: Log[] = await provider.send("eth_getFilterChanges", [filterId]);
-
-    logs.forEach((log) => {
-      console.log("in blockHandler, pushing log to queue");
-      queue.push(log);
-    });
-  };
-
-  provider.on("block", blockHandler);
+  await registerBlockHandler(provider, filterId, queue);
 
   // STEP 4: Fetch hisorical logs up until the start of the filter
   const fromBlock = 0;
-  const historicalLogs = await fetchLogs({
+  const toBlock = filterStartBlock;
+  const historicalLogs = await fetchLogs(
     provider,
-    contracts: [contract.address],
-    fromBlock: fromBlock,
-    toBlock: filterStartBlock,
-  });
+    contracts,
+    fromBlock,
+    toBlock
+  );
 
   // STEP 5: Add historical logs to the front of the queue
   for (let i = historicalLogs.length - 1; i >= 0; i--) {
@@ -101,13 +123,47 @@ const createNewFilterForSource = async (
   queue.resume();
 
   // STEP 7: Write historical log data to disk
-  const historicalLogData = {
+  const historicalLogData: HistoricalLogData = {
     fromBlock: fromBlock,
     toBlock: filterStartBlock,
     logs: historicalLogs,
   };
 
   return historicalLogData;
+};
+
+const createNewFilter = async (
+  provider: JsonRpcProvider,
+  contracts: string[]
+) => {
+  const latestBlock = await provider.getBlock("latest");
+  const filterStartBlock = latestBlock.number;
+
+  const filterId: string = await provider.send("eth_newFilter", [
+    {
+      fromBlock: BigNumber.from(filterStartBlock).toHexString(),
+      address: contracts,
+    },
+  ]);
+
+  return { filterStartBlock, filterId };
+};
+
+const registerBlockHandler = async (
+  provider: JsonRpcProvider,
+  filterId: string,
+  queue: fastq.queueAsPromised
+) => {
+  const blockHandler = async () => {
+    const logs: Log[] = await provider.send("eth_getFilterChanges", [filterId]);
+
+    logs.forEach((log) => {
+      console.log("in blockHandler, pushing log to queue");
+      queue.push(log);
+    });
+  };
+
+  provider.on("block", blockHandler);
 };
 
 export { fetchAndProcessLogs };

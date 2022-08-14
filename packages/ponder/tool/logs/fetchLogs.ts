@@ -1,17 +1,16 @@
 import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 
-const fetchLogs = async (params: {
-  provider: JsonRpcProvider;
-  contracts: string[];
-  fromBlock: number;
-  toBlock: number;
-}) => {
-  const { provider, contracts, fromBlock: _fromBlock, toBlock } = params;
-
+const fetchLogs = async (
+  provider: JsonRpcProvider,
+  contracts: string[],
+  _fromBlock: number,
+  _toBlock: number
+) => {
   const historicalLogs: Log[] = [];
 
   let fromBlock = _fromBlock;
+  const toBlock = _toBlock;
 
   while (fromBlock < toBlock) {
     const getLogsParams = {

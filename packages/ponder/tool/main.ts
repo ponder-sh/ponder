@@ -1,10 +1,10 @@
 import { buildDbSchema } from "./buildDbSchema";
 import { buildGqlSchema } from "./buildGqlSchema";
 import { buildHandlerContext } from "./buildHandlerContext";
-import { fetchLogs } from "./logs/fetchLogs";
+import { fetchAndProcessLogs } from "./logs/processLogs";
 import { migrateDb } from "./migrateDb";
-import { processLogs } from "./processLogs";
 import { readUserConfig } from "./readUserConfig";
+import { readUserHandlers } from "./readUserHandlers";
 import { readUserSchema } from "./readUserSchema";
 import { restartServer } from "./server";
 import {
@@ -16,40 +16,30 @@ import {
 import { generateContextType } from "./typegen/generateContextType";
 
 const main = async () => {
-  const config = await readUserConfig();
-
-  const userSchema = await readUserSchema();
+  const [config, userSchema, userHandlers] = await Promise.all([
+    readUserConfig(),
+    readUserSchema(),
+    readUserHandlers(),
+  ]);
 
   const gqlSchema = buildGqlSchema(userSchema);
-
   const dbSchema = buildDbSchema(userSchema);
 
-  await generateContractTypes(config);
-  console.log(`Generated contract types`);
-
-  await generateContextType(config, dbSchema);
-  console.log(`Generated context.d.ts`);
-
-  await generateSchema(gqlSchema);
-  console.log(`Generated schema.graphql`);
-
-  await generateEntityTypes(gqlSchema);
-  console.log(`Generated schema.d.ts`);
-
-  const typeFileCount = await generateHandlerTypes(config);
-  console.log(`Generated ${typeFileCount} handler type files`);
-
-  const tableCount = await migrateDb(dbSchema);
-  console.log(`Created ${tableCount} tables`);
-
-  // const initialLogsResult = await fetchAndProcessLogs(config);
-  // console.log(`Fetched ${initialLogsResult.length} logs`);
-
-  // const handlerContext = buildHandlerContext(config, dbSchema);
-
-  // await processLogs(initialLogsResult, handlerContext);
+  const handlerContext = buildHandlerContext(config, dbSchema);
 
   restartServer(gqlSchema);
+
+  generateContractTypes(config);
+  generateContextType(config, dbSchema);
+  generateSchema(gqlSchema);
+  generateEntityTypes(gqlSchema);
+  generateHandlerTypes(config);
+
+  restartServer(gqlSchema);
+
+  await migrateDb(dbSchema);
+
+  await fetchAndProcessLogs(config, userHandlers, handlerContext);
 };
 
 main().catch(console.error);
