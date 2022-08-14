@@ -40,6 +40,7 @@ type PonderState = {
   dbSchema?: DbSchema;
   handlerContext?: HandlerContext;
   userHandlers?: UserHandlers;
+  logProcessingInFlight?: boolean;
   // entityNames?: string[] ?????? maybe for caching handlerContext better
 };
 
@@ -64,9 +65,7 @@ const handleUserHandlersChanged = async (newUserHandlers: UserHandlers) => {
   // const oldUserHandlers = state.userHandlers;
   state.userHandlers = newUserHandlers;
 
-  if (state.config && state.handlerContext) {
-    fetchAndProcessLogs(state.config, newUserHandlers, state.handlerContext);
-  }
+  handleReindex();
 };
 
 const handleConfigChanged = async (newConfig: PonderConfig) => {
@@ -77,9 +76,7 @@ const handleConfigChanged = async (newConfig: PonderConfig) => {
   generateHandlerTypes(newConfig);
 
   // TODO: Uncomment when de-duplicating is better.
-  if (state.userHandlers && state.handlerContext) {
-    fetchAndProcessLogs(newConfig, state.userHandlers, state.handlerContext);
-  }
+  handleReindex();
 
   if (state.dbSchema) {
     generateContextType(newConfig, state.dbSchema);
@@ -116,8 +113,6 @@ const handleDbSchemaChanged = async (newDbSchema: DbSchema) => {
   // const oldDbSchema = state.dbSchema;
   state.dbSchema = newDbSchema;
 
-  migrateDb(newDbSchema);
-
   if (state.config) {
     generateContextType(state.config, newDbSchema);
 
@@ -132,10 +127,28 @@ const handleHandlerContextChanged = async (
   // const oldHandlerContext = state.handlerContext;
   state.handlerContext = newHandlerContext;
 
-  // TODO: Uncomment when de-duplicating is better.
-  if (state.config && state.userHandlers) {
-    fetchAndProcessLogs(state.config, state.userHandlers, newHandlerContext);
+  handleReindex();
+};
+
+const handleReindex = async () => {
+  // This will fire... basically on any user saved change.
+  if (
+    !state.dbSchema ||
+    !state.config ||
+    !state.userHandlers ||
+    !state.handlerContext
+  ) {
+    console.log(`Attempted to reindex before dev state hydration, cancelling`);
+    return;
   }
+
+  await migrateDb(state.dbSchema);
+
+  await fetchAndProcessLogs(
+    state.config,
+    state.userHandlers,
+    state.handlerContext
+  );
 };
 
 const dev = async () => {

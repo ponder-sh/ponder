@@ -49,9 +49,9 @@ const fetchAndProcessLogs = async (
 
     const handler = sourceHandlers[parsedLog.name];
     if (!handler) {
-      console.log(
-        `Handler not found for event: ${source.name}-${parsedLog.name}`
-      );
+      // console.log(
+      //   `Handler not found for event: ${source.name}-${parsedLog.name}`
+      // );
       return;
     }
 

@@ -1,5 +1,5 @@
 import type { DbSchema } from "./buildDbSchema";
-import { db } from "./db";
+import { db, getTableNames } from "./db";
 
 type KnexColumnType = "string" | "boolean" | "integer";
 
@@ -13,14 +13,34 @@ const gqlToKnexTypeMap: { [gqlType: string]: KnexColumnType | undefined } = {
 let isInitialized = false;
 
 const migrateDb = async (dbSchema: DbSchema) => {
-  const { tables } = dbSchema;
+  console.log("in migrateDb:", { isInitialized });
 
   if (isInitialized) {
-    return;
+    // Drop all tables if not running for the first time.
+    await dropTables();
+    console.log(`Detected database changes, dropping tables...`);
+  } else {
+    isInitialized = true;
   }
-  isInitialized = true;
 
-  for (const table of tables) {
+  await createTables(dbSchema);
+  console.log(`Detected database changes, creating tables...`);
+};
+
+const dropTables = async () => {
+  const tableNames = await getTableNames();
+
+  const dropTablePromises = tableNames.map(async (tableName) => {
+    await db.schema.dropTableIfExists(tableName);
+  });
+
+  await Promise.all(dropTablePromises);
+};
+
+const createTables = async (dbSchema: DbSchema) => {
+  const { tables } = dbSchema;
+
+  const createTablePromises = tables.map(async (table) => {
     await db.schema.createTable(table.name, (knexTable) => {
       // Add a column for each one specified in the table.
       for (const column of table.columns) {
@@ -44,9 +64,9 @@ const migrateDb = async (dbSchema: DbSchema) => {
 
       knexTable.timestamps();
     });
-  }
+  });
 
-  return tables.length;
+  await Promise.all(createTablePromises);
 };
 
 export { migrateDb };

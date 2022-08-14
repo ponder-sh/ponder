@@ -7,7 +7,7 @@ const toolConfigRaw = {
   pathToUserSchemaFile: "schema.graphql",
   pathToGeneratedDir: "generated",
   pathToHandlersDir: "handlers",
-  pathToBuildDir: "build",
+  pathToBuildDir: ".ponder/build",
   pathToPonderDir: ".ponder",
 };
 

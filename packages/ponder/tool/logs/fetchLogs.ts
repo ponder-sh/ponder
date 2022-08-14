@@ -37,7 +37,6 @@ const fetchLogs = async (
     } else {
       // TODO: figure out what to safely do if there are not logs... are we done?
       // Probably depends on the RPC provider rules
-      console.log("returning from fetchLogs, no more logs found");
       break;
     }
 
