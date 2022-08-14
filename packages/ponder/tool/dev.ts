@@ -14,17 +14,19 @@ import type { DbSchema } from "./createDbSchema";
 import { createDbSchema } from "./createDbSchema";
 import { createGqlSchema } from "./createGqlSchema";
 import { getInitialLogs } from "./fetchLogs";
-import { generateContextType } from "./generateContextType";
-import { generateContractTypes } from "./generateContractTypes";
-import { generateEntityTypes } from "./generateEntityTypes";
-import { generateHandlerTypes } from "./generateHandlerTypes";
-import { generateSchema } from "./generateSchema";
 import { migrateDb } from "./migrateDb";
 import { processLogs } from "./processLogs";
 import type { PonderConfig, PonderUserConfig } from "./readUserConfig";
 import { readUserConfig } from "./readUserConfig";
 import { readUserSchema } from "./readUserSchema";
 import { restartServer } from "./server";
+import {
+  generateContractTypes,
+  generateEntityTypes,
+  generateHandlerTypes,
+  generateSchema,
+} from "./typegen";
+import { generateContextType } from "./typegen/generateContextType";
 
 // dependency graph:
 

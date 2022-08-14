@@ -2,16 +2,18 @@ import { buildHandlerContext } from "./buildHandlerContext";
 import { createDbSchema } from "./createDbSchema";
 import { createGqlSchema } from "./createGqlSchema";
 import { getInitialLogs } from "./fetchLogs";
-import { generateContextType } from "./generateContextType";
-import { generateContractTypes } from "./generateContractTypes";
-import { generateEntityTypes } from "./generateEntityTypes";
-import { generateHandlerTypes } from "./generateHandlerTypes";
-import { generateSchema } from "./generateSchema";
 import { migrateDb } from "./migrateDb";
 import { processLogs } from "./processLogs";
 import { readUserConfig } from "./readUserConfig";
 import { readUserSchema } from "./readUserSchema";
-import { startServer } from "./server";
+import { restartServer } from "./server";
+import {
+  generateContractTypes,
+  generateEntityTypes,
+  generateHandlerTypes,
+  generateSchema,
+} from "./typegen";
+import { generateContextType } from "./typegen/generateContextType";
 
 const main = async () => {
   const config = await readUserConfig();
@@ -47,7 +49,7 @@ const main = async () => {
 
   await processLogs(initialLogsResult, handlerContext);
 
-  startServer(gqlSchema);
+  restartServer(gqlSchema);
 };
 
 main().catch(console.error);
