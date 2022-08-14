@@ -1,8 +1,8 @@
 import { buildDbSchema } from "./buildDbSchema";
 import { buildGqlSchema } from "./buildGqlSchema";
 import { buildHandlerContext } from "./buildHandlerContext";
-import { fetchAndProcessLogs } from "./logs/processLogs";
-import { migrateDb } from "./migrateDb";
+import { createOrUpdateDbTables } from "./db";
+import { fetchAndProcessLogs } from "./logs";
 import { readUserConfig } from "./readUserConfig";
 import { readUserHandlers } from "./readUserHandlers";
 import { readUserSchema } from "./readUserSchema";
@@ -37,7 +37,7 @@ const main = async () => {
 
   restartServer(gqlSchema);
 
-  await migrateDb(dbSchema);
+  await createOrUpdateDbTables(dbSchema);
 
   await fetchAndProcessLogs(config, userHandlers, handlerContext);
 };

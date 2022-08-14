@@ -1,5 +1,5 @@
-import type { DbSchema } from "./buildDbSchema";
-import { db, getTableNames } from "./db";
+import type { DbSchema } from "../buildDbSchema";
+import { db, getTableNames } from "./knex";
 
 type KnexColumnType = "string" | "boolean" | "integer";
 
@@ -12,8 +12,8 @@ const gqlToKnexTypeMap: { [gqlType: string]: KnexColumnType | undefined } = {
 
 let isInitialized = false;
 
-const migrateDb = async (dbSchema: DbSchema) => {
-  console.log("in migrateDb:", { isInitialized });
+const createOrUpdateDbTables = async (dbSchema: DbSchema) => {
+  console.log("in createOrUpdateDbTables:", { isInitialized });
 
   if (isInitialized) {
     // Drop all tables if not running for the first time.
@@ -69,4 +69,4 @@ const createTables = async (dbSchema: DbSchema) => {
   await Promise.all(createTablePromises);
 };
 
-export { migrateDb };
+export { createOrUpdateDbTables };

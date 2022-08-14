@@ -67,6 +67,7 @@ importers:
       froebel: ^0.21.3
       graphql: ^16.2.0
       knex: ^2.2.0
+      knex-schema-inspector: ^2.0.4
       sqlite3: ^5.0.11
       typechain: ^8.0.0
       typescript: ^4.5.5
@@ -82,6 +83,7 @@ importers:
       froebel: 0.21.3
       graphql: 16.2.0
       knex: 2.2.0_sqlite3@5.0.11
+      knex-schema-inspector: 2.0.4
       sqlite3: 5.0.11
       typechain: 8.1.0_typescript@4.7.3
       typescript: 4.7.3
@@ -5328,6 +5330,13 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: false
 
+  /knex-schema-inspector/2.0.4:
+    resolution: {integrity: sha512-UGCB6sXhejQMr9Kd39hacAdIG8JEhr9LboOuBTT41jvDgGu0FRbdtqdnWfbv56Sfz5YoN5zkJt7upZCLEaY73Q==}
+    dependencies:
+      lodash.flatten: 4.4.0
+      lodash.isnil: 4.0.0
+    dev: false
+
   /knex/2.2.0_sqlite3@5.0.11:
     resolution: {integrity: sha512-yhm1Qe9Ok0TeXBq3nNHqZYJPrQ4Iw2tq9k/HxjrZ/EWec2ifOjJlkNHr26v8cQrWtk5iG3iwfUazTIWy+VKG5g==}
     engines: {node: '>=12'}
@@ -5465,6 +5474,14 @@ packages:
 
   /lodash.camelcase/4.3.0:
     resolution: {integrity: sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA==}
+
+  /lodash.flatten/4.4.0:
+    resolution: {integrity: sha512-C5N2Z3DgnnKr0LOpv/hKCgKdb7ZZwafIrsesve6lmzvZIRZRGaZ/l6Q8+2W7NaT+ZwO3fFlSCzCzrDCFdJfZ4g==}
+    dev: false
+
+  /lodash.isnil/4.0.0:
+    resolution: {integrity: sha512-up2Mzq3545mwVnMhTDMdfoG1OurpA/s5t88JmQX809eH3C8491iu2sfKhTfhQtKY78oPNhiaHJUpT/dUDAAtng==}
+    dev: false
 
   /lodash.kebabcase/4.1.1:
     resolution: {integrity: sha512-N8XRTIMMqqDgSy4VLKPnJ/+hpGZN+PHQiJnSenYqPaVV/NCqEogTnAdZLQiGKhxX+JCs8waWq2t1XHWKOmlY8g==}

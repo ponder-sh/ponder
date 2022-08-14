@@ -14,8 +14,8 @@ import {
   testUserSchemaChanged,
 } from "./cache";
 import { toolConfig } from "./config";
-import { fetchAndProcessLogs } from "./logs/processLogs";
-import { migrateDb } from "./migrateDb";
+import { createOrUpdateDbTables } from "./db";
+import { fetchAndProcessLogs } from "./logs";
 import { ensureDirectoriesExist } from "./preflight";
 import type { PonderConfig } from "./readUserConfig";
 import { readUserConfig } from "./readUserConfig";
@@ -75,7 +75,6 @@ const handleConfigChanged = async (newConfig: PonderConfig) => {
   generateContractTypes(newConfig);
   generateHandlerTypes(newConfig);
 
-  // TODO: Uncomment when de-duplicating is better.
   handleReindex();
 
   if (state.dbSchema) {
@@ -132,6 +131,11 @@ const handleHandlerContextChanged = async (
 
 const handleReindex = async () => {
   // This will fire... basically on any user saved change.
+
+  // TODO: Implement a simple mechanism to only commit the latest db
+  // changes if they conflict (if the user saves two files very fast)
+  // Maybe need a generalized implementation of this,
+  // could use for the file writers also.
   if (
     !state.dbSchema ||
     !state.config ||
@@ -142,7 +146,7 @@ const handleReindex = async () => {
     return;
   }
 
-  await migrateDb(state.dbSchema);
+  await createOrUpdateDbTables(state.dbSchema);
 
   await fetchAndProcessLogs(
     state.config,

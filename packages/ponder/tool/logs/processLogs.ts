@@ -9,19 +9,16 @@ import { UserHandlers } from "../readUserHandlers";
 import { fetchLogs } from "./fetchLogs";
 import { readLogCache, writeLogCache } from "./logCache";
 
-/*
- */
-
 // on startup
-// 	load log cache metadata into memory
+// 	load log cache into memory
 // 	for each source (or provider?)
-// 		register listener that just adds logs to a queue
-// 		store “starting block” of listener
-// 		// load historical logs into memory
-// 		fetch logs from historical end to “starting block”, append to historical
+// 		register listener that just adds logs to a queue, store fromBlock
+// 		load historicalLogs into memory
+// 		fetch newLogs (from end of historicalLogs to start of listener)
+//    append newLogs to historicalLogs
 // 		push full log history to ?front of queue
 // 		let her rip!!!
-// 		// write full log history back to disk, including metadata
+// 		write full log history back to disk, including metadata
 
 const fetchAndProcessLogs = async (
   config: PonderConfig,
