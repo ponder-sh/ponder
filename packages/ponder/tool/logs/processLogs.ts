@@ -7,6 +7,10 @@ import { getProviderForSource } from "../helpers";
 import type { PonderConfig } from "../readUserConfig";
 import { UserHandlers } from "../readUserHandlers";
 import { fetchLogs } from "./fetchLogs";
+import { readLogCache, writeLogCache } from "./logCache";
+
+/*
+ */
 
 // on startup
 // 	load log cache metadata into memory
@@ -19,31 +23,19 @@ import { fetchLogs } from "./fetchLogs";
 // 		let her rip!!!
 // 		// write full log history back to disk, including metadata
 
-type HistoricalLogData = {
-  fromBlock: number;
-  toBlock: number;
-  logs: Log[];
-};
-
-type HistoricalLogCache = { [key: string]: HistoricalLogData | undefined };
-
 const fetchAndProcessLogs = async (
   config: PonderConfig,
   userHandlers: UserHandlers,
   handlerContext: HandlerContext
 ) => {
-  // STEP 1: Create log worker function in closure
+  // STEP 1: Create log worker function in closure using userHandlers and handlerContext
   const worker = async (log: Log) => {
-    console.log(
-      "processing log with block number:",
-      BigNumber.from(log.blockNumber).toNumber()
-    );
-
     const source = config.sources.find(
       (source) => source.address === log.address
     );
     if (!source) {
-      throw new Error(`Source not found for log with address: ${log.address}`);
+      console.log(`Source not found for log with address: ${log.address}`);
+      return;
     }
 
     const parsedLog = source.abiInterface.parseLog(log);
@@ -51,85 +43,89 @@ const fetchAndProcessLogs = async (
 
     const sourceHandlers = userHandlers[source.name];
     if (!sourceHandlers) {
-      throw new Error(`Handlers not found for source: ${source.name}`);
+      console.log(`Handlers not found for source: ${source.name}`);
+      return;
     }
 
     const handler = sourceHandlers[parsedLog.name];
     if (!handler) {
-      throw new Error(
+      console.log(
         `Handler not found for event: ${source.name}-${parsedLog.name}`
       );
+      return;
     }
 
-    // YAY we're running user code here!
+    const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
+    console.log(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
+
+    // YAY: We're running user code here!
     handler(params, handlerContext);
   };
 
-  const historicalLogCache: HistoricalLogCache = {};
+  const logCache = await readLogCache();
 
+  // TODO: Make this work on a per-provider basis
+  // instead of per-contract/source, should reduce RPC usage
   for (const source of config.sources) {
-    const historicalLogData = await createNewFilterForSource(
-      config,
-      source,
-      worker
+    const provider = getProviderForSource(config, source);
+    const contract = new Contract(
+      source.address,
+      source.abiInterface,
+      provider
+    );
+    const contracts = [contract.address];
+
+    // STEP 1: Set up new filter
+    const { filterStartBlock, filterId } = await createNewFilter(
+      provider,
+      contracts
     );
 
-    historicalLogCache[source.address] = historicalLogData;
-  }
-};
+    // STEP 2: Set up the log queue, paused to start
+    const queue = fastq.promise(worker, 1);
+    queue.pause();
 
-const createNewFilterForSource = async (
-  config: PonderConfig,
-  source: PonderConfig["sources"][0],
-  worker: (log: Log) => Promise<void>
-): Promise<HistoricalLogData> => {
-  const provider = getProviderForSource(config, source);
-  const contract = new Contract(source.address, source.abiInterface, provider);
+    // STEP 3: Register a block handler that adds new logs to the (paused) queue
+    await registerBlockHandler(provider, filterId, queue);
 
-  // TODO: Make this entire method work on a per-provider basis
-  // instead of per-contract (AKA per-source)
-  const contracts = [contract.address];
+    // STEP 4: Fetch new historical logs from the end of the cache to latest
 
-  // STEP 1: Set up new filter
-  const { filterStartBlock, filterId } = await createNewFilter(
-    provider,
-    contracts
-  );
+    // Calculate fromBlock based on logCache.
+    // Could attempt to set sourceStartBlock to contract deployment block instead of 0.
+    const sourceStartBlock = 0;
+    let fromBlock = sourceStartBlock;
+    const cachedLogData = logCache[source.address];
+    if (cachedLogData) {
+      fromBlock = cachedLogData.toBlock;
+    }
 
-  // STEP 2: Set up the log queue, paused to start
-  const queue = fastq.promise(worker, 1);
-  queue.pause();
+    const toBlock = filterStartBlock;
+    const newLogs = await fetchLogs(provider, contracts, fromBlock, toBlock);
 
-  // STEP 3: Register a block handler that adds new logs to the (paused) queue
-  await registerBlockHandler(provider, filterId, queue);
+    // STEP 5: Combine cached logs and new historical logs.
+    // TODO: De-dupe and validate some shit probably.
+    const historicalLogs = [...(cachedLogData?.logs || []), ...newLogs];
 
-  // STEP 4: Fetch hisorical logs up until the start of the filter
-  const fromBlock = 0;
-  const toBlock = filterStartBlock;
-  const historicalLogs = await fetchLogs(
-    provider,
-    contracts,
-    fromBlock,
-    toBlock
-  );
+    // STEP 5: Add historical logs to the front of the queue
+    for (let i = historicalLogs.length - 1; i >= 0; i--) {
+      const log = historicalLogs[i];
+      queue.unshift(log);
+    }
 
-  // STEP 5: Add historical logs to the front of the queue
-  for (let i = historicalLogs.length - 1; i >= 0; i--) {
-    const log = historicalLogs[i];
-    queue.unshift(log);
+    // STEP 6: Let it rip
+    queue.resume();
+
+    // STEP 7:Add latest set of logs for this source
+    logCache[source.address] = {
+      fromBlock: sourceStartBlock,
+      toBlock: filterStartBlock,
+      logs: historicalLogs,
+    };
   }
 
-  // STEP 6: Let it rip
-  queue.resume();
-
-  // STEP 7: Write historical log data to disk
-  const historicalLogData: HistoricalLogData = {
-    fromBlock: fromBlock,
-    toBlock: filterStartBlock,
-    logs: historicalLogs,
-  };
-
-  return historicalLogData;
+  // Once historical logs have been fetched for all sources,
+  // write the log cache to disk.
+  writeLogCache(logCache);
 };
 
 const createNewFilter = async (

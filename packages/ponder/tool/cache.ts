@@ -27,22 +27,25 @@ type PonderCache = {
 let cache: PonderCache = {};
 
 const hydrateCache = async () => {
+  const foundCache = await readCache();
+  cache = foundCache;
+};
+
+const readCache = async () => {
   try {
     const rawCache = await readFile(
       path.join(pathToPonderDir, "cache.json"),
       "utf-8"
     );
-
-    const foundCache: PonderCache = JSON.parse(rawCache);
-    cache = foundCache;
-
+    // TODO: Validate cache read from file.
+    const cache: PonderCache = rawCache ? JSON.parse(rawCache) : {};
     return cache;
-  } catch (err) {
-    return null;
+  } catch (e) {
+    return {};
   }
 };
 
-const handleWriteCache = async () => {
+const writeCache = async () => {
   await writeFile(
     path.join(pathToPonderDir, "cache.json"),
     JSON.stringify(cache),
@@ -57,7 +60,7 @@ const testUserHandlersChanged = async () => {
   const isChanged = hash !== cache.userHandlers;
   if (isChanged) {
     cache.userHandlers = hash;
-    handleWriteCache();
+    writeCache();
   }
 
   return isChanged;
@@ -70,7 +73,7 @@ const testUserConfigChanged = async () => {
   const isChanged = hash !== cache.userConfig;
   if (isChanged) {
     cache.userConfig = hash;
-    handleWriteCache();
+    writeCache();
   }
 
   return isChanged;
@@ -83,7 +86,7 @@ const testUserSchemaChanged = async () => {
   const isChanged = hash !== cache.userSchema;
   if (isChanged) {
     cache.userSchema = hash;
-    handleWriteCache();
+    writeCache();
   }
 
   return isChanged;
