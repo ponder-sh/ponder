@@ -146,6 +146,8 @@ const handleReindex = async () => {
     return;
   }
 
+  console.log(`Reindexing... 🕑`);
+
   await createOrUpdateDbTables(state.dbSchema);
 
   await fetchAndProcessLogs(
@@ -153,6 +155,8 @@ const handleReindex = async () => {
     state.userHandlers,
     state.handlerContext
   );
+
+  console.log(`Reindexing complete 🚀`);
 };
 
 const dev = async () => {

@@ -52,14 +52,19 @@ const fetchAndProcessLogs = async (
       return;
     }
 
-    const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
-    console.log(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
+    // const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
+    // console.log(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
 
     // YAY: We're running user code here!
-    handler(params, handlerContext);
+    await handler(params, handlerContext);
   };
 
   const logCache = await readLogCache();
+
+  // NOTE: To support multiple providers/chains, we will need to be
+  // more deliberate about the order in which logs get added to the queue.
+  const queue = fastq.promise(worker, 1);
+  queue.pause();
 
   // TODO: Make this work on a per-provider basis
   // instead of per-contract/source, should reduce RPC usage
@@ -77,10 +82,6 @@ const fetchAndProcessLogs = async (
       provider,
       contracts
     );
-
-    // STEP 2: Set up the log queue, paused to start
-    const queue = fastq.promise(worker, 1);
-    queue.pause();
 
     // STEP 3: Register a block handler that adds new logs to the (paused) queue
     await registerBlockHandler(provider, filterId, queue);
@@ -103,16 +104,7 @@ const fetchAndProcessLogs = async (
     // TODO: De-dupe and validate some shit probably.
     const historicalLogs = [...(cachedLogData?.logs || []), ...newLogs];
 
-    // STEP 5: Add historical logs to the front of the queue
-    for (let i = historicalLogs.length - 1; i >= 0; i--) {
-      const log = historicalLogs[i];
-      queue.unshift(log);
-    }
-
-    // STEP 6: Let it rip
-    queue.resume();
-
-    // STEP 7:Add latest set of logs for this source
+    // STEP 7: Add latest set of logs for this source
     logCache[source.address] = {
       fromBlock: sourceStartBlock,
       toBlock: filterStartBlock,
@@ -120,9 +112,29 @@ const fetchAndProcessLogs = async (
     };
   }
 
-  // Once historical logs have been fetched for all sources,
-  // write the log cache to disk.
+  // STEP 7: Combine and sort logs from all sources
+  const sortedLogsForAllSources = Object.entries(logCache)
+    .map(([, logData]) => {
+      if (!logData) return [];
+      return logData?.logs;
+    })
+    .flat()
+    .sort((a, b) => getLogIndex(a) - getLogIndex(b));
+
+  // STEP 5: Add historical logs to the front of the queue
+  for (let i = sortedLogsForAllSources.length - 1; i >= 0; i--) {
+    const log = sortedLogsForAllSources[i];
+    queue.unshift(log);
+  }
+
+  // Side effect: Once historical logs have been fetched and process for
+  // all source, write the log cache to disk.
   writeLogCache(logCache);
+
+  // STEP 8:
+  queue.resume();
+
+  await queue.drained();
 };
 
 const createNewFilter = async (
@@ -157,6 +169,10 @@ const registerBlockHandler = async (
   };
 
   provider.on("block", blockHandler);
+};
+
+const getLogIndex = (log: Log) => {
+  return Number(log.blockNumber) * 10000 + Number(log.logIndex);
 };
 
 export { fetchAndProcessLogs };

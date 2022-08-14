@@ -6,7 +6,7 @@ import { toolConfig } from "./config";
 
 const { pathToHandlersDir, pathToBuildDir } = toolConfig;
 
-type Handler = (args: unknown, context: HandlerContext) => void;
+type Handler = (args: unknown, context: HandlerContext) => Promise<void> | void;
 type SourceHandlers = { [eventName: string]: Handler | undefined };
 type UserHandlers = { [sourceName: string]: SourceHandlers | undefined };
 

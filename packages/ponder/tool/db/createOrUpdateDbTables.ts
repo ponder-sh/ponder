@@ -13,8 +13,6 @@ const gqlToKnexTypeMap: { [gqlType: string]: KnexColumnType | undefined } = {
 let isInitialized = false;
 
 const createOrUpdateDbTables = async (dbSchema: DbSchema) => {
-  console.log("in createOrUpdateDbTables:", { isInitialized });
-
   if (isInitialized) {
     // Drop all tables if not running for the first time.
     await dropTables();
