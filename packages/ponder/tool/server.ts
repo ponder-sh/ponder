@@ -4,32 +4,29 @@ import type { GraphQLSchema } from "graphql";
 
 import { db } from "./db";
 
-const context = {
-  db,
-};
-
+const context = { db };
 const PORT = 4000;
 const app = express();
-let isListening = false;
+let isInitialized = false;
+let graphqlMiddleware: express.Handler;
 
 const restartServer = (gqlSchema: GraphQLSchema) => {
-  // If this function is not being called for the first time,
-  // the graphqlHTTP middleware gets replaced using the new schema.
-  app.use(
-    "/graphql",
-    graphqlHTTP({
-      schema: gqlSchema,
-      context: context,
-      graphiql: true,
-    })
-  );
+  // This uses a small hack to update the GraphQL server at runtime.
+  graphqlMiddleware = graphqlHTTP({
+    schema: gqlSchema,
+    context: context,
+    graphiql: true,
+  });
 
-  if (!isListening) {
+  if (!isInitialized) {
+    isInitialized = true;
+    app.use("/graphql", (...args) => graphqlMiddleware(...args));
     app.listen(PORT);
     console.log(
-      `Running a GraphQL API server at http://localhost:${PORT}/graphql`
+      `Started the GraphQL server at http://localhost:${PORT}/graphql`
     );
-    isListening = true;
+  } else {
+    console.log(`Restarted the GraphQL server`);
   }
 
   return app;

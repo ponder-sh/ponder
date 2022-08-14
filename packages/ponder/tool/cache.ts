@@ -49,24 +49,26 @@ const testUserConfigChanged = async () => {
   const contents = await readFile(pathToUserConfigFile, "utf-8");
   const hash = generateHash(contents);
 
-  if (hash !== cache.userConfig) {
+  const isChanged = hash !== cache.userSchema;
+  if (isChanged) {
     cache.userConfig = hash;
     handleWriteCache();
   }
 
-  return hash !== cache.userConfig;
+  return isChanged;
 };
 
 const testUserSchemaChanged = async () => {
   const contents = await readFile(pathToUserSchemaFile, "utf-8");
   const hash = generateHash(contents);
 
-  if (hash !== cache.userSchema) {
+  const isChanged = hash !== cache.userSchema;
+  if (isChanged) {
     cache.userSchema = hash;
     handleWriteCache();
   }
 
-  return hash !== cache.userSchema;
+  return isChanged;
 };
 
 export {

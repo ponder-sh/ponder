@@ -116,13 +116,12 @@ const handleDbSchemaChanged = async (newDbSchema: DbSchema) => {
 
   await migrateDb(newDbSchema);
 
-  // if (state.config) {
-  //   await generateContextType(state.config, newDbSchema);
-  //   console.log(`Regenerated context type`);
+  if (state.config) {
+    generateContextType(state.config, newDbSchema);
 
-  //   const handlerContext = buildHandlerContext(state.config, newDbSchema);
-  //   handleHandlerContextChanged(handlerContext);
-  // }
+    const handlerContext = buildHandlerContext(state.config, newDbSchema);
+    handleHandlerContextChanged(handlerContext);
+  }
 };
 
 const handleHandlerContextChanged = async (
@@ -137,14 +136,10 @@ const handleHandlerContextChanged = async (
 };
 
 const dev = async () => {
-  console.log("in dev");
   await handleHydrateCache();
 
   handleUserConfigFileChanged();
   handleUserSchemaFileChanged();
-
-  // testUserConfigChanged();
-  // testUserSchemaChanged();
 
   const userConfigListener = debounce<WatchListener<string>>(
     async (event, fileName) => {

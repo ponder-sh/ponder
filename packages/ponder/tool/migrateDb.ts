@@ -10,8 +10,15 @@ const gqlToKnexTypeMap: { [gqlType: string]: KnexColumnType | undefined } = {
   String: "string",
 };
 
+let isInitialized = false;
+
 const migrateDb = async (dbSchema: DbSchema) => {
   const { tables } = dbSchema;
+
+  if (isInitialized) {
+    return;
+  }
+  isInitialized = true;
 
   for (const table of tables) {
     await db.schema.createTable(table.name, (knexTable) => {
