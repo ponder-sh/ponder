@@ -13,9 +13,9 @@ const app = express();
 let isListening = false;
 
 const restartServer = (gqlSchema: GraphQLSchema) => {
-  console.log({ stack: app.stack });
-
-  const returnedApp = app.use(
+  // If this function is not being called for the first time,
+  // the graphqlHTTP middleware gets replaced using the new schema.
+  app.use(
     "/graphql",
     graphqlHTTP({
       schema: gqlSchema,
@@ -24,8 +24,6 @@ const restartServer = (gqlSchema: GraphQLSchema) => {
     })
   );
 
-  console.log({ stack: returnedApp.stack });
-
   if (!isListening) {
     app.listen(PORT);
     console.log(
@@ -33,8 +31,6 @@ const restartServer = (gqlSchema: GraphQLSchema) => {
     );
     isListening = true;
   }
-
-  console.log({ stack: returnedApp.stack });
 
   return app;
 };
