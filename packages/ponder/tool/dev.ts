@@ -10,14 +10,15 @@ import { buildHandlerContext, HandlerContext } from "./buildHandlerContext";
 import {
   handleHydrateCache,
   testUserConfigChanged,
+  testUserHandlersChanged,
   testUserSchemaChanged,
 } from "./cache";
 import { toolConfig } from "./config";
-import { getInitialLogs } from "./fetchLogs";
+import { fetchAndProcessLogs } from "./logs/processLogs";
 import { migrateDb } from "./migrateDb";
-import { processLogs } from "./processLogs";
-import type { PonderConfig, PonderUserConfig } from "./readUserConfig";
+import type { PonderConfig } from "./readUserConfig";
 import { readUserConfig } from "./readUserConfig";
+import { readUserHandlers, UserHandlers } from "./readUserHandlers";
 import { readUserSchema } from "./readUserSchema";
 import { restartServer } from "./server";
 import {
@@ -49,7 +50,8 @@ import { generateContextType } from "./typegen/generateContextType";
 // 			generateContextType (2 / 2)
 // 			buildHandlerContext (2 / 2)
 
-const { pathToUserConfigFile, pathToUserSchemaFile } = toolConfig;
+const { pathToUserHandlersFile, pathToUserConfigFile, pathToUserSchemaFile } =
+  toolConfig;
 
 type PonderState = {
   config?: PonderConfig;
@@ -57,10 +59,16 @@ type PonderState = {
   gqlSchema?: GraphQLSchema;
   dbSchema?: DbSchema;
   handlerContext?: HandlerContext;
-  // entityNames?: string[] ?????? maybe for caching handlerContext
+  userHandlers?: UserHandlers;
+  // entityNames?: string[] ?????? maybe for caching handlerContext better
 };
 
 const state: PonderState = {};
+
+const handleUserHandlersFileChanged = async () => {
+  const userHandlers = await readUserHandlers();
+  handleUserHandlersChanged(userHandlers);
+};
 
 const handleUserConfigFileChanged = async () => {
   const config = await readUserConfig();
@@ -72,12 +80,26 @@ const handleUserSchemaFileChanged = async () => {
   handleUserSchemaChanged(userSchema);
 };
 
+const handleUserHandlersChanged = async (newUserHandlers: UserHandlers) => {
+  // const oldUserHandlers = state.userHandlers;
+  state.userHandlers = newUserHandlers;
+
+  if (state.config && state.handlerContext) {
+    fetchAndProcessLogs(state.config, newUserHandlers, state.handlerContext);
+  }
+};
+
 const handleConfigChanged = async (newConfig: PonderConfig) => {
   // const oldConfig = state.config;
   state.config = newConfig;
 
   generateContractTypes(newConfig);
   generateHandlerTypes(newConfig);
+
+  // TODO: Uncomment when de-duplicating is better.
+  // if (state.userHandlers && state.handlerContext) {
+  //   fetchAndProcessLogs(newConfig, state.userHandlers, state.handlerContext);
+  // }
 
   if (state.dbSchema) {
     generateContextType(newConfig, state.dbSchema);
@@ -130,22 +152,37 @@ const handleHandlerContextChanged = async (
   // const oldHandlerContext = state.handlerContext;
   state.handlerContext = newHandlerContext;
 
-  // TODO: ...reindex the entire goddamn set of events?
-  // TODO: ...re-register the handler functions and run them through the entire
-  // set of events?
+  // TODO: Uncomment when de-duplicating is better.
+  // if (state.config && state.userHandlers) {
+  //   fetchAndProcessLogs(state.config, state.userHandlers, newHandlerContext);
+  // }
 };
 
 const dev = async () => {
   await handleHydrateCache();
 
+  // NOTE: Might be possible to be more smart about this,
+  // but I'm pretty sure these all need to be kicked off here.
+  handleUserHandlersFileChanged();
   handleUserConfigFileChanged();
   handleUserSchemaFileChanged();
+
+  const userHandlersListener = debounce<WatchListener<string>>(
+    async (event, fileName) => {
+      const isChanged = await testUserHandlersChanged();
+      if (isChanged) {
+        console.log(`Detected ${event} in handlers/${fileName}`);
+        handleUserHandlersFileChanged();
+      }
+    },
+    300
+  );
 
   const userConfigListener = debounce<WatchListener<string>>(
     async (event, fileName) => {
       const isChanged = await testUserConfigChanged();
       if (isChanged) {
-        console.log(`Detected ${event} in ${fileName}, reindexing...`);
+        console.log(`Detected ${event} in ${fileName}`);
         handleUserConfigFileChanged();
       }
     },
@@ -156,25 +193,16 @@ const dev = async () => {
     async (event, fileName) => {
       const isChanged = await testUserSchemaChanged();
       if (isChanged) {
-        console.log(`Detected ${event} in ${fileName}, reindexing...`);
+        console.log(`Detected ${event} in ${fileName}`);
         handleUserSchemaFileChanged();
       }
     },
     300
   );
 
+  watch(pathToUserHandlersFile, userHandlersListener);
   watch(pathToUserConfigFile, userConfigListener);
   watch(pathToUserSchemaFile, schemaListener);
-
-  // const tableCount = await migrateDb(dbSchema);
-  // console.log(`Created ${tableCount} tables`);
-
-  // const initialLogsResult = await getInitialLogs(config);
-  // console.log(`Fetched ${initialLogsResult.length} logs`);
-
-  // const handlerContext = buildHandlerContext(config, dbSchema);
-
-  // await processLogs(initialLogsResult, handlerContext);
 };
 
 dev().catch(console.error);

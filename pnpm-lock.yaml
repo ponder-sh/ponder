@@ -64,6 +64,7 @@ importers:
       ethers: ^5.6.9
       express: ^4.18.1
       express-graphql: ^0.12.0
+      fastq: ^1.13.0
       froebel: ^0.21.3
       graphql: ^16.2.0
       knex: ^2.2.0
@@ -80,6 +81,7 @@ importers:
       ethers: 5.6.9
       express: 4.18.1
       express-graphql: 0.12.0_graphql@16.2.0
+      fastq: 1.13.0
       froebel: 0.21.3
       graphql: 16.2.0
       knex: 2.2.0_sqlite3@5.0.11
@@ -4111,7 +4113,6 @@ packages:
     resolution: {integrity: sha512-YpkpUnK8od0o1hmeSc7UUs/eB/vIPWJYjKck2QKIzAf71Vm1AAQ3EbuZB3g2JIy+pg+ERD0vqI79KyZiB2e2Nw==}
     dependencies:
       reusify: 1.0.4
-    dev: true
 
   /fb-watchman/2.0.1:
     resolution: {integrity: sha512-DkPJKQeY6kKwmuMretBhr7G6Vodr7bFwDYTXIkfG1gjvNpaxBTQV3PbXg6bR1c1UP4jPOX0jHUbbHANL9vRjVg==}
@@ -6840,7 +6841,6 @@ packages:
   /reusify/1.0.4:
     resolution: {integrity: sha512-U9nH88a3fc/ekCF1l0/UP1IosiuIjyTh7hBvXVMHYgVcfGvt897Xguj2UOLDeI5BG2m7/uwyaLVT6fbtCwTyzw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
-    dev: true
 
   /rewrite-imports/1.4.0:
     resolution: {integrity: sha512-k4pGuRsZ6UMSLW4mxpKVxqvGAwXCC81ZnLD+o+S9/7b3+fZ/pguNLHZpZ7qgi/5AmtqzuzppInhaARBjjDquOA==}

@@ -1,7 +1,7 @@
 import { buildDbSchema } from "./buildDbSchema";
 import { buildGqlSchema } from "./buildGqlSchema";
 import { buildHandlerContext } from "./buildHandlerContext";
-import { getInitialLogs } from "./fetchLogs";
+import { fetchLogs } from "./logs/fetchLogs";
 import { migrateDb } from "./migrateDb";
 import { processLogs } from "./processLogs";
 import { readUserConfig } from "./readUserConfig";
@@ -42,12 +42,12 @@ const main = async () => {
   const tableCount = await migrateDb(dbSchema);
   console.log(`Created ${tableCount} tables`);
 
-  const initialLogsResult = await getInitialLogs(config);
-  console.log(`Fetched ${initialLogsResult.length} logs`);
+  // const initialLogsResult = await fetchAndProcessLogs(config);
+  // console.log(`Fetched ${initialLogsResult.length} logs`);
 
-  const handlerContext = buildHandlerContext(config, dbSchema);
+  // const handlerContext = buildHandlerContext(config, dbSchema);
 
-  await processLogs(initialLogsResult, handlerContext);
+  // await processLogs(initialLogsResult, handlerContext);
 
   restartServer(gqlSchema);
 };

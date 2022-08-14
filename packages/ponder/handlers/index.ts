@@ -15,6 +15,10 @@ const handleAlignmentVote: AlignmentVoteHandler = async (params, context) => {
   });
 };
 
-export default {
+const EthPlaysV0 = {
   AlignmentVote: handleAlignmentVote,
+};
+
+export default {
+  EthPlaysV0: EthPlaysV0,
 };

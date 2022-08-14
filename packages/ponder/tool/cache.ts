@@ -4,8 +4,12 @@ import path from "path";
 
 import { toolConfig } from "./config";
 
-const { pathToUserConfigFile, pathToUserSchemaFile, pathToPonderDir } =
-  toolConfig;
+const {
+  pathToUserConfigFile,
+  pathToUserSchemaFile,
+  pathToPonderDir,
+  pathToUserHandlersFile,
+} = toolConfig;
 
 const generateHash = (content: Buffer | string) => {
   let hash = createHash("md5");
@@ -14,6 +18,7 @@ const generateHash = (content: Buffer | string) => {
 };
 
 type PonderCache = {
+  userHandlers?: string;
   userConfig?: string;
   userSchema?: string;
 };
@@ -45,11 +50,24 @@ const handleWriteCache = async () => {
   );
 };
 
+const testUserHandlersChanged = async () => {
+  const contents = await readFile(pathToUserHandlersFile, "utf-8");
+  const hash = generateHash(contents);
+
+  const isChanged = hash !== cache.userHandlers;
+  if (isChanged) {
+    cache.userHandlers = hash;
+    handleWriteCache();
+  }
+
+  return isChanged;
+};
+
 const testUserConfigChanged = async () => {
   const contents = await readFile(pathToUserConfigFile, "utf-8");
   const hash = generateHash(contents);
 
-  const isChanged = hash !== cache.userSchema;
+  const isChanged = hash !== cache.userConfig;
   if (isChanged) {
     cache.userConfig = hash;
     handleWriteCache();
@@ -75,5 +93,6 @@ export {
   cache,
   handleHydrateCache,
   testUserConfigChanged,
+  testUserHandlersChanged,
   testUserSchemaChanged,
 };
