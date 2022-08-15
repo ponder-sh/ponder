@@ -1,26 +1,25 @@
 import path from "node:path";
 
-// This could be provided as CLI params?
 const toolConfigRaw = {
-  pathToUserHandlersFile: "handlers/index.ts",
-  pathToUserConfigFile: "ponder.config.js",
-  pathToUserSchemaFile: "schema.graphql",
-  pathToGeneratedDir: "generated",
-  pathToHandlersDir: "handlers",
-  pathToBuildDir: ".ponder/build",
-  pathToPonderDir: ".ponder",
+  userHandlersFile: "handlers/index.ts",
+  userConfigFile: "ponder.config.js",
+  userSchemaFile: "schema.graphql",
+  generatedDir: "generated",
+  handlersDir: "handlers",
+  buildDir: ".ponder/build",
+  ponderDir: ".ponder",
 };
 
 const dir = process.cwd();
 
 const toolConfig = {
-  pathToUserHandlersFile: path.join(dir, toolConfigRaw.pathToUserHandlersFile),
-  pathToUserConfigFile: path.join(dir, toolConfigRaw.pathToUserConfigFile),
-  pathToUserSchemaFile: path.join(dir, toolConfigRaw.pathToUserSchemaFile),
-  pathToGeneratedDir: path.join(dir, toolConfigRaw.pathToGeneratedDir),
-  pathToHandlersDir: path.join(dir, toolConfigRaw.pathToHandlersDir),
-  pathToBuildDir: path.join(dir, toolConfigRaw.pathToBuildDir),
-  pathToPonderDir: path.join(dir, toolConfigRaw.pathToPonderDir),
+  userHandlersFile: path.join(dir, toolConfigRaw.userHandlersFile),
+  userConfigFile: path.join(dir, toolConfigRaw.userConfigFile),
+  userSchemaFile: path.join(dir, toolConfigRaw.userSchemaFile),
+  generatedDir: path.join(dir, toolConfigRaw.generatedDir),
+  handlersDir: path.join(dir, toolConfigRaw.handlersDir),
+  buildDir: path.join(dir, toolConfigRaw.buildDir),
+  ponderDir: path.join(dir, toolConfigRaw.ponderDir),
 };
 
 export { toolConfig };

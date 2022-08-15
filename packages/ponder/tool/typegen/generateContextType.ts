@@ -47,11 +47,7 @@ const generateContextType = async (
 
   const final = formatPrettier(header + imports + body);
 
-  await writeFile(
-    `${toolConfig.pathToGeneratedDir}/context.d.ts`,
-    final,
-    "utf8"
-  );
+  await writeFile(`${toolConfig.generatedDir}/context.d.ts`, final, "utf8");
 
   console.log(`Regenerated context type`);
 };

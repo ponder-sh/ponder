@@ -3,13 +3,13 @@ import prettier from "prettier";
 
 import { toolConfig } from "./config";
 
-const { pathToPonderDir, pathToBuildDir, pathToGeneratedDir } = toolConfig;
+const { ponderDir, buildDir, generatedDir } = toolConfig;
 
 const ensureDirectoriesExist = async () => {
   await Promise.all([
-    mkdir(pathToPonderDir, { recursive: true }),
-    mkdir(pathToBuildDir, { recursive: true }),
-    mkdir(pathToGeneratedDir, { recursive: true }),
+    mkdir(ponderDir, { recursive: true }),
+    mkdir(buildDir, { recursive: true }),
+    mkdir(generatedDir, { recursive: true }),
   ]);
 };
 

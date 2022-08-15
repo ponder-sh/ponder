@@ -30,7 +30,7 @@ const generateEntityTypes = async (gqlSchema: GraphQLSchema) => {
 
   const final = formatPrettier(header + body);
 
-  writeFile(`${toolConfig.pathToGeneratedDir}/schema.d.ts`, final, "utf8");
+  writeFile(`${toolConfig.generatedDir}/schema.d.ts`, final, "utf8");
 
   console.log(`Regenerated schema.d.ts`);
 };

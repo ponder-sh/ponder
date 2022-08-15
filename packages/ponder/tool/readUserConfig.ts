@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 
 import { toolConfig } from "./config";
 
-const { pathToUserConfigFile } = toolConfig;
+const { userConfigFile } = toolConfig;
 
 enum SourceKind {
   EVM = "evm",
@@ -34,13 +34,13 @@ interface PonderConfig {
 
 const readUserConfig = async () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const userConfig = require(pathToUserConfigFile);
+  const userConfig = require(userConfigFile);
 
   // Remove the ponder.config.js module from the require cache,
   // because we are loading it several times in the same process,
   // and we need the latest version each time.
   // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
-  delete require.cache[require.resolve(pathToUserConfigFile)];
+  delete require.cache[require.resolve(userConfigFile)];
 
   // console.log("found userConfig:", { required });
 

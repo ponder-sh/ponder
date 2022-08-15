@@ -4,12 +4,8 @@ import path from "node:path";
 
 import { toolConfig } from "./config";
 
-const {
-  pathToUserConfigFile,
-  pathToUserSchemaFile,
-  pathToPonderDir,
-  pathToUserHandlersFile,
-} = toolConfig;
+const { userConfigFile, userSchemaFile, ponderDir, userHandlersFile } =
+  toolConfig;
 
 const generateHash = (content: Buffer | string) => {
   let hash = createHash("md5");
@@ -34,7 +30,7 @@ const hydrateCache = async () => {
 const readCache = async () => {
   try {
     const rawCache = await readFile(
-      path.join(pathToPonderDir, "cache.json"),
+      path.join(ponderDir, "cache.json"),
       "utf-8"
     );
     // TODO: Validate cache read from file.
@@ -47,14 +43,14 @@ const readCache = async () => {
 
 const writeCache = async () => {
   await writeFile(
-    path.join(pathToPonderDir, "cache.json"),
+    path.join(ponderDir, "cache.json"),
     JSON.stringify(cache),
     "utf-8"
   );
 };
 
 const testUserHandlersChanged = async () => {
-  const contents = await readFile(pathToUserHandlersFile, "utf-8");
+  const contents = await readFile(userHandlersFile, "utf-8");
   const hash = generateHash(contents);
 
   const isChanged = hash !== cache.userHandlers;
@@ -67,7 +63,7 @@ const testUserHandlersChanged = async () => {
 };
 
 const testUserConfigChanged = async () => {
-  const contents = await readFile(pathToUserConfigFile, "utf-8");
+  const contents = await readFile(userConfigFile, "utf-8");
   const hash = generateHash(contents);
 
   const isChanged = hash !== cache.userConfig;
@@ -80,7 +76,7 @@ const testUserConfigChanged = async () => {
 };
 
 const testUserSchemaChanged = async () => {
-  const contents = await readFile(pathToUserSchemaFile, "utf-8");
+  const contents = await readFile(userSchemaFile, "utf-8");
   const hash = generateHash(contents);
 
   const isChanged = hash !== cache.userSchema;

@@ -41,7 +41,7 @@ const generateHandlerTypes = async (config: PonderConfig) => {
       );
 
       await writeFile(
-        `${toolConfig.pathToGeneratedDir}/${source.name}.d.ts`,
+        `${toolConfig.generatedDir}/${source.name}.d.ts`,
         final,
         "utf8"
       );

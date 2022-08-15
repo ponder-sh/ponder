@@ -14,11 +14,7 @@ const generateSchema = async (gqlSchema: GraphQLSchema) => {
 
   const final = formatPrettier(header + body, { parser: "graphql" });
 
-  await writeFile(
-    `${toolConfig.pathToGeneratedDir}/schema.graphql`,
-    final,
-    "utf8"
-  );
+  await writeFile(`${toolConfig.generatedDir}/schema.graphql`, final, "utf8");
 
   console.log(`Regenerated schema.graphql`);
 };

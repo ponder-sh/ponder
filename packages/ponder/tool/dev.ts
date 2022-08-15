@@ -30,8 +30,7 @@ import {
 } from "./typegen";
 import { generateContextType } from "./typegen/generateContextType";
 
-const { pathToUserHandlersFile, pathToUserConfigFile, pathToUserSchemaFile } =
-  toolConfig;
+const { userHandlersFile, userConfigFile, userSchemaFile } = toolConfig;
 
 type PonderState = {
   config?: PonderConfig;
@@ -214,9 +213,9 @@ const dev = async () => {
     300
   );
 
-  watch(pathToUserHandlersFile, userHandlersListener);
-  watch(pathToUserConfigFile, userConfigListener);
-  watch(pathToUserSchemaFile, schemaListener);
+  watch(userHandlersFile, userHandlersListener);
+  watch(userConfigFile, userConfigListener);
+  watch(userSchemaFile, schemaListener);
 };
 
 export { dev };
