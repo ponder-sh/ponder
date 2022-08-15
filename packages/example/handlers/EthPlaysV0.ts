@@ -28,9 +28,9 @@ const handleButtonInput: ButtonInputHandler = async (params, context) => {
     feedIndex: 789,
     type: "ButtonInput",
     from: from,
+    vote: false,
     buttonIndex: buttonIndex.toNumber(),
     inputIndex: inputIndex.toNumber(),
-    vote: true,
   });
 };
 

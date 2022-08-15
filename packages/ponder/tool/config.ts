@@ -10,7 +10,7 @@ const CONFIG_RAW = {
   userHandlersDir: "handlers",
   buildDir: ".ponder/build",
   ponderDir: ".ponder",
-  logLevel: 1, // LogLevel.Info
+  logLevel: 2, // LogLevel.Info
 };
 
 const CONFIG = {
