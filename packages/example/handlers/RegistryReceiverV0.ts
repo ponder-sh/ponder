@@ -1,12 +1,12 @@
 import { NewRegistrationHandler } from "../generated/RegistryReceiverV0";
 
 const handleNewRegistration: NewRegistrationHandler = async (
-  params,
+  event,
   context
 ) => {
   const { Player } = context.entities;
 
-  const { account, burnerAccount } = params;
+  const { account, burnerAccount } = event.params;
 
   await Player.insert({
     account: account,

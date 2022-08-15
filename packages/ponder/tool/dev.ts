@@ -149,13 +149,14 @@ const handleReindex = async () => {
 
   await createOrUpdateDbTables(state.dbSchema);
 
-  await fetchAndProcessLogs(
+  const { logCount } = await fetchAndProcessLogs(
     state.config,
     state.userHandlers,
     state.handlerContext
   );
 
   state.isIndexingInProgress = false;
+  logger.info(`Processed ${logCount} logs`);
   logger.info(`Reindexing complete 🚀`);
 };
 

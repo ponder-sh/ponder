@@ -12,6 +12,7 @@ const header = `
 `;
 
 const imports = `
+import type { LogDescription } from "@ethersproject/abi";
 import type { BigNumber } from "ethers";
 
 import type { Context } from "./context";
@@ -63,8 +64,11 @@ const generateEventHandlerType = (
   const parameterType = generateParamsType(event.inputs);
 
   const eventHandlerTypes = `
-  export type ${eventName}Params = ${parameterType}
-  export type ${eventName}Handler = (params: ${eventName}Params, context: Context) => void;
+  export interface ${eventName}Event extends LogDescription {
+    name: "${eventName}";
+    params: ${parameterType}
+  }
+  export type ${eventName}Handler = (event: ${eventName}Event, context: Context) => void;
   `;
 
   return {

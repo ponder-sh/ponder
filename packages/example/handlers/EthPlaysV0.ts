@@ -3,11 +3,11 @@ import {
   ButtonInputHandler,
 } from "../generated/EthPlaysV0";
 
-const handleAlignmentVote: AlignmentVoteHandler = async (params, context) => {
+const handleAlignmentVote: AlignmentVoteHandler = async (event, context) => {
   const { FeedItem } = context.entities;
   const { EthPlaysV0 } = context.contracts;
 
-  const { from, vote, alignment } = params;
+  const { from, vote, alignment } = event.params;
 
   await FeedItem.insert({
     timestamp: 123,
@@ -18,10 +18,10 @@ const handleAlignmentVote: AlignmentVoteHandler = async (params, context) => {
   });
 };
 
-const handleButtonInput: ButtonInputHandler = async (params, context) => {
+const handleButtonInput: ButtonInputHandler = async (event, context) => {
   const { FeedItem } = context.entities;
 
-  const { from, buttonIndex, inputIndex } = params;
+  const { from, buttonIndex, inputIndex } = event.params;
 
   await FeedItem.insert({
     timestamp: 121233,

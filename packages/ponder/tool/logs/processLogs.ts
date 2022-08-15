@@ -54,8 +54,11 @@ const fetchAndProcessLogs = async (
     const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
     logger.debug(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
 
+    // TOOD: Add more shit to the event here?
+    const event = { ...parsedLog, params: params };
+
     // YAY: We're running user code here!
-    await handler(params, handlerContext);
+    await handler(event, handlerContext);
   };
 
   // Indexing runs on a per-provider basis so we can batch eth_getLogs calls across contracts.
@@ -137,6 +140,10 @@ const fetchAndProcessLogs = async (
   // NOTE: Awaiting the queue to be drained allows callers to take action once
   // all historical logs have been fetched and processed (indexing is complete).
   await queue.drained();
+
+  return {
+    logCount: sortedLogsForAllSources.length,
+  };
 };
 
 const createNewFilter = async (logProvider: LogProvider) => {
