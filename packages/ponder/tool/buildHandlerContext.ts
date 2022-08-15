@@ -3,7 +3,7 @@ import { Knex } from "knex";
 
 import type { DbSchema } from "./buildDbSchema";
 import { db } from "./db";
-import { getProviderForSource } from "./helpers";
+import { getProviderForChainId } from "./helpers";
 import type { PonderConfig } from "./readUserConfig";
 import { SourceKind } from "./readUserConfig";
 
@@ -34,7 +34,7 @@ const buildHandlerContext = (
 
   const contracts: { [key: string]: Contract | undefined } = {};
   sources.forEach((source) => {
-    const provider = getProviderForSource(config, source);
+    const provider = getProviderForChainId(config, source.chainId);
     const contract = new Contract(
       source.address,
       source.abiInterface,

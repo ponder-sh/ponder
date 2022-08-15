@@ -20,25 +20,26 @@ const getEntities = (schema: GraphQLSchema) => {
   return entities;
 };
 
-const providerCache: { [chainId: number]: providers.JsonRpcProvider } = {};
+const providerCache: {
+  [chainId: number]: providers.JsonRpcProvider | undefined;
+} = {};
 
-const getProviderForSource = (
-  config: PonderConfig,
-  source: PonderConfig["sources"][number]
-) => {
-  if (providerCache[source.chainId]) {
-    return providerCache[source.chainId];
+const getProviderForChainId = (config: PonderConfig, chainId: number) => {
+  const cachedProvider = providerCache[chainId];
+  if (cachedProvider) {
+    return cachedProvider;
+  }
+
+  if (config.rpcUrls[chainId]) {
+    const provider = new providers.JsonRpcProvider(
+      config.rpcUrls[chainId],
+      Number(chainId)
+    );
+    providerCache[chainId] = provider;
+    return provider;
   } else {
-    if (config.rpcUrls[source.chainId]) {
-      const provider = new providers.JsonRpcProvider(
-        config.rpcUrls[source.chainId],
-        Number(source.chainId)
-      );
-      return provider;
-    } else {
-      throw new Error(`No RPC url found for chain ID: ${source.chainId}`);
-    }
+    throw new Error(`No RPC url found for chain ID: ${chainId}`);
   }
 };
 
-export { getEntities, getProviderForSource };
+export { getEntities, getProviderForChainId };

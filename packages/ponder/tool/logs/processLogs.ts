@@ -1,26 +1,22 @@
 import type { JsonRpcProvider, Log } from "@ethersproject/providers";
-import { BigNumber, Contract } from "ethers";
+import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { HandlerContext } from "../buildHandlerContext";
-import { getProviderForSource } from "../helpers";
+import { getProviderForChainId } from "../helpers";
 import type { PonderConfig } from "../readUserConfig";
 import { UserHandlers } from "../readUserHandlers";
 import { fetchLogs } from "./fetchLogs";
 import { readLogCache, writeLogCache } from "./logCache";
 
-// on startup
-// 	load log cache into memory
-// 	for each source (or provider?)
-// 		register listener that just adds logs to a queue, store fromBlock
-// 		load historicalLogs into memory
-// 		fetch newLogs (from end of historicalLogs to start of listener)
-//    append newLogs to historicalLogs
-// 		push full log history to ?front of queue
-// 		let her rip!!!
-// 		write full log history back to disk, including metadata
-
 type LogQueue = fastq.queueAsPromised<Log>;
+
+type LogProvider = {
+  chainId: number;
+  provider: JsonRpcProvider;
+  contracts: string[];
+  cacheKey: string;
+};
 
 const fetchAndProcessLogs = async (
   config: PonderConfig,
@@ -61,6 +57,17 @@ const fetchAndProcessLogs = async (
     await handler(params, handlerContext);
   };
 
+  // Indexing runs on a per-provider basis so we can batch eth_getLogs calls across contracts.
+  const uniqueChainIds = [...new Set(config.sources.map((s) => s.chainId))];
+  const logProviders: LogProvider[] = uniqueChainIds.map((chainId) => {
+    const provider = getProviderForChainId(config, chainId);
+    const contracts = config.sources
+      .filter((source) => source.chainId === chainId)
+      .map((source) => source.address);
+
+    return { chainId, provider, contracts, cacheKey: String(chainId) };
+  });
+
   // Read cached logs from disk.
   const logCache = await readLogCache();
 
@@ -70,26 +77,17 @@ const fetchAndProcessLogs = async (
 
   // TODO: Make this work on a per-provider basis
   // instead of per-contract/source, should reduce RPC usage
-  for (const source of config.sources) {
-    const provider = getProviderForSource(config, source);
-    const contract = new Contract(
-      source.address,
-      source.abiInterface,
-      provider
-    );
-    const contracts = [contract.address];
+  for (const logProvider of logProviders) {
+    const { provider, contracts, cacheKey } = logProvider;
 
     // Call eth_newFilter for all events emitted by the specified contracts.
-    const { filterStartBlock, filterId } = await createNewFilter(
-      provider,
-      contracts
-    );
+    const { filterStartBlock, filterId } = await createNewFilter(logProvider);
 
-    // Register a block handler that adds new logs to the (paused) queue
-    await registerBlockHandler(provider, filterId, queue);
+    // Register a block listener that adds new logs to the queue.
+    registerBlockListener(logProvider, filterId, queue);
 
     // Get cached log data for this source (may be empty/undefined).
-    const cachedLogData = logCache[source.address];
+    const cachedLogData = logCache[cacheKey];
 
     // Calculate fromBlock to pick up where the cached logs end.
     // NOTE: Could optimize this to use the contract deployment block.
@@ -105,7 +103,7 @@ const fetchAndProcessLogs = async (
     const historicalLogs = [...(cachedLogData?.logs || []), ...newLogs];
 
     // Add the full list of historical logs to the cache.
-    logCache[source.address] = {
+    logCache[cacheKey] = {
       fromBlock: sourceStartBlock,
       toBlock: filterStartBlock,
       logs: historicalLogs,
@@ -118,10 +116,7 @@ const fetchAndProcessLogs = async (
 
   // Combine and sort logs from all sources.
   const sortedLogsForAllSources = Object.entries(logCache)
-    .map(([, logData]) => {
-      if (!logData) return [];
-      return logData?.logs;
-    })
+    .map(([, logData]) => logData?.logs || [])
     .flat()
     .sort((a, b) => getLogIndex(a) - getLogIndex(b));
 
@@ -139,10 +134,9 @@ const fetchAndProcessLogs = async (
   await queue.drained();
 };
 
-const createNewFilter = async (
-  provider: JsonRpcProvider,
-  contracts: string[]
-) => {
+const createNewFilter = async (logProvider: LogProvider) => {
+  const { provider, contracts } = logProvider;
+
   const latestBlock = await provider.getBlock("latest");
   const filterStartBlock = latestBlock.number;
 
@@ -156,17 +150,28 @@ const createNewFilter = async (
   return { filterStartBlock, filterId };
 };
 
-const registerBlockHandler = async (
-  provider: JsonRpcProvider,
+const blockHandlers: { [key: string]: () => Promise<void> | undefined } = {};
+
+const registerBlockListener = (
+  logProvider: LogProvider,
   filterId: string,
   queue: LogQueue
 ) => {
+  const { cacheKey, provider } = logProvider;
+
+  // If a block listener was already registered for this provider, remove it.
+  const oldBlockHandler = blockHandlers[cacheKey];
+  if (oldBlockHandler) {
+    provider.off("block", oldBlockHandler);
+  }
+
   const blockHandler = async () => {
     const logs: Log[] = await provider.send("eth_getFilterChanges", [filterId]);
     logs.forEach(queue.push);
   };
-
   provider.on("block", blockHandler);
+
+  blockHandlers[cacheKey] = blockHandler;
 };
 
 const getLogIndex = (log: Log) => {

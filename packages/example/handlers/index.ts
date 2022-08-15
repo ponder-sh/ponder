@@ -24,7 +24,7 @@ const handleButtonInput: ButtonInputHandler = async (params, context) => {
   const { from, buttonIndex, inputIndex } = params;
 
   await FeedItem.insert({
-    timestamp: 156,
+    timestamp: 14424,
     feedIndex: 789,
     type: "ButtonInput",
     from: from,
