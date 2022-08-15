@@ -2,9 +2,10 @@ import { build } from "esbuild";
 import path from "node:path";
 
 import type { HandlerContext } from "./buildHandlerContext";
-import { toolConfig } from "./config";
+import { CONFIG } from "./config";
+import { logger } from "./logger";
 
-const { userHandlersDir, buildDir } = toolConfig;
+const { userHandlersDir, buildDir } = CONFIG;
 
 type Handler = (args: unknown, context: HandlerContext) => Promise<void> | void;
 type SourceHandlers = { [eventName: string]: Handler | undefined };
@@ -21,7 +22,7 @@ const readUserHandlers = async (): Promise<UserHandlers> => {
       bundle: true,
     });
   } catch (err) {
-    console.log("esbuild error:", err);
+    logger.warn("esbuild error:", err);
   }
 
   const { default: rawHandlers } = await require(buildFile);

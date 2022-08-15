@@ -1,9 +1,9 @@
 import { utils } from "ethers";
 import { readFile } from "node:fs/promises";
 
-import { toolConfig } from "./config";
+import { CONFIG } from "./config";
 
-const { userConfigFile } = toolConfig;
+const { userConfigFile } = CONFIG;
 
 enum SourceKind {
   EVM = "evm",
@@ -41,8 +41,6 @@ const readUserConfig = async () => {
   // and we need the latest version each time.
   // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
   delete require.cache[require.resolve(userConfigFile)];
-
-  // console.log("found userConfig:", { required });
 
   // TODO: Validate config
   const validatedUserConfig = userConfig as PonderUserConfig;

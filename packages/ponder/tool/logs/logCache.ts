@@ -2,9 +2,9 @@ import type { Log } from "@ethersproject/providers";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "path";
 
-import { toolConfig } from "../config";
+import { CONFIG } from "../config";
 
-const { ponderDir } = toolConfig;
+const { ponderDir } = CONFIG;
 
 type HistoricalLogData = {
   fromBlock: number;

@@ -2,7 +2,8 @@ import type { GraphQLSchema } from "graphql";
 import { printSchema } from "graphql";
 import { writeFile } from "node:fs/promises";
 
-import { toolConfig } from "../config";
+import { CONFIG } from "../config";
+import { logger } from "../logger";
 import { formatPrettier } from "../preflight";
 
 const header = `
@@ -14,9 +15,9 @@ const generateSchema = async (gqlSchema: GraphQLSchema) => {
 
   const final = formatPrettier(header + body, { parser: "graphql" });
 
-  await writeFile(`${toolConfig.generatedDir}/schema.graphql`, final, "utf8");
+  await writeFile(`${CONFIG.generatedDir}/schema.graphql`, final, "utf8");
 
-  console.log(`Regenerated schema.graphql`);
+  logger.info(`Regenerated schema.graphql`);
 };
 
 export { generateSchema };

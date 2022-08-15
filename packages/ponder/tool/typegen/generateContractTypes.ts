@@ -1,5 +1,6 @@
 import { runTypeChain } from "typechain";
 
+import { logger } from "../logger";
 import type { PonderConfig } from "../readUserConfig";
 
 const generateContractTypes = async (config: PonderConfig) => {
@@ -17,7 +18,7 @@ const generateContractTypes = async (config: PonderConfig) => {
     target: "ethers-v5",
   });
 
-  console.log(`Regenerated contract types`);
+  logger.info(`Regenerated contract types`);
 };
 
 export { generateContractTypes };

@@ -6,8 +6,9 @@ import type { DbSchema } from "./buildDbSchema";
 import { buildDbSchema } from "./buildDbSchema";
 import { buildGqlSchema } from "./buildGqlSchema";
 import { buildHandlerContext, HandlerContext } from "./buildHandlerContext";
-import { toolConfig } from "./config";
+import { CONFIG } from "./config";
 import { createOrUpdateDbTables } from "./db";
+import { logger } from "./logger";
 import { fetchAndProcessLogs } from "./logs";
 import { ensureDirectoriesExist, readPrettierConfig } from "./preflight";
 import type { PonderConfig } from "./readUserConfig";
@@ -23,7 +24,7 @@ import {
 } from "./typegen";
 import { generateContextType } from "./typegen/generateContextType";
 
-const { userHandlersDir, userConfigFile, userSchemaFile } = toolConfig;
+const { userHandlersDir, userConfigFile, userSchemaFile } = CONFIG;
 
 type PonderState = {
   config?: PonderConfig;
@@ -134,19 +135,17 @@ const handleReindex = async () => {
     !state.userHandlers ||
     !state.handlerContext
   ) {
-    // console.log(`Attempted to reindex before dev state hydration, cancelling...`);
     return;
   }
 
   // TODO: Use actual DB transactions to handle this. That way, can stop
   // in-flight indexing job by rolling back txn and then start new.
   if (state.isIndexingInProgress) {
-    console.log(`Cancelled latest reindex because previous still in flight...`);
     return;
   }
 
   state.isIndexingInProgress = true;
-  console.log(`Reindexing... 🕑`);
+  logger.info(`Reindexing... 🕑`);
 
   await createOrUpdateDbTables(state.dbSchema);
 
@@ -157,7 +156,7 @@ const handleReindex = async () => {
   );
 
   state.isIndexingInProgress = false;
-  console.log(`Reindexing complete 🚀`);
+  logger.info(`Reindexing complete 🚀`);
 };
 
 const dev = async () => {

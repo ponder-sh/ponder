@@ -2,7 +2,8 @@ import type { EventFragment, ParamType } from "@ethersproject/abi";
 import { Contract } from "ethers";
 import { writeFile } from "node:fs/promises";
 
-import { toolConfig } from "../config";
+import { CONFIG } from "../config";
+import { logger } from "../logger";
 import { formatPrettier } from "../preflight";
 import type { PonderConfig } from "../readUserConfig";
 
@@ -41,14 +42,14 @@ const generateHandlerTypes = async (config: PonderConfig) => {
       );
 
       await writeFile(
-        `${toolConfig.generatedDir}/${source.name}.d.ts`,
+        `${CONFIG.generatedDir}/${source.name}.d.ts`,
         final,
         "utf8"
       );
     })
   );
 
-  console.log(`Regenerated handler types`);
+  logger.info(`Regenerated handler types`);
 };
 
 // HELPERS

@@ -3,6 +3,7 @@ import { graphqlHTTP } from "express-graphql";
 import type { GraphQLSchema } from "graphql";
 
 import { db } from "./db";
+import { logger } from "./logger";
 
 const context = { db };
 const PORT = 4000;
@@ -22,11 +23,11 @@ const restartServer = (gqlSchema: GraphQLSchema) => {
     isInitialized = true;
     app.use("/graphql", (...args) => graphqlMiddleware(...args));
     app.listen(PORT);
-    console.log(
+    logger.info(
       `Started the GraphQL server at http://localhost:${PORT}/graphql`
     );
   } else {
-    console.log(`Restarted the GraphQL server`);
+    logger.info(`Restarted the GraphQL server`);
   }
 
   return app;

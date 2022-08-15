@@ -4,6 +4,7 @@ import fastq from "fastq";
 
 import { HandlerContext } from "../buildHandlerContext";
 import { getProviderForChainId } from "../helpers";
+import { logger } from "../logger";
 import type { PonderConfig } from "../readUserConfig";
 import { UserHandlers } from "../readUserHandlers";
 import { fetchLogs } from "./fetchLogs";
@@ -29,7 +30,7 @@ const fetchAndProcessLogs = async (
       (source) => source.address === log.address
     );
     if (!source) {
-      console.log(`Source not found for log with address: ${log.address}`);
+      logger.warn(`Source not found for log with address: ${log.address}`);
       return;
     }
 
@@ -38,20 +39,20 @@ const fetchAndProcessLogs = async (
 
     const sourceHandlers = userHandlers[source.name];
     if (!sourceHandlers) {
-      console.log(`Handlers not found for source: ${source.name}`);
+      logger.warn(`Handlers not found for source: ${source.name}`);
       return;
     }
 
     const handler = sourceHandlers[parsedLog.name];
     if (!handler) {
-      // console.log(
-      //   `Handler not found for event: ${source.name}-${parsedLog.name}`
-      // );
+      logger.warn(
+        `Handler not found for event: ${source.name}-${parsedLog.name}`
+      );
       return;
     }
 
-    // const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
-    // console.log(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
+    const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
+    logger.debug(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
 
     // YAY: We're running user code here!
     await handler(params, handlerContext);

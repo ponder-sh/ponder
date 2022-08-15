@@ -1,9 +1,10 @@
 import { mkdir } from "node:fs/promises";
 import prettier from "prettier";
 
-import { toolConfig } from "./config";
+import { CONFIG } from "./config";
+import { logger } from "./logger";
 
-const { ponderDir, buildDir, generatedDir } = toolConfig;
+const { ponderDir, buildDir, generatedDir } = CONFIG;
 
 const ensureDirectoriesExist = async () => {
   await Promise.all([
@@ -22,7 +23,7 @@ const readPrettierConfig = async () => {
   if (configFilePath) {
     const foundConfig = await prettier.resolveConfig(configFilePath);
     if (foundConfig) {
-      console.log(`Found prettier config at: ${configFilePath}`);
+      logger.info(`Found prettier config at: ${configFilePath}`);
       prettierConfig = foundConfig;
     }
   }

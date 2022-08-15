@@ -3,7 +3,8 @@ import * as typescriptPlugin from "@graphql-codegen/typescript";
 import { GraphQLSchema, parse, printSchema } from "graphql";
 import { writeFile } from "node:fs/promises";
 
-import { toolConfig } from "../config";
+import { CONFIG } from "../config";
+import { logger } from "../logger";
 import { formatPrettier } from "../preflight";
 
 const header = `
@@ -30,9 +31,9 @@ const generateEntityTypes = async (gqlSchema: GraphQLSchema) => {
 
   const final = formatPrettier(header + body);
 
-  writeFile(`${toolConfig.generatedDir}/schema.d.ts`, final, "utf8");
+  writeFile(`${CONFIG.generatedDir}/schema.d.ts`, final, "utf8");
 
-  console.log(`Regenerated schema.d.ts`);
+  logger.info(`Regenerated schema.d.ts`);
 };
 
 export { generateEntityTypes };

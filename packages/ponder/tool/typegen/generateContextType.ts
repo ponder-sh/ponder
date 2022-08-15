@@ -1,7 +1,8 @@
 import { writeFile } from "node:fs/promises";
 
 import type { DbSchema } from "../buildDbSchema";
-import { toolConfig } from "../config";
+import { CONFIG } from "../config";
+import { logger } from "../logger";
 import { formatPrettier } from "../preflight";
 import type { PonderConfig } from "../readUserConfig";
 import { SourceKind } from "../readUserConfig";
@@ -47,9 +48,9 @@ const generateContextType = async (
 
   const final = formatPrettier(header + imports + body);
 
-  await writeFile(`${toolConfig.generatedDir}/context.d.ts`, final, "utf8");
+  await writeFile(`${CONFIG.generatedDir}/context.d.ts`, final, "utf8");
 
-  console.log(`Regenerated context type`);
+  logger.info(`Regenerated context type`);
 };
 
 export { generateContextType };

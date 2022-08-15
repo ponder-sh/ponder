@@ -29,7 +29,6 @@ const fetchLogs = async (
       // If the last log block number is GTE endBlock, we're done.
       if (lastLogBlockNumber >= toBlock) {
         // TODO: maybe filter out duplicates? / handle this edge case better
-        console.log("returning from fetchLogs, reached endBlock");
         break;
       }
 
