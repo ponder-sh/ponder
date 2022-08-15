@@ -14,7 +14,7 @@ const db = knex({
 
 const inspector = knexSchemaInspector(db);
 
-db.on("query", (data) => {
+db.on("query-response", (response, data) => {
   if (data.bindings && data.bindings.length > 0) {
     console.log(
       `\x1b[33m${"QUERY"}\x1b[0m`, // yellow
@@ -31,6 +31,14 @@ db.on("query", (data) => {
       "\n"
     );
   }
+});
+
+db.on("query-error", (error, data) => {
+  console.log(
+    `\x1b[33m${"ERROR"}\x1b[0m`, // yellow
+    `\x1b[31m${error.message}\x1b[0m`, // red
+    "\n"
+  );
 });
 
 const getTableNames = async () => {

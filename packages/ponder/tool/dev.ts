@@ -40,7 +40,7 @@ type PonderState = {
   dbSchema?: DbSchema;
   handlerContext?: HandlerContext;
   userHandlers?: UserHandlers;
-  logProcessingInFlight?: boolean;
+  isIndexingInProgress?: boolean;
   // entityNames?: string[] ?????? maybe for caching handlerContext better
 };
 
@@ -146,6 +146,14 @@ const handleReindex = async () => {
     return;
   }
 
+  // TODO: Use actual DB transactions to handle this. That way, can stop
+  // in-flight indexing job by rolling back txn and then start new.
+  if (state.isIndexingInProgress) {
+    console.log(`Cancelled latest reindex because previous still in flight...`);
+    return;
+  }
+
+  state.isIndexingInProgress = true;
   console.log(`Reindexing... 🕑`);
 
   await createOrUpdateDbTables(state.dbSchema);
@@ -156,6 +164,7 @@ const handleReindex = async () => {
     state.handlerContext
   );
 
+  state.isIndexingInProgress = false;
   console.log(`Reindexing complete 🚀`);
 };
 

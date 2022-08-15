@@ -24,12 +24,13 @@ const handleButtonInput: ButtonInputHandler = async (params, context) => {
   const { from, buttonIndex, inputIndex } = params;
 
   await FeedItem.insert({
-    timestamp: 123,
+    timestamp: 156,
     feedIndex: 789,
     type: "ButtonInput",
     from: from,
     buttonIndex: buttonIndex.toNumber(),
     inputIndex: inputIndex.toNumber(),
+    vote: true,
   });
 };
 
