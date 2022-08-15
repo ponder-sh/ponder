@@ -5,7 +5,7 @@ const toolConfigRaw = {
   userConfigFile: "ponder.config.js",
   userSchemaFile: "schema.graphql",
   generatedDir: "generated",
-  handlersDir: "handlers",
+  userHandlersDir: "handlers",
   buildDir: ".ponder/build",
   ponderDir: ".ponder",
 };
@@ -17,7 +17,7 @@ const toolConfig = {
   userConfigFile: path.join(dir, toolConfigRaw.userConfigFile),
   userSchemaFile: path.join(dir, toolConfigRaw.userSchemaFile),
   generatedDir: path.join(dir, toolConfigRaw.generatedDir),
-  handlersDir: path.join(dir, toolConfigRaw.handlersDir),
+  userHandlersDir: path.join(dir, toolConfigRaw.userHandlersDir),
   buildDir: path.join(dir, toolConfigRaw.buildDir),
   ponderDir: path.join(dir, toolConfigRaw.ponderDir),
 };

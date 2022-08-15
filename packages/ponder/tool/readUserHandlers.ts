@@ -4,7 +4,7 @@ import path from "node:path";
 import type { HandlerContext } from "./buildHandlerContext";
 import { toolConfig } from "./config";
 
-const { handlersDir, buildDir } = toolConfig;
+const { userHandlersDir, buildDir } = toolConfig;
 
 type Handler = (args: unknown, context: HandlerContext) => Promise<void> | void;
 type SourceHandlers = { [eventName: string]: Handler | undefined };
@@ -15,7 +15,7 @@ const readUserHandlers = async (): Promise<UserHandlers> => {
 
   try {
     await build({
-      entryPoints: [handlersDir],
+      entryPoints: [userHandlersDir],
       outfile: buildFile,
       platform: "node",
       bundle: true,

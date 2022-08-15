@@ -11,7 +11,7 @@ const handleNewRegistration: NewRegistrationHandler = async (
   await Player.insert({
     account: account,
     burnerAccount: burnerAccount,
-    score: 5000,
+    score: 123,
   });
 };
 

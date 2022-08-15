@@ -1,18 +1,11 @@
 import debounce from "froebel/debounce";
 import { GraphQLSchema } from "graphql";
-import type { WatchListener } from "node:fs";
 import { watch } from "node:fs";
 
 import type { DbSchema } from "./buildDbSchema";
 import { buildDbSchema } from "./buildDbSchema";
 import { buildGqlSchema } from "./buildGqlSchema";
 import { buildHandlerContext, HandlerContext } from "./buildHandlerContext";
-import {
-  hydrateCache,
-  testUserConfigChanged,
-  testUserHandlersChanged,
-  testUserSchemaChanged,
-} from "./cache";
 import { toolConfig } from "./config";
 import { createOrUpdateDbTables } from "./db";
 import { fetchAndProcessLogs } from "./logs";
@@ -30,7 +23,7 @@ import {
 } from "./typegen";
 import { generateContextType } from "./typegen/generateContextType";
 
-const { userHandlersFile, userConfigFile, userSchemaFile } = toolConfig;
+const { userHandlersDir, userConfigFile, userSchemaFile } = toolConfig;
 
 type PonderState = {
   config?: PonderConfig;
@@ -45,20 +38,20 @@ type PonderState = {
 
 const state: PonderState = {};
 
-const handleUserHandlersFileChanged = async () => {
+const handleUserHandlersFileChanged = debounce(async () => {
   const userHandlers = await readUserHandlers();
   handleUserHandlersChanged(userHandlers);
-};
+}, 200);
 
-const handleUserConfigFileChanged = async () => {
+const handleUserConfigFileChanged = debounce(async () => {
   const config = await readUserConfig();
   handleConfigChanged(config);
-};
+}, 200);
 
-const handleUserSchemaFileChanged = async () => {
+const handleUserSchemaFileChanged = debounce(async () => {
   const userSchema = await readUserSchema();
   handleUserSchemaChanged(userSchema);
-};
+}, 200);
 
 const handleUserHandlersChanged = async (newUserHandlers: UserHandlers) => {
   // const oldUserHandlers = state.userHandlers;
@@ -168,54 +161,15 @@ const handleReindex = async () => {
 };
 
 const dev = async () => {
-  await Promise.all([
-    hydrateCache(),
-    ensureDirectoriesExist(),
-    readPrettierConfig(),
-  ]);
+  await Promise.all([ensureDirectoriesExist(), readPrettierConfig()]);
 
-  // NOTE: Might be possible to be more smart about this,
-  // but I'm pretty sure these all need to be kicked off here.
   handleUserHandlersFileChanged();
   handleUserConfigFileChanged();
   handleUserSchemaFileChanged();
 
-  const userHandlersListener = debounce<WatchListener<string>>(
-    async (event, fileName) => {
-      const isChanged = await testUserHandlersChanged();
-      if (isChanged) {
-        console.log(`Detected ${event} in handlers/${fileName}`);
-        handleUserHandlersFileChanged();
-      }
-    },
-    300
-  );
-
-  const userConfigListener = debounce<WatchListener<string>>(
-    async (event, fileName) => {
-      const isChanged = await testUserConfigChanged();
-      if (isChanged) {
-        console.log(`Detected ${event} in ${fileName}`);
-        handleUserConfigFileChanged();
-      }
-    },
-    300
-  );
-
-  const schemaListener = debounce<WatchListener<string>>(
-    async (event, fileName) => {
-      const isChanged = await testUserSchemaChanged();
-      if (isChanged) {
-        console.log(`Detected ${event} in ${fileName}`);
-        handleUserSchemaFileChanged();
-      }
-    },
-    300
-  );
-
-  watch(userHandlersFile, userHandlersListener);
-  watch(userConfigFile, userConfigListener);
-  watch(userSchemaFile, schemaListener);
+  watch(userHandlersDir, handleUserHandlersFileChanged);
+  watch(userConfigFile, handleUserConfigFileChanged);
+  watch(userSchemaFile, handleUserSchemaFileChanged);
 };
 
 export { dev };
