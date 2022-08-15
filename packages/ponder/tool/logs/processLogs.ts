@@ -64,8 +64,9 @@ const fetchAndProcessLogs = async (
     const contracts = config.sources
       .filter((source) => source.chainId === chainId)
       .map((source) => source.address);
+    const cacheKey = `${chainId}${contracts.map((contract) => `-${contract}`)}`;
 
-    return { chainId, provider, contracts, cacheKey: String(chainId) };
+    return { chainId, provider, contracts, cacheKey };
   });
 
   // Read cached logs from disk.
@@ -115,7 +116,10 @@ const fetchAndProcessLogs = async (
   writeLogCache(logCache);
 
   // Combine and sort logs from all sources.
+  // Filter out logs present in the cache that are not part of the current set of logs.
+  const latestRunCacheKeys = new Set(logProviders.map((p) => p.cacheKey));
   const sortedLogsForAllSources = Object.entries(logCache)
+    .filter(([cacheKey]) => latestRunCacheKeys.has(cacheKey))
     .map(([, logData]) => logData?.logs || [])
     .flat()
     .sort((a, b) => getLogIndex(a) - getLogIndex(b));
