@@ -29,7 +29,7 @@ const handleButtonInput: ButtonInputHandler = async (params, context) => {
     type: "ButtonInput",
     from: from,
     vote: false,
-    buttonIndex: buttonIndex.toNumber(),
+    buttonIndex: buttonIndex.toNumber() ** 2,
     inputIndex: inputIndex.toNumber(),
   });
 };

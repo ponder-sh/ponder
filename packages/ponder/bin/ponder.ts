@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /* eslint-disable @typescript-eslint/no-var-requires */
 
+import dotenv from "dotenv";
+
+dotenv.config({ path: ".env.local" });
+
 const { argv } = require("yargs");
 
 const scriptName = argv.$0;
