@@ -206,4 +206,4 @@ const dev = async () => {
   watch(pathToUserSchemaFile, schemaListener);
 };
 
-dev().catch(console.error);
+export { dev };

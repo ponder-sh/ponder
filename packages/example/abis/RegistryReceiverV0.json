@@ -1,0 +1,1377 @@
+{
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "burnerAccount",
+          "type": "address"
+        }
+      ],
+      "name": "NewRegistration",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "burnerAccount",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "previousBurnerAccount",
+          "type": "address"
+        }
+      ],
+      "name": "UpdatedRegistration",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "accounts",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "burnerAccounts",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "burnerAccount",
+          "type": "address"
+        }
+      ],
+      "name": "isRegistered",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "burnerAccount",
+          "type": "address"
+        }
+      ],
+      "name": "submitRegistration",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x608060405234801561001057600080fd5b5061001a3361001f565b61006f565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6104328061007e6000396000f3fe608060405234801561001057600080fd5b506004361061007d5760003560e01c8063c34d97d11161005b578063c34d97d1146100e3578063c3c5a5471461010c578063f2fde38b1461014a578063fbc0a59c1461015d57600080fd5b80635e5c06e214610082578063715018a6146100c85780638da5cb5b146100d2575b600080fd5b6100ab6100903660046103d0565b6001602052600090815260409020546001600160a01b031681565b6040516001600160a01b0390911681526020015b60405180910390f35b6100d0610170565b005b6000546001600160a01b03166100ab565b6100ab6100f13660046103d0565b6002602052600090815260409020546001600160a01b031681565b61013a61011a3660046103d0565b6001600160a01b0390811660009081526001602052604090205416151590565b60405190151581526020016100bf565b6100d06101583660046103d0565b610184565b6100d061016b3660046103f2565b610202565b61017861030a565b6101826000610364565b565b61018c61030a565b6001600160a01b0381166101f65760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b60648201526084015b60405180910390fd5b6101ff81610364565b50565b61020a61030a565b6001600160a01b0380831660009081526002602052604090205416801561027b57604080516001600160a01b038581168252848116602083015283168183015290517f31e9efb2582d9bd5cfe3795bda64d653b0908721e3ecfcae729dd6b1e193dba39181900360600190a16102bf565b604080516001600160a01b038086168252841660208201527f06367b7de587a22d8353e5bdeff313d9f6c03cf8654873928f9046b1ffb115f5910160405180910390a15b506001600160a01b0390811660008181526001602090815260408083208054959096166001600160a01b03199586168117909655948252600290529290922080549091169091179055565b6000546001600160a01b031633146101825760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016101ed565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b80356001600160a01b03811681146103cb57600080fd5b919050565b6000602082840312156103e257600080fd5b6103eb826103b4565b9392505050565b6000806040838503121561040557600080fd5b61040e836103b4565b915061041c602084016103b4565b9050925092905056fea164736f6c634300080d000a",
+    "sourceMap": "266:2659:8:-:0;;;;;;;;;;;;-1:-1:-1;921:32:0;719:10:4;921:18:0;:32::i;:::-;266:2659:8;;2418:187:0;2491:16;2510:6;;-1:-1:-1;;;;;2526:17:0;;;-1:-1:-1;;;;;;2526:17:0;;;;;;2558:40;;2510:6;;;;;;;2558:40;;2491:16;2558:40;2481:124;2418:187;:::o;266:2659:8:-;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x608060405234801561001057600080fd5b506004361061007d5760003560e01c8063c34d97d11161005b578063c34d97d1146100e3578063c3c5a5471461010c578063f2fde38b1461014a578063fbc0a59c1461015d57600080fd5b80635e5c06e214610082578063715018a6146100c85780638da5cb5b146100d2575b600080fd5b6100ab6100903660046103d0565b6001602052600090815260409020546001600160a01b031681565b6040516001600160a01b0390911681526020015b60405180910390f35b6100d0610170565b005b6000546001600160a01b03166100ab565b6100ab6100f13660046103d0565b6002602052600090815260409020546001600160a01b031681565b61013a61011a3660046103d0565b6001600160a01b0390811660009081526001602052604090205416151590565b60405190151581526020016100bf565b6100d06101583660046103d0565b610184565b6100d061016b3660046103f2565b610202565b61017861030a565b6101826000610364565b565b61018c61030a565b6001600160a01b0381166101f65760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b60648201526084015b60405180910390fd5b6101ff81610364565b50565b61020a61030a565b6001600160a01b0380831660009081526002602052604090205416801561027b57604080516001600160a01b038581168252848116602083015283168183015290517f31e9efb2582d9bd5cfe3795bda64d653b0908721e3ecfcae729dd6b1e193dba39181900360600190a16102bf565b604080516001600160a01b038086168252841660208201527f06367b7de587a22d8353e5bdeff313d9f6c03cf8654873928f9046b1ffb115f5910160405180910390a15b506001600160a01b0390811660008181526001602090815260408083208054959096166001600160a01b03199586168117909655948252600290529290922080549091169091179055565b6000546001600160a01b031633146101825760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016101ed565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b80356001600160a01b03811681146103cb57600080fd5b919050565b6000602082840312156103e257600080fd5b6103eb826103b4565b9392505050565b6000806040838503121561040557600080fd5b61040e836103b4565b915061041c602084016103b4565b9050925092905056fea164736f6c634300080d000a",
+    "sourceMap": "266:2659:8:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;646:43;;;;;;:::i;:::-;;;;;;;;;;;;-1:-1:-1;;;;;646:43:8;;;;;;-1:-1:-1;;;;;547:32:9;;;529:51;;517:2;502:18;646:43:8;;;;;;;;1816:101:0;;;:::i;:::-;;1186:85;1232:7;1258:6;-1:-1:-1;;;;;1258:6:0;1186:85;;774:49:8;;;;;;:::i;:::-;;;;;;;;;;;;-1:-1:-1;;;;;774:49:8;;;1759:133;;;;;;:::i;:::-;-1:-1:-1;;;;;1848:23:8;;;1825:4;1848:23;;;:8;:23;;;;;;;:37;;;1759:133;;;;756:14:9;;749:22;731:41;;719:2;704:18;1759:133:8;591:187:9;2066:198:0;;;;;;:::i;:::-;;:::i;2367:556:8:-;;;;;;:::i;:::-;;:::i;1816:101:0:-;1079:13;:11;:13::i;:::-;1880:30:::1;1907:1;1880:18;:30::i;:::-;1816:101::o:0;2066:198::-;1079:13;:11;:13::i;:::-;-1:-1:-1;;;;;2154:22:0;::::1;2146:73;;;::::0;-1:-1:-1;;;2146:73:0;;1250:2:9;2146:73:0::1;::::0;::::1;1232:21:9::0;1289:2;1269:18;;;1262:30;1328:34;1308:18;;;1301:62;-1:-1:-1;;;1379:18:9;;;1372:36;1425:19;;2146:73:0::1;;;;;;;;;2229:28;2248:8;2229:18;:28::i;:::-;2066:198:::0;:::o;2367:556:8:-;1079:13:0;:11;:13::i;:::-;-1:-1:-1;;;;;2516:23:8;;::::1;2484:29;2516:23:::0;;;:14:::1;:23;::::0;;;;;::::1;2554:35:::0;;2550:274:::1;;2610:128;::::0;;-1:-1:-1;;;;;1713:15:9;;;1695:34;;1765:15;;;1760:2;1745:18;;1738:43;1817:15;;1797:18;;;1790:43;2610:128:8;;::::1;::::0;;;;1645:2:9;2610:128:8;;::::1;2550:274;;;2774:39;::::0;;-1:-1:-1;;;;;2074:15:9;;;2056:34;;2126:15;;2121:2;2106:18;;2099:43;2774:39:8::1;::::0;1991:18:9;2774:39:8::1;;;;;;;2550:274;-1:-1:-1::0;;;;;;2834:23:8;;::::1;;::::0;;;:8:::1;:23;::::0;;;;;;;:33;;;;;::::1;-1:-1:-1::0;;;;;;2834:33:8;;::::1;::::0;::::1;::::0;;;2877:23;;;:14:::1;:23:::0;;;;;;:39;;;;::::1;::::0;;::::1;::::0;;2367:556::o;1344:130:0:-;1232:7;1258:6;-1:-1:-1;;;;;1258:6:0;719:10:4;1407:23:0;1399:68;;;;-1:-1:-1;;;1399:68:0;;2355:2:9;1399:68:0;;;2337:21:9;;;2374:18;;;2367:30;2433:34;2413:18;;;2406:62;2485:18;;1399:68:0;2153:356:9;2418:187:0;2491:16;2510:6;;-1:-1:-1;;;;;2526:17:0;;;-1:-1:-1;;;;;;2526:17:0;;;;;;2558:40;;2510:6;;;;;;;2558:40;;2491:16;2558:40;2481:124;2418:187;:::o;14:173:9:-;82:20;;-1:-1:-1;;;;;131:31:9;;121:42;;111:70;;177:1;174;167:12;111:70;14:173;;;:::o;192:186::-;251:6;304:2;292:9;283:7;279:23;275:32;272:52;;;320:1;317;310:12;272:52;343:29;362:9;343:29;:::i;:::-;333:39;192:186;-1:-1:-1;;;192:186:9:o;783:260::-;851:6;859;912:2;900:9;891:7;887:23;883:32;880:52;;;928:1;925;918:12;880:52;951:29;970:9;951:29;:::i;:::-;941:39;;999:38;1033:2;1022:9;1018:18;999:38;:::i;:::-;989:48;;783:260;;;;;:::o",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "accounts(address)": "5e5c06e2",
+    "burnerAccounts(address)": "c34d97d1",
+    "isRegistered(address)": "c3c5a547",
+    "owner()": "8da5cb5b",
+    "renounceOwnership()": "715018a6",
+    "submitRegistration(address,address)": "fbc0a59c",
+    "transferOwnership(address)": "f2fde38b"
+  },
+  "ast": {
+    "absolutePath": "packages/contracts/src/RegistryReceiverV0.sol",
+    "id": 2095,
+    "exportedSymbols": {
+      "Ownable": [
+        112
+      ],
+      "RegistryReceiverV0": [
+        2094
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "45:2881:8",
+    "nodes": [
+      {
+        "id": 1997,
+        "nodeType": "PragmaDirective",
+        "src": "45:24:8",
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".13"
+        ]
+      },
+      {
+        "id": 1999,
+        "nodeType": "ImportDirective",
+        "src": "71:67:8",
+        "absolutePath": "packages/contracts/lib/openzeppelin-contracts/contracts/access/Ownable.sol",
+        "file": "@openzeppelin/contracts/access/Ownable.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 2095,
+        "sourceUnit": 113,
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 1998,
+              "name": "Ownable",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 112,
+              "src": "79:7:8",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "id": 2094,
+        "nodeType": "ContractDefinition",
+        "src": "266:2659:8",
+        "nodes": [
+          {
+            "id": 2007,
+            "nodeType": "VariableDeclaration",
+            "src": "646:43:8",
+            "constant": false,
+            "documentation": {
+              "id": 2003,
+              "nodeType": "StructuredDocumentation",
+              "src": "567:74:8",
+              "text": "@notice [State] Registered account addresses by burner account address"
+            },
+            "functionSelector": "5e5c06e2",
+            "mutability": "mutable",
+            "name": "accounts",
+            "nameLocation": "681:8:8",
+            "scope": 2094,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_mapping$_t_address_$_t_address_$",
+              "typeString": "mapping(address => address)"
+            },
+            "typeName": {
+              "id": 2006,
+              "keyType": {
+                "id": 2004,
+                "name": "address",
+                "nodeType": "ElementaryTypeName",
+                "src": "654:7:8",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_address",
+                  "typeString": "address"
+                }
+              },
+              "nodeType": "Mapping",
+              "src": "646:27:8",
+              "typeDescriptions": {
+                "typeIdentifier": "t_mapping$_t_address_$_t_address_$",
+                "typeString": "mapping(address => address)"
+              },
+              "valueType": {
+                "id": 2005,
+                "name": "address",
+                "nodeType": "ElementaryTypeName",
+                "src": "665:7:8",
+                "stateMutability": "nonpayable",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_address",
+                  "typeString": "address"
+                }
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "id": 2012,
+            "nodeType": "VariableDeclaration",
+            "src": "774:49:8",
+            "constant": false,
+            "documentation": {
+              "id": 2008,
+              "nodeType": "StructuredDocumentation",
+              "src": "695:74:8",
+              "text": "@notice [State] Burner account addresses by registered account address"
+            },
+            "functionSelector": "c34d97d1",
+            "mutability": "mutable",
+            "name": "burnerAccounts",
+            "nameLocation": "809:14:8",
+            "scope": 2094,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_mapping$_t_address_$_t_address_$",
+              "typeString": "mapping(address => address)"
+            },
+            "typeName": {
+              "id": 2011,
+              "keyType": {
+                "id": 2009,
+                "name": "address",
+                "nodeType": "ElementaryTypeName",
+                "src": "782:7:8",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_address",
+                  "typeString": "address"
+                }
+              },
+              "nodeType": "Mapping",
+              "src": "774:27:8",
+              "typeDescriptions": {
+                "typeIdentifier": "t_mapping$_t_address_$_t_address_$",
+                "typeString": "mapping(address => address)"
+              },
+              "valueType": {
+                "id": 2010,
+                "name": "address",
+                "nodeType": "ElementaryTypeName",
+                "src": "793:7:8",
+                "stateMutability": "nonpayable",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_address",
+                  "typeString": "address"
+                }
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "id": 2018,
+            "nodeType": "EventDefinition",
+            "src": "1086:62:8",
+            "anonymous": false,
+            "eventSelector": "06367b7de587a22d8353e5bdeff313d9f6c03cf8654873928f9046b1ffb115f5",
+            "name": "NewRegistration",
+            "nameLocation": "1092:15:8",
+            "parameters": {
+              "id": 2017,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2014,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "account",
+                  "nameLocation": "1116:7:8",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2018,
+                  "src": "1108:15:8",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2013,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1108:7:8",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 2016,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "burnerAccount",
+                  "nameLocation": "1133:13:8",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2018,
+                  "src": "1125:21:8",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2015,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1125:7:8",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1107:40:8"
+            }
+          },
+          {
+            "id": 2026,
+            "nodeType": "EventDefinition",
+            "src": "1153:127:8",
+            "anonymous": false,
+            "eventSelector": "31e9efb2582d9bd5cfe3795bda64d653b0908721e3ecfcae729dd6b1e193dba3",
+            "name": "UpdatedRegistration",
+            "nameLocation": "1159:19:8",
+            "parameters": {
+              "id": 2025,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2020,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "account",
+                  "nameLocation": "1196:7:8",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2026,
+                  "src": "1188:15:8",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2019,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1188:7:8",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 2022,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "burnerAccount",
+                  "nameLocation": "1221:13:8",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2026,
+                  "src": "1213:21:8",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2021,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1213:7:8",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 2024,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "previousBurnerAccount",
+                  "nameLocation": "1252:21:8",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2026,
+                  "src": "1244:29:8",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2023,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1244:7:8",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1178:101:8"
+            }
+          },
+          {
+            "id": 2044,
+            "nodeType": "FunctionDefinition",
+            "src": "1759:133:8",
+            "body": {
+              "id": 2043,
+              "nodeType": "Block",
+              "src": "1831:61:8",
+              "statements": [
+                {
+                  "expression": {
+                    "commonType": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    },
+                    "id": 2041,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftExpression": {
+                      "baseExpression": {
+                        "id": 2034,
+                        "name": "accounts",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 2007,
+                        "src": "1848:8:8",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_mapping$_t_address_$_t_address_$",
+                          "typeString": "mapping(address => address)"
+                        }
+                      },
+                      "id": 2036,
+                      "indexExpression": {
+                        "id": 2035,
+                        "name": "burnerAccount",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 2029,
+                        "src": "1857:13:8",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        }
+                      },
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "nodeType": "IndexAccess",
+                      "src": "1848:23:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "nodeType": "BinaryOperation",
+                    "operator": "!=",
+                    "rightExpression": {
+                      "arguments": [
+                        {
+                          "hexValue": "30",
+                          "id": 2039,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": true,
+                          "kind": "number",
+                          "lValueRequested": false,
+                          "nodeType": "Literal",
+                          "src": "1883:1:8",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_rational_0_by_1",
+                            "typeString": "int_const 0"
+                          },
+                          "value": "0"
+                        }
+                      ],
+                      "expression": {
+                        "argumentTypes": [
+                          {
+                            "typeIdentifier": "t_rational_0_by_1",
+                            "typeString": "int_const 0"
+                          }
+                        ],
+                        "id": 2038,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "lValueRequested": false,
+                        "nodeType": "ElementaryTypeNameExpression",
+                        "src": "1875:7:8",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_address_$",
+                          "typeString": "type(address)"
+                        },
+                        "typeName": {
+                          "id": 2037,
+                          "name": "address",
+                          "nodeType": "ElementaryTypeName",
+                          "src": "1875:7:8",
+                          "typeDescriptions": {}
+                        }
+                      },
+                      "id": 2040,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": true,
+                      "kind": "typeConversion",
+                      "lValueRequested": false,
+                      "names": [],
+                      "nodeType": "FunctionCall",
+                      "src": "1875:10:8",
+                      "tryCall": false,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "src": "1848:37:8",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "functionReturnParameters": 2033,
+                  "id": 2042,
+                  "nodeType": "Return",
+                  "src": "1841:44:8"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 2027,
+              "nodeType": "StructuredDocumentation",
+              "src": "1542:212:8",
+              "text": "@notice Returns true if the specified burner account is registered.\n @param burnerAccount The address of the players burner account\n @return isRegistered True if the burner account is registered"
+            },
+            "functionSelector": "c3c5a547",
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "isRegistered",
+            "nameLocation": "1768:12:8",
+            "parameters": {
+              "id": 2030,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2029,
+                  "mutability": "mutable",
+                  "name": "burnerAccount",
+                  "nameLocation": "1789:13:8",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2044,
+                  "src": "1781:21:8",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2028,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1781:7:8",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1780:23:8"
+            },
+            "returnParameters": {
+              "id": 2033,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2032,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2044,
+                  "src": "1825:4:8",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  },
+                  "typeName": {
+                    "id": 2031,
+                    "name": "bool",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1825:4:8",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1824:6:8"
+            },
+            "scope": 2094,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "public"
+          },
+          {
+            "id": 2093,
+            "nodeType": "FunctionDefinition",
+            "src": "2367:556:8",
+            "body": {
+              "id": 2092,
+              "nodeType": "Block",
+              "src": "2474:449:8",
+              "statements": [
+                {
+                  "assignments": [
+                    2055
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 2055,
+                      "mutability": "mutable",
+                      "name": "previousBurnerAccount",
+                      "nameLocation": "2492:21:8",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 2092,
+                      "src": "2484:29:8",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      },
+                      "typeName": {
+                        "id": 2054,
+                        "name": "address",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "2484:7:8",
+                        "stateMutability": "nonpayable",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 2059,
+                  "initialValue": {
+                    "baseExpression": {
+                      "id": 2056,
+                      "name": "burnerAccounts",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 2012,
+                      "src": "2516:14:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_mapping$_t_address_$_t_address_$",
+                        "typeString": "mapping(address => address)"
+                      }
+                    },
+                    "id": 2058,
+                    "indexExpression": {
+                      "id": 2057,
+                      "name": "account",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 2047,
+                      "src": "2531:7:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "isConstant": false,
+                    "isLValue": true,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "nodeType": "IndexAccess",
+                    "src": "2516:23:8",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "2484:55:8"
+                },
+                {
+                  "condition": {
+                    "commonType": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    },
+                    "id": 2065,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftExpression": {
+                      "id": 2060,
+                      "name": "previousBurnerAccount",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 2055,
+                      "src": "2554:21:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "nodeType": "BinaryOperation",
+                    "operator": "!=",
+                    "rightExpression": {
+                      "arguments": [
+                        {
+                          "hexValue": "30",
+                          "id": 2063,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": true,
+                          "kind": "number",
+                          "lValueRequested": false,
+                          "nodeType": "Literal",
+                          "src": "2587:1:8",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_rational_0_by_1",
+                            "typeString": "int_const 0"
+                          },
+                          "value": "0"
+                        }
+                      ],
+                      "expression": {
+                        "argumentTypes": [
+                          {
+                            "typeIdentifier": "t_rational_0_by_1",
+                            "typeString": "int_const 0"
+                          }
+                        ],
+                        "id": 2062,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "lValueRequested": false,
+                        "nodeType": "ElementaryTypeNameExpression",
+                        "src": "2579:7:8",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_address_$",
+                          "typeString": "type(address)"
+                        },
+                        "typeName": {
+                          "id": 2061,
+                          "name": "address",
+                          "nodeType": "ElementaryTypeName",
+                          "src": "2579:7:8",
+                          "typeDescriptions": {}
+                        }
+                      },
+                      "id": 2064,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": true,
+                      "kind": "typeConversion",
+                      "lValueRequested": false,
+                      "names": [],
+                      "nodeType": "FunctionCall",
+                      "src": "2579:10:8",
+                      "tryCall": false,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "src": "2554:35:8",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "falseBody": {
+                    "id": 2078,
+                    "nodeType": "Block",
+                    "src": "2755:69:8",
+                    "statements": [
+                      {
+                        "eventCall": {
+                          "arguments": [
+                            {
+                              "id": 2074,
+                              "name": "account",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 2047,
+                              "src": "2790:7:8",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                              }
+                            },
+                            {
+                              "id": 2075,
+                              "name": "burnerAccount",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 2049,
+                              "src": "2799:13:8",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                              }
+                            }
+                          ],
+                          "expression": {
+                            "argumentTypes": [
+                              {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                              },
+                              {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                              }
+                            ],
+                            "id": 2073,
+                            "name": "NewRegistration",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 2018,
+                            "src": "2774:15:8",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_function_event_nonpayable$_t_address_$_t_address_$returns$__$",
+                              "typeString": "function (address,address)"
+                            }
+                          },
+                          "id": 2076,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "kind": "functionCall",
+                          "lValueRequested": false,
+                          "names": [],
+                          "nodeType": "FunctionCall",
+                          "src": "2774:39:8",
+                          "tryCall": false,
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_tuple$__$",
+                            "typeString": "tuple()"
+                          }
+                        },
+                        "id": 2077,
+                        "nodeType": "EmitStatement",
+                        "src": "2769:44:8"
+                      }
+                    ]
+                  },
+                  "id": 2079,
+                  "nodeType": "IfStatement",
+                  "src": "2550:274:8",
+                  "trueBody": {
+                    "id": 2072,
+                    "nodeType": "Block",
+                    "src": "2591:158:8",
+                    "statements": [
+                      {
+                        "eventCall": {
+                          "arguments": [
+                            {
+                              "id": 2067,
+                              "name": "account",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 2047,
+                              "src": "2647:7:8",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                              }
+                            },
+                            {
+                              "id": 2068,
+                              "name": "burnerAccount",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 2049,
+                              "src": "2672:13:8",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                              }
+                            },
+                            {
+                              "id": 2069,
+                              "name": "previousBurnerAccount",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 2055,
+                              "src": "2703:21:8",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                              }
+                            }
+                          ],
+                          "expression": {
+                            "argumentTypes": [
+                              {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                              },
+                              {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                              },
+                              {
+                                "typeIdentifier": "t_address",
+                                "typeString": "address"
+                              }
+                            ],
+                            "id": 2066,
+                            "name": "UpdatedRegistration",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 2026,
+                            "src": "2610:19:8",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_function_event_nonpayable$_t_address_$_t_address_$_t_address_$returns$__$",
+                              "typeString": "function (address,address,address)"
+                            }
+                          },
+                          "id": 2070,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "kind": "functionCall",
+                          "lValueRequested": false,
+                          "names": [],
+                          "nodeType": "FunctionCall",
+                          "src": "2610:128:8",
+                          "tryCall": false,
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_tuple$__$",
+                            "typeString": "tuple()"
+                          }
+                        },
+                        "id": 2071,
+                        "nodeType": "EmitStatement",
+                        "src": "2605:133:8"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "expression": {
+                    "id": 2084,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "baseExpression": {
+                        "id": 2080,
+                        "name": "accounts",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 2007,
+                        "src": "2834:8:8",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_mapping$_t_address_$_t_address_$",
+                          "typeString": "mapping(address => address)"
+                        }
+                      },
+                      "id": 2082,
+                      "indexExpression": {
+                        "id": 2081,
+                        "name": "burnerAccount",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 2049,
+                        "src": "2843:13:8",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        }
+                      },
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": true,
+                      "nodeType": "IndexAccess",
+                      "src": "2834:23:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "id": 2083,
+                      "name": "account",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 2047,
+                      "src": "2860:7:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "src": "2834:33:8",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "id": 2085,
+                  "nodeType": "ExpressionStatement",
+                  "src": "2834:33:8"
+                },
+                {
+                  "expression": {
+                    "id": 2090,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "baseExpression": {
+                        "id": 2086,
+                        "name": "burnerAccounts",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 2012,
+                        "src": "2877:14:8",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_mapping$_t_address_$_t_address_$",
+                          "typeString": "mapping(address => address)"
+                        }
+                      },
+                      "id": 2088,
+                      "indexExpression": {
+                        "id": 2087,
+                        "name": "account",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 2047,
+                        "src": "2892:7:8",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        }
+                      },
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": true,
+                      "nodeType": "IndexAccess",
+                      "src": "2877:23:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "id": 2089,
+                      "name": "burnerAccount",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 2049,
+                      "src": "2903:13:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "src": "2877:39:8",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "id": 2091,
+                  "nodeType": "ExpressionStatement",
+                  "src": "2877:39:8"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 2045,
+              "nodeType": "StructuredDocumentation",
+              "src": "2154:208:8",
+              "text": "@notice Registers a new account to burner account mapping. Owner only.\n @param account The address of the players main account\n @param burnerAccount The address of the players burner account"
+            },
+            "functionSelector": "fbc0a59c",
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [
+              {
+                "id": 2052,
+                "kind": "modifierInvocation",
+                "modifierName": {
+                  "id": 2051,
+                  "name": "onlyOwner",
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 31,
+                  "src": "2460:9:8"
+                },
+                "nodeType": "ModifierInvocation",
+                "src": "2460:9:8"
+              }
+            ],
+            "name": "submitRegistration",
+            "nameLocation": "2376:18:8",
+            "parameters": {
+              "id": 2050,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 2047,
+                  "mutability": "mutable",
+                  "name": "account",
+                  "nameLocation": "2403:7:8",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2093,
+                  "src": "2395:15:8",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2046,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2395:7:8",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 2049,
+                  "mutability": "mutable",
+                  "name": "burnerAccount",
+                  "nameLocation": "2420:13:8",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 2093,
+                  "src": "2412:21:8",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 2048,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2412:7:8",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2394:40:8"
+            },
+            "returnParameters": {
+              "id": 2053,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2474:0:8"
+            },
+            "scope": 2094,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [
+          {
+            "baseName": {
+              "id": 2001,
+              "name": "Ownable",
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 112,
+              "src": "297:7:8"
+            },
+            "id": 2002,
+            "nodeType": "InheritanceSpecifier",
+            "src": "297:7:8"
+          }
+        ],
+        "canonicalName": "RegistryReceiverV0",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "documentation": {
+          "id": 2000,
+          "nodeType": "StructuredDocumentation",
+          "src": "140:126:8",
+          "text": "@title Child registry for EthPlays\n @author olias.eth\n @notice This is experimental software, use at your own risk."
+        },
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          2094,
+          112,
+          823
+        ],
+        "name": "RegistryReceiverV0",
+        "nameLocation": "275:18:8",
+        "scope": 2095,
+        "usedErrors": []
+      }
+    ],
+    "license": "GPL-3.0-or-later"
+  },
+  "id": 8
+}

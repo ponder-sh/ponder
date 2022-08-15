@@ -1,14 +1,21 @@
 {
   "name": "@ponder/ponder",
+  "description": "API builder for blockchain apps",
   "private": true,
-  "engines": {
-    "node": "16",
-    "pnpm": "7"
+  "main": "./dist/tool/main.js",
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "ponder": "./dist/bin/ponder"
   },
   "scripts": {
-    "build": "esbuild `find tool \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
-    "dev": "pnpm run build --log-level=silent && node dist/dev.js",
-    "main": "pnpm run build --log-level=silent && node dist/main.js",
+    "clean": "rm -rf dist",
+    "compile-tool": "esbuild `find tool \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist/tool",
+    "compile-bin": "esbuild bin/ponder.ts --platform=node --format=cjs --outfile=dist/bin/ponder",
+    "build": "pnpm run clean && pnpm run compile-tool && pnpm run compile-bin",
+    "dev": "pnpm run build --log-level=silent && node dist/tool/dev.js",
+    "main": "pnpm run build --log-level=silent && node dist/tool/main.js",
     "prettier": "prettier --write src",
     "lint": "eslint src"
   },
@@ -27,12 +34,18 @@
     "knex-schema-inspector": "^2.0.4",
     "sqlite3": "^5.0.11",
     "typechain": "^8.0.0",
-    "typescript": "^4.5.5"
+    "typescript": "^4.5.5",
+    "yargs": "^17.5.1"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.0.0",
     "@ethersproject/bytes": "^5.0.0",
     "@ethersproject/providers": "^5.0.0",
-    "@types/express": "^4.17.13"
+    "@types/express": "^4.17.13",
+    "@types/yargs": "^17.0.11"
+  },
+  "engines": {
+    "node": "16",
+    "pnpm": "7"
   }
 }

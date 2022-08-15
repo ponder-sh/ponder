@@ -27,9 +27,3 @@ type Dog @entity {
   account: String!
   score: Int
 }
-
-type Cat @entity {
-  id: ID!
-  account: String!
-  score: Int
-}

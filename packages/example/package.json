@@ -1,0 +1,17 @@
+{
+  "name": "@ponder/example",
+  "description": "Example ponder usage",
+  "scripts": {
+    "dev": "ponder dev",
+    "build": "ponder build",
+    "start": "ponder start",
+    "deploy": "ponder deploy"
+  },
+  "dependencies": {
+    "@ponder/ponder": "link:../ponder"
+  },
+  "engines": {
+    "node": "16",
+    "pnpm": "7"
+  }
+}
