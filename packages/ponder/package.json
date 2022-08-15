@@ -2,7 +2,6 @@
   "name": "@ponder/ponder",
   "description": "API builder for blockchain apps",
   "private": true,
-  "main": "./dist/tool/main.js",
   "files": [
     "dist"
   ],

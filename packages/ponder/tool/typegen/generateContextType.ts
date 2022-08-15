@@ -27,7 +27,7 @@ const generateContextType = async (
     .join("");
 
   const imports = `
-  import { Knex } from "knex";
+  import type { Knex } from "knex";
   import type { ${entityNames.join(", ")} } from "./schema";
   import type { ${contractNames.join(", ")} } from "./typechain";
   `;

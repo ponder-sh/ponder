@@ -11,7 +11,7 @@ const handleAlignmentVote: AlignmentVoteHandler = async (params, context) => {
 
   await FeedItem.insert({
     timestamp: 123,
-    feedIndex: 456,
+    feedIndex: 42069,
     type: "AlignmentVote",
     from: from,
     vote: vote,
@@ -28,8 +28,8 @@ const handleButtonInput: ButtonInputHandler = async (params, context) => {
     feedIndex: 789,
     type: "ButtonInput",
     from: from,
-    buttonIndex: buttonIndex,
-    inputIndex: inputIndex,
+    buttonIndex: buttonIndex.toNumber(),
+    inputIndex: inputIndex.toNumber(),
   });
 };
 

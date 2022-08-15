@@ -1,34 +1,17 @@
 #!/usr/bin/env node
 /* eslint-disable @typescript-eslint/no-var-requires */
 
-// import yargs from "yargs";
+const { argv } = require("yargs");
 
-// const args = yargs(process.argv.slice(2))
-//   .usage("$0 <cmd> [args]")
-//   .command(
-//     "dev",
-//     "Start the development server and indexer",
-//     (yargs) => {
-//       yargs.positional("name", {
-//         type: "string",
-//         default: "Cambi",
-//         describe: "the name to say hello to",
-//       });
-//     }
-//     // (argv) => {
-//     //   console.log("hello", argv.name, "welcome to yargs!");
-//     // }
-//   )
-//   .help().argv;
-
-const command = "dev";
-const args = {};
+const scriptName = argv.$0;
+const command = argv._[0];
+const args = argv;
 
 const commands: { [command: string]: () => Promise<(args: unknown) => void> } =
   {
     dev: () => Promise.resolve(require("../tool/dev").dev),
     // build: () => Promise.resolve(require("../cli/next-build").nextBuild),
-    // start: () => Promise.resolve(require("../cli/next-start").nextStart),
+    start: () => Promise.resolve(require("../tool/start").start),
     // deploy: () => Promise.resolve(require("../cli/next-export").nextExport),
   };
 
@@ -37,8 +20,3 @@ if (!Object.keys(commands).includes(command)) {
 }
 
 commands[command]().then((exec) => exec(args));
-// .then(() => {
-//   if (command === "build") {
-//     process.exit(0);
-//   }
-// });

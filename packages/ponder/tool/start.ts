@@ -15,31 +15,31 @@ import {
 } from "./typegen";
 import { generateContextType } from "./typegen/generateContextType";
 
-const main = async () => {
+const start = async () => {
   const [config, userSchema, userHandlers] = await Promise.all([
     readUserConfig(),
     readUserSchema(),
     readUserHandlers(),
   ]);
 
-  const gqlSchema = buildGqlSchema(userSchema);
-  const dbSchema = buildDbSchema(userSchema);
+  // const gqlSchema = buildGqlSchema(userSchema);
+  // const dbSchema = buildDbSchema(userSchema);
 
-  const handlerContext = buildHandlerContext(config, dbSchema);
+  // const handlerContext = buildHandlerContext(config, dbSchema);
 
-  restartServer(gqlSchema);
+  // restartServer(gqlSchema);
 
-  generateContractTypes(config);
-  generateContextType(config, dbSchema);
-  generateSchema(gqlSchema);
-  generateEntityTypes(gqlSchema);
-  generateHandlerTypes(config);
+  // generateContractTypes(config);
+  // generateContextType(config, dbSchema);
+  // generateSchema(gqlSchema);
+  // generateEntityTypes(gqlSchema);
+  // generateHandlerTypes(config);
 
-  restartServer(gqlSchema);
+  // restartServer(gqlSchema);
 
-  await createOrUpdateDbTables(dbSchema);
+  // await createOrUpdateDbTables(dbSchema);
 
-  await fetchAndProcessLogs(config, userHandlers, handlerContext);
+  // await fetchAndProcessLogs(config, userHandlers, handlerContext);
 };
 
-main().catch(console.error);
+export { start };
