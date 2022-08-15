@@ -3,6 +3,7 @@ import { Contract } from "ethers";
 import { writeFile } from "node:fs/promises";
 
 import { toolConfig } from "../config";
+import { formatPrettier } from "../preflight";
 import type { PonderConfig } from "../readUserConfig";
 
 const header = `
@@ -30,13 +31,14 @@ const generateHandlerTypes = async (config: PonderConfig) => {
         .join("");
 
       const contractHandlersTypeString = `
-    export type ${source.name}Handlers = { ${eventHandlers
+      export type ${source.name}Handlers = { ${eventHandlers
         .map(({ name }) => `${name}?: ${name}Handler`)
         .join(",")}}
-    `;
+      `;
 
-      const final =
-        header + imports + eventHandlersTypeString + contractHandlersTypeString;
+      const final = formatPrettier(
+        header + imports + eventHandlersTypeString + contractHandlersTypeString
+      );
 
       await writeFile(
         `${toolConfig.pathToGeneratedDir}/${source.name}.d.ts`,

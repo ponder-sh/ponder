@@ -2,6 +2,7 @@ import { writeFile } from "node:fs/promises";
 
 import type { DbSchema } from "../buildDbSchema";
 import { toolConfig } from "../config";
+import { formatPrettier } from "../preflight";
 import type { PonderConfig } from "../readUserConfig";
 import { SourceKind } from "../readUserConfig";
 
@@ -28,6 +29,7 @@ const generateContextType = async (
 
   const imports = `
   import type { Knex } from "knex";
+  
   import type { ${entityNames.join(", ")} } from "./schema";
   import type { ${contractNames.join(", ")} } from "./typechain";
   `;
@@ -43,7 +45,7 @@ const generateContextType = async (
   }
   `;
 
-  const final = header + imports + body;
+  const final = formatPrettier(header + imports + body);
 
   await writeFile(
     `${toolConfig.pathToGeneratedDir}/context.d.ts`,

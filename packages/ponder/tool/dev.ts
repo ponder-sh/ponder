@@ -16,7 +16,7 @@ import {
 import { toolConfig } from "./config";
 import { createOrUpdateDbTables } from "./db";
 import { fetchAndProcessLogs } from "./logs";
-import { ensureDirectoriesExist } from "./preflight";
+import { ensureDirectoriesExist, readPrettierConfig } from "./preflight";
 import type { PonderConfig } from "./readUserConfig";
 import { readUserConfig } from "./readUserConfig";
 import { readUserHandlers, UserHandlers } from "./readUserHandlers";
@@ -169,7 +169,11 @@ const handleReindex = async () => {
 };
 
 const dev = async () => {
-  await Promise.all([hydrateCache(), ensureDirectoriesExist()]);
+  await Promise.all([
+    hydrateCache(),
+    ensureDirectoriesExist(),
+    readPrettierConfig(),
+  ]);
 
   // NOTE: Might be possible to be more smart about this,
   // but I'm pretty sure these all need to be kicked off here.
