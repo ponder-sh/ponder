@@ -1,5 +1,5 @@
 import debounce from "froebel/debounce";
-import { GraphQLSchema } from "graphql";
+import type { GraphQLSchema } from "graphql";
 import { watch } from "node:fs";
 
 import type { DbSchema } from "./buildDbSchema";
@@ -34,7 +34,6 @@ type PonderState = {
   handlerContext?: HandlerContext;
   userHandlers?: UserHandlers;
   isIndexingInProgress?: boolean;
-  // entityNames?: string[] ?????? maybe for caching handlerContext better
 };
 
 const state: PonderState = {};
@@ -124,11 +123,12 @@ const handleHandlerContextChanged = async (
 
 const handleReindex = async () => {
   // This will fire... basically on any user saved change.
-
   // TODO: Implement a simple mechanism to only commit the latest db
-  // changes if they conflict (if the user saves two files very fast)
+  // changes if they conflict (if the user saves two files very fast?)
   // Maybe need a generalized implementation of this,
   // could use for the file writers also.
+  // Lol this is literally debouncing!
+
   if (
     !state.dbSchema ||
     !state.config ||

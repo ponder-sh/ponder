@@ -20,7 +20,7 @@ type Player @entity {
   id: ID!
   account: String!
   burnerAccount: String!
-  score: Int!
+  score: Int
 }
 
 type Dog @entity {
