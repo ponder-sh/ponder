@@ -1,7 +1,7 @@
 module.exports = {
   rpcUrls: {
     137: process.env.POLYGON_RPC_URL,
-    31337: "http://127.0.0.1:8545",
+    // 31337: "http://127.0.0.1:8545",
   },
   sources: [
     {
@@ -26,4 +26,5 @@ module.exports = {
     //   address: "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
     // },
   ],
+  // stores: [],
 };

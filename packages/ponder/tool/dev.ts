@@ -1,4 +1,3 @@
-import { debounce } from "froebel";
 import type { WatchListener } from "node:fs";
 import { watch } from "node:fs";
 
@@ -16,15 +15,14 @@ import { ensureDirectoriesExist, readPrettierConfig } from "./utils/preflight";
 const { userHandlersDir, userConfigFile, userSchemaFile } = CONFIG;
 
 const createWatchListener = (
-  fn: (fileName: string) => Promise<void>,
-  time = 20
+  fn: (fileName: string) => Promise<void>
 ): WatchListener<string> => {
-  const debounced = debounce(fn, time);
-
   return async (_, fileName) => {
     const isChanged = await fileIsChanged(fileName);
+
+    console.log("in watch listener with:", { fileName, isChanged });
     if (isChanged) {
-      debounced(fileName);
+      fn(fileName);
     }
   };
 };
@@ -40,19 +38,18 @@ const dev = async () => {
     async (fileName: string) => {
       logger.info(`\x1b[33m${`DETECTED CHANGE IN: ${fileName}`}\x1b[0m`); // yellow
       runTask(updateUserHandlersTask);
-    },
-    50
+    }
   );
 
   const runUpdateUserConfigTask = createWatchListener(async () => {
     logger.info(`\x1b[33m${`DETECTED CHANGE IN: ponder.config.js`}\x1b[0m`); // yellow
     runTask(updateUserConfigTask);
-  }, 50);
+  });
 
   const runUpdateUserSchemaTask = createWatchListener(async () => {
     logger.info(`\x1b[33m${`DETECTED CHANGE IN: ponder.config.js`}\x1b[0m`); // yellow
     runTask(updateUserSchemaTask);
-  }, 50);
+  });
 
   watch(userHandlersDir, runUpdateUserHandlersTask);
   watch(userConfigFile, runUpdateUserConfigTask);
