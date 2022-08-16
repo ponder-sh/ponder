@@ -190,6 +190,10 @@ const registerBlockListener = (
     provider.off("block", oldBlockHandler);
   }
 
+  // TODO: Fix suspected issue where if the user starts and then stops using a given provider/chainId
+  // during hot reloading, the stale provider's listeners never get un-registered.
+  // This happens because this code only un-registers stale listeners for the current set of logProviders.
+
   const blockHandler = async () => {
     const logs: Log[] = await provider.send("eth_getFilterChanges", [filterId]);
     logs.forEach(queue.push);
