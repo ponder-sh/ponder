@@ -3,8 +3,7 @@
   "version": "0.0.1",
   "description": "API builder for blockchain apps",
   "license": "MIT",
-  "private": true,
-  "main": "./dist/cli/dev.js",
+  "author": "olias.eth",
   "files": [
     "dist"
   ],
@@ -14,8 +13,6 @@
   "scripts": {
     "compile": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
     "build": "pnpm run clean && pnpm run compile && mv dist/bin/ponder.js dist/bin/ponder",
-    "dev": "pnpm run build --log-level=silent && node dist/tool/dev.js",
-    "start": "pnpm run build --log-level=silent && node dist/tool/start.js",
     "clean": "rm -rf dist",
     "lint": "eslint src",
     "format": "prettier --write src"
