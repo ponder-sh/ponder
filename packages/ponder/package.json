@@ -1,18 +1,24 @@
 {
   "name": "@ponder/ponder",
+  "version": "0.0.1",
   "description": "API builder for blockchain apps",
+  "license": "MIT",
   "private": true,
+  "main": "./dist/cli/dev.js",
+  "files": [
+    "dist"
+  ],
   "bin": {
     "ponder": "./dist/bin/ponder"
   },
   "scripts": {
-    "clean": "rm -rf dist",
     "compile": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
     "build": "pnpm run clean && pnpm run compile && mv dist/bin/ponder.js dist/bin/ponder",
     "dev": "pnpm run build --log-level=silent && node dist/tool/dev.js",
-    "main": "pnpm run build --log-level=silent && node dist/tool/main.js",
-    "prettier": "prettier --write src",
-    "lint": "eslint src"
+    "start": "pnpm run build --log-level=silent && node dist/tool/start.js",
+    "clean": "rm -rf dist",
+    "lint": "eslint src",
+    "format": "prettier --write src"
   },
   "dependencies": {
     "@graphql-codegen/core": "^2.6.2",

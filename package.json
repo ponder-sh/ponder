@@ -1,15 +1,14 @@
 {
-  "name": "ponder",
+  "name": "ponder-monorepo",
   "private": true,
-  "engines": {
-    "node": "16",
-    "pnpm": "7"
-  },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "preinstall": "npx -y only-allow pnpm",
     "postinstall": "[ -z $CI ] && forge install || echo \"Skipping forge install for CI\"",
     "dev": "pnpm --parallel dev",
-    "prettier": "pnpm --parallel --no-bail prettier",
+    "format": "pnpm --parallel --no-bail format",
     "lint": "pnpm --parallel --no-bail lint",
     "test": "pnpm --parallel --no-bail test"
   },
@@ -24,5 +23,9 @@
     "prettier": "^2.6.2",
     "typescript": "^4.5.5",
     "husky": "^8.0.0"
+  },
+  "engines": {
+    "node": "16",
+    "pnpm": "7"
   }
 }

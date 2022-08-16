@@ -3,12 +3,10 @@
   "description": "Example ponder usage",
   "scripts": {
     "dev": "ponder dev",
-    "build": "ponder build",
-    "start": "ponder start",
-    "deploy": "ponder deploy"
+    "start": "ponder start"
   },
   "dependencies": {
-    "@ponder/ponder": "link:../ponder"
+    "ponder": "link:../ponder"
   },
   "engines": {
     "node": "16",

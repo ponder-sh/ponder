@@ -1,19 +1,15 @@
 {
   "name": "@ponder/contracts",
   "private": true,
-  "engines": {
-    "node": "16",
-    "pnpm": "7"
-  },
   "scripts": {
     "seed": "source .env.local && forge script script/Seed.s.sol:SeedScript --fork-url http://localhost:8545 --broadcast --private-keys $ANVIL_PRIVATE_KEY_0 --private-keys $ANVIL_PRIVATE_KEY_1 --private-keys $ANVIL_PRIVATE_KEY_2 --private-keys $ANVIL_PRIVATE_KEY_3",
     "clean": "rm -rf types",
     "build": "pnpm clean && pnpm compile && pnpm types",
     "compile": "forge build --force",
     "types": "typechain --target ethers-v5 \"out/**/!(*.t|test|Test|Script|Vm|console|console2).sol/!(*.abi).json\" --out-dir types && tsc",
-    "prettier": "pnpm lint:fix && prettier --write \"src/**/*.sol\" --plugin=prettier-plugin-solidity",
     "lint": "solhint --config ../../.solhint.json \"src/**/*.sol\"",
-    "lint:fix": "pnpm lint --fix"
+    "lint:fix": "pnpm lint --fix",
+    "format": "pnpm lint:fix && prettier --write \"src/**/*.sol\" --plugin=prettier-plugin-solidity"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.0.0",
@@ -26,5 +22,9 @@
     "solhint-plugin-prettier": "^0.0.5",
     "typechain": "^8.0.0",
     "typescript": "^4.5.5"
+  },
+  "engines": {
+    "node": "16",
+    "pnpm": "7"
   }
 }
