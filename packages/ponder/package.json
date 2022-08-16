@@ -2,9 +2,6 @@
   "name": "@ponder/ponder",
   "description": "API builder for blockchain apps",
   "private": true,
-  "files": [
-    "dist"
-  ],
   "bin": {
     "ponder": "./dist/bin/ponder"
   },
@@ -34,7 +31,6 @@
     "prettier": "^2.6.2",
     "sqlite3": "^5.0.11",
     "typechain": "^8.0.0",
-    "typescript": "^4.5.5",
     "yargs": "^17.5.1"
   },
   "devDependencies": {
@@ -42,7 +38,8 @@
     "@ethersproject/bytes": "^5.0.0",
     "@ethersproject/providers": "^5.0.0",
     "@types/express": "^4.17.13",
-    "@types/yargs": "^17.0.11"
+    "@types/yargs": "^17.0.11",
+    "typescript": "^4.5.5"
   },
   "engines": {
     "node": "16",
