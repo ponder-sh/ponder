@@ -1,7 +1,7 @@
 import { knex } from "knex";
 import knexSchemaInspector from "knex-schema-inspector";
 
-import { logger } from "../logger";
+import { logger } from "../utils/logger";
 
 const db = knex({
   client: "sqlite3",

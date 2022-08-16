@@ -5,7 +5,7 @@ import {
   Kind,
 } from "graphql";
 
-import { getEntities } from "./helpers";
+import { getEntities } from "./utils/helpers";
 
 type DbSchema = {
   tables: DbTable[];

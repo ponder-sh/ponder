@@ -3,7 +3,7 @@ import { graphqlHTTP } from "express-graphql";
 import type { GraphQLSchema } from "graphql";
 
 import { db } from "./db";
-import { logger } from "./logger";
+import { logger } from "./utils/logger";
 
 const context = { db };
 const PORT = 4000;
@@ -11,7 +11,7 @@ const app = express();
 let isInitialized = false;
 let graphqlMiddleware: express.Handler;
 
-const restartServer = (gqlSchema: GraphQLSchema) => {
+const startServer = (gqlSchema: GraphQLSchema) => {
   // This uses a small hack to update the GraphQL server at runtime.
   graphqlMiddleware = graphqlHTTP({
     schema: gqlSchema,
@@ -33,4 +33,4 @@ const restartServer = (gqlSchema: GraphQLSchema) => {
   return app;
 };
 
-export { restartServer };
+export { startServer };

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { CONFIG } from "./config";
+import { CONFIG } from "../config";
 
 enum LogLevel {
   // Silent 0

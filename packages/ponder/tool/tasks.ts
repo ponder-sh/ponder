@@ -8,7 +8,7 @@ import { readUserConfig } from "./readUserConfig";
 import { readUserHandlers, UserHandlers } from "./readUserHandlers";
 import { readUserSchema } from "./readUserSchema";
 import { handleReindex } from "./reindex";
-import { restartServer } from "./server";
+import { startServer } from "./startServer";
 import {
   generateContractTypes,
   generateEntityTypes,
@@ -166,7 +166,7 @@ const startServerTask: Task = {
   name: TaskName.START_SERVER,
   handler: async () => {
     if (state.gqlSchema) {
-      restartServer(state.gqlSchema);
+      startServer(state.gqlSchema);
     }
   },
 };

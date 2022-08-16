@@ -17,7 +17,7 @@ import {
 } from "graphql";
 import { Knex } from "knex";
 
-import { getEntities } from "./helpers";
+import { getEntities } from "./utils/helpers";
 
 type Source = { request: unknown };
 type Context = { db: Knex<Record<string, unknown>, unknown[]> };

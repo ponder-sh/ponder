@@ -3,15 +3,15 @@ import type { WatchListener } from "node:fs";
 import { watch } from "node:fs";
 
 import { CONFIG } from "./config";
-import { fileIsChanged } from "./helpers";
-import { logger } from "./logger";
-import { ensureDirectoriesExist, readPrettierConfig } from "./preflight";
 import {
   runTask,
   updateUserConfigTask,
   updateUserHandlersTask,
   updateUserSchemaTask,
 } from "./tasks";
+import { fileIsChanged } from "./utils/helpers";
+import { logger } from "./utils/logger";
+import { ensureDirectoriesExist, readPrettierConfig } from "./utils/preflight";
 
 const { userHandlersDir, userConfigFile, userSchemaFile } = CONFIG;
 

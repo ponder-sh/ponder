@@ -1,11 +1,11 @@
 import type { DbSchema } from "./buildDbSchema";
-import { buildHandlerContext } from "./buildHandlerContext";
 import { createOrUpdateDbTables } from "./db";
-import { endBenchmark, startBenchmark } from "./helpers";
-import { logger } from "./logger";
-import { fetchAndProcessLogs } from "./logs";
+import { executeLogs } from "./logs";
+import { buildLogWorker } from "./logs/buildLogWorker";
 import type { PonderConfig } from "./readUserConfig";
 import type { UserHandlers } from "./readUserHandlers";
+import { endBenchmark, startBenchmark } from "./utils/helpers";
+import { logger } from "./utils/logger";
 
 const handleReindex = async (
   config: PonderConfig,
@@ -18,8 +18,8 @@ const handleReindex = async (
   await createOrUpdateDbTables(dbSchema);
 
   // TODO: Rename and restructure this code path a bit.
-  const handlerContext = buildHandlerContext(config, dbSchema);
-  await fetchAndProcessLogs(config, userHandlers, handlerContext);
+  const logWorker = buildLogWorker(config, dbSchema, userHandlers);
+  await executeLogs(config, logWorker);
 
   const diff = endBenchmark(startHrt);
 

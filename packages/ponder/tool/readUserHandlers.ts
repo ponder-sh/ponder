@@ -1,9 +1,9 @@
 import { build } from "esbuild";
 import path from "node:path";
 
-import type { HandlerContext } from "./buildHandlerContext";
 import { CONFIG } from "./config";
-import { logger } from "./logger";
+import type { HandlerContext } from "./logs/buildLogWorker";
+import { logger } from "./utils/logger";
 
 const { userHandlersDir, buildDir } = CONFIG;
 

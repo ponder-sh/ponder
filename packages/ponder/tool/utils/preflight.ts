@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import prettier from "prettier";
 
-import { CONFIG } from "./config";
+import { CONFIG } from "../config";
 import { logger } from "./logger";
 
 const { ponderDir, buildDir, generatedDir } = CONFIG;

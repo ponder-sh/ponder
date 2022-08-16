@@ -3,7 +3,7 @@ import { providers } from "ethers";
 import { GraphQLObjectType, GraphQLSchema, Kind } from "graphql";
 import { readFile } from "node:fs/promises";
 
-import { PonderConfig } from "./readUserConfig";
+import { PonderConfig } from "../readUserConfig";
 
 // Find all types in the schema that are marked with the @entity directive.
 const getEntities = (schema: GraphQLSchema) => {

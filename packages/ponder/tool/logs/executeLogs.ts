@@ -2,11 +2,10 @@ import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
-import { HandlerContext } from "../buildHandlerContext";
-import { getProviderForChainId } from "../helpers";
-import { logger } from "../logger";
 import type { PonderConfig } from "../readUserConfig";
-import { UserHandlers } from "../readUserHandlers";
+import { getProviderForChainId } from "../utils/helpers";
+import { logger } from "../utils/logger";
+import { LogWorker } from "./buildLogWorker";
 import { fetchLogs } from "./fetchLogs";
 import { readLogCache, writeLogCache } from "./logCache";
 
@@ -19,48 +18,7 @@ type LogProvider = {
   cacheKey: string;
 };
 
-const fetchAndProcessLogs = async (
-  config: PonderConfig,
-  userHandlers: UserHandlers,
-  handlerContext: HandlerContext
-) => {
-  // NOTE: This function should probably come as a standalone param.
-  const worker = async (log: Log) => {
-    const source = config.sources.find(
-      (source) => source.address === log.address
-    );
-    if (!source) {
-      logger.warn(`Source not found for log with address: ${log.address}`);
-      return;
-    }
-
-    const parsedLog = source.abiInterface.parseLog(log);
-    const params = { ...parsedLog.args };
-
-    const sourceHandlers = userHandlers[source.name];
-    if (!sourceHandlers) {
-      logger.warn(`Handlers not found for source: ${source.name}`);
-      return;
-    }
-
-    const handler = sourceHandlers[parsedLog.name];
-    if (!handler) {
-      logger.warn(
-        `Handler not found for event: ${source.name}-${parsedLog.name}`
-      );
-      return;
-    }
-
-    const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
-    logger.debug(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
-
-    // TOOD: Add more shit to the event here?
-    const event = { ...parsedLog, params: params };
-
-    // YAY: We're running user code here!
-    await handler(event, handlerContext);
-  };
-
+const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
   // Indexing runs on a per-provider basis so we can batch eth_getLogs calls across contracts.
   const uniqueChainIds = [...new Set(config.sources.map((s) => s.chainId))];
   const logProviders: LogProvider[] = uniqueChainIds.map((chainId) => {
@@ -77,11 +35,9 @@ const fetchAndProcessLogs = async (
   const logCache = await readLogCache();
 
   // Create a queue which we will add logs to (paused at first).
-  const queue = fastq.promise(worker, 1);
+  const queue = fastq.promise(logWorker, 1);
   queue.pause();
 
-  // TODO: Make this work on a per-provider basis
-  // instead of per-contract/source, should reduce RPC usage
   for (const logProvider of logProviders) {
     const { provider, contracts, cacheKey } = logProvider;
 
@@ -207,4 +163,4 @@ const getLogIndex = (log: Log) => {
   return Number(log.blockNumber) * 10000 + Number(log.logIndex);
 };
 
-export { fetchAndProcessLogs };
+export { executeLogs };
