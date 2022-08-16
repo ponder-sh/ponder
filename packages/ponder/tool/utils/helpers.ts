@@ -3,7 +3,15 @@ import { providers } from "ethers";
 import { GraphQLObjectType, GraphQLSchema, Kind } from "graphql";
 import { readFile } from "node:fs/promises";
 
-import { PonderConfig } from "../readUserConfig";
+import type { PonderConfig } from "../readUserConfig";
+
+const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
+  return array.reduce<{ [k: string | number]: T[] }>((acc, item) => {
+    const key = fn(item);
+    (acc[key] = acc[key] || []).push(item);
+    return acc;
+  }, {});
+};
 
 // Find all types in the schema that are marked with the @entity directive.
 const getEntities = (schema: GraphQLSchema) => {
@@ -32,16 +40,21 @@ const getProviderForChainId = (config: PonderConfig, chainId: number) => {
     return cachedProvider;
   }
 
-  if (config.rpcUrls[chainId]) {
-    const provider = new providers.JsonRpcProvider(
-      config.rpcUrls[chainId],
-      Number(chainId)
-    );
-    providerCache[chainId] = provider;
-    return provider;
-  } else {
-    throw new Error(`No RPC url found for chain ID: ${chainId}`);
+  const sourcesByChainId = groupBy(config.sources, (source) => source.chainId);
+
+  const sources = sourcesByChainId[chainId];
+  const firstSourceRpcUrl = sources[0].rpcUrl;
+
+  if (!sources.every((source) => source.rpcUrl === firstSourceRpcUrl)) {
+    throw new Error(`Cannot use different RPC urls for the same chain ID`);
   }
+
+  const provider = new providers.JsonRpcProvider(
+    firstSourceRpcUrl,
+    Number(chainId)
+  );
+  providerCache[chainId] = provider;
+  return provider;
 };
 
 const startBenchmark = () => process.hrtime();
@@ -64,10 +77,12 @@ const fileIsChanged = async (filePath: string) => {
 
   const prevHash = latestFileHash[filePath];
   latestFileHash[filePath] = hash;
-  if (prevHash) {
-    return prevHash !== hash;
+  if (!prevHash) {
+    // If there is no previous hash, this file is being changed for the first time.
+    return true;
   } else {
-    return false;
+    // If there is a previous hash, check if the content hash has changed.
+    return prevHash !== hash;
   }
 };
 

@@ -8,9 +8,6 @@ const db = knex({
   connection: {
     filename: ":memory:",
   },
-  migrations: {
-    tableName: "knex_migrations",
-  },
   useNullAsDefault: true,
 });
 
