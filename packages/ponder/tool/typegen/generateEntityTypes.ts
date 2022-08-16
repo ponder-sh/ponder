@@ -33,7 +33,7 @@ const generateEntityTypes = async (gqlSchema: GraphQLSchema) => {
 
   writeFile(`${CONFIG.generatedDir}/schema.d.ts`, final, "utf8");
 
-  logger.info(`Regenerated schema.d.ts`);
+  logger.info(`\x1b[36m${"GENERATED SCHEMA TYPES"}\x1b[0m`); // magenta
 };
 
 export { generateEntityTypes };

@@ -50,7 +50,7 @@ const generateContextType = async (
 
   await writeFile(`${CONFIG.generatedDir}/context.d.ts`, final, "utf8");
 
-  logger.info(`Regenerated context type`);
+  logger.info(`\x1b[36m${"GENERATED CONTEXT TYPES"}\x1b[0m`); // magenta
 };
 
 export { generateContextType };

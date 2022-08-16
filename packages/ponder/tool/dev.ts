@@ -8,6 +8,7 @@ import { buildGqlSchema } from "./buildGqlSchema";
 import { buildHandlerContext, HandlerContext } from "./buildHandlerContext";
 import { CONFIG } from "./config";
 import { createOrUpdateDbTables } from "./db";
+import { endBenchmark, startBenchmark } from "./helpers";
 import { logger } from "./logger";
 import { fetchAndProcessLogs } from "./logs";
 import { ensureDirectoriesExist, readPrettierConfig } from "./preflight";
@@ -145,19 +146,24 @@ const handleReindex = async () => {
   }
 
   state.isIndexingInProgress = true;
-  logger.info(`Reindexing... 🕑`);
+  const startHrt = startBenchmark();
+  logger.info(`\x1b[33m${"REINDEXING..."}\x1b[0m`); // yellow
 
   await createOrUpdateDbTables(state.dbSchema);
 
-  const { logCount } = await fetchAndProcessLogs(
+  await fetchAndProcessLogs(
     state.config,
     state.userHandlers,
     state.handlerContext
   );
 
   state.isIndexingInProgress = false;
-  logger.info(`Processed ${logCount} logs`);
-  logger.info(`Reindexing complete 🚀`);
+  const diff = endBenchmark(startHrt);
+
+  logger.info(
+    `\x1b[32m${`REINDEXING COMPLETE (${diff})`}\x1b[0m`, // green
+    "\n"
+  );
 };
 
 const dev = async () => {

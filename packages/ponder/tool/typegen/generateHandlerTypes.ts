@@ -50,7 +50,7 @@ const generateHandlerTypes = async (config: PonderConfig) => {
     })
   );
 
-  logger.info(`Regenerated handler types`);
+  logger.info(`\x1b[36m${"GENERATED HANDLER TYPES"}\x1b[0m`); // magenta
 };
 
 // HELPERS

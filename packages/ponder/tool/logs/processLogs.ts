@@ -93,6 +93,13 @@ const fetchAndProcessLogs = async (
 
     // Get cached log data for this source (may be empty/undefined).
     const cachedLogData = logCache[cacheKey];
+    const cachedLogs = cachedLogData?.logs || [];
+
+    if (cachedLogs.length > 0) {
+      logger.info(
+        `\x1b[34m${`LOADED ${cachedLogs.length} LOGS FROM CACHE`}\x1b[0m`
+      ); // green
+    }
 
     // Calculate fromBlock to pick up where the cached logs end.
     // NOTE: Could optimize this to use the contract deployment block.
@@ -102,6 +109,12 @@ const fetchAndProcessLogs = async (
     // Get logs between the end of the cached logs and the beginning of the active filter.
     const toBlock = filterStartBlock;
     const newLogs = await fetchLogs(provider, contracts, fromBlock, toBlock);
+
+    if (newLogs.length > 0) {
+      logger.info(
+        `\x1b[35m${`FETCHED ${newLogs.length} LOGS FROM RPC`}\x1b[0m`
+      ); // magenta
+    }
 
     // Combine cached logs and new logs to get the full list of historical logs.
     // TODO: De-dupe and validate some shit probably?

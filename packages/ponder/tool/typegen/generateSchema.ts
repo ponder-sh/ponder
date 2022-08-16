@@ -17,7 +17,7 @@ const generateSchema = async (gqlSchema: GraphQLSchema) => {
 
   await writeFile(`${CONFIG.generatedDir}/schema.graphql`, final, "utf8");
 
-  logger.info(`Regenerated schema.graphql`);
+  logger.info(`\x1b[36m${"GENERATED SCHEMA"}\x1b[0m`); // magenta
 };
 
 export { generateSchema };

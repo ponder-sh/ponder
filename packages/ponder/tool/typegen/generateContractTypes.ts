@@ -18,7 +18,7 @@ const generateContractTypes = async (config: PonderConfig) => {
     target: "ethers-v5",
   });
 
-  logger.info(`Regenerated contract types`);
+  logger.info(`\x1b[36m${"GENERATED CONTRACT TYPES"}\x1b[0m`); // magenta
 };
 
 export { generateContractTypes };
