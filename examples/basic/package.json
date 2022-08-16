@@ -1,0 +1,15 @@
+{
+  "description": "Basic ponder usage",
+  "private": true,
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start"
+  },
+  "dependencies": {
+    "ponder": "link:../ponder"
+  },
+  "engines": {
+    "node": "16",
+    "pnpm": "7"
+  }
+}

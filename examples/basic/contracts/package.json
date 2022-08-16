@@ -1,5 +1,4 @@
 {
-  "name": "@ponder/contracts",
   "private": true,
   "scripts": {
     "seed": "source .env.local && forge script script/Seed.s.sol:SeedScript --fork-url http://localhost:8545 --broadcast --private-keys $ANVIL_PRIVATE_KEY_0 --private-keys $ANVIL_PRIVATE_KEY_1 --private-keys $ANVIL_PRIVATE_KEY_2 --private-keys $ANVIL_PRIVATE_KEY_3",

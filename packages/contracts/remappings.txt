@@ -1,5 +1,0 @@
-@openzeppelin/=packages/contracts/lib/openzeppelin-contracts/
-ds-test/=packages/contracts/lib/forge-std/lib/ds-test/src/
-erc721a/=packages/contracts/lib/ERC721A/
-forge-std/=packages/contracts/lib/forge-std/src/
-openzeppelin-contracts/=packages/contracts/lib/openzeppelin-contracts/
