@@ -1,5 +1,7 @@
+import { createHash } from "crypto";
 import { providers } from "ethers";
 import { GraphQLObjectType, GraphQLSchema, Kind } from "graphql";
+import { readFile } from "node:fs/promises";
 
 import { PonderConfig } from "./readUserConfig";
 
@@ -54,4 +56,25 @@ const endBenchmark = (hrt: [number, number]) => {
   return diffString;
 };
 
-export { endBenchmark, getEntities, getProviderForChainId, startBenchmark };
+const latestFileHash: { [key: string]: string | undefined } = {};
+
+const fileIsChanged = async (filePath: string) => {
+  const content = await readFile(filePath, "utf-8");
+  const hash = createHash("md5").update(content).digest("hex");
+
+  const prevHash = latestFileHash[filePath];
+  latestFileHash[filePath] = hash;
+  if (prevHash) {
+    return prevHash !== hash;
+  } else {
+    return false;
+  }
+};
+
+export {
+  endBenchmark,
+  fileIsChanged,
+  getEntities,
+  getProviderForChainId,
+  startBenchmark,
+};
