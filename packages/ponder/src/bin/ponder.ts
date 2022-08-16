@@ -13,10 +13,8 @@ const args = argv;
 
 const commands: { [command: string]: () => Promise<(args: unknown) => void> } =
   {
-    dev: () => Promise.resolve(require("../tool/dev").dev),
-    // build: () => Promise.resolve(require("../cli/next-build").nextBuild),
-    start: () => Promise.resolve(require("../tool/start").start),
-    // deploy: () => Promise.resolve(require("../cli/next-export").nextExport),
+    dev: () => Promise.resolve(require("../cli/dev").dev),
+    start: () => Promise.resolve(require("../cli/start").start),
   };
 
 if (!Object.keys(commands).includes(command)) {

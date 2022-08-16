@@ -10,9 +10,8 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "compile-tool": "esbuild `find tool \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist/tool",
-    "compile-bin": "esbuild bin/ponder.ts --platform=node --format=cjs --outfile=dist/bin/ponder",
-    "build": "pnpm run clean && pnpm run compile-tool && pnpm run compile-bin",
+    "compile": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
+    "build": "pnpm run clean && pnpm run compile && mv dist/bin/ponder.js dist/bin/ponder",
     "dev": "pnpm run build --log-level=silent && node dist/tool/dev.js",
     "main": "pnpm run build --log-level=silent && node dist/tool/main.js",
     "prettier": "prettier --write src",
