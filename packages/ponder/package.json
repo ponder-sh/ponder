@@ -1,6 +1,6 @@
 {
   "name": "@ponder/ponder",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "description": "API builder for blockchain apps",
   "license": "MIT",
   "author": "olias.eth",
@@ -15,7 +15,8 @@
     "build": "pnpm run clean && pnpm run compile && mv dist/bin/ponder.js dist/bin/ponder",
     "clean": "rm -rf dist",
     "lint": "eslint src",
-    "format": "prettier --write src"
+    "format": "prettier --write src",
+    "release": "pnpm run build && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release: $VERSION\""
   },
   "dependencies": {
     "@graphql-codegen/core": "^2.6.2",
