@@ -19,8 +19,6 @@ const createWatchListener = (
 ): WatchListener<string> => {
   return async (_, fileName) => {
     const isChanged = await fileIsChanged(fileName);
-
-    console.log("in watch listener with:", { fileName, isChanged });
     if (isChanged) {
       fn(fileName);
     }

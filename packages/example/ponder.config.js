@@ -1,8 +1,4 @@
 module.exports = {
-  rpcUrls: {
-    137: process.env.POLYGON_RPC_URL,
-    // 31337: "http://127.0.0.1:8545",
-  },
   sources: [
     {
       kind: "evm",
