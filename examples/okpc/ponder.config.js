@@ -10,6 +10,13 @@ module.exports = {
       startBlock: 15320000,
     },
   ],
+  apis: [
+    {
+      kind: "graphql",
+      default: true,
+      port: 42069,
+    },
+  ],
   stores: [
     {
       kind: "sql",
@@ -17,13 +24,6 @@ module.exports = {
       connection: {
         filename: ":memory:",
       },
-    },
-  ],
-  apis: [
-    {
-      kind: "graphql",
-      default: true,
-      port: 42069,
     },
   ],
 };
