@@ -15,6 +15,7 @@ type LogProvider = {
   chainId: number;
   provider: JsonRpcProvider;
   contracts: string[];
+  startBlock: number;
   cacheKey: string;
 };
 
@@ -23,12 +24,17 @@ const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
   const uniqueChainIds = [...new Set(config.sources.map((s) => s.chainId))];
   const logProviders: LogProvider[] = uniqueChainIds.map((chainId) => {
     const provider = getProviderForChainId(config, chainId);
+    const startBlock = Math.min(
+      ...config.sources.map((s) => s.startBlock || 0)
+    );
     const contracts = config.sources
       .filter((source) => source.chainId === chainId)
       .map((source) => source.address);
-    const cacheKey = `${chainId}${contracts.map((contract) => `-${contract}`)}`;
+    const cacheKey = `${chainId}_${startBlock}_${contracts.map(
+      (contract) => `-${contract}`
+    )}`;
 
-    return { chainId, provider, contracts, cacheKey };
+    return { chainId, provider, contracts, startBlock, cacheKey };
   });
 
   // Read cached logs from disk.
@@ -57,18 +63,23 @@ const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
       ); // green
     }
 
-    // Calculate fromBlock to pick up where the cached logs end.
-    // NOTE: Could optimize this to use the contract deployment block.
-    const sourceStartBlock = 0;
-    const fromBlock = cachedLogData ? cachedLogData.toBlock : sourceStartBlock;
+    // If there are cached logs, pick up where they leave off.
+    const fromBlock = cachedLogData
+      ? cachedLogData.toBlock
+      : logProvider.startBlock;
 
     // Get logs between the end of the cached logs and the beginning of the active filter.
     const toBlock = filterStartBlock;
-    const newLogs = await fetchLogs(provider, contracts, fromBlock, toBlock);
+    const { logs: newLogs, requestCount } = await fetchLogs(
+      provider,
+      contracts,
+      fromBlock,
+      toBlock
+    );
 
     if (newLogs.length > 0) {
       logger.info(
-        `\x1b[35m${`FETCHED ${newLogs.length} LOGS FROM RPC`}\x1b[0m`
+        `\x1b[35m${`FETCHED FROM RPC: ${newLogs.length} LOGS IN ${requestCount} REQUESTS`}\x1b[0m`
       ); // magenta
     }
 
@@ -78,7 +89,7 @@ const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
 
     // Add the full list of historical logs to the cache.
     logCache[cacheKey] = {
-      fromBlock: sourceStartBlock,
+      fromBlock: fromBlock,
       toBlock: filterStartBlock,
       logs: historicalLogs,
     };

@@ -15,6 +15,7 @@ type EvmSource = {
   rpcUrl: string;
   address: string;
   abi: string;
+  startBlock?: number;
   // NOTE: this property doesn't actually exist on the raw source
   // read in from the file, but adding it here for type simplicity.
   abiInterface: utils.Interface;

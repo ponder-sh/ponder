@@ -1,48 +1,37 @@
 import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 
+const BLOCK_LIMIT = 2_000;
+
 const fetchLogs = async (
   provider: JsonRpcProvider,
   contracts: string[],
-  _fromBlock: number,
-  _toBlock: number
+  startBlock: number,
+  endBlock: number
 ) => {
+  let requestCount = 0;
   const historicalLogs: Log[] = [];
 
-  let fromBlock = _fromBlock;
-  const toBlock = _toBlock;
+  let fromBlock = startBlock;
+  let toBlock = fromBlock + BLOCK_LIMIT;
 
-  while (fromBlock < toBlock) {
+  while (fromBlock < endBlock) {
     const getLogsParams = {
       address: contracts,
       fromBlock: BigNumber.from(fromBlock).toHexString(),
+      toBlock: BigNumber.from(toBlock).toHexString(),
     };
 
     const logs: Log[] = await provider.send("eth_getLogs", [getLogsParams]);
 
-    if (logs.length > 0) {
-      const lastLogInBatch = logs[logs.length - 1];
-      const lastLogBlockNumber = BigNumber.from(
-        lastLogInBatch.blockNumber
-      ).toNumber();
+    fromBlock = toBlock + 1;
+    toBlock = fromBlock + BLOCK_LIMIT;
 
-      // If the last log block number is GTE endBlock, we're done.
-      if (lastLogBlockNumber >= toBlock) {
-        // TODO: maybe filter out duplicates? / handle this edge case better
-        break;
-      }
-
-      fromBlock = lastLogBlockNumber + 1;
-    } else {
-      // TODO: figure out what to safely do if there are not logs... are we done?
-      // Probably depends on the RPC provider rules
-      break;
-    }
-
+    requestCount += 1;
     historicalLogs.push(...logs);
   }
 
-  return historicalLogs;
+  return { logs: historicalLogs, requestCount };
 };
 
 export { fetchLogs };
