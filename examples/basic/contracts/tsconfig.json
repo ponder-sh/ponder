@@ -8,5 +8,5 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true
-  },
+  }
 }
