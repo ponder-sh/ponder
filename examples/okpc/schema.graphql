@@ -1,0 +1,4 @@
+type OkpcToken @entity {
+  id: ID!
+  owner: String!
+}
