@@ -29,7 +29,7 @@
     "express-graphql": "^0.12.0",
     "fastq": "^1.13.0",
     "froebel": "^0.21.3",
-    "graphql": "^16.2.0",
+    "graphql": "^15.3.0",
     "knex": "^2.2.0",
     "knex-schema-inspector": "^2.0.4",
     "prettier": "^2.6.2",

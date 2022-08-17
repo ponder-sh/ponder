@@ -1,11 +1,11 @@
 [default]
-src = 'contracts/src'
-test = 'contracts/test'
-out = 'contracts/out'
-cache_path = 'contracts/cache'
-libs = ['contracts/lib']
+src = 'src'
+test = 'test'
+out = 'out'
+cache_path = 'cache'
+libs = ['lib']
 verbosity = 2
 bytecode_hash = 'none'
 solc_version = '0.8.13'
 extra_output_files = ['abi']
-script = 'contracts/script'
+script = 'script'

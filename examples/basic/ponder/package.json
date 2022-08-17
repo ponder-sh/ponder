@@ -1,21 +1,21 @@
 {
-  "name": "@ponder/example",
-  "description": "Example ponder usage",
+  "name": "ponder-example-basic-ponder",
+  "private": true,
   "scripts": {
     "dev": "ponder dev",
     "start": "ponder start"
   },
   "dependencies": {
-    "ponder": "link:../ponder"
-  },
-  "engines": {
-    "node": "16",
-    "pnpm": "7"
+    "@ponder/ponder": "^0.0.5"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.0.0",
     "@ethersproject/providers": "^5.0.0",
     "ethers": "^5.6.9",
     "knex": "^2.2.0"
+  },
+  "engines": {
+    "node": "16",
+    "pnpm": "7"
   }
 }

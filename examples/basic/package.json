@@ -1,13 +1,7 @@
 {
-  "description": "Basic ponder usage",
+  "name": "ponder-example-basic-monorepo",
+  "description": "Example ponder usage",
   "private": true,
-  "scripts": {
-    "dev": "ponder dev",
-    "start": "ponder start"
-  },
-  "dependencies": {
-    "ponder": "link:../ponder"
-  },
   "engines": {
     "node": "16",
     "pnpm": "7"
