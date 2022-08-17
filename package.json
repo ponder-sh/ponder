@@ -7,7 +7,6 @@
   ],
   "scripts": {
     "preinstall": "npx -y only-allow pnpm",
-    "postinstall": "[ -z $CI ] && forge install || echo \"Skipping forge install for CI\"",
     "dev": "pnpm --parallel dev",
     "format": "pnpm --parallel --no-bail format",
     "lint": "pnpm --parallel --no-bail lint",
