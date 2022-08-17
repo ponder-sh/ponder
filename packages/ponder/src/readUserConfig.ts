@@ -34,14 +34,19 @@ type SqlStore = {
 };
 type Store = SqlStore;
 
-interface PonderUserConfig {
-  sources: Source[];
-  stores: Store[];
+enum ApiKind {
+  GQL = "graphql",
 }
+type GraphqlApi = {
+  kind: ApiKind.GQL;
+  port: number;
+};
+type Api = GraphqlApi;
 
 interface PonderConfig {
   sources: Source[];
   stores: Store[];
+  apis: Api[];
 }
 
 const readUserConfig = async () => {
@@ -55,10 +60,10 @@ const readUserConfig = async () => {
   delete require.cache[require.resolve(userConfigFile)];
 
   // TODO: Validate config kek
-  const validatedUserConfig = userConfig as PonderUserConfig;
+  const validatedUserConfig = userConfig as PonderConfig;
 
   // Parse ABI files and add interfaces to the config object.
-  const newSources = await Promise.all(
+  const sourcesWithAbiInterfaces = await Promise.all(
     validatedUserConfig.sources.map(async (source) => {
       const abiString = await readFile(source.abi, "utf-8");
       const abiObject = JSON.parse(abiString).abi;
@@ -66,10 +71,13 @@ const readUserConfig = async () => {
     })
   );
 
-  const config: PonderConfig = { ...validatedUserConfig, sources: newSources };
+  const config: PonderConfig = {
+    ...validatedUserConfig,
+    sources: sourcesWithAbiInterfaces,
+  };
 
   return config;
 };
 
 export { readUserConfig, SourceKind, StoreKind };
-export type { EvmSource, PonderConfig, PonderUserConfig, SqlStore };
+export type { EvmSource, PonderConfig, SqlStore };

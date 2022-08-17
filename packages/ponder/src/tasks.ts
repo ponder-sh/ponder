@@ -65,6 +65,7 @@ const updateUserConfigTask: Task = {
     TaskName.GENERATE_HANDLER_TYPES,
     TaskName.REINDEX,
     TaskName.GENERATE_CONTEXT_TYPE,
+    TaskName.START_SERVER,
   ],
 };
 
@@ -165,8 +166,8 @@ const generateEntityTypesTask: Task = {
 const startServerTask: Task = {
   name: TaskName.START_SERVER,
   handler: async () => {
-    if (state.gqlSchema) {
-      startServer(state.gqlSchema);
+    if (state.config && state.gqlSchema) {
+      startServer(state.config, state.gqlSchema);
     }
   },
 };

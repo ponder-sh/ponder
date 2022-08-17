@@ -30,7 +30,7 @@ module.exports = {
     {
       kind: "graphql",
       default: true,
-      port: 6969,
+      port: 69,
     },
   ],
 };

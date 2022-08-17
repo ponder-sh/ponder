@@ -13,7 +13,7 @@ const handleReindex = async (
   userHandlers: UserHandlers
 ) => {
   const startHrt = startBenchmark();
-  logger.info(`\x1b[33m${"REINDEXING..."}\x1b[0m`); // yellow
+  // logger.info(`\x1b[33m${"INDEXING..."}\x1b[0m`); // yellow
 
   await createOrUpdateDbTables(dbSchema);
 
@@ -24,7 +24,7 @@ const handleReindex = async (
   const diff = endBenchmark(startHrt);
 
   logger.info(
-    `\x1b[32m${`REINDEXING COMPLETE (${diff})`}\x1b[0m`, // green
+    `\x1b[32m${`INDEXING COMPLETE (${diff})`}\x1b[0m`, // green
     "\n"
   );
 };

@@ -10,7 +10,7 @@ const handleAlignmentVote: AlignmentVoteHandler = async (event, context) => {
   const { from, vote, alignment } = event.params;
 
   await FeedItem.insert({
-    timestamp: 123,
+    timestamp: 1210,
     feedIndex: 42,
     type: "AlignmentVote",
     from: from,

@@ -1,5 +1,6 @@
 import type { WatchListener } from "node:fs";
 import { watch } from "node:fs";
+import path from "node:path";
 
 import { CONFIG } from "../config";
 import {
@@ -15,10 +16,12 @@ import { ensureDirectoriesExist, readPrettierConfig } from "../utils/preflight";
 const { userHandlersDir, userConfigFile, userSchemaFile } = CONFIG;
 
 const createWatchListener = (
-  fn: (fileName: string) => Promise<void>
+  fn: (fileName: string) => Promise<void>,
+  pathPrefix?: string
 ): WatchListener<string> => {
   return async (_, fileName) => {
-    const isChanged = await fileIsChanged(fileName);
+    const filePath = pathPrefix ? path.join(pathPrefix, fileName) : fileName;
+    const isChanged = await fileIsChanged(filePath);
     if (isChanged) {
       fn(fileName);
     }
@@ -36,7 +39,8 @@ const dev = async () => {
     async (fileName: string) => {
       logger.info(`\x1b[33m${`DETECTED CHANGE IN: ${fileName}`}\x1b[0m`); // yellow
       runTask(updateUserHandlersTask);
-    }
+    },
+    userHandlersDir
   );
 
   const runUpdateUserConfigTask = createWatchListener(async () => {
