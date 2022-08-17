@@ -1,0 +1,663 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract Poke",
+        "name": "_poke",
+        "type": "address"
+      },
+      {
+        "internalType": "contract RegistryReceiverV0",
+        "name": "_registryReceiver",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "AccountNotRegistered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AlignmentVoteCooldown",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyVotedForThisInput",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AnotherPlayerHasControl",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AuctionHasNoBids",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AuctionInProgress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AuctionIsOver",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GameNotActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientBalanceForBid",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientBalanceForRedeem",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientBidAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidButtonIndex",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "vote",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "int256",
+        "name": "alignment",
+        "type": "int256"
+      }
+    ],
+    "name": "AlignmentVote",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "inputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "buttonIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "ButtonInput",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "message",
+        "type": "string"
+      }
+    ],
+    "name": "Chat",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      }
+    ],
+    "name": "Control",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "inputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "buttonIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "InputVote",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "NewControlBid",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "count",
+        "type": "uint256"
+      }
+    ],
+    "name": "RareCandy",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "isActive",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "alignmentDecayRate",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "alignmentVoteCooldown",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chaosVoteReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "orderDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chaosInputRewardCooldown",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chaosInputReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "orderInputReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chatCost",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "rareCandyCost",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "controlAuctionDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "controlDuration",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct EthPlaysV0.EthPlaysV0Config",
+        "name": "config",
+        "type": "tuple"
+      }
+    ],
+    "name": "SetConfig",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "alignment",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "",
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "controlAddress",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "controlAuctionEndTimestamp",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "controlAuctionStartTimestamp",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "endControlAuction",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getConfig",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "isActive",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "alignmentDecayRate",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "alignmentVoteCooldown",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chaosVoteReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "orderDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chaosInputRewardCooldown",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chaosInputReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "orderInputReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chatCost",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "rareCandyCost",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "controlAuctionDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "controlDuration",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct EthPlaysV0.EthPlaysV0Config",
+        "name": "_config",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "inputIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "poke",
+    "outputs": [
+      {
+        "internalType": "contract Poke",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "registryReceiver",
+    "outputs": [
+      {
+        "internalType": "contract RegistryReceiverV0",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "isActive",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "alignmentDecayRate",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "alignmentVoteCooldown",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chaosVoteReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "orderDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chaosInputRewardCooldown",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chaosInputReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "orderInputReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chatCost",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "rareCandyCost",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "controlAuctionDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "controlDuration",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct EthPlaysV0.EthPlaysV0Config",
+        "name": "_config",
+        "type": "tuple"
+      }
+    ],
+    "name": "setConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "_alignmentVote",
+        "type": "bool"
+      }
+    ],
+    "name": "submitAlignmentVote",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "buttonIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "submitButtonInput",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "message",
+        "type": "string"
+      }
+    ],
+    "name": "submitChat",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "submitControlBid",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "count",
+        "type": "uint256"
+      }
+    ],
+    "name": "submitRareCandies",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

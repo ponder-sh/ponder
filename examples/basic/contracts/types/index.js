@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RegistryReceiverV0__factory = exports.Registry__factory = exports.Poke__factory = exports.Ownable__factory = exports.IERC20Metadata__factory = exports.IERC20__factory = exports.EthPlaysV0__factory = exports.ERC20__factory = exports.factories = void 0;
+exports.SeedScript__factory = exports.RegistryReceiverV0__factory = exports.Registry__factory = exports.Poke__factory = exports.Ownable__factory = exports.IERC20Metadata__factory = exports.IERC20__factory = exports.EthPlaysV0__factory = exports.ERC20__factory = exports.factories = void 0;
 exports.factories = __importStar(require("./factories"));
 var ERC20__factory_1 = require("./factories/ERC20__factory");
 Object.defineProperty(exports, "ERC20__factory", { enumerable: true, get: function () { return ERC20__factory_1.ERC20__factory; } });
@@ -41,3 +41,5 @@ var Registry__factory_1 = require("./factories/Registry__factory");
 Object.defineProperty(exports, "Registry__factory", { enumerable: true, get: function () { return Registry__factory_1.Registry__factory; } });
 var RegistryReceiverV0__factory_1 = require("./factories/RegistryReceiverV0__factory");
 Object.defineProperty(exports, "RegistryReceiverV0__factory", { enumerable: true, get: function () { return RegistryReceiverV0__factory_1.RegistryReceiverV0__factory; } });
+var SeedScript__factory_1 = require("./factories/Seed.s.sol/SeedScript__factory");
+Object.defineProperty(exports, "SeedScript__factory", { enumerable: true, get: function () { return SeedScript__factory_1.SeedScript__factory; } });
