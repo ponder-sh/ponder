@@ -9,7 +9,7 @@ const handleAlignmentVote: AlignmentVoteHandler = async (event, context) => {
 
   const { from, vote, alignment } = event.params;
 
-  await FeedItem.insert({
+  await FeedItem().insert({
     timestamp: 1210,
     feedIndex: 42,
     type: "AlignmentVote",
@@ -23,7 +23,7 @@ const handleButtonInput: ButtonInputHandler = async (event, context) => {
 
   const { from, buttonIndex, inputIndex } = event.params;
 
-  await FeedItem.insert({
+  await FeedItem().insert({
     timestamp: 121233,
     feedIndex: 789,
     type: "ButtonInput",

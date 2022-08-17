@@ -21,7 +21,9 @@ const generateContextType = async (
     .map((source) => source.name);
 
   const entityQueryBuilderTypes = entityNames
-    .map((entityName) => `${entityName}: Knex.QueryBuilder<${entityName}>;`)
+    .map(
+      (entityName) => `${entityName}: () => Knex.QueryBuilder<${entityName}>;`
+    )
     .join("");
 
   const contractTypes = contractNames

@@ -12,7 +12,7 @@ import { logger } from "../utils/logger";
 
 type HandlerContext = {
   entities: {
-    [key: string]: Knex.QueryBuilder<Record<string, unknown>> | undefined;
+    [key: string]: () => Knex.QueryBuilder<Record<string, unknown>> | undefined;
   };
   contracts: {
     [key: string]: Contract | undefined;
@@ -32,10 +32,10 @@ const buildLogWorker = (
   );
 
   const entities: {
-    [key: string]: Knex.QueryBuilder<Record<string, unknown>> | undefined;
+    [key: string]: () => Knex.QueryBuilder<Record<string, unknown>> | undefined;
   } = {};
   entityNames.forEach((entityName) => {
-    entities[entityName] = db<Record<string, unknown>>(entityName);
+    entities[entityName] = () => db<Record<string, unknown>>(entityName);
   });
 
   const contracts: { [key: string]: Contract | undefined } = {};
