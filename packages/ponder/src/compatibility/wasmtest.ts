@@ -1,50 +1,74 @@
 import { readFile } from "node:fs/promises";
 
+const defaultHandler =
+  (name: string) =>
+  (...args: any) => {
+    console.log(name, ...args);
+  };
+
 const importObject = {
-  env: { abort: () => null },
+  env: { abort: defaultHandler },
   index: {
-    ["store.get"]: () => null,
-    ["store.set"]: () => null,
+    ["store.get"]: defaultHandler("store.get"),
+    ["store.set"]: defaultHandler("store.set"),
   },
   conversion: {
-    ["typeConversion.bytesToString"]: () => null,
-    ["typeConversion.bytesToHex"]: () => null,
-    ["typeConversion.bigIntToString"]: () => null,
-    ["typeConversion.bigIntToHex"]: () => null,
-    ["typeConversion.stringToH160"]: () => null,
-    ["typeConversion.bytesToBase58"]: () => null,
+    ["typeConversion.bytesToString"]: defaultHandler(
+      "typeConversion.bytesToString"
+    ),
+    ["typeConversion.bytesToHex"]: defaultHandler("typeConversion.bytesToHex"),
+    ["typeConversion.bigIntToString"]: defaultHandler(
+      "typeConversion.bigIntToString"
+    ),
+    ["typeConversion.bigIntToHex"]: defaultHandler(
+      "typeConversion.bigIntToHex"
+    ),
+    ["typeConversion.stringToH160"]: defaultHandler(
+      "typeConversion.stringToH160"
+    ),
+    ["typeConversion.bytesToBase58"]: defaultHandler(
+      "typeConversion.bytesToBase58"
+    ),
   },
-  ethereum: { ["ethereum.call"]: () => null },
+  ethereum: {
+    ["ethereum.call"]: defaultHandler("ethereum.call"),
+    ["ethereum.SmartContract"]: defaultHandler("ethereum.SmartContract"),
+  },
   numbers: {
-    ["bigInt.plus"]: () => null,
-    ["bigInt.minus"]: () => null,
-    ["bigInt.times"]: () => null,
-    ["bigInt.dividedBy"]: () => null,
-    ["bigInt.dividedByDecimal"]: () => null,
-    ["bigInt.mod"]: () => null,
-    ["bigInt.pow"]: () => null,
-    ["bigInt.fromString"]: () => null,
-    ["bigInt.bitOr"]: () => null,
-    ["bigInt.bitAnd"]: () => null,
-    ["bigInt.leftShift"]: () => null,
-    ["bigInt.rightShift"]: () => null,
+    ["bigInt.plus"]: defaultHandler("bigInt.plus"),
+    ["bigInt.minus"]: defaultHandler("bigInt.minus"),
+    ["bigInt.times"]: defaultHandler("bigInt.times"),
+    ["bigInt.dividedBy"]: defaultHandler("bigInt.dividedBy"),
+    ["bigInt.dividedByDecimal"]: defaultHandler("bigInt.dividedByDecimal"),
+    ["bigInt.mod"]: defaultHandler("bigInt.mod"),
+    ["bigInt.pow"]: defaultHandler("bigInt.pow"),
+    ["bigInt.fromString"]: defaultHandler("bigInt.fromString"),
+    ["bigInt.bitOr"]: defaultHandler("bigInt.bitOr"),
+    ["bigInt.bitAnd"]: defaultHandler("bigInt.bitAnd"),
+    ["bigInt.leftShift"]: defaultHandler("bigInt.leftShift"),
+    ["bigInt.rightShift"]: defaultHandler("bigInt.rightShift"),
 
-    ["bigDecimal.toString"]: () => null,
-    ["bigDecimal.fromString"]: () => null,
-    ["bigDecimal.plus"]: () => null,
-    ["bigDecimal.minus"]: () => null,
-    ["bigDecimal.times"]: () => null,
-    ["bigDecimal.dividedBy"]: () => null,
-    ["bigDecimal.equals"]: () => null,
+    ["bigDecimal.toString"]: defaultHandler("bigDecimal.toString"),
+    ["bigDecimal.fromString"]: defaultHandler("bigDecimal.fromString"),
+    ["bigDecimal.plus"]: defaultHandler("bigDecimal.plus"),
+    ["bigDecimal.minus"]: defaultHandler("bigDecimal.minus"),
+    ["bigDecimal.times"]: defaultHandler("bigDecimal.times"),
+    ["bigDecimal.dividedBy"]: defaultHandler("bigDecimal.dividedBy"),
+    ["bigDecimal.equals"]: defaultHandler("bigDecimal.equals"),
   },
 };
 
 const run = async () => {
-  const wasmBuffer = await readFile("./EthPlaysV0.wasm");
+  const wasmBuffer = await readFile("./src/compatibility/EthPlaysV0.wasm");
 
-  const wasmModule = await WebAssembly.instantiate(wasmBuffer, importObject);
+  const wasm = await WebAssembly.instantiate(wasmBuffer, importObject);
 
-  console.log({ exports: wasmModule.instance.exports });
+  const handlers = wasm.instance.exports;
+
+  const handler = handlers["handleAlignmentVote"] as (...args: any) => any;
+
+  handler();
+
   /* PRINTS:
   {
     exports: [Object: null prototype] {
