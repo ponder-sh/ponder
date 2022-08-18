@@ -4,8 +4,13 @@ type OkpcToken @entity {
   lastOwner: String!
 }
 
-
 type OkpcOwner @entity {
   id: ID!
   address: String!
+  kind: OkpcOwnerKind
+}
+
+enum OkpcOwnerKind {
+  GOOD
+  BAD
 }
