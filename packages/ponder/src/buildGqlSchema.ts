@@ -23,7 +23,7 @@ type Source = { request: unknown };
 type Context = { db: Knex<Record<string, unknown>, unknown[]> };
 
 type SingularArgs = {
-  id: string;
+  id?: string;
 };
 type SingularResolver = GraphQLFieldResolver<Source, Context, SingularArgs>;
 
@@ -70,6 +70,7 @@ const createSingularField = (
   const resolver: SingularResolver = async (_, args, context) => {
     const { db } = context;
     const { id } = args;
+    if (!id) return null;
 
     const query = db(entity.name).where({ id: id });
     const records = await query;
