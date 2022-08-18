@@ -11,6 +11,7 @@
     "ponder": "./dist/bin/ponder"
   },
   "scripts": {
+    "wasmtest": "pnpm run build && node dist/wasmtest.js",
     "compile": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
     "build": "pnpm run clean && pnpm run compile && mv dist/bin/ponder.js dist/bin/ponder",
     "clean": "rm -rf dist",
