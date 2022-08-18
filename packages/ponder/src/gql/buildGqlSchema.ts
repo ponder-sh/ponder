@@ -1,5 +1,6 @@
 import {
   GraphQLBoolean,
+  GraphQLEnumType,
   GraphQLFieldConfig,
   GraphQLFieldResolver,
   GraphQLFloat,
@@ -17,7 +18,7 @@ import {
 } from "graphql";
 import { Knex } from "knex";
 
-import { getEntities } from "../utils/helpers";
+import { getEntities, getUserDefinedTypes } from "../utils/helpers";
 
 type Source = { request: unknown };
 type Context = { db: Knex<Record<string, unknown>, unknown[]> };
@@ -39,19 +40,30 @@ type PluralArgs = {
 };
 type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
+const gqlScalarStringToType: { [key: string]: GraphQLScalarType | undefined } =
+  {
+    ID: GraphQLID,
+    Int: GraphQLInt,
+    Float: GraphQLFloat,
+    String: GraphQLString,
+    Boolean: GraphQLBoolean,
+  };
+
 const buildGqlSchema = (userSchema: GraphQLSchema): GraphQLSchema => {
-  const entities = getEntities(userSchema);
+  const userDefinedTypes = getUserDefinedTypes(userSchema);
+
+  const entityTypes = getEntities(userSchema);
 
   const fields: { [fieldName: string]: GraphQLFieldConfig<Source, Context> } =
     {};
 
-  for (const entity of entities) {
+  for (const entityType of entityTypes) {
     const singularFieldName =
-      entity.name.charAt(0).toLowerCase() + entity.name.slice(1);
-    fields[singularFieldName] = createSingularField(entity);
+      entityType.name.charAt(0).toLowerCase() + entityType.name.slice(1);
+    fields[singularFieldName] = createSingularField(entityType);
 
     const pluralFieldName = singularFieldName + "s";
-    fields[pluralFieldName] = createPluralField(entity);
+    fields[pluralFieldName] = createPluralField(entityType, userDefinedTypes);
   }
 
   const queryType = new GraphQLObjectType({
@@ -65,21 +77,21 @@ const buildGqlSchema = (userSchema: GraphQLSchema): GraphQLSchema => {
 };
 
 const createSingularField = (
-  entity: GraphQLObjectType
+  entityType: GraphQLObjectType
 ): GraphQLFieldConfig<Source, Context> => {
   const resolver: SingularResolver = async (_, args, context) => {
     const { db } = context;
     const { id } = args;
     if (!id) return null;
 
-    const query = db(entity.name).where({ id: id });
+    const query = db(entityType.name).where({ id: id });
     const records = await query;
 
     return records[0] || null;
   };
 
   return {
-    type: entity,
+    type: entityType,
     args: {
       id: { type: new GraphQLNonNull(GraphQLID) },
     },
@@ -87,36 +99,35 @@ const createSingularField = (
   };
 };
 
-const gqlScalarStringToType: { [key: string]: GraphQLScalarType } = {
-  ID: GraphQLID,
-  Int: GraphQLInt,
-  Float: GraphQLFloat,
-  String: GraphQLString,
-  Boolean: GraphQLBoolean,
-};
-
-type WhereFieldResolverData = {
+type FilterFieldResolverConfig = {
   operator: string;
   isList?: boolean;
   patternPrefix?: string;
   patternSuffix?: string;
 };
 
-const whereClauseSuffixToResolverData: {
-  [key: string]: WhereFieldResolverData;
+const universalSuffixToResolverConfig: {
+  [key: string]: FilterFieldResolverConfig;
 } = {
+  "": { operator: "=" },
   _not: { operator: "!=" },
+  _in: { operator: "in", isList: true },
+  _not_in: { operator: "not in", isList: true },
+};
+const universalFilterSuffixes = Object.keys(universalSuffixToResolverConfig);
+
+const numericSuffixToResolverConfig: {
+  [key: string]: FilterFieldResolverConfig;
+} = {
   _gt: { operator: ">" },
   _lt: { operator: "<" },
   _gte: { operator: ">=" },
   _lte: { operator: "<=" },
-  _in: { operator: "in", isList: true },
-  _not_in: { operator: "not in", isList: true },
 };
-const whereClauseSuffixes = Object.keys(whereClauseSuffixToResolverData);
+const numericFilterSuffixes = Object.keys(numericSuffixToResolverConfig);
 
-const stringWhereClauseSuffixToResolverData: {
-  [key: string]: WhereFieldResolverData;
+const stringSuffixToResolverConfig: {
+  [key: string]: FilterFieldResolverConfig;
 } = {
   _contains: { operator: "like", patternPrefix: "%", patternSuffix: "%" },
   _contains_nocase: {
@@ -143,14 +154,15 @@ const stringWhereClauseSuffixToResolverData: {
   _not_ends_with: { operator: "not like", patternSuffix: "%" },
   _not_ends_with_nocase: { operator: "not like", patternSuffix: "%" },
 };
-const stringWhereClauseSuffixes = Object.keys(
-  stringWhereClauseSuffixToResolverData
-);
+const stringFilterSuffixes = Object.keys(stringSuffixToResolverConfig);
 
 const createPluralField = (
-  entity: GraphQLObjectType
+  entityType: GraphQLObjectType,
+  userDefinedTypes: {
+    [key: string]: GraphQLObjectType | GraphQLEnumType | undefined;
+  }
 ): GraphQLFieldConfig<Source, Context> => {
-  const entityFields = (entity.astNode?.fields || []).map((field) => {
+  const entityFields = (entityType.astNode?.fields || []).map((field) => {
     let type = field.type;
 
     // If a field is non-nullable, it's TypeNode will be wrapped with another NON_NULL_TYPE TypeNode.
@@ -168,68 +180,103 @@ const createPluralField = (
     };
   });
 
-  const whereFields: {
+  const filterFields: {
     [key: string]: { type: GraphQLInputType };
   } = {};
 
   // This is a helper map constructed during setup that is used by the resolver.
-  const whereFieldNameToResolverData: {
+  const filterFieldNameToResolverConfig: {
     [key: string]: {
       fieldName: string;
-      resolverData: WhereFieldResolverData;
+      resolverConfig: FilterFieldResolverConfig;
     };
   } = {};
 
-  // For each field on the entity, create a bunch of where clause fields.
+  // For each field on the entity, create a bunch of filter fields.
   entityFields.forEach((entityField) => {
-    // Add the universal where clause suffix fields.
-    whereClauseSuffixes.forEach((suffix) => {
-      const whereFieldName = `${entityField.name}${suffix}`;
-      const whereFieldType = gqlScalarStringToType[entityField.type];
+    // Add the universal filter suffix fields.
+    universalFilterSuffixes.forEach((suffix) => {
+      const filterFieldName = `${entityField.name}${suffix}`;
 
-      const resolverData = whereClauseSuffixToResolverData[suffix];
+      const scalarFilterFieldType = gqlScalarStringToType[entityField.type];
+      const userDefinedFilterFieldType = userDefinedTypes[entityField.type];
 
-      let finalType: GraphQLInputType = whereFieldType;
-      if (resolverData.isList) {
-        finalType = new GraphQLList(whereFieldType);
+      if (scalarFilterFieldType && userDefinedFilterFieldType) {
+        throw new Error(
+          `GQL Type name collision with scalar type: ${entityField.type}`
+        );
       }
 
-      whereFields[whereFieldName] = { type: finalType };
-      whereFieldNameToResolverData[whereFieldName] = {
+      const filterFieldType = scalarFilterFieldType
+        ? scalarFilterFieldType
+        : userDefinedFilterFieldType;
+
+      if (!filterFieldType) {
+        throw new Error(`GQL Type not found: ${entityField.type}`);
+      }
+
+      const resolverConfig = universalSuffixToResolverConfig[suffix];
+
+      // TODO: Get to the bottom of the difference between GraphQLObjectType and GraphQLInputObjectType.
+      // This could be buggy for complex types.
+      const filterFieldTypeAssertedToInputType =
+        filterFieldType as GraphQLInputType;
+
+      let finalType: GraphQLInputType = filterFieldTypeAssertedToInputType;
+      if (resolverConfig.isList) {
+        finalType = new GraphQLList(filterFieldType);
+      }
+
+      filterFields[filterFieldName] = { type: finalType };
+      filterFieldNameToResolverConfig[filterFieldName] = {
         fieldName: entityField.name,
-        resolverData: whereClauseSuffixToResolverData[suffix],
+        resolverConfig: universalSuffixToResolverConfig[suffix],
       };
     });
 
-    // Add the String-only where clause suffix fields.
-    if (entityField.type === "String") {
-      stringWhereClauseSuffixes.forEach((suffix) => {
+    // Add the numeric filter suffix fields.
+    if (["ID", "Int", "Float"].includes(entityField.type)) {
+      numericFilterSuffixes.forEach((suffix) => {
         const whereFieldName = `${entityField.name}${suffix}`;
 
-        whereFields[whereFieldName] = { type: GraphQLString };
-        whereFieldNameToResolverData[whereFieldName] = {
+        filterFields[whereFieldName] = { type: GraphQLString };
+        filterFieldNameToResolverConfig[whereFieldName] = {
           fieldName: entityField.name,
-          resolverData: stringWhereClauseSuffixToResolverData[suffix],
+          resolverConfig: numericSuffixToResolverConfig[suffix],
+        };
+      });
+    }
+
+    // Add the string filter suffix fields.
+    if (entityField.type === "String") {
+      stringFilterSuffixes.forEach((suffix) => {
+        const whereFieldName = `${entityField.name}${suffix}`;
+
+        filterFields[whereFieldName] = { type: GraphQLString };
+        filterFieldNameToResolverConfig[whereFieldName] = {
+          fieldName: entityField.name,
+          resolverConfig: stringSuffixToResolverConfig[suffix],
         };
       });
     }
   });
 
-  const whereInputType = new GraphQLInputObjectType({
-    name: `${entity.name}WhereInput`,
-    fields: whereFields,
+  const filterType = new GraphQLInputObjectType({
+    name: `${entityType.name}Filter`,
+    fields: filterFields,
   });
 
   const resolver: PluralResolver = async (_, args, context) => {
     const { db } = context;
     const { where, first, skip, orderBy, orderDirection } = args;
 
-    const query = db(entity.name);
+    const query = db(entityType.name);
 
     if (where) {
       for (const [field, value] of Object.entries(where)) {
-        const { fieldName, resolverData } = whereFieldNameToResolverData[field];
-        const { operator, patternPrefix, patternSuffix } = resolverData;
+        const { fieldName, resolverConfig } =
+          filterFieldNameToResolverConfig[field];
+        const { operator, patternPrefix, patternSuffix } = resolverConfig;
 
         let finalValue = value;
 
@@ -249,9 +296,9 @@ const createPluralField = (
   };
 
   return {
-    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(entity))),
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(entityType))),
     args: {
-      where: { type: whereInputType },
+      where: { type: filterType },
       first: { type: GraphQLInt },
       skip: { type: GraphQLInt },
       orderBy: { type: GraphQLString },

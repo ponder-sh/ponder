@@ -1,3 +1,5 @@
+import { GraphQLEnumType, GraphQLObjectType, Kind } from "graphql";
+
 import type { DbSchema } from "./buildDbSchema";
 import { db, getTableNames } from "./knex";
 
@@ -40,12 +42,39 @@ const createTables = async (dbSchema: DbSchema) => {
     await db.schema.createTable(table.name, (knexTable) => {
       // Add a column for each one specified in the table.
       for (const column of table.columns) {
-        // Handle the ID field manually.
+        // Handle the ID field.
         if (column.type === "ID") {
           knexTable.increments();
           continue;
         }
 
+        // Handle enums and relationships.
+        const userDefinedType = dbSchema.userDefinedTypes[column.type];
+        if (userDefinedType) {
+          if (userDefinedType.astNode?.kind == Kind.ENUM_TYPE_DEFINITION) {
+            if (!userDefinedType.astNode.values) {
+              throw new Error(`Values not present on GQL Enum: ${column.name}`);
+            }
+
+            const enumValues = userDefinedType.astNode.values.map(
+              (v) => v.name.value
+            );
+
+            // Handling enum!
+            if (column.notNull) {
+              knexTable.enu(column.name, enumValues).notNullable();
+            } else {
+              knexTable.enu(column.name, enumValues);
+            }
+
+            return;
+          } else {
+            // Handling list!
+            throw new Error(`Unsupported GQL type: ${column.type}`);
+          }
+        }
+
+        // Handle scalars.
         const knexColumnType = gqlToKnexTypeMap[column.type];
         if (!knexColumnType) {
           throw new Error(`Unhandled GQL type: ${column.type}`);

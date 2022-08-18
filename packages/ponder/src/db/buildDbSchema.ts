@@ -1,14 +1,18 @@
 import {
   FieldDefinitionNode,
+  GraphQLEnumType,
   GraphQLObjectType,
   GraphQLSchema,
   Kind,
 } from "graphql";
 
-import { getEntities } from "../utils/helpers";
+import { getEntities, getUserDefinedTypes } from "../utils/helpers";
 
 type DbSchema = {
   tables: DbTable[];
+  userDefinedTypes: {
+    [key: string]: GraphQLObjectType | GraphQLEnumType | undefined;
+  };
 };
 
 type DbTable = {
@@ -23,11 +27,11 @@ type DbColumn = {
 };
 
 const buildDbSchema = (userSchema: GraphQLSchema): DbSchema => {
+  const userDefinedTypes = getUserDefinedTypes(userSchema);
   const entities = getEntities(userSchema);
-
   const tables = entities.map(getTableForEntity);
 
-  return { tables: tables };
+  return { tables: tables, userDefinedTypes };
 };
 
 const getTableForEntity = (entity: GraphQLObjectType) => {

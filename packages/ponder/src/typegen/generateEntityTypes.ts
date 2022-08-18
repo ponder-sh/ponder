@@ -31,7 +31,7 @@ const generateEntityTypes = async (gqlSchema: GraphQLSchema) => {
 
   const final = formatPrettier(header + body);
 
-  writeFile(`${CONFIG.generatedDir}/schema.d.ts`, final, "utf8");
+  writeFile(`${CONFIG.generatedDir}/schema.ts`, final, "utf8");
 
   logger.info(`\x1b[36m${"GENERATED SCHEMA TYPES"}\x1b[0m`); // magenta
 };

@@ -1,6 +1,11 @@
 import { createHash } from "crypto";
 import { providers } from "ethers";
-import { GraphQLObjectType, GraphQLSchema, Kind } from "graphql";
+import {
+  GraphQLEnumType,
+  GraphQLObjectType,
+  GraphQLSchema,
+  Kind,
+} from "graphql";
 import { readFile } from "node:fs/promises";
 
 import type { PonderConfig } from "../readUserConfig";
@@ -11,6 +16,25 @@ const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
     (acc[key] = acc[key] || []).push(item);
     return acc;
   }, {});
+};
+
+// Find all types in the schema that were created by the user.
+const getUserDefinedTypes = (schema: GraphQLSchema) => {
+  // This assumes that any type that has an AST node will be a user-defined type.
+  // Idk if this is true or not.
+  const userDefinedTypeArray = Object.values(schema.getTypeMap()).filter(
+    (type): type is GraphQLObjectType | GraphQLEnumType => !!type.astNode
+  );
+
+  // Add all user-defined types to a map so we can look them up later.
+  const userDefinedTypes: {
+    [key: string]: GraphQLObjectType | GraphQLEnumType | undefined;
+  } = {};
+  for (const userDefinedType of userDefinedTypeArray) {
+    userDefinedTypes[userDefinedType.name] = userDefinedType;
+  }
+
+  return userDefinedTypes;
 };
 
 // Find all types in the schema that are marked with the @entity directive.
@@ -91,5 +115,6 @@ export {
   fileIsChanged,
   getEntities,
   getProviderForChainId,
+  getUserDefinedTypes,
   startBenchmark,
 };
