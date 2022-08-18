@@ -1,0 +1,52 @@
+{
+  "name": "@ponder/create-ponder-app",
+  "version": "0.0.6",
+  "description": "Script to bootstrap a ponder app directory",
+  "license": "MIT",
+  "author": "olias.eth",
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "create-ponder-app": "./dist/bin/create-ponder-app"
+  },
+  "scripts": {
+    "compile": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
+    "build": "pnpm run clean && pnpm run compile && mv dist/bin/create-ponder-app.js dist/bin/create-ponder-app",
+    "clean": "rm -rf dist",
+    "lint": "eslint src",
+    "format": "prettier --write src",
+    "release": "pnpm run build && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release: $VERSION\""
+  },
+  "dependencies": {
+    "@graphql-codegen/core": "^2.6.2",
+    "@graphql-codegen/typescript": "^2.7.3",
+    "@typechain/ethers-v5": "^10.0.0",
+    "dotenv": "^16.0.1",
+    "esbuild": "^0.15.2",
+    "ethers": "^5.6.9",
+    "express": "^4.18.1",
+    "express-graphql": "^0.12.0",
+    "fastq": "^1.13.0",
+    "froebel": "^0.21.3",
+    "graphql": "^15.3.0",
+    "knex": "^2.2.0",
+    "knex-schema-inspector": "^2.0.4",
+    "prettier": "^2.6.2",
+    "sqlite3": "^5.0.11",
+    "typechain": "^8.0.0",
+    "yargs": "^17.5.1"
+  },
+  "devDependencies": {
+    "@ethersproject/abi": "^5.0.0",
+    "@ethersproject/bytes": "^5.0.0",
+    "@ethersproject/providers": "^5.0.0",
+    "@types/express": "^4.17.13",
+    "@types/yargs": "^17.0.11",
+    "typescript": "^4.5.5"
+  },
+  "engines": {
+    "node": "16",
+    "pnpm": "7"
+  }
+}
