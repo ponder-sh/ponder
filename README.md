@@ -1,19 +1,19 @@
-# NOTE: None of this exists yet. Stay tuned!
+## NOTE: None of this exists yet. Stay tuned!
 
 # ponder
 
 A local development server for building APIs on top of blockchain data.
 
-### Features
+## Features
 
-- Fully compatible with existing subgraphs (The Graph) 🟨
+- Fully compatible with existing subgraphs (The Graph) 🟡
 - Hot reload on changes to all project files ✅
 - Support for any EVM-based blockchain (just need an RPC URL) ✅
 - Caches logs locally for faster reindexing ✅
 
-### Quickstart
+## Quickstart
 
-#### I have an existing subgraph
+### I have an existing subgraph
 
 1. Install `@ponder/ponder` as a dev dependency:
 
@@ -29,7 +29,7 @@ A local development server for building APIs on top of blockchain data.
 
 The console will display useful logs and help you handle any errors.
 
-#### I'm starting a new project
+### I'm starting a new project
 
 To create a new ponder project, run
 
@@ -41,24 +41,24 @@ pnpm create ponder-app
 
 and respond to the prompts accordingly. This will generate a (tiny!) project directory to get you started. Open up `ponder.config.js` and follow the trail of comments from there!
 
-### Docs
+## Docs
 
 Coming soon!
 
-### Packages
+## Packages
 
 - `@ponder/ponder`
 - `@ponder/create-ponder`
 - `examples`
 
-### About
+## About
 
-#### Goals
+### Goals
 
 - Be the best local development tool for blockchain app developers
 - Work seamlessly alongside frontend frameworks like Next.js
 
-#### Non-goals
+### Non-goals
 
 - Efficiently index massive amounts of data
 - Serve analytics queries/workloads
