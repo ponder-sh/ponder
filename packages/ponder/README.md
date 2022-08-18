@@ -1,3 +1,6 @@
-# ponder
+# `@ponder/ponder`
 
-_Not entirely sure what this is yet!_
+This is a WIP. TODO:
+
+- Add details for how to start developing
+- Add a general overview of the architecture
