@@ -1,4 +1,4 @@
-import type { DbSchema } from "../buildDbSchema";
+import type { DbSchema } from "./buildDbSchema";
 import { db, getTableNames } from "./knex";
 
 type KnexColumnType = "string" | "boolean" | "integer";

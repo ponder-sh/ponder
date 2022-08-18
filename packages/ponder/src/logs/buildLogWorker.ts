@@ -2,8 +2,8 @@ import { Log } from "@ethersproject/providers";
 import { BigNumber, Contract } from "ethers";
 import { Knex } from "knex";
 
-import type { DbSchema } from "../buildDbSchema";
 import { db } from "../db";
+import type { DbSchema } from "../db/buildDbSchema";
 import type { PonderConfig } from "../readUserConfig";
 import { SourceKind } from "../readUserConfig";
 import type { UserHandlers } from "../readUserHandlers";

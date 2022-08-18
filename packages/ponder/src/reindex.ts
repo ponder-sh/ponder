@@ -1,5 +1,5 @@
-import type { DbSchema } from "./buildDbSchema";
 import { createOrUpdateDbTables } from "./db";
+import type { DbSchema } from "./db/buildDbSchema";
 import { executeLogs } from "./logs";
 import { buildLogWorker } from "./logs/buildLogWorker";
 import type { PonderConfig } from "./readUserConfig";

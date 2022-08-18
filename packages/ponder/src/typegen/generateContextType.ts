@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 
-import type { DbSchema } from "../buildDbSchema";
 import { CONFIG } from "../config";
+import type { DbSchema } from "../db/buildDbSchema";
 import type { PonderConfig } from "../readUserConfig";
 import { SourceKind } from "../readUserConfig";
 import { logger } from "../utils/logger";
