@@ -1,6 +1,4 @@
 {
-  "name": "ponder-example-basic-monorepo",
-  "description": "Example ponder usage",
   "private": true,
   "engines": {
     "node": "16",

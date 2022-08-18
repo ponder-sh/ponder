@@ -1,5 +1,4 @@
 {
-  "name": "ponder-example-basic-ponder",
   "private": true,
   "scripts": {
     "dev": "ponder dev",

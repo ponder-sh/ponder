@@ -1,5 +1,4 @@
 {
-  "name": "ponder-example-okpc",
   "private": true,
   "scripts": {
     "dev": "ponder dev",
