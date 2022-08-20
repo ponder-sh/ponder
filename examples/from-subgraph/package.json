@@ -2,6 +2,7 @@
   "name": "ethplays-v0",
   "license": "UNLICENSED",
   "scripts": {
+    "dev": "ponder dev",
     "codegen": "graph codegen",
     "build": "graph build",
     "deploy": "graph deploy --node https://api.thegraph.com/deploy/ 0xolias/ethplays-v0",
@@ -12,5 +13,8 @@
   "dependencies": {
     "@graphprotocol/graph-cli": "0.30.1",
     "@graphprotocol/graph-ts": "0.27.0"
+  },
+  "devDependencies": {
+    "@ponder/ponder": "workspace:^0.0.8"
   }
 }

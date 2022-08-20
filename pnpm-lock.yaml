@@ -143,9 +143,12 @@ importers:
     specifiers:
       '@graphprotocol/graph-cli': 0.30.1
       '@graphprotocol/graph-ts': 0.27.0
+      '@ponder/ponder': workspace:^0.0.8
     dependencies:
       '@graphprotocol/graph-cli': 0.30.1
       '@graphprotocol/graph-ts': 0.27.0
+    devDependencies:
+      '@ponder/ponder': link:../../packages/ponder
 
   examples/okpc:
     specifiers:
@@ -10390,6 +10393,7 @@ packages:
     resolution: {integrity: sha512-N9iVG+CGJsI4b4ZGazjwLnxErD2d9Pe4DPvvXSxYA9tFNu8ymXME4Qs5HIQ0LMJpNM7zj+m0NlNnNeqFpKzqnA==}
     deprecated: Unmaintained
     dev: false
+    bundledDependencies: []
 
   /protocol-buffers-schema/3.6.0:
     resolution: {integrity: sha512-TdDRD+/QNdrCGCE7v8340QyuXd4kIWIgapsE2+n/SaGiSSbomYl4TjHlvIoCWRpE7wFt02EpB35VVA2ImcBVqw==}
