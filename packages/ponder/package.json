@@ -11,12 +11,11 @@
     "ponder": "./dist/bin/ponder"
   },
   "scripts": {
-    "wasmtest": "pnpm run build && node dist/compatibility/wasmtest.js",
-    "compile": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
-    "build": "pnpm run clean && pnpm run compile && mv dist/bin/ponder.js dist/bin/ponder",
     "clean": "rm -rf dist",
     "lint": "eslint src",
     "format": "prettier --write src",
+    "compile": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist",
+    "build": "pnpm run clean && pnpm run compile && mv dist/bin/ponder.js dist/bin/ponder",
     "release": "pnpm run build && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release: $VERSION\""
   },
   "dependencies": {
