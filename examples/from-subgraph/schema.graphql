@@ -1,0 +1,64 @@
+enum FeedItemType {
+  AlignmentVote
+  InputVote
+  ButtonInput
+  OrderButtonInput
+
+  Chat
+  RareCandy
+
+  NewControlBid
+  Control
+
+  NewRegistration
+  UpdatedRegistration
+}
+
+type FeedItem @entity(immutable: true) {
+  id: ID!
+  timestamp: Int!
+  feedIndex: BigInt!
+  type: FeedItemType!
+
+  " All "
+  from: Bytes!
+
+  " AlignmentVote "
+  vote: Boolean
+
+  " ButtonInput | InputVote  | OrderButtonInput"
+  inputIndex: Int
+  " ButtonInput | InputVote  | OrderButtonInput"
+  buttonIndex: Int
+
+  " Chat "
+  message: String
+
+  " RareCandy "
+  count: Int
+
+  " NewControlBid "
+  amount: BigInt
+
+  " NewRegistration | UpdatedRegistration "
+  account: Bytes
+}
+
+type Player @entity {
+  id: ID!
+  account: Bytes!
+  replacedAt: Int!
+
+  balance: BigInt!
+  score: BigInt!
+
+  alignmentVoteTimestamp: Int!
+  inputVoteIndex: Int!
+  chaosInputTimestamp: Int!
+
+  alignmentVoteCount: Int!
+  chatCount: Int!
+  rareCandyCount: Int!
+
+  controlCount: Int!
+}

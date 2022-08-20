@@ -1,0 +1,16 @@
+{
+  "name": "ethplays-v0",
+  "license": "UNLICENSED",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "deploy": "graph deploy --node https://api.thegraph.com/deploy/ 0xolias/ethplays-v0",
+    "create-local": "graph create --node http://localhost:8020/ 0xolias/ethplays-v0",
+    "remove-local": "graph remove --node http://localhost:8020/ 0xolias/ethplays-v0",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 0xolias/ethplays-v0"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "0.30.1",
+    "@graphprotocol/graph-ts": "0.27.0"
+  }
+}

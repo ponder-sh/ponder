@@ -1,0 +1,27 @@
+specVersion: 0.0.4
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: RegistryReceiverV0
+    network: matic
+    source:
+      address: "0xA6EDa547736a974931b6ABf0EBBc0B0D3dE0E37b"
+      abi: RegistryReceiverV0
+      startBlock: 31478419
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.5
+      language: wasm/assemblyscript
+      entities:
+        - NewRegistration
+        - UpdatedRegistration
+      abis:
+        - name: RegistryReceiverV0
+          file: ./abis/RegistryReceiverV0.json
+      eventHandlers:
+        - event: NewRegistration(address,address)
+          handler: handleNewRegistration
+        - event: UpdatedRegistration(address,address,address)
+          handler: handleUpdatedRegistration
+      file: ./src/registryReceiverV0.ts
