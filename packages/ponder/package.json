@@ -35,6 +35,7 @@
     "prettier": "^2.6.2",
     "sqlite3": "^5.0.11",
     "typechain": "^8.0.0",
+    "yaml": "^2.1.1",
     "yargs": "^17.5.1"
   },
   "devDependencies": {

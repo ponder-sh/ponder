@@ -1,5 +1,5 @@
 import { buildSchema, GraphQLSchema } from "graphql";
-import fs from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 import { CONFIG } from "./config";
 
@@ -11,7 +11,7 @@ directive @entity(
 `;
 
 const readUserSchema = async (): Promise<GraphQLSchema> => {
-  const schemaBody = await fs.readFile(CONFIG.SCHEMA_FILE_PATH);
+  const schemaBody = await readFile(CONFIG.SCHEMA_FILE_PATH);
   const schemaSource = schemaHeader + schemaBody.toString();
   const schema = buildSchema(schemaSource);
 

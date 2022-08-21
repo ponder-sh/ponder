@@ -28,7 +28,7 @@ type SqlStore = {
   kind: StoreKind.SQL;
   client: "sqlite3";
   connection: {
-    filename: "inmemory";
+    filename: ":memory:";
   };
 };
 type Store = SqlStore;
@@ -48,6 +48,25 @@ interface PonderConfig {
   apis: Api[];
 }
 
+const defaultPonderConfig: PonderConfig = {
+  sources: [],
+  apis: [
+    {
+      kind: ApiKind.GQL,
+      port: 42069,
+    },
+  ],
+  stores: [
+    {
+      kind: StoreKind.SQL,
+      client: "sqlite3",
+      connection: {
+        filename: ":memory:",
+      },
+    },
+  ],
+};
+
 const readUserConfig = async () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const userConfig = require(CONFIG.PONDER_CONFIG_FILE_PATH);
@@ -66,7 +85,8 @@ const readUserConfig = async () => {
     validatedUserConfig.sources.map(async (source) => {
       const abiString = await readFile(source.abi, "utf-8");
       const abiObject = JSON.parse(abiString).abi;
-      return { ...source, abiInterface: new utils.Interface(abiObject) };
+      const abi = abiObject.abi ? abiObject.abi : abiObject;
+      return { ...source, abiInterface: new utils.Interface(abi) };
     })
   );
 
@@ -78,5 +98,5 @@ const readUserConfig = async () => {
   return config;
 };
 
-export { readUserConfig, SourceKind, StoreKind };
+export { defaultPonderConfig, readUserConfig, SourceKind, StoreKind };
 export type { EvmSource, PonderConfig, SqlStore };
