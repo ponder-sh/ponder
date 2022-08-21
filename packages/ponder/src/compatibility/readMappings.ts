@@ -4,6 +4,7 @@ import path from "node:path";
 import { CONFIG } from "../config";
 import type { HandlerContext } from "../logs/buildLogWorker";
 import { logger } from "../utils/logger";
+import { graphTsOverridePlugin } from "./esbuildPlugin";
 import { GraphCompatPonderConfig } from "./readSubgraphYaml";
 
 type Handler = (args: unknown, context: HandlerContext) => Promise<void> | void;
@@ -27,6 +28,7 @@ const readMappings = async (
         outfile: buildFile,
         platform: "node",
         bundle: true,
+        plugins: [graphTsOverridePlugin],
       });
       console.log({ out });
     } catch (err) {
