@@ -1,9 +1,13 @@
 import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 
 const getStaticGraphTs = async () => {
-  const graphTsStaticString = await readFile('./dist/graph-ts-static.js', 'utf-8')
+  const graphTsStaticString = await readFile(
+    path.join(__dirname, 'graph-ts-static.js'),
+    'utf-8',
+  )
 
-  console.log({ graphTsStaticString })
+  return graphTsStaticString
 }
 
 export { getStaticGraphTs }

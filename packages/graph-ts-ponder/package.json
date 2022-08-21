@@ -2,10 +2,11 @@
   "name": "@ponder/graph-ts-ponder",
   "description": "Fork of @graphprotocol/graph-ts with host interfaces implemented in Typescript/Node",
   "version": "0.27.0",
-  "module": "index.ts",
+  "main": "dist/index.js",
   "types": "index.ts",
-  "main": "index.ts",
-  "ascMain": "index.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "clean": "rm -f index.js",
     "lint": "prettier -c **/*.{js,ts}",
