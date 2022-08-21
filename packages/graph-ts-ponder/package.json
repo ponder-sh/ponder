@@ -1,0 +1,21 @@
+{
+  "name": "@ponder/graph-ts-ponder",
+  "description": "Fork of @graphprotocol/graph-ts with host interfaces implemented in Typescript/Node",
+  "version": "0.27.0",
+  "module": "index.ts",
+  "types": "index.ts",
+  "main": "index.ts",
+  "ascMain": "index.ts",
+  "dependencies": {
+    "assemblyscript": "0.19.10"
+  },
+  "devDependencies": {
+    "prettier": "^2.4.1"
+  },
+  "scripts": {
+    "lint": "prettier -c **/*.{js,ts}",
+    "format": "prettier --write -c **/*.{js,ts}",
+    "build": "asc --explicitStart --exportRuntime --runtime stub index.ts helper-functions.ts --lib graph-ts -b index.wasm",
+    "test": "node test/test.js"
+  }
+}
