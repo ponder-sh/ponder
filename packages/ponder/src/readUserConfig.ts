@@ -99,4 +99,4 @@ const readUserConfig = async () => {
 };
 
 export { defaultPonderConfig, readUserConfig, SourceKind, StoreKind };
-export type { EvmSource, PonderConfig, SqlStore };
+export type { Api, EvmSource, PonderConfig, SqlStore, Store };

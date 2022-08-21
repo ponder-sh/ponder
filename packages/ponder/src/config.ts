@@ -23,7 +23,6 @@ const DEFAULT_OPTIONS = {
   // Subgraph compatibility options
   GRAPH_COMPAT_ENABLED: false,
   GRAPH_COMPAT_SUBGRAPH_YAML_PATH: "subgraph.yaml",
-  GRAPH_COMPAT_SCHEMA_PATH: "schema.graphql",
 };
 
 const OPTIONS = {
