@@ -13,4 +13,6 @@ type OkpcOwner @entity {
 enum OkpcOwnerKind {
   GOOD
   BAD
+  UGLY
+  REALLYUGLY
 }

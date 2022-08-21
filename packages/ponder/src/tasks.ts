@@ -10,12 +10,12 @@ import { readUserSchema } from "./readUserSchema";
 import { handleReindex } from "./reindex";
 import { startServer } from "./startServer";
 import {
+  generateContextTypes,
   generateContractTypes,
-  generateEntityTypes,
   generateHandlerTypes,
   generateSchema,
+  generateSchemaTypes,
 } from "./typegen";
-import { generateContextType } from "./typegen/generateContextType";
 
 const state: {
   config?: PonderConfig;
@@ -33,11 +33,11 @@ enum TaskName {
   REINDEX,
   GENERATE_CONTRACT_TYPES,
   GENERATE_HANDLER_TYPES,
-  GENERATE_CONTEXT_TYPE,
+  GENERATE_CONTEXT_TYPES,
   BUILD_GQL_SCHEMA,
   BUILD_DB_SCHEMA,
   GENERATE_GQL_SCHEMA,
-  GENERATE_ENTITY_TYPES,
+  GENERATE_SCHEMA_TYPES,
   START_SERVER,
 }
 
@@ -64,7 +64,7 @@ const updateUserConfigTask: Task = {
     TaskName.GENERATE_CONTRACT_TYPES,
     TaskName.GENERATE_HANDLER_TYPES,
     TaskName.REINDEX,
-    TaskName.GENERATE_CONTEXT_TYPE,
+    TaskName.GENERATE_CONTEXT_TYPES,
     TaskName.START_SERVER,
   ],
 };
@@ -103,7 +103,8 @@ const buildGqlSchemaTask: Task = {
   },
   dependencies: [
     TaskName.GENERATE_GQL_SCHEMA,
-    TaskName.GENERATE_ENTITY_TYPES,
+    TaskName.GENERATE_SCHEMA_TYPES,
+    TaskName.GENERATE_CONTRACT_TYPES,
     TaskName.START_SERVER,
   ],
 };
@@ -115,14 +116,14 @@ const buildDbSchemaTask: Task = {
       state.dbSchema = buildDbSchema(state.userSchema);
     }
   },
-  dependencies: [TaskName.GENERATE_CONTEXT_TYPE, TaskName.REINDEX],
+  dependencies: [TaskName.GENERATE_CONTEXT_TYPES, TaskName.REINDEX],
 };
 
 const generateContractTypesTask: Task = {
   name: TaskName.GENERATE_CONTRACT_TYPES,
   handler: async () => {
     if (state.config) {
-      generateContractTypes(state.config);
+      await generateContractTypes(state.config);
     }
   },
 };
@@ -131,16 +132,16 @@ const generateHandlerTypesTask: Task = {
   name: TaskName.GENERATE_HANDLER_TYPES,
   handler: async () => {
     if (state.config) {
-      generateHandlerTypes(state.config);
+      await generateHandlerTypes(state.config);
     }
   },
 };
 
-const generateContextTypeTask: Task = {
-  name: TaskName.GENERATE_CONTEXT_TYPE,
+const generateContextTypesTask: Task = {
+  name: TaskName.GENERATE_CONTEXT_TYPES,
   handler: async () => {
     if (state.config && state.dbSchema) {
-      generateContextType(state.config, state.dbSchema);
+      await generateContextTypes(state.config, state.dbSchema);
     }
   },
 };
@@ -149,18 +150,23 @@ const generateGqlSchemaTask: Task = {
   name: TaskName.GENERATE_GQL_SCHEMA,
   handler: async () => {
     if (state.gqlSchema) {
-      generateSchema(state.gqlSchema);
+      await generateSchema(state.gqlSchema);
     }
   },
 };
 
-const generateEntityTypesTask: Task = {
-  name: TaskName.GENERATE_ENTITY_TYPES,
+const generateSchemaTypesTask: Task = {
+  name: TaskName.GENERATE_SCHEMA_TYPES,
   handler: async () => {
     if (state.gqlSchema) {
-      generateEntityTypes(state.gqlSchema);
+      await generateSchemaTypes(state.gqlSchema);
     }
   },
+  // NOTE: After adding enum support, could no longer import
+  // the user handlers module before the entity types are generated
+  // because esbuild cannot strip enum imports (they are values).
+  // TODO: Find a better / more reasonable dependency path here.
+  dependencies: [TaskName.UPDATE_USER_HANDLERS],
 };
 
 const startServerTask: Task = {
@@ -179,11 +185,11 @@ const taskMap: Record<TaskName, Task> = {
   [TaskName.REINDEX]: reindexTask,
   [TaskName.GENERATE_CONTRACT_TYPES]: generateContractTypesTask,
   [TaskName.GENERATE_HANDLER_TYPES]: generateHandlerTypesTask,
-  [TaskName.GENERATE_CONTEXT_TYPE]: generateContextTypeTask,
+  [TaskName.GENERATE_CONTEXT_TYPES]: generateContextTypesTask,
   [TaskName.BUILD_GQL_SCHEMA]: buildGqlSchemaTask,
   [TaskName.BUILD_DB_SCHEMA]: buildDbSchemaTask,
   [TaskName.GENERATE_GQL_SCHEMA]: generateGqlSchemaTask,
-  [TaskName.GENERATE_ENTITY_TYPES]: generateEntityTypesTask,
+  [TaskName.GENERATE_SCHEMA_TYPES]: generateSchemaTypesTask,
   [TaskName.START_SERVER]: startServerTask,
 };
 

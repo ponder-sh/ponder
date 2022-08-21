@@ -1,5 +1,5 @@
-export * from "./generateContextType";
+export * from "./generateContextTypes";
 export * from "./generateContractTypes";
-export * from "./generateEntityTypes";
 export * from "./generateHandlerTypes";
 export * from "./generateSchema";
+export * from "./generateSchemaTypes";

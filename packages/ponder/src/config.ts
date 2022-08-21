@@ -1,27 +1,44 @@
 import path from "node:path";
 
 const dir = process.cwd();
+const getAbsolutePath = (targetPath: string) => path.join(dir, targetPath);
 
-const CONFIG_RAW = {
-  userHandlersFile: "handlers/index.ts",
-  userConfigFile: "ponder.config.js",
-  userSchemaFile: "schema.graphql",
-  generatedDir: "generated",
-  userHandlersDir: "handlers",
-  buildDir: ".ponder/build",
-  ponderDir: ".ponder",
-  logLevel: 2, // LogLevel.Info
+// TODO: Parse these from CLI flags.
+// const USER_OPTIONS = {};
+const USER_OPTIONS = {
+  GRAPH_COMPAT_ENABLED: true,
+};
+
+const DEFAULT_OPTIONS = {
+  // File path options
+  HANDLERS_DIR_PATH: "handlers",
+  PONDER_CONFIG_FILE_PATH: "ponder.config.js",
+  SCHEMA_FILE_PATH: "schema.graphql",
+  GENERATED_DIR_PATH: "generated",
+  PONDER_DIR_PATH: ".ponder",
+
+  // General options
+  LOG_LEVEL: 2, // LogLevel.Info
+
+  // Subgraph compatibility options
+  GRAPH_COMPAT_ENABLED: false,
+  GRAPH_COMPAT_SUBGRAPH_YAML_PATH: "subgraph.yaml",
+  GRAPH_COMPAT_SCHEMA_PATH: "schema.graphql",
+};
+
+const OPTIONS = {
+  ...DEFAULT_OPTIONS,
+  ...USER_OPTIONS,
 };
 
 const CONFIG = {
-  ...CONFIG_RAW,
-  userHandlersFile: path.join(dir, CONFIG_RAW.userHandlersFile),
-  userConfigFile: path.join(dir, CONFIG_RAW.userConfigFile),
-  userSchemaFile: path.join(dir, CONFIG_RAW.userSchemaFile),
-  generatedDir: path.join(dir, CONFIG_RAW.generatedDir),
-  userHandlersDir: path.join(dir, CONFIG_RAW.userHandlersDir),
-  buildDir: path.join(dir, CONFIG_RAW.buildDir),
-  ponderDir: path.join(dir, CONFIG_RAW.ponderDir),
+  ...OPTIONS,
+  // Resolve absolute paths for _PATH options
+  PONDER_CONFIG_FILE_PATH: getAbsolutePath(OPTIONS.PONDER_CONFIG_FILE_PATH),
+  SCHEMA_FILE_PATH: getAbsolutePath(OPTIONS.SCHEMA_FILE_PATH),
+  HANDLERS_DIR_PATH: getAbsolutePath(OPTIONS.HANDLERS_DIR_PATH),
+  GENERATED_DIR_PATH: getAbsolutePath(OPTIONS.GENERATED_DIR_PATH),
+  PONDER_DIR_PATH: getAbsolutePath(OPTIONS.PONDER_DIR_PATH),
 };
 
 export { CONFIG };

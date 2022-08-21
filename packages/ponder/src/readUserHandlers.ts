@@ -5,18 +5,16 @@ import { CONFIG } from "./config";
 import type { HandlerContext } from "./logs/buildLogWorker";
 import { logger } from "./utils/logger";
 
-const { userHandlersDir, buildDir } = CONFIG;
-
 type Handler = (args: unknown, context: HandlerContext) => Promise<void> | void;
 type SourceHandlers = { [eventName: string]: Handler | undefined };
 type UserHandlers = { [sourceName: string]: SourceHandlers | undefined };
 
 const readUserHandlers = async (): Promise<UserHandlers> => {
-  const buildFile = path.join(buildDir, "handlers.js");
+  const buildFile = path.join(CONFIG.PONDER_DIR_PATH, "handlers.js");
 
   try {
     await build({
-      entryPoints: [userHandlersDir],
+      entryPoints: [CONFIG.HANDLERS_DIR_PATH],
       outfile: buildFile,
       platform: "node",
       bundle: true,

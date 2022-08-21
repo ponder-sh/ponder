@@ -1,5 +1,7 @@
+import path from "node:path";
 import { runTypeChain } from "typechain";
 
+import { CONFIG } from "../config";
 import type { PonderConfig } from "../readUserConfig";
 import { logger } from "../utils/logger";
 
@@ -14,7 +16,7 @@ const generateContractTypes = async (config: PonderConfig) => {
     cwd,
     filesToProcess: abiFilePaths,
     allFiles: abiFilePaths,
-    outDir: "generated/typechain",
+    outDir: path.join(CONFIG.GENERATED_DIR_PATH, "typechain"),
     target: "ethers-v5",
   });
 

@@ -1,7 +1,7 @@
 import {
   runTask,
   updateUserConfigTask,
-  updateUserHandlersTask,
+  // updateUserHandlersTask,
   updateUserSchemaTask,
 } from "../tasks";
 import { ensureDirectoriesExist, readPrettierConfig } from "../utils/preflight";
@@ -9,7 +9,7 @@ import { ensureDirectoriesExist, readPrettierConfig } from "../utils/preflight";
 const start = async () => {
   await Promise.all([ensureDirectoriesExist(), readPrettierConfig()]);
 
-  runTask(updateUserHandlersTask);
+  // runTask(updateUserHandlersTask);
   runTask(updateUserConfigTask);
   runTask(updateUserSchemaTask);
 };

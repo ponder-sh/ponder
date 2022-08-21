@@ -3,8 +3,6 @@ import { readFile } from "node:fs/promises";
 
 import { CONFIG } from "./config";
 
-const { userConfigFile } = CONFIG;
-
 enum SourceKind {
   EVM = "evm",
 }
@@ -52,13 +50,13 @@ interface PonderConfig {
 
 const readUserConfig = async () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const userConfig = require(userConfigFile);
+  const userConfig = require(CONFIG.PONDER_CONFIG_FILE_PATH);
 
   // Remove the ponder.config.js module from the require cache after reading,
   // because we are loading it several times in the same process
   // and we need the latest version each time.
   // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
-  delete require.cache[require.resolve(userConfigFile)];
+  delete require.cache[require.resolve(CONFIG.PONDER_CONFIG_FILE_PATH)];
 
   // TODO: Validate config kek
   const validatedUserConfig = userConfig as PonderConfig;

@@ -1,6 +1,7 @@
 import type { EventFragment, ParamType } from "@ethersproject/abi";
 import { Contract } from "ethers";
 import { writeFile } from "node:fs/promises";
+import path from "node:path";
 
 import { CONFIG } from "../config";
 import type { PonderConfig } from "../readUserConfig";
@@ -43,7 +44,7 @@ const generateHandlerTypes = async (config: PonderConfig) => {
       );
 
       await writeFile(
-        `${CONFIG.generatedDir}/${source.name}.d.ts`,
+        path.join(CONFIG.GENERATED_DIR_PATH, `${source.name}.d.ts`),
         final,
         "utf8"
       );

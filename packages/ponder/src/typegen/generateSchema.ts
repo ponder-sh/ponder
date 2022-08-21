@@ -1,6 +1,7 @@
 import type { GraphQLSchema } from "graphql";
 import { printSchema } from "graphql";
 import { writeFile } from "node:fs/promises";
+import path from "node:path";
 
 import { CONFIG } from "../config";
 import { logger } from "../utils/logger";
@@ -15,7 +16,11 @@ const generateSchema = async (gqlSchema: GraphQLSchema) => {
 
   const final = formatPrettier(header + body, { parser: "graphql" });
 
-  await writeFile(`${CONFIG.generatedDir}/schema.graphql`, final, "utf8");
+  await writeFile(
+    path.join(CONFIG.GENERATED_DIR_PATH, "schema.graphql"),
+    final,
+    "utf8"
+  );
 
   logger.info(`\x1b[36m${"GENERATED SCHEMA"}\x1b[0m`); // magenta
 };

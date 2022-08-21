@@ -6,14 +6,12 @@ import { CONFIG } from "../config";
 import {
   runTask,
   updateUserConfigTask,
-  updateUserHandlersTask,
+  // updateUserHandlersTask,
   updateUserSchemaTask,
 } from "../tasks";
 import { fileIsChanged } from "../utils/helpers";
 import { logger } from "../utils/logger";
 import { ensureDirectoriesExist, readPrettierConfig } from "../utils/preflight";
-
-const { userHandlersDir, userConfigFile, userSchemaFile } = CONFIG;
 
 const createWatchListener = (
   fn: (fileName: string) => Promise<void>,
@@ -31,31 +29,41 @@ const createWatchListener = (
 const dev = async () => {
   await Promise.all([ensureDirectoriesExist(), readPrettierConfig()]);
 
-  runTask(updateUserHandlersTask);
+  // TODO: Make the dev server response to handler file changes again
+  /// by rearranging the task dependency graph.
+  // runTask(updateUserHandlersTask);
   runTask(updateUserConfigTask);
   runTask(updateUserSchemaTask);
 
-  const runUpdateUserHandlersTask = createWatchListener(
-    async (fileName: string) => {
-      logger.info(`\x1b[33m${`DETECTED CHANGE IN: ${fileName}`}\x1b[0m`); // yellow
-      runTask(updateUserHandlersTask);
-    },
-    userHandlersDir
-  );
+  // const runUpdateUserHandlersTask = createWatchListener(
+  //   async (fileName: string) => {
+  //     logger.info(`\x1b[33m${`DETECTED CHANGE IN: ${fileName}`}\x1b[0m`); // yellow
+  //     runTask(updateUserHandlersTask);
+  //   },
+  //   CONFIG.HANDLERS_DIR_PATH
+  // );
 
   const runUpdateUserConfigTask = createWatchListener(async () => {
-    logger.info(`\x1b[33m${`DETECTED CHANGE IN: ponder.config.js`}\x1b[0m`); // yellow
+    logger.info(
+      `\x1b[33m${`DETECTED CHANGE IN: ${path.basename(
+        CONFIG.PONDER_CONFIG_FILE_PATH
+      )}`}\x1b[0m`
+    ); // yellow
     runTask(updateUserConfigTask);
   });
 
   const runUpdateUserSchemaTask = createWatchListener(async () => {
-    logger.info(`\x1b[33m${`DETECTED CHANGE IN: ponder.config.js`}\x1b[0m`); // yellow
+    logger.info(
+      `\x1b[33m${`DETECTED CHANGE IN: ${path.basename(
+        CONFIG.SCHEMA_FILE_PATH
+      )}`}\x1b[0m`
+    ); // yellow
     runTask(updateUserSchemaTask);
   });
 
-  watch(userHandlersDir, runUpdateUserHandlersTask);
-  watch(userConfigFile, runUpdateUserConfigTask);
-  watch(userSchemaFile, runUpdateUserSchemaTask);
+  // watch(CONFIG.HANDLERS_DIR_PATH, runUpdateUserHandlersTask);
+  watch(CONFIG.PONDER_CONFIG_FILE_PATH, runUpdateUserConfigTask);
+  watch(CONFIG.SCHEMA_FILE_PATH, runUpdateUserSchemaTask);
 };
 
 export { dev };

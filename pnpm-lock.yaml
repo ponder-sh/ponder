@@ -154,14 +154,13 @@ importers:
     specifiers:
       '@ethersproject/abi': ^5.0.0
       '@ethersproject/providers': ^5.0.0
-      '@ponder/ponder': ^0.0.5
+      '@ponder/ponder': workspace:^0.0.8
       ethers: ^5.6.9
       knex: ^2.2.0
-    dependencies:
-      '@ponder/ponder': 0.0.5_yykkfawkptsmpf2xgse4jzjowa
     devDependencies:
       '@ethersproject/abi': 5.6.4
       '@ethersproject/providers': 5.6.8
+      '@ponder/ponder': link:../../packages/ponder
       ethers: 5.6.9
       knex: 2.2.0
 

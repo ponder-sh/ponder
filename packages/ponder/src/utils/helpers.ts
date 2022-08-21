@@ -96,6 +96,8 @@ const endBenchmark = (hrt: [number, number]) => {
 const latestFileHash: { [key: string]: string | undefined } = {};
 
 const fileIsChanged = async (filePath: string) => {
+  // TODO: I think this throws if the file being watched gets deleted while
+  // the development server is running. Should handle this case gracefully.
   const content = await readFile(filePath, "utf-8");
   const hash = createHash("md5").update(content).digest("hex");
 

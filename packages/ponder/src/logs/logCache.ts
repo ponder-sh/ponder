@@ -4,7 +4,7 @@ import path from "path";
 
 import { CONFIG } from "../config";
 
-const { ponderDir } = CONFIG;
+const { PONDER_DIR_PATH } = CONFIG;
 
 type HistoricalLogData = {
   fromBlock: number;
@@ -17,7 +17,7 @@ type LogCache = { [key: string]: HistoricalLogData | undefined };
 const readLogCache = async () => {
   try {
     const rawCache = await readFile(
-      path.join(ponderDir, "logCache.json"),
+      path.join(PONDER_DIR_PATH, "logCache.json"),
       "utf-8"
     );
     // TODO: Validate cache read from file.
@@ -30,7 +30,7 @@ const readLogCache = async () => {
 
 const writeLogCache = async (logCache: LogCache) => {
   await writeFile(
-    path.join(ponderDir, "logCache.json"),
+    path.join(PONDER_DIR_PATH, "logCache.json"),
     JSON.stringify(logCache),
     "utf-8"
   );
