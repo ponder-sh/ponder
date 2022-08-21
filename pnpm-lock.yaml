@@ -240,6 +240,7 @@ importers:
       '@ponder/graph-ts-ponder': workspace:^0.27.0
       '@typechain/ethers-v5': ^10.0.0
       '@types/express': ^4.17.13
+      '@types/node': ^18.7.8
       '@types/yargs': ^17.0.11
       dotenv: ^16.0.1
       esbuild: ^0.15.2
@@ -282,6 +283,7 @@ importers:
       '@ethersproject/bytes': 5.6.1
       '@ethersproject/providers': 5.6.8
       '@types/express': 4.17.13
+      '@types/node': 18.7.8
       '@types/yargs': 17.0.11
       typescript: 4.7.3
 
@@ -2390,7 +2392,7 @@ packages:
     resolution: {integrity: sha512-ALYone6pm6QmwZoAgeyNksccT9Q4AWZQ6PvfwR37GT6r6FWUPguq6sUmNGSMV2Wr761oQoBxwGGa6DR5o1DC9g==}
     dependencies:
       '@types/connect': 3.4.35
-      '@types/node': 18.7.6
+      '@types/node': 18.7.8
     dev: true
 
   /@types/cacheable-request/6.0.2:
@@ -2414,12 +2416,12 @@ packages:
   /@types/connect/3.4.35:
     resolution: {integrity: sha512-cdeYyv4KWoEgpBISTxWvqYsVy444DOqehiF3fM3ne10AmJ62RSyNkUnxMJXHQWRQQX2eR94m5y1IZyDwBjV9FQ==}
     dependencies:
-      '@types/node': 18.7.6
+      '@types/node': 18.7.8
 
   /@types/express-serve-static-core/4.17.30:
     resolution: {integrity: sha512-gstzbTWro2/nFed1WXtf+TtrpwxH7Ggs4RLYTLbeVgIkUQOI3WG/JKjgeOU1zXDvezllupjrf8OPIdvTbIaVOQ==}
     dependencies:
-      '@types/node': 18.7.6
+      '@types/node': 18.7.8
       '@types/qs': 6.9.7
       '@types/range-parser': 1.2.4
 
@@ -2505,7 +2507,6 @@ packages:
 
   /@types/node/18.7.8:
     resolution: {integrity: sha512-/YP55EMK2341JkODUb8DM9O0x1SIz2aBvyF33Uf1c76St3VpsMXEIW0nxuKkq/5cxnbz0RD9cfwNZHEAZQD3ag==}
-    dev: true
 
   /@types/node/8.10.66:
     resolution: {integrity: sha512-tktOkFUA4kXx2hhhrB8bIFb5TbwzS4uOhKEmwiD+NoiL0qtP2OQ9mFldbgD4dV1djrlBYP6eBuQZiWjuHUpqFw==}
@@ -2543,7 +2544,7 @@ packages:
     resolution: {integrity: sha512-z5xyF6uh8CbjAu9760KDKsH2FcDxZ2tFCsA4HIMWE6IkiYMXfVoa+4f9KX+FN0ZLsaMw1WNG2ETLA6N+/YA+cg==}
     dependencies:
       '@types/mime': 3.0.1
-      '@types/node': 18.7.6
+      '@types/node': 18.7.8
     dev: true
 
   /@types/yargs-parser/21.0.0:
