@@ -217,12 +217,18 @@ importers:
 
   packages/graph-ts-ponder:
     specifiers:
+      '@types/node': ^18.7.8
       assemblyscript: 0.19.10
+      esbuild: ^0.15.2
       prettier: ^2.4.1
+      typescript: ^4.5.5
     dependencies:
       assemblyscript: 0.19.10
     devDependencies:
+      '@types/node': 18.7.8
+      esbuild: 0.15.4
       prettier: 2.6.2
+      typescript: 4.7.3
 
   packages/ponder:
     specifiers:
@@ -231,6 +237,7 @@ importers:
       '@ethersproject/providers': ^5.0.0
       '@graphql-codegen/core': ^2.6.2
       '@graphql-codegen/typescript': ^2.7.3
+      '@ponder/graph-ts-ponder': workspace:^0.27.0
       '@typechain/ethers-v5': ^10.0.0
       '@types/express': ^4.17.13
       '@types/yargs': ^17.0.11
@@ -253,6 +260,7 @@ importers:
     dependencies:
       '@graphql-codegen/core': 2.6.2_graphql@15.8.0
       '@graphql-codegen/typescript': 2.7.3_graphql@15.8.0
+      '@ponder/graph-ts-ponder': link:../graph-ts-ponder
       '@typechain/ethers-v5': 10.1.0_2pfizk27srrrpdc2afslqbfdki
       dotenv: 16.0.1
       esbuild: 0.15.4
@@ -951,7 +959,6 @@ packages:
     cpu: [loong64]
     os: [linux]
     requiresBuild: true
-    dev: false
     optional: true
 
   /@eslint/eslintrc/0.4.3:
@@ -2489,6 +2496,10 @@ packages:
 
   /@types/node/18.7.6:
     resolution: {integrity: sha512-EdxgKRXgYsNITy5mjjXjVE/CS8YENSdhiagGrLqjG0pvA2owgJ6i4l7wy/PFZGC0B1/H20lWKN7ONVDNYDZm7A==}
+
+  /@types/node/18.7.8:
+    resolution: {integrity: sha512-/YP55EMK2341JkODUb8DM9O0x1SIz2aBvyF33Uf1c76St3VpsMXEIW0nxuKkq/5cxnbz0RD9cfwNZHEAZQD3ag==}
+    dev: true
 
   /@types/node/8.10.66:
     resolution: {integrity: sha512-tktOkFUA4kXx2hhhrB8bIFb5TbwzS4uOhKEmwiD+NoiL0qtP2OQ9mFldbgD4dV1djrlBYP6eBuQZiWjuHUpqFw==}
@@ -5013,7 +5024,6 @@ packages:
     cpu: [x64]
     os: [android]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-android-arm64/0.15.4:
@@ -5022,7 +5032,6 @@ packages:
     cpu: [arm64]
     os: [android]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-darwin-64/0.15.4:
@@ -5031,7 +5040,6 @@ packages:
     cpu: [x64]
     os: [darwin]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-darwin-arm64/0.15.4:
@@ -5040,7 +5048,6 @@ packages:
     cpu: [arm64]
     os: [darwin]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-freebsd-64/0.15.4:
@@ -5049,7 +5056,6 @@ packages:
     cpu: [x64]
     os: [freebsd]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-freebsd-arm64/0.15.4:
@@ -5058,7 +5064,6 @@ packages:
     cpu: [arm64]
     os: [freebsd]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-linux-32/0.15.4:
@@ -5067,7 +5072,6 @@ packages:
     cpu: [ia32]
     os: [linux]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-linux-64/0.15.4:
@@ -5076,7 +5080,6 @@ packages:
     cpu: [x64]
     os: [linux]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-linux-arm/0.15.4:
@@ -5085,7 +5088,6 @@ packages:
     cpu: [arm]
     os: [linux]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-linux-arm64/0.15.4:
@@ -5094,7 +5096,6 @@ packages:
     cpu: [arm64]
     os: [linux]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-linux-mips64le/0.15.4:
@@ -5103,7 +5104,6 @@ packages:
     cpu: [mips64el]
     os: [linux]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-linux-ppc64le/0.15.4:
@@ -5112,7 +5112,6 @@ packages:
     cpu: [ppc64]
     os: [linux]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-linux-riscv64/0.15.4:
@@ -5121,7 +5120,6 @@ packages:
     cpu: [riscv64]
     os: [linux]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-linux-s390x/0.15.4:
@@ -5130,7 +5128,6 @@ packages:
     cpu: [s390x]
     os: [linux]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-netbsd-64/0.15.4:
@@ -5139,7 +5136,6 @@ packages:
     cpu: [x64]
     os: [netbsd]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-openbsd-64/0.15.4:
@@ -5148,7 +5144,6 @@ packages:
     cpu: [x64]
     os: [openbsd]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-sunos-64/0.15.4:
@@ -5157,7 +5152,6 @@ packages:
     cpu: [x64]
     os: [sunos]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-windows-32/0.15.4:
@@ -5166,7 +5160,6 @@ packages:
     cpu: [ia32]
     os: [win32]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-windows-64/0.15.4:
@@ -5175,7 +5168,6 @@ packages:
     cpu: [x64]
     os: [win32]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild-windows-arm64/0.15.4:
@@ -5184,7 +5176,6 @@ packages:
     cpu: [arm64]
     os: [win32]
     requiresBuild: true
-    dev: false
     optional: true
 
   /esbuild/0.15.4:
@@ -5214,7 +5205,6 @@ packages:
       esbuild-windows-32: 0.15.4
       esbuild-windows-64: 0.15.4
       esbuild-windows-arm64: 0.15.4
-    dev: false
 
   /escalade/3.1.1:
     resolution: {integrity: sha512-k0er2gUkLf8O0zKJiAhmkTnJlTvINGv7ygDNPbeIsX/TJjGJZHuh9B2UxbsaEkmlEo9MfhrSzmhIlhRlI2GXnw==}

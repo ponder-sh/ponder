@@ -7,7 +7,7 @@ import { ByteArray } from './index'
  * @returns A concatenated ByteArray
  */
 export function concat(a: ByteArray, b: ByteArray): ByteArray {
-  let out = new Uint8Array(a.length + b.length)
+  const out = new Uint8Array(a.length + b.length)
   for (let i = 0; i < a.length; i++) {
     out[i] = a[i]
   }
@@ -32,7 +32,7 @@ enum CSVState {
  * @returns Array of strings.
  */
 export function parseCSV(csv: string): Array<string> {
-  let values = new Array<string>()
+  const values = new Array<string>()
   let valueStart = 0
   let state = CSVState.BETWEEN
 
@@ -71,7 +71,7 @@ export function parseCSV(csv: string): Array<string> {
  * @returns - The ByteArray with 0x1220 prefixed
  */
 export function addQm(a: ByteArray): ByteArray {
-  let out = new Uint8Array(34)
+  const out = new Uint8Array(34)
   out[0] = 0x12
   out[1] = 0x20
   for (let i = 0; i < 32; i++) {

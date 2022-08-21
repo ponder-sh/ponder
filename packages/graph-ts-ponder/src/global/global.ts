@@ -1,17 +1,17 @@
-import { BigDecimal } from '../common/numbers'
-import {
-  Bytes,
-  TypedMapEntry,
-  Entity,
-  TypedMap,
-  Result,
-  Wrapped,
-} from '../common/collections'
-import { JSONValue, Value } from '../common/value'
 import { arweave } from '../chain/arweave'
+import { cosmos } from '../chain/cosmos'
 import { ethereum } from '../chain/ethereum'
 import { near } from '../chain/near'
-import { cosmos } from '../chain/cosmos'
+import {
+  Bytes,
+  Entity,
+  Result,
+  TypedMap,
+  TypedMapEntry,
+  Wrapped,
+} from '../common/collections'
+import { BigDecimal } from '../common/numbers'
+import { JSONValue, Value } from '../common/value'
 
 /**
  * Contains type IDs and their discriminants for every blockchain supported by Graph-Node.

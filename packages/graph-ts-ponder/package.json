@@ -6,16 +6,22 @@
   "types": "index.ts",
   "main": "index.ts",
   "ascMain": "index.ts",
+  "scripts": {
+    "clean": "rm -f index.js",
+    "lint": "prettier -c **/*.{js,ts}",
+    "format": "prettier --write -c **/*.{js,ts}",
+    "compile-static": "esbuild src/index.ts --platform=node --format=cjs --bundle --outfile=dist/graph-ts-static.js",
+    "compile-dynamic": "esbuild index.ts --platform=node --format=cjs --bundle --outfile=dist/index.js",
+    "build": "pnpm run clean && pnpm run compile-static && pnpm run compile-dynamic",
+    "start": "node dist/index.js"
+  },
   "dependencies": {
     "assemblyscript": "0.19.10"
   },
   "devDependencies": {
-    "prettier": "^2.4.1"
-  },
-  "scripts": {
-    "lint": "prettier -c **/*.{js,ts}",
-    "format": "prettier --write -c **/*.{js,ts}",
-    "build": "asc --explicitStart --exportRuntime --runtime stub index.ts helper-functions.ts --lib graph-ts -b index.wasm",
-    "test": "node test/test.js"
+    "@types/node": "^18.7.8",
+    "esbuild": "^0.15.2",
+    "prettier": "^2.4.1",
+    "typescript": "^4.5.5"
   }
 }

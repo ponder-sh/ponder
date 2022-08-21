@@ -1,4 +1,13 @@
 {
-  "extends": "assemblyscript/std/assembly",
-  "include": ["index.ts", "helper-functions.ts", "global/global.ts", "test"]
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "esModuleInterop": true,
+    "strict": true,
+    "sourceMap": true,
+    "moduleResolution": "node",
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts"],
+  "exclude": ["node_modules"]
 }

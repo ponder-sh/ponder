@@ -1,4 +1,5 @@
 import '../common/eager_offset'
+
 import { Bytes } from '../common/collections'
 import { BigInt } from '../common/numbers'
 
@@ -11,7 +12,7 @@ export namespace near {
 
   export type BlockHeight = u64
 
-  export type Balance = BigInt
+  export type Balance = bigint
 
   export type Gas = u64
 
@@ -43,7 +44,7 @@ export namespace near {
 
   export class FunctionCallPermission {
     constructor(
-      public allowance: BigInt,
+      public allowance: bigint,
       public receiverId: string,
       public methodNames: Array<string>,
     ) {}
@@ -115,12 +116,12 @@ export namespace near {
       public methodName: string,
       public args: Bytes,
       public gas: u64,
-      public deposit: BigInt,
+      public deposit: bigint,
     ) {}
   }
 
   export class TransferAction {
-    constructor(public deposit: BigInt) {}
+    constructor(public deposit: bigint) {}
   }
 
   export class StakeAction {
@@ -238,7 +239,7 @@ export namespace near {
       // ReceiptAction fields
       public signerId: string,
       public signerPublicKey: PublicKey,
-      public gasPrice: BigInt,
+      public gasPrice: bigint,
       public outputDataReceivers: Array<DataReceiver>,
       public inputDataIds: Array<CryptoHash>,
       public actions: Array<ActionValue>,
@@ -312,7 +313,7 @@ export namespace near {
       public id: CryptoHash,
       public logs: Array<string>,
       public receiptIds: Array<CryptoHash>,
-      public tokensBurnt: BigInt,
+      public tokensBurnt: bigint,
       public executorId: string,
       public status: SuccessStatus,
     ) {}
