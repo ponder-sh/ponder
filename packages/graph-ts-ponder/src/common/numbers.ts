@@ -1,21 +1,20 @@
-import './eager_offset'
-import { Bytes, ByteArray } from './collections'
+import { ByteArray, Bytes } from './collections'
 import { typeConversion } from './conversion'
 
 /** Host interface for BigInt arithmetic */
 export declare namespace bigInt {
-  function plus(x: BigInt, y: BigInt): BigInt
-  function minus(x: BigInt, y: BigInt): BigInt
-  function times(x: BigInt, y: BigInt): BigInt
-  function dividedBy(x: BigInt, y: BigInt): BigInt
-  function dividedByDecimal(x: BigInt, y: BigDecimal): BigDecimal
-  function mod(x: BigInt, y: BigInt): BigInt
-  function pow(x: BigInt, exp: u8): BigInt
-  function fromString(s: string): BigInt
-  function bitOr(x: BigInt, y: BigInt): BigInt
-  function bitAnd(x: BigInt, y: BigInt): BigInt
-  function leftShift(x: BigInt, bits: u8): BigInt
-  function rightShift(x: BigInt, bits: u8): BigInt
+  function plus(x: bigint, y: bigint): bigint
+  function minus(x: bigint, y: bigint): bigint
+  function times(x: bigint, y: bigint): bigint
+  function dividedBy(x: bigint, y: bigint): bigint
+  function dividedByDecimal(x: bigint, y: BigDecimal): BigDecimal
+  function mod(x: bigint, y: bigint): bigint
+  function pow(x: bigint, exp: u8): bigint
+  function fromString(s: string): bigint
+  function bitOr(x: bigint, y: bigint): bigint
+  function bitAnd(x: bigint, y: bigint): bigint
+  function leftShift(x: bigint, bits: u8): bigint
+  function rightShift(x: bigint, bits: u8): bigint
 }
 
 /** Host interface for BigDecimal */
@@ -47,7 +46,7 @@ export class Address extends Bytes {
   }
 
   static zero(): Address {
-    let self = new ByteArray(20)
+    const self = new ByteArray(20)
 
     for (let i = 0; i < 20; i++) {
       self[i] = 0
@@ -59,27 +58,27 @@ export class Address extends Bytes {
 
 /** An arbitrary size integer represented as an array of bytes. */
 export class BigInt extends Uint8Array {
-  static fromI32(x: i32): BigInt {
-    let byteArray = ByteArray.fromI32(x)
+  static fromI32(x: i32): bigint {
+    const byteArray = ByteArray.fromI32(x)
     return BigInt.fromByteArray(byteArray)
   }
 
-  static fromU32(x: u32): BigInt {
-    let byteArray = ByteArray.fromU32(x)
+  static fromU32(x: u32): bigint {
+    const byteArray = ByteArray.fromU32(x)
     return BigInt.fromUnsignedBytes(byteArray)
   }
 
-  static fromI64(x: i64): BigInt {
-    let byteArray = ByteArray.fromI64(x)
+  static fromI64(x: i64): bigint {
+    const byteArray = ByteArray.fromI64(x)
     return BigInt.fromByteArray(byteArray)
   }
 
-  static fromU64(x: u64): BigInt {
-    let byteArray = ByteArray.fromU64(x)
+  static fromU64(x: u64): bigint {
+    const byteArray = ByteArray.fromU64(x)
     return BigInt.fromUnsignedBytes(byteArray)
   }
 
-  static zero(): BigInt {
+  static zero(): bigint {
     return BigInt.fromI32(0)
   }
 
@@ -87,21 +86,21 @@ export class BigInt extends Uint8Array {
    * `bytes` assumed to be little-endian. If your input is big-endian, call `.reverse()` first.
    */
 
-  static fromSignedBytes(bytes: Bytes): BigInt {
-    let byteArray = <ByteArray>bytes
+  static fromSignedBytes(bytes: Bytes): bigint {
+    const byteArray = <ByteArray>bytes
     return BigInt.fromByteArray(byteArray)
   }
 
-  static fromByteArray(byteArray: ByteArray): BigInt {
-    return changetype<BigInt>(byteArray)
+  static fromByteArray(byteArray: ByteArray): bigint {
+    return changetype<bigint>(byteArray)
   }
 
   /**
    * `bytes` assumed to be little-endian. If your input is big-endian, call `.reverse()` first.
    */
 
-  static fromUnsignedBytes(bytes: ByteArray): BigInt {
-    let signedBytes = new BigInt(bytes.length + 1)
+  static fromUnsignedBytes(bytes: ByteArray): bigint {
+    const signedBytes = new BigInt(bytes.length + 1)
     for (let i = 0; i < bytes.length; i++) {
       signedBytes[i] = bytes[i]
     }
@@ -121,31 +120,31 @@ export class BigInt extends Uint8Array {
     return typeConversion.bigIntToString(this)
   }
 
-  static fromString(s: string): BigInt {
+  static fromString(s: string): bigint {
     return bigInt.fromString(s)
   }
 
   toI32(): i32 {
-    let uint8Array = changetype<Uint8Array>(this)
-    let byteArray = changetype<ByteArray>(uint8Array)
+    const uint8Array = changetype<Uint8Array>(this)
+    const byteArray = changetype<ByteArray>(uint8Array)
     return byteArray.toI32()
   }
 
   toU32(): u32 {
-    let uint8Array = changetype<Uint8Array>(this)
-    let byteArray = changetype<ByteArray>(uint8Array)
+    const uint8Array = changetype<Uint8Array>(this)
+    const byteArray = changetype<ByteArray>(uint8Array)
     return byteArray.toU32()
   }
 
   toI64(): i64 {
-    let uint8Array = changetype<Uint8Array>(this)
-    let byteArray = changetype<ByteArray>(uint8Array)
+    const uint8Array = changetype<Uint8Array>(this)
+    const byteArray = changetype<ByteArray>(uint8Array)
     return byteArray.toI64()
   }
 
   toU64(): u64 {
-    let uint8Array = changetype<Uint8Array>(this)
-    let byteArray = changetype<ByteArray>(uint8Array)
+    const uint8Array = changetype<Uint8Array>(this)
+    const byteArray = changetype<ByteArray>(uint8Array)
     return byteArray.toU64()
   }
 
@@ -161,12 +160,12 @@ export class BigInt extends Uint8Array {
     return BigInt.fromI32(i32.MIN_VALUE) <= this && this <= BigInt.fromI32(i32.MAX_VALUE)
   }
 
-  abs(): BigInt {
+  abs(): bigint {
     return this < BigInt.fromI32(0) ? this.neg() : this
   }
 
-  sqrt(): BigInt {
-    let x: BigInt = this
+  sqrt(): bigint {
+    const x: bigint = this
     let z = x.plus(BigInt.fromI32(1)).div(BigInt.fromI32(2))
     let y = x
     while (z < y) {
@@ -180,25 +179,25 @@ export class BigInt extends Uint8Array {
   // Operators
 
   @operator('+')
-  plus(other: BigInt): BigInt {
+  plus(other: bigint): bigint {
     assert(this !== null, "Failed to sum BigInts because left hand side is 'null'")
     return bigInt.plus(this, other)
   }
 
   @operator('-')
-  minus(other: BigInt): BigInt {
+  minus(other: bigint): bigint {
     assert(this !== null, "Failed to subtract BigInts because left hand side is 'null'")
     return bigInt.minus(this, other)
   }
 
   @operator('*')
-  times(other: BigInt): BigInt {
+  times(other: bigint): bigint {
     assert(this !== null, "Failed to multiply BigInts because left hand side is 'null'")
     return bigInt.times(this, other)
   }
 
   @operator('/')
-  div(other: BigInt): BigInt {
+  div(other: bigint): bigint {
     assert(this !== null, "Failed to divide BigInts because left hand side is 'null'")
     return bigInt.dividedBy(this, other)
   }
@@ -208,7 +207,7 @@ export class BigInt extends Uint8Array {
   }
 
   @operator('%')
-  mod(other: BigInt): BigInt {
+  mod(other: bigint): bigint {
     assert(
       this !== null,
       "Failed to apply module to BigInt because left hand side is 'null'",
@@ -217,72 +216,72 @@ export class BigInt extends Uint8Array {
   }
 
   @operator('==')
-  equals(other: BigInt): boolean {
+  equals(other: bigint): boolean {
     return BigInt.compare(this, other) == 0
   }
 
   @operator('!=')
-  notEqual(other: BigInt): boolean {
+  notEqual(other: bigint): boolean {
     return !(this == other)
   }
 
   @operator('<')
-  lt(other: BigInt): boolean {
+  lt(other: bigint): boolean {
     return BigInt.compare(this, other) == -1
   }
 
   @operator('>')
-  gt(other: BigInt): boolean {
+  gt(other: bigint): boolean {
     return BigInt.compare(this, other) == 1
   }
 
   @operator('<=')
-  le(other: BigInt): boolean {
+  le(other: bigint): boolean {
     return !(this > other)
   }
 
   @operator('>=')
-  ge(other: BigInt): boolean {
+  ge(other: bigint): boolean {
     return !(this < other)
   }
 
   @operator.prefix('-')
-  neg(): BigInt {
+  neg(): bigint {
     return BigInt.fromI32(0).minus(this)
   }
 
   @operator('|')
-  bitOr(other: BigInt): BigInt {
+  bitOr(other: bigint): bigint {
     return bigInt.bitOr(this, other)
   }
 
   @operator('&')
-  bitAnd(other: BigInt): BigInt {
+  bitAnd(other: bigint): bigint {
     return bigInt.bitAnd(this, other)
   }
 
   @operator('<<')
-  leftShift(bits: u8): BigInt {
+  leftShift(bits: u8): bigint {
     return bigInt.leftShift(this, bits)
   }
 
   @operator('>>')
-  rightShift(bits: u8): BigInt {
+  rightShift(bits: u8): bigint {
     return bigInt.rightShift(this, bits)
   }
 
   /// Limited to a low exponent to discourage creating a huge BigInt.
-  pow(exp: u8): BigInt {
+  pow(exp: u8): bigint {
     return bigInt.pow(this, exp)
   }
 
   /**
    * Returns −1 if a < b, 1 if a > b, and 0 if A == B
    */
-  static compare(a: BigInt, b: BigInt): i32 {
+  static compare(a: bigint, b: bigint): i32 {
     // Check if a and b have the same sign.
-    let aIsNeg = a.length > 0 && a[a.length - 1] >> 7 == 1
-    let bIsNeg = b.length > 0 && b[b.length - 1] >> 7 == 1
+    const aIsNeg = a.length > 0 && a[a.length - 1] >> 7 == 1
+    const bIsNeg = b.length > 0 && b[b.length - 1] >> 7 == 1
 
     if (!aIsNeg && bIsNeg) {
       return 1
@@ -320,7 +319,7 @@ export class BigInt extends Uint8Array {
     // If a and b are both negative then the one of lesser magnitude is the
     // largest, however since in two's complement the magnitude is flipped, we
     // may use the same logic as if a and b are positive.
-    let relevantBytes = aRelevantBytes
+    const relevantBytes = aRelevantBytes
     for (let i = 1; i <= relevantBytes; i++) {
       if (a[relevantBytes - i] < b[relevantBytes - i]) {
         return -1
@@ -334,10 +333,10 @@ export class BigInt extends Uint8Array {
 }
 
 export class BigDecimal {
-  digits: BigInt
-  exp: BigInt
+  digits: bigint
+  exp: bigint
 
-  constructor(bigInt: BigInt) {
+  constructor(bigInt: bigint) {
     this.digits = bigInt
     this.exp = BigInt.fromI32(0)
   }
@@ -355,9 +354,9 @@ export class BigDecimal {
   }
 
   truncate(decimals: i32): BigDecimal {
-    let digitsRightOfZero = this.digits.toString().length + this.exp.toI32()
-    let newDigitLength = decimals + digitsRightOfZero
-    let truncateLength = this.digits.toString().length - newDigitLength
+    const digitsRightOfZero = this.digits.toString().length + this.exp.toI32()
+    const newDigitLength = decimals + digitsRightOfZero
+    const truncateLength = this.digits.toString().length - newDigitLength
     if (truncateLength < 0) {
       return this
     } else {
@@ -439,7 +438,7 @@ export class BigDecimal {
    * Returns −1 if a < b, 1 if a > b, and 0 if A == B
    */
   static compare(a: BigDecimal, b: BigDecimal): i32 {
-    let diff = a.minus(b)
+    const diff = a.minus(b)
     if (diff.digits.isZero()) {
       return 0
     }

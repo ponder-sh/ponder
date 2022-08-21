@@ -1,5 +1,3 @@
-import '../common/eager_offset'
-
 import { Bytes } from '../common/collections'
 import { BigInt } from '../common/numbers'
 

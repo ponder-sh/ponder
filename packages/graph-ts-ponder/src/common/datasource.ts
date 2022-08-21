@@ -1,6 +1,5 @@
-import './eager_offset'
-import { Address } from './numbers'
 import { Entity } from './collections'
+import { Address } from './numbers'
 
 /** Host interface for managing data sources */
 export declare namespace dataSource {

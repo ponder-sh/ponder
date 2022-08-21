@@ -571,5 +571,5 @@ export function id_of_type(typeId: TypeId): usize {
 
 export function allocate(size: usize): usize {
   // @ts-ignore We do not want to expose __alloc, hence why we just ignore the error
-  return __alloc(size)
+  return size
 }

@@ -1,7 +1,6 @@
-import './eager_offset'
+import { Bytes, Result } from './collections'
 import { BigInt } from './numbers'
 import { JSONValue } from './value'
-import { Bytes, Result } from './collections'
 
 /** Host JSON interface */
 export declare namespace json {
@@ -10,18 +9,18 @@ export declare namespace json {
   function toI64(decimal: string): i64
   function toU64(decimal: string): u64
   function toF64(decimal: string): f64
-  function toBigInt(decimal: string): BigInt
+  function toBigInt(decimal: string): bigint
 }
 
 export namespace json {
   export function fromString(data: string): JSONValue {
-    let bytes = Bytes.fromUTF8(data)
+    const bytes = Bytes.fromUTF8(data)
 
     return json.fromBytes(bytes)
   }
 
   export function try_fromString(data: string): Result<JSONValue, boolean> {
-    let bytes = Bytes.fromUTF8(data)
+    const bytes = Bytes.fromUTF8(data)
 
     return json.try_fromBytes(bytes)
   }

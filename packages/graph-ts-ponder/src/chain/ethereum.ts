@@ -1,5 +1,3 @@
-import '../common/eager_offset'
-
 import { Bytes, Wrapped } from '../common/collections'
 import { Address, BigInt } from '../common/numbers'
 

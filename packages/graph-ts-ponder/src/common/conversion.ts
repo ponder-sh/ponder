@@ -1,5 +1,3 @@
-import './eager_offset'
-
 import { Bytes } from './collections'
 
 // TODO: implement!
