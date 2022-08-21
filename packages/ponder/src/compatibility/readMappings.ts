@@ -35,9 +35,13 @@ const readMappings = async (
       logger.warn("esbuild error:", err);
     }
 
-    const module = await require(source.mappingFilePath);
+    const module = await require(buildFile);
 
-    console.log({ exports: module.exports });
+    const handlerMap = Object.entries(module).map(([key, value]) => {
+      return { key, value };
+    });
+
+    console.log({ module: module, handlerMap });
   }
 
   // // const buildFile = path.join(CONFIG.PONDER_DIR_PATH, "handlers.js");
