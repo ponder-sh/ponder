@@ -178,25 +178,21 @@ export class BigInt extends Uint8Array {
 
   // Operators
 
-  @operator('+')
   plus(other: bigint): bigint {
     assert(this !== null, "Failed to sum BigInts because left hand side is 'null'")
     return bigInt.plus(this, other)
   }
 
-  @operator('-')
   minus(other: bigint): bigint {
     assert(this !== null, "Failed to subtract BigInts because left hand side is 'null'")
     return bigInt.minus(this, other)
   }
 
-  @operator('*')
   times(other: bigint): bigint {
     assert(this !== null, "Failed to multiply BigInts because left hand side is 'null'")
     return bigInt.times(this, other)
   }
 
-  @operator('/')
   div(other: bigint): bigint {
     assert(this !== null, "Failed to divide BigInts because left hand side is 'null'")
     return bigInt.dividedBy(this, other)
@@ -206,7 +202,6 @@ export class BigInt extends Uint8Array {
     return bigInt.dividedByDecimal(this, other)
   }
 
-  @operator('%')
   mod(other: bigint): bigint {
     assert(
       this !== null,
@@ -215,57 +210,46 @@ export class BigInt extends Uint8Array {
     return bigInt.mod(this, other)
   }
 
-  @operator('==')
   equals(other: bigint): boolean {
     return BigInt.compare(this, other) == 0
   }
 
-  @operator('!=')
   notEqual(other: bigint): boolean {
     return !(this == other)
   }
 
-  @operator('<')
   lt(other: bigint): boolean {
     return BigInt.compare(this, other) == -1
   }
 
-  @operator('>')
   gt(other: bigint): boolean {
     return BigInt.compare(this, other) == 1
   }
 
-  @operator('<=')
   le(other: bigint): boolean {
     return !(this > other)
   }
 
-  @operator('>=')
   ge(other: bigint): boolean {
     return !(this < other)
   }
 
-  @operator.prefix('-')
   neg(): bigint {
     return BigInt.fromI32(0).minus(this)
   }
 
-  @operator('|')
   bitOr(other: bigint): bigint {
     return bigInt.bitOr(this, other)
   }
 
-  @operator('&')
   bitAnd(other: bigint): bigint {
     return bigInt.bitAnd(this, other)
   }
 
-  @operator('<<')
   leftShift(bits: u8): bigint {
     return bigInt.leftShift(this, bits)
   }
 
-  @operator('>>')
   rightShift(bits: u8): bigint {
     return bigInt.rightShift(this, bits)
   }
@@ -368,13 +352,11 @@ export class BigDecimal {
     }
   }
 
-  @operator('+')
   plus(other: BigDecimal): BigDecimal {
     assert(this !== null, "Failed to sum BigDecimals because left hand side is 'null'")
     return bigDecimal.plus(this, other)
   }
 
-  @operator('-')
   minus(other: BigDecimal): BigDecimal {
     assert(
       this !== null,
@@ -383,7 +365,6 @@ export class BigDecimal {
     return bigDecimal.minus(this, other)
   }
 
-  @operator('*')
   times(other: BigDecimal): BigDecimal {
     assert(
       this !== null,
@@ -392,43 +373,35 @@ export class BigDecimal {
     return bigDecimal.times(this, other)
   }
 
-  @operator('/')
   div(other: BigDecimal): BigDecimal {
     assert(this !== null, "Failed to divide BigDecimals because left hand side is 'null'")
     return bigDecimal.dividedBy(this, other)
   }
 
-  @operator('==')
   equals(other: BigDecimal): boolean {
     return BigDecimal.compare(this, other) == 0
   }
 
-  @operator('!=')
   notEqual(other: BigDecimal): boolean {
     return !(this == other)
   }
 
-  @operator('<')
   lt(other: BigDecimal): boolean {
     return BigDecimal.compare(this, other) == -1
   }
 
-  @operator('>')
   gt(other: BigDecimal): boolean {
     return BigDecimal.compare(this, other) == 1
   }
 
-  @operator('<=')
   le(other: BigDecimal): boolean {
     return !(this > other)
   }
 
-  @operator('>=')
   ge(other: BigDecimal): boolean {
     return !(this < other)
   }
 
-  @operator.prefix('-')
   neg(): BigDecimal {
     assert(this !== null, "Failed to negate BigDecimal because the value of it is 'null'")
     return new BigDecimal(new BigInt(0)).minus(this)

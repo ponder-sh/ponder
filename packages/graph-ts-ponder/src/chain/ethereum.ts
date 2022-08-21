@@ -36,13 +36,11 @@ export namespace ethereum {
   export class Value {
     constructor(public kind: ValueKind, public data: ValuePayload) {}
 
-    @operator('<')
     lt(other: Value): boolean {
       abort("Less than operator isn't supported in Value")
       return false
     }
 
-    @operator('>')
     gt(other: Value): boolean {
       abort("Greater than operator isn't supported in Value")
       return false

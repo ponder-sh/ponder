@@ -284,13 +284,11 @@ export namespace near {
   export class MerklePathItem {
     constructor(public hash: CryptoHash, public direction: Direction) {}
 
-    @operator('<')
     lt(other: MerklePathItem): boolean {
       abort("Less than operator isn't supported in MerklePathItem")
       return false
     }
 
-    @operator('>')
     gt(other: MerklePathItem): boolean {
       abort("Greater than operator isn't supported in MerklePathItem")
       return false
