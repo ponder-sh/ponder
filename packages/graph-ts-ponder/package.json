@@ -3,17 +3,17 @@
   "description": "Fork of @graphprotocol/graph-ts with host interfaces implemented in Typescript/Node",
   "version": "0.27.0",
   "main": "dist/index.js",
-  "types": "index.ts",
+  "types": "index.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
-    "clean": "rm -f index.js",
+    "clean": "rm -rf dist",
     "lint": "prettier -c **/*.{js,ts}",
     "format": "prettier --write -c **/*.{js,ts}",
-    "compile-static": "esbuild src/index.ts --platform=node --format=cjs --bundle --outfile=dist/graph-ts-static.js",
-    "compile-dynamic": "esbuild index.ts --platform=node --format=cjs --bundle --outfile=dist/index.js",
-    "build": "pnpm run clean && pnpm run compile-static && pnpm run compile-dynamic",
+    "compile-static": "esbuild src/index.ts --platform=node --format=cjs --bundle --outfile=dist/static.js",
+    "compile-build": "esbuild build.ts --platform=node --format=cjs --bundle --outfile=dist/build.js",
+    "build": "pnpm run clean && pnpm run compile-static && pnpm run compile-build && node dist/build.js",
     "start": "node dist/index.js"
   },
   "dependencies": {
