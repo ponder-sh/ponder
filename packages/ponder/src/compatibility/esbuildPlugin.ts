@@ -1,4 +1,4 @@
-import { getStaticGraphTs } from "@ponder/graph-ts-ponder";
+import { graphTsStaticString } from "@ponder/graph-ts-ponder";
 import type { Plugin } from "esbuild";
 
 // This is an esbuild plugin that intercepts imports from @graphprotocol/graph-ts and replaces
@@ -17,10 +17,10 @@ const graphTsOverridePlugin: Plugin = {
     build.onLoad(
       { filter: /.*/, namespace: "graph-ts-ponder-ns" },
       async () => {
-        // TODO: Update this function from @ponder/graph-ts-ponder to accept arguments
-        // that help it generate code for dynamic classes as the `ethereum` class.
+        // TODO: Update this to call a function that accept arguments
+        // to help it generate code for dynamic classes (the `ethereum` and `store` classes).
         // It should still return the customized module as a string.
-        const staticGraphTs = await getStaticGraphTs();
+        const staticGraphTs = graphTsStaticString;
 
         return {
           contents: staticGraphTs,
