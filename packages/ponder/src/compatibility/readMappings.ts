@@ -16,6 +16,8 @@ const readMappings = async (
 ) => {
   const buildFile = path.join(CONFIG.PONDER_DIR_PATH, "handlers.js");
 
+  const handlers: UserHandlers = {};
+
   for (const source of graphCompatPonderConfig.sources) {
     console.log(
       "attempting to esbuild mapping file at: ",
@@ -23,36 +25,35 @@ const readMappings = async (
     );
 
     try {
-      const out = await build({
+      await build({
         entryPoints: [source.mappingFilePath],
         outfile: buildFile,
         platform: "node",
         bundle: true,
         plugins: [graphTsOverridePlugin],
       });
-      console.log({ out });
     } catch (err) {
       logger.warn("esbuild error:", err);
     }
 
     const module = await require(buildFile);
+    delete require.cache[require.resolve(buildFile)];
 
-    const handlerMap = Object.entries(module).map(([key, value]) => {
-      return { key, value };
+    const handlerFunctionMap = module as {
+      [key: string]: Handler | undefined;
+    };
+
+    const sourceHandlers: SourceHandlers = {};
+    source.eventHandlers.forEach(({ event, handler }) => {
+      sourceHandlers[event] = handlerFunctionMap[handler];
     });
 
-    console.log({ module: module, handlerMap });
+    handlers[source.name] = sourceHandlers;
   }
 
-  // // const buildFile = path.join(CONFIG.PONDER_DIR_PATH, "handlers.js");
+  console.log({ handlers });
 
-  // const { default: rawHandlers } = await require(buildFile);
-  // delete require.cache[require.resolve(buildFile)];
-
-  // // TODO: Validate handlers ?!?!?!
-  // const handlers = rawHandlers as UserHandlers;
-
-  // return handlers;
+  return handlers;
 };
 
 export { readMappings };

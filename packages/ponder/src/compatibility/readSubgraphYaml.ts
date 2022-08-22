@@ -20,6 +20,10 @@ interface GraphCompatPonderConfig {
 
 interface GraphCompatSource extends EvmSource {
   mappingFilePath: string;
+  eventHandlers: {
+    event: string;
+    handler: string;
+  }[];
 }
 
 // https://github.com/graphprotocol/graph-node/blob/master/docs/subgraph-manifest.md
@@ -124,6 +128,7 @@ const getPonderSourceFromGraphSource = (
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     abiInterface: null!,
     mappingFilePath: mappingFilePath,
+    eventHandlers: subgraphSource.mapping.eventHandlers || [],
   };
 };
 
