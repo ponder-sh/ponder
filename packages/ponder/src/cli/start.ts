@@ -2,6 +2,8 @@ import { readMappings } from "../compatibility/readMappings";
 import { readSubgraphSchema } from "../compatibility/readSubgraphSchema";
 import { readSubgraphYaml } from "../compatibility/readSubgraphYaml";
 import { CONFIG } from "../config";
+import { createOrUpdateDbTables } from "../db";
+import { buildDbSchema } from "../db/buildDbSchema";
 import {
   runTask,
   updateUserConfigTask,
@@ -21,7 +23,14 @@ const start = async () => {
 
     console.log({ userSchema });
 
-    const mappings = await readMappings(graphCompatPonderConfig);
+    const handlers = await readMappings(graphCompatPonderConfig);
+
+    const dbSchema = buildDbSchema(userSchema);
+
+    await createOrUpdateDbTables(dbSchema);
+
+    // const logWorker = buildLogWorker(config, dbSchema, userHandlers);
+    // await executeLogs(config, logWorker);
 
     return;
   }

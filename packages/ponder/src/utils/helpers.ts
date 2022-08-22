@@ -20,10 +20,11 @@ const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
 
 // Find all types in the schema that were created by the user.
 const getUserDefinedTypes = (schema: GraphQLSchema) => {
-  // This assumes that any type that has an AST node will be a user-defined type.
-  // Idk if this is true or not.
+  // This assumes that any type that has an AST node that is NOT
+  // a scalar type definition will be a user-defined type.
   const userDefinedTypeArray = Object.values(schema.getTypeMap()).filter(
-    (type): type is GraphQLObjectType | GraphQLEnumType => !!type.astNode
+    (type): type is GraphQLObjectType | GraphQLEnumType =>
+      !!type.astNode && type.astNode.kind !== Kind.SCALAR_TYPE_DEFINITION
   );
 
   // Add all user-defined types to a map so we can look them up later.

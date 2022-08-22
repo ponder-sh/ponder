@@ -1,15 +1,21 @@
-import { GraphQLEnumType, GraphQLObjectType, Kind } from "graphql";
+import { Kind } from "graphql";
 
 import type { DbSchema } from "./buildDbSchema";
 import { db, getTableNames } from "./knex";
 
 type KnexColumnType = "string" | "boolean" | "integer";
 
-const gqlToKnexTypeMap: { [gqlType: string]: KnexColumnType | undefined } = {
+const gqlScalarToKnexTypeMap: {
+  [gqlType: string]: KnexColumnType | undefined;
+} = {
   ID: "integer",
   Boolean: "boolean",
   Int: "integer",
   String: "string",
+  // graph-ts scalar types
+  BigInt: "string",
+  BigDecimal: "string",
+  Bytes: "string",
 };
 
 let isInitialized = false;
@@ -41,16 +47,17 @@ const createTables = async (dbSchema: DbSchema) => {
   const createTablePromises = tables.map(async (table) => {
     await db.schema.createTable(table.name, (knexTable) => {
       // Add a column for each one specified in the table.
-      for (const column of table.columns) {
+      table.columns.forEach((column) => {
         // Handle the ID field.
         if (column.type === "ID") {
           knexTable.increments();
-          continue;
+          return;
         }
 
-        // Handle enums and relationships.
+        // Handle enums, lists, and relationships.
         const userDefinedType = dbSchema.userDefinedTypes[column.type];
         if (userDefinedType) {
+          // Handle enum types.
           if (userDefinedType.astNode?.kind == Kind.ENUM_TYPE_DEFINITION) {
             if (!userDefinedType.astNode.values) {
               throw new Error(`Values not present on GQL Enum: ${column.name}`);
@@ -60,7 +67,6 @@ const createTables = async (dbSchema: DbSchema) => {
               (v) => v.name.value
             );
 
-            // Handling enum!
             if (column.notNull) {
               knexTable.enu(column.name, enumValues).notNullable();
             } else {
@@ -68,24 +74,31 @@ const createTables = async (dbSchema: DbSchema) => {
             }
 
             return;
-          } else {
-            // Handling list!
-            throw new Error(`Unsupported GQL type: ${column.type}`);
           }
+
+          // Handle list types.
+          // else if (
+          //   userDefinedType.astNode?.kind == Kind.LIST ?????
+          // ) {
+          //   // Handling list!
+          //   throw new Error(`Unsupported GQL type: ${column.type}`);
+          // }
         }
 
         // Handle scalars.
-        const knexColumnType = gqlToKnexTypeMap[column.type];
-        if (!knexColumnType) {
-          throw new Error(`Unhandled GQL type: ${column.type}`);
+        const knexColumnType = gqlScalarToKnexTypeMap[column.type];
+        if (knexColumnType) {
+          if (column.notNull) {
+            knexTable[knexColumnType](column.name).notNullable();
+          } else {
+            knexTable[knexColumnType](column.name);
+          }
+          return;
         }
 
-        if (column.notNull) {
-          knexTable[knexColumnType](column.name).notNullable();
-        } else {
-          knexTable[knexColumnType](column.name);
-        }
-      }
+        // Throw because the type was not handled by any paths above.
+        throw new Error(`Unhandled GQL type: ${column.type}`);
+      });
 
       knexTable.timestamps();
     });
