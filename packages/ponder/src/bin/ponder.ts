@@ -15,6 +15,8 @@ const commands: { [command: string]: () => Promise<(args: unknown) => void> } =
   {
     dev: () => Promise.resolve(require("../cli/dev").dev),
     start: () => Promise.resolve(require("../cli/start").start),
+    "start-graph": () =>
+      Promise.resolve(require("../compatibility/start-graph").start),
   };
 
 if (!Object.keys(commands).includes(command)) {

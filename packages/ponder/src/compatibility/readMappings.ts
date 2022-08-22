@@ -2,21 +2,20 @@ import { build } from "esbuild";
 import path from "node:path";
 
 import { CONFIG } from "../config";
-import type { HandlerContext } from "../logs/buildLogWorker";
 import { logger } from "../utils/logger";
 import { graphTsOverridePlugin } from "./esbuildPlugin";
 import { GraphCompatPonderConfig } from "./readSubgraphYaml";
 
-type Handler = (args: unknown, context: HandlerContext) => Promise<void> | void;
+type Handler = (event: unknown) => Promise<void> | void;
 type SourceHandlers = { [eventName: string]: Handler | undefined };
-type UserHandlers = { [sourceName: string]: SourceHandlers | undefined };
+type GraphHandlers = { [sourceName: string]: SourceHandlers | undefined };
 
 const readMappings = async (
   graphCompatPonderConfig: GraphCompatPonderConfig
 ) => {
   const buildFile = path.join(CONFIG.PONDER_DIR_PATH, "handlers.js");
 
-  const handlers: UserHandlers = {};
+  const handlers: GraphHandlers = {};
 
   for (const source of graphCompatPonderConfig.sources) {
     console.log(
@@ -57,3 +56,4 @@ const readMappings = async (
 };
 
 export { readMappings };
+export type { GraphHandlers };
