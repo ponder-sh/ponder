@@ -11,7 +11,7 @@ import { readLogCache, writeLogCache } from "./logCache";
 
 type LogQueue = fastq.queueAsPromised<Log>;
 
-type LogProvider = {
+type LogGroup = {
   chainId: number;
   provider: JsonRpcProvider;
   contracts: string[];
@@ -22,7 +22,7 @@ type LogProvider = {
 const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
   // Indexing runs on a per-provider basis so we can batch eth_getLogs calls across contracts.
   const uniqueChainIds = [...new Set(config.sources.map((s) => s.chainId))];
-  const logProviders: LogProvider[] = uniqueChainIds.map((chainId) => {
+  const logGroups: LogGroup[] = uniqueChainIds.map((chainId) => {
     const provider = getProviderForChainId(config, chainId);
     const startBlock = Math.min(
       ...config.sources.map((s) => s.startBlock || 0)
@@ -44,14 +44,14 @@ const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
   const queue = fastq.promise(logWorker, 1);
   queue.pause();
 
-  for (const logProvider of logProviders) {
-    const { provider, contracts, cacheKey } = logProvider;
+  for (const logGroup of logGroups) {
+    const { provider, contracts, cacheKey } = logGroup;
 
     // Call eth_newFilter for all events emitted by the specified contracts.
-    const { filterStartBlock, filterId } = await createNewFilter(logProvider);
+    const { filterStartBlock, filterId } = await createNewFilter(logGroup);
 
     // Register a block listener that adds new logs to the queue.
-    registerBlockListener(logProvider, filterId, queue);
+    registerBlockListener(logGroup, filterId, queue);
 
     // Get cached log data for this source (may be empty/undefined).
     const cachedLogData = logCache[cacheKey];
@@ -66,7 +66,7 @@ const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
     // If there are cached logs, pick up where they leave off.
     const fromBlock = cachedLogData
       ? cachedLogData.toBlock
-      : logProvider.startBlock;
+      : logGroup.startBlock;
 
     // Get logs between the end of the cached logs and the beginning of the active filter.
     const toBlock = filterStartBlock;
@@ -96,19 +96,19 @@ const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
   }
 
   // Side effect: Now that the historical logs have been fetched
-  // for all sources, write the updated log cache to disk.
+  // for all sources, write the updated log cache to disk. Don't await.
   writeLogCache(logCache);
 
   // Combine and sort logs from all sources.
   // Filter out logs present in the cache that are not part of the current set of logs.
-  const latestRunCacheKeys = new Set(logProviders.map((p) => p.cacheKey));
+  const latestRunCacheKeys = new Set(logGroups.map((p) => p.cacheKey));
   const sortedLogsForAllSources = Object.entries(logCache)
     .filter(([cacheKey]) => latestRunCacheKeys.has(cacheKey))
     .map(([, logData]) => logData?.logs || [])
     .flat()
     .sort((a, b) => getLogIndex(a) - getLogIndex(b));
 
-  // Add sorted historical logs to the front of the queue.
+  // Add sorted historical logs to the front of the queue (in reverse order).
   for (let i = sortedLogsForAllSources.length - 1; i >= 0; i--) {
     const log = sortedLogsForAllSources[i];
     queue.unshift(log);
@@ -117,7 +117,7 @@ const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
   // Begin processing logs in the correct order.
   queue.resume();
 
-  // NOTE: Awaiting the queue to be drained allows callers to take action once
+  // NOTE: Wait the queue to be drained to allow callers to take action once
   // all historical logs have been fetched and processed (indexing is complete).
   await queue.drained();
 
@@ -126,8 +126,8 @@ const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
   };
 };
 
-const createNewFilter = async (logProvider: LogProvider) => {
-  const { provider, contracts } = logProvider;
+const createNewFilter = async (logGroup: LogGroup) => {
+  const { provider, contracts } = logGroup;
 
   const latestBlock = await provider.getBlock("latest");
   const filterStartBlock = latestBlock.number;
@@ -145,11 +145,11 @@ const createNewFilter = async (logProvider: LogProvider) => {
 const blockHandlers: { [key: string]: () => Promise<void> | undefined } = {};
 
 const registerBlockListener = (
-  logProvider: LogProvider,
+  logGroup: LogGroup,
   filterId: string,
   queue: LogQueue
 ) => {
-  const { cacheKey, provider } = logProvider;
+  const { cacheKey, provider } = logGroup;
 
   // If a block listener was already registered for this provider, remove it.
   const oldBlockHandler = blockHandlers[cacheKey];
@@ -159,7 +159,7 @@ const registerBlockListener = (
 
   // TODO: Fix suspected issue where if the user starts and then stops using a given provider/chainId
   // during hot reloading, the stale provider's listeners never get un-registered.
-  // This happens because this code only un-registers stale listeners for the current set of logProviders.
+  // This happens because this code only un-registers stale listeners for the current set of logGroups.
 
   const blockHandler = async () => {
     const logs: Log[] = await provider.send("eth_getFilterChanges", [filterId]);
