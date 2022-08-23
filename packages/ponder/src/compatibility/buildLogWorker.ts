@@ -45,7 +45,7 @@ const buildLogWorker = (
   // NOTE: This function should probably come as a standalone param.
   const worker = async (log: Log) => {
     const source = config.sources.find(
-      (source) => source.address === log.address
+      (source) => source.address.toLowerCase() === log.address.toLowerCase()
     );
     if (!source) {
       logger.warn(`Source not found for log with address: ${log.address}`);
@@ -53,7 +53,6 @@ const buildLogWorker = (
     }
 
     const parsedLog = source.abiInterface.parseLog(log);
-    const params = { ...parsedLog.args };
 
     const sourceHandlers = handlers[source.name];
     if (!sourceHandlers) {
@@ -61,19 +60,21 @@ const buildLogWorker = (
       return;
     }
 
-    const handler = sourceHandlers[parsedLog.name];
+    const handler = sourceHandlers[parsedLog.signature];
     if (!handler) {
       logger.warn(
-        `Handler not found for event: ${source.name}-${parsedLog.name}`
+        `Handler not found for event: ${source.name}-${parsedLog.signature}`
       );
       return;
     }
 
     const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
-    logger.debug(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
+    logger.debug(
+      `Processing ${parsedLog.signature} from block ${logBlockNumber}`
+    );
 
     // TOOD: Add more shit to the event here?
-    const event = { ...parsedLog, params: params };
+    const event = { ...parsedLog, params: parsedLog.args };
 
     // YAY: We're running user code here!
     await handler(event);
