@@ -6,8 +6,8 @@ import { JSONValue } from './value'
 export declare namespace json {
   function fromBytes(data: Bytes): JSONValue
   function try_fromBytes(data: Bytes): Result<JSONValue, boolean>
-  function toI64(decimal: string): i64
-  function toU64(decimal: string): u64
+  function toI64(decimal: string): bigint
+  function toU64(decimal: string): bigint
   function toF64(decimal: string): f64
   function toBigInt(decimal: string): bigint
 }

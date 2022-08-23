@@ -28,7 +28,7 @@ export namespace ethereum {
    *
    * Big enough to fit any pointer or native `this.data`.
    */
-  export type ValuePayload = u64
+  export type ValuePayload = bigint
 
   /**
    * A dynamically typed value used when accessing Ethereum data.
@@ -48,7 +48,7 @@ export namespace ethereum {
 
     toAddress(): Address {
       assert(this.kind == ValueKind.ADDRESS, 'Ethereum value is not an address')
-      return changetype<Address>(this.data as u32)
+      return this.data as number
     }
 
     toBoolean(): boolean {
@@ -61,15 +61,15 @@ export namespace ethereum {
         this.kind == ValueKind.FIXED_BYTES || this.kind == ValueKind.BYTES,
         'Ethereum value is not bytes.',
       )
-      return changetype<Bytes>(this.data as u32)
+      return this.data as number
     }
 
-    toI32(): i32 {
+    toI32(): number {
       assert(
         this.kind == ValueKind.INT || this.kind == ValueKind.UINT,
         'Ethereum value is not an int or uint.',
       )
-      const bigInt = changetype<bigint>(this.data as u32)
+      const bigInt = this.data as number
       return bigInt.toI32()
     }
 
@@ -78,12 +78,12 @@ export namespace ethereum {
         this.kind == ValueKind.INT || this.kind == ValueKind.UINT,
         'Ethereum value is not an int or uint.',
       )
-      return changetype<bigint>(this.data as u32)
+      return this.data as number
     }
 
     toString(): string {
       assert(this.kind == ValueKind.STRING, 'Ethereum value is not a string.')
-      return changetype<string>(this.data as u32)
+      return this.data as number
     }
 
     toArray(): Array<Value> {
@@ -91,12 +91,12 @@ export namespace ethereum {
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array.',
       )
-      return changetype<Array<Value>>(this.data as u32)
+      return this.data as number
     }
 
     toTuple(): Tuple {
       assert(this.kind == ValueKind.TUPLE, 'Ethereum value is not a tuple.')
-      return changetype<Tuple>(this.data as u32)
+      return this.data as number
     }
 
     toTupleArray<T extends Tuple>(): Array<T> {
@@ -106,8 +106,8 @@ export namespace ethereum {
       )
       const valueArray = this.toArray()
       const out = new Array<T>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
-        out[i] = changetype<T>(valueArray[i].toTuple())
+      for (let i = 0; i < valueArray.length; i++) {
+        out[i] = valueArray[i].toTuple()
       }
       return out
     }
@@ -119,7 +119,7 @@ export namespace ethereum {
       )
       const valueArray = this.toArray()
       const out = new Array<boolean>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
+      for (let i = 0; i < valueArray.length; i++) {
         out[i] = valueArray[i].toBoolean()
       }
       return out
@@ -132,7 +132,7 @@ export namespace ethereum {
       )
       const valueArray = this.toArray()
       const out = new Array<Bytes>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
+      for (let i = 0; i < valueArray.length; i++) {
         out[i] = valueArray[i].toBytes()
       }
       return out
@@ -145,7 +145,7 @@ export namespace ethereum {
       )
       const valueArray = this.toArray()
       const out = new Array<Address>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
+      for (let i = 0; i < valueArray.length; i++) {
         out[i] = valueArray[i].toAddress()
       }
       return out
@@ -158,20 +158,20 @@ export namespace ethereum {
       )
       const valueArray = this.toArray()
       const out = new Array<string>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
+      for (let i = 0; i < valueArray.length; i++) {
         out[i] = valueArray[i].toString()
       }
       return out
     }
 
-    toI32Array(): Array<i32> {
+    toI32Array(): Array<number> {
       assert(
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array or fixed array.',
       )
       const valueArray = this.toArray()
-      const out = new Array<i32>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
+      const out = new Array<number>(valueArray.length)
+      for (let i = 0; i < valueArray.length; i++) {
         out[i] = valueArray[i].toI32()
       }
       return out
@@ -184,7 +184,7 @@ export namespace ethereum {
       )
       const valueArray = this.toArray()
       const out = new Array<bigint>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
+      for (let i = 0; i < valueArray.length; i++) {
         out[i] = valueArray[i].toBigInt()
       }
       return out
@@ -192,7 +192,7 @@ export namespace ethereum {
 
     static fromAddress(address: Address): Value {
       assert(address.length == 20, 'Address must contain exactly 20 bytes')
-      return new Value(ValueKind.ADDRESS, changetype<u32>(address))
+      return new Value(ValueKind.ADDRESS, address)
     }
 
     static fromBoolean(b: boolean): Value {
@@ -200,44 +200,44 @@ export namespace ethereum {
     }
 
     static fromBytes(bytes: Bytes): Value {
-      return new Value(ValueKind.BYTES, changetype<u32>(bytes))
+      return new Value(ValueKind.BYTES, bytes)
     }
 
     static fromFixedBytes(bytes: Bytes): Value {
-      return new Value(ValueKind.FIXED_BYTES, changetype<u32>(bytes))
+      return new Value(ValueKind.FIXED_BYTES, bytes)
     }
 
-    static fromI32(i: i32): Value {
-      return new Value(ValueKind.INT, changetype<u32>(BigInt.fromI32(i)))
+    static fromI32(i: number): Value {
+      return new Value(ValueKind.INT, BigInt.fromI32(i))
     }
 
     static fromSignedBigInt(i: bigint): Value {
-      return new Value(ValueKind.INT, changetype<u32>(i))
+      return new Value(ValueKind.INT, i)
     }
 
     static fromUnsignedBigInt(i: bigint): Value {
-      return new Value(ValueKind.UINT, changetype<u32>(i))
+      return new Value(ValueKind.UINT, i)
     }
 
     static fromString(s: string): Value {
-      return new Value(ValueKind.STRING, changetype<u32>(s))
+      return new Value(ValueKind.STRING, s)
     }
 
     static fromArray(values: Array<Value>): Value {
-      return new Value(ValueKind.ARRAY, changetype<u32>(values))
+      return new Value(ValueKind.ARRAY, values)
     }
 
     static fromFixedSizedArray(values: Array<Value>): Value {
-      return new Value(ValueKind.FIXED_ARRAY, changetype<u32>(values))
+      return new Value(ValueKind.FIXED_ARRAY, values)
     }
 
     static fromTuple(values: Tuple): Value {
-      return new Value(ValueKind.TUPLE, changetype<u32>(values))
+      return new Value(ValueKind.TUPLE, values)
     }
 
     static fromTupleArray(values: Array<Tuple>): Value {
       const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
+      for (let i = 0; i < values.length; i++) {
         out[i] = Value.fromTuple(values[i])
       }
       return Value.fromArray(out)
@@ -245,7 +245,7 @@ export namespace ethereum {
 
     static fromBooleanArray(values: Array<boolean>): Value {
       const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
+      for (let i = 0; i < values.length; i++) {
         out[i] = Value.fromBoolean(values[i])
       }
       return Value.fromArray(out)
@@ -253,7 +253,7 @@ export namespace ethereum {
 
     static fromBytesArray(values: Array<Bytes>): Value {
       const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
+      for (let i = 0; i < values.length; i++) {
         out[i] = Value.fromBytes(values[i])
       }
       return Value.fromArray(out)
@@ -261,7 +261,7 @@ export namespace ethereum {
 
     static fromFixedBytesArray(values: Array<Bytes>): Value {
       const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
+      for (let i = 0; i < values.length; i++) {
         out[i] = Value.fromFixedBytes(values[i])
       }
       return Value.fromArray(out)
@@ -269,7 +269,7 @@ export namespace ethereum {
 
     static fromAddressArray(values: Array<Address>): Value {
       const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
+      for (let i = 0; i < values.length; i++) {
         out[i] = Value.fromAddress(values[i])
       }
       return Value.fromArray(out)
@@ -277,15 +277,15 @@ export namespace ethereum {
 
     static fromStringArray(values: Array<string>): Value {
       const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
+      for (let i = 0; i < values.length; i++) {
         out[i] = Value.fromString(values[i])
       }
       return Value.fromArray(out)
     }
 
-    static fromI32Array(values: Array<i32>): Value {
+    static fromI32Array(values: Array<number>): Value {
       const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
+      for (let i = 0; i < values.length; i++) {
         out[i] = Value.fromI32(values[i])
       }
       return Value.fromArray(out)
@@ -293,7 +293,7 @@ export namespace ethereum {
 
     static fromSignedBigIntArray(values: Array<bigint>): Value {
       const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
+      for (let i = 0; i < values.length; i++) {
         out[i] = Value.fromSignedBigInt(values[i])
       }
       return Value.fromArray(out)
@@ -301,7 +301,7 @@ export namespace ethereum {
 
     static fromUnsignedBigIntArray(values: Array<bigint>): Value {
       const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
+      for (let i = 0; i < values.length; i++) {
         out[i] = Value.fromUnsignedBigInt(values[i])
       }
       return Value.fromArray(out)
@@ -482,7 +482,7 @@ export namespace ethereum {
           name +
           '` to handle this in the mapping.',
       )
-      return changetype<Array<Value>>(result)
+      return result
     }
 
     tryCall(
@@ -501,7 +501,7 @@ export namespace ethereum {
       if (result == null) {
         return new CallResult()
       } else {
-        return CallResult.fromValue(changetype<Array<Value>>(result))
+        return CallResult.fromValue(result)
       }
     }
   }
@@ -530,7 +530,7 @@ export namespace ethereum {
         'accessed value of a reverted call, ' +
           'please check the `reverted` field before accessing the `value` field',
       )
-      return changetype<Wrapped<T>>(this._value).inner
+      return this._value.inner
     }
   }
 }

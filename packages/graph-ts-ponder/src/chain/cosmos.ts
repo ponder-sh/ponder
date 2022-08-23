@@ -29,7 +29,7 @@ export namespace cosmos {
     constructor(
       public version: Consensus,
       public chainId: string,
-      public height: u64,
+      public height: bigint,
       public time: Timestamp,
       public lastBlockId: BlockID,
       public lastCommitHash: Bytes,
@@ -46,11 +46,11 @@ export namespace cosmos {
   }
 
   export class Consensus {
-    constructor(public block: u64, public app: u64) {}
+    constructor(public block: bigint, public app: bigint) {}
   }
 
   export class Timestamp {
-    constructor(public seconds: i64, public nanos: i32) {}
+    constructor(public seconds: bigint, public nanos: number) {}
   }
 
   export class BlockID {
@@ -58,7 +58,7 @@ export namespace cosmos {
   }
 
   export class PartSetHeader {
-    constructor(public total: u32, public hash: Bytes) {}
+    constructor(public total: number, public hash: Bytes) {}
   }
 
   export class EvidenceList {
@@ -76,8 +76,8 @@ export namespace cosmos {
     constructor(
       public voteA: EventVote,
       public voteB: EventVote,
-      public totalVotingPower: i64,
-      public validatorPower: i64,
+      public totalVotingPower: bigint,
+      public validatorPower: bigint,
       public timestamp: Timestamp,
     ) {}
   }
@@ -85,12 +85,12 @@ export namespace cosmos {
   export class EventVote {
     constructor(
       public eventVoteType: SignedMsgType,
-      public height: u64,
-      public round: i32,
+      public height: bigint,
+      public round: number,
       public blockId: BlockID,
       public timestamp: Timestamp,
       public validatorAddress: Bytes,
-      public validatorIndex: i32,
+      public validatorIndex: number,
       public signature: Bytes,
     ) {}
   }
@@ -105,9 +105,9 @@ export namespace cosmos {
   export class LightClientAttackEvidence {
     constructor(
       public conflictingBlock: LightBlock,
-      public commonHeight: i64,
+      public commonHeight: bigint,
       public byzantineValidators: Array<Validator>,
-      public totalVotingPower: i64,
+      public totalVotingPower: bigint,
       public timestamp: Timestamp,
     ) {}
   }
@@ -122,8 +122,8 @@ export namespace cosmos {
 
   export class Commit {
     constructor(
-      public height: i64,
-      public round: i32,
+      public height: bigint,
+      public round: number,
       public blockId: BlockID,
       public signatures: Array<CommitSig>,
     ) {}
@@ -149,7 +149,7 @@ export namespace cosmos {
     constructor(
       public validators: Array<Validator>,
       public proposer: Validator,
-      public totalVotingPower: i64,
+      public totalVotingPower: bigint,
     ) {}
   }
 
@@ -157,8 +157,8 @@ export namespace cosmos {
     constructor(
       public address: Bytes,
       public pubKey: PublicKey,
-      public votingPower: i64,
-      public proposerPriority: i64,
+      public votingPower: bigint,
+      public proposerPriority: bigint,
     ) {}
   }
 
@@ -201,7 +201,7 @@ export namespace cosmos {
   }
 
   export class ValidatorUpdate {
-    constructor(public address: Bytes, public pubKey: PublicKey, public power: i64) {}
+    constructor(public address: Bytes, public pubKey: PublicKey, public power: bigint) {}
   }
 
   export class ConsensusParams {
@@ -214,19 +214,19 @@ export namespace cosmos {
   }
 
   export class BlockParams {
-    constructor(public maxBytes: i64, public maxGas: i64) {}
+    constructor(public maxBytes: bigint, public maxGas: bigint) {}
   }
 
   export class EvidenceParams {
     constructor(
-      public maxAgeNumBlocks: i64,
+      public maxAgeNumBlocks: bigint,
       public maxAgeDuration: Duration,
-      public maxBytes: i64,
+      public maxBytes: bigint,
     ) {}
   }
 
   export class Duration {
-    constructor(public seconds: i64, public nanos: i32) {}
+    constructor(public seconds: bigint, public nanos: number) {}
   }
 
   export class ValidatorParams {
@@ -234,13 +234,13 @@ export namespace cosmos {
   }
 
   export class VersionParams {
-    constructor(public appVersion: u64) {}
+    constructor(public appVersion: bigint) {}
   }
 
   export class TxResult {
     constructor(
-      public height: u64,
-      public index: u32,
+      public height: bigint,
+      public index: number,
       public tx: Tx,
       public result: ResponseDeliverTx,
       public hash: Bytes,
@@ -259,7 +259,7 @@ export namespace cosmos {
     constructor(
       public messages: Array<Any>,
       public memo: string,
-      public timeoutHeight: u64,
+      public timeoutHeight: bigint,
       public extensionOptions: Array<Any>,
       public nonCriticalExtensionOptions: Array<Any>,
     ) {}
@@ -278,7 +278,11 @@ export namespace cosmos {
   }
 
   export class SignerInfo {
-    constructor(public publicKey: Any, public modeInfo: ModeInfo, public sequence: u64) {}
+    constructor(
+      public publicKey: Any,
+      public modeInfo: ModeInfo,
+      public sequence: bigint,
+    ) {}
   }
 
   export class ModeInfo {
@@ -301,13 +305,13 @@ export namespace cosmos {
   }
 
   export class CompactBitArray {
-    constructor(public extraBitsStored: u32, public elems: Bytes) {}
+    constructor(public extraBitsStored: number, public elems: Bytes) {}
   }
 
   export class Fee {
     constructor(
       public amount: Array<Coin>,
-      public gasLimit: u64,
+      public gasLimit: bigint,
       public payer: string,
       public granter: string,
     ) {}
@@ -323,12 +327,12 @@ export namespace cosmos {
 
   export class ResponseDeliverTx {
     constructor(
-      public code: u32,
+      public code: number,
       public data: Bytes,
       public log: string,
       public info: string,
-      public gasWanted: i64,
-      public gasUsed: i64,
+      public gasWanted: bigint,
+      public gasUsed: bigint,
       public events: Array<Event>,
       public codespace: string,
     ) {}

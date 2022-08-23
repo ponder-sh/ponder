@@ -8,19 +8,19 @@ export namespace near {
 
   export type Account = string
 
-  export type BlockHeight = u64
+  export type BlockHeight = bigint
 
   export type Balance = bigint
 
-  export type Gas = u64
+  export type Gas = bigint
 
-  export type ShardId = u64
+  export type ShardId = bigint
 
-  export type NumBlocks = u64
+  export type NumBlocks = bigint
 
-  export type ProtocolVersion = u32
+  export type ProtocolVersion = number
 
-  export type Payload = u64
+  export type Payload = bigint
 
   export enum CurveKind {
     ED25519 = 0,
@@ -58,7 +58,7 @@ export namespace near {
         this.kind == AccessKeyPermissionKind.FUNCTION_CALL,
         "AccessKeyPermissionValue is not a 'FunctionCall'.",
       )
-      return changetype<FunctionCallPermission>(this.data as u32)
+      return this.data as number
     }
 
     toFullAccess(): FullAccessPermission {
@@ -66,26 +66,20 @@ export namespace near {
         this.kind == AccessKeyPermissionKind.FULL_ACCESS,
         "AccessKeyPermissionValue is not a 'FullAccess'.",
       )
-      return changetype<FullAccessPermission>(this.data as u32)
+      return this.data as number
     }
 
     static fromFunctionCall(input: FunctionCallPermission): AccessKeyPermissionValue {
-      return new AccessKeyPermissionValue(
-        AccessKeyPermissionKind.FUNCTION_CALL,
-        changetype<u32>(input),
-      )
+      return new AccessKeyPermissionValue(AccessKeyPermissionKind.FUNCTION_CALL, input)
     }
 
     static fromFullAccess(input: FullAccessPermission): AccessKeyPermissionValue {
-      return new AccessKeyPermissionValue(
-        AccessKeyPermissionKind.FULL_ACCESS,
-        changetype<u32>(input),
-      )
+      return new AccessKeyPermissionValue(AccessKeyPermissionKind.FULL_ACCESS, input)
     }
   }
 
   export class AccessKey {
-    constructor(public nonce: u64, public permission: AccessKeyPermissionValue) {}
+    constructor(public nonce: bigint, public permission: AccessKeyPermissionValue) {}
   }
 
   export class DataReceiver {
@@ -113,7 +107,7 @@ export namespace near {
     constructor(
       public methodName: string,
       public args: Bytes,
-      public gas: u64,
+      public gas: bigint,
       public deposit: bigint,
     ) {}
   }
@@ -146,7 +140,7 @@ export namespace near {
         this.kind == ActionKind.CREATE_ACCOUNT,
         "ActionValue is not a 'CreateAccount'.",
       )
-      return changetype<CreateAccountAction>(this.data as u32)
+      return this.data as number
     }
 
     toDeployContract(): DeployContractAction {
@@ -154,7 +148,7 @@ export namespace near {
         this.kind == ActionKind.DEPLOY_CONTRACT,
         "ActionValue is not a 'DeployContract'.",
       )
-      return changetype<DeployContractAction>(this.data as u32)
+      return this.data as number
     }
 
     toFunctionCall(): FunctionCallAction {
@@ -162,27 +156,27 @@ export namespace near {
         this.kind == ActionKind.FUNCTION_CALL,
         "ActionValue is not a 'FunctionCall'.",
       )
-      return changetype<FunctionCallAction>(this.data as u32)
+      return this.data as number
     }
 
     toTransfer(): TransferAction {
       assert(this.kind == ActionKind.TRANSFER, "ActionValue is not a 'Transfer'.")
-      return changetype<TransferAction>(this.data as u32)
+      return this.data as number
     }
 
     toStake(): StakeAction {
       assert(this.kind == ActionKind.STAKE, "ActionValue is not a 'Stake'.")
-      return changetype<StakeAction>(this.data as u32)
+      return this.data as number
     }
 
     toAddKey(): AddKeyAction {
       assert(this.kind == ActionKind.ADD_KEY, "ActionValue is not a 'AddKey'.")
-      return changetype<AddKeyAction>(this.data as u32)
+      return this.data as number
     }
 
     toDeleteKey(): DeleteKeyAction {
       assert(this.kind == ActionKind.DELETE_KEY, "ActionValue is not a 'DeleteKey'.")
-      return changetype<DeleteKeyAction>(this.data as u32)
+      return this.data as number
     }
 
     toDeleteAccount(): DeleteAccountAction {
@@ -190,39 +184,39 @@ export namespace near {
         this.kind == ActionKind.DELETE_ACCOUNT,
         "ActionValue is not a 'DeleteAccount'.",
       )
-      return changetype<DeleteAccountAction>(this.data as u32)
+      return this.data as number
     }
 
     static fromCreateAccount(input: CreateAccountAction): ActionValue {
-      return new ActionValue(ActionKind.CREATE_ACCOUNT, changetype<u32>(input))
+      return new ActionValue(ActionKind.CREATE_ACCOUNT, input)
     }
 
     static fromDeployContract(input: DeployContractAction): ActionValue {
-      return new ActionValue(ActionKind.DEPLOY_CONTRACT, changetype<u32>(input))
+      return new ActionValue(ActionKind.DEPLOY_CONTRACT, input)
     }
 
     static fromFunctionCall(input: FunctionCallAction): ActionValue {
-      return new ActionValue(ActionKind.FUNCTION_CALL, changetype<u32>(input))
+      return new ActionValue(ActionKind.FUNCTION_CALL, input)
     }
 
     static fromTransfer(input: TransferAction): ActionValue {
-      return new ActionValue(ActionKind.TRANSFER, changetype<u32>(input))
+      return new ActionValue(ActionKind.TRANSFER, input)
     }
 
     static fromStake(input: StakeAction): ActionValue {
-      return new ActionValue(ActionKind.STAKE, changetype<u32>(input))
+      return new ActionValue(ActionKind.STAKE, input)
     }
 
     static fromAddKey(input: AddKeyAction): ActionValue {
-      return new ActionValue(ActionKind.ADD_KEY, changetype<u32>(input))
+      return new ActionValue(ActionKind.ADD_KEY, input)
     }
 
     static fromDeleteKey(input: DeleteKeyAction): ActionValue {
-      return new ActionValue(ActionKind.DELETE_KEY, changetype<u32>(input))
+      return new ActionValue(ActionKind.DELETE_KEY, input)
     }
 
     static fromDeleteAccount(input: DeleteAccountAction): ActionValue {
-      return new ActionValue(ActionKind.DELETE_ACCOUNT, changetype<u32>(input))
+      return new ActionValue(ActionKind.DELETE_ACCOUNT, input)
     }
   }
 
@@ -256,7 +250,7 @@ export namespace near {
 
     toValue(): Bytes {
       assert(this.kind == SuccessStatusKind.VALUE, "SuccessStatus is not a 'Value'.")
-      return changetype<Bytes>(this.data as u32)
+      return this.data as number
     }
 
     toReceiptId(): CryptoHash {
@@ -264,15 +258,15 @@ export namespace near {
         this.kind == SuccessStatusKind.RECEIPT_ID,
         "SuccessStatus is not a 'ReceiptId'.",
       )
-      return changetype<CryptoHash>(this.data as u32)
+      return this.data as number
     }
 
     static fromValue(input: Bytes): SuccessStatus {
-      return new SuccessStatus(SuccessStatusKind.VALUE, changetype<u32>(input))
+      return new SuccessStatus(SuccessStatusKind.VALUE, input)
     }
 
     static fromReceiptId(input: CryptoHash): SuccessStatus {
-      return new SuccessStatus(SuccessStatusKind.RECEIPT_ID, changetype<u32>(input))
+      return new SuccessStatus(SuccessStatusKind.RECEIPT_ID, input)
     }
   }
 
@@ -303,7 +297,7 @@ export namespace near {
 
   export class ExecutionOutcome {
     constructor(
-      public gasBurnt: u64,
+      public gasBurnt: bigint,
       public proof: MerklePath,
       public blockHash: CryptoHash,
       public id: CryptoHash,
@@ -326,10 +320,10 @@ export namespace near {
       public blockOrdinal: NumBlocks, // Always zero when version < V3
       public epochId: CryptoHash,
       public nextEpochId: CryptoHash,
-      public chunksIncluded: u64,
+      public chunksIncluded: bigint,
       public hash: CryptoHash,
       public prevHash: CryptoHash,
-      public timestampNanosec: u64,
+      public timestampNanosec: bigint,
       public prevStateRoot: CryptoHash,
       public chunkReceiptsRoot: CryptoHash,
       public chunkHeadersRoot: CryptoHash,
@@ -363,7 +357,7 @@ export namespace near {
 
   export class ChunkHeader {
     constructor(
-      public encodedLength: u64,
+      public encodedLength: bigint,
       public gasUsed: Gas,
       public gasLimit: Gas,
       public shardId: ShardId,

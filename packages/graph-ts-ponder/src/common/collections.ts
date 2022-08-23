@@ -1,3 +1,4 @@
+import { assert } from '../helper-functions'
 import { typeConversion } from './conversion'
 import { Address, BigDecimal, BigInt } from './numbers'
 import { Value } from './value'
@@ -9,7 +10,7 @@ export class ByteArray extends Uint8Array {
   /**
    * Returns bytes in little-endian order.
    */
-  static fromI32(x: i32): ByteArray {
+  static fromI32(x: number): ByteArray {
     const self = new ByteArray(4)
     self[0] = x as u8
     self[1] = (x >> 8) as u8
@@ -21,7 +22,7 @@ export class ByteArray extends Uint8Array {
   /**
    * Returns bytes in little-endian order.
    */
-  static fromU32(x: u32): ByteArray {
+  static fromU32(x: number): ByteArray {
     const self = new ByteArray(4)
     self[0] = x as u8
     self[1] = (x >> 8) as u8
@@ -33,7 +34,7 @@ export class ByteArray extends Uint8Array {
   /**
    * Returns bytes in little-endian order.
    */
-  static fromI64(x: i64): ByteArray {
+  static fromI64(x: bigint): ByteArray {
     const self = new ByteArray(8)
     self[0] = x as u8
     self[1] = (x >> 8) as u8
@@ -49,7 +50,7 @@ export class ByteArray extends Uint8Array {
   /**
    * Returns bytes in little-endian order.
    */
-  static fromU64(x: u64): ByteArray {
+  static fromU64(x: bigint): ByteArray {
     const self = new ByteArray(8)
     self[0] = x as u8
     self[1] = (x >> 8) as u8
@@ -79,18 +80,18 @@ export class ByteArray extends Uint8Array {
     }
     const output = new Bytes(hex.length / 2)
     for (let i = 0; i < hex.length; i += 2) {
-      output[i / 2] = I8.parseInt(hex.substr(i, 2), 16)
+      output[i / 2] = parseInt(hex.substr(i, 2), 16)
     }
     return output
   }
 
   static fromUTF8(str: string): ByteArray {
     const utf8 = String.UTF8.encode(str)
-    return changetype<ByteArray>(ByteArray.wrap(utf8))
+    return ByteArray.wrap(utf8)
   }
 
   static fromBigInt(bigInt: bigint): ByteArray {
-    return changetype<ByteArray>(bigInt)
+    return bigInt
   }
 
   toHex(): string {
@@ -114,10 +115,10 @@ export class ByteArray extends Uint8Array {
    * Throws in case of overflow.
    */
 
-  toU32(): u32 {
+  toU32(): number {
     for (let i = 4; i < this.length; i++) {
       if (this[i] != 0) {
-        assert(false, 'overflow converting ' + this.toHexString() + ' to u32')
+        assert(false, 'overflow converting ' + this.toHexString() + ' to number')
       }
     }
     const paddedBytes = new Bytes(4)
@@ -129,7 +130,7 @@ export class ByteArray extends Uint8Array {
     for (let i = 0; i < minLen; i++) {
       paddedBytes[i] = this[i]
     }
-    let x: u32 = 0
+    let x = 0
     x = (x | paddedBytes[3]) << 8
     x = (x | paddedBytes[2]) << 8
     x = (x | paddedBytes[1]) << 8
@@ -142,12 +143,12 @@ export class ByteArray extends Uint8Array {
    * Throws in case of overflow.
    */
 
-  toI32(): i32 {
+  toI32(): number {
     const isNeg = this.length > 0 && this[this.length - 1] >> 7 == 1
     const padding = isNeg ? 255 : 0
     for (let i = 4; i < this.length; i++) {
       if (this[i] != padding) {
-        assert(false, 'overflow converting ' + this.toHexString() + ' to i32')
+        assert(false, 'overflow converting ' + this.toHexString() + ' to number')
       }
     }
     const paddedBytes = new Bytes(4)
@@ -159,7 +160,7 @@ export class ByteArray extends Uint8Array {
     for (let i = 0; i < minLen; i++) {
       paddedBytes[i] = this[i]
     }
-    let x: i32 = 0
+    let x = 0
     x = (x | paddedBytes[3]) << 8
     x = (x | paddedBytes[2]) << 8
     x = (x | paddedBytes[1]) << 8
@@ -178,7 +179,7 @@ export class ByteArray extends Uint8Array {
 
   /** Create a new `ByteArray` that consists of `this` directly followed by
    * the representation of `other` as bytes */
-  concatI32(other: i32): ByteArray {
+  concatI32(other: number): ByteArray {
     return this.concat(ByteArray.fromI32(other))
   }
 
@@ -187,12 +188,12 @@ export class ByteArray extends Uint8Array {
    * Throws in case of overflow.
    */
 
-  toI64(): i64 {
+  toI64(): bigint {
     const isNeg = this.length > 0 && this[this.length - 1] >> 7 == 1
     const padding = isNeg ? 255 : 0
     for (let i = 8; i < this.length; i++) {
       if (this[i] != padding) {
-        assert(false, 'overflow converting ' + this.toHexString() + ' to i64')
+        assert(false, 'overflow converting ' + this.toHexString() + ' to bigint')
       }
     }
     const paddedBytes = new Bytes(8)
@@ -208,7 +209,7 @@ export class ByteArray extends Uint8Array {
     for (let i = 0; i < minLen; i++) {
       paddedBytes[i] = this[i]
     }
-    let x: i64 = 0
+    let x: bigint = 0
     x = (x | paddedBytes[7]) << 8
     x = (x | paddedBytes[6]) << 8
     x = (x | paddedBytes[5]) << 8
@@ -225,10 +226,10 @@ export class ByteArray extends Uint8Array {
    * Throws in case of overflow.
    */
 
-  toU64(): u64 {
+  toU64(): bigint {
     for (let i = 8; i < this.length; i++) {
       if (this[i] != 0) {
-        assert(false, 'overflow converting ' + this.toHexString() + ' to u64')
+        assert(false, 'overflow converting ' + this.toHexString() + ' to bigint')
       }
     }
     const paddedBytes = new Bytes(8)
@@ -244,7 +245,7 @@ export class ByteArray extends Uint8Array {
     for (let i = 0; i < minLen; i++) {
       paddedBytes[i] = this[i]
     }
-    let x: u64 = 0
+    let x: bigint = 0
     x = (x | paddedBytes[7]) << 8
     x = (x | paddedBytes[6]) << 8
     x = (x | paddedBytes[5]) << 8
@@ -276,11 +277,11 @@ export class ByteArray extends Uint8Array {
 /** A dynamically-sized byte array. */
 export class Bytes extends ByteArray {
   static fromByteArray(byteArray: ByteArray): Bytes {
-    return changetype<Bytes>(byteArray)
+    return byteArray
   }
 
   static fromUint8Array(uint8Array: Uint8Array): Bytes {
-    return changetype<Bytes>(uint8Array)
+    return uint8Array
   }
 
   /**
@@ -289,27 +290,27 @@ export class Bytes extends ByteArray {
    * start with '0x'
    */
   static fromHexString(str: string): Bytes {
-    return changetype<Bytes>(ByteArray.fromHexString(str))
+    return ByteArray.fromHexString(str)
   }
 
   static fromUTF8(str: string): Bytes {
     return Bytes.fromByteArray(ByteArray.fromUTF8(str))
   }
 
-  static fromI32(i: i32): Bytes {
-    return changetype<Bytes>(ByteArray.fromI32(i))
+  static fromI32(i: number): Bytes {
+    return ByteArray.fromI32(i)
   }
 
   static empty(): Bytes {
-    return changetype<Bytes>(ByteArray.empty())
+    return ByteArray.empty()
   }
 
   concat(other: Bytes): Bytes {
-    return changetype<Bytes>(super.concat(other))
+    return super.concat(other)
   }
 
-  concatI32(other: i32): Bytes {
-    return changetype<Bytes>(super.concat(ByteArray.fromI32(other)))
+  concatI32(other: number): Bytes {
+    return super.concat(ByteArray.fromI32(other))
   }
 }
 
@@ -346,7 +347,7 @@ export class TypedMap<K, V> {
   }
 
   getEntry(key: K): TypedMapEntry<K, V> | null {
-    for (let i: i32 = 0; i < this.entries.length; i++) {
+    for (let i = 0; i < this.entries.length; i++) {
       if (this.entries[i].key == key) {
         return this.entries[i]
       }
@@ -361,7 +362,7 @@ export class TypedMap<K, V> {
   }
 
   get(key: K): V | null {
-    for (let i: i32 = 0; i < this.entries.length; i++) {
+    for (let i = 0; i < this.entries.length; i++) {
       if (this.entries[i].key == key) {
         return this.entries[i].value
       }
@@ -376,7 +377,7 @@ export class TypedMap<K, V> {
   }
 
   isSet(key: K): bool {
-    for (let i: i32 = 0; i < this.entries.length; i++) {
+    for (let i = 0; i < this.entries.length; i++) {
       if (this.entries[i].key == key) {
         return true
       }
@@ -411,7 +412,7 @@ export class Entity extends TypedMap<string, Value> {
     this.set(key, Value.fromString(value))
   }
 
-  setI32(key: string, value: i32): void {
+  setI32(key: string, value: number): void {
     this.set(key, Value.fromI32(value))
   }
 
@@ -435,7 +436,7 @@ export class Entity extends TypedMap<string, Value> {
     return this.get(key)!.toString()
   }
 
-  getI32(key: string): i32 {
+  getI32(key: string): number {
     return this.get(key)!.toI32()
   }
 
@@ -473,12 +474,12 @@ export class Result<V, E> {
 
   get value(): V {
     assert(this._value != null, 'Trying to get a value from an error result')
-    return changetype<Wrapped<V>>(this._value).inner
+    return this._value.inner
   }
 
   get error(): E {
     assert(this._error != null, 'Trying to get an error from a successful result')
-    return changetype<Wrapped<E>>(this._error).inner
+    return this._error.inner
   }
 }
 

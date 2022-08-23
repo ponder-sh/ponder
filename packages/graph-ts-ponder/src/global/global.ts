@@ -238,7 +238,7 @@ export enum TypeId {
   // Reserved discriminant space for a future blockchain type IDs: [3,500, 4,499]
 }
 
-export function id_of_type(typeId: TypeId): usize {
+export function id_of_type(typeId: TypeId): bigint {
   switch (typeId) {
     case TypeId.String:
       return idof<string>()
@@ -327,17 +327,17 @@ export function id_of_type(typeId: TypeId): usize {
     case TypeId.ArrayU16:
       return idof<Array<u16>>()
     case TypeId.ArrayU32:
-      return idof<Array<u32>>()
+      return idof<Array<number>>()
     case TypeId.ArrayU64:
-      return idof<Array<u64>>()
+      return idof<Array<bigint>>()
     case TypeId.ArrayI8:
       return idof<Array<i8>>()
     case TypeId.ArrayI16:
       return idof<Array<i16>>()
     case TypeId.ArrayI32:
-      return idof<Array<i32>>()
+      return idof<Array<number>>()
     case TypeId.ArrayI64:
-      return idof<Array<i64>>()
+      return idof<Array<bigint>>()
     case TypeId.ArrayF32:
       return idof<Array<f32>>()
     case TypeId.ArrayF64:
@@ -569,7 +569,6 @@ export function id_of_type(typeId: TypeId): usize {
   }
 }
 
-export function allocate(size: usize): usize {
-  // @ts-ignore We do not want to expose __alloc, hence why we just ignore the error
+export function allocate(size: bigint): bigint {
   return size
 }

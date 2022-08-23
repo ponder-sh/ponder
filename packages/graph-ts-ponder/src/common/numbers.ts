@@ -1,3 +1,4 @@
+import { assert } from '../helper-functions'
 import { ByteArray, Bytes } from './collections'
 import { typeConversion } from './conversion'
 
@@ -31,7 +32,7 @@ export declare namespace bigDecimal {
 /** An Ethereum address (20 bytes). */
 export class Address extends Bytes {
   static fromString(s: string): Address {
-    return changetype<Address>(typeConversion.stringToH160(s))
+    return typeConversion.stringToH160(s)
   }
 
   /** Convert `Bytes` that must be exactly 20 bytes long to an address.
@@ -42,7 +43,7 @@ export class Address extends Bytes {
         `Bytes of length ${b.length} can not be converted to 20 byte addresses`,
       )
     }
-    return changetype<Address>(b)
+    return b
   }
 
   static zero(): Address {
@@ -52,28 +53,28 @@ export class Address extends Bytes {
       self[i] = 0
     }
 
-    return changetype<Address>(self)
+    return self
   }
 }
 
 /** An arbitrary size integer represented as an array of bytes. */
 export class BigInt extends Uint8Array {
-  static fromI32(x: i32): bigint {
+  static fromI32(x: number): bigint {
     const byteArray = ByteArray.fromI32(x)
     return BigInt.fromByteArray(byteArray)
   }
 
-  static fromU32(x: u32): bigint {
+  static fromU32(x: number): bigint {
     const byteArray = ByteArray.fromU32(x)
     return BigInt.fromUnsignedBytes(byteArray)
   }
 
-  static fromI64(x: i64): bigint {
+  static fromI64(x: bigint): bigint {
     const byteArray = ByteArray.fromI64(x)
     return BigInt.fromByteArray(byteArray)
   }
 
-  static fromU64(x: u64): bigint {
+  static fromU64(x: bigint): bigint {
     const byteArray = ByteArray.fromU64(x)
     return BigInt.fromUnsignedBytes(byteArray)
   }
@@ -92,7 +93,7 @@ export class BigInt extends Uint8Array {
   }
 
   static fromByteArray(byteArray: ByteArray): bigint {
-    return changetype<bigint>(byteArray)
+    return byteArray
   }
 
   /**
@@ -124,27 +125,27 @@ export class BigInt extends Uint8Array {
     return bigInt.fromString(s)
   }
 
-  toI32(): i32 {
-    const uint8Array = changetype<Uint8Array>(this)
-    const byteArray = changetype<ByteArray>(uint8Array)
+  toI32(): number {
+    const uint8Array = this
+    const byteArray = uint8Array
     return byteArray.toI32()
   }
 
-  toU32(): u32 {
-    const uint8Array = changetype<Uint8Array>(this)
-    const byteArray = changetype<ByteArray>(uint8Array)
+  toU32(): number {
+    const uint8Array = this
+    const byteArray = uint8Array
     return byteArray.toU32()
   }
 
-  toI64(): i64 {
-    const uint8Array = changetype<Uint8Array>(this)
-    const byteArray = changetype<ByteArray>(uint8Array)
+  toI64(): bigint {
+    const uint8Array = this
+    const byteArray = uint8Array
     return byteArray.toI64()
   }
 
-  toU64(): u64 {
-    const uint8Array = changetype<Uint8Array>(this)
-    const byteArray = changetype<ByteArray>(uint8Array)
+  toU64(): bigint {
+    const uint8Array = this
+    const byteArray = uint8Array
     return byteArray.toU64()
   }
 
@@ -157,7 +158,9 @@ export class BigInt extends Uint8Array {
   }
 
   isI32(): boolean {
-    return BigInt.fromI32(i32.MIN_VALUE) <= this && this <= BigInt.fromI32(i32.MAX_VALUE)
+    return (
+      BigInt.fromI32(Number.MIN_VALUE) <= this && this <= BigInt.fromI32(Number.MAX_VALUE)
+    )
   }
 
   abs(): bigint {
@@ -262,7 +265,7 @@ export class BigInt extends Uint8Array {
   /**
    * Returns −1 if a < b, 1 if a > b, and 0 if A == B
    */
-  static compare(a: bigint, b: bigint): i32 {
+  static compare(a: bigint, b: bigint): number {
     // Check if a and b have the same sign.
     const aIsNeg = a.length > 0 && a[a.length - 1] >> 7 == 1
     const bIsNeg = b.length > 0 && b[b.length - 1] >> 7 == 1
@@ -337,7 +340,7 @@ export class BigDecimal {
     return bigDecimal.toString(this)
   }
 
-  truncate(decimals: i32): BigDecimal {
+  truncate(decimals: number): BigDecimal {
     const digitsRightOfZero = this.digits.toString().length + this.exp.toI32()
     const newDigitLength = decimals + digitsRightOfZero
     const truncateLength = this.digits.toString().length - newDigitLength
@@ -410,7 +413,7 @@ export class BigDecimal {
   /**
    * Returns −1 if a < b, 1 if a > b, and 0 if A == B
    */
-  static compare(a: BigDecimal, b: BigDecimal): i32 {
+  static compare(a: BigDecimal, b: BigDecimal): number {
     const diff = a.minus(b)
     if (diff.digits.isZero()) {
       return 0

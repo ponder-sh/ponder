@@ -54,7 +54,7 @@ export declare namespace ens {
 function format(fmt: string, args: string[]): string {
   let out = ''
   let argIndex = 0
-  for (let i: i32 = 0, len: i32 = fmt.length; i < len; i++) {
+  for (let i = 0, len: number = fmt.length; i < len; i++) {
     if (
       i < len - 1 &&
       fmt.charCodeAt(i) == 0x7b /* '{' */ &&

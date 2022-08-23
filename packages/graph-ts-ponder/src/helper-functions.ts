@@ -14,7 +14,7 @@ export function concat(a: ByteArray, b: ByteArray): ByteArray {
   for (let j = 0; j < b.length; j++) {
     out[a.length + j] = b[j]
   }
-  return changetype<ByteArray>(out)
+  return out
 }
 
 /**
@@ -36,7 +36,7 @@ export function parseCSV(csv: string): Array<string> {
   let valueStart = 0
   let state = CSVState.BETWEEN
 
-  for (let i: i32 = 0; i < csv.length; i++) {
+  for (let i = 0; i < csv.length; i++) {
     if (state == CSVState.BETWEEN) {
       if (csv.charAt(i) != ',') {
         if (csv.charAt(i) == '"') {
@@ -77,5 +77,12 @@ export function addQm(a: ByteArray): ByteArray {
   for (let i = 0; i < 32; i++) {
     out[i + 2] = a[i]
   }
-  return changetype<ByteArray>(out)
+  return out
+}
+
+// Added for Typescript compatibility
+export function assert(isValid: boolean, message: string) {
+  if (!isValid) {
+    throw new Error(message)
+  }
 }

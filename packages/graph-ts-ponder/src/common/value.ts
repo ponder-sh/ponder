@@ -1,3 +1,4 @@
+import { assert } from '../helper-functions'
 import { Bytes, TypedMap } from './collections'
 import { json } from './json'
 import { Address, BigDecimal, BigInt } from './numbers'
@@ -32,7 +33,7 @@ const VALUE_KIND_NAMES = [
  *
  * Big enough to fit any pointer or native `this.data`.
  */
-export type ValuePayload = u64
+export type ValuePayload = bigint
 
 /**
  * A dynamically typed value.
@@ -42,7 +43,7 @@ export class Value {
 
   toAddress(): Address {
     assert(this.kind == ValueKind.BYTES, 'Value is not an address.')
-    return changetype<Address>(this.data as u32)
+    return this.data as number
   }
 
   toBoolean(): boolean {
@@ -55,41 +56,41 @@ export class Value {
 
   toBytes(): Bytes {
     assert(this.kind == ValueKind.BYTES, 'Value is not a byte array.')
-    return changetype<Bytes>(this.data as u32)
+    return this.data as number
   }
 
-  toI32(): i32 {
+  toI32(): number {
     if (this.kind == ValueKind.NULL) {
       return 0
     }
-    assert(this.kind == ValueKind.INT, 'Value is not an i32.')
-    return this.data as i32
+    assert(this.kind == ValueKind.INT, 'Value is not an number.')
+    return this.data as number
   }
 
   toString(): string {
     assert(this.kind == ValueKind.STRING, 'Value is not a string.')
-    return changetype<string>(this.data as u32)
+    return this.data as number
   }
 
   toBigInt(): bigint {
     assert(this.kind == ValueKind.BIGINT, 'Value is not a BigInt.')
-    return changetype<bigint>(this.data as u32)
+    return this.data as number
   }
 
   toBigDecimal(): BigDecimal {
     assert(this.kind == ValueKind.BIGDECIMAL, 'Value is not a BigDecimal.')
-    return changetype<BigDecimal>(this.data as u32)
+    return this.data as number
   }
 
   toArray(): Array<Value> {
     assert(this.kind == ValueKind.ARRAY, 'Value is not an array.')
-    return changetype<Array<Value>>(this.data as u32)
+    return this.data as number
   }
 
   toBooleanArray(): Array<boolean> {
     const values = this.toArray()
     const output = new Array<boolean>(values.length)
-    for (let i: i32 = 0; i < values.length; i++) {
+    for (let i = 0; i < values.length; i++) {
       output[i] = values[i].toBoolean()
     }
     return output
@@ -98,7 +99,7 @@ export class Value {
   toBytesArray(): Array<Bytes> {
     const values = this.toArray()
     const output = new Array<Bytes>(values.length)
-    for (let i: i32 = 0; i < values.length; i++) {
+    for (let i = 0; i < values.length; i++) {
       output[i] = values[i].toBytes()
     }
     return output
@@ -107,16 +108,16 @@ export class Value {
   toStringArray(): Array<string> {
     const values = this.toArray()
     const output = new Array<string>(values.length)
-    for (let i: i32 = 0; i < values.length; i++) {
+    for (let i = 0; i < values.length; i++) {
       output[i] = values[i].toString()
     }
     return output
   }
 
-  toI32Array(): Array<i32> {
+  toI32Array(): Array<number> {
     const values = this.toArray()
-    const output = new Array<i32>(values.length)
-    for (let i: i32 = 0; i < values.length; i++) {
+    const output = new Array<number>(values.length)
+    for (let i = 0; i < values.length; i++) {
       output[i] = values[i].toI32()
     }
     return output
@@ -125,7 +126,7 @@ export class Value {
   toBigIntArray(): Array<bigint> {
     const values = this.toArray()
     const output = new Array<bigint>(values.length)
-    for (let i: i32 = 0; i < values.length; i++) {
+    for (let i = 0; i < values.length; i++) {
       output[i] = values[i].toBigInt()
     }
     return output
@@ -134,7 +135,7 @@ export class Value {
   toBigDecimalArray(): Array<BigDecimal> {
     const values = this.toArray()
     const output = new Array<BigDecimal>(values.length)
-    for (let i: i32 = 0; i < values.length; i++) {
+    for (let i = 0; i < values.length; i++) {
       output[i] = values[i].toBigDecimal()
     }
     return output
@@ -178,7 +179,7 @@ export class Value {
 
   static fromBooleanArray(input: Array<boolean>): Value {
     const output = new Array<Value>(input.length)
-    for (let i: i32 = 0; i < input.length; i++) {
+    for (let i = 0; i < input.length; i++) {
       output[i] = Value.fromBoolean(input[i])
     }
     return Value.fromArray(output)
@@ -186,15 +187,15 @@ export class Value {
 
   static fromBytesArray(input: Array<Bytes>): Value {
     const output = new Array<Value>(input.length)
-    for (let i: i32 = 0; i < input.length; i++) {
+    for (let i = 0; i < input.length; i++) {
       output[i] = Value.fromBytes(input[i])
     }
     return Value.fromArray(output)
   }
 
-  static fromI32Array(input: Array<i32>): Value {
+  static fromI32Array(input: Array<number>): Value {
     const output = new Array<Value>(input.length)
-    for (let i: i32 = 0; i < input.length; i++) {
+    for (let i = 0; i < input.length; i++) {
       output[i] = Value.fromI32(input[i])
     }
     return Value.fromArray(output)
@@ -202,7 +203,7 @@ export class Value {
 
   static fromBigIntArray(input: Array<bigint>): Value {
     const output = new Array<Value>(input.length)
-    for (let i: i32 = 0; i < input.length; i++) {
+    for (let i = 0; i < input.length; i++) {
       output[i] = Value.fromBigInt(input[i])
     }
     return Value.fromArray(output)
@@ -210,7 +211,7 @@ export class Value {
 
   static fromBigDecimalArray(input: Array<BigDecimal>): Value {
     const output = new Array<Value>(input.length)
-    for (let i: i32 = 0; i < input.length; i++) {
+    for (let i = 0; i < input.length; i++) {
       output[i] = Value.fromBigDecimal(input[i])
     }
     return Value.fromArray(output)
@@ -218,7 +219,7 @@ export class Value {
 
   static fromStringArray(input: Array<string>): Value {
     const output = new Array<Value>(input.length)
-    for (let i: i32 = 0; i < input.length; i++) {
+    for (let i = 0; i < input.length; i++) {
       output[i] = Value.fromString(input[i])
     }
     return Value.fromArray(output)
@@ -226,18 +227,18 @@ export class Value {
 
   static fromAddressArray(input: Array<Address>): Value {
     const output = new Array<Value>(input.length)
-    for (let i: i32 = 0; i < input.length; i++) {
+    for (let i = 0; i < input.length; i++) {
       output[i] = Value.fromAddress(input[i])
     }
     return Value.fromArray(output)
   }
 
   static fromArray(input: Array<Value>): Value {
-    return new Value(ValueKind.ARRAY, changetype<u32>(input))
+    return new Value(ValueKind.ARRAY, input)
   }
 
   static fromBigInt(n: bigint): Value {
-    return new Value(ValueKind.BIGINT, changetype<u32>(n))
+    return new Value(ValueKind.BIGINT, n)
   }
 
   static fromBoolean(b: bool): Value {
@@ -245,27 +246,27 @@ export class Value {
   }
 
   static fromBytes(bytes: Bytes): Value {
-    return new Value(ValueKind.BYTES, changetype<u32>(bytes))
+    return new Value(ValueKind.BYTES, bytes)
   }
 
   static fromNull(): Value {
     return new Value(ValueKind.NULL, 0)
   }
 
-  static fromI32(n: i32): Value {
-    return new Value(ValueKind.INT, n as u64)
+  static fromI32(n: number): Value {
+    return new Value(ValueKind.INT, n as bigint)
   }
 
   static fromString(s: string): Value {
-    return new Value(ValueKind.STRING, changetype<u32>(s))
+    return new Value(ValueKind.STRING, s)
   }
 
   static fromAddress(s: Address): Value {
-    return new Value(ValueKind.BYTES, changetype<u32>(s))
+    return new Value(ValueKind.BYTES, s)
   }
 
   static fromBigDecimal(n: BigDecimal): Value {
-    return new Value(ValueKind.BIGDECIMAL, changetype<u32>(n))
+    return new Value(ValueKind.BIGDECIMAL, n)
   }
 }
 
@@ -284,7 +285,7 @@ export enum JSONValueKind {
  *
  * Big enough to fit any pointer or native `this.data`.
  */
-export type JSONValuePayload = u64
+export type JSONValuePayload = bigint
 
 export class JSONValue {
   kind: JSONValueKind
@@ -299,42 +300,42 @@ export class JSONValue {
     return this.data != 0
   }
 
-  toI64(): i64 {
+  toI64(): bigint {
     assert(this.kind == JSONValueKind.NUMBER, 'JSON value is not a number.')
-    const decimalString = changetype<string>(this.data as u32)
+    const decimalString = this.data as number
     return json.toI64(decimalString)
   }
 
-  toU64(): u64 {
+  toU64(): bigint {
     assert(this.kind == JSONValueKind.NUMBER, 'JSON value is not a number.')
-    const decimalString = changetype<string>(this.data as u32)
+    const decimalString = this.data as number
     return json.toU64(decimalString)
   }
 
   toF64(): f64 {
     assert(this.kind == JSONValueKind.NUMBER, 'JSON value is not a number.')
-    const decimalString = changetype<string>(this.data as u32)
+    const decimalString = this.data as number
     return json.toF64(decimalString)
   }
 
   toBigInt(): bigint {
     assert(this.kind == JSONValueKind.NUMBER, 'JSON value is not a number.')
-    const decimalString = changetype<string>(this.data as u32)
+    const decimalString = this.data as number
     return json.toBigInt(decimalString)
   }
 
   toString(): string {
     assert(this.kind == JSONValueKind.STRING, 'JSON value is not a string.')
-    return changetype<string>(this.data as u32)
+    return this.data as number
   }
 
   toArray(): Array<JSONValue> {
     assert(this.kind == JSONValueKind.ARRAY, 'JSON value is not an array.')
-    return changetype<Array<JSONValue>>(this.data as u32)
+    return this.data as number
   }
 
   toObject(): TypedMap<string, JSONValue> {
     assert(this.kind == JSONValueKind.OBJECT, 'JSON value is not an object.')
-    return changetype<TypedMap<string, JSONValue>>(this.data as u32)
+    return this.data as number
   }
 }

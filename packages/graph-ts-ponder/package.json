@@ -16,7 +16,8 @@
     "build": "pnpm run clean && pnpm run compile && pnpm run compile-build && node dist/build.js"
   },
   "dependencies": {
-    "assemblyscript": "0.19.10"
+    "assemblyscript": "0.19.10",
+    "bs58": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^18.7.8",

@@ -24,9 +24,9 @@ export namespace arweave {
    */
   export class Block {
     constructor(
-      public timestamp: u64,
-      public lastRetarget: u64,
-      public height: u64,
+      public timestamp: bigint,
+      public lastRetarget: bigint,
+      public height: bigint,
       public indepHash: Bytes,
       public nonce: Bytes,
       public previousBlock: Bytes,
@@ -51,7 +51,7 @@ export namespace arweave {
    */
   export class Transaction {
     constructor(
-      public format: u32,
+      public format: number,
       public id: Bytes,
       public lastTx: Bytes,
       public owner: Bytes,
