@@ -5,6 +5,7 @@ import type { DbSchema } from "../db/buildDbSchema";
 import type { PonderConfig } from "../readUserConfig";
 import { SourceKind } from "../readUserConfig";
 import { logger } from "../utils/logger";
+import { buildEvent } from "./buildEvent";
 import type { GraphHandlers } from "./readMappings";
 
 type LogWorker = (log: Log) => Promise<void>;
@@ -73,12 +74,11 @@ const buildLogWorker = (
       `Processing ${parsedLog.signature} from block ${logBlockNumber}`
     );
 
-    // TOOD: Add more shit to the event here?
-    const event = { ...parsedLog, params: parsedLog.args };
-
     // NOTE: Not entirely sure why this is required to print logs.
     // Without the try/catch, errors throw in the handler code throw silently.
     try {
+      const event = buildEvent(log, parsedLog);
+
       await handler(event);
     } catch (err) {
       console.error(err);
