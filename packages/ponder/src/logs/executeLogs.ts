@@ -30,7 +30,7 @@ const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
     const contracts = config.sources
       .filter((source) => source.chainId === chainId)
       .map((source) => source.address);
-    const cacheKey = `${chainId}_${startBlock}_${contracts.map(
+    const cacheKey = `${chainId}_${startBlock}${contracts.map(
       (contract) => `-${contract}`
     )}`;
 
