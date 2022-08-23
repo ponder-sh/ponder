@@ -4,6 +4,7 @@ import path from "node:path";
 import { parse } from "yaml";
 
 import { CONFIG } from "../config";
+import { chainIdByGraphNetwork } from "../constants";
 import {
   Api,
   defaultPonderConfig,
@@ -11,6 +12,7 @@ import {
   SourceKind,
   Store,
 } from "../readUserConfig";
+import type { RpcUrlMap } from "./getRpcUrlMap";
 
 interface GraphCompatPonderConfig {
   sources: GraphCompatSource[];
@@ -65,74 +67,7 @@ type GraphSource = {
   };
 };
 
-// https://github.com/graphprotocol/graph-cli/blob/main/src/protocols/index.js#L40
-// https://chainlist.org/
-const chainIdByGraphNetwork: Record<string, number | undefined> = {
-  mainnet: 1,
-  kovan: 42,
-  rinkeby: 4,
-  ropsten: 3,
-  goerli: 5,
-  "poa-core": 99,
-  "poa-sokol": 77,
-  xdai: 100,
-  matic: 137,
-  mumbai: 80001,
-  fantom: 250,
-  "fantom-testnet": 4002,
-  bsc: 56,
-  chapel: -1,
-  clover: 0,
-  avalanche: 43114,
-  fuji: 43113,
-  celo: 42220,
-  "celo-alfajores": 44787,
-  fuse: 122,
-  moonbeam: 1284,
-  moonriver: 1285,
-  mbase: -1,
-  "arbitrum-one": 42161,
-  "arbitrum-rinkeby": 421611,
-  optimism: 10,
-  "optimism-kovan": 69,
-  aurora: 1313161554,
-  "aurora-testnet": 1313161555,
-};
-
-const getPonderSourceFromGraphSource = (
-  subgraphSource: GraphSource
-): GraphCompatSource => {
-  const sourceAbi = subgraphSource.mapping.abis.find(
-    (abi) => abi.name === subgraphSource.name
-  );
-  if (!sourceAbi) {
-    throw new Error(`ABI path not found for source: ${subgraphSource.name}`);
-  }
-  const sourceAbiPath = path.resolve(sourceAbi.file);
-
-  const chainId = chainIdByGraphNetwork[subgraphSource.network];
-  if (!chainId || chainId === -1) {
-    throw new Error(`Unhandled network name: ${subgraphSource.network}`);
-  }
-
-  const mappingFilePath = path.resolve(subgraphSource.mapping.file);
-
-  return {
-    kind: SourceKind.EVM,
-    name: subgraphSource.name,
-    chainId: chainId,
-    rpcUrl: "1",
-    address: subgraphSource.source.address,
-    abi: sourceAbiPath,
-    startBlock: subgraphSource.source.startBlock,
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    abiInterface: null!,
-    mappingFilePath: mappingFilePath,
-    eventHandlers: subgraphSource.mapping.eventHandlers || [],
-  };
-};
-
-const readSubgraphYaml = async () => {
+const readSubgraphYaml = async (rpcUrlMap: RpcUrlMap) => {
   const subgraphYamlRaw = await readFile(
     CONFIG.GRAPH_COMPAT_SUBGRAPH_YAML_PATH,
     "utf-8"
@@ -141,8 +76,8 @@ const readSubgraphYaml = async () => {
   const subgraphSchemaFilePath = path.resolve(subgraphYaml.schema.file);
 
   const subgraphSources: GraphSource[] = subgraphYaml.dataSources;
-  const graphCompatSourcesWithoutAbiInterfaces = subgraphSources.map(
-    getPonderSourceFromGraphSource
+  const graphCompatSourcesWithoutAbiInterfaces = subgraphSources.map((source) =>
+    getPonderSourceFromGraphSource(source, rpcUrlMap)
   );
 
   // Parse ABI files and add interfaces to the config object.
@@ -163,6 +98,44 @@ const readSubgraphYaml = async () => {
   return {
     graphCompatPonderConfig: config,
     graphSchemaFilePath: subgraphSchemaFilePath,
+  };
+};
+
+const getPonderSourceFromGraphSource = (
+  subgraphSource: GraphSource,
+  rpcUrlMap: RpcUrlMap
+): GraphCompatSource => {
+  const sourceAbi = subgraphSource.mapping.abis.find(
+    (abi) => abi.name === subgraphSource.name
+  );
+  if (!sourceAbi) {
+    throw new Error(`ABI path not found for source: ${subgraphSource.name}`);
+  }
+  const sourceAbiPath = path.resolve(sourceAbi.file);
+
+  const chainId = chainIdByGraphNetwork[subgraphSource.network];
+  if (!chainId || chainId === -1) {
+    throw new Error(`Unhandled network name: ${subgraphSource.network}`);
+  }
+  const rpcUrl = rpcUrlMap[chainId];
+  if (!rpcUrl) {
+    throw new Error(`Missing RPC URL for chain ID: ${chainId}`);
+  }
+
+  const mappingFilePath = path.resolve(subgraphSource.mapping.file);
+
+  return {
+    kind: SourceKind.EVM,
+    name: subgraphSource.name,
+    chainId: chainId,
+    rpcUrl: rpcUrl,
+    address: subgraphSource.source.address,
+    abi: sourceAbiPath,
+    startBlock: subgraphSource.source.startBlock,
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    abiInterface: null!,
+    mappingFilePath: mappingFilePath,
+    eventHandlers: subgraphSource.mapping.eventHandlers || [],
   };
 };
 

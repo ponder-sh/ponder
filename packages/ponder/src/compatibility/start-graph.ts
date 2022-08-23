@@ -1,13 +1,17 @@
 import { createOrUpdateDbTables } from "../db";
 import { buildDbSchema } from "../db/buildDbSchema";
+import { executeLogs } from "../logs";
 import { buildLogWorker } from "./buildLogWorker";
+import { getRpcUrlMap } from "./getRpcUrlMap";
 import { readMappings } from "./readMappings";
 import { readSubgraphSchema } from "./readSubgraphSchema";
 import { readSubgraphYaml } from "./readSubgraphYaml";
 
 const start = async () => {
+  const rpcUrlMap = getRpcUrlMap();
+
   const { graphCompatPonderConfig, graphSchemaFilePath } =
-    await readSubgraphYaml();
+    await readSubgraphYaml(rpcUrlMap);
 
   console.log({ graphCompatPonderConfig, graphSchemaFilePath });
 
@@ -23,7 +27,7 @@ const start = async () => {
 
   const logWorker = buildLogWorker(graphCompatPonderConfig, dbSchema, handlers);
 
-  // await executeLogs(config, logWorker);
+  await executeLogs(graphCompatPonderConfig, logWorker);
 
   return;
 };
