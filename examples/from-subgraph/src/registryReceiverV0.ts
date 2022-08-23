@@ -2,9 +2,13 @@ import { NewRegistration } from "../generated/RegistryReceiverV0/RegistryReceive
 import { buildFeedItemEntity, buildPlayerEntity } from "./utils";
 
 export function handleNewRegistration(event: NewRegistration): void {
+  console.log("in handleNewRegistration with event!");
+
   const playerEntity = buildPlayerEntity(
     event.params.burnerAccount.toHexString()
   );
+  console.log("after buildPlayerEntity");
+
   playerEntity.account = event.params.account;
   playerEntity.save();
 

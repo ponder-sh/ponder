@@ -18,7 +18,11 @@ function buildFeedItemEntity(event: ethereum.Event): FeedItem {
 
 // The ID of a Player entity is the burner account address.
 function buildPlayerEntity(id: string): Player {
+  console.log("in buildPlayerEntity");
+
   let entity = Player.load(id);
+  console.log({ entity });
+
   if (!entity) {
     entity = new Player(id);
     entity.account = Bytes.empty();

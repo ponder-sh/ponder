@@ -18,7 +18,7 @@ const DEFAULT_OPTIONS = {
   PONDER_DIR_PATH: ".ponder",
 
   // General options
-  LOG_LEVEL: 2, // LogLevel.Info
+  LOG_LEVEL: 4, // LogLevel.Debug 2, // LogLevel.Info
 
   // Subgraph compatibility options
   GRAPH_COMPAT_ENABLED: false,

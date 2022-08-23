@@ -76,8 +76,13 @@ const buildLogWorker = (
     // TOOD: Add more shit to the event here?
     const event = { ...parsedLog, params: parsedLog.args };
 
-    // YAY: We're running user code here!
-    await handler(event);
+    // NOTE: Not entirely sure why this is required to print logs.
+    // Without the try/catch, errors throw in the handler code throw silently.
+    try {
+      await handler(event);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   return worker;
