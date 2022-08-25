@@ -1,58 +1,128 @@
-import { build } from "esbuild";
-import path from "node:path";
+import { readFile } from "node:fs/promises";
 
 import { CONFIG } from "../config";
 import { logger } from "../utils/logger";
-import { graphTsOverridePlugin } from "./esbuildPlugin";
 import { GraphCompatPonderConfig } from "./readSubgraphYaml";
 
 type Handler = (event: unknown) => Promise<void> | void;
-type SourceHandlers = { [eventName: string]: Handler | undefined };
+type SourceHandlers = { [eventName: string]: Handler };
 type GraphHandlers = { [sourceName: string]: SourceHandlers | undefined };
+
+class BigDecimal {
+  digits: any;
+
+  constructor(...args: any) {
+    console.log(`Constructing BigDecimal with args:`, ...args);
+  }
+}
+
+const defaultHandler =
+  (name: string) =>
+  (...args: any) => {
+    console.log(name, ...args);
+  };
+
+const importObject = {
+  env: {
+    abort: (
+      message: unknown,
+      filename: unknown,
+      line: unknown,
+      column: unknown
+    ) => {
+      throw new Error(`${message} in ${filename} at ${line}:${column}`);
+    },
+  },
+  index: {
+    ["store.get"]: defaultHandler("store.get"),
+    ["store.set"]: defaultHandler("store.set"),
+  },
+  conversion: {
+    ["typeConversion.bytesToString"]: defaultHandler(
+      "typeConversion.bytesToString"
+    ),
+    ["typeConversion.bytesToHex"]: defaultHandler("typeConversion.bytesToHex"),
+    ["typeConversion.bigIntToString"]: defaultHandler(
+      "typeConversion.bigIntToString"
+    ),
+    ["typeConversion.bigIntToHex"]: defaultHandler(
+      "typeConversion.bigIntToHex"
+    ),
+    ["typeConversion.stringToH160"]: defaultHandler(
+      "typeConversion.stringToH160"
+    ),
+    ["typeConversion.bytesToBase58"]: defaultHandler(
+      "typeConversion.bytesToBase58"
+    ),
+  },
+  ethereum: {
+    ["ethereum.call"]: defaultHandler("ethereum.call"),
+    ["ethereum.SmartContract"]: defaultHandler("ethereum.SmartContract"),
+  },
+  numbers: {
+    ["bigInt.plus"]: (x: bigint, y: bigint) => x + y,
+    ["bigInt.minus"]: (x: bigint, y: bigint) => x - y,
+    ["bigInt.times"]: (x: bigint, y: bigint) => x * y,
+    ["bigInt.dividedBy"]: (x: bigint, y: bigint) => x / y,
+    ["bigInt.dividedByDecimal"]: (x: bigint, y: BigDecimal) =>
+      new BigDecimal(x / y.digits),
+    ["bigInt.mod"]: (x: bigint, y: bigint) => x % y,
+    ["bigInt.pow"]: (x: bigint, exp: number) => x ** global.BigInt(exp),
+    ["bigInt.fromString"]: (s: string) => global.BigInt(s),
+    ["bigInt.bitOr"]: (x: bigint, y: bigint) => x | y,
+    ["bigInt.bitAnd"]: (x: bigint, y: bigint) => x & y,
+    ["bigInt.leftShift"]: (x: bigint, bits: number) => x << global.BigInt(bits),
+    ["bigInt.rightShift"]: (x: bigint, bits: number) =>
+      x >> global.BigInt(bits),
+
+    ["bigDecimal.plus"]: (x: BigDecimal, y: BigDecimal) =>
+      new BigDecimal(x.digits + y.digits),
+    ["bigDecimal.minus"]: (x: BigDecimal, y: BigDecimal) =>
+      new BigDecimal(x.digits - y.digits),
+    ["bigDecimal.times"]: (x: BigDecimal, y: BigDecimal) =>
+      new BigDecimal(x.digits * y.digits),
+    ["bigDecimal.dividedBy"]: (x: BigDecimal, y: BigDecimal) =>
+      new BigDecimal(x.digits / y.digits),
+    ["bigDecimal.equals"]: (x: BigDecimal, y: BigDecimal) =>
+      x.digits == y.digits,
+    ["bigDecimal.toString"]: (_bigDecimal: BigDecimal) =>
+      _bigDecimal.digits.toString(),
+    ["bigDecimal.fromString"]: (s: string) => new BigDecimal(global.BigInt(s)),
+  },
+};
 
 const readMappings = async (
   graphCompatPonderConfig: GraphCompatPonderConfig
 ) => {
-  const buildFile = path.join(CONFIG.PONDER_DIR_PATH, "handlers.js");
-
-  const handlers: GraphHandlers = {};
+  const graphHandlers: GraphHandlers = {};
 
   for (const source of graphCompatPonderConfig.sources) {
-    console.log(
-      "attempting to esbuild mapping file at: ",
-      source.mappingFilePath
-    );
+    // TODO: convert to WebAssembly.instantiateStreaming.
+    const wasm = await readFile(source.wasmFilePath);
+    const instance = await WebAssembly.instantiate(wasm, importObject);
+    const handlerFunctions = instance.instance.exports;
 
-    try {
-      await build({
-        entryPoints: [source.mappingFilePath],
-        outfile: buildFile,
-        platform: "node",
-        bundle: true,
-        plugins: [graphTsOverridePlugin],
-      });
-    } catch (err) {
-      logger.warn("esbuild error:", err);
-    }
-
-    const module = await require(buildFile);
-    delete require.cache[require.resolve(buildFile)];
-
-    const handlerFunctionMap = module as {
-      [key: string]: Handler | undefined;
-    };
+    console.log({ exports: instance.instance.exports });
 
     const sourceHandlers: SourceHandlers = {};
-    source.eventHandlers.forEach(({ event, handler }) => {
-      sourceHandlers[event] = handlerFunctionMap[handler];
-    });
 
-    handlers[source.name] = sourceHandlers;
+    for (const eventHandler of source.eventHandlers) {
+      const handler = <Handler | undefined>(
+        handlerFunctions[eventHandler.handler]
+      );
+      if (handler) {
+        sourceHandlers[eventHandler.event] = handler;
+      } else {
+        logger.info(`Handler not found: ${eventHandler.handler}`);
+      }
+    }
+
+    graphHandlers[source.name] = sourceHandlers;
   }
 
-  console.log({ handlers });
+  console.log({ graphHandlers });
 
-  return handlers;
+  return graphHandlers;
 };
 
 export { readMappings };

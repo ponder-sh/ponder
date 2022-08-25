@@ -22,6 +22,7 @@ interface GraphCompatPonderConfig {
 
 interface GraphCompatSource extends EvmSource {
   mappingFilePath: string;
+  wasmFilePath: string;
   eventHandlers: {
     event: string;
     handler: string;
@@ -123,6 +124,9 @@ const getPonderSourceFromGraphSource = (
   }
 
   const mappingFilePath = path.resolve(subgraphSource.mapping.file);
+  const wasmFilePath = path.resolve(
+    `./build/${subgraphSource.name}/${subgraphSource.name}.wasm`
+  );
 
   return {
     kind: SourceKind.EVM,
@@ -135,6 +139,7 @@ const getPonderSourceFromGraphSource = (
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     abiInterface: null!,
     mappingFilePath: mappingFilePath,
+    wasmFilePath: wasmFilePath,
     eventHandlers: subgraphSource.mapping.eventHandlers || [],
   };
 };
