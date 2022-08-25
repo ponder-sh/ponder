@@ -1,34 +1,36 @@
-import type { LogDescription } from "@ethersproject/abi";
+import type { LogDescription, ParamType } from "@ethersproject/abi";
 import type { Log } from "@ethersproject/providers";
-import graph, { Address, BigInt, ByteArray } from "@ponder/graph-ts-ponder";
+import { Address, BigInt, ByteArray, ethereum } from "@ponder/graph-ts-ponder";
 
-const buildEvent = (
-  log: Log,
-  parsedLog: LogDescription
-): graph.ethereum.Event => {
-  console.log({ log, parsedLog });
-
+const buildEvent = (log: Log, parsedLog: LogDescription): ethereum.Event => {
   const address = Address.fromString(log.address);
-
-  console.log({ address });
-
-  const logIndex = BigInt.fromByteArray(ByteArray.fromHexString(log.logIndex));
-  const transactionLogIndex = BigInt.fromByteArray(
-    ByteArray.fromHexString(log.transactionIndex)
-  );
+  const logIndex = global.BigInt(log.logIndex);
+  const transactionLogIndex = global.BigInt(log.transactionIndex);
   const logType = null;
-  const block = null;
-  const transaction = null;
-  const parameters = null;
-  const receipt = null;
+  const block: ethereum.Block = null!;
+  const transaction: ethereum.Transaction = null!;
+  const receipt: ethereum.TransactionReceipt = null!;
 
-  console.log({
-    address,
-    logIndex,
-    transactionLogIndex,
-  });
+  const paramsWithValues = parsedLog.eventFragment.inputs.map(
+    ({ name, type }) => {
+      const foundValue = Object.entries(parsedLog.args).find(
+        ([argName]) => argName === name
+      );
+      if (!foundValue) {
+        throw new Error(`Could not find value for argument: ${name}`);
+      }
 
-  return new graph.ethereum.Event(
+      return {
+        name: name,
+        type: type,
+        value: foundValue[1],
+      };
+    }
+  );
+  const parameters = paramsWithValues.map(getGraphEventParam);
+
+  // Add index signature so we can add the params field.
+  const event: ethereum.Event & { [key: string]: any } = new ethereum.Event(
     address,
     logIndex,
     transactionLogIndex,
@@ -37,7 +39,6 @@ const buildEvent = (
     transaction,
     parameters,
     receipt
-
     // public address: Address,
     // public logIndex: bigint,
     // public transactionLogIndex: bigint,
@@ -47,6 +48,53 @@ const buildEvent = (
     // public parameters: Array<EventParam>,
     // public receipt: TransactionReceipt | null,
   );
+
+  const params: { [key: string]: any } = { _event: event };
+  for (const parameter of parameters) {
+    switch (parameter.value.kind) {
+      case ethereum.ValueKind.ADDRESS: {
+        params[parameter.name] = parameter.value.toAddress();
+        break;
+      }
+      default: {
+        throw new Error(
+          `Unhandled ethereum.ValueKind: ${parameter.value.kind}`
+        );
+      }
+    }
+  }
+
+  console.log({ params });
+
+  event.params = params;
+
+  console.log("returning event");
+
+  return event;
+};
+
+const getGraphEventParam = (param: {
+  name: string;
+  type: string;
+  value: any;
+}): ethereum.EventParam => {
+  let graphValue: ethereum.Value;
+
+  console.log("attempting to get graph event param from value:", param.value);
+
+  switch (param.type) {
+    case "address": {
+      graphValue = ethereum.Value.fromAddress(Address.fromString(param.value));
+      break;
+    }
+    default: {
+      throw new Error(`Unhandled param type: ${param.type}`);
+    }
+  }
+
+  console.log("creating EventParam with value:", { value: graphValue });
+
+  return new ethereum.EventParam(param.name, graphValue);
 };
 
 export { buildEvent };
