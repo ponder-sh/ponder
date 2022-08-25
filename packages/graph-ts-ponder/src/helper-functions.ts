@@ -86,3 +86,8 @@ export function assert(isValid: boolean, message: string) {
     throw new Error(message)
   }
 }
+
+// Added for Typescript compatibility
+export function abort(message: string) {
+  throw new Error(message)
+}

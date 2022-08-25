@@ -1,5 +1,6 @@
 import { Bytes, Wrapped } from '../common/collections'
 import { Address, BigInt } from '../common/numbers'
+import { abort, assert } from '../helper-functions'
 
 /** Host Ethereum interface */
 export declare namespace ethereum {
@@ -69,8 +70,7 @@ export namespace ethereum {
         this.kind == ValueKind.INT || this.kind == ValueKind.UINT,
         'Ethereum value is not an int or uint.',
       )
-      const bigInt = this.data as number
-      return bigInt.toI32()
+      return Number(this.data)
     }
 
     toBigInt(): bigint {

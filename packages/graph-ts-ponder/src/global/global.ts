@@ -323,17 +323,17 @@ export function id_of_type(typeId: TypeId): bigint {
     case TypeId.ResultJsonValueBool:
       return idof<Result<JSONValue, boolean>>()
     case TypeId.ArrayU8:
-      return idof<Array<u8>>()
+      return idof<Array<number>>()
     case TypeId.ArrayU16:
-      return idof<Array<u16>>()
+      return idof<Array<number>>()
     case TypeId.ArrayU32:
       return idof<Array<number>>()
     case TypeId.ArrayU64:
       return idof<Array<bigint>>()
     case TypeId.ArrayI8:
-      return idof<Array<i8>>()
+      return idof<Array<number>>()
     case TypeId.ArrayI16:
-      return idof<Array<i16>>()
+      return idof<Array<number>>()
     case TypeId.ArrayI32:
       return idof<Array<number>>()
     case TypeId.ArrayI64:

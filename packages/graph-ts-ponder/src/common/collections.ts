@@ -12,10 +12,10 @@ export class ByteArray extends Uint8Array {
    */
   static fromI32(x: number): ByteArray {
     const self = new ByteArray(4)
-    self[0] = x as u8
-    self[1] = (x >> 8) as u8
-    self[2] = (x >> 16) as u8
-    self[3] = (x >> 24) as u8
+    self[0] = x as number
+    self[1] = (x >> 8) as number
+    self[2] = (x >> 16) as number
+    self[3] = (x >> 24) as number
     return self
   }
 
@@ -24,10 +24,10 @@ export class ByteArray extends Uint8Array {
    */
   static fromU32(x: number): ByteArray {
     const self = new ByteArray(4)
-    self[0] = x as u8
-    self[1] = (x >> 8) as u8
-    self[2] = (x >> 16) as u8
-    self[3] = (x >> 24) as u8
+    self[0] = x as number
+    self[1] = (x >> 8) as number
+    self[2] = (x >> 16) as number
+    self[3] = (x >> 24) as number
     return self
   }
 
@@ -36,14 +36,14 @@ export class ByteArray extends Uint8Array {
    */
   static fromI64(x: bigint): ByteArray {
     const self = new ByteArray(8)
-    self[0] = x as u8
-    self[1] = (x >> 8) as u8
-    self[2] = (x >> 16) as u8
-    self[3] = (x >> 24) as u8
-    self[4] = (x >> 32) as u8
-    self[5] = (x >> 40) as u8
-    self[6] = (x >> 48) as u8
-    self[7] = (x >> 56) as u8
+    self[0] = x as number
+    self[1] = (x >> 8) as number
+    self[2] = (x >> 16) as number
+    self[3] = (x >> 24) as number
+    self[4] = (x >> 32) as number
+    self[5] = (x >> 40) as number
+    self[6] = (x >> 48) as number
+    self[7] = (x >> 56) as number
     return self
   }
 
@@ -52,14 +52,14 @@ export class ByteArray extends Uint8Array {
    */
   static fromU64(x: bigint): ByteArray {
     const self = new ByteArray(8)
-    self[0] = x as u8
-    self[1] = (x >> 8) as u8
-    self[2] = (x >> 16) as u8
-    self[3] = (x >> 24) as u8
-    self[4] = (x >> 32) as u8
-    self[5] = (x >> 40) as u8
-    self[6] = (x >> 48) as u8
-    self[7] = (x >> 56) as u8
+    self[0] = x as number
+    self[1] = (x >> 8) as number
+    self[2] = (x >> 16) as number
+    self[3] = (x >> 24) as number
+    self[4] = (x >> 32) as number
+    self[5] = (x >> 40) as number
+    self[6] = (x >> 48) as number
+    self[7] = (x >> 56) as number
     return self
   }
 
@@ -209,7 +209,7 @@ export class ByteArray extends Uint8Array {
     for (let i = 0; i < minLen; i++) {
       paddedBytes[i] = this[i]
     }
-    let x: bigint = 0
+    let x: bigint = global.BigInt(0)
     x = (x | paddedBytes[7]) << 8
     x = (x | paddedBytes[6]) << 8
     x = (x | paddedBytes[5]) << 8
