@@ -244,6 +244,7 @@ importers:
       '@types/express': ^4.17.13
       '@types/node': ^18.7.8
       '@types/yargs': ^17.0.11
+      assemblyscript: 0.19.10
       dotenv: ^16.0.1
       esbuild: ^0.15.2
       ethers: ^5.6.9
@@ -265,6 +266,7 @@ importers:
       '@graphql-codegen/typescript': 2.7.3_graphql@15.8.0
       '@ponder/graph-ts-ponder': link:../graph-ts-ponder
       '@typechain/ethers-v5': 10.1.0_2pfizk27srrrpdc2afslqbfdki
+      assemblyscript: 0.19.10
       dotenv: 16.0.1
       esbuild: 0.15.4
       ethers: 5.6.9

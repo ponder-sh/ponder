@@ -1,6 +1,7 @@
 import { createOrUpdateDbTables } from "../db";
 import { buildDbSchema } from "../db/buildDbSchema";
 import { executeLogs } from "../logs";
+import { compile } from "./asc";
 import { buildLogWorker } from "./buildLogWorker";
 import { getRpcUrlMap } from "./getRpcUrlMap";
 import { readMappings } from "./readMappings";
@@ -13,21 +14,23 @@ const start = async () => {
   const { graphCompatPonderConfig, graphSchemaFilePath } =
     await readSubgraphYaml(rpcUrlMap);
 
-  console.log({ graphCompatPonderConfig, graphSchemaFilePath });
+  // console.log({ graphCompatPonderConfig, graphSchemaFilePath });
 
   const userSchema = await readSubgraphSchema(graphSchemaFilePath);
 
-  console.log({ userSchema });
+  // console.log({ userSchema });
+
+  await compile(graphCompatPonderConfig);
 
   const handlers = await readMappings(graphCompatPonderConfig);
 
-  const dbSchema = buildDbSchema(userSchema);
+  // const dbSchema = buildDbSchema(userSchema);
 
-  await createOrUpdateDbTables(dbSchema);
+  // await createOrUpdateDbTables(dbSchema);
 
-  const logWorker = buildLogWorker(graphCompatPonderConfig, dbSchema, handlers);
+  // const logWorker = buildLogWorker(graphCompatPonderConfig, dbSchema, handlers);
 
-  await executeLogs(graphCompatPonderConfig, logWorker);
+  // await executeLogs(graphCompatPonderConfig, logWorker);
 
   return;
 };
