@@ -13,11 +13,11 @@ const start = async () => {
   const { graphCompatPonderConfig, graphSchemaFilePath } =
     await readSubgraphYaml(rpcUrlMap);
 
-  // console.log({ graphCompatPonderConfig, graphSchemaFilePath });
+  console.log({ graphCompatPonderConfig, graphSchemaFilePath });
 
   const userSchema = await readSubgraphSchema(graphSchemaFilePath);
 
-  // console.log({ userSchema });
+  console.log({ userSchema });
 
   const handlers = await readMappings(graphCompatPonderConfig);
 
