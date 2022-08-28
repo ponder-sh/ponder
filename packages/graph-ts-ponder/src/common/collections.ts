@@ -273,7 +273,7 @@ export class ByteArray extends Uint8Array {
     return x
   }
 
-  @operator('==')
+  // @operator('==')
   equals(other: ByteArray): boolean {
     if (this.length != other.length) {
       return false
@@ -286,7 +286,7 @@ export class ByteArray extends Uint8Array {
     return true
   }
 
-  @operator('!=')
+  // @operator('!=')
   notEqual(other: ByteArray): boolean {
     return !(this == other)
   }
