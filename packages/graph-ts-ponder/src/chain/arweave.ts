@@ -1,5 +1,5 @@
-import '../common/eager_offset'
 import { Bytes } from '../common/collections'
+import type { u32, u64 } from '../ts-helpers'
 
 // Most types from this namespace are direct mappings or adaptations from:
 // https://github.com/ChainSafe/firehose-arweave/blob/master/proto/sf/arweave/type/v1/type.proto

@@ -1,5 +1,5 @@
-import '../common/eager_offset'
 import { Bytes } from '../common/collections'
+import type { bool, i32, i64, u32, u64 } from '../ts-helpers'
 
 export namespace cosmos {
   export class Block {
