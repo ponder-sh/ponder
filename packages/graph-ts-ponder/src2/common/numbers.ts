@@ -4,30 +4,59 @@ import { ByteArray, Bytes } from './collections'
 import { typeConversion } from './conversion'
 
 /** Host interface for BigInt arithmetic */
-export declare namespace bigInt {
-  function plus(x: bigint, y: bigint): bigint
-  function minus(x: bigint, y: bigint): bigint
-  function times(x: bigint, y: bigint): bigint
-  function dividedBy(x: bigint, y: bigint): bigint
-  function dividedByDecimal(x: bigint, y: BigDecimal): BigDecimal
-  function mod(x: bigint, y: bigint): bigint
-  function pow(x: bigint, exp: u8): bigint
-  function fromString(s: string): bigint
-  function bitOr(x: bigint, y: bigint): bigint
-  function bitAnd(x: bigint, y: bigint): bigint
-  function leftShift(x: bigint, bits: u8): bigint
-  function rightShift(x: bigint, bits: u8): bigint
+// export declare namespace bigInt {
+//   function plus(x: bigint, y: bigint): bigint
+//   function minus(x: bigint, y: bigint): bigint
+//   function times(x: bigint, y: bigint): bigint
+//   function dividedBy(x: bigint, y: bigint): bigint
+//   function dividedByDecimal(x: bigint, y: BigDecimal): BigDecimal
+//   function mod(x: bigint, y: bigint): bigint
+//   function pow(x: bigint, exp: u8): bigint
+//   function fromString(s: string): bigint
+//   function bitOr(x: bigint, y: bigint): bigint
+//   function bitAnd(x: bigint, y: bigint): bigint
+//   function leftShift(x: bigint, bits: u8): bigint
+//   function rightShift(x: bigint, bits: u8): bigint
+// }
+
+/** Host interface implementation */
+// These functions operate on the JavaScript native `bigint` type.
+// The native `bigint` type can be constructed using global.BigInt(...)
+export const bigInt = {
+  plus: (x: bigint, y: bigint) => x + y,
+  minus: (x: bigint, y: bigint) => x - y,
+  times: (x: bigint, y: bigint) => x * y,
+  dividedBy: (x: bigint, y: bigint) => x / y,
+  dividedByDecimal: (x: bigint, y: BigDecimal) => new BigDecimal(x / y.digits),
+  mod: (x: bigint, y: bigint) => x % y,
+  pow: (x: bigint, exp: number) => x ** global.BigInt(exp),
+  fromString: (s: string) => global.BigInt(s),
+  bitOr: (x: bigint, y: bigint) => x | y,
+  bitAnd: (x: bigint, y: bigint) => x & y,
+  leftShift: (x: bigint, bits: number) => x << global.BigInt(bits),
+  rightShift: (x: bigint, bits: number) => x >> global.BigInt(bits),
 }
 
 /** Host interface for BigDecimal */
-export declare namespace bigDecimal {
-  function plus(x: BigDecimal, y: BigDecimal): BigDecimal
-  function minus(x: BigDecimal, y: BigDecimal): BigDecimal
-  function times(x: BigDecimal, y: BigDecimal): BigDecimal
-  function dividedBy(x: BigDecimal, y: BigDecimal): BigDecimal
-  function equals(x: BigDecimal, y: BigDecimal): boolean
-  function toString(bigDecimal: BigDecimal): string
-  function fromString(s: string): BigDecimal
+// export declare namespace bigDecimal {
+//   function plus(x: BigDecimal, y: BigDecimal): BigDecimal
+//   function minus(x: BigDecimal, y: BigDecimal): BigDecimal
+//   function times(x: BigDecimal, y: BigDecimal): BigDecimal
+//   function dividedBy(x: BigDecimal, y: BigDecimal): BigDecimal
+//   function equals(x: BigDecimal, y: BigDecimal): boolean
+//   function toString(bigDecimal: BigDecimal): string
+//   function fromString(s: string): BigDecimal
+// }
+
+/** Host interface implementation */
+export const bigDecimal = {
+  plus: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits + y.digits),
+  minus: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits - y.digits),
+  times: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits * y.digits),
+  dividedBy: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits / y.digits),
+  equals: (x: BigDecimal, y: BigDecimal) => x.digits == y.digits,
+  toString: (x: BigDecimal) => x.digits.toString(),
+  fromString: (s: string) => new BigDecimal(global.BigInt(s)),
 }
 
 /** An Ethereum address (20 bytes). */
