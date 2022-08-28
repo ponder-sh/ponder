@@ -2,7 +2,7 @@ import asc from "assemblyscript/cli/asc";
 import fs from "node:fs";
 import path from "node:path";
 
-import type { GraphCompatPonderConfig } from "./readSubgraphYaml";
+import type { GraphCompatPonderConfig } from "../compat-ts/readSubgraphYaml";
 
 const compile = async (graphCompatPonderConfig: GraphCompatPonderConfig) => {
   for (const source of graphCompatPonderConfig.sources) {

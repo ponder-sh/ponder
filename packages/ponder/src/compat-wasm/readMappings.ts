@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 
+import { GraphCompatPonderConfig } from "../compat-ts/readSubgraphYaml";
 import { CONFIG } from "../config";
 import { logger } from "../utils/logger";
-import { GraphCompatPonderConfig } from "./readSubgraphYaml";
 
 type Handler = (event: unknown) => Promise<void> | void;
 type SourceHandlers = { [eventName: string]: Handler };

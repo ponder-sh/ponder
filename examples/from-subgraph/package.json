@@ -2,7 +2,7 @@
   "private": true,
   "scripts": {
     "dev": "ponder dev",
-    "start": "ponder start-graph",
+    "start": "ponder start-graph-ts",
     "codegen": "graph codegen",
     "build": "graph build",
     "deploy": "graph deploy --node https://api.thegraph.com/deploy/ 0xolias/ethplays-v0",
