@@ -2,7 +2,7 @@ import { NewRegistration } from "../generated/RegistryReceiverV0/RegistryReceive
 import { buildFeedItemEntity, buildPlayerEntity } from "./utils";
 
 export function handleNewRegistration(event: NewRegistration): void {
-  console.log("in handleNewRegistration with event!");
+  console.log("in handleNewRegistration with event:", event);
 
   const playerEntity = buildPlayerEntity(
     event.params.burnerAccount.toHexString()
