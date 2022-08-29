@@ -27,8 +27,8 @@ import type {
   u64,
   Uint64Array,
   usize,
-} from '../ts-helpers'
-import { changetype, idof } from '../ts-helpers'
+} from '../inject'
+import { idof } from '../inject'
 
 /**
  * Contains type IDs and their discriminants for every blockchain supported by Graph-Node.

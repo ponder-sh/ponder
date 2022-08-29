@@ -1,6 +1,6 @@
 import { ByteArray } from './index'
-import type { i32 } from './ts-helpers'
-import { changetype } from './ts-helpers'
+import type { i32 } from './inject'
+import { changetype } from './inject'
 
 /**
  * Takes 2 ByteArrays and concatenates them

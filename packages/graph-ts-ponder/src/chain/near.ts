@@ -1,7 +1,7 @@
 import { Bytes } from '../common/collections'
 import { BigInt } from '../common/numbers'
-import type { bool, u32, u64 } from '../ts-helpers'
-import { abort, assert, changetype } from '../ts-helpers'
+import type { bool, u32, u64 } from '../inject'
+import { abort, assert, changetype } from '../inject'
 
 // Most types from this namespace are direct mappings or adaptations from:
 // https://github.com/streamingfast/proto-near/blob/develop/sf/near/codec/v1/codec.proto

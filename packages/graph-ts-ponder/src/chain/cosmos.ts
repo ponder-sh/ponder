@@ -1,5 +1,5 @@
 import { Bytes } from '../common/collections'
-import type { bool, i32, i64, u32, u64 } from '../ts-helpers'
+import type { bool, i32, i64, u32, u64 } from '../inject'
 
 export namespace cosmos {
   export class Block {

@@ -11,9 +11,10 @@
     "clean": "rm -rf dist",
     "lint": "prettier -c **/*.{js,ts}",
     "format": "prettier --write -c **/*.{js,ts}",
-    "compile": "esbuild src/index.ts --platform=node --format=cjs --bundle --outfile=dist/index.js",
-    "compile-build": "esbuild build.ts --platform=node --format=cjs --bundle --outfile=dist/build.js",
-    "build": "pnpm run clean && pnpm run compile && pnpm run compile-build && node dist/build.js"
+    "build-build": "esbuild src/index.ts --platform=node --format=cjs --bundle --outfile=dist/index.js",
+    "build-inject": "esbuild src/inject.ts --platform=node --format=esm --outfile=dist/inject.js",
+    "build-index": "esbuild build.ts --platform=node --format=cjs --bundle --outfile=dist/build.js",
+    "build": "pnpm run clean && pnpm run build-build && pnpm run build-inject && pnpm run build-index && node dist/build.js"
   },
   "dependencies": {
     "assemblyscript": "0.19.10",

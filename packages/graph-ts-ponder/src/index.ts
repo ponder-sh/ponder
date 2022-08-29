@@ -1,6 +1,6 @@
 import { ByteArray, Bytes, Entity } from './common/collections'
 import { Value } from './common/value'
-import type { i32 } from './ts-helpers'
+import type { i32 } from './inject'
 // Arweave support
 export * from './chain/arweave'
 // Ethereum support

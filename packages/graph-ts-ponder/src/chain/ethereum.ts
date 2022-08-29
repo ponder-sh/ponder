@@ -1,7 +1,7 @@
 import { Bytes, Wrapped } from '../common/collections'
 import { Address, BigInt } from '../common/numbers'
-import type { bool, i32, u32, u64 } from '../ts-helpers'
-import { abort, assert, changetype } from '../ts-helpers'
+import type { bool, i32 } from '../inject'
+import { abort, assert, changetype } from '../inject'
 
 /** Host Ethereum interface */
 export declare namespace ethereum {
@@ -29,8 +29,28 @@ export namespace ethereum {
    * Pointer type for Ethereum value data.
    *
    * Big enough to fit any pointer or native `this.data`.
+   *
+   * PONDER: Here are the types by ValueKind:
+   *
+   * ADDRESS: ethereum.Address
+   * FIXED_BYTES: Bytes
+   * BYTES: Bytes
+   * INT: number | bigint
+   * UINT: number | bigint
+   * BOOL: boolean
+   * STRING: string
+   * FIXED_ARRAY: ethereum.Value[]
+   * ARRAY: ethereum.Value[]
+   * TUPLE: ethereum.Value[]
    */
-  export type ValuePayload = u64
+  export type ValuePayload =
+    | Address
+    | Bytes
+    | number
+    | bigint
+    | boolean
+    | string
+    | ethereum.Value[]
 
   /**
    * A dynamically typed value used when accessing Ethereum data.
@@ -52,12 +72,12 @@ export namespace ethereum {
 
     toAddress(): Address {
       assert(this.kind == ValueKind.ADDRESS, 'Ethereum value is not an address')
-      return changetype<Address>(this.data as u32)
+      return this.data as Address
     }
 
     toBoolean(): boolean {
       assert(this.kind == ValueKind.BOOL, 'Ethereum value is not a boolean.')
-      return this.data != 0
+      return this.data as boolean
     }
 
     toBytes(): Bytes {
@@ -65,7 +85,7 @@ export namespace ethereum {
         this.kind == ValueKind.FIXED_BYTES || this.kind == ValueKind.BYTES,
         'Ethereum value is not bytes.',
       )
-      return changetype<Bytes>(this.data as u32)
+      return this.data as Bytes
     }
 
     toI32(): i32 {
@@ -73,8 +93,8 @@ export namespace ethereum {
         this.kind == ValueKind.INT || this.kind == ValueKind.UINT,
         'Ethereum value is not an int or uint.',
       )
-      const bigInt = changetype<bigint>(this.data as u32)
-      return bigInt.toI32()
+      // NOTE: Test this.
+      return Number(this.data as bigint)
     }
 
     toBigInt(): bigint {
@@ -82,12 +102,13 @@ export namespace ethereum {
         this.kind == ValueKind.INT || this.kind == ValueKind.UINT,
         'Ethereum value is not an int or uint.',
       )
-      return changetype<bigint>(this.data as u32)
+      // NOTE: Test this.
+      return this.data as bigint
     }
 
     toString(): string {
       assert(this.kind == ValueKind.STRING, 'Ethereum value is not a string.')
-      return changetype<string>(this.data as u32)
+      return this.data as string
     }
 
     toArray(): Array<Value> {
@@ -95,12 +116,12 @@ export namespace ethereum {
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array.',
       )
-      return changetype<Array<Value>>(this.data as u32)
+      return this.data as Value[]
     }
 
     toTuple(): Tuple {
       assert(this.kind == ValueKind.TUPLE, 'Ethereum value is not a tuple.')
-      return changetype<Tuple>(this.data as u32)
+      return this.data as Value[]
     }
 
     toTupleArray<T extends Tuple>(): Array<T> {
@@ -108,12 +129,8 @@ export namespace ethereum {
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array.',
       )
-      const valueArray = this.toArray()
-      const out = new Array<T>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
-        out[i] = changetype<T>(valueArray[i].toTuple())
-      }
-      return out
+      // NOTE: Test this.
+      return this.data as unknown as T[]
     }
 
     toBooleanArray(): Array<boolean> {
@@ -121,12 +138,7 @@ export namespace ethereum {
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array or fixed array.',
       )
-      const valueArray = this.toArray()
-      const out = new Array<boolean>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
-        out[i] = valueArray[i].toBoolean()
-      }
-      return out
+      return (this.data as Value[]).map((val) => val.toBoolean())
     }
 
     toBytesArray(): Array<Bytes> {
@@ -134,12 +146,7 @@ export namespace ethereum {
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array or fixed array.',
       )
-      const valueArray = this.toArray()
-      const out = new Array<Bytes>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
-        out[i] = valueArray[i].toBytes()
-      }
-      return out
+      return (this.data as Value[]).map((val) => val.toBytes())
     }
 
     toAddressArray(): Array<Address> {
@@ -147,12 +154,7 @@ export namespace ethereum {
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array or fixed array.',
       )
-      const valueArray = this.toArray()
-      const out = new Array<Address>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
-        out[i] = valueArray[i].toAddress()
-      }
-      return out
+      return (this.data as Value[]).map((val) => val.toAddress())
     }
 
     toStringArray(): Array<string> {
@@ -160,12 +162,7 @@ export namespace ethereum {
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array or fixed array.',
       )
-      const valueArray = this.toArray()
-      const out = new Array<string>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
-        out[i] = valueArray[i].toString()
-      }
-      return out
+      return (this.data as Value[]).map((val) => val.toString())
     }
 
     toI32Array(): Array<i32> {
@@ -173,12 +170,7 @@ export namespace ethereum {
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array or fixed array.',
       )
-      const valueArray = this.toArray()
-      const out = new Array<i32>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
-        out[i] = valueArray[i].toI32()
-      }
-      return out
+      return (this.data as Value[]).map((val) => val.toI32())
     }
 
     toBigIntArray(): Array<bigint> {
@@ -186,129 +178,88 @@ export namespace ethereum {
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array or fixed array.',
       )
-      const valueArray = this.toArray()
-      const out = new Array<bigint>(valueArray.length)
-      for (let i: i32 = 0; i < valueArray.length; i++) {
-        out[i] = valueArray[i].toBigInt()
-      }
-      return out
+      return (this.data as Value[]).map((val) => val.toBigInt())
     }
 
     static fromAddress(address: Address): Value {
       assert(address.length == 20, 'Address must contain exactly 20 bytes')
-      return new Value(ValueKind.ADDRESS, changetype<u32>(address))
+      return new Value(ValueKind.ADDRESS, address)
     }
 
     static fromBoolean(b: boolean): Value {
-      return new Value(ValueKind.BOOL, b ? 1 : 0)
+      return new Value(ValueKind.BOOL, b)
     }
 
     static fromBytes(bytes: Bytes): Value {
-      return new Value(ValueKind.BYTES, changetype<u32>(bytes))
+      return new Value(ValueKind.BYTES, bytes)
     }
 
     static fromFixedBytes(bytes: Bytes): Value {
-      return new Value(ValueKind.FIXED_BYTES, changetype<u32>(bytes))
+      return new Value(ValueKind.FIXED_BYTES, bytes)
     }
 
     static fromI32(i: i32): Value {
-      return new Value(ValueKind.INT, changetype<u32>(BigInt.fromI32(i)))
+      return new Value(ValueKind.INT, i)
     }
 
     static fromSignedBigInt(i: bigint): Value {
-      return new Value(ValueKind.INT, changetype<u32>(i))
+      return new Value(ValueKind.INT, i)
     }
 
     static fromUnsignedBigInt(i: bigint): Value {
-      return new Value(ValueKind.UINT, changetype<u32>(i))
+      return new Value(ValueKind.UINT, i)
     }
 
     static fromString(s: string): Value {
-      return new Value(ValueKind.STRING, changetype<u32>(s))
+      return new Value(ValueKind.STRING, s)
     }
 
     static fromArray(values: Array<Value>): Value {
-      return new Value(ValueKind.ARRAY, changetype<u32>(values))
+      return new Value(ValueKind.ARRAY, values)
     }
 
     static fromFixedSizedArray(values: Array<Value>): Value {
-      return new Value(ValueKind.FIXED_ARRAY, changetype<u32>(values))
+      return new Value(ValueKind.FIXED_ARRAY, values)
     }
 
     static fromTuple(values: Tuple): Value {
-      return new Value(ValueKind.TUPLE, changetype<u32>(values))
+      return new Value(ValueKind.TUPLE, values)
     }
 
     static fromTupleArray(values: Array<Tuple>): Value {
-      const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
-        out[i] = Value.fromTuple(values[i])
-      }
-      return Value.fromArray(out)
+      return Value.fromArray(values.map((val) => Value.fromTuple(val)))
     }
 
     static fromBooleanArray(values: Array<boolean>): Value {
-      const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
-        out[i] = Value.fromBoolean(values[i])
-      }
-      return Value.fromArray(out)
+      return Value.fromArray(values.map((val) => Value.fromBoolean(val)))
     }
 
     static fromBytesArray(values: Array<Bytes>): Value {
-      const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
-        out[i] = Value.fromBytes(values[i])
-      }
-      return Value.fromArray(out)
+      return Value.fromArray(values.map((val) => Value.fromBytes(val)))
     }
 
     static fromFixedBytesArray(values: Array<Bytes>): Value {
-      const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
-        out[i] = Value.fromFixedBytes(values[i])
-      }
-      return Value.fromArray(out)
+      return Value.fromArray(values.map((val) => Value.fromFixedBytes(val)))
     }
 
     static fromAddressArray(values: Array<Address>): Value {
-      const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
-        out[i] = Value.fromAddress(values[i])
-      }
-      return Value.fromArray(out)
+      return Value.fromArray(values.map((val) => Value.fromAddress(val)))
     }
 
     static fromStringArray(values: Array<string>): Value {
-      const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
-        out[i] = Value.fromString(values[i])
-      }
-      return Value.fromArray(out)
+      return Value.fromArray(values.map((val) => Value.fromString(val)))
     }
 
     static fromI32Array(values: Array<i32>): Value {
-      const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
-        out[i] = Value.fromI32(values[i])
-      }
-      return Value.fromArray(out)
+      return Value.fromArray(values.map((val) => Value.fromI32(val)))
     }
 
     static fromSignedBigIntArray(values: Array<bigint>): Value {
-      const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
-        out[i] = Value.fromSignedBigInt(values[i])
-      }
-      return Value.fromArray(out)
+      return Value.fromArray(values.map((val) => Value.fromSignedBigInt(val)))
     }
 
     static fromUnsignedBigIntArray(values: Array<bigint>): Value {
-      const out = new Array<Value>(values.length)
-      for (let i: i32 = 0; i < values.length; i++) {
-        out[i] = Value.fromUnsignedBigInt(values[i])
-      }
-      return Value.fromArray(out)
+      return Value.fromArray(values.map((val) => Value.fromUnsignedBigInt(val)))
     }
   }
 

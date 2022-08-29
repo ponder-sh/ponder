@@ -1,5 +1,5 @@
-import type { bool, f64, i32, i64, u32, u64 } from '../ts-helpers'
-import { assert, changetype } from '../ts-helpers'
+import type { bool, f64, i32, i64, u32, u64 } from '../inject'
+import { assert, changetype } from '../inject'
 import { Bytes, TypedMap } from './collections'
 import { json } from './json'
 import { Address, BigDecimal, BigInt } from './numbers'

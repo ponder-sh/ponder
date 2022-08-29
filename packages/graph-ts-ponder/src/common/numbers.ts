@@ -1,5 +1,5 @@
-import type { i32, i64, u8, u32, u64 } from '../ts-helpers'
-import { assert, changetype } from '../ts-helpers'
+import type { i32, i64, u8, u32, u64 } from '../inject'
+import { assert, changetype } from '../inject'
 import { ByteArray, Bytes } from './collections'
 import { typeConversion } from './conversion'
 

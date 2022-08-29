@@ -1,20 +1,5 @@
-import type {
-  bool,
-  f32,
-  f64,
-  i8,
-  i16,
-  i32,
-  i64,
-  Int64Array,
-  u8,
-  u16,
-  u32,
-  u64,
-  Uint64Array,
-  usize,
-} from '../ts-helpers'
-import { assert, changetype, idof } from '../ts-helpers'
+import type { bool, i32, i64, u8, u32, u64 } from '../inject'
+import { assert, changetype } from '../inject'
 import { typeConversion } from './conversion'
 import { Address, BigDecimal, BigInt } from './numbers'
 import { Value } from './value'
@@ -90,15 +75,7 @@ export class ByteArray extends Uint8Array {
    */
   static fromHexString(hex: string): ByteArray {
     assert(hex.length % 2 == 0, 'input ' + hex + ' has odd length')
-    // Skip possible `0x` prefix.
-    if (hex.length >= 2 && hex.charAt(0) == '0' && hex.charAt(1) == 'x') {
-      hex = hex.substr(2)
-    }
-    const output = new Bytes(hex.length / 2)
-    for (let i = 0; i < hex.length; i += 2) {
-      output[i / 2] = I8.parseInt(hex.substr(i, 2), 16)
-    }
-    return output
+    return new ByteArray(typeConversion.hexToBytes(hex))
   }
 
   static fromUTF8(str: string): ByteArray {

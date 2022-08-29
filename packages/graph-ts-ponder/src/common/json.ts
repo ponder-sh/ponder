@@ -1,4 +1,4 @@
-import type { f64, i64, u64 } from '../ts-helpers'
+import type { f64, i64, u64 } from '../inject'
 import { Bytes, Result } from './collections'
 import { BigInt } from './numbers'
 import { JSONValue } from './value'
