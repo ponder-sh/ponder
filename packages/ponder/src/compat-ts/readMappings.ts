@@ -1,3 +1,4 @@
+import { injectFilePath } from "@ponder/graph-ts-ponder";
 import { build } from "esbuild";
 import path from "node:path";
 
@@ -21,6 +22,7 @@ const readMappings = async (
   await build({
     entryPoints: entryPoints,
     plugins: [graphTsOverridePlugin],
+    inject: [injectFilePath],
     bundle: true,
     format: "cjs",
     outfile: outFile,

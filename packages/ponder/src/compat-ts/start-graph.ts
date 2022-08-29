@@ -29,7 +29,7 @@ const start = async () => {
 
   const logWorker = buildLogWorker(graphCompatPonderConfig, dbSchema, handlers);
 
-  // await executeLogs(graphCompatPonderConfig, logWorker);
+  await executeLogs(graphCompatPonderConfig, logWorker);
 
   return;
 };
