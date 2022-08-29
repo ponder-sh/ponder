@@ -22,31 +22,28 @@ const readMappings = async (
     entryPoints: entryPoints,
     plugins: [graphTsOverridePlugin],
     bundle: true,
+    format: "cjs",
     outfile: outFile,
   });
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const handlers = require(outFile);
+  const handlerFunctions = require(outFile);
   delete require.cache[require.resolve(outFile)];
 
-  console.log(handlers);
-
-  // for (const source of graphCompatPonderConfig.sources) {
-  // const wasm = await readFile(source.wasmFilePath);
-  // const sourceHandlers: SourceHandlers = {};
-  // for (const eventHandler of source.eventHandlers) {
-  //   const handler = <Handler | undefined>(
-  //     handlerFunctions[eventHandler.handler]
-  //   );
-  //   if (handler) {
-  //     sourceHandlers[eventHandler.event] = handler;
-  //   } else {
-  //     logger.info(`Handler not found: ${eventHandler.handler}`);
-  //   }
-  // }
-  // graphHandlers[source.name] = sourceHandlers;
-  // }
-  // console.log({ graphHandlers });
+  for (const source of graphCompatPonderConfig.sources) {
+    const sourceHandlers: SourceHandlers = {};
+    for (const eventHandler of source.eventHandlers) {
+      const handler = <Handler | undefined>(
+        handlerFunctions[eventHandler.handler]
+      );
+      if (handler) {
+        sourceHandlers[eventHandler.event] = handler;
+      } else {
+        console.log(`Handler not found: ${eventHandler.handler}`);
+      }
+    }
+    graphHandlers[source.name] = sourceHandlers;
+  }
 
   return graphHandlers;
 };

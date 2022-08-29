@@ -21,11 +21,13 @@ const start = async () => {
 
   const handlers = await readMappings(graphCompatPonderConfig);
 
-  // const dbSchema = buildDbSchema(userSchema);
+  console.log({ handlers });
 
-  // await createOrUpdateDbTables(dbSchema);
+  const dbSchema = buildDbSchema(userSchema);
 
-  // const logWorker = buildLogWorker(graphCompatPonderConfig, dbSchema, handlers);
+  await createOrUpdateDbTables(dbSchema);
+
+  const logWorker = buildLogWorker(graphCompatPonderConfig, dbSchema, handlers);
 
   // await executeLogs(graphCompatPonderConfig, logWorker);
 
