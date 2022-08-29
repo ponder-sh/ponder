@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import path from "node:path";
 
 import { CONFIG } from "./config";
-import type { HandlerContext } from "./logs/buildLogWorker";
+import type { HandlerContext } from "./indexer/buildLogWorker";
 import { logger } from "./utils/logger";
 
 type Handler = (args: unknown, context: HandlerContext) => Promise<void> | void;

@@ -1,21 +1,21 @@
 import type { GraphQLSchema } from "graphql";
 
-import type { DbSchema } from "./db/buildDbSchema";
-import { buildDbSchema } from "./db/buildDbSchema";
-import { buildGqlSchema } from "./gql/buildGqlSchema";
-import type { PonderConfig } from "./readUserConfig";
-import { readUserConfig } from "./readUserConfig";
-import { readUserHandlers, UserHandlers } from "./readUserHandlers";
-import { readUserSchema } from "./readUserSchema";
-import { handleReindex } from "./reindex";
-import { startServer } from "./startServer";
 import {
   generateContextTypes,
   generateContractTypes,
   generateHandlerTypes,
   generateSchema,
   generateSchemaTypes,
-} from "./typegen";
+} from "./codegen";
+import type { DbSchema } from "./db/buildDbSchema";
+import { buildDbSchema } from "./db/buildDbSchema";
+import { buildGqlSchema } from "./graphql";
+import type { PonderConfig } from "./readUserConfig";
+import { readUserConfig } from "./readUserConfig";
+import { readUserHandlers, UserHandlers } from "./readUserHandlers";
+import { readUserSchema } from "./readUserSchema";
+import { handleReindex } from "./reindex";
+import { startServer } from "./startServer";
 
 const state: {
   config?: PonderConfig;

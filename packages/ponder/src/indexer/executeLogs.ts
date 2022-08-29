@@ -6,8 +6,8 @@ import type { PonderConfig } from "../readUserConfig";
 import { getProviderForChainId } from "../utils/helpers";
 import { logger } from "../utils/logger";
 import { LogWorker } from "./buildLogWorker";
+import { readLogCache, writeLogCache } from "./cache";
 import { fetchLogs } from "./fetchLogs";
-import { readLogCache, writeLogCache } from "./logCache";
 
 type LogQueue = fastq.queueAsPromised<Log>;
 

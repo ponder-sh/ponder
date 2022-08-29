@@ -1,6 +1,6 @@
 import { createOrUpdateDbTables } from "../db";
 import { buildDbSchema } from "../db/buildDbSchema";
-import { executeLogs } from "../logs";
+import { executeLogs } from "../indexer";
 import { buildLogWorker } from "./buildLogWorker";
 import { getRpcUrlMap } from "./getRpcUrlMap";
 import { readMappings } from "./readMappings";

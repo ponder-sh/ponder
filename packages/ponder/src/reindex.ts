@@ -1,7 +1,7 @@
 import { createOrUpdateDbTables } from "./db";
 import type { DbSchema } from "./db/buildDbSchema";
-import { executeLogs } from "./logs";
-import { buildLogWorker } from "./logs/buildLogWorker";
+import { executeLogs } from "./indexer";
+import { buildLogWorker } from "./indexer/buildLogWorker";
 import type { PonderConfig } from "./readUserConfig";
 import type { UserHandlers } from "./readUserHandlers";
 import { endBenchmark, startBenchmark } from "./utils/helpers";
