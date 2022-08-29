@@ -27,16 +27,20 @@ export * from './common/value'
 // }
 
 // The ponderInjectedStore variable is injected during build.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
 export const store = {
   get: (entity: string, id: string) => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
     return ponderInjectedStore.get(entity, id)
   },
   set: (entity: string, id: string, data: Entity) => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
     return ponderInjectedStore.set(entity, id, data)
   },
   remove: (entity: string, id: string) => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
     return ponderInjectedStore.remove(entity, id)
   },
 }
