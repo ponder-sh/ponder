@@ -19,10 +19,17 @@ const readMappings = async (
   );
   const outFile = path.resolve(`./.ponder/handlers.js`);
 
+  const injectedStoreFilePath = path.resolve(
+    __dirname,
+    "./injected/injected.js"
+  );
+
+  console.log({ injectFilePath, injectedStoreFilePath });
+
   await build({
     entryPoints: entryPoints,
     plugins: [graphTsOverridePlugin],
-    inject: [injectFilePath],
+    inject: [injectFilePath, injectedStoreFilePath],
     bundle: true,
     format: "cjs",
     outfile: outFile,

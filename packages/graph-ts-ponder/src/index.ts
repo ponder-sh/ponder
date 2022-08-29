@@ -17,13 +17,28 @@ export * from './common/json'
 export * from './common/numbers'
 export * from './common/value'
 
-/**
- * Host store interface.
- */
-export declare namespace store {
-  function get(entity: string, id: string): Entity | null
-  function set(entity: string, id: string, data: Entity): void
-  function remove(entity: string, id: string): void
+// /**
+//  * Host store interface.
+//  */
+// export declare namespace store {
+//   function get(entity: string, id: string): Entity | null
+//   function set(entity: string, id: string, data: Entity): void
+//   function remove(entity: string, id: string): void
+// }
+
+// The ponderInjectedStore variable is injected during build.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+export const store = {
+  get: (entity: string, id: string) => {
+    return ponderInjectedStore.get(entity, id)
+  },
+  set: (entity: string, id: string, data: Entity) => {
+    return ponderInjectedStore.set(entity, id, data)
+  },
+  remove: (entity: string, id: string) => {
+    return ponderInjectedStore.remove(entity, id)
+  },
 }
 
 /** Host IPFS interface */
