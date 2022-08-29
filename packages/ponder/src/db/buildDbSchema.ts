@@ -31,7 +31,7 @@ const buildDbSchema = (userSchema: GraphQLSchema): DbSchema => {
   const entities = getEntities(userSchema);
   const tables = entities.map(getTableForEntity);
 
-  return { tables: tables, userDefinedTypes };
+  return { tables, userDefinedTypes };
 };
 
 const getTableForEntity = (entity: GraphQLObjectType) => {

@@ -32,7 +32,7 @@ const createOrUpdateDbTables = async (dbSchema: DbSchema) => {
 };
 
 const dropTables = async () => {
-  const tableNames = await getTableNames();
+  const tableNames = await getTableNames(db);
 
   const dropTablePromises = tableNames.map(async (tableName) => {
     await db.schema.dropTableIfExists(tableName);
