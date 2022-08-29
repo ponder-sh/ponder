@@ -1,4 +1,4 @@
-import { ByteArray, Bytes, Entity } from './common/collections'
+import { ByteArray, Bytes } from './common/collections'
 import { Value } from './common/value'
 import type { i32 } from './inject'
 // Arweave support
@@ -13,6 +13,7 @@ export * from './chain/cosmos'
 export * from './common/collections'
 export * from './common/conversion'
 export * from './common/datasource'
+export * from './common/entity'
 export * from './common/json'
 export * from './common/numbers'
 export * from './common/value'
@@ -33,7 +34,7 @@ export const store = {
     // @ts-ignore
     return ponderInjectedStore.get(entity, id)
   },
-  set: (entity: string, id: string, data: Entity) => {
+  set: (entity: string, id: string, data: any) => {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     return ponderInjectedStore.set(entity, id, data)

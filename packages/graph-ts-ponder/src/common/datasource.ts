@@ -1,4 +1,4 @@
-import { Entity } from './collections'
+import { Entity } from './entity'
 import { Address } from './numbers'
 
 /** Host interface for managing data sources */
