@@ -15,10 +15,8 @@ const commands: { [command: string]: () => Promise<(args: unknown) => void> } =
   {
     dev: () => Promise.resolve(require("../cli/dev").dev),
     start: () => Promise.resolve(require("../cli/start").start),
-    "start-graph-ts": () =>
-      Promise.resolve(require("../compat-ts/start-graph").start),
-    "start-graph-wasm": () =>
-      Promise.resolve(require("../compat-wasm/start-graph").start),
+    "start-subgraph": () =>
+      Promise.resolve(require("../cli/start-subgraph").start),
   };
 
 if (!Object.keys(commands).includes(command)) {

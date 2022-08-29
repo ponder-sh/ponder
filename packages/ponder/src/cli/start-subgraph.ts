@@ -1,11 +1,11 @@
 import { createOrUpdateDbTables } from "../db";
 import { buildDbSchema } from "../db/buildDbSchema";
 import { executeLogs } from "../indexer";
-import { buildLogWorker } from "./buildLogWorker";
-import { getRpcUrlMap } from "./getRpcUrlMap";
-import { readMappings } from "./readMappings";
-import { readSubgraphSchema } from "./readSubgraphSchema";
-import { readSubgraphYaml } from "./readSubgraphYaml";
+import { buildLogWorker } from "../subgraph-compat/buildLogWorker";
+import { getRpcUrlMap } from "../subgraph-compat/getRpcUrlMap";
+import { readMappings } from "../subgraph-compat/readMappings";
+import { readSubgraphSchema } from "../subgraph-compat/readSubgraphSchema";
+import { readSubgraphYaml } from "../subgraph-compat/readSubgraphYaml";
 
 const start = async () => {
   const rpcUrlMap = getRpcUrlMap();
