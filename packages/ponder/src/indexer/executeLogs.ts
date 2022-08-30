@@ -97,7 +97,7 @@ const executeLogs = async (config: PonderConfig, logWorker: LogWorker) => {
 
   // Side effect: Now that the historical logs have been fetched
   // for all sources, write the updated log cache to disk. Don't await.
-  writeLogCache(logCache);
+  await writeLogCache(logCache);
 
   // Combine and sort logs from all sources.
   // Filter out logs present in the cache that are not part of the current set of logs.
