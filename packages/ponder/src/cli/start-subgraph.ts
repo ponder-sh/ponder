@@ -1,9 +1,9 @@
-import { createOrUpdateDbTables } from "../db";
 import { buildDbSchema } from "../db/buildDbSchema";
 import { executeLogs } from "../indexer";
+import { buildHandlers } from "../subgraph-compat/buildHandlers";
 import { buildLogWorker } from "../subgraph-compat/buildLogWorker";
+import { createOrUpdateDbTables } from "../subgraph-compat/createOrUpdateDbTables";
 import { getRpcUrlMap } from "../subgraph-compat/getRpcUrlMap";
-import { readMappings } from "../subgraph-compat/readMappings";
 import { readSubgraphSchema } from "../subgraph-compat/readSubgraphSchema";
 import { readSubgraphYaml } from "../subgraph-compat/readSubgraphYaml";
 
@@ -13,13 +13,9 @@ const start = async () => {
   const { graphCompatPonderConfig, graphSchemaFilePath } =
     await readSubgraphYaml(rpcUrlMap);
 
-  console.log({ graphCompatPonderConfig, graphSchemaFilePath });
-
   const userSchema = await readSubgraphSchema(graphSchemaFilePath);
 
-  console.log({ userSchema });
-
-  const handlers = await readMappings(graphCompatPonderConfig);
+  const handlers = await buildHandlers(graphCompatPonderConfig);
 
   console.log({ handlers });
 

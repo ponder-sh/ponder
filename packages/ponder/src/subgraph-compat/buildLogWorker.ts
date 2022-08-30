@@ -6,7 +6,7 @@ import type { PonderConfig } from "../readUserConfig";
 import { SourceKind } from "../readUserConfig";
 import { logger } from "../utils/logger";
 import { buildEvent } from "./buildEvent";
-import type { GraphHandlers } from "./readMappings";
+import type { GraphHandlers } from "./buildHandlers";
 
 type LogWorker = (log: Log) => Promise<void>;
 

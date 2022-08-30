@@ -9,7 +9,7 @@ type Handler = (event: unknown) => Promise<void> | void;
 type SourceHandlers = { [eventName: string]: Handler };
 type GraphHandlers = { [sourceName: string]: SourceHandlers | undefined };
 
-const readMappings = async (
+const buildHandlers = async (
   graphCompatPonderConfig: GraphCompatPonderConfig
 ) => {
   const graphHandlers: GraphHandlers = {};
@@ -57,5 +57,5 @@ const readMappings = async (
   return graphHandlers;
 };
 
-export { readMappings };
+export { buildHandlers };
 export type { GraphHandlers };

@@ -164,57 +164,6 @@ importers:
       ethers: 5.6.9
       knex: 2.2.0
 
-  packages/create-ponder-app:
-    specifiers:
-      '@ethersproject/abi': ^5.0.0
-      '@ethersproject/bytes': ^5.0.0
-      '@ethersproject/providers': ^5.0.0
-      '@graphql-codegen/core': ^2.6.2
-      '@graphql-codegen/typescript': ^2.7.3
-      '@typechain/ethers-v5': ^10.0.0
-      '@types/express': ^4.17.13
-      '@types/yargs': ^17.0.11
-      dotenv: ^16.0.1
-      esbuild: ^0.15.2
-      ethers: ^5.6.9
-      express: ^4.18.1
-      express-graphql: ^0.12.0
-      fastq: ^1.13.0
-      froebel: ^0.21.3
-      graphql: ^15.3.0
-      knex: ^2.2.0
-      knex-schema-inspector: ^2.0.4
-      prettier: ^2.6.2
-      sqlite3: ^5.0.11
-      typechain: ^8.0.0
-      typescript: ^4.5.5
-      yargs: ^17.5.1
-    dependencies:
-      '@graphql-codegen/core': 2.6.2_graphql@15.8.0
-      '@graphql-codegen/typescript': 2.7.3_graphql@15.8.0
-      '@typechain/ethers-v5': 10.1.0_2pfizk27srrrpdc2afslqbfdki
-      dotenv: 16.0.1
-      esbuild: 0.15.4
-      ethers: 5.6.9
-      express: 4.18.1
-      express-graphql: 0.12.0_graphql@15.8.0
-      fastq: 1.13.0
-      froebel: 0.21.3
-      graphql: 15.8.0
-      knex: 2.2.0_sqlite3@5.0.11
-      knex-schema-inspector: 2.0.4
-      prettier: 2.6.2
-      sqlite3: 5.0.11
-      typechain: 8.1.0_typescript@4.7.3
-      yargs: 17.5.1
-    devDependencies:
-      '@ethersproject/abi': 5.6.4
-      '@ethersproject/bytes': 5.6.1
-      '@ethersproject/providers': 5.6.8
-      '@types/express': 4.17.13
-      '@types/yargs': 17.0.11
-      typescript: 4.7.3
-
   packages/graph-ts-ponder:
     specifiers:
       '@types/node': ^18.7.8
@@ -239,10 +188,12 @@ importers:
       '@graphql-codegen/typescript': ^2.7.3
       '@ponder/graph-ts-ponder': workspace:^0.27.0
       '@typechain/ethers-v5': ^10.0.0
+      '@types/better-sqlite3': ^7.6.0
       '@types/express': ^4.17.13
       '@types/node': ^18.7.8
       '@types/yargs': ^17.0.11
       assemblyscript: 0.19.10
+      better-sqlite3: ^7.6.2
       dotenv: ^16.0.1
       esbuild: ^0.15.2
       ethers: ^5.6.9
@@ -265,6 +216,7 @@ importers:
       '@ponder/graph-ts-ponder': link:../graph-ts-ponder
       '@typechain/ethers-v5': 10.1.0_2pfizk27srrrpdc2afslqbfdki
       assemblyscript: 0.19.10
+      better-sqlite3: 7.6.2
       dotenv: 16.0.1
       esbuild: 0.15.4
       ethers: 5.6.9
@@ -273,7 +225,7 @@ importers:
       fastq: 1.13.0
       froebel: 0.21.3
       graphql: 15.8.0
-      knex: 2.2.0_sqlite3@5.0.11
+      knex: 2.2.0_y4ty3anzgrigyfsjgcukbe3ice
       knex-schema-inspector: 2.0.4
       prettier: 2.6.2
       sqlite3: 5.0.11
@@ -284,6 +236,7 @@ importers:
       '@ethersproject/abi': 5.6.4
       '@ethersproject/bytes': 5.6.1
       '@ethersproject/providers': 5.6.8
+      '@types/better-sqlite3': 7.6.0
       '@types/express': 4.17.13
       '@types/node': 18.7.8
       '@types/yargs': 17.0.11
@@ -2372,6 +2325,12 @@ packages:
     resolution: {integrity: sha512-q5veSX6zjUy/DlDhR4Y4cU0k2Ar+DT2LUraP00T19WLmTO6Se1djepCCaqU6nQrwcJ5Hyo/CWqxTzrrFg8eqbQ==}
     dev: true
 
+  /@types/better-sqlite3/7.6.0:
+    resolution: {integrity: sha512-rnSP9vY+fVsF3iJja5yRGBJV63PNBiezJlYrCkqUmQWFoB16cxAHwOkjsAYEu317miOfKaJpa65cbp0P4XJ/jw==}
+    dependencies:
+      '@types/node': 18.7.8
+    dev: true
+
   /@types/bignumber.js/5.0.0:
     resolution: {integrity: sha512-0DH7aPGCClywOFaxxjE6UwpN2kQYe9LwuDQMv+zYA97j5GkOMo8e66LYT+a8JYU7jfmUFRZLa9KycxHDsKXJCA==}
     deprecated: This is a stub types definition for bignumber.js (https://github.com/MikeMcl/bignumber.js/). bignumber.js provides its own type definitions, so you don't need @types/bignumber.js installed!
@@ -3293,6 +3252,14 @@ packages:
 
   /bech32/1.1.4:
     resolution: {integrity: sha512-s0IrSOzLlbvX7yp4WBfPITzpAU8sqQcpsmwXDiKwrG4r491vwCO/XpejasRNl0piBMe/DvP4Tz0mIS/X1DPJBQ==}
+
+  /better-sqlite3/7.6.2:
+    resolution: {integrity: sha512-S5zIU1Hink2AH4xPsN0W43T1/AJ5jrPh7Oy07ocuW/AKYYY02GWzz9NH0nbSMn/gw6fDZ5jZ1QsHt1BXAwJ6Lg==}
+    requiresBuild: true
+    dependencies:
+      bindings: 1.5.0
+      prebuild-install: 7.1.1
+    dev: false
 
   /big-integer/1.6.36:
     resolution: {integrity: sha512-t70bfa7HYEA1D9idDbmuv7YbsbVkQ+Hp+8KFSul4aE5e/i1bjCNIRYJZlA8Q8p0r9T8cF/RVvwUgRA//FydEyg==}
@@ -4574,7 +4541,6 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       mimic-response: 3.1.0
-    dev: true
 
   /deep-eql/3.0.1:
     resolution: {integrity: sha512-+QeIQyN5ZuO+3Uk5DYh6/1eKO0m0YmJFGNmFHGACpf1ClL1nmlV/p4gNgbl2pJGxgXb4faqo6UE+M5ACEMyVcw==}
@@ -6061,6 +6027,11 @@ packages:
       - supports-color
     dev: true
 
+  /expand-template/2.0.3:
+    resolution: {integrity: sha512-XYfuKMvj4O35f/pOXLObndIRvyQ+/+6AhODh+OKWj9S9498pHHn/IMszH+gt0fBCRWMNfk1ZSp5x3AifmnI2vg==}
+    engines: {node: '>=6'}
+    dev: false
+
   /explain-error/1.0.4:
     resolution: {integrity: sha512-/wSgNMxFusiYRy1rd19LT2SQlIXDppHpumpWo06wxjflD1OYxDLbl6rMVw+U3bxD5Nuhex4TKqv9Aem4D0lVzQ==}
     dev: false
@@ -6752,6 +6723,10 @@ packages:
       chalk: 2.4.2
       node-emoji: 1.11.0
     dev: true
+
+  /github-from-package/0.0.0:
+    resolution: {integrity: sha512-SyHy3T1v2NUXn29OsWdxmK6RwHD+vkj3v8en8AOBZ1wBQ/hCAQ5bAQTD02kW4W9tUp/3Qh6J8r9EvntiyCmOOw==}
+    dev: false
 
   /glob-parent/3.1.0:
     resolution: {integrity: sha512-E8Ak/2+dZY6fnzlR7+ueWvhsH1SjHr4jjss4YS/h4py44jY9MhK/VFdaZJAWDz6BbL21KeteKxFSFpq8OS5gVA==}
@@ -7490,7 +7465,6 @@ packages:
 
   /ini/1.3.8:
     resolution: {integrity: sha512-JV/yugV2uzW5iMRSiZAyDtQd+nxtUnjeLt0acNdw98kKLrvuRVyB80tsREOE7yvGVgalhZ6RNXCmEHkUKBKxew==}
-    dev: true
 
   /inquirer/6.5.2:
     resolution: {integrity: sha512-cntlB5ghuB0iuO65Ovoi8ogLHiWGs/5yNrtUcKjFhSSiVeAIVpD7koaSU9RM8mpXw5YDi9RdYXGQMaOURB7ycQ==}
@@ -8488,6 +8462,54 @@ packages:
       - supports-color
     dev: false
 
+  /knex/2.2.0_y4ty3anzgrigyfsjgcukbe3ice:
+    resolution: {integrity: sha512-yhm1Qe9Ok0TeXBq3nNHqZYJPrQ4Iw2tq9k/HxjrZ/EWec2ifOjJlkNHr26v8cQrWtk5iG3iwfUazTIWy+VKG5g==}
+    engines: {node: '>=12'}
+    hasBin: true
+    peerDependencies:
+      better-sqlite3: '*'
+      mysql: '*'
+      mysql2: '*'
+      pg: '*'
+      pg-native: '*'
+      sqlite3: '*'
+      tedious: '*'
+    peerDependenciesMeta:
+      better-sqlite3:
+        optional: true
+      mysql:
+        optional: true
+      mysql2:
+        optional: true
+      pg:
+        optional: true
+      pg-native:
+        optional: true
+      sqlite3:
+        optional: true
+      tedious:
+        optional: true
+    dependencies:
+      better-sqlite3: 7.6.2
+      colorette: 2.0.19
+      commander: 9.4.0
+      debug: 4.3.4
+      escalade: 3.1.1
+      esm: 3.2.25
+      get-package-type: 0.1.0
+      getopts: 2.3.0
+      interpret: 2.2.0
+      lodash: 4.17.21
+      pg-connection-string: 2.5.0
+      rechoir: 0.8.0
+      resolve-from: 5.0.0
+      sqlite3: 5.0.11
+      tarn: 3.0.2
+      tildify: 2.0.0
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
+
   /ky-universal/0.2.2_ky@0.11.2:
     resolution: {integrity: sha512-fb32o/fKy/ux2ALWa9HU2hvGtfOq7/vn2nH0FpVE+jwNzyTeORlAbj3Fiw+WLMbUlmVqZIWupnLZ2USHvqwZHw==}
     engines: {node: '>=8'}
@@ -9081,7 +9103,6 @@ packages:
   /mimic-response/3.1.0:
     resolution: {integrity: sha512-z0yWI+4FDrrweS8Zmt4Ej5HdJmky15+L2e6Wgn3+iK5fWzb6T3fhNFq2+MeTRb064c6Wr4N/wv0DzQTjNzHNGQ==}
     engines: {node: '>=10'}
-    dev: true
 
   /min-document/2.19.0:
     resolution: {integrity: sha512-9Wy1B3m3f66bPPmU5hdA4DR4PB2OfDU/+GS3yAB7IQozE3tqXaVv2zOjgla7MEGSRv95+ILmOuvhLkOK6wJtCQ==}
@@ -9202,6 +9223,10 @@ packages:
       for-in: 1.0.2
       is-extendable: 1.0.1
     dev: true
+
+  /mkdirp-classic/0.5.3:
+    resolution: {integrity: sha512-gKLcREMhtuZRwRAfqP3RFW+TK4JqApVBtOIftVgjuABpAtpxhPGaDcfvbhNvD0B8iD1oUr/txX35NjcaY6Ns/A==}
+    dev: false
 
   /mkdirp-promise/5.0.1:
     resolution: {integrity: sha512-Hepn5kb1lJPtVW84RFT40YG1OddBNTOVUZR2bzQUHc+Z03en8/3uX0+060JDhcEzyO08HmipsN9DcnFMxhIL9w==}
@@ -9503,6 +9528,10 @@ packages:
       - supports-color
     dev: true
 
+  /napi-build-utils/1.0.2:
+    resolution: {integrity: sha512-ONmRUqK7zj7DWX0D9ADe03wbwOBZxNAfF20PlGfCWQcD3+/MakShIHrMqx9YwPTfxDdF1zLeL+RGZiR9kGMLdg==}
+    dev: false
+
   /natural-compare/1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
     dev: true
@@ -9538,6 +9567,13 @@ packages:
     dependencies:
       lower-case: 2.0.2
       tslib: 2.4.0
+    dev: false
+
+  /node-abi/3.24.0:
+    resolution: {integrity: sha512-YPG3Co0luSu6GwOBsmIdGW6Wx0NyNDLg/hriIyDllVsNwnI6UeqaWShxC3lbH4LtEQUgoLP3XR1ndXiDAWvmRw==}
+    engines: {node: '>=10'}
+    dependencies:
+      semver: 7.3.7
     dev: false
 
   /node-addon-api/2.0.2:
@@ -10310,6 +10346,25 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: true
 
+  /prebuild-install/7.1.1:
+    resolution: {integrity: sha512-jAXscXWMcCK8GgCoHOfIr0ODh5ai8mj63L2nWrjuAgXE6tDyYGnx4/8o/rCgU+B4JSyZBKbeZqzhtwtC3ovxjw==}
+    engines: {node: '>=10'}
+    hasBin: true
+    dependencies:
+      detect-libc: 2.0.1
+      expand-template: 2.0.3
+      github-from-package: 0.0.0
+      minimist: 1.2.6
+      mkdirp-classic: 0.5.3
+      napi-build-utils: 1.0.2
+      node-abi: 3.24.0
+      pump: 3.0.0
+      rc: 1.2.8
+      simple-get: 4.0.1
+      tar-fs: 2.1.1
+      tunnel-agent: 0.6.0
+    dev: false
+
   /prelude-ls/1.1.2:
     resolution: {integrity: sha512-ESF23V4SKG6lVSGZgYNpbsiaAkdab6ZgOxe52p7+Kid3W3u3bxR4Vfd/o21dmN7jSt0IwgZ4v5MUd26FEtXE9w==}
     engines: {node: '>= 0.8.0'}
@@ -10578,6 +10633,16 @@ packages:
       http-errors: 2.0.0
       iconv-lite: 0.4.24
       unpipe: 1.0.0
+
+  /rc/1.2.8:
+    resolution: {integrity: sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw==}
+    hasBin: true
+    dependencies:
+      deep-extend: 0.6.0
+      ini: 1.3.8
+      minimist: 1.2.6
+      strip-json-comments: 2.0.1
+    dev: false
 
   /read-pkg-up/1.0.1:
     resolution: {integrity: sha512-WD9MTlNtI55IwYUS27iHh9tK3YoIVhxis8yKhLpTqWtml739uXc9NWTpxoHkfZf3+DkCCsXox94/VWZniuZm6A==}
@@ -11248,7 +11313,6 @@ packages:
 
   /simple-concat/1.0.1:
     resolution: {integrity: sha512-cSFtAPtRhljv69IK0hTVZQ+OfE9nePi/rtJmw5UjHeVyVroEqJXP1sFztKUy1qU+xvz3u/sfYJLa947b7nAN2Q==}
-    dev: true
 
   /simple-get/2.8.2:
     resolution: {integrity: sha512-Ijd/rV5o+mSBBs4F/x9oDPtTx9Zb6X9brmnXvMW4J7IR15ngi9q5xxqWBKU744jTZiaXtxaPL7uHG6vtN8kUkw==}
@@ -11257,6 +11321,14 @@ packages:
       once: 1.4.0
       simple-concat: 1.0.1
     dev: true
+
+  /simple-get/4.0.1:
+    resolution: {integrity: sha512-brv7p5WgH0jmQJr1ZDDfKDOSeWWg+OVypG99A/5vYGPqJ6pxiaHLy8nxtFjBA7oMa01ebA9gfh1uMCFqOuXxvA==}
+    dependencies:
+      decompress-response: 6.0.0
+      once: 1.4.0
+      simple-concat: 1.0.1
+    dev: false
 
   /slash/3.0.0:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
@@ -11799,7 +11871,6 @@ packages:
   /strip-json-comments/2.0.1:
     resolution: {integrity: sha512-4gB8na07fecVVkOI6Rs4e7T6NOTki5EmL7TUduTs6bu3EdnSycntVJ4re8kgZA+wx9IueI2Y11bfbgwtzuE0KQ==}
     engines: {node: '>=0.10.0'}
-    dev: true
 
   /strip-json-comments/3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
@@ -11934,6 +12005,15 @@ packages:
       mkdirp: 0.5.6
       pump: 1.0.3
       tar-stream: 1.6.2
+    dev: false
+
+  /tar-fs/2.1.1:
+    resolution: {integrity: sha512-V0r2Y9scmbDRLCNex/+hYzvp/zyYjvFbHPNgVTKfQvVrb6guiE/fxP+XblDNR011utopbkex2nM4dHNV6GDsng==}
+    dependencies:
+      chownr: 1.1.4
+      mkdirp-classic: 0.5.3
+      pump: 3.0.0
+      tar-stream: 2.2.0
     dev: false
 
   /tar-stream/1.6.2:
