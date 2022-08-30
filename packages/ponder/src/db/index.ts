@@ -1,2 +1,3 @@
-export * from "./createOrUpdateDbTables";
-export * from "./knex";
+export * from "./buildDbSchema";
+export * from "./db";
+export * from "./runMigrations";

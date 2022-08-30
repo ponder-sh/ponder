@@ -1,8 +1,7 @@
-import { buildDbSchema } from "../db/buildDbSchema";
+import { buildDbSchema, runMigrations } from "../db";
 import { executeLogs } from "../indexer";
 import { buildHandlers } from "../subgraph-compat/buildHandlers";
 import { buildLogWorker } from "../subgraph-compat/buildLogWorker";
-import { createOrUpdateDbTables } from "../subgraph-compat/createOrUpdateDbTables";
 import { getRpcUrlMap } from "../subgraph-compat/getRpcUrlMap";
 import { readSubgraphSchema } from "../subgraph-compat/readSubgraphSchema";
 import { readSubgraphYaml } from "../subgraph-compat/readSubgraphYaml";
@@ -21,7 +20,7 @@ const start = async () => {
 
   const dbSchema = buildDbSchema(userSchema);
 
-  await createOrUpdateDbTables(dbSchema);
+  await runMigrations(dbSchema);
 
   const logWorker = buildLogWorker(graphCompatPonderConfig, dbSchema, handlers);
 

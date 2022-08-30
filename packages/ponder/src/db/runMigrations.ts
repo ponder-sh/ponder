@@ -24,7 +24,7 @@ const gqlScalarToSqlTypeMap: Record<string, string | undefined> = {
 
 let isInitialized = false;
 
-const createOrUpdateDbTables = async (dbSchema: DbSchema) => {
+const runMigrations = async (dbSchema: DbSchema) => {
   if (isInitialized) {
     // Drop all tables if not running for the first time.
     dropTables();
@@ -112,4 +112,4 @@ const createTables = (dbSchema: DbSchema) => {
   });
 };
 
-export { createOrUpdateDbTables };
+export { runMigrations };

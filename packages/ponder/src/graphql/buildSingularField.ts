@@ -21,10 +21,20 @@ const buildSingularField = (
     const { id } = args;
     if (!id) return null;
 
-    const query = db(entityType.name).where({ id: id });
-    const records = await query;
+    // TODO: use helper function to prepare this query
+    const entity = db
+      .prepare(`select * from \`${entityType.name}\` where id = '@id'`)
+      .get({ id: id });
+    console.log("got entity in resolver:", { entity });
 
-    return records[0] || null;
+    if (!entity) {
+      return null;
+    }
+
+    // TODO: build entity object that works for field resolution.
+    const resolvedEntity = entity;
+
+    return resolvedEntity;
   };
 
   return {

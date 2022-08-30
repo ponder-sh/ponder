@@ -210,29 +210,36 @@ const buildPluralField = (
     const { db } = context;
     const { where, first, skip, orderBy, orderDirection } = args;
 
-    const query = db(entityType.name);
+    // TODO: migrate to use better-sqlite3
+    // const entity = db
+    // .prepare(`select * from \`${entityType.name}\` where id = '@id'`)
+    // .get({ id: id });
 
-    if (where) {
-      for (const [field, value] of Object.entries(where)) {
-        const { fieldName, resolverConfig } =
-          filterFieldNameToResolverConfig[field];
-        const { operator, patternPrefix, patternSuffix } = resolverConfig;
+    return [];
 
-        let finalValue = value;
+    // const query = db(entityType.name);
 
-        if (patternPrefix) finalValue = patternPrefix + finalValue;
-        if (patternSuffix) finalValue = finalValue + patternSuffix;
+    // if (where) {
+    //   for (const [field, value] of Object.entries(where)) {
+    //     const { fieldName, resolverConfig } =
+    //       filterFieldNameToResolverConfig[field];
+    //     const { operator, patternPrefix, patternSuffix } = resolverConfig;
 
-        query.where(fieldName, operator, finalValue);
-      }
-    }
-    if (skip) query.offset(skip);
-    if (first) query.limit(first);
-    if (orderBy) query.orderBy(orderBy, orderDirection);
+    //     let finalValue = value;
 
-    const records = await query;
+    //     if (patternPrefix) finalValue = patternPrefix + finalValue;
+    //     if (patternSuffix) finalValue = finalValue + patternSuffix;
 
-    return records;
+    //     query.where(fieldName, operator, finalValue);
+    //   }
+    // }
+    // if (skip) query.offset(skip);
+    // if (first) query.limit(first);
+    // if (orderBy) query.orderBy(orderBy, orderDirection);
+
+    // const records = await query;
+
+    // return records;
   };
 
   return {

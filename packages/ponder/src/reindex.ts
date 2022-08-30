@@ -1,4 +1,4 @@
-import { createOrUpdateDbTables } from "./db";
+import { runMigrations } from "./db";
 import type { DbSchema } from "./db/buildDbSchema";
 import { executeLogs } from "./indexer";
 import { buildLogWorker } from "./indexer/buildLogWorker";
@@ -15,7 +15,7 @@ const handleReindex = async (
   const startHrt = startBenchmark();
   // logger.info(`\x1b[33m${"INDEXING..."}\x1b[0m`); // yellow
 
-  await createOrUpdateDbTables(dbSchema);
+  await runMigrations(dbSchema);
 
   // TODO: Rename and restructure this code path a bit.
   const logWorker = buildLogWorker(config, dbSchema, userHandlers);

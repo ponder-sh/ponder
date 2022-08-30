@@ -7,8 +7,8 @@ import {
   generateSchema,
   generateSchemaTypes,
 } from "./codegen";
-import type { DbSchema } from "./db/buildDbSchema";
-import { buildDbSchema } from "./db/buildDbSchema";
+import type { DbSchema } from "./db";
+import { buildDbSchema } from "./db";
 import { buildGqlSchema } from "./graphql";
 import type { PonderConfig } from "./readUserConfig";
 import { readUserConfig } from "./readUserConfig";
