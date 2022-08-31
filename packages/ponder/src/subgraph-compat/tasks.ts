@@ -136,4 +136,9 @@ const runTask = async (task: Task) => {
   depTasks.forEach(runTask);
 };
 
-export { runTask, updateSubgraphSchemaTask, updateSubgraphYamlTask };
+export {
+  buildHandlersTask,
+  runTask,
+  updateSubgraphSchemaTask,
+  updateSubgraphYamlTask,
+};

@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { CONFIG } from "../config";
 import {
+  buildHandlersTask,
   runTask,
   updateSubgraphSchemaTask,
   updateSubgraphYamlTask,
@@ -30,17 +31,8 @@ const dev = async () => {
 
   // TODO: Make the dev server response to handler file changes again
   /// by rearranging the task dependency graph.
-  // runTask(updateUserHandlersTask);
   runTask(updateSubgraphYamlTask);
   runTask(updateSubgraphSchemaTask);
-
-  // const runUpdateUserHandlersTask = createWatchListener(
-  //   async (fileName: string) => {
-  //     logger.info(`\x1b[33m${`DETECTED CHANGE IN: ${fileName}`}\x1b[0m`); // yellow
-  //     runTask(updateUserHandlersTask);
-  //   },
-  //   CONFIG.HANDLERS_DIR_PATH
-  // );
 
   const runUpdateSubgraphYamlTask = createWatchListener(async () => {
     logger.info(
@@ -60,9 +52,14 @@ const dev = async () => {
     runTask(updateSubgraphSchemaTask);
   });
 
-  // watch(CONFIG.HANDLERS_DIR_PATH, runUpdateUserHandlersTask);
+  const runBuildHandlersTask = createWatchListener(async (fileName: string) => {
+    logger.info(`\x1b[33m${`DETECTED CHANGE IN: ${fileName}`}\x1b[0m`); // yellow
+    runTask(buildHandlersTask);
+  }, CONFIG.GRAPH_COMPAT_HANDLERS_DIR_PATH);
+
   watch(CONFIG.GRAPH_COMPAT_SUBGRAPH_YAML_PATH, runUpdateSubgraphYamlTask);
   watch(CONFIG.GRAPH_COMPAT_SUBGRAPH_SCHEMA_PATH, runUpdateSubgraphSchemaTask);
+  watch(CONFIG.GRAPH_COMPAT_HANDLERS_DIR_PATH, runBuildHandlersTask);
 };
 
 export { dev };
