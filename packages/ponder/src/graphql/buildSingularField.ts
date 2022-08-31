@@ -25,7 +25,6 @@ const buildSingularField = (
     const entity = db
       .prepare(`select * from \`${entityType.name}\` where id = '@id'`)
       .get({ id: id });
-    console.log("got entity in resolver:", { entity });
 
     if (!entity) {
       return null;

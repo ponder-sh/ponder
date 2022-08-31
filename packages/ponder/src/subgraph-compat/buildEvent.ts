@@ -34,8 +34,6 @@ const buildEvent = (log: Log, parsedLog: LogDescription) => {
   );
   const receipt: ethereum.TransactionReceipt = null!;
 
-  console.log({ log, parsedLog, txn: log.transactionHash });
-
   // First construct the `parameters` array.
   const parameters = parsedLog.eventFragment.inputs.map(
     ({ name, type, baseType }) => {
@@ -46,7 +44,6 @@ const buildEvent = (log: Log, parsedLog: LogDescription) => {
 
       // `type` is the fully qualified type (e.g. "address", "tuple(address)", "uint256[3][]"
       // `baseType` is different only if `type` is complex (e.g. "address", "tuple", "array")
-      console.log({ name, type, baseType, rawValue });
 
       let value: ethereum.Value;
       switch (baseType) {

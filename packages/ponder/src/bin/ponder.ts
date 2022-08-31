@@ -17,6 +17,7 @@ const commands: { [command: string]: () => Promise<(args: unknown) => void> } =
     start: () => Promise.resolve(require("../cli/start").start),
     "start-subgraph": () =>
       Promise.resolve(require("../cli/start-subgraph").start),
+    "dev-subgraph": () => Promise.resolve(require("../cli/dev-subgraph").dev),
   };
 
 if (!Object.keys(commands).includes(command)) {

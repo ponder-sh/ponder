@@ -18,6 +18,7 @@ interface GraphCompatPonderConfig {
   sources: GraphCompatSource[];
   stores: Store[];
   apis: Api[];
+  graphSchemaFilePath: string;
 }
 
 interface GraphCompatSource extends EvmSource {
@@ -94,12 +95,10 @@ const readSubgraphYaml = async (rpcUrlMap: RpcUrlMap) => {
   const config: GraphCompatPonderConfig = {
     ...defaultPonderConfig,
     sources: graphCompatSources,
-  };
-
-  return {
-    graphCompatPonderConfig: config,
     graphSchemaFilePath: subgraphSchemaFilePath,
   };
+
+  return config;
 };
 
 const getPonderSourceFromGraphSource = (

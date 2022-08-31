@@ -2,7 +2,7 @@
 import SqliteDatabase from "better-sqlite3";
 
 const db = SqliteDatabase(":memory:", {
-  verbose: console.log,
+  // verbose: console.log,
 });
 
 // This is not great, but the only way I could figure out how to inject the _same_ sqlite db instance

@@ -24,8 +24,6 @@ const buildHandlers = async (
     "./injected/injected.js"
   );
 
-  console.log({ injectFilePath, injectedStoreFilePath });
-
   await build({
     entryPoints: entryPoints,
     plugins: [graphTsOverridePlugin],

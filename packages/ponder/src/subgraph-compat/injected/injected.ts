@@ -16,13 +16,9 @@ type GraphStore = {
 };
 
 const get = (entityName: string, id: string) => {
-  console.log("in get with:", { entityName, id });
-
   const entity = db
     .prepare(`select * from \`${entityName}\` where id = '@id'`)
     .get({ id: id });
-
-  console.log("returning entity:", { entity });
 
   if (!entity) {
     return null;
@@ -32,8 +28,6 @@ const get = (entityName: string, id: string) => {
 };
 
 const set = async (entityName: string, id: string, entity: Entity) => {
-  console.log("in set with:", { entityName, id });
-
   const columnStatements = entity.entries.map((entry) => {
     switch (entry.value.kind) {
       case ValueKind.STRING: {
@@ -100,8 +94,6 @@ const set = async (entityName: string, id: string, entity: Entity) => {
 };
 
 const remove = (entityName: string, id: string) => {
-  console.log("in remove with:", { entityName, id });
-
   const statement = `delete from \`${entityName}\` where \`id\` = '@id'`;
 
   db.prepare(statement).run({ id: id });

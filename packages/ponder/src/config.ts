@@ -18,11 +18,13 @@ const DEFAULT_OPTIONS = {
   PONDER_DIR_PATH: ".ponder",
 
   // General options
-  LOG_LEVEL: 4, // LogLevel.Debug 2, // LogLevel.Info
+  LOG_LEVEL: 2,
 
-  // Subgraph compatibility options
+  // Graph Protocol compatibility options
   GRAPH_COMPAT_ENABLED: false,
   GRAPH_COMPAT_SUBGRAPH_YAML_PATH: "subgraph.yaml",
+  GRAPH_COMPAT_SUBGRAPH_SCHEMA_PATH: "schema.graphql",
+  GRAPH_COMPAT_HANDLERS_DIR_PATH: "handlers",
 };
 
 const OPTIONS = {
@@ -38,6 +40,15 @@ const CONFIG = {
   HANDLERS_DIR_PATH: getAbsolutePath(OPTIONS.HANDLERS_DIR_PATH),
   GENERATED_DIR_PATH: getAbsolutePath(OPTIONS.GENERATED_DIR_PATH),
   PONDER_DIR_PATH: getAbsolutePath(OPTIONS.PONDER_DIR_PATH),
+  GRAPH_COMPAT_SUBGRAPH_YAML_PATH: getAbsolutePath(
+    OPTIONS.GRAPH_COMPAT_SUBGRAPH_YAML_PATH
+  ),
+  GRAPH_COMPAT_SUBGRAPH_SCHEMA_PATH: getAbsolutePath(
+    OPTIONS.GRAPH_COMPAT_SUBGRAPH_SCHEMA_PATH
+  ),
+  GRAPH_COMPAT_HANDLERS_DIR_PATH: getAbsolutePath(
+    OPTIONS.GRAPH_COMPAT_HANDLERS_DIR_PATH
+  ),
 };
 
 export { CONFIG };
