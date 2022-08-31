@@ -155,13 +155,6 @@ const buildPluralField = (
         ? scalarFilterFieldType
         : userDefinedFilterFieldType;
 
-      console.log({
-        entityFieldName: entityField.name,
-        entityFieldType: entityField.type,
-        scalarFilterFieldType,
-        userDefinedFilterFieldType,
-      });
-
       if (!filterFieldType) {
         throw new Error(`GQL type not found: ${entityField.type}`);
       }
@@ -188,10 +181,10 @@ const buildPluralField = (
     // Add the numeric filter suffix fields.
     if (["ID", "Int", "Float"].includes(entityField.type)) {
       numericFilterSuffixes.forEach((suffix) => {
-        const whereFieldName = `${entityField.name}${suffix}`;
+        const filterFieldName = `${entityField.name}${suffix}`;
 
-        filterFields[whereFieldName] = { type: GraphQLString };
-        filterFieldNameToResolverConfig[whereFieldName] = {
+        filterFields[filterFieldName] = { type: GraphQLString };
+        filterFieldNameToResolverConfig[filterFieldName] = {
           fieldName: entityField.name,
           resolverConfig: numericSuffixToResolverConfig[suffix],
         };
@@ -199,12 +192,12 @@ const buildPluralField = (
     }
 
     // Add the string filter suffix fields.
-    if (entityField.type === "String") {
+    if (["String"].includes(entityField.type)) {
       stringFilterSuffixes.forEach((suffix) => {
-        const whereFieldName = `${entityField.name}${suffix}`;
+        const filterFieldName = `${entityField.name}${suffix}`;
 
-        filterFields[whereFieldName] = { type: GraphQLString };
-        filterFieldNameToResolverConfig[whereFieldName] = {
+        filterFields[filterFieldName] = { type: GraphQLString };
+        filterFieldNameToResolverConfig[filterFieldName] = {
           fieldName: entityField.name,
           resolverConfig: stringSuffixToResolverConfig[suffix],
         };
@@ -223,22 +216,24 @@ const buildPluralField = (
 
     const fragments: string[] = [];
 
-    // const query = db(entityType.name);
+    if (where) {
+      const whereFragments: string[] = [];
 
-    // if (where) {
-    //   for (const [field, value] of Object.entries(where)) {
-    //     const { fieldName, resolverConfig } =
-    //       filterFieldNameToResolverConfig[field];
-    //     const { operator, patternPrefix, patternSuffix } = resolverConfig;
+      for (const [field, value] of Object.entries(where)) {
+        const { fieldName, resolverConfig } =
+          filterFieldNameToResolverConfig[field];
+        const { operator, patternPrefix, patternSuffix } = resolverConfig;
 
-    //     let finalValue = value;
+        let finalValue = value;
 
-    //     if (patternPrefix) finalValue = patternPrefix + finalValue;
-    //     if (patternSuffix) finalValue = finalValue + patternSuffix;
+        if (patternPrefix) finalValue = patternPrefix + finalValue;
+        if (patternSuffix) finalValue = finalValue + patternSuffix;
 
-    //     query.where(fieldName, operator, finalValue);
-    //   }
-    // }
+        whereFragments.push(`\`${fieldName}\` ${operator} '${finalValue}'`);
+      }
+
+      fragments.push(`where ${whereFragments.join(" and ")}`);
+    }
     if (first) {
       fragments.push(`limit ${first}`);
     }
@@ -260,8 +255,6 @@ const buildPluralField = (
     )}`;
 
     const entities = db.prepare(statement).all();
-
-    console.log({ entities });
 
     return entities;
   };

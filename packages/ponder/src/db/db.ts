@@ -1,7 +1,9 @@
 // import type { Database } from "better-sqlite3";
 import SqliteDatabase from "better-sqlite3";
 
-const db = SqliteDatabase(":memory:", { verbose: console.log });
+const db = SqliteDatabase(":memory:", {
+  verbose: console.log,
+});
 
 // This is not great, but the only way I could figure out how to inject the _same_ sqlite db instance
 // in the generated code was by attaching it to global like this.
