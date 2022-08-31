@@ -11,7 +11,7 @@ const buildEvent = (log: Log, parsedLog: LogDescription) => {
     null!, // public stateRoot: Bytes,
     null!, // public transactionsRoot: Bytes,
     null!, // public receiptsRoot: Bytes,
-    BigInt.fromU32(log.blockNumber), // public number: bigint,
+    BigInt.fromU32(123), // public number: bigint,
     null!, // public gasUsed: bigint,
     null!, // public gasLimit: bigint,
     BigInt.fromU32(123), // public timestamp: bigint,
@@ -23,7 +23,7 @@ const buildEvent = (log: Log, parsedLog: LogDescription) => {
 
   const transaction = new ethereum.Transaction(
     Bytes.fromHexString(log.transactionHash), // public hash: Bytes,
-    BigInt.fromU32(log.transactionIndex), // public index: bigint,
+    BigInt.fromU32(123), // public index: bigint,
     Address.fromHexString(log.address), // public from: Address,
     Address.fromHexString(log.address), // public to: Address | null,
     null!, // public value: bigint,

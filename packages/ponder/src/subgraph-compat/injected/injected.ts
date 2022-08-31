@@ -20,7 +20,8 @@ const get = (entityName: string, id: string) => {
   const entity = db
     .prepare(`select * from \`${entityName}\` where id = '@id'`)
     .get({ id: id });
-  console.log({ entity });
+
+  console.log("returning entity:", { entity });
 
   if (!entity) {
     return null;
@@ -30,11 +31,7 @@ const get = (entityName: string, id: string) => {
 };
 
 const set = async (entityName: string, id: string, entity: Entity) => {
-  console.log("in set with:", { entityName, id, entity });
-
-  entity.entries.forEach((entry) => {
-    console.log({ key: entry.key, value: entry.value });
-  });
+  console.log("in set with:", { entityName, id });
 
   const columnStatements = entity.entries.map((entry) => {
     switch (entry.value.kind) {
@@ -50,39 +47,62 @@ const set = async (entityName: string, id: string, entity: Entity) => {
           value: `${entry.value.data}`,
         };
       }
-      case ValueKind.BYTES: {
-        console.log("handling bytes: ", {
-          data: entry.value.data,
-          stringy: entry.value.data?.toString(),
-        });
+      case ValueKind.BIGDECIMAL: {
         return {
           column: `\`${entry.key}\``,
-          value: `'${entry.value.data}'`,
+          value: `${entry.value.data}`,
         };
       }
-      default: {
-        throw new Error(`Unhandled value kind: ${entry.value.kind}`);
+      case ValueKind.BOOL: {
+        return {
+          column: `\`${entry.key}\``,
+          value: `${entry.value.data ? "true" : "false"}`,
+        };
+      }
+      case ValueKind.ARRAY: {
+        throw new Error(`Unhandled ValueKind: ARRAY`);
+      }
+      case ValueKind.NULL: {
+        return {
+          column: `\`${entry.key}\``,
+          value: `null`,
+        };
+      }
+      case ValueKind.BYTES: {
+        return {
+          column: `\`${entry.key}\``,
+          value: `'${entry.value.data?.toString()}'`,
+        };
+      }
+      case ValueKind.BIGINT: {
+        return {
+          column: `\`${entry.key}\``,
+          value: `'${entry.value.data?.toString()}'`,
+        };
       }
     }
   });
 
-  console.log({ columnStatements });
-
-  const statement = `insert into \`${entityName}\` (${columnStatements
+  const insertFragment = `(${columnStatements
     .map((s) => s.column)
-    .join(", ")}) values (${columnStatements
-    .map((s) => s.value)
-    .join(", ")}) on conflict(\`id\`)`;
+    .join(", ")}) values (${columnStatements.map((s) => s.value).join(", ")})`;
 
-  console.log({ statement });
+  const updateFragment = columnStatements
+    .filter((s) => s.column !== "id")
+    .map((s) => `${s.column}=excluded.${s.column}`)
+    .join(", ");
 
-  return;
+  const statement = `insert into \`${entityName}\` ${insertFragment} on conflict(\`id\`) do update set ${updateFragment}`;
+
+  db.prepare(statement).run();
 };
 
 const remove = (entityName: string, id: string) => {
   console.log("in remove with:", { entityName, id });
 
-  return;
+  const statement = `delete from \`${entityName}\` where \`id\` = '${id}'`;
+
+  db.prepare(statement).run();
 };
 
 export const ponderInjectedStore: GraphStore = { get, set, remove };
