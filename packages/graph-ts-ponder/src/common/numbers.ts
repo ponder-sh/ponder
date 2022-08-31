@@ -156,27 +156,19 @@ export class BigInt extends Uint8Array {
   }
 
   toI32(): i32 {
-    const uint8Array = changetype<Uint8Array>(this)
-    const byteArray = changetype<ByteArray>(uint8Array)
-    return byteArray.toI32()
+    return new ByteArray(this).toI32()
   }
 
   toU32(): u32 {
-    const uint8Array = changetype<Uint8Array>(this)
-    const byteArray = changetype<ByteArray>(uint8Array)
-    return byteArray.toU32()
+    return new ByteArray(this).toU32()
   }
 
   toI64(): i64 {
-    const uint8Array = changetype<Uint8Array>(this)
-    const byteArray = changetype<ByteArray>(uint8Array)
-    return byteArray.toI64()
+    return new ByteArray(this).toI64()
   }
 
   toU64(): u64 {
-    const uint8Array = changetype<Uint8Array>(this)
-    const byteArray = changetype<ByteArray>(uint8Array)
-    return byteArray.toU64()
+    return new ByteArray(this).toU64()
   }
 
   toBigDecimal(): BigDecimal {

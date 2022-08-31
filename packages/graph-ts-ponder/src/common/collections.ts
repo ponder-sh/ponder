@@ -1,8 +1,6 @@
-import type { bool, i32, i64, u8, u32, u64 } from '../inject'
+import type { i32, i64, u8, u32, u64 } from '../inject'
 import { assert, changetype } from '../inject'
 import { typeConversion } from './conversion'
-import { BigDecimal } from './numbers'
-import { Value } from './value'
 
 /**
  * Byte array
