@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "dev": "ponder dev",
+    "dev": "ponder dev-subgraph",
     "start": "ponder start-subgraph",
     "codegen": "graph codegen",
     "build": "graph build",
