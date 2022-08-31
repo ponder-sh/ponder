@@ -1,8 +1,9 @@
 import type { bool, f64, i32, i64, u32, u64 } from '../inject'
 import { assert, changetype } from '../inject'
-import { Bytes, TypedMap } from './collections'
+import { Bytes } from './collections'
+import { TypedMap } from './entity'
 import { json } from './json'
-import { Address, BigDecimal } from './numbers'
+import { Address, BigDecimal, BigInt } from './numbers'
 
 /**
  * Enum for supported value types.
@@ -54,7 +55,7 @@ export type ValuePayload =
   | Value[]
   | null
   | Bytes
-  | bigint
+  | BigInt
 
 /**
  * A dynamically typed value.
@@ -94,16 +95,16 @@ export class Value {
     return this.data as string
   }
 
-  toBigInt(): bigint {
+  toBigInt(): BigInt {
     assert(this.kind == ValueKind.BIGINT, 'Value is not a BigInt.')
     // NOTE: Test this.
-    return this.data as bigint
+    return this.data as BigInt
   }
 
   toBigDecimal(): BigDecimal {
     assert(this.kind == ValueKind.BIGDECIMAL, 'Value is not a BigDecimal.')
     // NOTE: Test this.
-    return new BigDecimal(this.data as bigint)
+    return this.data as BigDecimal
   }
 
   toArray(): Array<Value> {
@@ -127,7 +128,7 @@ export class Value {
     return this.toArray().map((val) => val.toI32())
   }
 
-  toBigIntArray(): Array<bigint> {
+  toBigIntArray(): Array<BigInt> {
     return this.toArray().map((val) => val.toBigInt())
   }
 
@@ -188,7 +189,7 @@ export class Value {
     return Value.fromArray(input.map((val) => Value.fromI32(val)))
   }
 
-  static fromBigIntArray(input: Array<bigint>): Value {
+  static fromBigIntArray(input: Array<BigInt>): Value {
     return Value.fromArray(input.map((val) => Value.fromBigInt(val)))
   }
 
@@ -208,7 +209,7 @@ export class Value {
     return new Value(ValueKind.ARRAY, input)
   }
 
-  static fromBigInt(n: bigint): Value {
+  static fromBigInt(n: BigInt): Value {
     return new Value(ValueKind.BIGINT, n)
   }
 
