@@ -1,15 +1,40 @@
 import type { LogDescription } from "@ethersproject/abi";
 import type { Log } from "@ethersproject/providers";
-import { Address, ethereum } from "@ponder/graph-ts-ponder";
+import { Address, BigInt, Bytes, ethereum } from "@ponder/graph-ts-ponder";
 
 const buildEvent = (log: Log, parsedLog: LogDescription) => {
-  const address = Address.fromHexString(log.address);
-  const logIndex = BigInt(log.logIndex);
-  const transactionLogIndex = BigInt(log.transactionIndex);
-  const logType = null;
-  const block: ethereum.Block = null!;
-  const transaction: ethereum.Transaction = null!;
+  const block = new ethereum.Block(
+    Bytes.fromHexString(log.blockHash), // public hash: Bytes,
+    null!, // public parentHash: Bytes,
+    null!, // public unclesHash: Bytes,
+    null!, // public author: Address,
+    null!, // public stateRoot: Bytes,
+    null!, // public transactionsRoot: Bytes,
+    null!, // public receiptsRoot: Bytes,
+    BigInt.fromU32(log.blockNumber), // public number: bigint,
+    null!, // public gasUsed: bigint,
+    null!, // public gasLimit: bigint,
+    BigInt.fromU32(123), // public timestamp: bigint,
+    null!, // public difficulty: bigint,
+    null!, // public totalDifficulty: bigint,
+    null!, // public size: bigint | null,
+    null! // public baseFeePerGas: bigint | null,
+  );
+
+  const transaction = new ethereum.Transaction(
+    Bytes.fromHexString(log.transactionHash), // public hash: Bytes,
+    BigInt.fromU32(log.transactionIndex), // public index: bigint,
+    Address.fromHexString(log.address), // public from: Address,
+    Address.fromHexString(log.address), // public to: Address | null,
+    null!, // public value: bigint,
+    null!, // public gasLimit: bigint,
+    null!, // public gasPrice: bigint,
+    null!, // public input: Bytes,
+    null! // public nonce: bigint,
+  );
   const receipt: ethereum.TransactionReceipt = null!;
+
+  console.log({ log, parsedLog, txn: log.transactionHash });
 
   // First construct the `parameters` array.
   const parameters = parsedLog.eventFragment.inputs.map(
@@ -43,10 +68,10 @@ const buildEvent = (log: Log, parsedLog: LogDescription) => {
 
   // Build the base Event.
   const event = new ethereum.Event(
-    address,
-    logIndex,
-    transactionLogIndex,
-    logType,
+    Address.fromHexString(log.address), // public address: Address
+    BigInt.fromU32(log.logIndex), // public logIndex bigint
+    BigInt.fromU32(log.transactionIndex), // public transactionLogIndex: bigint
+    null, // public logType: string | null
     block,
     transaction,
     parameters,
@@ -54,14 +79,12 @@ const buildEvent = (log: Log, parsedLog: LogDescription) => {
   );
 
   // Now, tack on the `params` field.
-  const params = parameters.reduce((acc, parameter) => {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  event.params = parameters.reduce((acc, parameter) => {
     acc[parameter.name] = parameter.value.data;
     return acc;
   }, {} as Record<string, any>);
-
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  event.params = params;
 
   return event;
 };

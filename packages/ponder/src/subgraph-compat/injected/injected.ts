@@ -44,6 +44,22 @@ const set = async (entityName: string, id: string, entity: Entity) => {
           value: `'${entry.value.data}'`,
         };
       }
+      case ValueKind.INT: {
+        return {
+          column: `\`${entry.key}\``,
+          value: `${entry.value.data}`,
+        };
+      }
+      case ValueKind.BYTES: {
+        console.log("handling bytes: ", {
+          data: entry.value.data,
+          stringy: entry.value.data?.toString(),
+        });
+        return {
+          column: `\`${entry.key}\``,
+          value: `'${entry.value.data}'`,
+        };
+      }
       default: {
         throw new Error(`Unhandled value kind: ${entry.value.kind}`);
       }
