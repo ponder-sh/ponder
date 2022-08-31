@@ -11,21 +11,11 @@ import { Bytes } from './collections'
 // }
 
 const bytesToString = (bytes: Uint8Array): string => {
-  console.log('in bytesToString with: ', { bytes })
-  const hexString =
-    '0x' + bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
-
-  console.log('returning: ', { hexString })
-  return hexString
+  return '0x' + bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
 }
 
 const bytesToHex = (bytes: Uint8Array) => {
-  console.log('in bytesToString with: ', { bytes })
-  const hexString =
-    '0x' + bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
-
-  console.log('returning: ', { hexString })
-  return hexString
+  return '0x' + bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
 }
 
 const hexToBytes = (hexString: string) => {
