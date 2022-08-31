@@ -22,20 +22,20 @@ import { typeConversion } from './conversion'
 /** Host interface implementation */
 // These functions operate on the JavaScript native `bigint` type.
 // The native `bigint` type can be constructed using global.BigInt(...)
-export const bigInt = {
-  plus: (x: bigint, y: bigint) => x + y,
-  minus: (x: bigint, y: bigint) => x - y,
-  times: (x: bigint, y: bigint) => x * y,
-  dividedBy: (x: bigint, y: bigint) => x / y,
-  dividedByDecimal: (x: bigint, y: BigDecimal) => new BigDecimal(x / y.digits),
-  mod: (x: bigint, y: bigint) => x % y,
-  pow: (x: bigint, exp: number) => x ** global.BigInt(exp),
-  fromString: (s: string) => global.BigInt(s),
-  bitOr: (x: bigint, y: bigint) => x | y,
-  bitAnd: (x: bigint, y: bigint) => x & y,
-  leftShift: (x: bigint, bits: number) => x << global.BigInt(bits),
-  rightShift: (x: bigint, bits: number) => x >> global.BigInt(bits),
-}
+// export const bigInt = {
+//   plus: (x: bigint, y: bigint) => x + y,
+//   minus: (x: bigint, y: bigint) => x - y,
+//   times: (x: bigint, y: bigint) => x * y,
+//   dividedBy: (x: bigint, y: bigint) => x / y,
+//   dividedByDecimal: (x: bigint, y: BigDecimal) => new BigDecimal(x / y.digits),
+//   mod: (x: bigint, y: bigint) => x % y,
+//   pow: (x: bigint, exp: number) => x ** global.BigInt(exp),
+//   fromString: (s: string) => global.BigInt(s),
+//   bitOr: (x: bigint, y: bigint) => x | y,
+//   bitAnd: (x: bigint, y: bigint) => x & y,
+//   leftShift: (x: bigint, bits: number) => x << global.BigInt(bits),
+//   rightShift: (x: bigint, bits: number) => x >> global.BigInt(bits),
+// }
 
 /** Host interface for BigDecimal */
 // export declare namespace bigDecimal {
@@ -49,15 +49,15 @@ export const bigInt = {
 // }
 
 /** Host interface implementation */
-export const bigDecimal = {
-  plus: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits + y.digits),
-  minus: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits - y.digits),
-  times: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits * y.digits),
-  dividedBy: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits / y.digits),
-  equals: (x: BigDecimal, y: BigDecimal) => x.digits == y.digits,
-  toString: (x: BigDecimal) => x.digits.toString(),
-  fromString: (s: string) => new BigDecimal(global.BigInt(s)),
-}
+// export const bigDecimal = {
+//   plus: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits + y.digits),
+//   minus: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits - y.digits),
+//   times: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits * y.digits),
+//   dividedBy: (x: BigDecimal, y: BigDecimal) => new BigDecimal(x.digits / y.digits),
+//   equals: (x: BigDecimal, y: BigDecimal) => x.digits == y.digits,
+//   toString: (x: BigDecimal) => x.digits.toString(),
+//   fromString: (s: string) => new BigDecimal(global.BigInt(s)),
+// }
 
 /** An Ethereum address (20 bytes). */
 export class Address extends Bytes {
@@ -89,70 +89,110 @@ export class Address extends Bytes {
 
 /** An arbitrary size integer represented as an array of bytes. */
 export class BigInt extends Uint8Array {
-  static fromI32(x: i32): bigint {
-    const byteArray = ByteArray.fromI32(x)
-    return BigInt.fromByteArray(byteArray)
+  // From https://coolaj86.com/articles/convert-js-bigints-to-typedarrays/
+  static uint8ArrayToNativeBigInt(buf: Uint8Array) {
+    const hex: string[] = []
+    buf.forEach((i) => {
+      let h = i.toString(16)
+      if (h.length % 2) {
+        h = '0' + h
+      }
+      hex.push(h)
+    })
+    return global.BigInt('0x' + hex.join(''))
   }
 
-  static fromU32(x: u32): bigint {
-    const byteArray = ByteArray.fromU32(x)
-    return BigInt.fromUnsignedBytes(byteArray)
+  // From https://coolaj86.com/articles/convert-js-bigints-to-typedarrays/
+  static fromNativeBigInt(nativeBigint: bigint): BigInt {
+    let hex = global.BigInt(nativeBigint).toString(16)
+    if (hex.length % 2) {
+      hex = '0' + hex
+    }
+    const len = hex.length / 2
+    const u8 = new Uint8Array(len)
+    let i = 0
+    let j = 0
+    while (i < len) {
+      u8[i] = parseInt(hex.slice(j, j + 2), 16)
+      i += 1
+      j += 2
+    }
+    return new BigInt(u8)
   }
 
-  static fromI64(x: i64): bigint {
-    const byteArray = ByteArray.fromI64(x)
-    return BigInt.fromByteArray(byteArray)
+  // From https://coolaj86.com/articles/convert-js-bigints-to-typedarrays/
+  toNativeBigInt(): bigint {
+    const hex: string[] = []
+    this.forEach(function (i) {
+      let h = i.toString(16)
+      if (h.length % 2) {
+        h = '0' + h
+      }
+      hex.push(h)
+    })
+    return global.BigInt('0x' + hex.join(''))
   }
 
-  static fromU64(x: u64): bigint {
-    const byteArray = ByteArray.fromU64(x)
-    return BigInt.fromUnsignedBytes(byteArray)
+  static fromByteArray(byteArray: ByteArray): BigInt {
+    return new BigInt(byteArray)
   }
 
-  static zero(): bigint {
+  static fromI32(x: i32): BigInt {
+    return BigInt.fromByteArray(ByteArray.fromI32(x))
+  }
+
+  static fromU32(x: u32): BigInt {
+    return BigInt.fromByteArray(ByteArray.fromU32(x))
+  }
+
+  static fromI64(x: i64): BigInt {
+    return BigInt.fromByteArray(ByteArray.fromI64(x))
+  }
+
+  static fromU64(x: u64): BigInt {
+    return BigInt.fromByteArray(ByteArray.fromU64(x))
+  }
+
+  static zero(): BigInt {
     return BigInt.fromI32(0)
   }
 
   /**
    * `bytes` assumed to be little-endian. If your input is big-endian, call `.reverse()` first.
    */
-
-  static fromSignedBytes(bytes: Bytes): bigint {
-    const byteArray = <ByteArray>bytes
-    return BigInt.fromByteArray(byteArray)
-  }
-
-  static fromByteArray(byteArray: ByteArray): bigint {
-    return changetype<bigint>(byteArray)
+  static fromSignedBytes(bytes: Bytes): BigInt {
+    return BigInt.fromNativeBigInt(
+      global.BigInt(
+        '0x' + bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), ''),
+      ),
+    )
   }
 
   /**
    * `bytes` assumed to be little-endian. If your input is big-endian, call `.reverse()` first.
    */
-
-  static fromUnsignedBytes(bytes: ByteArray): bigint {
-    const signedBytes = new BigInt(bytes.length + 1)
-    for (let i = 0; i < bytes.length; i++) {
-      signedBytes[i] = bytes[i]
-    }
-    signedBytes[bytes.length] = 0
-    return signedBytes
+  static fromUnsignedBytes(bytes: ByteArray): BigInt {
+    return BigInt.fromNativeBigInt(
+      global.BigInt(
+        '0x' + bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), ''),
+      ),
+    )
   }
 
   toHex(): string {
-    return typeConversion.bigIntToHex(this)
+    return this.toNativeBigInt().toString()
   }
 
   toHexString(): string {
-    return typeConversion.bigIntToHex(this)
+    return this.toNativeBigInt().toString()
   }
 
   toString(): string {
-    return typeConversion.bigIntToString(this)
+    return this.toNativeBigInt().toString()
   }
 
-  static fromString(s: string): bigint {
-    return bigInt.fromString(s)
+  static fromString(s: string): BigInt {
+    return this.fromNativeBigInt(global.BigInt(s))
   }
 
   toI32(): i32 {
@@ -180,192 +220,162 @@ export class BigInt extends Uint8Array {
   }
 
   isI32(): boolean {
-    return BigInt.fromI32(i32.MIN_VALUE) <= this && this <= BigInt.fromI32(i32.MAX_VALUE)
+    const nativeBigInt = this.toNativeBigInt()
+    return (
+      nativeBigInt >= Number.MIN_SAFE_INTEGER && nativeBigInt <= Number.MAX_SAFE_INTEGER
+    )
   }
 
-  abs(): bigint {
-    return this < BigInt.fromI32(0) ? this.neg() : this
+  abs(): BigInt {
+    const nativeBigInt = this.toNativeBigInt()
+    return BigInt.fromNativeBigInt(nativeBigInt >= 0 ? nativeBigInt : nativeBigInt * -1n)
   }
 
+  // From https://golb.hplar.ch/2018/09/javascript-bigint.html
   sqrt(): bigint {
-    const x: bigint = this
-    let z = x.plus(BigInt.fromI32(1)).div(BigInt.fromI32(2))
-    let y = x
-    while (z < y) {
-      y = z
-      z = x.div(z).plus(z).div(BigInt.fromI32(2))
+    const nativeBigInt = this.toNativeBigInt()
+    const k = 2n
+    if (nativeBigInt < 0n) {
+      throw 'negative number is not supported'
     }
 
-    return y
+    let o = 0n
+    let x = nativeBigInt
+    let limit = 100
+
+    while (x ** k !== k && x !== o && --limit) {
+      o = x
+      x = ((k - 1n) * x + nativeBigInt / x ** (k - 1n)) / k
+    }
+
+    return x
   }
 
   // Operators
 
   // @operator('+')
-  plus(other: bigint): bigint {
+  plus(other: BigInt): BigInt {
     assert(this !== null, "Failed to sum BigInts because left hand side is 'null'")
-    return bigInt.plus(this, other)
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() + other.toNativeBigInt())
   }
 
   // @operator('-')
-  minus(other: bigint): bigint {
+  minus(other: BigInt): BigInt {
     assert(this !== null, "Failed to subtract BigInts because left hand side is 'null'")
-    return bigInt.minus(this, other)
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() - other.toNativeBigInt())
   }
 
   // @operator('*')
-  times(other: bigint): bigint {
+  times(other: BigInt): BigInt {
     assert(this !== null, "Failed to multiply BigInts because left hand side is 'null'")
-    return bigInt.times(this, other)
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() * other.toNativeBigInt())
   }
 
   // @operator('/')
-  div(other: bigint): bigint {
+  div(other: BigInt): BigInt {
     assert(this !== null, "Failed to divide BigInts because left hand side is 'null'")
-    return bigInt.dividedBy(this, other)
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() / other.toNativeBigInt())
   }
 
   divDecimal(other: BigDecimal): BigDecimal {
-    return bigInt.dividedByDecimal(this, other)
+    return new BigDecimal(
+      BigInt.fromNativeBigInt(
+        (this.toNativeBigInt() / other.digits.toNativeBigInt()) **
+          other.exp.toNativeBigInt(),
+      ),
+    )
   }
 
   // @operator('%')
-  mod(other: bigint): bigint {
+  mod(other: BigInt): BigInt {
     assert(
       this !== null,
       "Failed to apply module to BigInt because left hand side is 'null'",
     )
-    return bigInt.mod(this, other)
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() % other.toNativeBigInt())
   }
 
   // @operator('==')
-  equals(other: bigint): boolean {
-    return BigInt.compare(this, other) == 0
+  equals(other: BigInt): boolean {
+    return this.toNativeBigInt() == other.toNativeBigInt()
   }
 
   // @operator('!=')
-  notEqual(other: bigint): boolean {
-    return !(this == other)
+  notEqual(other: BigInt): boolean {
+    return this.toNativeBigInt() != other.toNativeBigInt()
   }
 
   // @operator('<')
-  lt(other: bigint): boolean {
-    return BigInt.compare(this, other) == -1
+  lt(other: BigInt): boolean {
+    return this.toNativeBigInt() < other.toNativeBigInt()
   }
 
   // @operator('>')
-  gt(other: bigint): boolean {
-    return BigInt.compare(this, other) == 1
+  gt(other: BigInt): boolean {
+    return this.toNativeBigInt() > other.toNativeBigInt()
   }
 
   // @operator('<=')
-  le(other: bigint): boolean {
-    return !(this > other)
+  le(other: BigInt): boolean {
+    return this.toNativeBigInt() <= other.toNativeBigInt()
   }
 
   // @operator('>=')
-  ge(other: bigint): boolean {
-    return !(this < other)
+  ge(other: BigInt): boolean {
+    return this.toNativeBigInt() >= other.toNativeBigInt()
   }
 
   // @operator.prefix('-')
-  neg(): bigint {
-    return BigInt.fromI32(0).minus(this)
+  neg(): BigInt {
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() * -1n)
   }
 
   // @operator('|')
-  bitOr(other: bigint): bigint {
-    return bigInt.bitOr(this, other)
+  bitOr(other: BigInt): BigInt {
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() | other.toNativeBigInt())
   }
 
   // @operator('&')
-  bitAnd(other: bigint): bigint {
-    return bigInt.bitAnd(this, other)
+  bitAnd(other: BigInt): BigInt {
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() & other.toNativeBigInt())
   }
 
   // @operator('<<')
-  leftShift(bits: u8): bigint {
-    return bigInt.leftShift(this, bits)
+  leftShift(bits: u8): BigInt {
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() << global.BigInt(bits))
   }
 
   // @operator('>>')
-  rightShift(bits: u8): bigint {
-    return bigInt.rightShift(this, bits)
+  rightShift(bits: u8): BigInt {
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() >> global.BigInt(bits))
   }
 
   /// Limited to a low exponent to discourage creating a huge BigInt.
-  pow(exp: u8): bigint {
-    return bigInt.pow(this, exp)
+  pow(exp: u8): BigInt {
+    return BigInt.fromNativeBigInt(this.toNativeBigInt() ** global.BigInt(exp))
   }
 
   /**
    * Returns −1 if a < b, 1 if a > b, and 0 if A == B
    */
-  static compare(a: bigint, b: bigint): i32 {
-    // Check if a and b have the same sign.
-    const aIsNeg = a.length > 0 && a[a.length - 1] >> 7 == 1
-    const bIsNeg = b.length > 0 && b[b.length - 1] >> 7 == 1
-
-    if (!aIsNeg && bIsNeg) {
-      return 1
-    } else if (aIsNeg && !bIsNeg) {
-      return -1
-    }
-
-    // Check how many bytes of a and b are relevant to the magnitude.
-    let aRelevantBytes = a.length
-    while (
-      aRelevantBytes > 0 &&
-      ((!aIsNeg && a[aRelevantBytes - 1] == 0) ||
-        (aIsNeg && a[aRelevantBytes - 1] == 255))
-    ) {
-      aRelevantBytes -= 1
-    }
-    let bRelevantBytes = b.length
-    while (
-      bRelevantBytes > 0 &&
-      ((!bIsNeg && b[bRelevantBytes - 1] == 0) ||
-        (bIsNeg && b[bRelevantBytes - 1] == 255))
-    ) {
-      bRelevantBytes -= 1
-    }
-
-    // If a and b are positive then the one with more relevant bytes is larger.
-    // Otherwise the one with less relevant bytes is larger.
-    if (aRelevantBytes > bRelevantBytes) {
-      return aIsNeg ? -1 : 1
-    } else if (bRelevantBytes > aRelevantBytes) {
-      return aIsNeg ? 1 : -1
-    }
-
-    // We now know that a and b have the same sign and number of relevant bytes.
-    // If a and b are both negative then the one of lesser magnitude is the
-    // largest, however since in two's complement the magnitude is flipped, we
-    // may use the same logic as if a and b are positive.
-    const relevantBytes = aRelevantBytes
-    for (let i = 1; i <= relevantBytes; i++) {
-      if (a[relevantBytes - i] < b[relevantBytes - i]) {
-        return -1
-      } else if (a[relevantBytes - i] > b[relevantBytes - i]) {
-        return 1
-      }
-    }
-
-    return 0
+  static compare(a: BigInt, b: BigInt): i32 {
+    if (a.toNativeBigInt() == b.toNativeBigInt()) return 0
+    return a.toNativeBigInt() > b.toNativeBigInt() ? 1 : -1
   }
 }
 
+// TODO: Figure out if this class is working at all lol
 export class BigDecimal {
-  digits: bigint
-  exp: bigint
+  digits: BigInt
+  exp: BigInt
 
-  constructor(bigInt: bigint) {
+  constructor(bigInt: BigInt) {
     this.digits = bigInt
     this.exp = BigInt.fromI32(0)
   }
 
   static fromString(s: string): BigDecimal {
-    return bigDecimal.fromString(s)
+    return new BigDecimal(BigInt.fromString(s))
   }
 
   static zero(): BigDecimal {
@@ -373,7 +383,7 @@ export class BigDecimal {
   }
 
   toString(): string {
-    return bigDecimal.toString(this)
+    return this.digits.toString()
   }
 
   truncate(decimals: i32): BigDecimal {
@@ -394,7 +404,7 @@ export class BigDecimal {
   // @operator('+')
   plus(other: BigDecimal): BigDecimal {
     assert(this !== null, "Failed to sum BigDecimals because left hand side is 'null'")
-    return bigDecimal.plus(this, other)
+    throw new Error('BigDecimal.plus not implemented')
   }
 
   // @operator('-')
@@ -403,7 +413,7 @@ export class BigDecimal {
       this !== null,
       "Failed to subtract BigDecimals because left hand side is 'null'",
     )
-    return bigDecimal.minus(this, other)
+    throw new Error('BigDecimal.minus not implemented')
   }
 
   // @operator('*')
@@ -412,13 +422,13 @@ export class BigDecimal {
       this !== null,
       "Failed to multiply BigDecimals because left hand side is 'null'",
     )
-    return bigDecimal.times(this, other)
+    throw new Error('BigDecimal.times not implemented')
   }
 
   // @operator('/')
   div(other: BigDecimal): BigDecimal {
     assert(this !== null, "Failed to divide BigDecimals because left hand side is 'null'")
-    return bigDecimal.dividedBy(this, other)
+    throw new Error('BigDecimal.div not implemented')
   }
 
   // @operator('==')

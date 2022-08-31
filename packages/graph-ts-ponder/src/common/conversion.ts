@@ -12,24 +12,20 @@ import { Bytes } from './collections'
 
 const bytesToString = (bytes: Uint8Array): string => {
   console.log('in bytesToString with: ', { bytes })
-  const gotString = new TextDecoder().decode(bytes)
-  console.log({ gotString })
-  return gotString
+  const hexString =
+    '0x' + bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
+
+  console.log('returning: ', { hexString })
+  return hexString
 }
 
 const bytesToHex = (bytes: Uint8Array) => {
-  return '0x' + bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
-}
+  console.log('in bytesToString with: ', { bytes })
+  const hexString =
+    '0x' + bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
 
-const bigIntToString = (bigInt: Uint8Array): string => {
-  console.log('in bigIntToString with: ', { bigInt })
-  const gotString = new TextDecoder().decode(bigInt)
-  console.log({ gotString })
-  return gotString
-}
-
-const bigIntToHex = (bigInt: Uint8Array) => {
-  return '0x' + bigInt.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '')
+  console.log('returning: ', { hexString })
+  return hexString
 }
 
 const hexToBytes = (hexString: string) => {
@@ -42,8 +38,6 @@ const hexToBytes = (hexString: string) => {
 export const typeConversion = {
   bytesToString: bytesToString,
   bytesToHex: bytesToHex,
-  bigIntToString: bigIntToString,
-  bigIntToHex: bigIntToHex,
   stringToH160: (s: string) => {
     return Bytes.from([1])
   },

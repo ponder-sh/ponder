@@ -35,8 +35,8 @@ export namespace ethereum {
    * ADDRESS: ethereum.Address
    * FIXED_BYTES: Bytes
    * BYTES: Bytes
-   * INT: number | bigint
-   * UINT: number | bigint
+   * INT: number | BigInt
+   * UINT: number | BigInt
    * BOOL: boolean
    * STRING: string
    * FIXED_ARRAY: ethereum.Value[]
@@ -47,7 +47,7 @@ export namespace ethereum {
     | Address
     | Bytes
     | number
-    | bigint
+    | BigInt
     | boolean
     | string
     | ethereum.Value[]
@@ -59,13 +59,13 @@ export namespace ethereum {
     constructor(public kind: ValueKind, public data: ValuePayload) {}
 
     // @operator('<')
-    lt(other: Value): boolean {
+    lt(): boolean {
       abort("Less than operator isn't supported in Value")
       return false
     }
 
     // @operator('>')
-    gt(other: Value): boolean {
+    gt(): boolean {
       abort("Greater than operator isn't supported in Value")
       return false
     }
@@ -94,16 +94,16 @@ export namespace ethereum {
         'Ethereum value is not an int or uint.',
       )
       // NOTE: Test this.
-      return Number(this.data as bigint)
+      return Number(this.data as BigInt)
     }
 
-    toBigInt(): bigint {
+    toBigInt(): BigInt {
       assert(
         this.kind == ValueKind.INT || this.kind == ValueKind.UINT,
         'Ethereum value is not an int or uint.',
       )
       // NOTE: Test this.
-      return this.data as bigint
+      return this.data as BigInt
     }
 
     toString(): string {
@@ -173,7 +173,7 @@ export namespace ethereum {
       return (this.data as Value[]).map((val) => val.toI32())
     }
 
-    toBigIntArray(): Array<bigint> {
+    toBigIntArray(): Array<BigInt> {
       assert(
         this.kind == ValueKind.ARRAY || this.kind == ValueKind.FIXED_ARRAY,
         'Ethereum value is not an array or fixed array.',
@@ -202,11 +202,11 @@ export namespace ethereum {
       return new Value(ValueKind.INT, i)
     }
 
-    static fromSignedBigInt(i: bigint): Value {
+    static fromSignedBigInt(i: BigInt): Value {
       return new Value(ValueKind.INT, i)
     }
 
-    static fromUnsignedBigInt(i: bigint): Value {
+    static fromUnsignedBigInt(i: BigInt): Value {
       return new Value(ValueKind.UINT, i)
     }
 
@@ -254,11 +254,11 @@ export namespace ethereum {
       return Value.fromArray(values.map((val) => Value.fromI32(val)))
     }
 
-    static fromSignedBigIntArray(values: Array<bigint>): Value {
+    static fromSignedBigIntArray(values: Array<BigInt>): Value {
       return Value.fromArray(values.map((val) => Value.fromSignedBigInt(val)))
     }
 
-    static fromUnsignedBigIntArray(values: Array<bigint>): Value {
+    static fromUnsignedBigIntArray(values: Array<BigInt>): Value {
       return Value.fromArray(values.map((val) => Value.fromUnsignedBigInt(val)))
     }
   }
@@ -284,14 +284,14 @@ export namespace ethereum {
       public stateRoot: Bytes,
       public transactionsRoot: Bytes,
       public receiptsRoot: Bytes,
-      public number: bigint,
-      public gasUsed: bigint,
-      public gasLimit: bigint,
-      public timestamp: bigint,
-      public difficulty: bigint,
-      public totalDifficulty: bigint,
-      public size: bigint | null,
-      public baseFeePerGas: bigint | null,
+      public number: BigInt,
+      public gasUsed: BigInt,
+      public gasLimit: BigInt,
+      public timestamp: BigInt,
+      public difficulty: BigInt,
+      public totalDifficulty: BigInt,
+      public size: BigInt | null,
+      public baseFeePerGas: BigInt | null,
     ) {}
   }
 
@@ -301,14 +301,14 @@ export namespace ethereum {
   export class Transaction {
     constructor(
       public hash: Bytes,
-      public index: bigint,
+      public index: BigInt,
       public from: Address,
       public to: Address | null,
-      public value: bigint,
-      public gasLimit: bigint,
-      public gasPrice: bigint,
+      public value: BigInt,
+      public gasLimit: BigInt,
+      public gasPrice: BigInt,
       public input: Bytes,
-      public nonce: bigint,
+      public nonce: BigInt,
     ) {}
   }
 
@@ -318,14 +318,14 @@ export namespace ethereum {
   export class TransactionReceipt {
     constructor(
       public transactionHash: Bytes,
-      public transactionIndex: bigint,
+      public transactionIndex: BigInt,
       public blockHash: Bytes,
-      public blockNumber: bigint,
-      public cumulativeGasUsed: bigint,
-      public gasUsed: bigint,
+      public blockNumber: BigInt,
+      public cumulativeGasUsed: BigInt,
+      public gasUsed: BigInt,
       public contractAddress: Address,
       public logs: Array<Log>,
-      public status: bigint,
+      public status: BigInt,
       public root: Bytes,
       public logsBloom: Bytes,
     ) {}
@@ -342,9 +342,9 @@ export namespace ethereum {
       public blockHash: Bytes,
       public blockNumber: Bytes,
       public transactionHash: Bytes,
-      public transactionIndex: bigint,
-      public logIndex: bigint,
-      public transactionLogIndex: bigint,
+      public transactionIndex: BigInt,
+      public logIndex: BigInt,
+      public transactionLogIndex: BigInt,
       public logType: string,
       public removed: Wrapped<bool> | null,
     ) {}
@@ -370,8 +370,8 @@ export namespace ethereum {
   export class Event {
     constructor(
       public address: Address,
-      public logIndex: bigint,
-      public transactionLogIndex: bigint,
+      public logIndex: BigInt,
+      public transactionLogIndex: BigInt,
       public logType: string | null,
       public block: Block,
       public transaction: Transaction,
