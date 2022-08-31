@@ -192,7 +192,6 @@ importers:
       '@types/express': ^4.17.13
       '@types/node': ^18.7.8
       '@types/yargs': ^17.0.11
-      assemblyscript: 0.19.10
       better-sqlite3: ^7.6.2
       dotenv: ^16.0.1
       esbuild: ^0.15.2
@@ -200,22 +199,17 @@ importers:
       express: ^4.18.1
       express-graphql: ^0.12.0
       fastq: ^1.13.0
-      froebel: ^0.21.3
       graphql: ^15.3.0
-      knex: ^2.2.0
-      knex-schema-inspector: ^2.0.4
       prettier: ^2.6.2
       sqlite3: ^5.0.11
       typechain: ^8.0.0
       typescript: ^4.5.5
       yaml: ^2.1.1
-      yargs: ^17.5.1
     dependencies:
       '@graphql-codegen/core': 2.6.2_graphql@15.8.0
       '@graphql-codegen/typescript': 2.7.3_graphql@15.8.0
       '@ponder/graph-ts-ponder': link:../graph-ts-ponder
       '@typechain/ethers-v5': 10.1.0_2pfizk27srrrpdc2afslqbfdki
-      assemblyscript: 0.19.10
       better-sqlite3: 7.6.2
       dotenv: 16.0.1
       esbuild: 0.15.4
@@ -223,15 +217,11 @@ importers:
       express: 4.18.1
       express-graphql: 0.12.0_graphql@15.8.0
       fastq: 1.13.0
-      froebel: 0.21.3
       graphql: 15.8.0
-      knex: 2.2.0_y4ty3anzgrigyfsjgcukbe3ice
-      knex-schema-inspector: 2.0.4
       prettier: 2.6.2
       sqlite3: 5.0.11
       typechain: 8.1.0_typescript@4.7.3
       yaml: 2.1.1
-      yargs: 17.5.1
     devDependencies:
       '@ethersproject/abi': 5.6.4
       '@ethersproject/bytes': 5.6.1
@@ -8443,54 +8433,6 @@ packages:
       tedious:
         optional: true
     dependencies:
-      colorette: 2.0.19
-      commander: 9.4.0
-      debug: 4.3.4
-      escalade: 3.1.1
-      esm: 3.2.25
-      get-package-type: 0.1.0
-      getopts: 2.3.0
-      interpret: 2.2.0
-      lodash: 4.17.21
-      pg-connection-string: 2.5.0
-      rechoir: 0.8.0
-      resolve-from: 5.0.0
-      sqlite3: 5.0.11
-      tarn: 3.0.2
-      tildify: 2.0.0
-    transitivePeerDependencies:
-      - supports-color
-    dev: false
-
-  /knex/2.2.0_y4ty3anzgrigyfsjgcukbe3ice:
-    resolution: {integrity: sha512-yhm1Qe9Ok0TeXBq3nNHqZYJPrQ4Iw2tq9k/HxjrZ/EWec2ifOjJlkNHr26v8cQrWtk5iG3iwfUazTIWy+VKG5g==}
-    engines: {node: '>=12'}
-    hasBin: true
-    peerDependencies:
-      better-sqlite3: '*'
-      mysql: '*'
-      mysql2: '*'
-      pg: '*'
-      pg-native: '*'
-      sqlite3: '*'
-      tedious: '*'
-    peerDependenciesMeta:
-      better-sqlite3:
-        optional: true
-      mysql:
-        optional: true
-      mysql2:
-        optional: true
-      pg:
-        optional: true
-      pg-native:
-        optional: true
-      sqlite3:
-        optional: true
-      tedious:
-        optional: true
-    dependencies:
-      better-sqlite3: 7.6.2
       colorette: 2.0.19
       commander: 9.4.0
       debug: 4.3.4
