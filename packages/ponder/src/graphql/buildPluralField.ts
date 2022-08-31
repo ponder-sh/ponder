@@ -37,6 +37,10 @@ const gqlScalarStringToType: { [key: string]: GraphQLScalarType | undefined } =
     Float: GraphQLFloat,
     String: GraphQLString,
     Boolean: GraphQLBoolean,
+    // Graph Protocol custom scalars
+    BigInt: GraphQLString,
+    Bytes: GraphQLString,
+    BigDecimal: GraphQLString,
   };
 
 type FilterFieldResolverConfig = {
@@ -143,7 +147,7 @@ const buildPluralField = (
 
       if (scalarFilterFieldType && userDefinedFilterFieldType) {
         throw new Error(
-          `GQL Type name collision with scalar type: ${entityField.type}`
+          `GQL type name collision with scalar type: ${entityField.type}`
         );
       }
 
@@ -151,8 +155,15 @@ const buildPluralField = (
         ? scalarFilterFieldType
         : userDefinedFilterFieldType;
 
+      console.log({
+        entityFieldName: entityField.name,
+        entityFieldType: entityField.type,
+        scalarFilterFieldType,
+        userDefinedFilterFieldType,
+      });
+
       if (!filterFieldType) {
-        throw new Error(`GQL Type not found: ${entityField.type}`);
+        throw new Error(`GQL type not found: ${entityField.type}`);
       }
 
       const resolverConfig = universalSuffixToResolverConfig[suffix];
@@ -210,12 +221,7 @@ const buildPluralField = (
     const { db } = context;
     const { where, first, skip, orderBy, orderDirection } = args;
 
-    // TODO: migrate to use better-sqlite3
-    // const entity = db
-    // .prepare(`select * from \`${entityType.name}\` where id = '@id'`)
-    // .get({ id: id });
-
-    return [];
+    const fragments: string[] = [];
 
     // const query = db(entityType.name);
 
@@ -233,13 +239,31 @@ const buildPluralField = (
     //     query.where(fieldName, operator, finalValue);
     //   }
     // }
-    // if (skip) query.offset(skip);
-    // if (first) query.limit(first);
-    // if (orderBy) query.orderBy(orderBy, orderDirection);
+    if (first) {
+      fragments.push(`limit ${first}`);
+    }
+    if (skip) {
+      if (!first) {
+        fragments.push(`limit -1`); // Must add a no-op limit for SQLite to handle offset
+      }
+      fragments.push(`offset ${skip}`);
+    }
+    if (orderBy) {
+      fragments.push(`order by \`${orderBy}\``);
+    }
+    if (orderDirection) {
+      fragments.push(`${orderDirection}`);
+    }
 
-    // const records = await query;
+    const statement = `select * from \`${entityType.name}\` ${fragments.join(
+      " "
+    )}`;
 
-    // return records;
+    const entities = db.prepare(statement).all();
+
+    console.log({ entities });
+
+    return entities;
   };
 
   return {

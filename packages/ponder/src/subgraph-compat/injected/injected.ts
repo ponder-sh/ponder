@@ -2,11 +2,12 @@
 // This file is injected while building the user's handlers.js file.
 
 import { Entity, ValueKind } from "@ponder/graph-ts-ponder";
+import type { Database } from "better-sqlite3";
 
 // The db gets injected into the global scope before handler functions start running.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-const db = global.db;
+const db = global.db as Database;
 
 type GraphStore = {
   get: (entity: string, id: string) => Entity | null;
@@ -92,6 +93,7 @@ const set = async (entityName: string, id: string, entity: Entity) => {
     .map((s) => `${s.column}=excluded.${s.column}`)
     .join(", ");
 
+  // TODO: This is blatantly vulnerable to SQL injection attacks, try to mitigate.
   const statement = `insert into \`${entityName}\` ${insertFragment} on conflict(\`id\`) do update set ${updateFragment}`;
 
   db.prepare(statement).run();
@@ -100,9 +102,9 @@ const set = async (entityName: string, id: string, entity: Entity) => {
 const remove = (entityName: string, id: string) => {
   console.log("in remove with:", { entityName, id });
 
-  const statement = `delete from \`${entityName}\` where \`id\` = '${id}'`;
+  const statement = `delete from \`${entityName}\` where \`id\` = '@id'`;
 
-  db.prepare(statement).run();
+  db.prepare(statement).run({ id: id });
 };
 
 export const ponderInjectedStore: GraphStore = { get, set, remove };

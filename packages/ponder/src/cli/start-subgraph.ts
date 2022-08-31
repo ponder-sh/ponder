@@ -1,5 +1,7 @@
 import { buildDbSchema, runMigrations } from "../db";
+import { buildGqlSchema } from "../graphql";
 import { executeLogs } from "../indexer";
+import { startServer } from "../startServer";
 import { buildHandlers } from "../subgraph-compat/buildHandlers";
 import { buildLogWorker } from "../subgraph-compat/buildLogWorker";
 import { getRpcUrlMap } from "../subgraph-compat/getRpcUrlMap";
@@ -13,18 +15,20 @@ const start = async () => {
     await readSubgraphYaml(rpcUrlMap);
 
   const userSchema = await readSubgraphSchema(graphSchemaFilePath);
-
-  const handlers = await buildHandlers(graphCompatPonderConfig);
-
-  console.log({ handlers });
+  console.log({ userSchema });
 
   const dbSchema = buildDbSchema(userSchema);
+  const gqlSchema = buildGqlSchema(userSchema);
+
+  const handlers = await buildHandlers(graphCompatPonderConfig);
 
   await runMigrations(dbSchema);
 
   const logWorker = buildLogWorker(graphCompatPonderConfig, dbSchema, handlers);
 
   await executeLogs(graphCompatPonderConfig, logWorker);
+
+  startServer(graphCompatPonderConfig, gqlSchema);
 
   return;
 };
