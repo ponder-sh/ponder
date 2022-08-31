@@ -1,27 +1,39 @@
 #!/usr/bin/env node
 /* eslint-disable @typescript-eslint/no-var-requires */
 
+import { Command } from "commander";
 import dotenv from "dotenv";
 
 dotenv.config({ path: ".env.local" });
 
-const { argv } = require("yargs");
+const program = new Command();
 
-const scriptName = argv.$0;
-const command = argv._[0];
-const args = argv;
+program
+  .command("dev")
+  .description("start local development server")
+  .action(() => {
+    require("../cli/dev").dev();
+  });
 
-const commands: { [command: string]: () => Promise<(args: unknown) => void> } =
-  {
-    dev: () => Promise.resolve(require("../cli/dev").dev),
-    start: () => Promise.resolve(require("../cli/start").start),
-    "start-subgraph": () =>
-      Promise.resolve(require("../cli/start-subgraph").start),
-    "dev-subgraph": () => Promise.resolve(require("../cli/dev-subgraph").dev),
-  };
+program
+  .command("start")
+  .description("start server")
+  .action(() => {
+    require("../cli/start").start();
+  });
 
-if (!Object.keys(commands).includes(command)) {
-  throw new Error(`Command not found: ${command}`);
-}
+program
+  .command("dev-subgraph")
+  .description("start local development server for Graph Protocol subgraph")
+  .action(() => {
+    require("../cli/dev-subgraph").dev();
+  });
 
-commands[command]().then((exec) => exec(args));
+program
+  .command("start-subgraph")
+  .description("start server for Graph Protocol subgraph")
+  .action(() => {
+    require("../cli/start-subgraph").start();
+  });
+
+program.parse();

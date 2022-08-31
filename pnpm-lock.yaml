@@ -192,6 +192,7 @@ importers:
       '@types/express': ^4.17.13
       '@types/node': ^18.7.8
       better-sqlite3: ^7.6.2
+      commander: ^9.4.0
       dotenv: ^16.0.1
       esbuild: ^0.15.2
       ethers: ^5.6.9
@@ -210,6 +211,7 @@ importers:
       '@ponder/graph-ts-ponder': link:../graph-ts-ponder
       '@typechain/ethers-v5': 10.1.0_2pfizk27srrrpdc2afslqbfdki
       better-sqlite3: 7.6.2
+      commander: 9.4.0
       dotenv: 16.0.1
       esbuild: 0.15.4
       ethers: 5.6.9
