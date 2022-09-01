@@ -45,12 +45,22 @@ const buildEvent = (log: Log, parsedLog: LogDescription) => {
       // `type` is the fully qualified type (e.g. "address", "tuple(address)", "uint256[3][]"
       // `baseType` is different only if `type` is complex (e.g. "address", "tuple", "array")
 
+      // Here we are just stripping the byte length for `int` and `uint` types.
+      const rootBaseType = baseType.replace(/\d+$/, "");
+
       let value: ethereum.Value;
-      switch (baseType) {
+      switch (rootBaseType) {
         case "address": {
           value = new ethereum.Value(
             ethereum.ValueKind.ADDRESS,
             Address.fromHexString(rawValue)
+          );
+          break;
+        }
+        case "uint": {
+          value = new ethereum.Value(
+            ethereum.ValueKind.UINT,
+            BigInt.fromNativeBigInt(rawValue)
           );
           break;
         }
