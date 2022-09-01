@@ -18,7 +18,7 @@ const DEFAULT_OPTIONS = {
   PONDER_DIR_PATH: ".ponder",
 
   // General options
-  LOG_LEVEL: 2,
+  LOG_LEVEL: 4,
 
   // Graph Protocol compatibility options
   GRAPH_COMPAT_ENABLED: false,

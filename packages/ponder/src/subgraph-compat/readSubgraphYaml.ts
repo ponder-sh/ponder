@@ -23,7 +23,6 @@ interface GraphCompatPonderConfig {
 
 interface GraphCompatSource extends EvmSource {
   mappingFilePath: string;
-  wasmFilePath: string;
   eventHandlers: {
     event: string;
     handler: string;
@@ -122,11 +121,6 @@ const getPonderSourceFromGraphSource = (
     throw new Error(`Missing RPC URL for chain ID: ${chainId}`);
   }
 
-  const mappingFilePath = path.resolve(subgraphSource.mapping.file);
-  const wasmFilePath = path.resolve(
-    `./build/${subgraphSource.name}/${subgraphSource.name}.wasm`
-  );
-
   return {
     kind: SourceKind.EVM,
     name: subgraphSource.name,
@@ -137,8 +131,7 @@ const getPonderSourceFromGraphSource = (
     startBlock: subgraphSource.source.startBlock,
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     abiInterface: null!,
-    mappingFilePath: mappingFilePath,
-    wasmFilePath: wasmFilePath,
+    mappingFilePath: subgraphSource.mapping.file,
     eventHandlers: subgraphSource.mapping.eventHandlers || [],
   };
 };

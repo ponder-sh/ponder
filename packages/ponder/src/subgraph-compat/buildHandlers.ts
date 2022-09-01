@@ -14,9 +14,6 @@ const buildHandlers = async (
 ) => {
   const graphHandlers: GraphHandlers = {};
 
-  const entryPoints = graphCompatPonderConfig.sources.map(
-    (source) => source.mappingFilePath
-  );
   const outFile = path.resolve(`./.ponder/handlers.js`);
 
   const injectedStoreFilePath = path.resolve(
@@ -24,8 +21,19 @@ const buildHandlers = async (
     "./injected/injected.js"
   );
 
+  // This is kind of a hack to get esbuild to bundle into one file despite the fact that subgraph repos
+  // don't have a one-file entrypoint (each handler defines a file that does naemd exports).
+  const stdinContents = graphCompatPonderConfig.sources
+    .map((source) => source.mappingFilePath)
+    .map((file) => file.replace(/\.[^/.]+$/, ""))
+    .map((file) => `export * from "${file}";`)
+    .join("\n");
+
   await build({
-    entryPoints: entryPoints,
+    stdin: {
+      contents: stdinContents,
+      resolveDir: process.cwd(),
+    },
     plugins: [graphTsOverridePlugin],
     inject: [injectFilePath, injectedStoreFilePath],
     bundle: true,

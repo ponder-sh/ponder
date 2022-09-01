@@ -11,6 +11,7 @@ import { readSubgraphSchema } from "./readSubgraphSchema";
 import type { GraphCompatPonderConfig } from "./readSubgraphYaml";
 import { readSubgraphYaml } from "./readSubgraphYaml";
 import { handleReindex } from "./reindex";
+import { runGraphCodegen } from "./runGraphCodegen";
 
 const state: {
   config?: GraphCompatPonderConfig;
@@ -24,6 +25,7 @@ const state: {
 enum TaskName {
   UPDATE_SUBGRAPH_YAML,
   UPDATE_SUBGRAPH_SCHEMA,
+  RUN_GRAPH_CODEGEN,
   BUILD_GQL_SCHEMA,
   BUILD_DB_SCHEMA,
   BUILD_HANDLERS,
@@ -44,6 +46,7 @@ const updateSubgraphYamlTask: Task = {
     state.config = await readSubgraphYaml(rpcUrlMap);
   },
   dependencies: [
+    TaskName.RUN_GRAPH_CODEGEN,
     TaskName.UPDATE_SUBGRAPH_SCHEMA,
     TaskName.START_SERVER,
     TaskName.BUILD_HANDLERS,
@@ -59,6 +62,18 @@ const updateSubgraphSchemaTask: Task = {
         state.config?.graphSchemaFilePath
       );
     }
+  },
+  dependencies: [
+    TaskName.RUN_GRAPH_CODEGEN,
+    TaskName.BUILD_GQL_SCHEMA,
+    TaskName.BUILD_DB_SCHEMA,
+  ],
+};
+
+const runGraphCodegenTask: Task = {
+  name: TaskName.RUN_GRAPH_CODEGEN,
+  handler: async () => {
+    await runGraphCodegen();
   },
   dependencies: [TaskName.BUILD_GQL_SCHEMA, TaskName.BUILD_DB_SCHEMA],
 };
@@ -122,6 +137,7 @@ const reindexTask: Task = {
 const taskMap: Record<TaskName, Task> = {
   [TaskName.UPDATE_SUBGRAPH_YAML]: updateSubgraphYamlTask,
   [TaskName.UPDATE_SUBGRAPH_SCHEMA]: updateSubgraphSchemaTask,
+  [TaskName.RUN_GRAPH_CODEGEN]: runGraphCodegenTask,
   [TaskName.BUILD_GQL_SCHEMA]: buildGqlSchemaTask,
   [TaskName.BUILD_DB_SCHEMA]: buildDbSchemaTask,
   [TaskName.BUILD_HANDLERS]: buildHandlersTask,
@@ -130,7 +146,9 @@ const taskMap: Record<TaskName, Task> = {
 };
 
 const runTask = async (task: Task) => {
+  console.log(`Running task: ${TaskName[task.name]}`);
   await task.handler();
+  console.log(`Completed task: ${TaskName[task.name]}`);
 
   const depTasks = (task.dependencies || []).map((name) => taskMap[name]);
   depTasks.forEach(runTask);
