@@ -11,6 +11,218 @@ import {
   BigDecimal
 } from "@graphprotocol/graph-ts";
 
+export class GameState extends Entity {
+  constructor(id: string) {
+    super();
+    this.set("id", Value.fromString(id));
+  }
+
+  save(): void {
+    let id = this.get("id");
+    assert(id != null, "Cannot save GameState entity without an ID");
+    if (id) {
+      assert(
+        id.kind == ValueKind.STRING,
+        `Entities of type GameState must have an ID of type String but the id '${id.displayData()}' is of type ${id.displayKind()}`
+      );
+      store.set("GameState", id.toString(), this);
+    }
+  }
+
+  static load(id: string): GameState | null {
+    return changetype<GameState | null>(store.get("GameState", id));
+  }
+
+  get id(): string {
+    let value = this.get("id");
+    return value!.toString();
+  }
+
+  set id(value: string) {
+    this.set("id", Value.fromString(value));
+  }
+
+  get isActive(): boolean {
+    let value = this.get("isActive");
+    return value!.toBoolean();
+  }
+
+  set isActive(value: boolean) {
+    this.set("isActive", Value.fromBoolean(value));
+  }
+
+  get inputIndex(): BigInt {
+    let value = this.get("inputIndex");
+    return value!.toBigInt();
+  }
+
+  set inputIndex(value: BigInt) {
+    this.set("inputIndex", Value.fromBigInt(value));
+  }
+
+  get inputTimestamp(): i32 {
+    let value = this.get("inputTimestamp");
+    return value!.toI32();
+  }
+
+  set inputTimestamp(value: i32) {
+    this.set("inputTimestamp", Value.fromI32(value));
+  }
+
+  get alignmentVoteCooldown(): i32 {
+    let value = this.get("alignmentVoteCooldown");
+    return value!.toI32();
+  }
+
+  set alignmentVoteCooldown(value: i32) {
+    this.set("alignmentVoteCooldown", Value.fromI32(value));
+  }
+
+  get alignmentDecayRate(): i32 {
+    let value = this.get("alignmentDecayRate");
+    return value!.toI32();
+  }
+
+  set alignmentDecayRate(value: i32) {
+    this.set("alignmentDecayRate", Value.fromI32(value));
+  }
+
+  get chaosVoteReward(): BigInt {
+    let value = this.get("chaosVoteReward");
+    return value!.toBigInt();
+  }
+
+  set chaosVoteReward(value: BigInt) {
+    this.set("chaosVoteReward", Value.fromBigInt(value));
+  }
+
+  get alignment(): BigInt {
+    let value = this.get("alignment");
+    return value!.toBigInt();
+  }
+
+  set alignment(value: BigInt) {
+    this.set("alignment", Value.fromBigInt(value));
+  }
+
+  get orderDuration(): i32 {
+    let value = this.get("orderDuration");
+    return value!.toI32();
+  }
+
+  set orderDuration(value: i32) {
+    this.set("orderDuration", Value.fromI32(value));
+  }
+
+  get chaosInputRewardCooldown(): i32 {
+    let value = this.get("chaosInputRewardCooldown");
+    return value!.toI32();
+  }
+
+  set chaosInputRewardCooldown(value: i32) {
+    this.set("chaosInputRewardCooldown", Value.fromI32(value));
+  }
+
+  get chaosInputReward(): BigInt {
+    let value = this.get("chaosInputReward");
+    return value!.toBigInt();
+  }
+
+  set chaosInputReward(value: BigInt) {
+    this.set("chaosInputReward", Value.fromBigInt(value));
+  }
+
+  get orderInputReward(): BigInt {
+    let value = this.get("orderInputReward");
+    return value!.toBigInt();
+  }
+
+  set orderInputReward(value: BigInt) {
+    this.set("orderInputReward", Value.fromBigInt(value));
+  }
+
+  get chatCost(): BigInt {
+    let value = this.get("chatCost");
+    return value!.toBigInt();
+  }
+
+  set chatCost(value: BigInt) {
+    this.set("chatCost", Value.fromBigInt(value));
+  }
+
+  get rareCandyCost(): BigInt {
+    let value = this.get("rareCandyCost");
+    return value!.toBigInt();
+  }
+
+  set rareCandyCost(value: BigInt) {
+    this.set("rareCandyCost", Value.fromBigInt(value));
+  }
+
+  get controlAuctionDuration(): i32 {
+    let value = this.get("controlAuctionDuration");
+    return value!.toI32();
+  }
+
+  set controlAuctionDuration(value: i32) {
+    this.set("controlAuctionDuration", Value.fromI32(value));
+  }
+
+  get controlDuration(): i32 {
+    let value = this.get("controlDuration");
+    return value!.toI32();
+  }
+
+  set controlDuration(value: i32) {
+    this.set("controlDuration", Value.fromI32(value));
+  }
+
+  get controlAuctionStartTimestamp(): i32 {
+    let value = this.get("controlAuctionStartTimestamp");
+    return value!.toI32();
+  }
+
+  set controlAuctionStartTimestamp(value: i32) {
+    this.set("controlAuctionStartTimestamp", Value.fromI32(value));
+  }
+
+  get controlAuctionEndTimestamp(): i32 {
+    let value = this.get("controlAuctionEndTimestamp");
+    return value!.toI32();
+  }
+
+  set controlAuctionEndTimestamp(value: i32) {
+    this.set("controlAuctionEndTimestamp", Value.fromI32(value));
+  }
+
+  get bestControlBidFrom(): Bytes {
+    let value = this.get("bestControlBidFrom");
+    return value!.toBytes();
+  }
+
+  set bestControlBidFrom(value: Bytes) {
+    this.set("bestControlBidFrom", Value.fromBytes(value));
+  }
+
+  get bestControlBidAmount(): BigInt {
+    let value = this.get("bestControlBidAmount");
+    return value!.toBigInt();
+  }
+
+  set bestControlBidAmount(value: BigInt) {
+    this.set("bestControlBidAmount", Value.fromBigInt(value));
+  }
+
+  get controlAddress(): Bytes {
+    let value = this.get("controlAddress");
+    return value!.toBytes();
+  }
+
+  set controlAddress(value: Bytes) {
+    this.set("controlAddress", Value.fromBytes(value));
+  }
+}
+
 export class FeedItem extends Entity {
   constructor(id: string) {
     super();
