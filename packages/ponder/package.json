@@ -22,7 +22,6 @@
   "dependencies": {
     "@graphql-codegen/core": "^2.6.2",
     "@graphql-codegen/typescript": "^2.7.3",
-    "@ponder/graph-ts-ponder": "workspace:^0.27.0",
     "@typechain/ethers-v5": "^10.0.0",
     "better-sqlite3": "^7.6.2",
     "commander": "^9.4.0",
@@ -34,7 +33,6 @@
     "fastq": "^1.13.0",
     "graphql": "^15.3.0",
     "prettier": "^2.6.2",
-    "sqlite3": "^5.0.11",
     "typechain": "^8.0.0",
     "yaml": "^2.1.1"
   },
