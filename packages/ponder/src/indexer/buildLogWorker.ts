@@ -1,13 +1,11 @@
 import { Log } from "@ethersproject/providers";
 import { BigNumber, Contract } from "ethers";
 
-import { db } from "../db";
-import type { DbSchema } from "../db/buildDbSchema";
-import type { PonderConfig } from "../readUserConfig";
-import { SourceKind } from "../readUserConfig";
+import { db } from "@/db";
+import { DbSchema, PonderConfig, SourceKind } from "@/types";
+import { getProviderForChainId, logger } from "@/utils";
+
 import type { UserHandlers } from "../readUserHandlers";
-import { getProviderForChainId } from "../utils/helpers";
-import { logger } from "../utils/logger";
 
 type HandlerContext = {
   entities: {

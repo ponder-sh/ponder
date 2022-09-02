@@ -1,8 +1,8 @@
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
 
-import { getEntities, getUserDefinedTypes } from "../utils/helpers";
 import { buildPluralField } from "./buildPluralField";
 import { buildSingularField } from "./buildSingularField";
+import { getEntities, getUserDefinedTypes } from "./helpers";
 import type { Context, Source } from "./types";
 
 const buildGqlSchema = (userSchema: GraphQLSchema): GraphQLSchema => {

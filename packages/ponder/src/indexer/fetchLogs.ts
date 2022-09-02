@@ -1,7 +1,7 @@
 import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 
-import { logger } from "../utils/logger";
+import { logger } from "@/utils";
 
 const BLOCK_LIMIT = 2_000;
 

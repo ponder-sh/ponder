@@ -2,7 +2,7 @@ import type { Log } from "@ethersproject/providers";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "path";
 
-import { CONFIG } from "../config";
+import { CONFIG } from "@/config";
 
 const { PONDER_DIR_PATH } = CONFIG;
 

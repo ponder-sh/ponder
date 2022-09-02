@@ -1,4 +1,4 @@
-import { CONFIG } from "../config";
+import { CONFIG } from "@/config";
 
 enum LogLevel {
   // Silent 0

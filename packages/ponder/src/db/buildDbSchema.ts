@@ -1,30 +1,12 @@
 import {
   FieldDefinitionNode,
-  GraphQLEnumType,
   GraphQLObjectType,
   GraphQLSchema,
   Kind,
 } from "graphql";
 
-import { getEntities, getUserDefinedTypes } from "../utils/helpers";
-
-type DbSchema = {
-  tables: DbTable[];
-  userDefinedTypes: {
-    [key: string]: GraphQLObjectType | GraphQLEnumType | undefined;
-  };
-};
-
-type DbTable = {
-  name: string;
-  columns: DbColumn[];
-};
-
-type DbColumn = {
-  name: string;
-  type: string;
-  notNull: boolean;
-};
+import { getEntities, getUserDefinedTypes } from "@/gql";
+import type { DbColumn, DbSchema, DbTable } from "@/types";
 
 const buildDbSchema = (userSchema: GraphQLSchema): DbSchema => {
   const userDefinedTypes = getUserDefinedTypes(userSchema);
@@ -34,7 +16,7 @@ const buildDbSchema = (userSchema: GraphQLSchema): DbSchema => {
   return { tables, userDefinedTypes };
 };
 
-const getTableForEntity = (entity: GraphQLObjectType) => {
+const getTableForEntity = (entity: GraphQLObjectType): DbTable => {
   const fields = entity.astNode?.fields || [];
   const columns = fields.map(getColumnForField);
 
@@ -44,7 +26,7 @@ const getTableForEntity = (entity: GraphQLObjectType) => {
   };
 };
 
-const getColumnForField = (field: FieldDefinitionNode) => {
+const getColumnForField = (field: FieldDefinitionNode): DbColumn => {
   let notNull = false;
   let type = field.type;
 

@@ -1,8 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import prettier from "prettier";
 
-import { CONFIG } from "../config";
-import { logger } from "./logger";
+import { CONFIG } from "@/config";
+import { logger } from "@/utils";
 
 const ensureDirectoriesExist = async () => {
   await Promise.all([

@@ -1,11 +1,10 @@
-import { runMigrations } from "./db";
-import type { DbSchema } from "./db/buildDbSchema";
-import { executeLogs } from "./indexer";
-import { buildLogWorker } from "./indexer/buildLogWorker";
-import type { PonderConfig } from "./readUserConfig";
-import type { UserHandlers } from "./readUserHandlers";
-import { endBenchmark, startBenchmark } from "./utils/helpers";
-import { logger } from "./utils/logger";
+import type { DbSchema } from "@/db";
+import { runMigrations } from "@/db";
+import { buildLogWorker, executeLogs } from "@/indexer";
+import type { PonderConfig } from "@/types";
+import { endBenchmark, logger, startBenchmark } from "@/utils";
+
+import type { UserHandlers } from "../readUserHandlers";
 
 const handleReindex = async (
   config: PonderConfig,

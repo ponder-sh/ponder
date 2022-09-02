@@ -3,138 +3,152 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
 
-import { CONFIG } from "../config";
-import { chainIdByGraphNetwork } from "../constants";
-import {
-  Api,
-  defaultPonderConfig,
-  EvmSource,
-  SourceKind,
-  Store,
-} from "../readUserConfig";
+import { CONFIG } from "@/config";
+import { Api, ApiKind, EvmSource, SourceKind, Store, StoreKind } from "@/types";
+
+import { chainIdByGraphNetwork } from "./constants";
 import type { RpcUrlMap } from "./getRpcUrlMap";
 
-interface GraphCompatPonderConfig {
-  sources: GraphCompatSource[];
-  stores: Store[];
-  apis: Api[];
-  graphSchemaFilePath: string;
-}
+// const defaultPonderConfig = {
+//   sources: [],
+//   apis: [
+//     {
+//       kind: ApiKind.GQL,
+//       port: 42069,
+//     },
+//   ],
+//   stores: [
+//     {
+//       kind: StoreKind.SQL,
+//       client: "sqlite3",
+//       connection: {
+//         filename: ":memory:",
+//       },
+//     },
+//   ],
+// };
 
-interface GraphCompatSource extends EvmSource {
-  mappingFilePath: string;
-  eventHandlers: {
-    event: string;
-    handler: string;
-  }[];
-}
+// interface GraphCompatPonderConfig {
+//   sources: GraphCompatSource[];
+//   stores: Store[];
+//   apis: Api[];
+//   graphSchemaFilePath: string;
+// }
 
-// https://github.com/graphprotocol/graph-node/blob/master/docs/subgraph-manifest.md
-type GraphSource = {
-  kind: string; // Should be "ethereum"
-  name: string;
-  network: string;
-  source: {
-    address: string;
-    abi: string; // Keys into dataSource.mapping.abis
-    startBlock?: number;
-  };
-  mapping: {
-    kind: string; // Should be "ethereum/events"
-    apiVersion: string;
-    language: string; // Should be "wasm/assemblyscript"
-    entities: string[]; // Corresponds to entities by name defined in schema.graphql
-    abis: {
-      name: string;
-      file: string;
-    }[];
-    eventHandlers?: {
-      event: string;
-      handler: string;
-      topic0?: string;
-    }[];
-    // NOTE: Not planning to support callHandlers or blockHandlers in initial release.
-    // callHandlers?: {
-    //   function: string;
-    //   handler: string;
-    // }[];
-    // blockHandlers?: {
-    //   handler: string;
-    //   filter?: {
-    //     kind: string;
-    //   };
-    // }[];
-    file: string; // relative path to file that contains handlers for this source
-  };
-};
+// interface GraphCompatSource extends EvmSource {
+//   mappingFilePath: string;
+//   eventHandlers: {
+//     event: string;
+//     handler: string;
+//   }[];
+// }
 
-const readSubgraphYaml = async (rpcUrlMap: RpcUrlMap) => {
-  const subgraphYamlRaw = await readFile(
-    CONFIG.GRAPH_COMPAT_SUBGRAPH_YAML_PATH,
-    "utf-8"
-  );
-  const subgraphYaml = parse(subgraphYamlRaw);
-  const subgraphSchemaFilePath = path.resolve(subgraphYaml.schema.file);
+// // https://github.com/graphprotocol/graph-node/blob/master/docs/subgraph-manifest.md
+// type GraphSource = {
+//   kind: string; // Should be "ethereum"
+//   name: string;
+//   network: string;
+//   source: {
+//     address: string;
+//     abi: string; // Keys into dataSource.mapping.abis
+//     startBlock?: number;
+//   };
+//   mapping: {
+//     kind: string; // Should be "ethereum/events"
+//     apiVersion: string;
+//     language: string; // Should be "wasm/assemblyscript"
+//     entities: string[]; // Corresponds to entities by name defined in schema.graphql
+//     abis: {
+//       name: string;
+//       file: string;
+//     }[];
+//     eventHandlers?: {
+//       event: string;
+//       handler: string;
+//       topic0?: string;
+//     }[];
+//     // NOTE: Not planning to support callHandlers or blockHandlers in initial release.
+//     // callHandlers?: {
+//     //   function: string;
+//     //   handler: string;
+//     // }[];
+//     // blockHandlers?: {
+//     //   handler: string;
+//     //   filter?: {
+//     //     kind: string;
+//     //   };
+//     // }[];
+//     file: string; // relative path to file that contains handlers for this source
+//   };
+// };
 
-  const subgraphSources: GraphSource[] = subgraphYaml.dataSources;
-  const graphCompatSourcesWithoutAbiInterfaces = subgraphSources.map((source) =>
-    getPonderSourceFromGraphSource(source, rpcUrlMap)
-  );
+// const readSubgraphYaml = async (rpcUrlMap: RpcUrlMap) => {
+//   const subgraphYamlRaw = await readFile(
+//     CONFIG.GRAPH_COMPAT_SUBGRAPH_YAML_PATH,
+//     "utf-8"
+//   );
+//   const subgraphYaml = parse(subgraphYamlRaw);
+//   const subgraphSchemaFilePath = path.resolve(subgraphYaml.schema.file);
 
-  // Parse ABI files and add interfaces to the config object.
-  const graphCompatSources = await Promise.all(
-    graphCompatSourcesWithoutAbiInterfaces.map(async (source) => {
-      const abiString = await readFile(source.abi, "utf-8");
-      const abiObject = JSON.parse(abiString);
-      const abi = abiObject.abi ? abiObject.abi : abiObject;
-      return { ...source, abiInterface: new utils.Interface(abi) };
-    })
-  );
+//   const subgraphSources: GraphSource[] = subgraphYaml.dataSources;
+//   const graphCompatSourcesWithoutAbiInterfaces = subgraphSources.map((source) =>
+//     getPonderSourceFromGraphSource(source, rpcUrlMap)
+//   );
 
-  const config: GraphCompatPonderConfig = {
-    ...defaultPonderConfig,
-    sources: graphCompatSources,
-    graphSchemaFilePath: subgraphSchemaFilePath,
-  };
+//   // Parse ABI files and add interfaces to the config object.
+//   const graphCompatSources = await Promise.all(
+//     graphCompatSourcesWithoutAbiInterfaces.map(async (source) => {
+//       const abiString = await readFile(source.abi, "utf-8");
+//       const abiObject = JSON.parse(abiString);
+//       const abi = abiObject.abi ? abiObject.abi : abiObject;
+//       return { ...source, abiInterface: new utils.Interface(abi) };
+//     })
+//   );
 
-  return config;
-};
+//   const config: GraphCompatPonderConfig = {
+//     ...defaultPonderConfig,
+//     sources: graphCompatSources,
+//     graphSchemaFilePath: subgraphSchemaFilePath,
+//   };
 
-const getPonderSourceFromGraphSource = (
-  subgraphSource: GraphSource,
-  rpcUrlMap: RpcUrlMap
-): GraphCompatSource => {
-  const sourceAbi = subgraphSource.mapping.abis.find(
-    (abi) => abi.name === subgraphSource.name
-  );
-  if (!sourceAbi) {
-    throw new Error(`ABI path not found for source: ${subgraphSource.name}`);
-  }
-  const sourceAbiPath = path.resolve(sourceAbi.file);
+//   return config;
+// };
 
-  const chainId = chainIdByGraphNetwork[subgraphSource.network];
-  if (!chainId || chainId === -1) {
-    throw new Error(`Unhandled network name: ${subgraphSource.network}`);
-  }
-  const rpcUrl = rpcUrlMap[chainId];
-  if (!rpcUrl) {
-    throw new Error(`Missing RPC URL for chain ID: ${chainId}`);
-  }
+// const getPonderSourceFromGraphSource = (
+//   subgraphSource: GraphSource,
+//   rpcUrlMap: RpcUrlMap
+// ): GraphCompatSource => {
+//   const sourceAbi = subgraphSource.mapping.abis.find(
+//     (abi) => abi.name === subgraphSource.name
+//   );
+//   if (!sourceAbi) {
+//     throw new Error(`ABI path not found for source: ${subgraphSource.name}`);
+//   }
+//   const sourceAbiPath = path.resolve(sourceAbi.file);
 
-  return {
-    kind: SourceKind.EVM,
-    name: subgraphSource.name,
-    chainId: chainId,
-    rpcUrl: rpcUrl,
-    address: subgraphSource.source.address,
-    abi: sourceAbiPath,
-    startBlock: subgraphSource.source.startBlock,
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    abiInterface: null!,
-    mappingFilePath: subgraphSource.mapping.file,
-    eventHandlers: subgraphSource.mapping.eventHandlers || [],
-  };
-};
+//   const chainId = chainIdByGraphNetwork[subgraphSource.network];
+//   if (!chainId || chainId === -1) {
+//     throw new Error(`Unhandled network name: ${subgraphSource.network}`);
+//   }
+//   const rpcUrl = rpcUrlMap[chainId];
+//   if (!rpcUrl) {
+//     throw new Error(`Missing RPC URL for chain ID: ${chainId}`);
+//   }
 
-export { readSubgraphYaml };
-export type { GraphCompatPonderConfig };
+//   return {
+//     kind: SourceKind.EVM,
+//     name: subgraphSource.name,
+//     chainId: chainId,
+//     rpcUrl: rpcUrl,
+//     address: subgraphSource.source.address,
+//     abi: sourceAbiPath,
+//     startBlock: subgraphSource.source.startBlock,
+//     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+//     abiInterface: null!,
+//     mappingFilePath: subgraphSource.mapping.file,
+//     eventHandlers: subgraphSource.mapping.eventHandlers || [],
+//   };
+// };
+
+// export { readSubgraphYaml };
+// export type { GraphCompatPonderConfig };

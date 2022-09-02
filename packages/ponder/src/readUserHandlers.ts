@@ -1,9 +1,9 @@
 import { build } from "esbuild";
 import path from "node:path";
 
-import { CONFIG } from "./config";
-import type { HandlerContext } from "./indexer/buildLogWorker";
-import { logger } from "./utils/logger";
+import { CONFIG } from "@/config";
+import type { HandlerContext } from "@/indexer";
+import { logger } from "@/utils";
 
 type Handler = (args: unknown, context: HandlerContext) => Promise<void> | void;
 type SourceHandlers = { [eventName: string]: Handler | undefined };
@@ -35,7 +35,11 @@ const readUserHandlers = async (): Promise<UserHandlers> => {
     logger.warn("esbuild error:", err);
   }
 
-  const { default: rawHandlers } = await require(buildFile);
+  // Load and then remove the module from the require cache, because we are loading
+  // it several times in the same process and need the latest version each time.
+  // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { default: rawHandlers } = require(buildFile);
   delete require.cache[require.resolve(buildFile)];
 
   // TODO: Validate handlers ?!?!?!

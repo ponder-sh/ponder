@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "@/db";
 
 // const get = (entityName: string, id: string) => {
 //   const entity = db

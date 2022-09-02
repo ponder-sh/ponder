@@ -6,15 +6,14 @@ import {
   generateHandlerTypes,
   generateSchema,
   generateSchemaTypes,
-} from "./codegen";
-import type { DbSchema } from "./db";
-import { buildDbSchema } from "./db";
-import { buildGqlSchema } from "./graphql";
-import type { PonderConfig } from "./readUserConfig";
+} from "@/codegen";
+import { buildDbSchema } from "@/db";
+import { buildGqlSchema, readSchema } from "@/gql";
+import { handleReindex } from "@/indexer";
+import type { DbSchema, PonderConfig } from "@/types";
+
 import { readUserConfig } from "./readUserConfig";
 import { readUserHandlers, UserHandlers } from "./readUserHandlers";
-import { readUserSchema } from "./readUserSchema";
-import { handleReindex } from "./reindex";
 import { startServer } from "./startServer";
 
 const state: {
@@ -27,18 +26,18 @@ const state: {
 } = {};
 
 enum TaskName {
-  UPDATE_USER_HANDLERS,
-  UPDATE_USER_CONFIG,
-  UPDATE_USER_SCHEMA,
-  REINDEX,
+  READ_HANDLERS,
+  READ_CONFIG,
+  READ_SCHEMA,
+  BUILD_GQL_SCHEMA,
+  BUILD_DB_SCHEMA,
   GENERATE_CONTRACT_TYPES,
   GENERATE_HANDLER_TYPES,
   GENERATE_CONTEXT_TYPES,
-  BUILD_GQL_SCHEMA,
-  BUILD_DB_SCHEMA,
   GENERATE_GQL_SCHEMA,
   GENERATE_SCHEMA_TYPES,
   START_SERVER,
+  REINDEX,
 }
 
 type Task = {
@@ -48,7 +47,7 @@ type Task = {
 };
 
 const updateUserHandlersTask: Task = {
-  name: TaskName.UPDATE_USER_HANDLERS,
+  name: TaskName.READ_HANDLERS,
   handler: async () => {
     state.userHandlers = await readUserHandlers();
   },
@@ -56,7 +55,7 @@ const updateUserHandlersTask: Task = {
 };
 
 const updateUserConfigTask: Task = {
-  name: TaskName.UPDATE_USER_CONFIG,
+  name: TaskName.READ_CONFIG,
   handler: async () => {
     state.config = await readUserConfig();
   },
@@ -70,9 +69,9 @@ const updateUserConfigTask: Task = {
 };
 
 const updateUserSchemaTask: Task = {
-  name: TaskName.UPDATE_USER_SCHEMA,
+  name: TaskName.READ_SCHEMA,
   handler: async () => {
-    state.userSchema = await readUserSchema();
+    state.userSchema = await readSchema();
   },
   dependencies: [TaskName.BUILD_GQL_SCHEMA, TaskName.BUILD_DB_SCHEMA],
 };
@@ -166,7 +165,7 @@ const generateSchemaTypesTask: Task = {
   // the user handlers module before the entity types are generated
   // because esbuild cannot strip enum imports (they are values).
   // TODO: Find a better / more reasonable dependency path here.
-  dependencies: [TaskName.UPDATE_USER_HANDLERS],
+  dependencies: [TaskName.READ_HANDLERS],
 };
 
 const startServerTask: Task = {
@@ -179,9 +178,9 @@ const startServerTask: Task = {
 };
 
 const taskMap: Record<TaskName, Task> = {
-  [TaskName.UPDATE_USER_HANDLERS]: updateUserHandlersTask,
-  [TaskName.UPDATE_USER_CONFIG]: updateUserConfigTask,
-  [TaskName.UPDATE_USER_SCHEMA]: updateUserSchemaTask,
+  [TaskName.READ_HANDLERS]: updateUserHandlersTask,
+  [TaskName.READ_CONFIG]: updateUserConfigTask,
+  [TaskName.READ_SCHEMA]: updateUserSchemaTask,
   [TaskName.REINDEX]: reindexTask,
   [TaskName.GENERATE_CONTRACT_TYPES]: generateContractTypesTask,
   [TaskName.GENERATE_HANDLER_TYPES]: generateHandlerTypesTask,

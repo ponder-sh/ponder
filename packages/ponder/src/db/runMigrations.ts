@@ -1,7 +1,7 @@
 import { Kind } from "graphql";
 
-import type { DbSchema } from "../db/buildDbSchema";
-import { db } from "./db";
+import { db } from "@/db";
+import type { DbSchema } from "@/types";
 
 const getTableNames = () => {
   return db
