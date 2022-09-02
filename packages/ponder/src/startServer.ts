@@ -3,9 +3,9 @@ import { graphqlHTTP } from "express-graphql";
 import type { GraphQLSchema } from "graphql";
 import http from "node:http";
 
-import { db } from "./db";
-import type { PonderConfig } from "./readUserConfig";
-import { logger } from "./utils/logger";
+import { db } from "@/db";
+import type { PonderConfig } from "@/types";
+import { logger } from "@/utils";
 
 const context = { db };
 const app = express();

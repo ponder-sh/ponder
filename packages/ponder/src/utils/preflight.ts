@@ -1,16 +1,13 @@
 import { mkdir } from "node:fs/promises";
 import prettier from "prettier";
 
-import { CONFIG } from "../config";
-import { logger } from "./logger";
-
-const { ponderDir, buildDir, generatedDir } = CONFIG;
+import { CONFIG } from "@/config";
+import { logger } from "@/utils";
 
 const ensureDirectoriesExist = async () => {
   await Promise.all([
-    mkdir(ponderDir, { recursive: true }),
-    mkdir(buildDir, { recursive: true }),
-    mkdir(generatedDir, { recursive: true }),
+    mkdir(CONFIG.PONDER_DIR_PATH, { recursive: true }),
+    mkdir(CONFIG.GENERATED_DIR_PATH, { recursive: true }),
   ]);
 };
 

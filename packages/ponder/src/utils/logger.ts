@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { CONFIG } from "../config";
+import { CONFIG } from "@/config";
 
 enum LogLevel {
   // Silent 0
@@ -10,17 +9,17 @@ enum LogLevel {
 }
 
 const logger = {
-  error: (...args: any) => {
-    if (CONFIG.logLevel > LogLevel.Error) console.log(...args);
+  error: (...args: Parameters<typeof console.log>) => {
+    if (CONFIG.LOG_LEVEL > LogLevel.Error) console.log(...args);
   },
-  info: (...args: any) => {
-    if (CONFIG.logLevel > LogLevel.Info) console.log(...args);
+  info: (...args: Parameters<typeof console.log>) => {
+    if (CONFIG.LOG_LEVEL > LogLevel.Info) console.log(...args);
   },
-  warn: (...args: any) => {
-    if (CONFIG.logLevel > LogLevel.Warn) console.log(...args);
+  warn: (...args: Parameters<typeof console.log>) => {
+    if (CONFIG.LOG_LEVEL > LogLevel.Warn) console.log(...args);
   },
-  debug: (...args: any) => {
-    if (CONFIG.logLevel > LogLevel.Debug) console.log(...args);
+  debug: (...args: Parameters<typeof console.log>) => {
+    if (CONFIG.LOG_LEVEL > LogLevel.Debug) console.log(...args);
   },
 };
 

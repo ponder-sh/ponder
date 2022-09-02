@@ -1,16 +1,10 @@
 import { createHash } from "crypto";
 import { providers } from "ethers";
-import {
-  GraphQLEnumType,
-  GraphQLObjectType,
-  GraphQLSchema,
-  Kind,
-} from "graphql";
 import { readFile } from "node:fs/promises";
 
-import type { PonderConfig } from "../readUserConfig";
+import type { PonderConfig } from "@/types";
 
-const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
+export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
   return array.reduce<{ [k: string | number]: T[] }>((acc, item) => {
     const key = fn(item);
     (acc[key] = acc[key] || []).push(item);
@@ -18,47 +12,14 @@ const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
   }, {});
 };
 
-// Find all types in the schema that were created by the user.
-const getUserDefinedTypes = (schema: GraphQLSchema) => {
-  // This assumes that any type that has an AST node will be a user-defined type.
-  // Idk if this is true or not.
-  const userDefinedTypeArray = Object.values(schema.getTypeMap()).filter(
-    (type): type is GraphQLObjectType | GraphQLEnumType => !!type.astNode
-  );
-
-  // Add all user-defined types to a map so we can look them up later.
-  const userDefinedTypes: {
-    [key: string]: GraphQLObjectType | GraphQLEnumType | undefined;
-  } = {};
-  for (const userDefinedType of userDefinedTypeArray) {
-    userDefinedTypes[userDefinedType.name] = userDefinedType;
-  }
-
-  return userDefinedTypes;
-};
-
-// Find all types in the schema that are marked with the @entity directive.
-const getEntities = (schema: GraphQLSchema) => {
-  const entities = Object.values(schema.getTypeMap())
-    .filter((type): type is GraphQLObjectType => {
-      return type.astNode?.kind === Kind.OBJECT_TYPE_DEFINITION;
-    })
-    .filter((type) => {
-      const entityDirective = type.astNode?.directives?.find(
-        (directive) => directive.name.value === "entity"
-      );
-
-      return !!entityDirective;
-    });
-
-  return entities;
-};
-
 const providerCache: {
-  [chainId: number]: providers.JsonRpcProvider | undefined;
+  [chainId: number]: providers.StaticJsonRpcProvider | undefined;
 } = {};
 
-const getProviderForChainId = (config: PonderConfig, chainId: number) => {
+export const getProviderForChainId = (
+  config: PonderConfig,
+  chainId: number
+) => {
   const cachedProvider = providerCache[chainId];
   if (cachedProvider) {
     return cachedProvider;
@@ -73,7 +34,7 @@ const getProviderForChainId = (config: PonderConfig, chainId: number) => {
     throw new Error(`Cannot use different RPC urls for the same chain ID`);
   }
 
-  const provider = new providers.JsonRpcProvider(
+  const provider = new providers.StaticJsonRpcProvider(
     firstSourceRpcUrl,
     Number(chainId)
   );
@@ -81,8 +42,8 @@ const getProviderForChainId = (config: PonderConfig, chainId: number) => {
   return provider;
 };
 
-const startBenchmark = () => process.hrtime();
-const endBenchmark = (hrt: [number, number]) => {
+export const startBenchmark = () => process.hrtime();
+export const endBenchmark = (hrt: [number, number]) => {
   const diffHrt = process.hrtime(hrt);
   const diffMilliseconds = Math.round(diffHrt[0] * 1000 + diffHrt[1] / 1000000);
   const diffString =
@@ -95,7 +56,9 @@ const endBenchmark = (hrt: [number, number]) => {
 
 const latestFileHash: { [key: string]: string | undefined } = {};
 
-const fileIsChanged = async (filePath: string) => {
+export const fileIsChanged = async (filePath: string) => {
+  // TODO: I think this throws if the file being watched gets deleted while
+  // the development server is running. Should handle this case gracefully.
   const content = await readFile(filePath, "utf-8");
   const hash = createHash("md5").update(content).digest("hex");
 
@@ -108,13 +71,4 @@ const fileIsChanged = async (filePath: string) => {
     // If there is a previous hash, check if the content hash has changed.
     return prevHash !== hash;
   }
-};
-
-export {
-  endBenchmark,
-  fileIsChanged,
-  getEntities,
-  getProviderForChainId,
-  getUserDefinedTypes,
-  startBenchmark,
 };

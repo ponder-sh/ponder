@@ -1,44 +1,43 @@
 import type { GraphQLSchema } from "graphql";
 
-import type { DbSchema } from "./db/buildDbSchema";
-import { buildDbSchema } from "./db/buildDbSchema";
-import { buildGqlSchema } from "./gql/buildGqlSchema";
-import type { PonderConfig } from "./readUserConfig";
-import { readUserConfig } from "./readUserConfig";
-import { readUserHandlers, UserHandlers } from "./readUserHandlers";
-import { readUserSchema } from "./readUserSchema";
-import { handleReindex } from "./reindex";
-import { startServer } from "./startServer";
 import {
+  generateContextTypes,
   generateContractTypes,
-  generateEntityTypes,
   generateHandlerTypes,
   generateSchema,
-} from "./typegen";
-import { generateContextType } from "./typegen/generateContextType";
+  generateSchemaTypes,
+} from "@/codegen";
+import { buildSchema } from "@/db";
+import { buildGqlSchema, readSchema } from "@/gql";
+import { handleReindex } from "@/indexer";
+import type { Handlers, PonderConfig, Schema } from "@/types";
+
+import { readHandlers } from "./readHandlers";
+import { readPonderConfig } from "./readPonderConfig";
+import { startServer } from "./startServer";
 
 const state: {
   config?: PonderConfig;
   userSchema?: GraphQLSchema;
   gqlSchema?: GraphQLSchema;
-  dbSchema?: DbSchema;
-  userHandlers?: UserHandlers;
+  schema?: Schema;
+  handlers?: Handlers;
   isIndexingInProgress?: boolean;
 } = {};
 
 enum TaskName {
-  UPDATE_USER_HANDLERS,
-  UPDATE_USER_CONFIG,
-  UPDATE_USER_SCHEMA,
-  REINDEX,
+  READ_HANDLERS,
+  READ_PONDER_CONFIG,
+  READ_SCHEMA,
+  BUILD_GQL_SCHEMA,
+  BUILD_SCHEMA,
   GENERATE_CONTRACT_TYPES,
   GENERATE_HANDLER_TYPES,
-  GENERATE_CONTEXT_TYPE,
-  BUILD_GQL_SCHEMA,
-  BUILD_DB_SCHEMA,
+  GENERATE_CONTEXT_TYPES,
   GENERATE_GQL_SCHEMA,
-  GENERATE_ENTITY_TYPES,
+  GENERATE_SCHEMA_TYPES,
   START_SERVER,
+  REINDEX,
 }
 
 type Task = {
@@ -48,39 +47,39 @@ type Task = {
 };
 
 const updateUserHandlersTask: Task = {
-  name: TaskName.UPDATE_USER_HANDLERS,
+  name: TaskName.READ_HANDLERS,
   handler: async () => {
-    state.userHandlers = await readUserHandlers();
+    state.handlers = await readHandlers();
   },
   dependencies: [TaskName.REINDEX],
 };
 
 const updateUserConfigTask: Task = {
-  name: TaskName.UPDATE_USER_CONFIG,
+  name: TaskName.READ_PONDER_CONFIG,
   handler: async () => {
-    state.config = await readUserConfig();
+    state.config = await readPonderConfig();
   },
   dependencies: [
     TaskName.GENERATE_CONTRACT_TYPES,
     TaskName.GENERATE_HANDLER_TYPES,
     TaskName.REINDEX,
-    TaskName.GENERATE_CONTEXT_TYPE,
+    TaskName.GENERATE_CONTEXT_TYPES,
     TaskName.START_SERVER,
   ],
 };
 
 const updateUserSchemaTask: Task = {
-  name: TaskName.UPDATE_USER_SCHEMA,
+  name: TaskName.READ_SCHEMA,
   handler: async () => {
-    state.userSchema = await readUserSchema();
+    state.userSchema = await readSchema();
   },
-  dependencies: [TaskName.BUILD_GQL_SCHEMA, TaskName.BUILD_DB_SCHEMA],
+  dependencies: [TaskName.BUILD_GQL_SCHEMA, TaskName.BUILD_SCHEMA],
 };
 
 const reindexTask: Task = {
   name: TaskName.REINDEX,
   handler: async () => {
-    if (!state.dbSchema || !state.config || !state.userHandlers) {
+    if (!state.schema || !state.config || !state.handlers) {
       return;
     }
 
@@ -89,7 +88,7 @@ const reindexTask: Task = {
     if (state.isIndexingInProgress) return;
 
     state.isIndexingInProgress = true;
-    await handleReindex(state.config, state.dbSchema, state.userHandlers);
+    await handleReindex(state.config, state.schema, state.handlers);
     state.isIndexingInProgress = false;
   },
 };
@@ -103,26 +102,27 @@ const buildGqlSchemaTask: Task = {
   },
   dependencies: [
     TaskName.GENERATE_GQL_SCHEMA,
-    TaskName.GENERATE_ENTITY_TYPES,
+    TaskName.GENERATE_SCHEMA_TYPES,
+    TaskName.GENERATE_CONTRACT_TYPES,
     TaskName.START_SERVER,
   ],
 };
 
-const buildDbSchemaTask: Task = {
-  name: TaskName.BUILD_DB_SCHEMA,
+const buildSchemaTask: Task = {
+  name: TaskName.BUILD_SCHEMA,
   handler: async () => {
     if (state.userSchema) {
-      state.dbSchema = buildDbSchema(state.userSchema);
+      state.schema = buildSchema(state.userSchema);
     }
   },
-  dependencies: [TaskName.GENERATE_CONTEXT_TYPE, TaskName.REINDEX],
+  dependencies: [TaskName.GENERATE_CONTEXT_TYPES, TaskName.REINDEX],
 };
 
 const generateContractTypesTask: Task = {
   name: TaskName.GENERATE_CONTRACT_TYPES,
   handler: async () => {
     if (state.config) {
-      generateContractTypes(state.config);
+      await generateContractTypes(state.config);
     }
   },
 };
@@ -131,16 +131,16 @@ const generateHandlerTypesTask: Task = {
   name: TaskName.GENERATE_HANDLER_TYPES,
   handler: async () => {
     if (state.config) {
-      generateHandlerTypes(state.config);
+      await generateHandlerTypes(state.config);
     }
   },
 };
 
-const generateContextTypeTask: Task = {
-  name: TaskName.GENERATE_CONTEXT_TYPE,
+const generateContextTypesTask: Task = {
+  name: TaskName.GENERATE_CONTEXT_TYPES,
   handler: async () => {
-    if (state.config && state.dbSchema) {
-      generateContextType(state.config, state.dbSchema);
+    if (state.config && state.schema) {
+      await generateContextTypes(state.config, state.schema);
     }
   },
 };
@@ -149,18 +149,23 @@ const generateGqlSchemaTask: Task = {
   name: TaskName.GENERATE_GQL_SCHEMA,
   handler: async () => {
     if (state.gqlSchema) {
-      generateSchema(state.gqlSchema);
+      await generateSchema(state.gqlSchema);
     }
   },
 };
 
-const generateEntityTypesTask: Task = {
-  name: TaskName.GENERATE_ENTITY_TYPES,
+const generateSchemaTypesTask: Task = {
+  name: TaskName.GENERATE_SCHEMA_TYPES,
   handler: async () => {
     if (state.gqlSchema) {
-      generateEntityTypes(state.gqlSchema);
+      await generateSchemaTypes(state.gqlSchema);
     }
   },
+  // NOTE: After adding enum support, could no longer import
+  // the user handlers module before the entity types are generated
+  // because esbuild cannot strip enum imports (they are values).
+  // TODO: Find a better / more reasonable dependency path here.
+  dependencies: [TaskName.READ_HANDLERS],
 };
 
 const startServerTask: Task = {
@@ -173,17 +178,17 @@ const startServerTask: Task = {
 };
 
 const taskMap: Record<TaskName, Task> = {
-  [TaskName.UPDATE_USER_HANDLERS]: updateUserHandlersTask,
-  [TaskName.UPDATE_USER_CONFIG]: updateUserConfigTask,
-  [TaskName.UPDATE_USER_SCHEMA]: updateUserSchemaTask,
+  [TaskName.READ_HANDLERS]: updateUserHandlersTask,
+  [TaskName.READ_PONDER_CONFIG]: updateUserConfigTask,
+  [TaskName.READ_SCHEMA]: updateUserSchemaTask,
   [TaskName.REINDEX]: reindexTask,
   [TaskName.GENERATE_CONTRACT_TYPES]: generateContractTypesTask,
   [TaskName.GENERATE_HANDLER_TYPES]: generateHandlerTypesTask,
-  [TaskName.GENERATE_CONTEXT_TYPE]: generateContextTypeTask,
+  [TaskName.GENERATE_CONTEXT_TYPES]: generateContextTypesTask,
   [TaskName.BUILD_GQL_SCHEMA]: buildGqlSchemaTask,
-  [TaskName.BUILD_DB_SCHEMA]: buildDbSchemaTask,
+  [TaskName.BUILD_SCHEMA]: buildSchemaTask,
   [TaskName.GENERATE_GQL_SCHEMA]: generateGqlSchemaTask,
-  [TaskName.GENERATE_ENTITY_TYPES]: generateEntityTypesTask,
+  [TaskName.GENERATE_SCHEMA_TYPES]: generateSchemaTypesTask,
   [TaskName.START_SERVER]: startServerTask,
 };
 

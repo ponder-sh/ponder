@@ -1,12 +1,24 @@
 {
   "compilerOptions": {
     "target": "esnext",
-    "module": "esnext",
-    "esModuleInterop": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
     "strict": true,
-    "sourceMap": true,
-    "moduleResolution": "node"
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/codegen": ["src/codegen/index"],
+      "@/db": ["src/db/index"],
+      "@/gql": ["src/gql/index"],
+      "@/indexer": ["src/indexer/index"],
+      "@/utils": ["src/utils/index"],
+      "@/config": ["src/config/index"],
+      "@/types": ["src/types/index"]
+    }
   },
-  "include": ["./**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules/"]
 }
