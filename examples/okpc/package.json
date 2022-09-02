@@ -4,12 +4,13 @@
     "dev": "ponder dev",
     "start": "ponder start"
   },
+  "dependencies": {
+    "@ponder/ponder": "workspace:^0.0.8"
+  },
   "devDependencies": {
     "@ethersproject/abi": "^5.0.0",
     "@ethersproject/providers": "^5.0.0",
-    "@ponder/ponder": "workspace:^0.0.8",
-    "ethers": "^5.6.9",
-    "knex": "^2.2.0"
+    "ethers": "^5.6.9"
   },
   "engines": {
     "node": "16",
