@@ -1,39 +1,20 @@
-import { Log } from "@ethersproject/providers";
 import { BigNumber, Contract } from "ethers";
 
 import { db } from "@/db";
-import { PonderConfig, Schema, SourceKind } from "@/types";
+import {
+  EntityModel,
+  Handlers,
+  LogWorker,
+  PonderConfig,
+  Schema,
+  SourceKind,
+} from "@/types";
 import { getProviderForChainId, logger } from "@/utils";
-
-import type { UserHandlers } from "../readUserHandlers";
-
-type EntityInstance = { [key: string]: string | number | null };
-type EntityModel = {
-  get: (id: string) => Promise<EntityInstance | null>;
-  insert: (
-    obj: {
-      id: string;
-    } & Partial<EntityInstance>
-  ) => Promise<EntityInstance>;
-  upsert: (
-    obj: {
-      id: string;
-    } & Partial<EntityInstance>
-  ) => Promise<EntityInstance>;
-  delete: (id: string) => Promise<void>;
-};
-
-type HandlerContext = {
-  entities: Record<string, EntityModel | undefined>;
-  contracts: Record<string, Contract | undefined>;
-};
-
-type LogWorker = (log: Log) => Promise<void>;
 
 const buildLogWorker = (
   config: PonderConfig,
   schema: Schema,
-  userHandlers: UserHandlers
+  userHandlers: Handlers
 ): LogWorker => {
   const entityNames = Object.values(schema.entities).map((e) => e.name);
 
@@ -118,7 +99,7 @@ const buildLogWorker = (
   };
 
   // NOTE: This function should probably come as a standalone param.
-  const worker = async (log: Log) => {
+  const worker: LogWorker = async (log) => {
     const source = config.sources.find(
       (source) => source.address === log.address
     );
@@ -162,4 +143,3 @@ const buildLogWorker = (
 };
 
 export { buildLogWorker };
-export type { HandlerContext, LogWorker };

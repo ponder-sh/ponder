@@ -1,4 +1,5 @@
-import type { utils } from "ethers";
+import type { Log } from "@ethersproject/providers";
+import type { Contract, utils } from "ethers";
 
 // Ponder config types
 export enum SourceKind {
@@ -52,8 +53,7 @@ export type PonderConfig = {
   apis: Api[];
 };
 
-// SQL database types
-
+// Ponder Schema types
 export enum FieldKind {
   ID,
   SCALAR,
@@ -101,3 +101,36 @@ export type Entity = {
 export type Schema = {
   entities: Record<string, Entity>;
 };
+
+// Handler context types
+export type EntityInstance = { [key: string]: string | number | null };
+export type EntityModel = {
+  get: (id: string) => Promise<EntityInstance | null>;
+  insert: (
+    obj: {
+      id: string;
+    } & Partial<EntityInstance>
+  ) => Promise<EntityInstance>;
+  upsert: (
+    obj: {
+      id: string;
+    } & Partial<EntityInstance>
+  ) => Promise<EntityInstance>;
+  delete: (id: string) => Promise<void>;
+};
+
+export type HandlerContext = {
+  entities: Record<string, EntityModel | undefined>;
+  contracts: Record<string, Contract | undefined>;
+};
+
+// Handler types
+export type Handler = (
+  args: unknown,
+  context: HandlerContext
+) => Promise<void> | void;
+export type SourceHandlers = { [eventName: string]: Handler | undefined };
+export type Handlers = { [sourceName: string]: SourceHandlers | undefined };
+
+// Log worker types
+export type LogWorker = (log: Log) => Promise<void>;

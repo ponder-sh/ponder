@@ -2,10 +2,9 @@ import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
-import type { PonderConfig } from "@/types";
+import type { LogWorker, PonderConfig } from "@/types";
 import { getProviderForChainId, logger } from "@/utils";
 
-import { LogWorker } from "./buildLogWorker";
 import { readLogCache, writeLogCache } from "./cache";
 import { fetchLogs } from "./fetchLogs";
 

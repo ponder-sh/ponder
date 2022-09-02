@@ -1,14 +1,12 @@
 import { runMigrations } from "@/db";
 import { buildLogWorker, executeLogs } from "@/indexer";
-import type { PonderConfig, Schema } from "@/types";
+import type { Handlers, PonderConfig, Schema } from "@/types";
 import { endBenchmark, logger, startBenchmark } from "@/utils";
-
-import type { UserHandlers } from "../readUserHandlers";
 
 const handleReindex = async (
   config: PonderConfig,
   schema: Schema,
-  userHandlers: UserHandlers
+  userHandlers: Handlers
 ) => {
   const startHrt = startBenchmark();
   // logger.info(`\x1b[33m${"INDEXING..."}\x1b[0m`); // yellow

@@ -2,14 +2,10 @@ import { build } from "esbuild";
 import path from "node:path";
 
 import { CONFIG } from "@/config";
-import type { HandlerContext } from "@/indexer";
+import type { Handlers } from "@/types";
 import { logger } from "@/utils";
 
-type Handler = (args: unknown, context: HandlerContext) => Promise<void> | void;
-type SourceHandlers = { [eventName: string]: Handler | undefined };
-type UserHandlers = { [sourceName: string]: SourceHandlers | undefined };
-
-const readUserHandlers = async (): Promise<UserHandlers> => {
+const readHandlers = async (): Promise<Handlers> => {
   const buildFile = path.join(CONFIG.PONDER_DIR_PATH, "handlers.js");
 
   // // This is kind of a hack to get esbuild to bundle into one file despite the fact that subgraph repos
@@ -43,10 +39,9 @@ const readUserHandlers = async (): Promise<UserHandlers> => {
   delete require.cache[require.resolve(buildFile)];
 
   // TODO: Validate handlers ?!?!?!
-  const handlers = rawHandlers as UserHandlers;
+  const handlers = rawHandlers as Handlers;
 
   return handlers;
 };
 
-export { readUserHandlers };
-export type { UserHandlers };
+export { readHandlers };

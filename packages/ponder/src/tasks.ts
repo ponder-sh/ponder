@@ -10,10 +10,10 @@ import {
 import { buildSchema } from "@/db";
 import { buildGqlSchema, readSchema } from "@/gql";
 import { handleReindex } from "@/indexer";
-import type { PonderConfig, Schema } from "@/types";
+import type { Handlers, PonderConfig, Schema } from "@/types";
 
-import { readUserConfig } from "./readUserConfig";
-import { readUserHandlers, UserHandlers } from "./readUserHandlers";
+import { readHandlers } from "./readHandlers";
+import { readPonderConfig } from "./readPonderConfig";
 import { startServer } from "./startServer";
 
 const state: {
@@ -21,13 +21,13 @@ const state: {
   userSchema?: GraphQLSchema;
   gqlSchema?: GraphQLSchema;
   schema?: Schema;
-  userHandlers?: UserHandlers;
+  handlers?: Handlers;
   isIndexingInProgress?: boolean;
 } = {};
 
 enum TaskName {
   READ_HANDLERS,
-  READ_CONFIG,
+  READ_PONDER_CONFIG,
   READ_SCHEMA,
   BUILD_GQL_SCHEMA,
   BUILD_SCHEMA,
@@ -49,15 +49,15 @@ type Task = {
 const updateUserHandlersTask: Task = {
   name: TaskName.READ_HANDLERS,
   handler: async () => {
-    state.userHandlers = await readUserHandlers();
+    state.handlers = await readHandlers();
   },
   dependencies: [TaskName.REINDEX],
 };
 
 const updateUserConfigTask: Task = {
-  name: TaskName.READ_CONFIG,
+  name: TaskName.READ_PONDER_CONFIG,
   handler: async () => {
-    state.config = await readUserConfig();
+    state.config = await readPonderConfig();
   },
   dependencies: [
     TaskName.GENERATE_CONTRACT_TYPES,
@@ -79,7 +79,7 @@ const updateUserSchemaTask: Task = {
 const reindexTask: Task = {
   name: TaskName.REINDEX,
   handler: async () => {
-    if (!state.schema || !state.config || !state.userHandlers) {
+    if (!state.schema || !state.config || !state.handlers) {
       return;
     }
 
@@ -88,7 +88,7 @@ const reindexTask: Task = {
     if (state.isIndexingInProgress) return;
 
     state.isIndexingInProgress = true;
-    await handleReindex(state.config, state.schema, state.userHandlers);
+    await handleReindex(state.config, state.schema, state.handlers);
     state.isIndexingInProgress = false;
   },
 };
@@ -179,7 +179,7 @@ const startServerTask: Task = {
 
 const taskMap: Record<TaskName, Task> = {
   [TaskName.READ_HANDLERS]: updateUserHandlersTask,
-  [TaskName.READ_CONFIG]: updateUserConfigTask,
+  [TaskName.READ_PONDER_CONFIG]: updateUserConfigTask,
   [TaskName.READ_SCHEMA]: updateUserSchemaTask,
   [TaskName.REINDEX]: reindexTask,
   [TaskName.GENERATE_CONTRACT_TYPES]: generateContractTypesTask,
