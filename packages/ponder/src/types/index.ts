@@ -1,5 +1,4 @@
 import type { utils } from "ethers";
-import type { GraphQLEnumType, GraphQLObjectType } from "graphql";
 
 // Ponder config types
 export enum SourceKind {
@@ -55,20 +54,50 @@ export type PonderConfig = {
 
 // SQL database types
 
-export type DbSchema = {
-  tables: DbTable[];
-  userDefinedTypes: {
-    [key: string]: GraphQLObjectType | GraphQLEnumType | undefined;
-  };
-};
+export enum FieldKind {
+  ID,
+  SCALAR,
+  ENUM,
+  ARRAY,
+}
 
-export type DbTable = {
+export type IDField = {
   name: string;
-  columns: DbColumn[];
-};
-
-export type DbColumn = {
-  name: string;
-  type: string;
+  kind: FieldKind.ID;
+  gqlType: string;
   notNull: boolean;
+  migrateUpStatement: string;
+  sqlType: string;
+  tsType: string;
+};
+
+export type ScalarField = {
+  name: string;
+  kind: FieldKind.SCALAR;
+  gqlType: string;
+  notNull: boolean;
+  migrateUpStatement: string;
+  sqlType: string;
+  tsType: string;
+};
+
+export type EnumField = {
+  name: string;
+  kind: FieldKind.ENUM;
+  gqlType: string;
+  notNull: boolean;
+  migrateUpStatement: string;
+  sqlType: string;
+  enumValues: string[];
+};
+
+export type Field = IDField | ScalarField | EnumField;
+
+export type Entity = {
+  name: string;
+  fields: Field[];
+};
+
+export type Schema = {
+  entities: Record<string, Entity>;
 };

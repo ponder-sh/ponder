@@ -1,3 +1,3 @@
-export * from "./buildDbSchema";
+export * from "./buildSchema";
 export * from "./db";
 export * from "./runMigrations";

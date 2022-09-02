@@ -7,10 +7,10 @@ import {
   generateSchema,
   generateSchemaTypes,
 } from "@/codegen";
-import { buildDbSchema } from "@/db";
+import { buildSchema } from "@/db";
 import { buildGqlSchema, readSchema } from "@/gql";
 import { handleReindex } from "@/indexer";
-import type { DbSchema, PonderConfig } from "@/types";
+import type { PonderConfig, Schema } from "@/types";
 
 import { readUserConfig } from "./readUserConfig";
 import { readUserHandlers, UserHandlers } from "./readUserHandlers";
@@ -20,7 +20,7 @@ const state: {
   config?: PonderConfig;
   userSchema?: GraphQLSchema;
   gqlSchema?: GraphQLSchema;
-  dbSchema?: DbSchema;
+  schema?: Schema;
   userHandlers?: UserHandlers;
   isIndexingInProgress?: boolean;
 } = {};
@@ -30,7 +30,7 @@ enum TaskName {
   READ_CONFIG,
   READ_SCHEMA,
   BUILD_GQL_SCHEMA,
-  BUILD_DB_SCHEMA,
+  BUILD_SCHEMA,
   GENERATE_CONTRACT_TYPES,
   GENERATE_HANDLER_TYPES,
   GENERATE_CONTEXT_TYPES,
@@ -73,13 +73,13 @@ const updateUserSchemaTask: Task = {
   handler: async () => {
     state.userSchema = await readSchema();
   },
-  dependencies: [TaskName.BUILD_GQL_SCHEMA, TaskName.BUILD_DB_SCHEMA],
+  dependencies: [TaskName.BUILD_GQL_SCHEMA, TaskName.BUILD_SCHEMA],
 };
 
 const reindexTask: Task = {
   name: TaskName.REINDEX,
   handler: async () => {
-    if (!state.dbSchema || !state.config || !state.userHandlers) {
+    if (!state.schema || !state.config || !state.userHandlers) {
       return;
     }
 
@@ -88,7 +88,7 @@ const reindexTask: Task = {
     if (state.isIndexingInProgress) return;
 
     state.isIndexingInProgress = true;
-    await handleReindex(state.config, state.dbSchema, state.userHandlers);
+    await handleReindex(state.config, state.schema, state.userHandlers);
     state.isIndexingInProgress = false;
   },
 };
@@ -108,11 +108,11 @@ const buildGqlSchemaTask: Task = {
   ],
 };
 
-const buildDbSchemaTask: Task = {
-  name: TaskName.BUILD_DB_SCHEMA,
+const buildSchemaTask: Task = {
+  name: TaskName.BUILD_SCHEMA,
   handler: async () => {
     if (state.userSchema) {
-      state.dbSchema = buildDbSchema(state.userSchema);
+      state.schema = buildSchema(state.userSchema);
     }
   },
   dependencies: [TaskName.GENERATE_CONTEXT_TYPES, TaskName.REINDEX],
@@ -139,8 +139,8 @@ const generateHandlerTypesTask: Task = {
 const generateContextTypesTask: Task = {
   name: TaskName.GENERATE_CONTEXT_TYPES,
   handler: async () => {
-    if (state.config && state.dbSchema) {
-      await generateContextTypes(state.config, state.dbSchema);
+    if (state.config && state.schema) {
+      await generateContextTypes(state.config, state.schema);
     }
   },
 };
@@ -186,7 +186,7 @@ const taskMap: Record<TaskName, Task> = {
   [TaskName.GENERATE_HANDLER_TYPES]: generateHandlerTypesTask,
   [TaskName.GENERATE_CONTEXT_TYPES]: generateContextTypesTask,
   [TaskName.BUILD_GQL_SCHEMA]: buildGqlSchemaTask,
-  [TaskName.BUILD_DB_SCHEMA]: buildDbSchemaTask,
+  [TaskName.BUILD_SCHEMA]: buildSchemaTask,
   [TaskName.GENERATE_GQL_SCHEMA]: generateGqlSchemaTask,
   [TaskName.GENERATE_SCHEMA_TYPES]: generateSchemaTypesTask,
   [TaskName.START_SERVER]: startServerTask,
