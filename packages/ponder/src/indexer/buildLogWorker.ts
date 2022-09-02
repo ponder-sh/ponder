@@ -1,6 +1,5 @@
 import { Log } from "@ethersproject/providers";
 import { BigNumber, Contract } from "ethers";
-import { Knex } from "knex";
 
 import { db } from "../db";
 import type { DbSchema } from "../db/buildDbSchema";
@@ -12,7 +11,7 @@ import { logger } from "../utils/logger";
 
 type HandlerContext = {
   entities: {
-    [key: string]: () => Knex.QueryBuilder<Record<string, unknown>> | undefined;
+    [key: string]: () => any | undefined;
   };
   contracts: {
     [key: string]: Contract | undefined;
@@ -32,10 +31,10 @@ const buildLogWorker = (
   );
 
   const entities: {
-    [key: string]: () => Knex.QueryBuilder<Record<string, unknown>> | undefined;
+    [key: string]: () => any | undefined;
   } = {};
   entityNames.forEach((entityName) => {
-    entities[entityName] = () => db<Record<string, unknown>>(entityName);
+    entities[entityName] = () => entityName;
   });
 
   const contracts: { [key: string]: Contract | undefined } = {};

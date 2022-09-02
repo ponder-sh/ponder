@@ -22,18 +22,4 @@ program
     require("../cli/start").start();
   });
 
-program
-  .command("dev-subgraph")
-  .description("start local development server for Graph Protocol subgraph")
-  .action(() => {
-    require("../cli/dev-subgraph").dev();
-  });
-
-program
-  .command("start-subgraph")
-  .description("start server for Graph Protocol subgraph")
-  .action(() => {
-    require("../cli/start-subgraph").start();
-  });
-
 program.parse();

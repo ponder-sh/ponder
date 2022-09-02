@@ -8,6 +8,10 @@ const schemaHeader = `
 directive @entity(
   immutable: Boolean = false
 ) on OBJECT
+
+scalar BigDecimal
+scalar Bytes
+scalar BigInt
 `;
 
 const readUserSchema = async (): Promise<GraphQLSchema> => {
