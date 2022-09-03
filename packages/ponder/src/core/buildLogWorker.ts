@@ -20,61 +20,10 @@ export const buildLogWorker = (
   Object.values(schema.entities).forEach((entity) => {
     const entityName = entity.name;
     const entityModel: EntityModel = {
-      get: async (id) => {
-        return null;
-        // const entityInstance = db
-        //   .prepare(`select * from \`${entityName}\` where id = '@id'`)
-        //   .get({ id: id });
-
-        // return entityInstance || null;
-      },
-      insert: async (obj) => {
-        return null;
-        // const columnStatements = Object.entries(obj).map(([column, value]) => ({
-        //   column: `\`${column}\``,
-        //   value: `'${value}'`,
-        // }));
-
-        // const insertFragment = `(${columnStatements
-        //   .map((s) => s.column)
-        //   .join(", ")}) values (${columnStatements
-        //   .map((s) => s.value)
-        //   .join(", ")})`;
-
-        // const statement = `insert into \`${entityName}\` ${insertFragment} returning *`;
-        // const insertedEntity = db.prepare(statement).get();
-
-        // return insertedEntity || null;
-      },
-      upsert: async (obj) => {
-        return null;
-        // const columnStatements = Object.entries(obj).map(([column, value]) => ({
-        //   column: `\`${column}\``,
-        //   value: `'${value}'`,
-        // }));
-
-        // const insertFragment = `(${columnStatements
-        //   .map((s) => s.column)
-        //   .join(", ")}) values (${columnStatements
-        //   .map((s) => s.value)
-        //   .join(", ")})`;
-
-        // const updateFragment = columnStatements
-        //   .filter((s) => s.column !== "id")
-        //   .map((s) => `${s.column}=excluded.${s.column}`)
-        //   .join(", ");
-
-        // const statement = `insert into \`${entityName}\` ${insertFragment} on conflict(\`id\`) do update set ${updateFragment} returning *`;
-        // const upsertedEntity = db.prepare(statement).get();
-
-        // return upsertedEntity || null;
-      },
-      delete: async (id) => {
-        return;
-        // const statement = `delete from \`${entityName}\` where \`id\` = '@id'`;
-
-        // db.prepare(statement).run({ id: id });
-      },
+      get: async (id) => store.getEntity(entityName, id),
+      insert: async (obj) => store.insertEntity(entityName, obj),
+      upsert: async (obj) => store.upsertEntity(entityName, obj),
+      delete: async (id) => store.deleteEntity(entityName, id),
     };
 
     entityModels[entityName] = entityModel;

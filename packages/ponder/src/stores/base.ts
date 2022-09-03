@@ -15,7 +15,7 @@ export interface BaseStore {
 
   upsertEntity<T>(entity: string, attributes: { id: string } & T): Promise<T>;
 
-  removeEntity(entity: string, id: string): Promise<void>;
+  deleteEntity(entity: string, id: string): Promise<void>;
 }
 
 export enum StoreKind {

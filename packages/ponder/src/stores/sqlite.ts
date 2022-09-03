@@ -58,7 +58,7 @@ export class SqliteStore implements BaseStore {
 
   async insertEntity<T>(
     entity: string,
-    attributes: { id: string } & T
+    attributes: { id: string } & unknown
   ): Promise<T> {
     const columnStatements = Object.entries(attributes).map(
       ([column, value]) => ({
@@ -107,7 +107,7 @@ export class SqliteStore implements BaseStore {
     return upsertedEntity;
   }
 
-  async removeEntity(entity: string, id: string): Promise<void> {
+  async deleteEntity(entity: string, id: string): Promise<void> {
     const statement = `delete from \`${entity}\` where \`id\` = '@id'`;
 
     this.db.prepare(statement).run({ id: id });
