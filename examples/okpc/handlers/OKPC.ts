@@ -9,6 +9,7 @@ const handleTransfer: TransferHandler = async (event, context) => {
     id: tokenId.toNumber().toString(),
     owner: to,
     lastOwner: from,
+    nicknames: ["GOOD", "BAD"],
   });
 
   await OkpcOwner.upsert({

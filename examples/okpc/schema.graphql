@@ -2,6 +2,7 @@ type OkpcToken @entity {
   id: ID!
   owner: String!
   lastOwner: String!
+  nicknames: [OkpcOwnerKind!]
 }
 
 type OkpcOwner @entity {
