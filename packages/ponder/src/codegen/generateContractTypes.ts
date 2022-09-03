@@ -1,7 +1,7 @@
 import path from "node:path";
-import { CONFIG } from "@/common/config";
 import { runTypeChain } from "typechain";
 
+import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
 import { Source } from "@/sources/base";
 

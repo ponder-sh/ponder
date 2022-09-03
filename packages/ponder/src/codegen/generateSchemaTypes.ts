@@ -3,8 +3,8 @@ import * as typescriptPlugin from "@graphql-codegen/typescript";
 import { GraphQLSchema, parse, printSchema } from "graphql";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { CONFIG } from "@/common/config";
 
+import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
 import { formatPrettier } from "@/common/utils";
 

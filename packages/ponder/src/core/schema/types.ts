@@ -52,6 +52,6 @@ export type Entity = {
   fields: Field[];
 };
 
-export type Schema = {
+export type PonderSchema = {
   entities: Record<string, Entity>;
 };

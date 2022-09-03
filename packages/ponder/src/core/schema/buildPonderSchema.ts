@@ -7,8 +7,8 @@ import {
   FieldKind,
   IDField,
   ListField,
+  PonderSchema,
   ScalarField,
-  Schema,
 } from "./types";
 import {
   getEntityTypes,
@@ -38,7 +38,7 @@ const gqlScalarToTsType: Record<string, string | undefined> = {
   Bytes: "string",
 };
 
-export const buildPonderSchema = (userSchema: GraphQLSchema): Schema => {
+export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
   const userDefinedGqlTypes = getUserDefinedTypes(userSchema);
   const entityGqlTypes = getEntityTypes(userSchema);
 
@@ -120,7 +120,7 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): Schema => {
     };
   });
 
-  const schema: Schema = { entities };
+  const schema: PonderSchema = { entities };
 
   return schema;
 };

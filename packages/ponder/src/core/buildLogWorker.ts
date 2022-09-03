@@ -2,17 +2,18 @@ import type { Log } from "@ethersproject/providers";
 import { BigNumber, Contract } from "ethers";
 
 import { logger } from "@/common/logger";
-import { Schema } from "@/core/schema/types";
+import { PonderSchema } from "@/core/schema/types";
 import { Source } from "@/sources/base";
 import { Store } from "@/stores/base";
-import { EntityModel, Handlers } from "@/types";
+
+import { EntityModel, Handlers } from "./readHandlers";
 
 export type LogWorker = (log: Log) => Promise<void>;
 
 export const buildLogWorker = (
   store: Store,
   sources: Source[],
-  schema: Schema,
+  schema: PonderSchema,
   userHandlers: Handlers
 ): LogWorker => {
   const entityModels: Record<string, EntityModel> = {};

@@ -17,7 +17,7 @@ import type { SqliteStore } from "@/stores/sqlite";
 import { Handlers, readHandlers } from "./readHandlers";
 import { readPonderConfig } from "./readPonderConfig";
 import { readSchema } from "./readSchema";
-import { Schema } from "./schema/types";
+import { PonderSchema } from "./schema/types";
 
 const state: {
   sources?: EvmSource[];
@@ -25,7 +25,7 @@ const state: {
   store?: SqliteStore;
 
   userSchema?: GraphQLSchema;
-  schema?: Schema;
+  schema?: PonderSchema;
 
   gqlSchema?: GraphQLSchema;
   handlers?: Handlers;

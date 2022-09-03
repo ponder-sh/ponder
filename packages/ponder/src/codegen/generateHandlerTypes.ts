@@ -2,8 +2,8 @@ import type { EventFragment, ParamType } from "@ethersproject/abi";
 import { Contract } from "ethers";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { CONFIG } from "@/common/config";
 
+import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
 import { formatPrettier } from "@/common/utils";
 import { Source } from "@/sources/base";

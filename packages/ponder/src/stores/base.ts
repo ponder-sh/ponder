@@ -1,17 +1,21 @@
+import type { PonderSchema } from "@/core/schema/types";
+
 import { SqliteStore } from "./sqlite";
 
 export interface BaseStore {
   kind: StoreKind;
 
-  migrate(): Promise<void>;
+  migrate(schema: PonderSchema): Promise<void>;
 
-  getEntity(key: string, id: string): Promise<any>;
+  getEntity<T>(entity: string, id: string): Promise<T | null>;
 
-  getEntities(key: string, id: string, filter: any): Promise<any>;
+  getEntities<T>(entity: string, id: string, filter: any): Promise<T[]>;
 
-  setEntity(key: string, id: string, attributes: any): Promise<any>;
+  insertEntity<T>(entity: string, attributes: { id: string } & T): Promise<T>;
 
-  removeEntity(key: string, id: string): Promise<void>;
+  upsertEntity<T>(entity: string, attributes: { id: string } & T): Promise<T>;
+
+  removeEntity(entity: string, id: string): Promise<void>;
 }
 
 export enum StoreKind {

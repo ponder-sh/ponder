@@ -1,11 +1,9 @@
 import { createHash } from "crypto";
-import { providers } from "ethers";
 import { mkdir, readFile } from "node:fs/promises";
 import prettier from "prettier";
 
 import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
-import type { PonderConfig } from "@/types";
 
 export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
   return array.reduce<{ [k: string | number]: T[] }>((acc, item) => {
