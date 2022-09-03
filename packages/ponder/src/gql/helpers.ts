@@ -30,9 +30,10 @@ export const getUserDefinedTypes = (schema: GraphQLSchema) => {
   );
 
   // Add all user-defined types to a map so we can look them up later.
-  const userDefinedTypes: {
-    [key: string]: GraphQLObjectType | GraphQLEnumType | undefined;
-  } = {};
+  const userDefinedTypes: Record<
+    string,
+    GraphQLObjectType | GraphQLEnumType | undefined
+  > = {};
   for (const userDefinedType of userDefinedTypeArray) {
     userDefinedTypes[userDefinedType.name] = userDefinedType;
   }

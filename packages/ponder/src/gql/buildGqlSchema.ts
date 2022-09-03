@@ -7,11 +7,9 @@ import type { Context, Source } from "./types";
 
 const buildGqlSchema = (userSchema: GraphQLSchema): GraphQLSchema => {
   const userDefinedTypes = getUserDefinedTypes(userSchema);
-
   const entityTypes = getEntities(userSchema);
 
-  const fields: { [fieldName: string]: GraphQLFieldConfig<Source, Context> } =
-    {};
+  const fields: Record<string, GraphQLFieldConfig<Source, Context>> = {};
 
   for (const entityType of entityTypes) {
     const singularFieldName =

@@ -35,6 +35,10 @@ const generateContextTypes = async (config: PonderConfig, schema: Schema) => {
               .join(" | ")};`;
           case FieldKind.SCALAR:
             return `${field.name}${field.notNull ? "" : "?"}: ${field.tsType};`;
+          case FieldKind.LIST:
+            return `${field.name}${field.notNull ? "" : "?"}: ${
+              field.tsBaseType
+            }[];`;
         }
       })
       .join("")}

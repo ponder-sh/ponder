@@ -58,7 +58,7 @@ export enum FieldKind {
   ID,
   SCALAR,
   ENUM,
-  ARRAY,
+  LIST,
 }
 
 export type IDField = {
@@ -91,7 +91,17 @@ export type EnumField = {
   enumValues: string[];
 };
 
-export type Field = IDField | ScalarField | EnumField;
+export type ListField = {
+  name: string;
+  kind: FieldKind.LIST;
+  gqlType: string;
+  notNull: boolean;
+  migrateUpStatement: string;
+  sqlType: "text";
+  tsBaseType: string;
+};
+
+export type Field = IDField | ScalarField | EnumField | ListField;
 
 export type Entity = {
   name: string;

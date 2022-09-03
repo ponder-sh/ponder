@@ -55,22 +55,22 @@ const universalSuffixToResolverConfig: {
 } = {
   "": { operator: "=" },
   _not: { operator: "!=" },
-  _in: { operator: "in", isList: true },
-  _not_in: { operator: "not in", isList: true },
 };
 const universalFilterSuffixes = Object.keys(universalSuffixToResolverConfig);
 
-const numericSuffixToResolverConfig: {
+// This applies to all types other than String and List types.
+const nonCollectionSuffixToResolverConfig: {
   [key: string]: FilterFieldResolverConfig;
 } = {
-  _gt: { operator: ">" },
-  _lt: { operator: "<" },
-  _gte: { operator: ">=" },
-  _lte: { operator: "<=" },
+  _in: { operator: "in", isList: true },
+  _not_in: { operator: "not in", isList: true },
 };
-const numericFilterSuffixes = Object.keys(numericSuffixToResolverConfig);
+const nonCollectionFilterSuffixes = Object.keys(
+  nonCollectionSuffixToResolverConfig
+);
 
-const stringSuffixToResolverConfig: {
+// This applies to String and List types.
+const collectionSuffixToResolverConfig: {
   [key: string]: FilterFieldResolverConfig;
 } = {
   _contains: { operator: "like", patternPrefix: "%", patternSuffix: "%" },
@@ -89,6 +89,22 @@ const stringSuffixToResolverConfig: {
     patternPrefix: "%",
     patternSuffix: "%",
   },
+};
+const collectionFilterSuffixes = Object.keys(collectionSuffixToResolverConfig);
+
+const numericSuffixToResolverConfig: {
+  [key: string]: FilterFieldResolverConfig;
+} = {
+  _gt: { operator: ">" },
+  _lt: { operator: "<" },
+  _gte: { operator: ">=" },
+  _lte: { operator: "<=" },
+};
+const numericFilterSuffixes = Object.keys(numericSuffixToResolverConfig);
+
+const stringSuffixToResolverConfig: {
+  [key: string]: FilterFieldResolverConfig;
+} = {
   _starts_with: { operator: "like", patternSuffix: "%" },
   _starts_with_nocase: { operator: "like", patternSuffix: "%" },
   _ends_with: { operator: "like", patternPrefix: "%" },
@@ -108,19 +124,25 @@ const buildPluralField = (
 ): GraphQLFieldConfig<Source, Context> => {
   const entityFields = (entityType.astNode?.fields || []).map((field) => {
     let type = field.type;
+    let nestedListCount = 0;
 
-    // If a field is non-nullable, it's TypeNode will be wrapped with another NON_NULL_TYPE TypeNode.
-    if (type.kind === Kind.NON_NULL_TYPE) {
-      type = type.type;
-    }
+    while (type.kind !== Kind.NAMED_TYPE) {
+      // If a field is non-nullable, it's TypeNode will be wrapped with a NON_NULL_TYPE TypeNode.
+      if (type.kind === Kind.NON_NULL_TYPE) {
+        type = type.type;
+      }
 
-    if (type.kind === Kind.LIST_TYPE) {
-      throw new Error(`Unhandled TypeNode: ${Kind.LIST_TYPE}`);
+      // If a field is a list, it's TypeNode will be wrapped with a LIST_TYPE TypeNode.
+      if (type.kind === Kind.LIST_TYPE) {
+        nestedListCount += 1;
+        type = type.type;
+      }
     }
 
     return {
       name: field.name.value,
       type: type.name.value,
+      isCollection: nestedListCount > 0 || type.name.value === "String",
     };
   });
 
@@ -177,6 +199,32 @@ const buildPluralField = (
         resolverConfig: universalSuffixToResolverConfig[suffix],
       };
     });
+
+    // Add the non-collection filter suffix fields.
+    if (!entityField.isCollection) {
+      nonCollectionFilterSuffixes.forEach((suffix) => {
+        const filterFieldName = `${entityField.name}${suffix}`;
+
+        filterFields[filterFieldName] = { type: GraphQLString };
+        filterFieldNameToResolverConfig[filterFieldName] = {
+          fieldName: entityField.name,
+          resolverConfig: stringSuffixToResolverConfig[suffix],
+        };
+      });
+    }
+
+    // Add the collection filter suffix fields.
+    if (entityField.isCollection) {
+      collectionFilterSuffixes.forEach((suffix) => {
+        const filterFieldName = `${entityField.name}${suffix}`;
+
+        filterFields[filterFieldName] = { type: GraphQLString };
+        filterFieldNameToResolverConfig[filterFieldName] = {
+          fieldName: entityField.name,
+          resolverConfig: stringSuffixToResolverConfig[suffix],
+        };
+      });
+    }
 
     // Add the numeric filter suffix fields.
     if (["ID", "Int", "Float"].includes(entityField.type)) {
@@ -255,6 +303,8 @@ const buildPluralField = (
     )}`;
 
     const entities = db.prepare(statement).all();
+
+    console.log({ entities });
 
     return entities;
   };
