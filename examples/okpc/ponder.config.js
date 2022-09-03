@@ -19,11 +19,8 @@ module.exports = {
   ],
   stores: [
     {
-      kind: "sql",
-      client: "sqlite3",
-      connection: {
-        filename: ":memory:",
-      },
+      kind: "sqlite",
+      filename: ":memory:",
     },
   ],
 };

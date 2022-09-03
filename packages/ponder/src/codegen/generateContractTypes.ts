@@ -1,14 +1,14 @@
 import path from "node:path";
+import { CONFIG } from "@/common/config";
 import { runTypeChain } from "typechain";
 
-import { CONFIG } from "@/config";
-import type { PonderConfig } from "@/types";
-import { logger } from "@/utils";
+import { logger } from "@/common/logger";
+import { Source } from "@/sources/base";
 
-const generateContractTypes = async (config: PonderConfig) => {
+const generateContractTypes = async (sources: Source[]) => {
   const cwd = process.cwd();
 
-  const abiFilePaths = config.sources.map((source) => source.abi);
+  const abiFilePaths = sources.map((source) => source.abiFilePath);
 
   // TODO: don't parse all the ABI files again, use the Contract.Interface we already have?
   // TODO: don't generate factory files, we don't need them?

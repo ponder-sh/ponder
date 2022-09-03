@@ -1,18 +1,18 @@
-import { ensureDirectoriesExist, readPrettierConfig } from "@/utils";
+import { ensureDirectoriesExist, readPrettierConfig } from "@/common/utils";
 
 import {
+  readPonderConfigTask,
+  readSchemaTask,
   runTask,
-  updateUserConfigTask,
   // updateUserHandlersTask,
-  updateUserSchemaTask,
-} from "../tasks";
+} from "../core/tasks";
 
 const start = async () => {
   await Promise.all([ensureDirectoriesExist(), readPrettierConfig()]);
 
+  runTask(readPonderConfigTask);
+  runTask(readSchemaTask);
   // runTask(updateUserHandlersTask);
-  runTask(updateUserConfigTask);
-  runTask(updateUserSchemaTask);
 };
 
 export { start };

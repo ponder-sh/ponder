@@ -1,16 +1,20 @@
 import type { WatchListener } from "node:fs";
 import { watch } from "node:fs";
 import path from "node:path";
+import { CONFIG } from "@/common/config";
 
-import { CONFIG } from "@/config";
+import { logger } from "@/common/logger";
 import {
   ensureDirectoriesExist,
   fileIsChanged,
-  logger,
   readPrettierConfig,
-} from "@/utils";
+} from "@/common/utils";
 
-import { runTask, updateUserConfigTask, updateUserSchemaTask } from "../tasks";
+import {
+  runTask,
+  updateUserConfigTask,
+  updateUserSchemaTask,
+} from "../core/tasks";
 
 const createWatchListener = (
   fn: (fileName: string) => Promise<void>,
