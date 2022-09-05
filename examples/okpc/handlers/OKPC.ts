@@ -1,5 +1,5 @@
 import { TransferHandler } from "../generated/OKPC";
-import { OkpcOwnerKind } from "../generated/schema";
+import { OkpcOwnerTrait } from "../generated/schema";
 
 const handleTransfer: TransferHandler = async (event, context) => {
   const { OkpcToken, OkpcOwner } = context.entities;
@@ -7,15 +7,20 @@ const handleTransfer: TransferHandler = async (event, context) => {
 
   await OkpcToken.upsert({
     id: tokenId.toNumber().toString(),
+    tokenId: tokenId.toNumber(),
     owner: to,
-    lastOwner: from,
-    nicknames: ["GOOD", "BAD"],
   });
 
   await OkpcOwner.upsert({
-    id: tokenId.toNumber().toString(),
+    id: from,
+    address: from,
+    traits: [OkpcOwnerTrait.Bad],
+  });
+
+  await OkpcOwner.upsert({
+    id: to,
     address: to,
-    kind: Math.random() > 0.5 ? OkpcOwnerKind.Good : OkpcOwnerKind.Bad,
+    traits: [OkpcOwnerTrait.Good],
   });
 };
 

@@ -1,19 +1,16 @@
 type OkpcToken @entity {
   id: ID!
-  owner: String!
-  lastOwner: String!
-  nicknames: [OkpcOwnerKind!]
+  tokenId: Int!
+  owner: OkpcOwner!
 }
 
-type OkpcOwner @entity {
+type OkpcOwner @entity(immutable: true) {
   id: ID!
   address: String!
-  kind: OkpcOwnerKind
+  traits: [OkpcOwnerTrait!]!
 }
 
-enum OkpcOwnerKind {
+enum OkpcOwnerTrait {
   GOOD
   BAD
-  UGLY
-  REALLYUGLY
 }
