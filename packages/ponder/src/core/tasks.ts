@@ -84,7 +84,7 @@ export const readSchemaTask: Task = {
   handler: async () => {
     state.userSchema = await readSchema();
   },
-  dependencies: [TaskName.BUILD_GQL_SCHEMA, TaskName.BUILD_PONDER_SCHEMA],
+  dependencies: [TaskName.BUILD_PONDER_SCHEMA],
 };
 
 export const readHandlersTask: Task = {
@@ -95,20 +95,6 @@ export const readHandlersTask: Task = {
   dependencies: [TaskName.REINDEX],
 };
 
-const buildGqlSchemaTask: Task = {
-  name: TaskName.BUILD_GQL_SCHEMA,
-  handler: async () => {
-    if (state.userSchema) {
-      state.gqlSchema = buildGqlSchema(state.userSchema);
-    }
-  },
-  dependencies: [
-    TaskName.GENERATE_GQL_SCHEMA,
-    TaskName.GENERATE_SCHEMA_TYPES,
-    TaskName.START_APIS,
-  ],
-};
-
 const buildPonderSchemaTask: Task = {
   name: TaskName.BUILD_PONDER_SCHEMA,
   handler: async () => {
@@ -116,7 +102,25 @@ const buildPonderSchemaTask: Task = {
       state.schema = buildPonderSchema(state.userSchema);
     }
   },
-  dependencies: [TaskName.REINDEX, TaskName.GENERATE_CONTEXT_TYPES],
+  dependencies: [
+    TaskName.REINDEX,
+    TaskName.BUILD_GQL_SCHEMA,
+    TaskName.GENERATE_CONTEXT_TYPES,
+  ],
+};
+
+const buildGqlSchemaTask: Task = {
+  name: TaskName.BUILD_GQL_SCHEMA,
+  handler: async () => {
+    if (state.schema) {
+      state.gqlSchema = buildGqlSchema(state.schema);
+    }
+  },
+  dependencies: [
+    TaskName.GENERATE_GQL_SCHEMA,
+    TaskName.GENERATE_SCHEMA_TYPES,
+    TaskName.START_APIS,
+  ],
 };
 
 const generateContractTypesTask: Task = {

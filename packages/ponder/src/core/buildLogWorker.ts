@@ -74,7 +74,7 @@ export const buildLogWorker = (
     try {
       await handler(event, handlerContext);
     } catch (err) {
-      console.log("error in handler:", err);
+      logger.error("Error in handler:", err);
     }
   };
 

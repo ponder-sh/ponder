@@ -1,3 +1,13 @@
+import type {
+  GraphQLEnumType,
+  GraphQLInputObjectType,
+  GraphQLInputType,
+  GraphQLObjectType,
+  GraphQLScalarType,
+} from "graphql";
+
+type GraphQLType = GraphQLObjectType | GraphQLScalarType | GraphQLEnumType;
+
 export enum FieldKind {
   ID,
   SCALAR,
@@ -9,27 +19,25 @@ export enum FieldKind {
 export type IDField = {
   name: string;
   kind: FieldKind.ID;
-  gqlType: string;
+  baseGqlType: GraphQLScalarType;
   notNull: boolean;
   migrateUpStatement: string;
   sqlType: string;
-  tsType: string;
 };
 
 export type ScalarField = {
   name: string;
   kind: FieldKind.SCALAR;
-  gqlType: string;
+  baseGqlType: GraphQLScalarType;
   notNull: boolean;
   migrateUpStatement: string;
   sqlType: string;
-  tsType: string;
 };
 
 export type EnumField = {
   name: string;
   kind: FieldKind.ENUM;
-  gqlType: string;
+  baseGqlType: GraphQLEnumType;
   notNull: boolean;
   migrateUpStatement: string;
   sqlType: string;
@@ -39,21 +47,19 @@ export type EnumField = {
 export type ListField = {
   name: string;
   kind: FieldKind.LIST;
-  gqlType: string;
+  baseGqlType: GraphQLInputType;
   notNull: boolean;
   migrateUpStatement: string;
   sqlType: "text";
-  tsBaseType: string;
 };
 
 export type RelationshipField = {
   name: string;
   kind: FieldKind.RELATIONSHIP;
-  gqlType: string;
+  baseGqlType: GraphQLInputObjectType;
   notNull: boolean;
   migrateUpStatement: string;
   sqlType: string;
-  tsType: string;
   relatedEntityName: string;
 };
 
@@ -66,6 +72,7 @@ export type Field =
 
 export type Entity = {
   name: string;
+  gqlType: GraphQLObjectType;
   isImmutable: boolean;
   fields: Field[];
   fieldByName: Record<string, Field>;

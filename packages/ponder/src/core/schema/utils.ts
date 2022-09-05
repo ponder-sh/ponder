@@ -2,6 +2,7 @@ import {
   FieldDefinitionNode,
   GraphQLEnumType,
   GraphQLObjectType,
+  GraphQLScalarType,
   GraphQLSchema,
   Kind,
 } from "graphql";
@@ -34,7 +35,7 @@ export const unwrapFieldDefinition = (field: FieldDefinitionNode) => {
 
   return {
     fieldName,
-    fieldType,
+    fieldTypeName: fieldType.name.value,
     isNotNull: nestedNonNullCount > 0,
     isList: nestedListCount > 0,
   };
@@ -56,22 +57,16 @@ export const getEntityTypes = (schema: GraphQLSchema) => {
 };
 
 // Find all types in the schema that were created by the user.
-export const getUserDefinedTypes = (schema: GraphQLSchema) => {
-  // This assumes that any type that has an AST node that is NOT
-  // a scalar type definition will be a user-defined type.
-  const userDefinedTypeArray = Object.values(schema.getTypeMap()).filter(
-    (type): type is GraphQLObjectType | GraphQLEnumType =>
-      !!type.astNode && type.astNode.kind !== Kind.SCALAR_TYPE_DEFINITION
-  );
+export const getCustomScalarTypes = (schema: GraphQLSchema) => {
+  return Object.values(schema.getTypeMap()).filter(
+    (type) =>
+      !!type.astNode && type.astNode.kind === Kind.SCALAR_TYPE_DEFINITION
+  ) as GraphQLScalarType[];
+};
 
-  // Add all user-defined types to a map so we can look them up later.
-  const userDefinedTypes: Record<
-    string,
-    GraphQLObjectType | GraphQLEnumType | undefined
-  > = {};
-  for (const userDefinedType of userDefinedTypeArray) {
-    userDefinedTypes[userDefinedType.name] = userDefinedType;
-  }
-
-  return userDefinedTypes;
+// Find all types in the schema that were created by the user.
+export const getEnumTypes = (schema: GraphQLSchema) => {
+  return Object.values(schema.getTypeMap()).filter(
+    (type) => !!type.astNode && type.astNode.kind === Kind.ENUM_TYPE_DEFINITION
+  ) as GraphQLEnumType[];
 };

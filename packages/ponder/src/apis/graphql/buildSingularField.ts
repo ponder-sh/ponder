@@ -3,8 +3,9 @@ import {
   GraphQLFieldResolver,
   GraphQLID,
   GraphQLNonNull,
-  GraphQLObjectType,
 } from "graphql";
+
+import { Entity } from "@/core/schema/types";
 
 import type { Context, Source } from "./buildGqlSchema";
 
@@ -14,7 +15,7 @@ type SingularArgs = {
 type SingularResolver = GraphQLFieldResolver<Source, Context, SingularArgs>;
 
 const buildSingularField = (
-  entityType: GraphQLObjectType
+  entity: Entity
 ): GraphQLFieldConfig<Source, Context> => {
   const resolver: SingularResolver = async (_, args, context) => {
     const { store } = context;
@@ -22,11 +23,11 @@ const buildSingularField = (
 
     if (!id) return null;
 
-    return await store.getEntity(entityType.name, id);
+    return await store.getEntity(entity.name, id);
   };
 
   return {
-    type: entityType,
+    type: entity.gqlType,
     args: {
       id: { type: new GraphQLNonNull(GraphQLID) },
     },
