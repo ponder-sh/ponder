@@ -304,8 +304,6 @@ const buildPluralField = (
 
     const entities = store.db.prepare(statement).all();
 
-    console.log({ entities });
-
     return entities;
   };
 

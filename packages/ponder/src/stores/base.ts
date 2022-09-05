@@ -7,15 +7,21 @@ export interface BaseStore {
 
   migrate(schema: PonderSchema): Promise<void>;
 
-  getEntity<T>(entity: string, id: string): Promise<T | null>;
+  getEntity<T>(entityName: string, id: string): Promise<T | null>;
 
-  getEntities<T>(entity: string, id: string, filter: any): Promise<T[]>;
+  getEntities<T>(entityName: string, id: string, filter: any): Promise<T[]>;
 
-  insertEntity<T>(entity: string, attributes: { id: string } & T): Promise<T>;
+  insertEntity<T>(
+    entityName: string,
+    attributes: { id: string } & T
+  ): Promise<T>;
 
-  upsertEntity<T>(entity: string, attributes: { id: string } & T): Promise<T>;
+  upsertEntity<T>(
+    entityName: string,
+    attributes: { id: string } & T
+  ): Promise<T>;
 
-  deleteEntity(entity: string, id: string): Promise<void>;
+  deleteEntity(entityName: string, id: string): Promise<void>;
 }
 
 export enum StoreKind {

@@ -19,9 +19,10 @@ const buildSingularField = (
   const resolver: SingularResolver = async (_, args, context) => {
     const { store } = context;
     const { id } = args;
+
     if (!id) return null;
 
-    return store.getEntity(entityType.name, id);
+    return await store.getEntity(entityType.name, id);
   };
 
   return {
