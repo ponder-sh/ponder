@@ -21,9 +21,11 @@ const fetchLogs = async (
     (endBlock - startBlock) / BLOCK_LIMIT
   );
 
-  logger.info(
-    `\x1b[35m${`FETCHING LOGS IN ~${estimatedRequestCount} REQUESTS`}\x1b[0m`
-  ); // magenta
+  if (estimatedRequestCount > 0) {
+    logger.info(
+      `\x1b[35m${`FETCHING LOGS IN ~${estimatedRequestCount} REQUESTS`}\x1b[0m`
+    ); // magenta
+  }
 
   while (fromBlock < endBlock) {
     const getLogsParams = {

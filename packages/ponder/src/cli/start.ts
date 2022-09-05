@@ -1,10 +1,10 @@
 import { ensureDirectoriesExist, readPrettierConfig } from "@/common/utils";
 
 import {
+  readHandlersTask,
   readPonderConfigTask,
   readSchemaTask,
   runTask,
-  // updateUserHandlersTask,
 } from "../core/tasks";
 
 const start = async () => {
@@ -12,7 +12,7 @@ const start = async () => {
 
   runTask(readPonderConfigTask);
   runTask(readSchemaTask);
-  // runTask(updateUserHandlersTask);
+  runTask(readHandlersTask);
 };
 
 export { start };

@@ -9,6 +9,7 @@ import {
   generateSchema,
   generateSchemaTypes,
 } from "@/codegen";
+import { logger } from "@/common/logger";
 import { handleReindex } from "@/core/indexer/reindex";
 import { buildPonderSchema } from "@/core/schema/buildPonderSchema";
 import type { EvmSource } from "@/sources/evm";
@@ -17,7 +18,7 @@ import type { SqliteStore } from "@/stores/sqlite";
 import { Handlers, readHandlers } from "./readHandlers";
 import { readPonderConfig } from "./readPonderConfig";
 import { readSchema } from "./readSchema";
-import { PonderSchema } from "./schema/types";
+import type { PonderSchema } from "./schema/types";
 
 const state: {
   sources?: EvmSource[];
@@ -34,8 +35,8 @@ const state: {
 
 enum TaskName {
   READ_PONDER_CONFIG,
-  // READ_HANDLERS,
   READ_SCHEMA,
+  READ_HANDLERS,
   BUILD_GQL_SCHEMA,
   BUILD_PONDER_SCHEMA,
   GENERATE_CONTRACT_TYPES,
@@ -65,8 +66,6 @@ export const readPonderConfigTask: Task = {
   handler: async () => {
     const { sources, api, store } = await readPonderConfig();
 
-    console.log({ sources, api, store });
-
     state.sources = sources;
     state.api = api;
     state.store = store;
@@ -75,18 +74,10 @@ export const readPonderConfigTask: Task = {
     // TaskName.GENERATE_CONTRACT_TYPES,
     // TaskName.GENERATE_HANDLER_TYPES,
     // TaskName.GENERATE_CONTEXT_TYPES,
-    // TaskName.REINDEX,
+    TaskName.REINDEX,
     TaskName.START_APIS,
   ],
 };
-
-// export const readHandlersTask: Task = {
-//   name: TaskName.READ_HANDLERS,
-//   handler: async () => {
-//     state.handlers = await readHandlers();
-//   },
-//   dependencies: [TaskName.REINDEX],
-// };
 
 export const readSchemaTask: Task = {
   name: TaskName.READ_SCHEMA,
@@ -94,6 +85,14 @@ export const readSchemaTask: Task = {
     state.userSchema = await readSchema();
   },
   dependencies: [TaskName.BUILD_GQL_SCHEMA, TaskName.BUILD_PONDER_SCHEMA],
+};
+
+export const readHandlersTask: Task = {
+  name: TaskName.READ_HANDLERS,
+  handler: async () => {
+    state.handlers = await readHandlers();
+  },
+  dependencies: [TaskName.REINDEX],
 };
 
 const buildGqlSchemaTask: Task = {
@@ -174,17 +173,28 @@ const generateSchemaTypesTask: Task = {
 const reindexTask: Task = {
   name: TaskName.REINDEX,
   handler: async () => {
-    if (!state.sources || !state.schema || !state.handlers) {
+    if (
+      !state.store ||
+      state.sources === undefined ||
+      !state.schema ||
+      !state.handlers
+    ) {
+      logger.debug("Skipped indexing, dependencies not ready");
       return;
     }
 
-    // // TODO: Use actual DB transactions to handle this. That way, can stop
-    // // in-flight indexing job by rolling back txn and then start new.
-    // if (state.isIndexingInProgress) return;
+    // TODO: Use actual DB transactions to handle this. That way, can stop
+    // in-flight indexing job by rolling back txn and then start new.
+    if (state.isIndexingInProgress) return;
 
-    // state.isIndexingInProgress = true;
-    // await handleReindex(state.config, state.schema, state.handlers);
-    // state.isIndexingInProgress = false;
+    state.isIndexingInProgress = true;
+    await handleReindex(
+      state.store,
+      state.sources,
+      state.schema,
+      state.handlers
+    );
+    state.isIndexingInProgress = false;
   },
 };
 
@@ -199,7 +209,7 @@ const startApisTask: Task = {
 
 const taskMap: Record<TaskName, Task> = {
   [TaskName.READ_PONDER_CONFIG]: readPonderConfigTask,
-  // [TaskName.READ_HANDLERS]: updateUserHandlersTask,
+  [TaskName.READ_HANDLERS]: readHandlersTask,
   [TaskName.READ_SCHEMA]: readSchemaTask,
   [TaskName.BUILD_GQL_SCHEMA]: buildGqlSchemaTask,
   [TaskName.BUILD_PONDER_SCHEMA]: buildPonderSchemaTask,

@@ -70,14 +70,14 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
       const isEnum =
         userDefinedBaseType?.astNode?.kind === Kind.ENUM_TYPE_DEFINITION;
 
-      console.log({
-        fieldName,
-        fieldType,
-        isNotNull,
-        isList,
-        isBuiltInScalar,
-        isEnum,
-      });
+      // console.log({
+      //   fieldName,
+      //   fieldType,
+      //   isNotNull,
+      //   isList,
+      //   isBuiltInScalar,
+      //   isEnum,
+      // });
 
       if (isBuiltInScalar || isCustomScalar) {
         if (isList) {

@@ -10,7 +10,12 @@ import {
   readPrettierConfig,
 } from "@/common/utils";
 
-import { readPonderConfigTask, readSchemaTask, runTask } from "../core/tasks";
+import {
+  readHandlersTask,
+  readPonderConfigTask,
+  readSchemaTask,
+  runTask,
+} from "../core/tasks";
 
 const createWatchListener = (
   fn: (fileName: string) => Promise<void>,
@@ -30,17 +35,17 @@ const dev = async () => {
 
   // TODO: Make the dev server response to handler file changes again
   /// by rearranging the task dependency graph.
-  // runTask(updateUserHandlersTask);
+  runTask(readHandlersTask);
   runTask(readPonderConfigTask);
   runTask(readSchemaTask);
 
-  // const runUpdateUserHandlersTask = createWatchListener(
-  //   async (fileName: string) => {
-  //     logger.info(`\x1b[33m${`DETECTED CHANGE IN: ${fileName}`}\x1b[0m`); // yellow
-  //     runTask(updateUserHandlersTask);
-  //   },
-  //   CONFIG.HANDLERS_DIR_PATH
-  // );
+  const runUpdateUserHandlersTask = createWatchListener(
+    async (fileName: string) => {
+      logger.info(`\x1b[33m${`DETECTED CHANGE IN: ${fileName}`}\x1b[0m`); // yellow
+      runTask(readHandlersTask);
+    },
+    CONFIG.HANDLERS_DIR_PATH
+  );
 
   const runUpdateUserConfigTask = createWatchListener(async () => {
     logger.info(
@@ -60,7 +65,7 @@ const dev = async () => {
     runTask(readSchemaTask);
   });
 
-  // watch(CONFIG.HANDLERS_DIR_PATH, runUpdateUserHandlersTask);
+  watch(CONFIG.HANDLERS_DIR_PATH, runUpdateUserHandlersTask);
   watch(CONFIG.PONDER_CONFIG_FILE_PATH, runUpdateUserConfigTask);
   watch(CONFIG.SCHEMA_FILE_PATH, runUpdateUserSchemaTask);
 };

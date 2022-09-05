@@ -1,8 +1,8 @@
 import { build } from "esbuild";
 import type { Contract } from "ethers";
 import path from "node:path";
-import { CONFIG } from "@/common/config";
 
+import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
 
 // Handler context types
