@@ -1,12 +1,7 @@
 import Sqlite from "better-sqlite3";
 
 import { logger } from "@/common/logger";
-import {
-  Entity,
-  FieldKind,
-  PonderSchema,
-  RelationshipField,
-} from "@/core/schema/types";
+import { FieldKind, PonderSchema } from "@/core/schema/types";
 
 import { BaseStore, StoreKind } from "./base";
 
@@ -54,100 +49,34 @@ export class SqliteStore implements BaseStore {
 
     const entity = this.schema.entityByName[entityName];
 
-    const relationshipFields = entity.fields.filter(
-      (field) => field.kind === FieldKind.RELATIONSHIP
-    ) as RelationshipField[];
+    const statement = `
+      select \`${entityName}\`.*
+      from \`${entityName}\`
+      where \`${entityName}\`.\`id\` = @id
+    `;
 
-    const joinStatement = relationshipFields
-      .map(
-        (field) =>
-          `inner join \`${field.relatedEntityName}\` on
-          \`${field.relatedEntityName}\`.\`id\` = \`${entityName}\`.\`${field.name}\``
-      )
-      .join(" ");
-
-    const relatedEntityInstances: Record<
-      string,
-      { field: RelationshipField; instance: any }
-    > = {};
-
-    const relationshipSelectStatement = relationshipFields
-      .map((field) => {
-        const relatedEntity =
-          this.schema!.entityByName[field.relatedEntityName];
-
-        const relatedEntityPrefix = `_entity_${relatedEntity.name}_end_`;
-
-        const selectStat = relatedEntity.fields.map(
-          (relatedEntityField) =>
-            `\`${relatedEntity.name}\`.\`${relatedEntityField.name}\` as ${relatedEntityPrefix}${relatedEntityField.name}`
-        );
-
-        // Initialize the instance, we will add properties to it below.
-        relatedEntityInstances[relatedEntity.name] = {
-          field,
-          instance: {},
-        };
-
-        return selectStat;
-      })
-      .join(",");
-
-    const selectStatement = [
-      `\`${entityName}\`.*`,
-      relationshipSelectStatement,
-    ].join(",");
-
-    const statement = `select ${selectStatement}
-      from \`${entityName}\` ${joinStatement}
-      where \`${entityName}\`.\`id\` = @id`;
-
-    const entityInstance = this.db.prepare(statement).get({
+    const rawEntityInstance = this.db.prepare(statement).get({
       id: id,
     });
 
-    if (!entityInstance) {
+    if (!rawEntityInstance) {
       return null;
     }
 
-    const baseEntityInstance: Record<string, any> = {};
+    const entityInstance = this.deserialize(entity.name, rawEntityInstance);
 
-    Object.entries(entityInstance).forEach(([propertyName, value]) => {
-      if (propertyName.startsWith("_entity_")) {
-        const [relatedEntityNameWithPrefix, relatedEntityPropertyName] =
-          propertyName.split("_end_");
-        const relatedEntityName = relatedEntityNameWithPrefix.substring(
-          "_entity_".length
-        );
+    // This is pretty terrible for performance, should be doing a join here
+    entity.fields.forEach(async (field) => {
+      if (field.kind !== FieldKind.RELATIONSHIP) return;
 
-        relatedEntityInstances[relatedEntityName].instance[
-          relatedEntityPropertyName
-        ] = value;
-      } else {
-        baseEntityInstance[propertyName] = value;
-      }
+      const id = entityInstance[field.name];
+      entityInstance[field.name] = await this.getEntity(
+        field.baseGqlType.name,
+        id
+      );
     });
 
-    const deserializedBaseEntityInstance = this.deserialize(
-      entity.name,
-      baseEntityInstance
-    );
-
-    const deserializedRelatedEntityInstances = Object.entries(
-      relatedEntityInstances
-    ).map(([entityName, { field, instance }]) => ({
-      field: field,
-      deserializedInstance: this.deserialize(entityName, instance),
-    }));
-
-    // Now, replace the related id fields with the actual entity instances.
-    deserializedRelatedEntityInstances.forEach(
-      ({ field, deserializedInstance }) => {
-        deserializedBaseEntityInstance[field.name] = deserializedInstance;
-      }
-    );
-
-    return deserializedBaseEntityInstance;
+    return entityInstance;
   }
 
   async getEntities<T>(
