@@ -2,6 +2,16 @@ import type { PonderSchema } from "@/core/schema/types";
 
 import { SqliteStore } from "./sqlite";
 
+export type EntityFilter = {
+  where?: {
+    [key: string]: number | string | number[] | string[];
+  };
+  first?: number;
+  skip?: number;
+  orderBy?: string;
+  orderDirection?: "asc" | "desc";
+};
+
 export interface BaseStore {
   kind: StoreKind;
 
@@ -9,7 +19,7 @@ export interface BaseStore {
 
   getEntity<T>(entityName: string, id: string): Promise<T | null>;
 
-  getEntities<T>(entityName: string, id: string, filter: any): Promise<T[]>;
+  getEntities<T>(entityName: string, filter?: EntityFilter): Promise<T[]>;
 
   insertEntity<T>(
     entityName: string,

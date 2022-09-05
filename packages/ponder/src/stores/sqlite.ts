@@ -3,7 +3,7 @@ import Sqlite from "better-sqlite3";
 import { logger } from "@/common/logger";
 import { FieldKind, PonderSchema } from "@/core/schema/types";
 
-import { BaseStore, StoreKind } from "./base";
+import { BaseStore, EntityFilter, StoreKind } from "./base";
 
 export class SqliteStore implements BaseStore {
   kind = StoreKind.SQLITE;
@@ -63,32 +63,105 @@ export class SqliteStore implements BaseStore {
       return null;
     }
 
-    const entityInstance = this.deserialize(entity.name, rawEntityInstance);
+    const deserializedEntityInstance = this.deserialize(
+      entity.name,
+      rawEntityInstance
+    );
 
-    // This is pretty terrible for performance, should be doing a join here
-    entity.fields.forEach(async (field) => {
-      if (field.kind !== FieldKind.RELATIONSHIP) return;
+    const instance = this.populateRelatedEntities(
+      entity.name,
+      deserializedEntityInstance
+    );
 
-      const id = entityInstance[field.name];
-      entityInstance[field.name] = await this.getEntity(
-        field.baseGqlType.name,
-        id
-      );
-    });
-
-    return entityInstance;
+    return instance;
   }
 
   async getEntities<T>(
     entityName: string,
-    id: string,
-    filter: any
+    filter?: EntityFilter
   ): Promise<T[]> {
     if (!this.schema) {
       throw new Error(`SqliteStore has not been initialized with a schema yet`);
     }
 
-    return [];
+    const where = filter?.where;
+    const first = filter?.first;
+    const skip = filter?.skip;
+    const orderBy = filter?.orderBy;
+    const orderDirection = filter?.orderDirection;
+
+    const fragments = [];
+
+    if (where) {
+      console.log({ where });
+
+      const whereFragments: string[] = [];
+
+      for (const [field, value] of Object.entries(where)) {
+        const [fieldName, rawFilterType] = field.split(/_(.*)/s);
+
+        // This is a hack to handle the = operator, which the regex above doesn't handle
+        const filterType = rawFilterType === undefined ? "" : rawFilterType;
+
+        console.log({ fieldName, filterType });
+
+        const sqlOperators = sqlOperatorsForFilterType[filterType];
+        if (!sqlOperators) {
+          throw new Error(
+            `SQL operators not found for filter type: ${filterType}`
+          );
+        }
+
+        const { operator, patternPrefix, patternSuffix, isList } = sqlOperators;
+
+        let finalValue = value;
+
+        if (patternPrefix) finalValue = patternPrefix + finalValue;
+        if (patternSuffix) finalValue = finalValue + patternSuffix;
+
+        if (isList) {
+          finalValue = `(${(finalValue as any[]).join(",")})`;
+        } else {
+          finalValue = `'${finalValue}'`;
+        }
+
+        console.log({ finalValue });
+
+        whereFragments.push(`\`${fieldName}\` ${operator} ${finalValue}`);
+      }
+
+      fragments.push(`where ${whereFragments.join(" and ")}`);
+    }
+    if (first) {
+      fragments.push(`limit ${first}`);
+    }
+    if (skip) {
+      if (!first) {
+        fragments.push(`limit -1`); // Must add a no-op limit for SQLite to handle offset
+      }
+      fragments.push(`offset ${skip}`);
+    }
+    if (orderBy) {
+      fragments.push(`order by \`${orderBy}\``);
+    }
+    if (orderDirection) {
+      fragments.push(`${orderDirection}`);
+    }
+
+    const statement = `select * from \`${entityName}\` ${fragments.join(" ")}`;
+
+    console.log({ statement });
+
+    const rawEntityInstances = this.db.prepare(statement).all();
+
+    const instances = rawEntityInstances.map((instance) => {
+      return this.populateRelatedEntities(
+        entityName,
+        this.deserialize(entityName, instance)
+      );
+    });
+
+    return instances;
   }
 
   async insertEntity<T>(
@@ -203,4 +276,79 @@ export class SqliteStore implements BaseStore {
 
     return deserializedInstance;
   }
+
+  populateRelatedEntities(entityName: string, instance: any) {
+    if (!this.schema) {
+      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+    }
+
+    const entity = this.schema.entityByName[entityName];
+    if (!entity) {
+      throw new Error(`Entity not found in schema: ${entityName}`);
+    }
+
+    const populatedInstance = { ...instance };
+
+    // This is pretty terrible for performance, should be doing a join here
+    entity.fields.forEach(async (field) => {
+      if (field.kind !== FieldKind.RELATIONSHIP) return;
+
+      const id = populatedInstance[field.name];
+      populatedInstance[field.name] = await this.getEntity(
+        field.baseGqlType.name,
+        id
+      );
+    });
+
+    return populatedInstance;
+  }
 }
+
+const sqlOperatorsForFilterType: Record<
+  string,
+  | {
+      operator: string;
+      isList?: boolean;
+      patternPrefix?: string;
+      patternSuffix?: string;
+    }
+  | undefined
+> = {
+  // universal
+  "": { operator: "=" },
+  not: { operator: "!=" },
+  // singular
+  in: { operator: "in", isList: true },
+  not_in: { operator: "not in", isList: true },
+  // plural
+  contains: { operator: "like", patternPrefix: "%", patternSuffix: "%" },
+  contains_nocase: {
+    operator: "like",
+    patternPrefix: "%",
+    patternSuffix: "%",
+  },
+  not_contains: {
+    operator: "not like",
+    patternPrefix: "%",
+    patternSuffix: "%",
+  },
+  not_contains_nocase: {
+    operator: "not like",
+    patternPrefix: "%",
+    patternSuffix: "%",
+  },
+  // numeric
+  gt: { operator: ">" },
+  lt: { operator: "<" },
+  gte: { operator: ">=" },
+  lte: { operator: "<=" },
+  // string
+  starts_with: { operator: "like", patternSuffix: "%" },
+  starts_with_nocase: { operator: "like", patternSuffix: "%" },
+  ends_with: { operator: "like", patternPrefix: "%" },
+  ends_with_nocase: { operator: "like", patternPrefix: "%" },
+  not_starts_with: { operator: "not like", patternSuffix: "%" },
+  not_starts_with_nocase: { operator: "not like", patternSuffix: "%" },
+  not_ends_with: { operator: "not like", patternSuffix: "%" },
+  not_ends_with_nocase: { operator: "not like", patternSuffix: "%" },
+};
