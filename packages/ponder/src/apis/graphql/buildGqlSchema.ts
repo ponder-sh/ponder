@@ -21,7 +21,11 @@ const buildGqlSchema = (userSchema: GraphQLSchema): GraphQLSchema => {
     fields[singularFieldName] = buildSingularField(entityType);
 
     const pluralFieldName = singularFieldName + "s";
-    fields[pluralFieldName] = buildPluralField(entityType, userDefinedTypes);
+    fields[pluralFieldName] = buildPluralField(
+      entityType,
+      userDefinedTypes,
+      entityTypes
+    );
   }
 
   const queryType = new GraphQLObjectType({

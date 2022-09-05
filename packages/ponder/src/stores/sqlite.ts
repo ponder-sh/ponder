@@ -1,7 +1,12 @@
 import Sqlite from "better-sqlite3";
 
 import { logger } from "@/common/logger";
-import { FieldKind, PonderSchema } from "@/core/schema/types";
+import {
+  Entity,
+  FieldKind,
+  PonderSchema,
+  RelationshipField,
+} from "@/core/schema/types";
 
 import { BaseStore, StoreKind } from "./base";
 
@@ -49,27 +54,100 @@ export class SqliteStore implements BaseStore {
 
     const entity = this.schema.entityByName[entityName];
 
-    console.log("in getEntity with:", entityName, id);
+    const relationshipFields = entity.fields.filter(
+      (field) => field.kind === FieldKind.RELATIONSHIP
+    ) as RelationshipField[];
 
-    const entityInstance = this.db
-      .prepare(`select * from \`${entityName}\` where id = @id`)
-      .get({
-        id: id,
-      });
+    const joinStatement = relationshipFields
+      .map(
+        (field) =>
+          `inner join \`${field.relatedEntityName}\` on
+          \`${field.relatedEntityName}\`.\`id\` = \`${entityName}\`.\`${field.name}\``
+      )
+      .join(" ");
+
+    const relatedEntityInstances: Record<
+      string,
+      { field: RelationshipField; instance: any }
+    > = {};
+
+    const relationshipSelectStatement = relationshipFields
+      .map((field) => {
+        const relatedEntity =
+          this.schema!.entityByName[field.relatedEntityName];
+
+        const relatedEntityPrefix = `_entity_${relatedEntity.name}_end_`;
+
+        const selectStat = relatedEntity.fields.map(
+          (relatedEntityField) =>
+            `\`${relatedEntity.name}\`.\`${relatedEntityField.name}\` as ${relatedEntityPrefix}${relatedEntityField.name}`
+        );
+
+        // Initialize the instance, we will add properties to it below.
+        relatedEntityInstances[relatedEntity.name] = {
+          field,
+          instance: {},
+        };
+
+        return selectStat;
+      })
+      .join(",");
+
+    const selectStatement = [
+      `\`${entityName}\`.*`,
+      relationshipSelectStatement,
+    ].join(",");
+
+    const statement = `select ${selectStatement}
+      from \`${entityName}\` ${joinStatement}
+      where \`${entityName}\`.\`id\` = @id`;
+
+    const entityInstance = this.db.prepare(statement).get({
+      id: id,
+    });
 
     if (!entityInstance) {
       return null;
     }
 
-    Object.entries(entityInstance).forEach(([fieldName, value]) => {
-      const field = entity.fieldByName[fieldName];
-      if (field?.kind === FieldKind.LIST) {
-        // `value` is an array encoded as comma-separated value string, e.g. `alice,bob,tom`
-        entityInstance[fieldName] = (value as string).split(",");
+    const baseEntityInstance: Record<string, any> = {};
+
+    Object.entries(entityInstance).forEach(([propertyName, value]) => {
+      if (propertyName.startsWith("_entity_")) {
+        const [relatedEntityNameWithPrefix, relatedEntityPropertyName] =
+          propertyName.split("_end_");
+        const relatedEntityName = relatedEntityNameWithPrefix.substring(
+          "_entity_".length
+        );
+
+        relatedEntityInstances[relatedEntityName].instance[
+          relatedEntityPropertyName
+        ] = value;
+      } else {
+        baseEntityInstance[propertyName] = value;
       }
     });
 
-    return entityInstance;
+    const deserializedBaseEntityInstance = this.deserialize(
+      entity.name,
+      baseEntityInstance
+    );
+
+    const deserializedRelatedEntityInstances = Object.entries(
+      relatedEntityInstances
+    ).map(([entityName, { field, instance }]) => ({
+      field: field,
+      deserializedInstance: this.deserialize(entityName, instance),
+    }));
+
+    // Now, replace the related id fields with the actual entity instances.
+    deserializedRelatedEntityInstances.forEach(
+      ({ field, deserializedInstance }) => {
+        deserializedBaseEntityInstance[field.name] = deserializedInstance;
+      }
+    );
+
+    return deserializedBaseEntityInstance;
   }
 
   async getEntities<T>(
@@ -163,5 +241,37 @@ export class SqliteStore implements BaseStore {
     this.db.prepare(statement).run({ id: id });
 
     return;
+  }
+
+  deserialize(entityName: string, instance: any) {
+    if (!this.schema) {
+      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+    }
+
+    const entity = this.schema.entityByName[entityName];
+    if (!entity) {
+      throw new Error(`Entity not found in schema: ${entityName}`);
+    }
+
+    const deserializedInstance = { ...instance };
+
+    // For each property on the instance, look for a field defined on the entity
+    // with the same name and apply any required deserialization transforms.
+    Object.entries(instance).forEach(([fieldName, value]) => {
+      const field = entity.fieldByName[fieldName];
+      if (!field) return;
+
+      switch (field.kind) {
+        case FieldKind.LIST: {
+          deserializedInstance[fieldName] = (value as string).split(",");
+          break;
+        }
+        default: {
+          deserializedInstance[fieldName] = value;
+        }
+      }
+    });
+
+    return deserializedInstance;
   }
 }

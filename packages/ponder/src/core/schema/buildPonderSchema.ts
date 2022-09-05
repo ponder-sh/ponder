@@ -9,6 +9,7 @@ import {
   IDField,
   ListField,
   PonderSchema,
+  RelationshipField,
   ScalarField,
 } from "./types";
 import {
@@ -45,6 +46,15 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
 
   const entities = gqlEntities.map((entity) => {
     const entityName = entity.name;
+    const entityIsImmutable = !!entity.astNode?.directives
+      ?.find((directive) => directive.name.value === "entity")
+      ?.arguments?.find(
+        (arg) =>
+          arg.name.value === "immutable" &&
+          arg.value.kind === "BooleanValue" &&
+          arg.value.value
+      );
+
     const gqlFields = entity.astNode?.fields || [];
 
     const fields = gqlFields.map((field) => {
@@ -69,14 +79,17 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
       const isEnum =
         userDefinedBaseType?.astNode?.kind === Kind.ENUM_TYPE_DEFINITION;
 
-      // console.log({
-      //   fieldName,
-      //   fieldType,
-      //   isNotNull,
-      //   isList,
-      //   isBuiltInScalar,
-      //   isEnum,
-      // });
+      const isEntity = gqlEntities
+        .map((e) => e.name)
+        .includes(fieldType.name.value);
+
+      // const isDerivedFrom = !!field.directives?.find(
+      //   (directive) => directive.name.value === "derivedFrom"
+      // );
+
+      if (isEntity) {
+        return getRelationshipField(fieldName, fieldType, isNotNull);
+      }
 
       if (isBuiltInScalar || isCustomScalar) {
         if (isList) {
@@ -99,18 +112,7 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
         }
       }
 
-      // Handle base types that are NOT an entity (a list of scalars/enums).
-      console.log("got to bottom with a userDefinedBaseType:", {
-        userDefinedBaseType,
-      });
-
-      // // Handle list types where the base type is an entity (a relationship).
-      // if (userDefinedBaseType.astNode?.kind === Kind.OBJECT_TYPE_DEFINITION) {
-      //   // Handling list!
-      //   throw new Error(`Unsupported GQL type: ${fieldType.name}`);
-      // }
-
-      throw new Error(`Unhandled field type: ${fieldType.name}`);
+      throw new Error(`Unhandled field type: ${fieldType.name.value}`);
     });
 
     const fieldByName: Record<string, Field> = {};
@@ -120,6 +122,7 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
 
     return {
       name: entityName,
+      isImmutable: entityIsImmutable,
       fields,
       fieldByName,
     };
@@ -159,6 +162,30 @@ const getIdField = (
     migrateUpStatement: `id text not null primary key`,
     sqlType: "string",
     tsType: "string",
+  };
+};
+
+const getRelationshipField = (
+  fieldName: string,
+  fieldType: NamedTypeNode,
+  isNotNull: boolean
+) => {
+  const fieldTypeName = fieldType.name.value;
+
+  let migrateUpStatement = `\`${fieldName}\` text`;
+  if (isNotNull) {
+    migrateUpStatement += " not null";
+  }
+
+  return <RelationshipField>{
+    name: fieldName,
+    kind: FieldKind.RELATIONSHIP,
+    notNull: isNotNull,
+    gqlType: fieldTypeName,
+    migrateUpStatement,
+    sqlType: "text", // foreign key
+    tsType: "string",
+    relatedEntityName: fieldTypeName,
   };
 };
 

@@ -120,31 +120,35 @@ const buildPluralField = (
   entityType: GraphQLObjectType,
   userDefinedTypes: {
     [key: string]: GraphQLObjectType | GraphQLEnumType | undefined;
-  }
+  },
+  entityTypes: GraphQLObjectType[]
 ): GraphQLFieldConfig<Source, Context> => {
-  const entityFields = (entityType.astNode?.fields || []).map((field) => {
-    let type = field.type;
-    let nestedListCount = 0;
+  const entityFields = (entityType.astNode?.fields || [])
+    .map((field) => {
+      let type = field.type;
+      let nestedListCount = 0;
 
-    while (type.kind !== Kind.NAMED_TYPE) {
-      // If a field is non-nullable, it's TypeNode will be wrapped with a NON_NULL_TYPE TypeNode.
-      if (type.kind === Kind.NON_NULL_TYPE) {
-        type = type.type;
+      while (type.kind !== Kind.NAMED_TYPE) {
+        // If a field is non-nullable, it's TypeNode will be wrapped with a NON_NULL_TYPE TypeNode.
+        if (type.kind === Kind.NON_NULL_TYPE) {
+          type = type.type;
+        }
+
+        // If a field is a list, it's TypeNode will be wrapped with a LIST_TYPE TypeNode.
+        if (type.kind === Kind.LIST_TYPE) {
+          nestedListCount += 1;
+          type = type.type;
+        }
       }
 
-      // If a field is a list, it's TypeNode will be wrapped with a LIST_TYPE TypeNode.
-      if (type.kind === Kind.LIST_TYPE) {
-        nestedListCount += 1;
-        type = type.type;
-      }
-    }
-
-    return {
-      name: field.name.value,
-      type: type.name.value,
-      isCollection: nestedListCount > 0 || type.name.value === "String",
-    };
-  });
+      return {
+        name: field.name.value,
+        type: type.name.value,
+        isCollection: nestedListCount > 0 || type.name.value === "String",
+      };
+    })
+    // For now, don't create filter fields for relationship types.
+    .filter((type) => !entityTypes.map((t) => t.name).includes(type.type));
 
   const filterFields: {
     [key: string]: { type: GraphQLInputType };

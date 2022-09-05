@@ -3,6 +3,7 @@ export enum FieldKind {
   SCALAR,
   ENUM,
   LIST,
+  RELATIONSHIP,
 }
 
 export type IDField = {
@@ -45,10 +46,27 @@ export type ListField = {
   tsBaseType: string;
 };
 
-export type Field = IDField | ScalarField | EnumField | ListField;
+export type RelationshipField = {
+  name: string;
+  kind: FieldKind.RELATIONSHIP;
+  gqlType: string;
+  notNull: boolean;
+  migrateUpStatement: string;
+  sqlType: string;
+  tsType: string;
+  relatedEntityName: string;
+};
+
+export type Field =
+  | IDField
+  | ScalarField
+  | EnumField
+  | ListField
+  | RelationshipField;
 
 export type Entity = {
   name: string;
+  isImmutable: boolean;
   fields: Field[];
   fieldByName: Record<string, Field>;
 };

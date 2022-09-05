@@ -5,9 +5,11 @@ import { CONFIG } from "@/common/config";
 
 const schemaHeader = `
 "Directs the executor to process this type as a Ponder entity."
-directive @entity(
-  immutable: Boolean = false
-) on OBJECT
+directive @entity(immutable: Boolean = false) on OBJECT
+
+"Creates a virtual field on the entity that may be queried but cannot be set manually through the mappings API."
+directive @derivedFrom(field: String!) on FIELD_DEFINITION
+
 
 scalar BigDecimal
 scalar Bytes

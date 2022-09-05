@@ -43,6 +43,8 @@ const generateContextTypes = async (
             return `${field.name}${field.notNull ? "" : "?"}: ${
               field.tsBaseType
             }[];`;
+          case FieldKind.RELATIONSHIP:
+            return `${field.name}: string;`;
         }
       })
       .join("")}
