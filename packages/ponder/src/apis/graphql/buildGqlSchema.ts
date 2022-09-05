@@ -1,13 +1,13 @@
-import type { Database } from "better-sqlite3";
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
 
 import { getEntityTypes, getUserDefinedTypes } from "@/core/schema/utils";
+import { SqliteStore } from "@/stores/sqlite";
 
 import { buildPluralField } from "./buildPluralField";
 import { buildSingularField } from "./buildSingularField";
 
 export type Source = { request: unknown };
-export type Context = { db: Database };
+export type Context = { store: SqliteStore };
 
 const buildGqlSchema = (userSchema: GraphQLSchema): GraphQLSchema => {
   const userDefinedTypes = getUserDefinedTypes(userSchema);

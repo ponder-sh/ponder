@@ -259,7 +259,7 @@ const buildPluralField = (
   });
 
   const resolver: PluralResolver = async (_, args, context) => {
-    const { db } = context;
+    const { store } = context;
     const { where, first, skip, orderBy, orderDirection } = args;
 
     const fragments: string[] = [];
@@ -302,7 +302,7 @@ const buildPluralField = (
       " "
     )}`;
 
-    const entities = db.prepare(statement).all();
+    const entities = store.db.prepare(statement).all();
 
     console.log({ entities });
 

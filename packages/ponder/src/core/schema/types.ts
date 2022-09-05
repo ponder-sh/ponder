@@ -50,8 +50,10 @@ export type Field = IDField | ScalarField | EnumField | ListField;
 export type Entity = {
   name: string;
   fields: Field[];
+  fieldByName: Record<string, Field>;
 };
 
 export type PonderSchema = {
-  entities: Record<string, Entity>;
+  entities: Entity[];
+  entityByName: Record<string, Entity>;
 };

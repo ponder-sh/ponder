@@ -71,9 +71,9 @@ export const readPonderConfigTask: Task = {
     state.store = store;
   },
   dependencies: [
-    // TaskName.GENERATE_CONTRACT_TYPES,
-    // TaskName.GENERATE_HANDLER_TYPES,
-    // TaskName.GENERATE_CONTEXT_TYPES,
+    TaskName.GENERATE_CONTRACT_TYPES,
+    TaskName.GENERATE_HANDLER_TYPES,
+    TaskName.GENERATE_CONTEXT_TYPES,
     TaskName.REINDEX,
     TaskName.START_APIS,
   ],
@@ -105,7 +105,6 @@ const buildGqlSchemaTask: Task = {
   dependencies: [
     TaskName.GENERATE_GQL_SCHEMA,
     TaskName.GENERATE_SCHEMA_TYPES,
-    TaskName.GENERATE_CONTRACT_TYPES,
     TaskName.START_APIS,
   ],
 };
@@ -117,7 +116,7 @@ const buildPonderSchemaTask: Task = {
       state.schema = buildPonderSchema(state.userSchema);
     }
   },
-  dependencies: [TaskName.GENERATE_CONTEXT_TYPES, TaskName.REINDEX],
+  dependencies: [TaskName.REINDEX, TaskName.GENERATE_CONTEXT_TYPES],
 };
 
 const generateContractTypesTask: Task = {

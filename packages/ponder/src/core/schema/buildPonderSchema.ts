@@ -4,6 +4,7 @@ import { GraphQLEnumType, GraphQLSchema, Kind, NamedTypeNode } from "graphql";
 import {
   Entity,
   EnumField,
+  Field,
   FieldKind,
   IDField,
   ListField,
@@ -40,15 +41,13 @@ const gqlScalarToTsType: Record<string, string | undefined> = {
 
 export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
   const userDefinedGqlTypes = getUserDefinedTypes(userSchema);
-  const entityGqlTypes = getEntityTypes(userSchema);
+  const gqlEntities = getEntityTypes(userSchema);
 
-  const entities: Record<string, Entity> = {};
-
-  entityGqlTypes.forEach((entity) => {
+  const entities = gqlEntities.map((entity) => {
     const entityName = entity.name;
-    const entityFields = entity.astNode?.fields || [];
+    const gqlFields = entity.astNode?.fields || [];
 
-    const fieldInfo = entityFields.map((field) => {
+    const fields = gqlFields.map((field) => {
       const { fieldName, fieldType, isNotNull, isList } =
         unwrapFieldDefinition(field);
 
@@ -114,13 +113,24 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
       throw new Error(`Unhandled field type: ${fieldType.name}`);
     });
 
-    entities[entityName] = {
+    const fieldByName: Record<string, Field> = {};
+    fields.forEach((field) => {
+      fieldByName[field.name] = field;
+    });
+
+    return {
       name: entityName,
-      fields: fieldInfo,
+      fields,
+      fieldByName,
     };
   });
 
-  const schema: PonderSchema = { entities };
+  const entityByName: Record<string, Entity> = {};
+  entities.forEach((entity) => {
+    entityByName[entity.name] = entity;
+  });
+
+  const schema: PonderSchema = { entities, entityByName };
 
   return schema;
 };

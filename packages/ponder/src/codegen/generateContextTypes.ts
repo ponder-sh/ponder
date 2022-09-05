@@ -15,8 +15,7 @@ const generateContextTypes = async (
   sources: Source[],
   schema: PonderSchema
 ) => {
-  const entities = Object.values(schema.entities);
-  const entityNames = entities.map((entity) => entity.name);
+  const entityNames = schema.entities.map((entity) => entity.name);
   const contractNames = sources
     .filter((source) => source.kind === SourceKind.EVM)
     .map((source) => source.name);
@@ -25,7 +24,7 @@ const generateContextTypes = async (
   import type { ${contractNames.join(", ")} } from "./typechain";
   `;
 
-  const entityModelTypes = entities
+  const entityModelTypes = schema.entities
     .map((entity) => {
       return `
   export type ${entity.name}Instance = {

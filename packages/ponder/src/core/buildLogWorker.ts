@@ -17,7 +17,7 @@ export const buildLogWorker = (
   userHandlers: Handlers
 ): LogWorker => {
   const entityModels: Record<string, EntityModel> = {};
-  Object.values(schema.entities).forEach((entity) => {
+  schema.entities.forEach((entity) => {
     const entityName = entity.name;
     const entityModel: EntityModel = {
       get: async (id) => store.getEntity(entityName, id),
