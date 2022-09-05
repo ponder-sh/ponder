@@ -132,20 +132,24 @@ export class SqliteStore implements BaseStore {
 
       fragments.push(`where ${whereFragments.join(" and ")}`);
     }
+
+    if (orderBy) {
+      fragments.push(`order by \`${orderBy}\``);
+    }
+
+    if (orderDirection) {
+      fragments.push(`${orderDirection}`);
+    }
+
     if (first) {
       fragments.push(`limit ${first}`);
     }
+
     if (skip) {
       if (!first) {
         fragments.push(`limit -1`); // Must add a no-op limit for SQLite to handle offset
       }
       fragments.push(`offset ${skip}`);
-    }
-    if (orderBy) {
-      fragments.push(`order by \`${orderBy}\``);
-    }
-    if (orderDirection) {
-      fragments.push(`${orderDirection}`);
     }
 
     const statement = `select * from \`${entityName}\` ${fragments.join(" ")}`;
