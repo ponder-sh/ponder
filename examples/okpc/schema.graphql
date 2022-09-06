@@ -6,7 +6,6 @@ type OkpcToken @entity {
 
 type OkpcOwner @entity(immutable: true) {
   id: ID!
-  address: String!
   traits: [OkpcOwnerTrait!]!
   tokens: [OkpcToken!]! @derivedFrom(field: "owner")
 }

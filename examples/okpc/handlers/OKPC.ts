@@ -13,13 +13,11 @@ const handleTransfer: TransferHandler = async (event, context) => {
 
   await OkpcOwner.upsert({
     id: from,
-    address: from,
     traits: [OkpcOwnerTrait.Bad],
   });
 
   await OkpcOwner.upsert({
     id: to,
-    address: to,
     traits: [OkpcOwnerTrait.Good],
   });
 };
