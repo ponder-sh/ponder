@@ -1,0 +1,95 @@
+type GameState @entity {
+  id: ID!
+  isActive: Boolean!
+
+  inputIndex: BigInt!
+  inputTimestamp: Int!
+
+  alignmentVoteCooldown: Int!
+  alignmentDecayRate: Int!
+  chaosVoteReward: BigInt!
+  alignment: BigInt!
+
+  orderDuration: Int!
+  orderVotes: [Int!]!
+
+  chaosInputRewardCooldown: Int!
+  chaosInputReward: BigInt!
+  orderInputReward: BigInt!
+  chatCost: BigInt!
+  rareCandyCost: BigInt!
+
+  controlAuctionDuration: Int!
+  controlDuration: Int!
+
+  controlAuctionStartTimestamp: Int!
+  controlAuctionEndTimestamp: Int!
+  bestControlBidFrom: Bytes!
+  bestControlBidAmount: BigInt!
+  controlAddress: Bytes!
+}
+
+enum FeedItemType {
+  AlignmentVote
+  InputVote
+  ButtonInput
+  OrderButtonInput
+
+  Chat
+  RareCandy
+
+  NewControlBid
+  Control
+
+  NewRegistration
+  UpdatedRegistration
+}
+
+type FeedItem @entity(immutable: true) {
+  id: ID!
+  timestamp: Int!
+  feedIndex: BigInt!
+  type: FeedItemType!
+
+  " All "
+  from: Bytes!
+
+  " AlignmentVote "
+  vote: Boolean
+
+  " ButtonInput | InputVote  | OrderButtonInput"
+  inputIndex: Int
+  " ButtonInput | InputVote  | OrderButtonInput"
+  buttonIndex: Int
+
+  " Chat "
+  message: String
+
+  " RareCandy "
+  count: Int
+
+  " NewControlBid "
+  amount: BigInt
+
+  " NewRegistration | UpdatedRegistration "
+  account: Bytes
+}
+
+type Player @entity {
+  id: ID!
+  account: Bytes!
+  replacedAt: Int!
+
+  balance: BigInt!
+  score: BigInt!
+
+  alignmentVoteTimestamp: Int!
+  inputVoteIndex: Int!
+  chaosInputTimestamp: Int!
+
+  alignmentVoteCount: Int!
+  chatCount: Int!
+  rareCandyCount: Int!
+
+  controlCount: Int!
+}
