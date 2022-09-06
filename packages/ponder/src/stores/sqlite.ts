@@ -77,13 +77,6 @@ export class SqliteStore implements BaseStore {
     );
 
     return deserializedEntityInstance;
-
-    // const instance = this.populateRelatedEntities(
-    //   entity.name,
-    //   deserializedEntityInstance
-    // );
-
-    // return instance;
   }
 
   async getEntities<T>(
@@ -289,32 +282,6 @@ export class SqliteStore implements BaseStore {
 
     return deserializedInstance;
   }
-
-  // populateRelatedEntities(entityName: string, instance: any) {
-  //   if (!this.schema) {
-  //     throw new Error(`SqliteStore has not been initialized with a schema yet`);
-  //   }
-
-  //   const entity = this.schema.entityByName[entityName];
-  //   if (!entity) {
-  //     throw new Error(`Entity not found in schema: ${entityName}`);
-  //   }
-
-  //   const populatedInstance = { ...instance };
-
-  //   // This is pretty terrible for performance, should be doing a join here
-  //   entity.fields.forEach(async (field) => {
-  //     if (field.kind !== FieldKind.RELATIONSHIP) return;
-
-  //     const id = populatedInstance[field.name];
-  //     populatedInstance[field.name] = await this.getEntity(
-  //       field.baseGqlType.name,
-  //       id
-  //     );
-  //   });
-
-  //   return populatedInstance;
-  // }
 
   async getEntityDerivedField(
     entityName: string,
