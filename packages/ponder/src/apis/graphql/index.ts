@@ -7,9 +7,9 @@ import http from "node:http";
 import { logger } from "@/common/logger";
 import { SqliteStore } from "@/stores/sqlite";
 
-import { ApiKind } from "../base";
+import { ApiKind, BaseApi } from "../base";
 
-export class GraphqlApi {
+export class GraphqlApi implements BaseApi {
   kind = ApiKind.GRAPHQL;
   port: number;
   context: { store: SqliteStore };

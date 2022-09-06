@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import {
+  DirectiveNode,
   GraphQLBoolean,
   GraphQLEnumType,
   GraphQLFloat,
@@ -10,9 +11,12 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
+  StringValueNode,
+  TypeNode,
 } from "graphql";
 
 import {
+  DerivedField,
   Entity,
   EnumField,
   Field,
@@ -72,6 +76,8 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
     const gqlFields = entity.astNode?.fields || [];
 
     const fields = gqlFields.map((field) => {
+      const originalFieldType = field.type;
+
       const { fieldName, fieldTypeName, isNotNull, isList } =
         unwrapFieldDefinition(field);
 
@@ -85,9 +91,9 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
         (t) => t.name === fieldTypeName
       );
 
-      // const isDerivedFrom = !!field.directives?.find(
-      //   (directive) => directive.name.value === "derivedFrom"
-      // );
+      const derivedFromDirective = field.directives?.find(
+        (directive) => directive.name.value === "derivedFrom"
+      );
 
       if (customScalarBaseType) {
         throw new Error(
@@ -95,23 +101,53 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
         );
       }
 
+      if (derivedFromDirective) {
+        if (!entityBaseType || !isList) {
+          throw new Error(
+            `Resolved type of a @derivedFrom field must be a list of entities`
+          );
+        }
+        return getDerivedField(
+          fieldName,
+          entityBaseType,
+          originalFieldType,
+          isNotNull,
+          derivedFromDirective
+        );
+      }
+
       // Handle the ID field as a special case.
       if (fieldName === "id" && builtInScalarBaseType) {
         const baseType = builtInScalarBaseType;
-        return getIdField(entityName, baseType, isNotNull);
+        return getIdField(entityName, baseType, originalFieldType, isNotNull);
       }
 
       if (entityBaseType) {
         const baseType = entityBaseType;
-        return getRelationshipField(fieldName, baseType, isNotNull);
+        return getRelationshipField(
+          fieldName,
+          baseType,
+          originalFieldType,
+          isNotNull
+        );
       }
 
       if (builtInScalarBaseType) {
         const baseType = builtInScalarBaseType;
         if (isList) {
-          return getListField(fieldName, baseType, isNotNull);
+          return getListField(
+            fieldName,
+            baseType,
+            originalFieldType,
+            isNotNull
+          );
         } else {
-          return getScalarField(fieldName, baseType, isNotNull);
+          return getScalarField(
+            fieldName,
+            baseType,
+            originalFieldType,
+            isNotNull
+          );
         }
       }
 
@@ -119,9 +155,19 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
       if (enumBaseType) {
         const baseType = enumBaseType;
         if (isList) {
-          return getListField(fieldName, baseType, isNotNull);
+          return getListField(
+            fieldName,
+            baseType,
+            originalFieldType,
+            isNotNull
+          );
         } else {
-          return getEnumField(fieldName, baseType, isNotNull);
+          return getEnumField(
+            fieldName,
+            baseType,
+            originalFieldType,
+            isNotNull
+          );
         }
       }
 
@@ -155,6 +201,7 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
 const getIdField = (
   entityName: string,
   baseType: GraphQLScalarType,
+  originalFieldType: TypeNode,
   isNotNull: boolean
 ) => {
   if (!isNotNull) {
@@ -169,15 +216,94 @@ const getIdField = (
     name: "id",
     kind: FieldKind.ID,
     baseGqlType: baseType,
+    originalFieldType,
     notNull: true,
     migrateUpStatement: `id text not null primary key`,
     sqlType: "string",
   };
 };
 
+const getScalarField = (
+  fieldName: string,
+  baseType: GraphQLScalarType,
+  originalFieldType: TypeNode,
+  isNotNull: boolean
+) => {
+  const sqlType = gqlScalarToSqlType[baseType.name];
+  if (!sqlType) {
+    throw new Error(`Unhandled scalar type: ${baseType.name}`);
+  }
+
+  let migrateUpStatement = `\`${fieldName}\` ${sqlType}`;
+  if (isNotNull) {
+    migrateUpStatement += " not null";
+  }
+
+  return <ScalarField>{
+    name: fieldName,
+    kind: FieldKind.SCALAR,
+    baseGqlType: baseType,
+    originalFieldType,
+    notNull: isNotNull,
+    migrateUpStatement,
+    sqlType,
+  };
+};
+
+const getEnumField = (
+  fieldName: string,
+  baseType: GraphQLEnumType,
+  originalFieldType: TypeNode,
+  isNotNull: boolean
+) => {
+  const enumValues = (baseType.astNode?.values || []).map((v) => v.name.value);
+
+  let migrateUpStatement = `\`${fieldName}\` text check (\`${fieldName}\` in (${enumValues
+    .map((v) => `'${v}'`)
+    .join(", ")}))`;
+
+  if (isNotNull) {
+    migrateUpStatement += " not null";
+  }
+
+  return <EnumField>{
+    name: fieldName,
+    kind: FieldKind.ENUM,
+    baseGqlType: baseType,
+    originalFieldType,
+    notNull: isNotNull,
+    migrateUpStatement,
+    sqlType: "string",
+    enumValues,
+  };
+};
+
+const getListField = (
+  fieldName: string,
+  baseType: GraphQLEnumType | GraphQLScalarType,
+  originalFieldType: TypeNode,
+  isNotNull: boolean
+) => {
+  let migrateUpStatement = `\`${fieldName}\` text`;
+  if (isNotNull) {
+    migrateUpStatement += " not null";
+  }
+
+  return <ListField>{
+    name: fieldName,
+    kind: FieldKind.LIST,
+    baseGqlType: baseType,
+    originalFieldType,
+    notNull: isNotNull,
+    migrateUpStatement,
+    sqlType: "text", // JSON
+  };
+};
+
 const getRelationshipField = (
   fieldName: string,
   baseType: GraphQLObjectType,
+  originalFieldType: TypeNode,
   isNotNull: boolean
 ) => {
   let migrateUpStatement = `\`${fieldName}\` text`;
@@ -195,6 +321,7 @@ const getRelationshipField = (
     name: fieldName,
     kind: FieldKind.RELATIONSHIP,
     baseGqlType: baseTypeAsInputType,
+    originalFieldType,
     notNull: isNotNull,
     migrateUpStatement,
     sqlType: "text", // foreign key
@@ -202,73 +329,37 @@ const getRelationshipField = (
   };
 };
 
-const getListField = (
+const getDerivedField = (
   fieldName: string,
-  baseType: GraphQLEnumType | GraphQLScalarType,
-  isNotNull: boolean
+  baseType: GraphQLObjectType,
+  originalFieldType: TypeNode,
+  isNotNull: boolean,
+  derivedFromDirective: DirectiveNode
 ) => {
-  let migrateUpStatement = `\`${fieldName}\` text`;
-  if (isNotNull) {
-    migrateUpStatement += " not null";
+  const derivedFromFieldArgument = derivedFromDirective.arguments?.find(
+    (arg) => arg.name.value === "field" && arg.value.kind === "StringValue"
+  );
+
+  if (!derivedFromFieldArgument) {
+    throw new Error(`The @derivedFrom requires a "field" argument`);
   }
 
-  return <ListField>{
+  const derivedFromFieldName = (
+    derivedFromFieldArgument.value as StringValueNode
+  ).value;
+
+  // See comment in getRelationshipField.
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  const baseTypeAsInputType = baseType as GraphQLInputObjectType;
+
+  return <DerivedField>{
     name: fieldName,
-    kind: FieldKind.LIST,
-    baseGqlType: baseType,
+    kind: FieldKind.DERIVED,
+    baseGqlType: baseTypeAsInputType,
+    originalFieldType,
     notNull: isNotNull,
-    migrateUpStatement,
-    sqlType: "text", // JSON
-  };
-};
-
-const getEnumField = (
-  fieldName: string,
-  baseType: GraphQLEnumType,
-  isNotNull: boolean
-) => {
-  const enumValues = (baseType.astNode?.values || []).map((v) => v.name.value);
-
-  let migrateUpStatement = `\`${fieldName}\` text check (\`${fieldName}\` in (${enumValues
-    .map((v) => `'${v}'`)
-    .join(", ")}))`;
-
-  if (isNotNull) {
-    migrateUpStatement += " not null";
-  }
-
-  return <EnumField>{
-    name: fieldName,
-    kind: FieldKind.ENUM,
-    baseGqlType: baseType,
-    notNull: isNotNull,
-    migrateUpStatement,
-    sqlType: "string",
-    enumValues,
-  };
-};
-
-const getScalarField = (
-  fieldName: string,
-  baseType: GraphQLScalarType,
-  isNotNull: boolean
-) => {
-  const sqlType = gqlScalarToSqlType[baseType.name];
-  if (!sqlType) {
-    throw new Error(`Unhandled scalar type: ${baseType.name}`);
-  }
-
-  let migrateUpStatement = `\`${fieldName}\` ${sqlType}`;
-  if (isNotNull) {
-    migrateUpStatement += " not null";
-  }
-
-  return <ScalarField>{
-    name: fieldName,
-    kind: FieldKind.SCALAR,
-    baseGqlType: baseType,
-    notNull: isNotNull,
-    migrateUpStatement,
-    sqlType,
+    derivedFromEntityName: baseType.name,
+    derivedFromFieldName: derivedFromFieldName,
   };
 };

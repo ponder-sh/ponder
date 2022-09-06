@@ -1,7 +1,12 @@
 import Sqlite from "better-sqlite3";
 
 import { logger } from "@/common/logger";
-import { FieldKind, PonderSchema } from "@/core/schema/types";
+import {
+  DerivedField,
+  FieldKind,
+  PonderSchema,
+  ScalarField,
+} from "@/core/schema/types";
 
 import { BaseStore, EntityFilter, StoreKind } from "./base";
 
@@ -27,9 +32,12 @@ export class SqliteStore implements BaseStore {
       // Build the create table statement using field migration fragments.
       // TODO: Update this so the generation of the field migration fragments happens here
       // instead of when the PonderSchema gets built.
-      const columnStatements = entity.fields.map(
-        (field) => field.migrateUpStatement
-      );
+      const columnStatements = entity.fields
+        .filter(
+          // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
+          (field): field is ScalarField => field.kind !== FieldKind.DERIVED
+        )
+        .map((field) => field.migrateUpStatement);
       columnStatements.push(`\`createdAt\` datetime`, `\`updatedAt\` datetime`);
 
       this.db
@@ -68,12 +76,14 @@ export class SqliteStore implements BaseStore {
       rawEntityInstance
     );
 
-    const instance = this.populateRelatedEntities(
-      entity.name,
-      deserializedEntityInstance
-    );
+    return deserializedEntityInstance;
 
-    return instance;
+    // const instance = this.populateRelatedEntities(
+    //   entity.name,
+    //   deserializedEntityInstance
+    // );
+
+    // return instance;
   }
 
   async getEntities<T>(
@@ -92,9 +102,9 @@ export class SqliteStore implements BaseStore {
 
     const fragments = [];
 
-    if (where) {
-      console.log({ where });
+    console.log("in getEntities with:", { where });
 
+    if (where) {
       const whereFragments: string[] = [];
 
       for (const [field, value] of Object.entries(where)) {
@@ -152,20 +162,17 @@ export class SqliteStore implements BaseStore {
       fragments.push(`offset ${skip}`);
     }
 
-    const statement = `select * from \`${entityName}\` ${fragments.join(" ")}`;
+    console.log({ fragments });
 
-    console.log({ statement });
+    const statement = `select * from \`${entityName}\` ${fragments.join(" ")}`;
 
     const rawEntityInstances = this.db.prepare(statement).all();
 
-    const instances = rawEntityInstances.map((instance) => {
-      return this.populateRelatedEntities(
-        entityName,
-        this.deserialize(entityName, instance)
-      );
-    });
+    const entityInstances = rawEntityInstances.map((instance) =>
+      this.deserialize(entityName, instance)
+    );
 
-    return instances;
+    return entityInstances;
   }
 
   async insertEntity<T>(
@@ -278,10 +285,42 @@ export class SqliteStore implements BaseStore {
       }
     });
 
+    console.log({ instance, deserializedInstance });
+
     return deserializedInstance;
   }
 
-  populateRelatedEntities(entityName: string, instance: any) {
+  // populateRelatedEntities(entityName: string, instance: any) {
+  //   if (!this.schema) {
+  //     throw new Error(`SqliteStore has not been initialized with a schema yet`);
+  //   }
+
+  //   const entity = this.schema.entityByName[entityName];
+  //   if (!entity) {
+  //     throw new Error(`Entity not found in schema: ${entityName}`);
+  //   }
+
+  //   const populatedInstance = { ...instance };
+
+  //   // This is pretty terrible for performance, should be doing a join here
+  //   entity.fields.forEach(async (field) => {
+  //     if (field.kind !== FieldKind.RELATIONSHIP) return;
+
+  //     const id = populatedInstance[field.name];
+  //     populatedInstance[field.name] = await this.getEntity(
+  //       field.baseGqlType.name,
+  //       id
+  //     );
+  //   });
+
+  //   return populatedInstance;
+  // }
+
+  async getEntityDerivedField(
+    entityName: string,
+    id: string,
+    derivedFieldName: string
+  ) {
     if (!this.schema) {
       throw new Error(`SqliteStore has not been initialized with a schema yet`);
     }
@@ -291,20 +330,35 @@ export class SqliteStore implements BaseStore {
       throw new Error(`Entity not found in schema: ${entityName}`);
     }
 
-    const populatedInstance = { ...instance };
+    const derivedField = entity.fields.find(
+      (field): field is DerivedField =>
+        field.kind === FieldKind.DERIVED && field.name === derivedFieldName
+    );
 
-    // This is pretty terrible for performance, should be doing a join here
-    entity.fields.forEach(async (field) => {
-      if (field.kind !== FieldKind.RELATIONSHIP) return;
-
-      const id = populatedInstance[field.name];
-      populatedInstance[field.name] = await this.getEntity(
-        field.baseGqlType.name,
-        id
+    if (!derivedField) {
+      throw new Error(
+        `Derived field not found: ${entityName}.${derivedFieldName}`
       );
+    }
+
+    const derivedFieldInstances = await this.getEntities(
+      derivedField.derivedFromEntityName,
+      {
+        where: {
+          [`${derivedField.derivedFromFieldName}`]: id,
+        },
+      }
+    );
+
+    console.log({
+      entityName,
+      derivedFieldName,
+      derivedField,
+      id,
+      derivedFieldInstances,
     });
 
-    return populatedInstance;
+    return derivedFieldInstances;
   }
 }
 

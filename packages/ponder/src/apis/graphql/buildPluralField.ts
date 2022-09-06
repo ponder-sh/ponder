@@ -6,6 +6,7 @@ import {
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
+  GraphQLObjectType,
   GraphQLString,
 } from "graphql";
 
@@ -48,14 +49,19 @@ const operators = {
 };
 
 const buildPluralField = (
-  entity: Entity
+  entity: Entity,
+  entityType: GraphQLObjectType<Source, Context>
 ): GraphQLFieldConfig<Source, Context> => {
   const filterFields: Record<string, { type: GraphQLInputType }> = {};
 
   // For each field on the entity, create a bunch of filter fields.
   entity.fields
-    // For now, don't create filter fields for relationship types.
-    .filter((field) => field.kind !== FieldKind.RELATIONSHIP)
+    // For now, don't create filter fields for relationship or derived types.
+    .filter(
+      (field) =>
+        field.kind !== FieldKind.RELATIONSHIP &&
+        field.kind !== FieldKind.DERIVED
+    )
     .forEach((field) => {
       operators.universal.forEach((suffix) => {
         // Small hack to get the correct filter field name.
@@ -120,9 +126,7 @@ const buildPluralField = (
   };
 
   return {
-    type: new GraphQLNonNull(
-      new GraphQLList(new GraphQLNonNull(entity.gqlType))
-    ),
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(entityType))),
     args: {
       where: { type: filterType },
       first: { type: GraphQLInt },
