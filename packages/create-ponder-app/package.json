@@ -1,0 +1,40 @@
+{
+  "name": "@ponder/create-ponder-app",
+  "version": "0.0.1",
+  "description": "Tool to bootstrap a Ponder project",
+  "license": "MIT",
+  "author": "olias.eth",
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "create-ponder-app": "./dist/bin/create-ponder-app"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "lint": "tsc && eslint src",
+    "format": "prettier --write src",
+    "compile": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist && tsconfig-replace-paths --src src",
+    "build": "pnpm run clean && pnpm run compile && mv dist/bin/create-ponder-app.js dist/bin/create-ponder-app",
+    "release": "pnpm run build && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release: $VERSION\""
+  },
+  "dependencies": {
+    "commander": "^9.4.0",
+    "ethers": "^5.6.9",
+    "prettier": "^2.6.2",
+    "yaml": "^2.1.1"
+  },
+  "devDependencies": {
+    "@ethersproject/abi": "^5.0.0",
+    "@ethersproject/bytes": "^5.0.0",
+    "@ethersproject/providers": "^5.0.0",
+    "@types/node": "^18.7.8",
+    "esbuild": "^0.15.2",
+    "tsconfig-replace-paths": "^0.0.11",
+    "typescript": "^4.5.5"
+  },
+  "engines": {
+    "node": "16",
+    "pnpm": "7"
+  }
+}

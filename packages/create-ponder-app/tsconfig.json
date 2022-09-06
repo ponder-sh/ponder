@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/core/*": ["src/core/*"],
+      "@/common/*": ["src/common/*"],
+      "@/apis/*": ["src/apis/*"],
+      "@/stores/*": ["src/stores/*"],
+      "@/sources/*": ["src/sources/*"],
+
+      "@/codegen": ["src/codegen/index"],
+      "@/db": ["src/db/index"],
+      "@/gql": ["src/gql/index"],
+      "@/indexer": ["src/indexer/index"],
+      "@/utils": ["src/utils/index"],
+      "@/config": ["src/config/index"],
+      "@/types": ["src/types/index"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules/"]
+}

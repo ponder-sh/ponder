@@ -1,0 +1,175 @@
+import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { parse } from "yaml";
+
+// https://github.com/graphprotocol/graph-cli/blob/main/src/protocols/index.js#L40
+// https://chainlist.org/
+const chainIdByGraphNetwork: Record<string, number | undefined> = {
+  mainnet: 1,
+  kovan: 42,
+  rinkeby: 4,
+  ropsten: 3,
+  goerli: 5,
+  "poa-core": 99,
+  "poa-sokol": 77,
+  xdai: 100,
+  matic: 137,
+  mumbai: 80001,
+  fantom: 250,
+  "fantom-testnet": 4002,
+  bsc: 56,
+  chapel: -1,
+  clover: 0,
+  avalanche: 43114,
+  fuji: 43113,
+  celo: 42220,
+  "celo-alfajores": 44787,
+  fuse: 122,
+  moonbeam: 1284,
+  moonriver: 1285,
+  mbase: -1,
+  "arbitrum-one": 42161,
+  "arbitrum-rinkeby": 421611,
+  optimism: 10,
+  "optimism-kovan": 69,
+  aurora: 1313161554,
+  "aurora-testnet": 1313161555,
+};
+
+export { chainIdByGraphNetwork };
+
+// https://github.com/graphprotocol/graph-node/blob/master/docs/subgraph-manifest.md
+type GraphSource = {
+  kind: string; // Should be "ethereum"
+  name: string;
+  network: string;
+  source: {
+    address: string;
+    abi: string; // Keys into dataSource.mapping.abis
+    startBlock?: number;
+  };
+  mapping: {
+    kind: string; // Should be "ethereum/events"
+    apiVersion: string;
+    language: string; // Should be "wasm/assemblyscript"
+    entities: string[]; // Corresponds to entities by name defined in schema.graphql
+    abis: {
+      name: string;
+      file: string;
+    }[];
+    eventHandlers?: {
+      event: string;
+      handler: string;
+      topic0?: string;
+    }[];
+    // NOTE: Not planning to support callHandlers or blockHandlers.
+    // callHandlers?: {
+    //   function: string;
+    //   handler: string;
+    // }[];
+    // blockHandlers?: {
+    //   handler: string;
+    //   filter?: {
+    //     kind: string;
+    //   };
+    // }[];
+    file: string; // relative path to file that contains handlers for this source
+  };
+};
+
+type PonderSource = {
+  kind: "evm";
+  name: string;
+  chainId: number;
+  rpcUrl: string;
+  abi: string;
+  address: string;
+  startBlock?: number;
+};
+
+export const run = () => {
+  const subgraphRootDir = ".";
+  const ponderRootDir = "../ponder";
+
+  const subgraphRootDirPath = path.resolve(subgraphRootDir);
+  const ponderRootDirPath = path.resolve(ponderRootDir);
+
+  // Read and parse the subgraph YAML file.
+  const subgraphYamlFilePath = path.join(subgraphRootDirPath, "subgraph.yaml");
+  const subgraphYamlRaw = readFileSync(subgraphYamlFilePath, {
+    encoding: "utf-8",
+  });
+  const subgraphYaml = parse(subgraphYamlRaw);
+
+  // Copy over the schema.graphql file.
+  const subgraphSchemaFilePath = path.resolve(subgraphYaml.schema.file);
+  const ponderSchemaFilePath = path.join(ponderRootDirPath, "schema.graphql");
+  copyFileSync(subgraphSchemaFilePath, ponderSchemaFilePath);
+
+  // Build the Ponder sources, and copy over the ABI files for each source.
+  const ponderSources = (subgraphYaml.sources as GraphSource[]).map(
+    (source) => {
+      const abiPath = source.mapping.abis.find(
+        (abi) => abi.name === source.name
+      )?.file;
+      if (!abiPath) {
+        throw new Error(`ABI path not found for source: ${source.name}`);
+      }
+
+      const abiAbsolutePath = path.resolve(abiPath);
+      const abiFileName = path.basename(abiPath);
+
+      const ponderAbiRelativePath = `./abis/${abiFileName}`;
+      const ponderAbiAbsolutePath = path.resolve();
+
+      copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
+
+      const chainId = chainIdByGraphNetwork[source.network];
+      if (!chainId || chainId === -1) {
+        throw new Error(`Unhandled network name: ${source.network}`);
+      }
+
+      return <PonderSource>{
+        kind: "evm",
+        name: source.name,
+        chainId: chainId,
+        rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
+        address: source.source.address,
+        abi: ponderAbiRelativePath,
+        startBlock: source.source.startBlock,
+      };
+    }
+  );
+
+  // Write the ponder.config.js file.
+  const ponderConfig = {
+    sources: ponderSources,
+    apis: [
+      {
+        kind: "graphql",
+        default: true,
+        port: 42069,
+      },
+    ],
+    stores: [
+      {
+        kind: "sqlite",
+        filename: ":memory:",
+      },
+    ],
+  };
+
+  writeFileSync(
+    path.join(ponderRootDirPath, "ponder.config.js"),
+    JSON.stringify(ponderConfig)
+  );
+
+  // Write the .env.local file.
+  const uniqueChainIds = Array.from(
+    new Set(ponderConfig.sources.map((s) => s.chainId))
+  );
+  const envLocal = `${uniqueChainIds.map(
+    (chainId) => `PONDER_RPC_URL_${chainId}=""\n`
+  )}`;
+  writeFileSync(path.join(ponderRootDirPath, "ponder.config.js"), envLocal);
+};
