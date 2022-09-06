@@ -84,13 +84,20 @@ export const buildEntityType = (
 
             break;
           }
-          default: {
-            // // TODO: fix this, should return the original type from the original schema
-            // fieldConfigMap[field.name] = {
-            //   type: field.originalFieldType as unknown as GraphQLOutputType,
-            // };
+          case FieldKind.LIST: {
+            const listType = new GraphQLList(
+              new GraphQLNonNull(field.baseGqlType as GraphQLOutputType)
+            );
             fieldConfigMap[field.name] = {
-              type: field.baseGqlType as GraphQLOutputType,
+              type: field.notNull ? new GraphQLNonNull(listType) : listType,
+            };
+            break;
+          }
+          default: {
+            fieldConfigMap[field.name] = {
+              type: field.notNull
+                ? new GraphQLNonNull(field.baseGqlType)
+                : field.baseGqlType,
             };
             break;
           }
