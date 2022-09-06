@@ -1,5 +1,6 @@
-import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import prettier from "prettier";
 import { parse } from "yaml";
 
 // https://github.com/graphprotocol/graph-cli/blob/main/src/protocols/index.js#L40
@@ -87,15 +88,17 @@ type PonderSource = {
   startBlock?: number;
 };
 
-export const run = () => {
-  const subgraphRootDir = ".";
-  const ponderRootDir = "../ponder";
-
+export const run = (ponderRootDir: string, subgraphRootDir: string) => {
   const subgraphRootDirPath = path.resolve(subgraphRootDir);
   const ponderRootDirPath = path.resolve(ponderRootDir);
 
+  // Create all required directories.
+  mkdirSync(path.join(ponderRootDirPath, "abis"), { recursive: true });
+  mkdirSync(path.join(ponderRootDirPath, "handlers"), { recursive: true });
+
   // Read and parse the subgraph YAML file.
   const subgraphYamlFilePath = path.join(subgraphRootDirPath, "subgraph.yaml");
+
   const subgraphYamlRaw = readFileSync(subgraphYamlFilePath, {
     encoding: "utf-8",
   });
@@ -107,7 +110,7 @@ export const run = () => {
   copyFileSync(subgraphSchemaFilePath, ponderSchemaFilePath);
 
   // Build the Ponder sources, and copy over the ABI files for each source.
-  const ponderSources = (subgraphYaml.sources as GraphSource[]).map(
+  const ponderSources = (subgraphYaml.dataSources as GraphSource[]).map(
     (source) => {
       const abiPath = source.mapping.abis.find(
         (abi) => abi.name === source.name
@@ -116,18 +119,55 @@ export const run = () => {
         throw new Error(`ABI path not found for source: ${source.name}`);
       }
 
-      const abiAbsolutePath = path.resolve(abiPath);
-      const abiFileName = path.basename(abiPath);
-
-      const ponderAbiRelativePath = `./abis/${abiFileName}`;
-      const ponderAbiAbsolutePath = path.resolve();
-
-      copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
-
       const chainId = chainIdByGraphNetwork[source.network];
       if (!chainId || chainId === -1) {
         throw new Error(`Unhandled network name: ${source.network}`);
       }
+
+      // Copy the ABI file.
+      const abiAbsolutePath = path.resolve(abiPath);
+      const abiFileName = path.basename(abiPath);
+
+      const ponderAbiRelativePath = `./abis/${abiFileName}`;
+      const ponderAbiAbsolutePath = path.resolve(
+        ponderRootDirPath,
+        ponderAbiRelativePath
+      );
+
+      copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
+
+      // Generate a template handlers file.
+      const handlers = (source.mapping.eventHandlers || []).map((handler) => {
+        const eventBaseName = handler.event.split("(")[0];
+
+        const handlerFunctionType = `${eventBaseName}Handler`;
+        const handlerFunctionName = `handle${eventBaseName}`;
+
+        return {
+          handlerFunctionType,
+          handlerFunction: `const ${handlerFunctionName}: ${handlerFunctionType} = async (event, context) => {
+            return
+          }
+          `,
+          handlerExport: `${eventBaseName}: ${handlerFunctionName}`,
+        };
+      });
+
+      const handlerFileContents = `
+        import { ${handlers.map((h) => h.handlerFunctionType).join(",")} }
+          from './generated/${source.name}.ts'
+
+        ${handlers.map((h) => h.handlerFunction).join("\n")}
+        
+        export default {
+          ${handlers.map((h) => h.handlerExport).join(",")}
+        }
+      `;
+
+      writeFileSync(
+        path.resolve(ponderRootDirPath, `./handlers/${source.name}.ts`),
+        prettier.format(handlerFileContents, { parser: "typescript" })
+      );
 
       return <PonderSource>{
         kind: "evm",
@@ -161,7 +201,9 @@ export const run = () => {
 
   writeFileSync(
     path.join(ponderRootDirPath, "ponder.config.js"),
-    JSON.stringify(ponderConfig)
+    prettier.format("module.exports = " + JSON.stringify(ponderConfig), {
+      parser: "babel",
+    })
   );
 
   // Write the .env.local file.
@@ -171,5 +213,29 @@ export const run = () => {
   const envLocal = `${uniqueChainIds.map(
     (chainId) => `PONDER_RPC_URL_${chainId}=""\n`
   )}`;
-  writeFileSync(path.join(ponderRootDirPath, "ponder.config.js"), envLocal);
+  writeFileSync(path.join(ponderRootDirPath, ".env.local"), envLocal);
+
+  // Write the package.json file.
+  const packageJson = `
+    {
+      "name": "",
+      "scripts": {
+        "dev": "ponder dev",
+        "start": "ponder start",
+      },
+      "dependencies": {
+        "@ponder/ponder": "^0.0.8",
+      },
+    }
+  `;
+  writeFileSync(
+    path.join(ponderRootDirPath, "package.json"),
+    prettier.format(packageJson, { parser: "json" })
+  );
+
+  // Write the .gitignore file.
+  writeFileSync(
+    path.join(ponderRootDirPath, ".gitignore"),
+    `.env.local\n.ponder/\ngenerated/`
+  );
 };

@@ -6,10 +6,19 @@ import { Command } from "commander";
 const program = new Command();
 
 program
-  .command("dev")
-  .description("start local development server")
-  .action(() => {
-    require("../index").run();
-  });
+  .description("Create a Ponder project")
+  .option("--from-subgraph <string>", "Path to subgraph directory")
+  .argument("<string>", "Path to directory for generated Ponder project");
 
 program.parse();
+
+const args = program.args;
+const options = program.opts();
+
+const ponderRootDir = args[0] ? args[0] : "ponder";
+
+const subgraphRootDir = options.fromSubgraph
+  ? options.fromSubgraph
+  : "subgraph";
+
+require("../index").run(ponderRootDir, subgraphRootDir);
