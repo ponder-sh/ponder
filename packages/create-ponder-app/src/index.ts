@@ -199,11 +199,16 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
     ],
   };
 
+  const finalPonderConfig = (
+    "module.exports = " + JSON.stringify(ponderConfig)
+  ).replaceAll(
+    /"process.env.PONDER_RPC_URL_(.*?)"/g,
+    "process.env.PONDER_RPC_URL_$1"
+  );
+
   writeFileSync(
     path.join(ponderRootDirPath, "ponder.config.js"),
-    prettier.format("module.exports = " + JSON.stringify(ponderConfig), {
-      parser: "babel",
-    })
+    prettier.format(finalPonderConfig, { parser: "babel" })
   );
 
   // Write the .env.local file.
