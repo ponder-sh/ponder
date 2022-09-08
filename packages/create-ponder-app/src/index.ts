@@ -1,7 +1,10 @@
+import { execSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
 import { parse } from "yaml";
+
+import { getPackageManager } from "./helpers/getPackageManager";
 
 // https://github.com/graphprotocol/graph-cli/blob/main/src/protocols/index.js#L40
 // https://chainlist.org/
@@ -224,6 +227,8 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
   const packageJson = `
     {
       "name": "",
+      "version": "0.1.0",
+      "private": true,
       "scripts": {
         "dev": "ponder dev",
         "start": "ponder start",
@@ -261,5 +266,34 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
   writeFileSync(
     path.join(ponderRootDirPath, ".gitignore"),
     `.env.local\n.ponder/\ngenerated/`
+  );
+
+  // Now, move into the newly created directory, install packages, and run `ponder dev`.
+  process.chdir(ponderRootDirPath);
+
+  const packageManager = getPackageManager();
+  console.log(`Installing using ${packageManager}`);
+
+  const command = [packageManager, "install"].join(" ");
+  try {
+    execSync(command, {
+      // stdio: "inherit",
+      env: {
+        ...process.env,
+        ADBLOCK: "1",
+        // we set NODE_ENV to development as pnpm skips dev
+        // dependencies when production
+        NODE_ENV: "development",
+        DISABLE_OPENCOLLECTIVE: "1",
+      },
+    });
+  } catch (err) {
+    console.log(`Unable to install dependencies: ${err}`);
+  }
+
+  console.log(`Successfully installed dependencies.`);
+
+  console.log(
+    `Go to ${ponderRootDir} and run \`ponder dev\` to start the development server.`
   );
 };
