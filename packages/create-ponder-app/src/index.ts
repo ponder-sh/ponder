@@ -109,7 +109,7 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
   const ponderSchemaFilePath = path.join(ponderRootDirPath, "schema.graphql");
   copyFileSync(subgraphSchemaFilePath, ponderSchemaFilePath);
 
-  // Build the Ponder sources, and copy over the ABI files for each source.
+  // Build the ponder sources. Also copy over the ABI files for each source.
   const ponderSources = (subgraphYaml.dataSources as GraphSource[]).map(
     (source) => {
       const abiPath = source.mapping.abis.find(
@@ -236,6 +236,25 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
   writeFileSync(
     path.join(ponderRootDirPath, "package.json"),
     prettier.format(packageJson, { parser: "json" })
+  );
+
+  // Write the tsconfig.json file.
+  const tsConfig = `
+    {
+      "compilerOptions": {
+        "target": "esnext",
+        "module": "esnext",
+        "esModuleInterop": true,
+        "strict": true,
+        "moduleResolution": "node"
+      },
+      "include": ["./**/*.ts"],
+      "exclude": ["node_modules"]
+    }
+  `;
+  writeFileSync(
+    path.join(ponderRootDirPath, "tsconfig.json"),
+    prettier.format(tsConfig, { parser: "json" })
   );
 
   // Write the .gitignore file.
