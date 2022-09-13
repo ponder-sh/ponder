@@ -8,7 +8,8 @@ import {
 } from "../core/tasks";
 
 const start = async () => {
-  await Promise.all([ensureDirectoriesExist(), readPrettierConfig()]);
+  ensureDirectoriesExist();
+  await readPrettierConfig();
 
   runTask(readPonderConfigTask);
   runTask(readSchemaTask);

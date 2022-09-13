@@ -23,7 +23,7 @@ const createWatchListener = (
 ): WatchListener<string> => {
   return async (_, fileName) => {
     const filePath = pathPrefix ? path.join(pathPrefix, fileName) : fileName;
-    const isChanged = await fileIsChanged(filePath);
+    const isChanged = fileIsChanged(filePath);
     if (isChanged) {
       fn(fileName);
     }
@@ -31,7 +31,8 @@ const createWatchListener = (
 };
 
 const dev = async () => {
-  await Promise.all([ensureDirectoriesExist(), readPrettierConfig()]);
+  ensureDirectoriesExist();
+  await readPrettierConfig();
 
   // TODO: Make the dev server response to handler file changes again
   /// by rearranging the task dependency graph.

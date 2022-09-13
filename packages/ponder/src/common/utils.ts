@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdirSync, readFileSync } from "fs";
 import prettier from "prettier";
 
 import { CONFIG } from "@/common/config";
@@ -27,10 +27,10 @@ export const endBenchmark = (hrt: [number, number]) => {
 
 const latestFileHash: { [key: string]: string | undefined } = {};
 
-export const fileIsChanged = async (filePath: string) => {
+export const fileIsChanged = (filePath: string) => {
   // TODO: I think this throws if the file being watched gets deleted while
   // the development server is running. Should handle this case gracefully.
-  const content = await readFile(filePath, "utf-8");
+  const content = readFileSync(filePath, "utf-8");
   const hash = createHash("md5").update(content).digest("hex");
 
   const prevHash = latestFileHash[filePath];
@@ -44,11 +44,9 @@ export const fileIsChanged = async (filePath: string) => {
   }
 };
 
-export const ensureDirectoriesExist = async () => {
-  await Promise.all([
-    mkdir(CONFIG.PONDER_DIR_PATH, { recursive: true }),
-    mkdir(CONFIG.GENERATED_DIR_PATH, { recursive: true }),
-  ]);
+export const ensureDirectoriesExist = () => {
+  mkdirSync(CONFIG.PONDER_DIR_PATH, { recursive: true });
+  mkdirSync(CONFIG.GENERATED_DIR_PATH, { recursive: true });
 };
 
 let prettierConfig: prettier.Options = { parser: "typescript" };

@@ -5,6 +5,7 @@ import path from "path";
 
 import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
+import { ensureDirectoriesExist } from "@/common/utils";
 
 const { PONDER_DIR_PATH } = CONFIG;
 
@@ -145,4 +146,6 @@ export class CacheStore {
   };
 }
 
+// This is a filthy hack lol. cacheStore probably shouldn't be initialized in global scope?
+ensureDirectoriesExist();
 export const cacheStore = new CacheStore();
