@@ -6,7 +6,8 @@ import { PonderSchema } from "@/core/schema/types";
 import { Source } from "@/sources/base";
 import { Store } from "@/stores/base";
 
-import { EntityModel, Handlers } from "./readHandlers";
+import { EntityModel, Handlers } from "../readHandlers";
+import { cacheStore } from "./cacheStore";
 
 export type LogWorker = (log: Log) => Promise<void>;
 
@@ -58,7 +59,7 @@ export const buildLogWorker = (
 
     const handler = sourceHandlers[parsedLog.name];
     if (!handler) {
-      logger.warn(
+      logger.debug(
         `Handler not found for event: ${source.name}-${parsedLog.name}`
       );
       return;
@@ -67,8 +68,20 @@ export const buildLogWorker = (
     const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
     logger.debug(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
 
-    // TOOD: Add more shit to the event here?
-    const event = { ...parsedLog, params: params };
+    // Get block & transaction from the cache store and attach to the event.
+    const block = await cacheStore.getBlock(log.blockHash);
+    if (!block) {
+      throw new Error(`Block with hash not found: ${log.blockHash}`);
+    }
+
+    const transaction = await cacheStore.getTransaction(log.transactionHash);
+    if (!transaction) {
+      throw new Error(
+        `Transaction with hash not found: ${log.transactionHash}`
+      );
+    }
+
+    const event = { ...parsedLog, params: params, block, transaction };
 
     // YAY: We're running user code here!
     try {

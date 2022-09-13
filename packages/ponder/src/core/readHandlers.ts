@@ -1,9 +1,17 @@
+import { LogDescription } from "@ethersproject/abi";
+import { Block } from "@ethersproject/providers";
 import { build } from "esbuild";
-import type { Contract } from "ethers";
+import type { Contract, Transaction } from "ethers";
 import path from "node:path";
 
 import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
+
+// Handler event types
+export interface HandlerEvent extends LogDescription {
+  block: Block;
+  transaction: Transaction;
+}
 
 // Handler context types
 export type EntityInstance = { [key: string]: string | number | null };
@@ -29,7 +37,7 @@ export type HandlerContext = {
 
 // Handler types
 export type Handler = (
-  args: unknown,
+  event: HandlerEvent,
   context: HandlerContext
 ) => Promise<void> | void;
 export type SourceHandlers = { [eventName: string]: Handler | undefined };

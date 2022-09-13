@@ -7,7 +7,7 @@ module.exports = {
       rpcUrl: process.env.MAINNET_RPC_URL,
       abi: "./abis/OKPC.json",
       address: "0x7183209867489e1047f3a7c23ea1aed9c4e236e8",
-      startBlock: 15320000,
+      startBlock: 15500000,
     },
   ],
   apis: [

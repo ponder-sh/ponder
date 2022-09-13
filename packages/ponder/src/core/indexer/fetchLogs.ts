@@ -1,53 +1,55 @@
 import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
+import fastq from "fastq";
 
-import { logger } from "@/common/logger";
+import { endBenchmark, startBenchmark } from "@/common/utils";
 
-const BLOCK_LIMIT = 2_000;
+import { cacheStore } from "./cacheStore";
+import { blockRequestQueue } from "./fetchBlock";
 
-const fetchLogs = async (
-  provider: JsonRpcProvider,
-  contracts: string[],
-  startBlock: number,
-  endBlock: number
-) => {
-  let requestCount = 0;
-  const historicalLogs: Log[] = [];
-
-  let fromBlock = startBlock;
-  let toBlock = fromBlock + BLOCK_LIMIT;
-
-  const estimatedRequestCount = Math.round(
-    (endBlock - startBlock) / BLOCK_LIMIT
-  );
-
-  if (estimatedRequestCount > 0) {
-    logger.info(
-      `\x1b[35m${`FETCHING LOGS IN ~${estimatedRequestCount} REQUESTS`}\x1b[0m`
-    ); // magenta
-  }
-
-  while (fromBlock < endBlock) {
-    const getLogsParams = {
-      address: contracts,
-      fromBlock: BigNumber.from(fromBlock).toHexString(),
-      toBlock: BigNumber.from(toBlock).toHexString(),
-    };
-
-    const logs: Log[] = await provider.send("eth_getLogs", [getLogsParams]);
-
-    fromBlock = toBlock + 1;
-    toBlock = fromBlock + BLOCK_LIMIT;
-
-    requestCount += 1;
-    historicalLogs.push(...logs);
-
-    if (requestCount % 10 == 0) {
-      logger.info(`\x1b[35m${`REQUESTS COMPLETE: ${requestCount}`}\x1b[0m`); // magenta
-    }
-  }
-
-  return { logs: historicalLogs, requestCount };
+type LogRequest = {
+  contractAddresses: string[];
+  fromBlock: number;
+  toBlock: number;
+  provider: JsonRpcProvider;
 };
 
-export { fetchLogs };
+export const logRequestWorker = async ({
+  contractAddresses,
+  fromBlock,
+  toBlock,
+  provider,
+}: LogRequest) => {
+  const hrt = startBenchmark();
+
+  const logs: Log[] = await provider.send("eth_getLogs", [
+    {
+      address: contractAddresses,
+      fromBlock: BigNumber.from(fromBlock).toHexString(),
+      toBlock: BigNumber.from(toBlock).toHexString(),
+    },
+  ]);
+  const logDiff = endBenchmark(hrt);
+  console.log({ logDiff });
+
+  await Promise.all(
+    logs.map(async (log) => {
+      await cacheStore.insertLog(log);
+    })
+  );
+
+  // Enqueue requests to fetch the block & transaction associated with each log.
+  const uniqueBlockHashes = [...new Set(logs.map((l) => l.blockHash))];
+  uniqueBlockHashes.forEach((blockHash) => {
+    blockRequestQueue.push({
+      blockHash,
+      provider,
+    });
+  });
+};
+
+// Create a queue for fetching historical blocks & transactions.
+export const logRequestQueue = fastq.promise<unknown, LogRequest>(
+  logRequestWorker,
+  1
+);

@@ -14,7 +14,8 @@ const header = `
 
 const imports = `
 import type { LogDescription } from "@ethersproject/abi";
-import type { BigNumber } from "ethers";
+import type { Block } from "@ethersproject/providers";
+import type { BigNumber, Transaction } from "ethers";
 
 import type { Context } from "./context";
 `;
@@ -67,7 +68,9 @@ const generateEventHandlerType = (
   const eventHandlerTypes = `
   export interface ${eventName}Event extends LogDescription {
     name: "${eventName}";
-    params: ${parameterType}
+    params: ${parameterType};
+    block: Block;
+    transaction: Transaction;
   }
   export type ${eventName}Handler = (event: ${eventName}Event, context: Context) => void;
   `;
