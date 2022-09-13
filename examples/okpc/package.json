@@ -5,7 +5,7 @@
     "start": "ponder start"
   },
   "dependencies": {
-    "@ponder/ponder": "workspace:^0.0.8"
+    "@ponder/ponder": "^0.0.9"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.0.0",
