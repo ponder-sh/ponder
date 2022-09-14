@@ -32,7 +32,7 @@ export class EvmSource implements BaseSource {
     this.name = name;
     this.chainId = chainId;
     this.rpcUrl = rpcUrl;
-    this.address = address;
+    this.address = address.toLowerCase();
     this.abiFilePath = abiFilePath;
     this.abiInterface = abiInterface;
     this.startBlock = startBlock;
