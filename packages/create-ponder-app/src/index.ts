@@ -199,7 +199,7 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
 
         ${handlers.map((h) => h.handlerFunction).join("\n")}
         
-        export default {
+        export const ${source.name} = {
           ${handlers.map((h) => h.handlerExport).join(",")}
         }
       `;
@@ -219,6 +219,23 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
         startBlock: source.source.startBlock,
       };
     }
+  );
+
+  // Write the handler index.ts file.
+  const handlerIndexFileContents = `
+    ${ponderSources
+      .map((source) => `import { ${source.name} } from "./${source.name}"`)
+      .join("\n")}
+
+    export default {
+      ${ponderSources
+        .map((source) => `${source.name}: ${source.name}`)
+        .join(",")}
+    }
+  `;
+  writeFileSync(
+    path.join(ponderRootDirPath, `./handlers/index.ts`),
+    prettier.format(handlerIndexFileContents, { parser: "typescript" })
   );
 
   // Write the ponder.config.js file.
