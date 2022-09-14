@@ -30,7 +30,9 @@ const state: {
 
   gqlSchema?: GraphQLSchema;
   handlers?: Handlers;
+
   isIndexingInProgress?: boolean;
+  isSchemaTypeFileGenerated?: boolean;
 } = {};
 
 enum TaskName {
@@ -90,7 +92,13 @@ export const readSchemaTask: Task = {
 export const readHandlersTask: Task = {
   name: TaskName.READ_HANDLERS,
   handler: async () => {
-    state.handlers = await readHandlers();
+    // NOTE: After adding enum support, could no longer import
+    // the user handlers module before the entity types are generated
+    // because esbuild cannot strip enum imports (they are values).
+    // So, sadly this task depends on GENERATE_SCHEMA_TYPES via this boolean.
+    if (state.isSchemaTypeFileGenerated) {
+      state.handlers = await readHandlers();
+    }
   },
   dependencies: [TaskName.REINDEX],
 };
@@ -121,6 +129,17 @@ const buildGqlSchemaTask: Task = {
     TaskName.GENERATE_SCHEMA_TYPES,
     TaskName.START_APIS,
   ],
+};
+
+const generateSchemaTypesTask: Task = {
+  name: TaskName.GENERATE_SCHEMA_TYPES,
+  handler: async () => {
+    if (state.gqlSchema) {
+      await generateSchemaTypes(state.gqlSchema);
+      state.isSchemaTypeFileGenerated = true;
+    }
+  },
+  dependencies: [TaskName.READ_HANDLERS],
 };
 
 const generateContractTypesTask: Task = {
@@ -157,20 +176,6 @@ const generateGqlSchemaTask: Task = {
       await generateSchema(state.gqlSchema);
     }
   },
-};
-
-const generateSchemaTypesTask: Task = {
-  name: TaskName.GENERATE_SCHEMA_TYPES,
-  handler: async () => {
-    if (state.gqlSchema) {
-      await generateSchemaTypes(state.gqlSchema);
-    }
-  },
-  // NOTE: After adding enum support, could no longer import
-  // the user handlers module before the entity types are generated
-  // because esbuild cannot strip enum imports (they are values).
-  // TODO: Find a better / more reasonable dependency path here.
-  // dependencies: [TaskName.READ_HANDLERS],
 };
 
 const reindexTask: Task = {
