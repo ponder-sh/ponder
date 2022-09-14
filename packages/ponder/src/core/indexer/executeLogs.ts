@@ -68,13 +68,27 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     }
   }
 
-  console.log("awaiting drained queues");
+  logger.debug({
+    logQueueLength: logRequestQueue.length(),
+    logQueueIdle: logRequestQueue.idle(),
+    blockQueueLength: blockRequestQueue.length(),
+    blockQueueIdle: blockRequestQueue.idle(),
+  });
 
-  // Make sure that shit is settled
-  await logRequestQueue.drained();
-  await blockRequestQueue.drained();
+  if (!logRequestQueue.idle()) {
+    await logRequestQueue.drained();
+  }
 
-  console.log("queues are drained");
+  logger.debug({
+    logQueueLength: logRequestQueue.length(),
+    logQueueIdle: logRequestQueue.idle(),
+    blockQueueLength: blockRequestQueue.length(),
+    blockQueueIdle: blockRequestQueue.idle(),
+  });
+
+  if (!blockRequestQueue.idle()) {
+    await blockRequestQueue.drained();
+  }
 
   // Get logs from cache.
   const logs: Log[] = [];
@@ -100,7 +114,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     logQueue.unshift(log);
   }
 
-  logger.info(`Running user handlers on ${logQueue.length} logs`);
+  logger.debug(`Running user handlers against ${logQueue.length()} logs`);
 
   // Begin processing logs in the correct order.
   logQueue.resume();
@@ -108,8 +122,6 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
   // NOTE: Wait the queue to be drained to allow callers to take action once
   // all historical logs have been fetched and processed (indexing is complete).
   await logQueue.drained();
-
-  logger.info("Running user handlers...");
 
   return {
     logCount: sortedLogs.length,

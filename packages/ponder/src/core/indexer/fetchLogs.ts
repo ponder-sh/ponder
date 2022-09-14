@@ -32,7 +32,7 @@ export const logRequestWorker = async ({
 
   logRequestCount += 1;
   if (logRequestCount % 10 === 0) {
-    logger.info(`\x1b[33m${`FETCHED ${logRequestCount} BLOCKS`}\x1b[0m`); // magenta
+    logger.info(`\x1b[33m${`FETCHED ${logRequestCount} LOGS`}\x1b[0m`); // magenta
   }
 
   await Promise.all(
