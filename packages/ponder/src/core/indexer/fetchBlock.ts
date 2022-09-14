@@ -2,7 +2,7 @@ import type { Block, JsonRpcProvider } from "@ethersproject/providers";
 import type { Transaction } from "ethers";
 import fastq from "fastq";
 
-import { endBenchmark, startBenchmark } from "@/common/utils";
+import { logger } from "@/common/logger";
 
 import { cacheStore } from "./cacheStore";
 
@@ -19,6 +19,8 @@ export type BlockRequest = {
   provider: JsonRpcProvider;
 };
 
+let blockRequestCount = 0;
+
 export const blockRequestWorker = async ({
   blockHash,
   provider,
@@ -26,13 +28,15 @@ export const blockRequestWorker = async ({
   const cachedBlock = await cacheStore.getBlock(blockHash);
   if (cachedBlock) return;
 
-  const hrt = startBenchmark();
   const block: BlockWithTransactions = await provider.send(
     "eth_getBlockByHash",
     [blockHash, true]
   );
-  const blockDiff = endBenchmark(hrt);
-  console.log({ blockDiff });
+
+  blockRequestCount += 1;
+  if (blockRequestCount % 10 === 0) {
+    logger.info(`\x1b[33m${`FETCHED ${blockRequestCount} BLOCKS`}\x1b[0m`); // magenta
+  }
 
   const transactions = block.transactions.filter(
     (txn): txn is TransactionWithHash => !!txn.hash

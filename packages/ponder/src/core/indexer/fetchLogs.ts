@@ -2,7 +2,7 @@ import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
-import { endBenchmark, startBenchmark } from "@/common/utils";
+import { logger } from "@/common/logger";
 
 import { cacheStore } from "./cacheStore";
 import { blockRequestQueue } from "./fetchBlock";
@@ -14,14 +14,14 @@ type LogRequest = {
   provider: JsonRpcProvider;
 };
 
+let logRequestCount = 0;
+
 export const logRequestWorker = async ({
   contractAddresses,
   fromBlock,
   toBlock,
   provider,
 }: LogRequest) => {
-  const hrt = startBenchmark();
-
   const logs: Log[] = await provider.send("eth_getLogs", [
     {
       address: contractAddresses,
@@ -29,8 +29,11 @@ export const logRequestWorker = async ({
       toBlock: BigNumber.from(toBlock).toHexString(),
     },
   ]);
-  const logDiff = endBenchmark(hrt);
-  console.log({ logDiff });
+
+  logRequestCount += 1;
+  if (logRequestCount % 10 === 0) {
+    logger.info(`\x1b[33m${`FETCHED ${logRequestCount} BLOCKS`}\x1b[0m`); // magenta
+  }
 
   await Promise.all(
     logs.map(async (log) => {

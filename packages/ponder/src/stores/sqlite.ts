@@ -95,8 +95,6 @@ export class SqliteStore implements BaseStore {
 
     const fragments = [];
 
-    console.log("in getEntities with:", { where });
-
     if (where) {
       const whereFragments: string[] = [];
 
@@ -105,8 +103,6 @@ export class SqliteStore implements BaseStore {
 
         // This is a hack to handle the = operator, which the regex above doesn't handle
         const filterType = rawFilterType === undefined ? "" : rawFilterType;
-
-        console.log({ fieldName, filterType });
 
         const sqlOperators = sqlOperatorsForFilterType[filterType];
         if (!sqlOperators) {
@@ -127,8 +123,6 @@ export class SqliteStore implements BaseStore {
         } else {
           finalValue = `'${finalValue}'`;
         }
-
-        console.log({ finalValue });
 
         whereFragments.push(`\`${fieldName}\` ${operator} ${finalValue}`);
       }
@@ -154,8 +148,6 @@ export class SqliteStore implements BaseStore {
       }
       fragments.push(`offset ${skip}`);
     }
-
-    console.log({ fragments });
 
     const statement = `select * from \`${entityName}\` ${fragments.join(" ")}`;
 
@@ -278,8 +270,6 @@ export class SqliteStore implements BaseStore {
       }
     });
 
-    console.log({ instance, deserializedInstance });
-
     return deserializedInstance;
   }
 
@@ -316,14 +306,6 @@ export class SqliteStore implements BaseStore {
         },
       }
     );
-
-    console.log({
-      entityName,
-      derivedFieldName,
-      derivedField,
-      id,
-      derivedFieldInstances,
-    });
 
     return derivedFieldInstances;
   }

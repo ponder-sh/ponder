@@ -1,7 +1,7 @@
 import type { JsonRpcProvider, Log } from "@ethersproject/providers";
+import { logger } from "ethers";
 import fastq from "fastq";
 
-import { endBenchmark, startBenchmark } from "@/common/utils";
 import type { LogWorker } from "@/core/indexer/buildLogWorker";
 import type { Source } from "@/sources/base";
 
@@ -68,9 +68,13 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     }
   }
 
+  console.log("awaiting drained queues");
+
   // Make sure that shit is settled
   await logRequestQueue.drained();
   await blockRequestQueue.drained();
+
+  console.log("queues are drained");
 
   // Get logs from cache.
   const logs: Log[] = [];
@@ -96,17 +100,16 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     logQueue.unshift(log);
   }
 
+  logger.info(`Running user handlers on ${logQueue.length} logs`);
+
   // Begin processing logs in the correct order.
   logQueue.resume();
-
-  const hrt = startBenchmark();
 
   // NOTE: Wait the queue to be drained to allow callers to take action once
   // all historical logs have been fetched and processed (indexing is complete).
   await logQueue.drained();
 
-  const diff = endBenchmark(hrt);
-  console.log("User handlers ran in:", { diff });
+  logger.info("Running user handlers...");
 
   return {
     logCount: sortedLogs.length,
