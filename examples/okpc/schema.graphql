@@ -1,6 +1,6 @@
 type OkpcToken @entity {
   id: ID!
-  tokenId: Int!
+  tokenId: BigInt!
   owner: OkpcOwner!
 }
 
