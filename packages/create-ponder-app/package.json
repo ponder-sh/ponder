@@ -1,5 +1,5 @@
 {
-  "name": "@ponder/create-ponder-app",
+  "name": "create-ponder-app",
   "version": "0.0.1",
   "description": "Tool to bootstrap a Ponder project",
   "license": "MIT",
