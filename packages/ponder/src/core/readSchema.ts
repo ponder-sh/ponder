@@ -1,5 +1,5 @@
 import { buildSchema, GraphQLSchema } from "graphql";
-import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 
 import { CONFIG } from "@/common/config";
 
@@ -16,8 +16,8 @@ scalar Bytes
 scalar BigInt
 `;
 
-const readSchema = async (): Promise<GraphQLSchema> => {
-  const schemaBody = await readFile(CONFIG.SCHEMA_FILE_PATH);
+const readSchema = (): GraphQLSchema => {
+  const schemaBody = readFileSync(CONFIG.SCHEMA_FILE_PATH);
   const schemaSource = schemaHeader + schemaBody.toString();
   const schema = buildSchema(schemaSource);
 

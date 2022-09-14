@@ -66,7 +66,7 @@ export const runTask = async (task: Task) => {
 export const readPonderConfigTask: Task = {
   name: TaskName.READ_PONDER_CONFIG,
   handler: async () => {
-    const { sources, api, store } = await readPonderConfig();
+    const { sources, api, store } = readPonderConfig();
 
     state.sources = sources;
     state.api = api;
@@ -84,7 +84,7 @@ export const readPonderConfigTask: Task = {
 export const readSchemaTask: Task = {
   name: TaskName.READ_SCHEMA,
   handler: async () => {
-    state.userSchema = await readSchema();
+    state.userSchema = readSchema();
   },
   dependencies: [TaskName.BUILD_PONDER_SCHEMA],
 };

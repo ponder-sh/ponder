@@ -1,5 +1,5 @@
 import { utils } from "ethers";
-import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 
 import { GraphqlApi } from "@/apis/graphql";
 import { CONFIG } from "@/common/config";
@@ -26,7 +26,7 @@ type PonderConfigFile = {
   }[];
 };
 
-const readPonderConfig = async () => {
+const readPonderConfig = () => {
   // Load and then remove the module from the require cache, because we are loading
   // it several times in the same process and need the latest version each time.
   // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
@@ -45,24 +45,22 @@ const readPonderConfig = async () => {
   }
 
   // Build sources.
-  const sources = await Promise.all(
-    userConfig.sources.map(async (source) => {
-      const abiString = await readFile(source.abi, "utf-8");
-      const abiObject = JSON.parse(abiString).abi;
-      const abi = abiObject.abi ? abiObject.abi : abiObject;
-      const abiInterface = new utils.Interface(abi);
+  const sources = userConfig.sources.map((source) => {
+    const abiString = readFileSync(source.abi, "utf-8");
+    const abiObject = JSON.parse(abiString);
+    const abi = abiObject.abi ? abiObject.abi : abiObject;
+    const abiInterface = new utils.Interface(abi);
 
-      return new EvmSource(
-        source.name,
-        source.chainId,
-        source.rpcUrl,
-        source.address,
-        source.abi,
-        abiInterface,
-        source.startBlock
-      );
-    })
-  );
+    return new EvmSource(
+      source.name,
+      source.chainId,
+      source.rpcUrl,
+      source.address,
+      source.abi,
+      abiInterface,
+      source.startBlock
+    );
+  });
 
   // Build store.
   const store = new SqliteStore();
