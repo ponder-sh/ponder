@@ -195,7 +195,7 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
 
       const handlerFileContents = `
         import { ${handlers.map((h) => h.handlerFunctionType).join(",")} }
-          from './generated/${source.name}.ts'
+          from '../generated/${source.name}'
 
         ${handlers.map((h) => h.handlerFunction).join("\n")}
         
