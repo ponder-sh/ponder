@@ -51,6 +51,10 @@ const readPonderConfig = () => {
     const abi = abiObject.abi ? abiObject.abi : abiObject;
     const abiInterface = new utils.Interface(abi);
 
+    if (source.rpcUrl === undefined || source.rpcUrl === "") {
+      throw new Error(`Invalid or missing RPC URL for source: ${source.name}`);
+    }
+
     return new EvmSource(
       source.name,
       source.chainId,
