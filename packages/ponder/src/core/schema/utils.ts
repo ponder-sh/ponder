@@ -56,11 +56,13 @@ export const getEntityTypes = (schema: GraphQLSchema) => {
   return entities;
 };
 
-// Find all types in the schema that were created by the user.
+// Find all scalar types in the schema that were created by the user.
 export const getCustomScalarTypes = (schema: GraphQLSchema) => {
   return Object.values(schema.getTypeMap()).filter(
     (type) =>
-      !!type.astNode && type.astNode.kind === Kind.SCALAR_TYPE_DEFINITION
+      !!type.astNode &&
+      type.astNode.kind === Kind.SCALAR_TYPE_DEFINITION &&
+      !["BigInt", "BigDecimal", "Bytes"].includes(type.name)
   ) as GraphQLScalarType[];
 };
 
