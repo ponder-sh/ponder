@@ -1,5 +1,11 @@
 import { execSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
 import { parse } from "yaml";
@@ -100,11 +106,29 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
   mkdirSync(path.join(ponderRootDirPath, "handlers"), { recursive: true });
 
   // Read and parse the subgraph YAML file.
-  const subgraphYamlFilePath = path.join(subgraphRootDirPath, "subgraph.yaml");
+  let subgraphYamlRaw: string;
 
-  const subgraphYamlRaw = readFileSync(subgraphYamlFilePath, {
-    encoding: "utf-8",
-  });
+  if (existsSync(path.join(subgraphRootDirPath, "subgraph.yaml"))) {
+    subgraphYamlRaw = readFileSync(
+      path.join(subgraphRootDirPath, "subgraph.yaml"),
+      {
+        encoding: "utf-8",
+      }
+    );
+  } else if (
+    existsSync(path.join(subgraphRootDirPath, "subgraph-mainnet.yaml"))
+  ) {
+    // This is a hack, need to think about how to handle different networks.
+    subgraphYamlRaw = readFileSync(
+      path.join(subgraphRootDirPath, "subgraph-mainnet.yaml"),
+      {
+        encoding: "utf-8",
+      }
+    );
+  } else {
+    throw new Error(`subgraph.yaml file not found`);
+  }
+
   const subgraphYaml = parse(subgraphYamlRaw);
 
   // Copy over the schema.graphql file.
@@ -247,7 +271,7 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
         "start": "ponder start",
       },
       "dependencies": {
-        "@ponder/ponder": "^0.0.8",
+        "@ponder/ponder": "latest",
       },
     }
   `;
