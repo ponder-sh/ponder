@@ -290,6 +290,10 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
       "dependencies": {
         "@ponder/ponder": "latest",
       },
+      "engines": {
+        "node": "16",
+        "pnpm": "7"
+      }
     }
   `;
   writeFileSync(
