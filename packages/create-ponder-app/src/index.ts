@@ -108,8 +108,15 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
   const subgraphYaml = parse(subgraphYamlRaw);
 
   // Copy over the schema.graphql file.
-  const subgraphSchemaFilePath = path.resolve(subgraphYaml.schema.file);
+  const subgraphSchemaFilePath = path.join(
+    subgraphRootDirPath,
+    subgraphYaml.schema.file
+  );
   const ponderSchemaFilePath = path.join(ponderRootDirPath, "schema.graphql");
+  console.log({
+    subgraphSchemaFilePath,
+    ponderSchemaFilePath,
+  });
   copyFileSync(subgraphSchemaFilePath, ponderSchemaFilePath);
 
   // Build the ponder sources. Also copy over the ABI files for each source.
@@ -136,6 +143,11 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
         ponderRootDirPath,
         ponderAbiRelativePath
       );
+
+      console.log({
+        abiAbsolutePath,
+        ponderAbiAbsolutePath,
+      });
 
       copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
 
