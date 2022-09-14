@@ -136,11 +136,11 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
       }
 
       // Copy the ABI file.
-      const abiAbsolutePath = path.resolve(abiPath);
+      const abiAbsolutePath = path.join(subgraphRootDirPath, abiPath);
       const abiFileName = path.basename(abiPath);
 
       const ponderAbiRelativePath = `./abis/${abiFileName}`;
-      const ponderAbiAbsolutePath = path.resolve(
+      const ponderAbiAbsolutePath = path.join(
         ponderRootDirPath,
         ponderAbiRelativePath
       );
@@ -181,7 +181,7 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
       `;
 
       writeFileSync(
-        path.resolve(ponderRootDirPath, `./handlers/${source.name}.ts`),
+        path.join(ponderRootDirPath, `./handlers/${source.name}.ts`),
         prettier.format(handlerFileContents, { parser: "typescript" })
       );
 
