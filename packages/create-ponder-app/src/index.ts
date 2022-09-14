@@ -129,9 +129,10 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
         throw new Error(`ABI path not found for source: ${source.name}`);
       }
 
-      const chainId = chainIdByGraphNetwork[source.network];
+      const network = source.network || "mainnet";
+      const chainId = chainIdByGraphNetwork[network];
       if (!chainId || chainId === -1) {
-        throw new Error(`Unhandled network name: ${source.network}`);
+        throw new Error(`Unhandled network name: ${network}`);
       }
 
       // Copy the ABI file.
