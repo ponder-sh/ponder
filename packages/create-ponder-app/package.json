@@ -1,6 +1,6 @@
 {
   "name": "create-ponder-app",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Tool to bootstrap a Ponder project",
   "license": "MIT",
   "author": "olias.eth",
