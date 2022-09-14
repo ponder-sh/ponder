@@ -1,7 +1,7 @@
 import type { JsonRpcProvider, Log } from "@ethersproject/providers";
-import { logger } from "ethers";
 import fastq from "fastq";
 
+import { logger } from "@/common/logger";
 import type { LogWorker } from "@/core/indexer/buildLogWorker";
 import type { Source } from "@/sources/base";
 
@@ -68,7 +68,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     }
   }
 
-  logger.debug({
+  logger.warn({
     logQueueLength: logRequestQueue.length(),
     logQueueIdle: logRequestQueue.idle(),
     blockQueueLength: blockRequestQueue.length(),
@@ -79,7 +79,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     await logRequestQueue.drained();
   }
 
-  logger.debug({
+  logger.warn({
     logQueueLength: logRequestQueue.length(),
     logQueueIdle: logRequestQueue.idle(),
     blockQueueLength: blockRequestQueue.length(),

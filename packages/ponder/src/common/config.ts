@@ -15,7 +15,10 @@ const DEFAULT_OPTIONS = {
   PONDER_DIR_PATH: ".ponder",
 
   // General options
-  LOG_LEVEL: 2,
+  LOG_LEVEL:
+    process.env.PONDER_LOG_LEVEL != undefined
+      ? Number(process.env.PONDER_LOG_LEVEL)
+      : 2,
 };
 
 const OPTIONS = {
