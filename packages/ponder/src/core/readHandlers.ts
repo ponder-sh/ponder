@@ -40,27 +40,17 @@ export type Handler = (
   event: HandlerEvent,
   context: HandlerContext
 ) => Promise<void> | void;
-export type SourceHandlers = { [eventName: string]: Handler | undefined };
-export type Handlers = { [sourceName: string]: SourceHandlers | undefined };
+export type SourceHandlers = Record<string, Handler | undefined>;
+export type Handlers = Record<string, SourceHandlers | undefined>;
 
 export const readHandlers = async (): Promise<Handlers> => {
   const buildFile = path.join(CONFIG.PONDER_DIR_PATH, "handlers.js");
 
-  // // This is kind of a hack to get esbuild to bundle into one file despite the fact that subgraph repos
-  // // don't have a one-file entrypoint (each handler defines a file that does naemd exports).
-  // const stdinContents = config.sources
-  //   .map((source) => source.mappingFilePath)
-  //   .map((file) => file.replace(/\.[^/.]+$/, ""))
-  //   .map((file) => `export * from "${file}";`)
-  //   .join("\n");
+  const handlersRootFilePath = path.join(CONFIG.HANDLERS_DIR_PATH, "index.ts");
 
   try {
     await build({
-      // stdin: {
-      //   contents: stdinContents,
-      //   resolveDir: process.cwd(),
-      // },
-      entryPoints: [CONFIG.HANDLERS_DIR_PATH],
+      entryPoints: [handlersRootFilePath],
       outfile: buildFile,
       platform: "node",
       bundle: true,
