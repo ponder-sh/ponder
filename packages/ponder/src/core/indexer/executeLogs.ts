@@ -114,7 +114,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     logQueue.unshift(log);
   }
 
-  logger.debug(`Running user handlers against ${logQueue.length()} logs`);
+  logger.warn(`Running user handlers against ${logQueue.length()} logs`);
 
   // Begin processing logs in the correct order.
   logQueue.resume();

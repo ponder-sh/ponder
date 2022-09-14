@@ -56,16 +56,20 @@ export class CacheStore {
   };
 
   insertLog = async (log: Log) => {
-    this.db
-      .prepare(
-        `INSERT INTO logs (\`id\`, \`blockNumber\`, \`address\`, \`data\`) VALUES (@id, @blockNumber, @address, @data)`
-      )
-      .run({
-        id: `${log.blockHash}-${log.logIndex}`,
-        blockNumber: log.blockNumber,
-        address: log.address,
-        data: JSON.stringify(log),
-      });
+    try {
+      this.db
+        .prepare(
+          `INSERT INTO logs (\`id\`, \`blockNumber\`, \`address\`, \`data\`) VALUES (@id, @blockNumber, @address, @data)`
+        )
+        .run({
+          id: `${log.blockHash}-${log.logIndex}`,
+          blockNumber: log.blockNumber,
+          address: log.address,
+          data: JSON.stringify(log),
+        });
+    } catch (err) {
+      console.log({ err });
+    }
   };
 
   insertBlock = async (block: Block) => {
@@ -104,17 +108,23 @@ export class CacheStore {
 
   getLogs = async (addresses: string[], fromBlock: number) => {
     const addressesStatement = `(${addresses.map((a) => `'${a}'`).join(",")})`;
-    const result: { id: string; data: string }[] = this.db
-      .prepare(
-        `SELECT * FROM logs WHERE \`blockNumber\` >= @fromBlock AND \`address\` IN ${addressesStatement}`
-      )
-      .all({
-        fromBlock: fromBlock,
-      });
 
-    const logs: Log[] = result.map((log) => JSON.parse(log.data));
+    try {
+      const result: { id: string; data: string }[] = this.db
+        .prepare(
+          `SELECT * FROM logs WHERE \`blockNumber\` >= @fromBlock AND \`address\` IN ${addressesStatement}`
+        )
+        .all({
+          fromBlock: fromBlock,
+        });
 
-    return logs;
+      const logs: Log[] = result.map((log) => JSON.parse(log.data));
+
+      return logs;
+    } catch (err) {
+      console.log({ err });
+      return [];
+    }
   };
 
   getBlock = async (blockHash: string) => {
