@@ -16,7 +16,7 @@
     "format": "prettier --write src",
     "compile": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist && tsconfig-replace-paths --src src",
     "build": "pnpm run clean && pnpm run compile && mv dist/bin/ponder.js dist/bin/ponder",
-    "release": "pnpm run build && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release: $VERSION\""
+    "release": "pnpm run build && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/ponder): $VERSION\""
   },
   "dependencies": {
     "@graphql-codegen/core": "^2.6.2",
