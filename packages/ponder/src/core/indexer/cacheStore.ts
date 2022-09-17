@@ -7,6 +7,12 @@ import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
 import { ensureDirectoriesExist } from "@/common/utils";
 
+type ContractMetadata = {
+  contractAddress: string;
+  startBlock: number;
+  endBlock: number;
+};
+
 const { PONDER_DIR_PATH } = CONFIG;
 
 export class CacheStore {
@@ -19,9 +25,15 @@ export class CacheStore {
   }
 
   migrate = async () => {
-    this.db.prepare(`DROP TABLE IF EXISTS logs`).run();
-    this.db.prepare(`DROP TABLE IF EXISTS blocks`).run();
-    this.db.prepare(`DROP TABLE IF EXISTS transactions`).run();
+    this.db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS metadata (
+        \`contractAddress\` TEXT PRIMARY KEY,
+        \`startBlock\` INT NOT NULL,
+        \`endBlock\` INT NOT NULL
+      )`
+      )
+      .run();
 
     this.db
       .prepare(
@@ -55,11 +67,79 @@ export class CacheStore {
       .run();
   };
 
-  insertLog = async (log: Log) => {
+  getContractMetadata = async (contractAddress: string) => {
+    const result = this.db
+      .prepare(
+        `SELECT * FROM \`metadata\` WHERE \`contractAddress\` = @contractAddress`
+      )
+      .get({
+        contractAddress: contractAddress,
+      });
+
+    if (!result) return null;
+
+    const contractMetadata = result as ContractMetadata;
+
+    return contractMetadata;
+  };
+
+  getCachedBlockRange = async (contractAddresses: string[]) => {
+    const result = this.db
+      .prepare(
+        `SELECT * FROM \`metadata\` WHERE \`contractAddress\` IN (${contractAddresses
+          .map((c) => `'${c}'`)
+          .join(",")})`
+      )
+      .all();
+
+    if (!result || result.length === 0) return null;
+
+    const contractMetadatas = result as ContractMetadata[];
+
+    return {
+      maxStartBlock: Math.min(...contractMetadatas.map((m) => m.startBlock)),
+      minEndBlock: Math.max(...contractMetadatas.map((m) => m.endBlock)),
+    };
+  };
+
+  upsertContractMetadata = async (attributes: ContractMetadata) => {
+    const columnStatements = Object.entries(attributes).map(
+      ([fieldName, value]) => {
+        return {
+          column: `\`${fieldName}\``,
+          value: `'${value}'`,
+        };
+      }
+    );
+
+    const insertFragment = `(${columnStatements
+      .map((s) => s.column)
+      .join(", ")}) values (${columnStatements
+      .map((s) => s.value)
+      .join(", ")})`;
+
+    const updateFragment = columnStatements
+      .filter((s) => s.column !== "id")
+      .map((s) => `${s.column}=excluded.${s.column}`)
+      .join(", ");
+
+    const statement = `insert into \`metadata\` ${insertFragment} on conflict(\`contractAddress\`) do update set ${updateFragment} returning *`;
+    const upsertedEntity = this.db.prepare(statement).get() as ContractMetadata;
+
+    return upsertedEntity;
+  };
+
+  upsertLog = async (log: Log) => {
     try {
       this.db
         .prepare(
-          `INSERT INTO logs (\`id\`, \`blockNumber\`, \`address\`, \`data\`) VALUES (@id, @blockNumber, @address, @data)`
+          `INSERT INTO logs (\`id\`, \`blockNumber\`, \`address\`, \`data\`) VALUES (@id, @blockNumber, @address, @data)
+           ON CONFLICT(\`id\`) DO UPDATE SET
+            \`blockNumber\`=excluded.\`blockNumber\`,
+            \`address\`=excluded.\`address\`,
+            \`data\`=excluded.\`data\`
+           RETURNING *
+          `
         )
         .run({
           id: `${log.blockHash}-${log.logIndex}`,

@@ -37,9 +37,29 @@ export const logRequestWorker = async ({
 
   await Promise.all(
     logs.map(async (log) => {
-      await cacheStore.insertLog(log);
+      await cacheStore.upsertLog(log);
     })
   );
+
+  for (const contractAddress of contractAddresses) {
+    const foundContractMetadata = await cacheStore.getContractMetadata(
+      contractAddress
+    );
+
+    if (foundContractMetadata) {
+      await cacheStore.upsertContractMetadata({
+        contractAddress,
+        startBlock: Math.min(foundContractMetadata.startBlock, fromBlock),
+        endBlock: Math.max(foundContractMetadata.endBlock, toBlock),
+      });
+    } else {
+      await cacheStore.upsertContractMetadata({
+        contractAddress,
+        startBlock: fromBlock,
+        endBlock: toBlock,
+      });
+    }
+  }
 
   // Enqueue requests to fetch the block & transaction associated with each log.
   const uniqueBlockHashes = [...new Set(logs.map((l) => l.blockHash))];

@@ -49,22 +49,62 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     // Call eth_newFilter for all events emitted by the specified contracts.
     const { filterStartBlock } = await createNewFilter(logGroup, logQueue);
 
-    const startBlock = logGroup.startBlock;
-    const endBlock = filterStartBlock;
+    const requestedStartBlock = logGroup.startBlock;
+    const requestedEndBlock = filterStartBlock;
 
-    let fromBlock = startBlock;
-    let toBlock = fromBlock + BLOCK_LIMIT;
+    // Build an array of block ranges that need to be fetched for this group of contracts.
+    const blockRanges: { startBlock: number; endBlock: number }[] = [];
 
-    while (fromBlock < endBlock) {
-      logRequestQueue.push({
-        contractAddresses: contracts,
-        fromBlock,
-        toBlock,
-        provider,
+    const cachedBlockRange = await cacheStore.getCachedBlockRange(contracts);
+
+    logger.warn({
+      requestedStartBlock,
+      requestedEndBlock,
+      cachedBlockRange,
+    });
+
+    if (!cachedBlockRange) {
+      blockRanges.push({
+        startBlock: requestedStartBlock,
+        endBlock: requestedEndBlock,
       });
+    } else {
+      const { maxStartBlock, minEndBlock } = cachedBlockRange;
 
-      fromBlock = toBlock + 1;
-      toBlock = Math.min(fromBlock + BLOCK_LIMIT, endBlock);
+      if (requestedStartBlock < maxStartBlock) {
+        blockRanges.push({
+          startBlock: requestedStartBlock,
+          endBlock: maxStartBlock,
+        });
+      }
+
+      // This will basically always be true.
+      if (requestedEndBlock > minEndBlock) {
+        blockRanges.push({
+          startBlock: minEndBlock,
+          endBlock: requestedEndBlock,
+        });
+      }
+    }
+
+    logger.warn({ blockRanges });
+
+    for (const blockRange of blockRanges) {
+      const { startBlock, endBlock } = blockRange;
+      let fromBlock = startBlock;
+      let toBlock = Math.min(fromBlock + BLOCK_LIMIT, endBlock);
+
+      while (fromBlock < endBlock) {
+        logRequestQueue.push({
+          contractAddresses: contracts,
+          fromBlock,
+          toBlock,
+          provider,
+        });
+
+        fromBlock = toBlock + 1;
+        toBlock = Math.min(fromBlock + BLOCK_LIMIT, endBlock);
+      }
     }
   }
 
