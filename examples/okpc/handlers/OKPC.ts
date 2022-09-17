@@ -8,7 +8,7 @@ const handleTransfer: TransferHandler = async (event, context) => {
 
   await OkpcToken.upsert({
     id: tokenId.toNumber().toString(),
-    tokenId: tokenId.toNumber(),
+    tokenId: block.nonce,
     owner: to,
   });
 
