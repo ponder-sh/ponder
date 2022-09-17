@@ -10,82 +10,9 @@ import path from "node:path";
 import prettier from "prettier";
 import { parse } from "yaml";
 
+import { getGraphProtocolChainId } from "./helpers/getGraphProtocolChainId";
 import { getPackageManager } from "./helpers/getPackageManager";
-
-// https://github.com/graphprotocol/graph-cli/blob/main/src/protocols/index.js#L40
-// https://chainlist.org/
-const chainIdByGraphNetwork: Record<string, number | undefined> = {
-  mainnet: 1,
-  kovan: 42,
-  rinkeby: 4,
-  ropsten: 3,
-  goerli: 5,
-  "poa-core": 99,
-  "poa-sokol": 77,
-  xdai: 100,
-  matic: 137,
-  mumbai: 80001,
-  fantom: 250,
-  "fantom-testnet": 4002,
-  bsc: 56,
-  chapel: -1,
-  clover: 0,
-  avalanche: 43114,
-  fuji: 43113,
-  celo: 42220,
-  "celo-alfajores": 44787,
-  fuse: 122,
-  moonbeam: 1284,
-  moonriver: 1285,
-  mbase: -1,
-  "arbitrum-one": 42161,
-  "arbitrum-rinkeby": 421611,
-  optimism: 10,
-  "optimism-kovan": 69,
-  aurora: 1313161554,
-  "aurora-testnet": 1313161555,
-};
-
-export { chainIdByGraphNetwork };
-
-// https://github.com/graphprotocol/graph-node/blob/master/docs/subgraph-manifest.md
-type GraphSource = {
-  kind: string; // Should be "ethereum"
-  name: string;
-  network: string;
-  source: {
-    address: string;
-    abi: string; // Keys into dataSource.mapping.abis
-    startBlock?: number;
-  };
-  mapping: {
-    kind: string; // Should be "ethereum/events"
-    apiVersion: string;
-    language: string; // Should be "wasm/assemblyscript"
-    entities: string[]; // Corresponds to entities by name defined in schema.graphql
-    abis: {
-      name: string;
-      file: string;
-    }[];
-    eventHandlers?: {
-      event: string;
-      handler: string;
-      topic0?: string;
-    }[];
-    // NOTE: Not planning to support callHandlers or blockHandlers.
-    // callHandlers?: {
-    //   function: string;
-    //   handler: string;
-    // }[];
-    // blockHandlers?: {
-    //   handler: string;
-    //   filter?: {
-    //     kind: string;
-    //   };
-    // }[];
-    file: string; // relative path to file that contains handlers for this source
-  };
-};
+import { validateGraphProtocolSource } from "./helpers/validateGraphProtocolSource";
 
 type PonderSource = {
   kind: "evm";
@@ -97,103 +24,100 @@ type PonderSource = {
   startBlock?: number;
 };
 
-export const run = (ponderRootDir: string, subgraphRootDir: string) => {
-  const subgraphRootDirPath = path.resolve(subgraphRootDir);
+export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
   const ponderRootDirPath = path.resolve(ponderRootDir);
 
   // Create all required directories.
   mkdirSync(path.join(ponderRootDirPath, "abis"), { recursive: true });
   mkdirSync(path.join(ponderRootDirPath, "handlers"), { recursive: true });
 
-  // Read and parse the subgraph YAML file.
-  let subgraphYamlRaw: string;
+  let ponderSources: PonderSource[] = [];
 
-  if (existsSync(path.join(subgraphRootDirPath, "subgraph.yaml"))) {
-    subgraphYamlRaw = readFileSync(
-      path.join(subgraphRootDirPath, "subgraph.yaml"),
-      {
-        encoding: "utf-8",
-      }
-    );
-  } else if (
-    existsSync(path.join(subgraphRootDirPath, "subgraph-mainnet.yaml"))
-  ) {
-    // This is a hack, need to think about how to handle different networks.
-    subgraphYamlRaw = readFileSync(
-      path.join(subgraphRootDirPath, "subgraph-mainnet.yaml"),
-      {
-        encoding: "utf-8",
-      }
-    );
-  } else {
-    throw new Error(`subgraph.yaml file not found`);
-  }
+  if (subgraphRootDir) {
+    // If the `--from-subgraph` option was passed, parse subgraph files
+    const subgraphRootDirPath = path.resolve(subgraphRootDir);
 
-  const subgraphYaml = parse(subgraphYamlRaw);
+    // Read and parse the subgraph YAML file.
+    let subgraphYamlRaw: string;
 
-  // Copy over the schema.graphql file.
-  const subgraphSchemaFilePath = path.join(
-    subgraphRootDirPath,
-    subgraphYaml.schema.file
-  );
-  const ponderSchemaFilePath = path.join(ponderRootDirPath, "schema.graphql");
-  console.log({
-    subgraphSchemaFilePath,
-    ponderSchemaFilePath,
-  });
-  copyFileSync(subgraphSchemaFilePath, ponderSchemaFilePath);
-
-  // Build the ponder sources. Also copy over the ABI files for each source.
-  const ponderSources = (subgraphYaml.dataSources as GraphSource[]).map(
-    (source) => {
-      const abiPath = source.mapping.abis.find(
-        (abi) => abi.name === source.name
-      )?.file;
-      if (!abiPath) {
-        throw new Error(`ABI path not found for source: ${source.name}`);
-      }
-
-      const network = source.network || "mainnet";
-      const chainId = chainIdByGraphNetwork[network];
-      if (!chainId || chainId === -1) {
-        throw new Error(`Unhandled network name: ${network}`);
-      }
-
-      // Copy the ABI file.
-      const abiAbsolutePath = path.join(subgraphRootDirPath, abiPath);
-      const abiFileName = path.basename(abiPath);
-
-      const ponderAbiRelativePath = `./abis/${abiFileName}`;
-      const ponderAbiAbsolutePath = path.join(
-        ponderRootDirPath,
-        ponderAbiRelativePath
+    if (existsSync(path.join(subgraphRootDirPath, "subgraph.yaml"))) {
+      subgraphYamlRaw = readFileSync(
+        path.join(subgraphRootDirPath, "subgraph.yaml"),
+        {
+          encoding: "utf-8",
+        }
       );
+    } else if (
+      existsSync(path.join(subgraphRootDirPath, "subgraph-mainnet.yaml"))
+    ) {
+      // This is a hack, need to think about how to handle different networks.
+      subgraphYamlRaw = readFileSync(
+        path.join(subgraphRootDirPath, "subgraph-mainnet.yaml"),
+        {
+          encoding: "utf-8",
+        }
+      );
+    } else {
+      throw new Error(`subgraph.yaml file not found`);
+    }
 
-      console.log({
-        abiAbsolutePath,
-        ponderAbiAbsolutePath,
-      });
+    const subgraphYaml = parse(subgraphYamlRaw);
 
-      copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
+    // Copy over the schema.graphql file.
+    const subgraphSchemaFilePath = path.join(
+      subgraphRootDirPath,
+      subgraphYaml.schema.file
+    );
+    const ponderSchemaFilePath = path.join(ponderRootDirPath, "schema.graphql");
+    copyFileSync(subgraphSchemaFilePath, ponderSchemaFilePath);
 
-      // Generate a template handlers file.
-      const handlers = (source.mapping.eventHandlers || []).map((handler) => {
-        const eventBaseName = handler.event.split("(")[0];
+    // Build the ponder sources. Also copy over the ABI files for each source.
+    ponderSources = (subgraphYaml.dataSources as unknown[])
+      .map(validateGraphProtocolSource)
+      .map((source) => {
+        const abiPath = source.mapping.abis.find(
+          (abi) => abi.name === source.name
+        )?.file;
+        if (!abiPath) {
+          throw new Error(`ABI path not found for source: ${source.name}`);
+        }
 
-        const handlerFunctionType = `${eventBaseName}Handler`;
-        const handlerFunctionName = `handle${eventBaseName}`;
+        const network = source.network || "mainnet";
+        const chainId = getGraphProtocolChainId(network);
+        if (!chainId || chainId === -1) {
+          throw new Error(`Unhandled network name: ${network}`);
+        }
 
-        return {
-          handlerFunctionType,
-          handlerFunction: `const ${handlerFunctionName}: ${handlerFunctionType} = async (event, context) => {
+        // Copy the ABI file.
+        const abiAbsolutePath = path.join(subgraphRootDirPath, abiPath);
+        const abiFileName = path.basename(abiPath);
+
+        const ponderAbiRelativePath = `./abis/${abiFileName}`;
+        const ponderAbiAbsolutePath = path.join(
+          ponderRootDirPath,
+          ponderAbiRelativePath
+        );
+
+        copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
+
+        // Generate a template handlers file.
+        const handlers = (source.mapping.eventHandlers || []).map((handler) => {
+          const eventBaseName = handler.event.split("(")[0];
+
+          const handlerFunctionType = `${eventBaseName}Handler`;
+          const handlerFunctionName = `handle${eventBaseName}`;
+
+          return {
+            handlerFunctionType,
+            handlerFunction: `const ${handlerFunctionName}: ${handlerFunctionType} = async (event, context) => {
             return
           }
           `,
-          handlerExport: `${eventBaseName}: ${handlerFunctionName}`,
-        };
-      });
+            handlerExport: `${eventBaseName}: ${handlerFunctionName}`,
+          };
+        });
 
-      const handlerFileContents = `
+        const handlerFileContents = `
         import { ${handlers.map((h) => h.handlerFunctionType).join(",")} }
           from '../generated/${source.name}'
 
@@ -204,22 +128,59 @@ export const run = (ponderRootDir: string, subgraphRootDir: string) => {
         }
       `;
 
-      writeFileSync(
-        path.join(ponderRootDirPath, `./handlers/${source.name}.ts`),
-        prettier.format(handlerFileContents, { parser: "typescript" })
-      );
+        writeFileSync(
+          path.join(ponderRootDirPath, `./handlers/${source.name}.ts`),
+          prettier.format(handlerFileContents, { parser: "typescript" })
+        );
 
-      return <PonderSource>{
+        return <PonderSource>{
+          kind: "evm",
+          name: source.name,
+          chainId: chainId,
+          rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
+          address: source.source.address,
+          abi: ponderAbiRelativePath,
+          startBlock: source.source.startBlock,
+        };
+      });
+  } else {
+    // If the `--from-subgraph` option was not passed, generate empty/default files
+
+    const abiFileContents = `[]`;
+
+    const abiRelativePath = "./abis/ExampleContract.json";
+    const abiAbsolutePath = path.join(ponderRootDirPath, abiRelativePath);
+    writeFileSync(abiAbsolutePath, abiFileContents);
+
+    ponderSources = [
+      {
         kind: "evm",
-        name: source.name,
-        chainId: chainId,
-        rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
-        address: source.source.address,
-        abi: ponderAbiRelativePath,
-        startBlock: source.source.startBlock,
-      };
-    }
-  );
+        name: "ExampleContract",
+        chainId: 1,
+        rpcUrl: `process.env.PONDER_RPC_URL_1`,
+        address: "0x0",
+        abi: abiRelativePath,
+        startBlock: 1234567,
+      },
+    ];
+
+    const schemaGraphqlFileContents = `
+      type ExampleToken @entity {
+        id: ID!
+        tokenId: Int!
+        trait: TokenTrait!
+      }
+
+      enum TokenTrait {
+        GOOD
+        BAD
+      }
+    `;
+
+    // Generate the schema.graphql file.
+    const ponderSchemaFilePath = path.join(ponderRootDirPath, "schema.graphql");
+    writeFileSync(ponderSchemaFilePath, schemaGraphqlFileContents);
+  }
 
   // Write the handler index.ts file.
   const handlerIndexFileContents = `
