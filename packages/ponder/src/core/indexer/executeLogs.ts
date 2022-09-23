@@ -120,7 +120,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     logger.info(
       `\x1b[33m${`FETCHING LOGS IN ~${Math.round(
         totalRequestedBlockCount / BLOCK_LIMIT
-      )}`} REQUESTS` // yellow
+      )}`} LOG BATCHES` // yellow
     );
   }
 
