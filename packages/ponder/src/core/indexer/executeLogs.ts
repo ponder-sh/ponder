@@ -116,7 +116,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     }
   }
 
-  if (totalRequestedBlockCount > 2000) {
+  if (totalRequestedBlockCount - cachedBlockCount > 2000) {
     logger.info(
       `\x1b[33m${`FETCHING LOGS IN ~${Math.round(
         totalRequestedBlockCount / BLOCK_LIMIT
