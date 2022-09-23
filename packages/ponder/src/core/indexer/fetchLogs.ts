@@ -2,10 +2,9 @@ import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
-import { logger } from "@/common/logger";
-
 import { cacheStore } from "./cacheStore";
 import { blockRequestQueue } from "./fetchBlock";
+import { reindexStatistics } from "./reindex";
 
 type LogRequest = {
   contractAddresses: string[];
@@ -13,8 +12,6 @@ type LogRequest = {
   toBlock: number;
   provider: JsonRpcProvider;
 };
-
-let logRequestCount = 0;
 
 export const logRequestWorker = async ({
   contractAddresses,
@@ -30,10 +27,7 @@ export const logRequestWorker = async ({
     },
   ]);
 
-  logRequestCount += 1;
-  if (logRequestCount % 10 === 0) {
-    logger.info(`\x1b[33m${`FETCHED ${logRequestCount} LOGS`}\x1b[0m`); // magenta
-  }
+  reindexStatistics.logRequestCount += 1;
 
   await Promise.all(
     logs.map(async (log) => {

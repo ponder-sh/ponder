@@ -9,6 +9,7 @@ import { cacheStore } from "./cacheStore";
 import { createNewFilter } from "./createNewFilter";
 import { blockRequestQueue } from "./fetchBlock";
 import { logRequestQueue } from "./fetchLogs";
+import { reindexStatistics } from "./reindex";
 
 export type LogGroup = {
   chainId: number;
@@ -42,6 +43,10 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
   const logQueue = fastq.promise(logWorker, 1);
   logQueue.pause();
 
+  // Store stuff for stat calcs.
+  let totalRequestedBlockCount = 0;
+  let cachedBlockCount = 0;
+
   // Kick off log requests for each log group.
   for (const logGroup of logGroups) {
     const { provider, contracts } = logGroup;
@@ -51,6 +56,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
 
     const requestedStartBlock = logGroup.startBlock;
     const requestedEndBlock = filterStartBlock;
+    totalRequestedBlockCount += requestedEndBlock - requestedStartBlock;
 
     // Build an array of block ranges that need to be fetched for this group of contracts.
     const blockRanges: { startBlock: number; endBlock: number }[] = [];
@@ -85,6 +91,8 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
           endBlock: requestedEndBlock,
         });
       }
+
+      cachedBlockCount += minEndBlock - maxStartBlock;
     }
 
     logger.warn({ blockRanges });
@@ -107,6 +115,16 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
       }
     }
   }
+
+  if (totalRequestedBlockCount > 2000) {
+    logger.info(
+      `\x1b[33m${`FETCHING LOGS IN ~${Math.round(
+        totalRequestedBlockCount / BLOCK_LIMIT
+      )}`} REQUESTS` // yellow
+    );
+  }
+
+  reindexStatistics.cacheHitRate = cachedBlockCount / totalRequestedBlockCount;
 
   logger.warn({
     logQueueLength: logRequestQueue.length(),

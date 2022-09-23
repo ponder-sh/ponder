@@ -9,6 +9,13 @@ import { Store } from "@/stores/base";
 import { cacheStore } from "./cacheStore";
 import { executeLogs } from "./executeLogs";
 
+// This is a pretty hacky way to get cache hit stats that works with the dev server.
+export let reindexStatistics = {
+  logRequestCount: 0,
+  blockRequestCount: 0,
+  cacheHitRate: 0,
+};
+
 const handleReindex = async (
   store: Store,
   sources: Source[],
@@ -30,10 +37,24 @@ const handleReindex = async (
 
   const diff = endBenchmark(startHrt);
 
+  const rpcRequestCount =
+    reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;
+  const cacheHitRate = Math.round(reindexStatistics.cacheHitRate * 1000) / 10;
+
   logger.info(
-    `\x1b[32m${`INDEXING COMPLETE (${diff})`}\x1b[0m`, // green
+    `\x1b[32m${`INDEXING COMPLETE (${diff}, ${rpcRequestCount} RPC request${
+      rpcRequestCount === 1 ? "" : "s"
+    }, ${
+      cacheHitRate >= 99.9 ? ">99.9" : cacheHitRate
+    }% cache hit rate)`}\x1b[0m`, // green
     "\n"
   );
+
+  reindexStatistics = {
+    logRequestCount: 0,
+    blockRequestCount: 0,
+    cacheHitRate: 0,
+  };
 };
 
 export { handleReindex };
