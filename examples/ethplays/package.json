@@ -15,6 +15,6 @@
     "@graphprotocol/graph-ts": "0.27.0"
   },
   "devDependencies": {
-    "@ponder/create-ponder-app": "workspace:^0.0.1"
+    "create-ponder-app": "latest"
   }
 }

@@ -32,9 +32,7 @@ const generateContextTypes = async (
     .filter((source) => source.kind === SourceKind.EVM)
     .map((source) => source.name);
 
-  const imports = `  
-  import type { ${contractNames.join(", ")} } from "./typechain";
-  `;
+  const imports = `import type { Contract } from "ethers";`;
 
   const entityModelTypes = schema.entities
     .map((entity) => {
@@ -108,7 +106,7 @@ const generateContextTypes = async (
     .join("");
 
   const contractTypes = contractNames
-    .map((contractName) => `${contractName}: ${contractName};`)
+    .map((contractName) => `${contractName}: Contract;`)
     .join("");
 
   const body = `

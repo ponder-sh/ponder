@@ -4,7 +4,6 @@ import type { GraphqlApi } from "@/apis/graphql";
 import { buildGqlSchema } from "@/apis/graphql/buildGqlSchema";
 import {
   generateContextTypes,
-  generateContractTypes,
   generateHandlerTypes,
   generateSchema,
   generateSchemaTypes,
@@ -41,7 +40,6 @@ enum TaskName {
   READ_HANDLERS,
   BUILD_GQL_SCHEMA,
   BUILD_PONDER_SCHEMA,
-  GENERATE_CONTRACT_TYPES,
   GENERATE_HANDLER_TYPES,
   GENERATE_CONTEXT_TYPES,
   GENERATE_GQL_SCHEMA,
@@ -73,7 +71,6 @@ export const readPonderConfigTask: Task = {
     state.store = store;
   },
   dependencies: [
-    TaskName.GENERATE_CONTRACT_TYPES,
     TaskName.GENERATE_HANDLER_TYPES,
     TaskName.GENERATE_CONTEXT_TYPES,
     TaskName.REINDEX,
@@ -140,15 +137,6 @@ const generateSchemaTypesTask: Task = {
     }
   },
   dependencies: [TaskName.READ_HANDLERS],
-};
-
-const generateContractTypesTask: Task = {
-  name: TaskName.GENERATE_CONTRACT_TYPES,
-  handler: async () => {
-    if (state.sources) {
-      await generateContractTypes(state.sources);
-    }
-  },
 };
 
 const generateHandlerTypesTask: Task = {
@@ -221,7 +209,6 @@ const taskMap: Record<TaskName, Task> = {
   [TaskName.READ_SCHEMA]: readSchemaTask,
   [TaskName.BUILD_GQL_SCHEMA]: buildGqlSchemaTask,
   [TaskName.BUILD_PONDER_SCHEMA]: buildPonderSchemaTask,
-  [TaskName.GENERATE_CONTRACT_TYPES]: generateContractTypesTask,
   [TaskName.GENERATE_HANDLER_TYPES]: generateHandlerTypesTask,
   [TaskName.GENERATE_CONTEXT_TYPES]: generateContextTypesTask,
   [TaskName.GENERATE_GQL_SCHEMA]: generateGqlSchemaTask,
