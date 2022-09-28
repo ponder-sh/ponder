@@ -1,3 +1,5 @@
+### **NOTE: Not ready for public use. Please reach out via [twitter](https://twitter.com/0xOlias) dm or [email](mailto:0xolias@gmail.com) with any questions.**
+
 # Ponder
 
 A framework for building blockchain-enabled web services
