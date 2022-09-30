@@ -2,12 +2,10 @@ import type { GraphQLSchema } from "graphql";
 
 import type { GraphqlApi } from "@/apis/graphql";
 import { buildGqlSchema } from "@/apis/graphql/buildGqlSchema";
-import {
-  generateContextTypes,
-  generateHandlerTypes,
-  generateSchema,
-  generateSchemaTypes,
-} from "@/codegen";
+import { generateContextTypes } from "@/codegen/generateContextTypes";
+import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
+import { generateSchema } from "@/codegen/generateSchema";
+import { generateSchemaTypes } from "@/codegen/generateSchemaTypes";
 import { logger } from "@/common/logger";
 import { handleReindex } from "@/core/indexer/reindex";
 import { buildPonderSchema } from "@/core/schema/buildPonderSchema";

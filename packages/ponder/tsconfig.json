@@ -10,19 +10,7 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "@/core/*": ["src/core/*"],
-      "@/common/*": ["src/common/*"],
-      "@/apis/*": ["src/apis/*"],
-      "@/stores/*": ["src/stores/*"],
-      "@/sources/*": ["src/sources/*"],
-
-      "@/codegen": ["src/codegen/index"],
-      "@/db": ["src/db/index"],
-      "@/gql": ["src/gql/index"],
-      "@/indexer": ["src/indexer/index"],
-      "@/utils": ["src/utils/index"],
-      "@/config": ["src/config/index"],
-      "@/types": ["src/types/index"]
+      "@/*": ["src/*"]
     }
   },
   "include": ["src/**/*.ts"],
