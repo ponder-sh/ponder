@@ -43,9 +43,10 @@ export const blockRequestWorker = async ({
     transactions: transactions.map((txn) => txn.hash),
   };
 
-  await cacheStore.insertBlock(blockWithoutTransactions);
-
-  await cacheStore.insertTransactions(transactions);
+  await Promise.all([
+    cacheStore.insertBlock(blockWithoutTransactions),
+    cacheStore.insertTransactions(transactions),
+  ]);
 };
 
 // Create a queue for fetching historical blocks & transactions.

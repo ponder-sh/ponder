@@ -1,4 +1,4 @@
-import type { JsonRpcProvider, Log } from "@ethersproject/providers";
+import type { Log, StaticJsonRpcProvider } from "@ethersproject/providers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
@@ -13,7 +13,7 @@ import { reindexStatistics } from "./reindex";
 
 export type LogGroup = {
   chainId: number;
-  provider: JsonRpcProvider;
+  provider: StaticJsonRpcProvider;
   contracts: string[];
   startBlock: number;
 };
@@ -26,9 +26,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
   const logGroups: LogGroup[] = uniqueChainIds.map((chainId) => {
     const sourcesInGroup = sources.filter((s) => s.chainId === chainId);
 
-    const startBlock = Math.min(
-      ...sourcesInGroup.map((s) => s.startBlock || 0)
-    );
+    const startBlock = Math.min(...sourcesInGroup.map((s) => s.startBlock));
     const contractAddresses = sourcesInGroup.map((s) => s.address);
 
     return {
