@@ -22,7 +22,7 @@ const generateSchema = async (gqlSchema: GraphQLSchema) => {
     "utf8"
   );
 
-  logger.info(`\x1b[36m${"GENERATED SCHEMA"}\x1b[0m`); // magenta
+  logger.debug(`Generated schema.graphql file`);
 };
 
 export { generateSchema };

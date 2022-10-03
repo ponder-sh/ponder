@@ -133,7 +133,7 @@ const generateContextTypes = async (
     "utf8"
   );
 
-  logger.info(`\x1b[36m${"GENERATED CONTEXT TYPES"}\x1b[0m`); // magenta
+  logger.debug(`Generated context.d.ts file`);
 };
 
 export { generateContextTypes };
