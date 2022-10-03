@@ -48,7 +48,7 @@ importers:
       '@ethersproject/providers': 5.6.8
       ethers: 5.6.9
 
-  examples/uniswap:
+  examples/weth:
     specifiers:
       '@ethersproject/abi': ^5.0.0
       '@ethersproject/providers': ^5.0.0
