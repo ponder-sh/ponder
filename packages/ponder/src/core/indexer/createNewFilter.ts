@@ -38,7 +38,7 @@ export const createNewFilter = async (
       ]) as Promise<BlockWithTransactions>,
     ]);
 
-    logger.warn({
+    logger.debug({
       chainId,
       blockNumber,
       matchedLogCount: logs.length,
@@ -61,6 +61,10 @@ export const createNewFilter = async (
         cacheStore.insertTransactions(transactions),
       ]);
     }
+
+    logger.info(
+      `\x1b[34m${`PROCESSING ${logs.length} LOGS FROM BLOCK ${blockNumber}`}\x1b[0m` // blue
+    );
 
     logs.forEach(logQueue.push);
   };

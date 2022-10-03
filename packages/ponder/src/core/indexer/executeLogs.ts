@@ -61,7 +61,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
 
     const cachedBlockRange = await cacheStore.getCachedBlockRange(contracts);
 
-    logger.warn({
+    logger.debug({
       requestedStartBlock,
       requestedEndBlock,
       cachedBlockRange,
@@ -93,7 +93,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
       cachedBlockCount += minEndBlock - maxStartBlock;
     }
 
-    logger.warn({ blockRanges });
+    logger.debug({ blockRanges });
 
     for (const blockRange of blockRanges) {
       const { startBlock, endBlock } = blockRange;
@@ -124,7 +124,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
 
   reindexStatistics.cacheHitRate = cachedBlockCount / totalRequestedBlockCount;
 
-  logger.warn({
+  logger.debug({
     logQueueLength: logRequestQueue.length(),
     logQueueIdle: logRequestQueue.idle(),
     blockQueueLength: blockRequestQueue.length(),
@@ -135,7 +135,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     await logRequestQueue.drained();
   }
 
-  logger.warn({
+  logger.debug({
     logQueueLength: logRequestQueue.length(),
     logQueueIdle: logRequestQueue.idle(),
     blockQueueLength: blockRequestQueue.length(),
@@ -170,7 +170,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     logQueue.unshift(log);
   }
 
-  logger.warn(`Running user handlers against ${logQueue.length()} logs`);
+  logger.debug(`Running user handlers against ${logQueue.length()} logs`);
 
   // Begin processing logs in the correct order.
   logQueue.resume();
