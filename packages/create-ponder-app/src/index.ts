@@ -179,7 +179,10 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
 
     // Generate the schema.graphql file.
     const ponderSchemaFilePath = path.join(ponderRootDirPath, "schema.graphql");
-    writeFileSync(ponderSchemaFilePath, schemaGraphqlFileContents);
+    writeFileSync(
+      ponderSchemaFilePath,
+      prettier.format(schemaGraphqlFileContents, { parser: "graphql" })
+    );
   }
 
   // Write the handler index.ts file.
