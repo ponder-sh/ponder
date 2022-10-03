@@ -41,7 +41,7 @@ export const createNewFilter = async (
     logger.warn({
       chainId,
       blockNumber,
-      logs,
+      matchedLogCount: logs.length,
       blockTransactionCount: block.transactions.length,
     });
 
