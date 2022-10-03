@@ -17,8 +17,6 @@ const options = program.opts();
 
 const ponderRootDir = args[0] ? args[0] : "ponder";
 
-const subgraphRootDir = options.fromSubgraph
-  ? options.fromSubgraph
-  : "subgraph";
+const subgraphRootDir = options.fromSubgraph;
 
 require("../index").run(ponderRootDir, subgraphRootDir);
