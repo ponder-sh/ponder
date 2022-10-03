@@ -244,7 +244,6 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
   // Write the package.json file.
   const packageJson = `
     {
-      "name": "",
       "version": "0.1.0",
       "private": true,
       "scripts": {
@@ -253,6 +252,11 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
       },
       "dependencies": {
         "@ponder/ponder": "latest",
+      },
+      "devDependencies": {
+        "@ethersproject/abi": "^5.0.0",
+        "@ethersproject/providers": "^5.0.0",
+        "ethers": "^5.6.9"
       },
       "engines": {
         "node": "16",
