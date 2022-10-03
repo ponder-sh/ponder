@@ -37,9 +37,13 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     };
   });
 
-  // Create a queue for processing logs (using user handlers).
-  const logQueue = fastq.promise(logWorker, 1);
-  logQueue.pause();
+  // Create a queue for historical logs.
+  const historicalLogQueue = fastq.promise(logWorker, 1);
+  historicalLogQueue.pause();
+
+  // Create a queue for live logs.
+  const liveLogQueue = fastq.promise(logWorker, 1);
+  liveLogQueue.pause();
 
   // Store stuff for stat calcs.
   let totalRequestedBlockCount = 0;
@@ -50,7 +54,7 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     const { provider, contracts } = logGroup;
 
     // Call eth_newFilter for all events emitted by the specified contracts.
-    const { filterStartBlock } = await createNewFilter(logGroup, logQueue);
+    const { filterStartBlock } = await createNewFilter(logGroup, liveLogQueue);
 
     const requestedStartBlock = logGroup.startBlock;
     const requestedEndBlock = filterStartBlock;
@@ -167,17 +171,18 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
   // Add sorted historical logs to the front of the queue (in reverse order).
   for (let i = sortedLogs.length - 1; i >= 0; i--) {
     const log = sortedLogs[i];
-    logQueue.unshift(log);
+    historicalLogQueue.unshift(log);
   }
 
-  logger.debug(`Running user handlers against ${logQueue.length()} logs`);
+  logger.debug(
+    `Running user handlers against ${historicalLogQueue.length()} historical logs`
+  );
 
-  // Begin processing logs in the correct order.
-  logQueue.resume();
+  // Process historical logs (note the await).
+  historicalLogQueue.resume();
+  await historicalLogQueue.drained();
 
-  // NOTE: Wait the queue to be drained to allow callers to take action once
-  // all historical logs have been fetched and processed (indexing is complete).
-  await logQueue.drained();
+  liveLogQueue.resume();
 
   return {
     logCount: sortedLogs.length,

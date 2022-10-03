@@ -8,8 +8,6 @@ import { cacheStore } from "./cacheStore";
 import { LogGroup } from "./executeLogs";
 import { BlockWithTransactions, TransactionWithHash } from "./fetchBlock";
 
-// const blockHandlers: { [key: string]: () => Promise<void> | undefined } = {};
-
 export const createNewFilter = async (
   logGroup: LogGroup,
   logQueue: fastq.queueAsPromised
@@ -28,6 +26,7 @@ export const createNewFilter = async (
 
   // TODO: Fix suspected issue where if the user starts and then stops using a given provider/chainId
   // during hot reloading, the stale provider's listeners never get un-registered.
+  provider.removeAllListeners("block");
 
   const blockHandler = async (blockNumber: number) => {
     const [logs, block] = await Promise.all([
@@ -63,10 +62,36 @@ export const createNewFilter = async (
     }
 
     logger.info(
-      `\x1b[34m${`PROCESSING ${logs.length} LOGS FROM BLOCK ${blockNumber}`}\x1b[0m` // blue
+      `\x1b[34m${`FETCHED ${logs.length} LOGS FROM BLOCK ${blockNumber}`}\x1b[0m` // blue
     );
 
     logs.forEach(logQueue.push);
+
+    // Add the logs and update metadata.
+    await Promise.all(
+      logs.map(async (log) => {
+        await cacheStore.upsertLog(log);
+      })
+    );
+
+    for (const contractAddress of contracts) {
+      const foundContractMetadata = await cacheStore.getContractMetadata(
+        contractAddress
+      );
+
+      if (foundContractMetadata) {
+        await cacheStore.upsertContractMetadata({
+          ...foundContractMetadata,
+          endBlock: block.number,
+        });
+      } else {
+        await cacheStore.upsertContractMetadata({
+          contractAddress,
+          startBlock: block.number,
+          endBlock: block.number,
+        });
+      }
+    }
   };
 
   provider.on("block", blockHandler);

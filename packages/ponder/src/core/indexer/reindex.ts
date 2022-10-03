@@ -16,6 +16,8 @@ export let reindexStatistics = {
   cacheHitRate: 0,
 };
 
+let isInitialIndexing = true;
+
 const handleReindex = async (
   store: Store,
   sources: Source[],
@@ -23,7 +25,11 @@ const handleReindex = async (
   userHandlers: Handlers
 ) => {
   const startHrt = startBenchmark();
-  // logger.info(`\x1b[33m${"INDEXING..."}\x1b[0m`); // yellow
+  logger.info(
+    `\x1b[33m${`${
+      isInitialIndexing ? "FETCHING" : "PROCESSING"
+    } HISTORICAL LOGS...`}\x1b[0m`
+  ); // yellow
 
   // Prepare user store.
   await store.migrate(schema);
@@ -42,7 +48,9 @@ const handleReindex = async (
   const cacheHitRate = Math.round(reindexStatistics.cacheHitRate * 1000) / 10;
 
   logger.info(
-    `\x1b[32m${`INDEXING COMPLETE (${diff}, ${rpcRequestCount} RPC request${
+    `\x1b[32m${`${
+      isInitialIndexing ? "FETCHED" : "PROCESSED"
+    } HISTORICAL LOGS (${diff}, ${rpcRequestCount} RPC request${
       rpcRequestCount === 1 ? "" : "s"
     }, ${
       cacheHitRate >= 99.9 ? ">99.9" : cacheHitRate
@@ -55,6 +63,7 @@ const handleReindex = async (
     blockRequestCount: 0,
     cacheHitRate: 0,
   };
+  isInitialIndexing = false;
 };
 
 export { handleReindex };
