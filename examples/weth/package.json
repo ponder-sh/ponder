@@ -1,0 +1,20 @@
+{
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start"
+  },
+  "dependencies": {
+    "@ponder/ponder": "latest"
+  },
+  "devDependencies": {
+    "@ethersproject/abi": "^5.0.0",
+    "@ethersproject/providers": "^5.0.0",
+    "ethers": "^5.6.9"
+  },
+  "engines": {
+    "node": "16",
+    "pnpm": "7"
+  }
+}

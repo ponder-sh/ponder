@@ -48,6 +48,19 @@ importers:
       '@ethersproject/providers': 5.6.8
       ethers: 5.6.9
 
+  examples/uniswap:
+    specifiers:
+      '@ethersproject/abi': ^5.0.0
+      '@ethersproject/providers': ^5.0.0
+      '@ponder/ponder': latest
+      ethers: ^5.6.9
+    dependencies:
+      '@ponder/ponder': link:../../packages/ponder
+    devDependencies:
+      '@ethersproject/abi': 5.6.4
+      '@ethersproject/providers': 5.6.8
+      ethers: 5.6.9
+
   packages/create-ponder-app:
     specifiers:
       '@types/node': ^18.7.8

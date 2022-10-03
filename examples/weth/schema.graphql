@@ -1,0 +1,14 @@
+type Account @entity {
+  id: ID!
+  balance: BigInt!
+  ownerAllowances: [Allowance!]! @derivedFrom(field: "owner")
+  spenderAllowances: [Allowance!]! @derivedFrom(field: "spender")
+  lastActivityTimestamp: Int
+}
+
+type Allowance @entity {
+  id: ID!
+  owner: ID!
+  spender: ID!
+  amount: BigInt!
+}
