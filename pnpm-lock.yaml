@@ -51,6 +51,7 @@ importers:
   packages/create-ponder-app:
     specifiers:
       '@types/node': ^18.7.8
+      '@types/prettier': ^2.7.1
       commander: ^9.4.0
       esbuild: ^0.15.2
       prettier: ^2.6.2
@@ -63,6 +64,7 @@ importers:
       yaml: 2.1.1
     devDependencies:
       '@types/node': 18.7.8
+      '@types/prettier': 2.7.1
       esbuild: 0.15.4
       tsconfig-replace-paths: 0.0.11
       typescript: 4.7.3
@@ -1375,6 +1377,10 @@ packages:
     dependencies:
       '@types/node': 18.7.8
     dev: false
+
+  /@types/prettier/2.7.1:
+    resolution: {integrity: sha512-ri0UmynRRvZiiUJdiz38MmIblKK+oH30MztdBVR95dv/Ubw6neWSb8u1XpRb72L4qsZOhz+L+z9JD40SJmfWow==}
+    dev: true
 
   /@types/qs/6.9.7:
     resolution: {integrity: sha512-FGa1F62FT09qcrueBA6qYTrJPVDzah9a+493+o2PCXsesWHIn27G98TsSMs3WPNbZIEj4+VJf6saSFpvD+3Zsw==}
