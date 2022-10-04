@@ -1,4 +1,9 @@
 module.exports = {
+  database: [
+    {
+      kind: "sqlite",
+    },
+  ],
   sources: [
     {
       kind: "evm",
@@ -15,12 +20,6 @@ module.exports = {
       kind: "graphql",
       default: true,
       port: 42069,
-    },
-  ],
-  stores: [
-    {
-      kind: "sqlite",
-      filename: ":memory:",
     },
   ],
 };
