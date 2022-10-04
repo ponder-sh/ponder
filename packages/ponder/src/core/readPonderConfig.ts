@@ -1,12 +1,19 @@
+import Sqlite from "better-sqlite3";
 import { utils } from "ethers";
 import { readFileSync } from "node:fs";
 
 import { GraphqlApi } from "@/apis/graphql";
 import { CONFIG } from "@/common/config";
+import { logger } from "@/common/logger";
 import { EvmSource } from "@/sources/evm";
-import { SqliteStore } from "@/stores/sqlite";
+import { SqliteCacheStore } from "@/stores/sqliteCacheStore";
+import { SqliteEntityStore } from "@/stores/sqliteEntityStore";
 
 type PonderConfigFile = {
+  database: {
+    kind: string;
+    filename?: string;
+  };
   sources: {
     kind: string;
     name: string;
@@ -15,10 +22,6 @@ type PonderConfigFile = {
     abi: string;
     address: string;
     startBlock: number;
-  }[];
-  stores: {
-    kind: string;
-    filename: string;
   }[];
   apis: {
     kind: string;
@@ -39,9 +42,6 @@ const readPonderConfig = () => {
 
   if (userConfig.apis.length > 1) {
     throw new Error(`Cannot create more than one API`);
-  }
-  if (userConfig.stores.length > 1) {
-    throw new Error(`Cannot create more than one store`);
   }
 
   // Build sources.
@@ -67,15 +67,21 @@ const readPonderConfig = () => {
   });
 
   // Build store.
-  const store = new SqliteStore();
+  const defaultDbFilePath = `./.ponder/cache.db`;
+  const db = Sqlite(userConfig.database.filename || defaultDbFilePath, {
+    verbose: logger.debug,
+  });
+  const cacheStore = new SqliteCacheStore(db);
+  const entityStore = new SqliteEntityStore(db);
 
   // Build API.
   const port = userConfig.apis[0].port;
-  const api = new GraphqlApi(port, store);
+  const api = new GraphqlApi(port, entityStore);
 
   return {
     sources,
-    store,
+    cacheStore,
+    entityStore,
     api,
   };
 };

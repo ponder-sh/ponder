@@ -1,14 +1,14 @@
 import type { Log, StaticJsonRpcProvider } from "@ethersproject/providers";
-import fastq from "fastq";
+import fastq, { queueAsPromised } from "fastq";
 
 import { logger } from "@/common/logger";
 import type { LogWorker } from "@/core/indexer/buildLogWorker";
 import type { Source } from "@/sources/base";
+import type { CacheStore } from "@/stores/baseCacheStore";
 
-import { cacheStore } from "./cacheStore";
 import { createNewFilter } from "./createNewFilter";
-import { blockRequestQueue } from "./fetchBlock";
-import { logRequestQueue } from "./fetchLogs";
+import { BlockRequest, blockRequestWorker } from "./fetchBlock";
+import { LogRequest, logRequestWorker } from "./fetchLogs";
 import { reindexStatistics } from "./reindex";
 
 export type LogGroup = {
@@ -18,9 +18,19 @@ export type LogGroup = {
   startBlock: number;
 };
 
+export type BlockRequestWorkerContext = { cacheStore: CacheStore };
+export type LogRequestWorkerContext = {
+  cacheStore: CacheStore;
+  blockRequestQueue: queueAsPromised;
+};
+
 const BLOCK_LIMIT = 2_000;
 
-const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
+const executeLogs = async (
+  cacheStore: CacheStore,
+  sources: Source[],
+  logWorker: LogWorker
+) => {
   // Indexing runs on a per-provider basis so we can batch eth_getLogs calls across contracts.
   const uniqueChainIds = [...new Set(sources.map((s) => s.chainId))];
   const logGroups: LogGroup[] = uniqueChainIds.map((chainId) => {
@@ -37,11 +47,24 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     };
   });
 
-  // Create a queue for historical logs.
+  // Create a queue for fetching historical blocks & transactions.
+  const blockRequestQueue = fastq.promise<
+    BlockRequestWorkerContext,
+    BlockRequest
+  >({ cacheStore }, blockRequestWorker, 1);
+
+  // Create a queue for fetching historical logs.
+  const logRequestQueue = fastq.promise<LogRequestWorkerContext, LogRequest>(
+    { cacheStore, blockRequestQueue },
+    logRequestWorker,
+    1
+  );
+
+  // Create a queue for processing historical logs.
   const historicalLogQueue = fastq.promise(logWorker, 1);
   historicalLogQueue.pause();
 
-  // Create a queue for live logs.
+  // Create a queue for processing live logs.
   const liveLogQueue = fastq.promise(logWorker, 1);
   liveLogQueue.pause();
 
@@ -54,7 +77,11 @@ const executeLogs = async (sources: Source[], logWorker: LogWorker) => {
     const { provider, contracts } = logGroup;
 
     // Call eth_newFilter for all events emitted by the specified contracts.
-    const { filterStartBlock } = await createNewFilter(logGroup, liveLogQueue);
+    const { filterStartBlock } = await createNewFilter(
+      cacheStore,
+      logGroup,
+      liveLogQueue
+    );
 
     const requestedStartBlock = logGroup.startBlock;
     const requestedEndBlock = filterStartBlock;

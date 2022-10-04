@@ -3,12 +3,13 @@ import { BigNumber } from "ethers";
 import type fastq from "fastq";
 
 import { logger } from "@/common/logger";
+import { CacheStore } from "@/stores/baseCacheStore";
 
-import { cacheStore } from "./cacheStore";
 import { LogGroup } from "./executeLogs";
 import { BlockWithTransactions, TransactionWithHash } from "./fetchBlock";
 
 export const createNewFilter = async (
+  cacheStore: CacheStore,
   logGroup: LogGroup,
   logQueue: fastq.queueAsPromised
 ) => {

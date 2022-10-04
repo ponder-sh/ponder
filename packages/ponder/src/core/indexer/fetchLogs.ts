@@ -1,24 +1,22 @@
 import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
-import fastq from "fastq";
 
-import { cacheStore } from "./cacheStore";
-import { blockRequestQueue } from "./fetchBlock";
+import type { LogRequestWorkerContext } from "./executeLogs";
 import { reindexStatistics } from "./reindex";
 
-type LogRequest = {
+export type LogRequest = {
   contractAddresses: string[];
   fromBlock: number;
   toBlock: number;
   provider: JsonRpcProvider;
 };
 
-export const logRequestWorker = async ({
-  contractAddresses,
-  fromBlock,
-  toBlock,
-  provider,
-}: LogRequest) => {
+export async function logRequestWorker(
+  this: LogRequestWorkerContext,
+  { contractAddresses, fromBlock, toBlock, provider }: LogRequest
+) {
+  const { cacheStore, blockRequestQueue } = this;
+
   const logs: Log[] = await provider.send("eth_getLogs", [
     {
       address: contractAddresses,
@@ -63,10 +61,4 @@ export const logRequestWorker = async ({
       provider,
     });
   });
-};
-
-// Create a queue for fetching historical blocks & transactions.
-export const logRequestQueue = fastq.promise<unknown, LogRequest>(
-  logRequestWorker,
-  1
-);
+}

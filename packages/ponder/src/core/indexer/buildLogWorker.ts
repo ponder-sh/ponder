@@ -2,17 +2,18 @@ import type { Log } from "@ethersproject/providers";
 import { BigNumber, Contract } from "ethers";
 
 import { logger } from "@/common/logger";
-import { PonderSchema } from "@/core/schema/types";
-import { Source } from "@/sources/base";
-import { Store } from "@/stores/base";
+import type { PonderSchema } from "@/core/schema/types";
+import type { Source } from "@/sources/base";
+import type { CacheStore } from "@/stores/baseCacheStore";
+import type { EntityStore } from "@/stores/baseEntityStore";
 
-import { EntityModel, Handlers } from "../readHandlers";
-import { cacheStore } from "./cacheStore";
+import type { EntityModel, Handlers } from "../readHandlers";
 
 export type LogWorker = (log: Log) => Promise<void>;
 
 export const buildLogWorker = (
-  store: Store,
+  cacheStore: CacheStore,
+  entityStore: EntityStore,
   sources: Source[],
   schema: PonderSchema,
   userHandlers: Handlers
@@ -21,10 +22,10 @@ export const buildLogWorker = (
   schema.entities.forEach((entity) => {
     const entityName = entity.name;
     const entityModel: EntityModel = {
-      get: async (id) => store.getEntity(entityName, id),
-      insert: async (obj) => store.insertEntity(entityName, obj),
-      upsert: async (obj) => store.upsertEntity(entityName, obj),
-      delete: async (id) => store.deleteEntity(entityName, id),
+      get: async (id) => entityStore.getEntity(entityName, id),
+      insert: async (obj) => entityStore.insertEntity(entityName, obj),
+      upsert: async (obj) => entityStore.upsertEntity(entityName, obj),
+      delete: async (id) => entityStore.deleteEntity(entityName, id),
     };
 
     entityModels[entityName] = entityModel;

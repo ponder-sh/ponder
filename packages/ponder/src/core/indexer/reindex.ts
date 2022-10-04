@@ -4,9 +4,9 @@ import { buildLogWorker } from "@/core/indexer/buildLogWorker";
 import type { Handlers } from "@/core/readHandlers";
 import { PonderSchema } from "@/core/schema/types";
 import { Source } from "@/sources/base";
-import { Store } from "@/stores/base";
+import type { CacheStore } from "@/stores/baseCacheStore";
+import type { EntityStore } from "@/stores/baseEntityStore";
 
-import { cacheStore } from "./cacheStore";
 import { executeLogs } from "./executeLogs";
 
 // This is a pretty hacky way to get cache hit stats that works with the dev server.
@@ -19,7 +19,8 @@ export let reindexStatistics = {
 let isInitialIndexing = true;
 
 const handleReindex = async (
-  store: Store,
+  cacheStore: CacheStore,
+  entityStore: EntityStore,
   sources: Source[],
   schema: PonderSchema,
   userHandlers: Handlers
@@ -32,14 +33,20 @@ const handleReindex = async (
   ); // yellow
 
   // Prepare user store.
-  await store.migrate(schema);
+  await entityStore.migrate(schema);
 
   // Prepare cache store.
   await cacheStore.migrate();
 
   // TODO: Rename and restructure this code path a bit.
-  const logWorker = buildLogWorker(store, sources, schema, userHandlers);
-  await executeLogs(sources, logWorker);
+  const logWorker = buildLogWorker(
+    cacheStore,
+    entityStore,
+    sources,
+    schema,
+    userHandlers
+  );
+  await executeLogs(cacheStore, sources, logWorker);
 
   const diff = endBenchmark(startHrt);
 

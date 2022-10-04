@@ -1,27 +1,14 @@
-import { Block, Log } from "@ethersproject/providers";
-import Sqlite from "better-sqlite3";
-import { Transaction } from "ethers";
-import path from "path";
+import type { Block, Log } from "@ethersproject/providers";
+import type Sqlite from "better-sqlite3";
+import type { Transaction } from "ethers";
 
-import { CONFIG } from "@/common/config";
-import { logger } from "@/common/logger";
-import { ensureDirectoriesExist } from "@/common/utils";
+import type { BaseCacheStore, ContractMetadata } from "./baseCacheStore";
 
-type ContractMetadata = {
-  contractAddress: string;
-  startBlock: number;
-  endBlock: number;
-};
-
-const { PONDER_DIR_PATH } = CONFIG;
-
-export class CacheStore {
+export class SqliteCacheStore implements BaseCacheStore {
   db: Sqlite.Database;
 
-  constructor() {
-    this.db = Sqlite(path.join(PONDER_DIR_PATH, "cache.db"), {
-      verbose: logger.debug,
-    });
+  constructor(db: Sqlite.Database) {
+    this.db = db;
   }
 
   migrate = async () => {
@@ -235,7 +222,3 @@ export class CacheStore {
     return block;
   };
 }
-
-// This is a filthy hack lol. cacheStore probably shouldn't be initialized in global scope?
-ensureDirectoriesExist();
-export const cacheStore = new CacheStore();

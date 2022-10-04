@@ -5,20 +5,20 @@ import type { GraphQLSchema } from "graphql";
 import http from "node:http";
 
 import { logger } from "@/common/logger";
-import { SqliteStore } from "@/stores/sqlite";
+import type { EntityStore } from "@/stores/baseEntityStore";
 
 import { ApiKind, BaseApi } from "../base";
 
 export class GraphqlApi implements BaseApi {
   kind = ApiKind.GRAPHQL;
   port: number;
-  context: { store: SqliteStore };
+  context: { store: EntityStore };
 
   app: Express;
   server?: http.Server;
   graphqlMiddleware?: express.Handler;
 
-  constructor(port: number, store: SqliteStore) {
+  constructor(port: number, store: EntityStore) {
     this.port = port;
     this.context = { store };
 

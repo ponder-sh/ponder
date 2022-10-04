@@ -1,6 +1,5 @@
-import Sqlite from "better-sqlite3";
+import type Sqlite from "better-sqlite3";
 
-import { logger } from "@/common/logger";
 import {
   DerivedField,
   FieldKind,
@@ -8,20 +7,15 @@ import {
   ScalarField,
 } from "@/core/schema/types";
 
-import { BaseStore, EntityFilter, StoreKind } from "./base";
+import { BaseEntityStore, EntityFilter, StoreKind } from "./baseEntityStore";
 
-export class SqliteStore implements BaseStore {
+export class SqliteEntityStore implements BaseEntityStore {
   kind = StoreKind.SQLITE;
   db: Sqlite.Database;
   schema?: PonderSchema;
 
-  constructor(
-    filename = ":memory:",
-    options: Sqlite.Options = {
-      verbose: logger.debug,
-    }
-  ) {
-    this.db = Sqlite(filename, options);
+  constructor(db: Sqlite.Database) {
+    this.db = db;
   }
 
   async migrate(schema: PonderSchema) {

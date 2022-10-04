@@ -10,7 +10,8 @@ import { logger } from "@/common/logger";
 import { handleReindex } from "@/core/indexer/reindex";
 import { buildPonderSchema } from "@/core/schema/buildPonderSchema";
 import type { EvmSource } from "@/sources/evm";
-import type { SqliteStore } from "@/stores/sqlite";
+import type { CacheStore } from "@/stores/baseCacheStore";
+import type { EntityStore } from "@/stores/baseEntityStore";
 
 import { Handlers, readHandlers } from "./readHandlers";
 import { readPonderConfig } from "./readPonderConfig";
@@ -20,7 +21,8 @@ import type { PonderSchema } from "./schema/types";
 const state: {
   sources?: EvmSource[];
   api?: GraphqlApi;
-  store?: SqliteStore;
+  cacheStore?: CacheStore;
+  entityStore?: EntityStore;
 
   userSchema?: GraphQLSchema;
   schema?: PonderSchema;
@@ -62,11 +64,12 @@ export const runTask = async (task: Task) => {
 export const readPonderConfigTask: Task = {
   name: TaskName.READ_PONDER_CONFIG,
   handler: async () => {
-    const { sources, api, store } = readPonderConfig();
+    const { sources, cacheStore, entityStore, api } = readPonderConfig();
 
     state.sources = sources;
+    state.cacheStore = cacheStore;
+    state.entityStore = entityStore;
     state.api = api;
-    state.store = store;
   },
   dependencies: [
     TaskName.GENERATE_HANDLER_TYPES,
@@ -168,7 +171,8 @@ const reindexTask: Task = {
   name: TaskName.REINDEX,
   handler: async () => {
     if (
-      !state.store ||
+      !state.cacheStore ||
+      !state.entityStore ||
       state.sources === undefined ||
       !state.schema ||
       !state.handlers
@@ -183,7 +187,8 @@ const reindexTask: Task = {
 
     state.isIndexingInProgress = true;
     await handleReindex(
-      state.store,
+      state.cacheStore,
+      state.entityStore,
       state.sources,
       state.schema,
       state.handlers

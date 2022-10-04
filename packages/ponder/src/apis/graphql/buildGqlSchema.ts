@@ -1,14 +1,14 @@
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
 
 import { PonderSchema } from "@/core/schema/types";
-import { SqliteStore } from "@/stores/sqlite";
+import { EntityStore } from "@/stores/baseEntityStore";
 
 import { buildEntityType } from "./buildEntityType";
 import { buildPluralField } from "./buildPluralField";
 import { buildSingularField } from "./buildSingularField";
 
 export type Source = { request: unknown };
-export type Context = { store: SqliteStore };
+export type Context = { store: EntityStore };
 
 const buildGqlSchema = (schema: PonderSchema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Source, Context>> = {};

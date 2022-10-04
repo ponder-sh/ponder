@@ -1,6 +1,6 @@
 import type { PonderSchema } from "@/core/schema/types";
 
-import { SqliteStore } from "./sqlite";
+import type { SqliteEntityStore } from "./sqliteEntityStore";
 
 export type EntityFilter = {
   where?: {
@@ -12,7 +12,7 @@ export type EntityFilter = {
   orderDirection?: "asc" | "desc";
 };
 
-export interface BaseStore {
+export interface BaseEntityStore {
   kind: StoreKind;
 
   migrate(schema: PonderSchema): Promise<void>;
@@ -38,4 +38,4 @@ export enum StoreKind {
   SQLITE = "sqlite",
 }
 
-export type Store = SqliteStore;
+export type EntityStore = SqliteEntityStore;
