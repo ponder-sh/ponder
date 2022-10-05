@@ -29,7 +29,7 @@ type PonderConfigFile = {
   }[];
 };
 
-const readPonderConfig = () => {
+export const readPonderConfig = () => {
   // Load and then remove the module from the require cache, because we are loading
   // it several times in the same process and need the latest version each time.
   // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
@@ -85,5 +85,3 @@ const readPonderConfig = () => {
     api,
   };
 };
-
-export { readPonderConfig };
