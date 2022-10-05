@@ -1,10 +1,8 @@
 module.exports = {
-  database: [
-    {
-      kind: "sqlite",
-      filename: process.env.DATABASE_FILE_PATH,
-    },
-  ],
+  database: {
+    kind: "sqlite",
+    filename: process.env.DATABASE_FILE_PATH,
+  },
   sources: [
     {
       kind: "evm",

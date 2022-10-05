@@ -1,9 +1,7 @@
 module.exports = {
-  database: [
-    {
-      kind: "sqlite",
-    },
-  ],
+  database: {
+    kind: "sqlite",
+  },
   sources: [
     {
       kind: "evm",
