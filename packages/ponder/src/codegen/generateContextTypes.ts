@@ -63,12 +63,15 @@ const generateContextTypes = async (
             // This is trash
             let tsBaseType: string;
             if (
-              field.baseGqlType.astNode?.kind === Kind.SCALAR_TYPE_DEFINITION
+              Object.keys(gqlScalarToTsType).includes(
+                field.baseGqlType.toString()
+              )
             ) {
-              const scalarTsType = gqlScalarToTsType[field.baseGqlType.name];
+              const scalarTypeName = field.baseGqlType.toString();
+              const scalarTsType = gqlScalarToTsType[scalarTypeName];
               if (!scalarTsType) {
                 throw new Error(
-                  `TypeScript type not found for scalar: ${field.baseGqlType.name}`
+                  `TypeScript type not found for scalar: ${scalarTypeName}`
                 );
               }
               tsBaseType = scalarTsType;
@@ -80,7 +83,9 @@ const generateContextTypes = async (
               );
               tsBaseType = `(${enumValues.map((v) => `"${v}"`).join(" | ")})`;
             } else {
-              throw new Error("shit");
+              throw new Error(
+                `Unable to generate type for field: ${field.name}`
+              );
             }
 
             return `${field.name}${field.notNull ? "" : "?"}: ${tsBaseType}[];`;
