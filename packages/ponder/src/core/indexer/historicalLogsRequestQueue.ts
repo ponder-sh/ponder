@@ -56,8 +56,6 @@ async function historicalLogsRequestWorker(
     },
   ]);
 
-  console.log({ logsLength: logs.length });
-
   reindexStatistics.logRequestCount += 1;
   const requestCount =
     reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;

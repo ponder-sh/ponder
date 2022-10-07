@@ -59,8 +59,6 @@ export const reindexSourceGroup = async ({
     }
   }
 
-  console.log("got current block number:", { currentBlockNumber });
-
   const requestedStartBlock = startBlock;
   const requestedEndBlock = currentBlockNumber;
   totalRequestedBlockCount += requestedEndBlock - requestedStartBlock;
@@ -70,7 +68,6 @@ export const reindexSourceGroup = async ({
 
   const cachedBlockRange = await cacheStore.getCachedBlockRange(contracts);
 
-  console.log({ requestedStartBlock, requestedEndBlock, cachedBlockRange });
   logger.debug({
     requestedStartBlock,
     requestedEndBlock,
@@ -85,7 +82,8 @@ export const reindexSourceGroup = async ({
   } else {
     const { maxStartBlock, minEndBlock } = cachedBlockRange;
 
-    // If there is overlap between cached range and requested range
+    // If there is overlap between the cached range and the requested range,
+    // add the required subset of the requested range.
     if (requestedStartBlock < maxStartBlock) {
       blockRanges.push({
         startBlock: requestedStartBlock,
@@ -93,10 +91,14 @@ export const reindexSourceGroup = async ({
       });
     }
 
-    // This will basically always be true.
-    if (requestedEndBlock > minEndBlock) {
+    // If there is no overlap between the cached range and the requested range,
+    // add the requested range.
+    if (
+      requestedStartBlock > minEndBlock ||
+      requestedEndBlock < maxStartBlock
+    ) {
       blockRanges.push({
-        startBlock: minEndBlock,
+        startBlock: requestedStartBlock,
         endBlock: requestedEndBlock,
       });
     }
