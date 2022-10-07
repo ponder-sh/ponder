@@ -63,6 +63,14 @@ export const reindexSourceGroup = async ({
   const requestedEndBlock = currentBlockNumber;
   totalRequestedBlockCount += requestedEndBlock - requestedStartBlock;
 
+  if (requestedStartBlock > currentBlockNumber) {
+    throw new Error(
+      `Start block number (${requestedStartBlock}) is greater than latest block number (${currentBlockNumber}).
+       Are you sure the RPC endpoint is for the correct network?
+      `
+    );
+  }
+
   // Build an array of block ranges that need to be fetched for this group of contracts.
   const blockRanges: { startBlock: number; endBlock: number }[] = [];
 
