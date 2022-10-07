@@ -8,6 +8,7 @@ type OkpcOwner @entity(immutable: true) {
   id: ID!
   traits: [OkpcOwnerTrait!]!
   tokens: [OkpcToken!]! @derivedFrom(field: "owner")
+  receivedCount: Int
 }
 
 enum OkpcOwnerTrait {

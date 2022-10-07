@@ -17,10 +17,19 @@ const handleTransfer: TransferHandler = async (event, context) => {
     traits: [OkpcOwnerTrait.Bad],
   });
 
-  await OkpcOwner.upsert({
-    id: to,
-    traits: [OkpcOwnerTrait.Good],
-  });
+  const existingRecipient = await OkpcOwner.get(to);
+  if (existingRecipient) {
+    await OkpcOwner.update({
+      id: to,
+      receivedCount: (existingRecipient.receivedCount || 0) + 1,
+    });
+  } else {
+    await OkpcOwner.insert({
+      id: to,
+      traits: [OkpcOwnerTrait.Good],
+      receivedCount: 0,
+    });
+  }
 };
 
 const OKPC = {
