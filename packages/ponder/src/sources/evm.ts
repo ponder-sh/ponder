@@ -45,11 +45,14 @@ export class EvmSource implements BaseSource {
     if (cachedProvider) {
       this.provider = cachedProvider;
     } else {
-      this.provider = new ethers.providers.StaticJsonRpcProvider(
+      const provider = new ethers.providers.StaticJsonRpcProvider(
         this.rpcUrl,
         this.chainId
       );
-      this.provider.pollingInterval = pollingInterval;
+      provider.pollingInterval = pollingInterval;
+
+      providersByChainId[chainId] = provider;
+      this.provider = provider;
     }
 
     this.contract = new ethers.Contract(
