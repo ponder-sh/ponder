@@ -212,8 +212,6 @@ export class SqliteEntityStore implements BaseEntityStore {
     const statement = `update \`${entityName}\` set ${updateFragment} where \`id\` = @id returning *`;
     const upsertedEntity = this.db.prepare(statement).get({ id: id });
 
-    console.log({ statement, upsertedEntity });
-
     return upsertedEntity;
   }
 
