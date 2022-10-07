@@ -25,9 +25,9 @@ export const endBenchmark = (hrt: [number, number]) => {
   return diffString;
 };
 
-const latestFileHash: { [key: string]: string | undefined } = {};
+const latestFileHash: Record<string, string | undefined> = {};
 
-export const fileIsChanged = (filePath: string) => {
+export const isFileChanged = (filePath: string) => {
   // TODO: I think this throws if the file being watched gets deleted while
   // the development server is running. Should handle this case gracefully.
   const content = readFileSync(filePath, "utf-8");

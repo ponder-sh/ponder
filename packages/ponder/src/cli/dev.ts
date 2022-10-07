@@ -6,7 +6,7 @@ import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
 import {
   ensureDirectoriesExist,
-  fileIsChanged,
+  isFileChanged,
   readPrettierConfig,
 } from "@/common/utils";
 
@@ -17,14 +17,16 @@ import {
   runTask,
 } from "../core/tasks";
 
+// This function is fully broken because it passes only the file name, not the path,
+// to isFileChanged, which then uses fileReadSync using only the file name, which will
+// break if the file is not in the repository root.
 const createWatchListener = (
   fn: (fileName: string) => Promise<void>,
   pathPrefix?: string
 ): WatchListener<string> => {
   return async (_, fileName) => {
     const filePath = pathPrefix ? path.join(pathPrefix, fileName) : fileName;
-    const isChanged = fileIsChanged(filePath);
-    if (isChanged) {
+    if (isFileChanged(filePath)) {
       fn(fileName);
     }
   };
