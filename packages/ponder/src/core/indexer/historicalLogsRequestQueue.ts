@@ -2,6 +2,7 @@ import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
+import { logger } from "@/common/logger";
 import { CacheStore } from "@/stores/baseCacheStore";
 
 import { reindexStatistics } from "./reindex";
@@ -23,7 +24,7 @@ export const createHistoricalLogsRequestQueue = ({
   historicalBlockRequestQueue,
 }: HistoricalLogsRequestWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
-  return fastq.promise<
+  const queue = fastq.promise<
     HistoricalLogsRequestWorkerContext,
     HistoricalLogsRequestTask
   >(
@@ -31,6 +32,14 @@ export const createHistoricalLogsRequestQueue = ({
     historicalLogsRequestWorker,
     1
   );
+
+  queue.error((err, task) => {
+    if (err) {
+      logger.error("error in historical log worker:", { err, task });
+    }
+  });
+
+  return queue;
 };
 
 async function historicalLogsRequestWorker(
@@ -47,7 +56,14 @@ async function historicalLogsRequestWorker(
     },
   ]);
 
+  console.log({ logsLength: logs.length });
+
   reindexStatistics.logRequestCount += 1;
+  const requestCount =
+    reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;
+  if (requestCount % 10 === 0) {
+    logger.debug(`${requestCount} RPC requests completed`);
+  }
 
   await Promise.all(
     logs.map(async (log) => {

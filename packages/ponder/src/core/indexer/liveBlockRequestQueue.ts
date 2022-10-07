@@ -26,11 +26,18 @@ export const createLiveBlockRequestQueue = ({
   logQueue,
 }: LiveBlockRequestWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
-  return fastq.promise<LiveBlockRequestWorkerContext, LiveBlockRequestTask>(
-    { cacheStore, logQueue },
-    liveBlockRequestWorker,
-    1
-  );
+  const queue = fastq.promise<
+    LiveBlockRequestWorkerContext,
+    LiveBlockRequestTask
+  >({ cacheStore, logQueue }, liveBlockRequestWorker, 1);
+
+  queue.error((err, task) => {
+    if (err) {
+      logger.error("error in live block worker:", { err, task });
+    }
+  });
+
+  return queue;
 };
 
 // This worker is responsible for ensuring that the block, its transactions, and any

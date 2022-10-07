@@ -2,6 +2,7 @@ import type { Block, JsonRpcProvider } from "@ethersproject/providers";
 import type { Transaction } from "ethers";
 import fastq from "fastq";
 
+import { logger } from "@/common/logger";
 import type { CacheStore } from "@/stores/baseCacheStore";
 
 import { reindexStatistics } from "./reindex";
@@ -25,10 +26,18 @@ export const createHistoricalBlockRequestQueue = ({
   cacheStore,
 }: HistoricalBlockRequestWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
-  return fastq.promise<
+  const queue = fastq.promise<
     HistoricalBlockRequestWorkerContext,
     HistoricalBlockRequestTask
   >({ cacheStore }, historicalBlockRequestWorker, 1);
+
+  queue.error((err, task) => {
+    if (err) {
+      logger.error("error in historical block worker:", { err, task });
+    }
+  });
+
+  return queue;
 };
 
 async function historicalBlockRequestWorker(
@@ -48,6 +57,11 @@ async function historicalBlockRequestWorker(
   );
 
   reindexStatistics.blockRequestCount += 1;
+  const requestCount =
+    reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;
+  if (requestCount % 10 === 0) {
+    logger.debug(`${requestCount} RPC requests completed`);
+  }
 
   const transactions = block.transactions.filter(
     (txn): txn is TransactionWithHash => !!txn.hash
