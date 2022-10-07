@@ -82,8 +82,8 @@ export const reindexSourceGroup = async ({
   } else {
     const { maxStartBlock, minEndBlock } = cachedBlockRange;
 
-    // If there is overlap between the cached range and the requested range,
-    // add the required subset of the requested range.
+    // If there is overlap between the right of the requested range
+    // and the left of the cached range, add the required subset.
     if (requestedStartBlock < maxStartBlock) {
       blockRanges.push({
         startBlock: requestedStartBlock,
@@ -91,11 +91,21 @@ export const reindexSourceGroup = async ({
       });
     }
 
+    // If there is overlap between the right of the cached range
+    // and the left of the requested range, add the required subset.
+    // Most common scenario during hot reloading.
+    if (requestedEndBlock > minEndBlock) {
+      blockRanges.push({
+        startBlock: minEndBlock,
+        endBlock: requestedEndBlock,
+      });
+    }
+
     // If there is no overlap between the cached range and the requested range,
     // add the requested range.
     if (
-      requestedStartBlock > minEndBlock ||
-      requestedEndBlock < maxStartBlock
+      requestedEndBlock < maxStartBlock ||
+      requestedStartBlock > minEndBlock
     ) {
       blockRanges.push({
         startBlock: requestedStartBlock,
