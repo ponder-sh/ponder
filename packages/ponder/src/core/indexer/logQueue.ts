@@ -69,14 +69,14 @@ export const createLogQueue = ({
 
     const handler = sourceHandlers[parsedLog.name];
     if (!handler) {
-      logger.debug(
+      logger.trace(
         `Handler not found for event: ${source.name}-${parsedLog.name}`
       );
       return;
     }
 
     const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
-    logger.debug(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
+    logger.trace(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
 
     // Get block & transaction from the cache store and attach to the event.
     const block = await cacheStore.getBlock(log.blockHash);
