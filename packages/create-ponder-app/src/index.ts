@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
@@ -11,7 +10,6 @@ import prettier from "prettier";
 import { parse } from "yaml";
 
 import { getGraphProtocolChainId } from "./helpers/getGraphProtocolChainId";
-import { getPackageManager } from "./helpers/getPackageManager";
 import { validateGraphProtocolSource } from "./helpers/validateGraphProtocolSource";
 
 type PonderSource = {
@@ -204,20 +202,13 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
 
   // Write the ponder.config.js file.
   const ponderConfig = {
+    database: {
+      kind: "sqlite",
+    },
+    graphql: {
+      port: 42069,
+    },
     sources: ponderSources,
-    apis: [
-      {
-        kind: "graphql",
-        default: true,
-        port: 42069,
-      },
-    ],
-    stores: [
-      {
-        kind: "sqlite",
-        filename: ":memory:",
-      },
-    ],
   };
 
   const finalPonderConfig = (
@@ -294,32 +285,8 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
     `.env.local\n.ponder/\ngenerated/`
   );
 
-  // Now, move into the newly created directory, install packages, and run `ponder dev`.
-  process.chdir(ponderRootDirPath);
-
-  const packageManager = getPackageManager();
-  console.log(`Installing using ${packageManager}`);
-
-  const command = [packageManager, "install"].join(" ");
-  try {
-    execSync(command, {
-      // stdio: "inherit",
-      env: {
-        ...process.env,
-        ADBLOCK: "1",
-        // we set NODE_ENV to development as pnpm skips dev
-        // dependencies when production
-        NODE_ENV: "development",
-        DISABLE_OPENCOLLECTIVE: "1",
-      },
-    });
-  } catch (err) {
-    console.log(`Unable to install dependencies: ${err}`);
-  }
-
-  console.log(`Successfully installed dependencies.`);
-
+  // TODO: Add more/better instructions here.
   console.log(
-    `Go to ${ponderRootDir} and run \`ponder dev\` to start the development server.`
+    `Go to ${ponderRootDir}, run npm/yarn/pnpm install, and run pnpm run dev to start the development server.`
   );
 };
