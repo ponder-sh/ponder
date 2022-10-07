@@ -60,7 +60,9 @@ async function historicalLogsRequestWorker(
   const requestCount =
     reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;
   if (requestCount % 10 === 0) {
-    logger.debug(`${requestCount} RPC requests completed`);
+    logger.info(
+      `\x1b[34m${`${requestCount} RPC REQUESTS COMPLETED`}\x1b[0m` // blue
+    );
   }
 
   await Promise.all(
