@@ -27,11 +27,13 @@ const handleTransfer: TransferHandler = async (event, context) => {
     await Account.upsert({
       ...existingDstAccount,
       balance: BigNumber.from(existingDstAccount.balance).add(wad).toString(),
+      lastActivityTimestamp: block.timestamp,
     });
   } else {
     await Account.insert({
       id: dst,
       balance: wad.toString(),
+      lastActivityTimestamp: block.timestamp,
     });
   }
 };
