@@ -17,16 +17,13 @@ export interface HandlerEvent extends LogDescription {
 export type EntityInstance = { [key: string]: string | number | null };
 export type EntityModel = {
   get: (id: string) => Promise<EntityInstance | null>;
-  insert: (
+  insert: (obj: EntityInstance) => Promise<EntityInstance>;
+  update: (
     obj: {
       id: string;
     } & Partial<EntityInstance>
   ) => Promise<EntityInstance>;
-  upsert: (
-    obj: {
-      id: string;
-    } & Partial<EntityInstance>
-  ) => Promise<EntityInstance>;
+  upsert: (obj: EntityInstance) => Promise<EntityInstance>;
   delete: (id: string) => Promise<void>;
 };
 

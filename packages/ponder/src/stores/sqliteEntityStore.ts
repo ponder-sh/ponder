@@ -154,10 +154,7 @@ export class SqliteEntityStore implements BaseEntityStore {
     return entityInstances;
   }
 
-  async insertEntity<T>(
-    entityName: string,
-    attributes: { id: string } & unknown
-  ): Promise<T> {
+  async insertEntity<T>(entityName: string, attributes: any): Promise<T> {
     if (!this.schema) {
       throw new Error(`SqliteStore has not been initialized with a schema yet`);
     }
@@ -186,10 +183,41 @@ export class SqliteEntityStore implements BaseEntityStore {
     return insertedEntity;
   }
 
-  async upsertEntity<T>(
+  async updateEntity<T>(
     entityName: string,
-    attributes: { id: string } & unknown
+    attributes: { id: string } & any
   ): Promise<T> {
+    if (!this.schema) {
+      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+    }
+
+    const entity = this.schema.entityByName[entityName];
+
+    const columnStatements = Object.entries(attributes).map(
+      ([fieldName, value]) => {
+        const field = entity.fieldByName[fieldName];
+        return {
+          column: `\`${fieldName}\``,
+          value: `'${value}'`,
+        };
+      }
+    );
+
+    const { id } = attributes;
+    const updateFragment = columnStatements
+      .filter((s) => s.column !== "id")
+      .map((s) => `${s.column} = ${s.value}`)
+      .join(", ");
+
+    const statement = `update \`${entityName}\` set ${updateFragment} where \`id\` = @id returning *`;
+    const upsertedEntity = this.db.prepare(statement).get({ id: id });
+
+    console.log({ statement, upsertedEntity });
+
+    return upsertedEntity;
+  }
+
+  async upsertEntity<T>(entityName: string, attributes: any): Promise<T> {
     if (!this.schema) {
       throw new Error(`SqliteStore has not been initialized with a schema yet`);
     }
@@ -228,7 +256,7 @@ export class SqliteEntityStore implements BaseEntityStore {
       throw new Error(`SqliteStore has not been initialized with a schema yet`);
     }
 
-    const statement = `delete from \`${entityName}\` where \`id\` = '@id'`;
+    const statement = `delete from \`${entityName}\` where \`id\` = @id`;
 
     this.db.prepare(statement).run({ id: id });
 

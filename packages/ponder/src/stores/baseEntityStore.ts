@@ -21,15 +21,14 @@ export interface BaseEntityStore {
 
   getEntities<T>(entityName: string, filter?: EntityFilter): Promise<T[]>;
 
-  insertEntity<T>(
+  insertEntity<T>(entityName: string, attributes: T): Promise<T>;
+
+  updateEntity<T>(
     entityName: string,
     attributes: { id: string } & T
   ): Promise<T>;
 
-  upsertEntity<T>(
-    entityName: string,
-    attributes: { id: string } & T
-  ): Promise<T>;
+  upsertEntity<T>(entityName: string, attributes: T): Promise<T>;
 
   deleteEntity(entityName: string, id: string): Promise<void>;
 }

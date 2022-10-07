@@ -95,10 +95,10 @@ const generateContextTypes = async (
 
   export type ${entity.name}Model = {
     get: (id: string) => Promise<${entity.name}Instance | null>;
-    insert: (obj: { id: string } & Partial<${entity.name}Instance>) =>
+    insert: (obj: ${entity.name}Instance) => Promise<${entity.name}Instance>;
+    update: (obj: { id: string } & Partial<${entity.name}Instance>) =>
       Promise<${entity.name}Instance>;
-    upsert: (obj: { id: string } & Partial<${entity.name}Instance>) =>
-      Promise<${entity.name}Instance>;
+    upsert: (obj: ${entity.name}Instance) => Promise<${entity.name}Instance>;
     delete: (id: string) => Promise<void>;
   };
     `;
