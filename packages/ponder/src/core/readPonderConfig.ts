@@ -69,7 +69,7 @@ export const readPonderConfig = () => {
   // Build store.
   const defaultDbFilePath = `./.ponder/cache.db`;
   const db = Sqlite(userConfig.database.filename || defaultDbFilePath, {
-    verbose: logger.debug,
+    verbose: logger.trace,
   });
   const cacheStore = new SqliteCacheStore(db);
   const entityStore = new SqliteEntityStore(db);
