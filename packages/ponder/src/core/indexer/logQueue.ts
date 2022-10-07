@@ -1,5 +1,6 @@
 import type { Log } from "@ethersproject/providers";
 import { BigNumber, Contract } from "ethers";
+import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import type { PonderSchema } from "@/core/schema/types";
@@ -9,15 +10,23 @@ import type { EntityStore } from "@/stores/baseEntityStore";
 
 import type { EntityModel, Handlers } from "../readHandlers";
 
-export type LogWorker = (log: Log) => Promise<void>;
+export type LogTask = {
+  log: Log;
+};
 
-export const buildLogWorker = (
-  cacheStore: CacheStore,
-  entityStore: EntityStore,
-  sources: Source[],
-  schema: PonderSchema,
-  userHandlers: Handlers
-): LogWorker => {
+export const createLogQueue = ({
+  cacheStore,
+  entityStore,
+  sources,
+  schema,
+  userHandlers,
+}: {
+  cacheStore: CacheStore;
+  entityStore: EntityStore;
+  sources: Source[];
+  schema: PonderSchema;
+  userHandlers: Handlers;
+}) => {
   const entityModels: Record<string, EntityModel> = {};
   schema.entities.forEach((entity) => {
     const entityName = entity.name;
@@ -42,7 +51,7 @@ export const buildLogWorker = (
   };
 
   // NOTE: This function should probably come as a standalone param.
-  const worker: LogWorker = async (log) => {
+  const logWorker = async (log: Log) => {
     const source = sources.find((source) => source.address === log.address);
     if (!source) {
       logger.warn(`Source not found for log with address: ${log.address}`);
@@ -92,5 +101,5 @@ export const buildLogWorker = (
     }
   };
 
-  return worker;
+  return fastq.promise<LogTask>(logWorker, 1);
 };

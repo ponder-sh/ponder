@@ -1,13 +1,22 @@
+import type { StaticJsonRpcProvider } from "@ethersproject/providers";
+
 import { logger } from "@/common/logger";
 import { endBenchmark, startBenchmark } from "@/common/utils";
-import { buildLogWorker } from "@/core/indexer/buildLogWorker";
+import { createLogQueue } from "@/core/indexer/logQueue";
 import type { Handlers } from "@/core/readHandlers";
-import { PonderSchema } from "@/core/schema/types";
-import { Source } from "@/sources/base";
+import type { PonderSchema } from "@/core/schema/types";
+import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
 
-import { executeLogs } from "./executeLogs";
+import { reindexSourceGroup } from "./reindexSourceGroup";
+
+export type SourceGroup = {
+  chainId: number;
+  provider: StaticJsonRpcProvider;
+  contracts: string[];
+  startBlock: number;
+};
 
 // This is a pretty hacky way to get cache hit stats that works with the dev server.
 export let reindexStatistics = {
@@ -18,7 +27,7 @@ export let reindexStatistics = {
 
 let isInitialIndexing = true;
 
-const handleReindex = async (
+export const handleReindex = async (
   cacheStore: CacheStore,
   entityStore: EntityStore,
   sources: Source[],
@@ -38,15 +47,34 @@ const handleReindex = async (
   // Prepare cache store.
   await cacheStore.migrate();
 
-  // TODO: Rename and restructure this code path a bit.
-  const logWorker = buildLogWorker(
+  // Indexing runs on a per-provider basis so we can batch eth_getLogs calls across contracts.
+  const uniqueChainIds = [...new Set(sources.map((s) => s.chainId))];
+  const sourceGroups: SourceGroup[] = uniqueChainIds.map((chainId) => {
+    const sourcesInGroup = sources.filter((s) => s.chainId === chainId);
+
+    const startBlock = Math.min(...sourcesInGroup.map((s) => s.startBlock));
+    const contractAddresses = sourcesInGroup.map((s) => s.address);
+
+    return {
+      chainId,
+      provider: sourcesInGroup[0].provider,
+      contracts: contractAddresses,
+      startBlock,
+    };
+  });
+
+  const logQueue = createLogQueue({
     cacheStore,
     entityStore,
     sources,
     schema,
-    userHandlers
-  );
-  await executeLogs(cacheStore, sources, logWorker);
+    userHandlers,
+  });
+  logQueue.pause();
+
+  for (const sourceGroup of sourceGroups) {
+    await reindexSourceGroup({ cacheStore, logQueue, sourceGroup });
+  }
 
   const diff = endBenchmark(startHrt);
 
@@ -72,5 +100,3 @@ const handleReindex = async (
   };
   isInitialIndexing = false;
 };
-
-export { handleReindex };

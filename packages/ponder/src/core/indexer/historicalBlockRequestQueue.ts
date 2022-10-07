@@ -1,7 +1,9 @@
 import type { Block, JsonRpcProvider } from "@ethersproject/providers";
 import type { Transaction } from "ethers";
+import fastq from "fastq";
 
-import type { BlockRequestWorkerContext } from "./executeLogs";
+import type { CacheStore } from "@/stores/baseCacheStore";
+
 import { reindexStatistics } from "./reindex";
 
 export interface BlockWithTransactions extends Omit<Block, "transactions"> {
@@ -12,14 +14,26 @@ export interface TransactionWithHash extends Omit<Transaction, "hash"> {
   hash: string;
 }
 
-export type BlockRequest = {
+export type HistoricalBlockRequestTask = {
   blockHash: string;
   provider: JsonRpcProvider;
 };
 
-export async function blockRequestWorker(
-  this: BlockRequestWorkerContext,
-  { blockHash, provider }: BlockRequest
+export type HistoricalBlockRequestWorkerContext = { cacheStore: CacheStore };
+
+export const createHistoricalBlockRequestQueue = ({
+  cacheStore,
+}: HistoricalBlockRequestWorkerContext) => {
+  // Queue for fetching historical blocks and transactions.
+  return fastq.promise<
+    HistoricalBlockRequestWorkerContext,
+    HistoricalBlockRequestTask
+  >({ cacheStore }, historicalBlockRequestWorker, 1);
+};
+
+async function historicalBlockRequestWorker(
+  this: HistoricalBlockRequestWorkerContext,
+  { blockHash, provider }: HistoricalBlockRequestTask
 ) {
   const { cacheStore } = this;
 

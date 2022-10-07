@@ -1,21 +1,43 @@
 import type { JsonRpcProvider, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
+import fastq from "fastq";
 
-import type { LogRequestWorkerContext } from "./executeLogs";
+import { CacheStore } from "@/stores/baseCacheStore";
+
 import { reindexStatistics } from "./reindex";
 
-export type LogRequest = {
+export type HistoricalLogsRequestTask = {
   contractAddresses: string[];
   fromBlock: number;
   toBlock: number;
   provider: JsonRpcProvider;
 };
 
-export async function logRequestWorker(
-  this: LogRequestWorkerContext,
-  { contractAddresses, fromBlock, toBlock, provider }: LogRequest
+export type HistoricalLogsRequestWorkerContext = {
+  cacheStore: CacheStore;
+  historicalBlockRequestQueue: fastq.queueAsPromised;
+};
+
+export const createHistoricalLogsRequestQueue = ({
+  cacheStore,
+  historicalBlockRequestQueue,
+}: HistoricalLogsRequestWorkerContext) => {
+  // Queue for fetching historical blocks and transactions.
+  return fastq.promise<
+    HistoricalLogsRequestWorkerContext,
+    HistoricalLogsRequestTask
+  >(
+    { cacheStore, historicalBlockRequestQueue },
+    historicalLogsRequestWorker,
+    1
+  );
+};
+
+async function historicalLogsRequestWorker(
+  this: HistoricalLogsRequestWorkerContext,
+  { contractAddresses, fromBlock, toBlock, provider }: HistoricalLogsRequestTask
 ) {
-  const { cacheStore, blockRequestQueue } = this;
+  const { cacheStore, historicalBlockRequestQueue } = this;
 
   const logs: Log[] = await provider.send("eth_getLogs", [
     {
@@ -56,7 +78,7 @@ export async function logRequestWorker(
   // Enqueue requests to fetch the block & transaction associated with each log.
   const uniqueBlockHashes = [...new Set(logs.map((l) => l.blockHash))];
   uniqueBlockHashes.forEach((blockHash) => {
-    blockRequestQueue.push({
+    historicalBlockRequestQueue.push({
       blockHash,
       provider,
     });
