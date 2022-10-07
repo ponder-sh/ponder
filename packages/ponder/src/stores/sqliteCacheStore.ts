@@ -2,6 +2,8 @@ import type { Block, Log } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
 import type { Transaction } from "ethers";
 
+import { logger } from "@/common/logger";
+
 import type { BaseCacheStore, ContractMetadata } from "./baseCacheStore";
 
 export class SqliteCacheStore implements BaseCacheStore {
@@ -135,7 +137,7 @@ export class SqliteCacheStore implements BaseCacheStore {
           data: JSON.stringify(log),
         });
     } catch (err) {
-      console.log({ err });
+      logger.warn({ err });
     }
   };
 
@@ -151,7 +153,7 @@ export class SqliteCacheStore implements BaseCacheStore {
           data: JSON.stringify(block),
         });
     } catch (err) {
-      console.log({ err });
+      logger.warn({ err });
     }
   };
 
@@ -168,7 +170,7 @@ export class SqliteCacheStore implements BaseCacheStore {
             data: JSON.stringify(txn),
           });
       } catch (err) {
-        console.log({ err });
+        logger.warn({ err });
       }
     });
   };
@@ -189,7 +191,7 @@ export class SqliteCacheStore implements BaseCacheStore {
 
       return logs;
     } catch (err) {
-      console.log({ err });
+      logger.warn({ err });
       return [];
     }
   };
