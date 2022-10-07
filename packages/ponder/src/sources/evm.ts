@@ -16,6 +16,7 @@ export class EvmSource implements BaseSource {
   abiFilePath: string;
   abiInterface: ethers.utils.Interface;
   startBlock: number;
+  blockLimit: number;
 
   provider: ethers.providers.StaticJsonRpcProvider;
   contract: ethers.Contract;
@@ -28,7 +29,8 @@ export class EvmSource implements BaseSource {
     abiFilePath: string,
     abiInterface: ethers.utils.Interface,
     startBlock = 0,
-    pollingInterval = 1000
+    pollingInterval = 1000,
+    blockLimit = 2000
   ) {
     this.name = name;
     this.chainId = chainId;
@@ -37,6 +39,7 @@ export class EvmSource implements BaseSource {
     this.abiFilePath = abiFilePath;
     this.abiInterface = abiInterface;
     this.startBlock = startBlock;
+    this.blockLimit = blockLimit;
 
     const cachedProvider = providersByChainId[chainId];
     if (cachedProvider) {

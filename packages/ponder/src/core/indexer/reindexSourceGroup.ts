@@ -10,8 +10,6 @@ import { createLiveBlockRequestQueue } from "./liveBlockRequestQueue";
 import type { SourceGroup } from "./reindex";
 import { reindexStatistics } from "./reindex";
 
-const BLOCK_LIMIT = 2_000;
-
 export const reindexSourceGroup = async ({
   sourceGroup,
   cacheStore,
@@ -21,7 +19,7 @@ export const reindexSourceGroup = async ({
   cacheStore: CacheStore;
   logQueue: fastq.queueAsPromised;
 }) => {
-  const { contracts, provider, startBlock } = sourceGroup;
+  const { contracts, provider, chainId, startBlock, blockLimit } = sourceGroup;
 
   // If hot reloading, we will re-enter this function during the lifecycle
   // of the provider. Must remove the old block listener.
@@ -56,16 +54,14 @@ export const reindexSourceGroup = async ({
       currentBlockNumber = latestBlock.number;
       isCurrentBlockRequestSuccessful = true;
     } catch (err) {
-      logger.error(
-        `Failed to fetch current block for chainId: ${sourceGroup.chainId}`
-      );
+      logger.error(`Failed to fetch current block for chainId: ${chainId}`);
       isCurrentBlockRequestSuccessful = false;
     }
   }
 
   console.log("got current block number:", { currentBlockNumber });
 
-  const requestedStartBlock = sourceGroup.startBlock;
+  const requestedStartBlock = startBlock;
   const requestedEndBlock = currentBlockNumber;
   totalRequestedBlockCount += requestedEndBlock - requestedStartBlock;
 
@@ -113,7 +109,7 @@ export const reindexSourceGroup = async ({
   for (const blockRange of blockRanges) {
     const { startBlock, endBlock } = blockRange;
     let fromBlock = startBlock;
-    let toBlock = Math.min(fromBlock + BLOCK_LIMIT, endBlock);
+    let toBlock = Math.min(fromBlock + blockLimit, endBlock);
 
     while (fromBlock < endBlock) {
       historicalLogsRequestQueue.push({
@@ -124,14 +120,14 @@ export const reindexSourceGroup = async ({
       });
 
       fromBlock = toBlock + 1;
-      toBlock = Math.min(fromBlock + BLOCK_LIMIT, endBlock);
+      toBlock = Math.min(fromBlock + blockLimit, endBlock);
     }
   }
 
-  if (totalRequestedBlockCount - cachedBlockCount > 2000) {
+  if (totalRequestedBlockCount - cachedBlockCount > blockLimit) {
     logger.info(
       `\x1b[33m${`FETCHING LOGS IN ~${Math.round(
-        totalRequestedBlockCount / BLOCK_LIMIT
+        totalRequestedBlockCount / blockLimit
       )}`} LOG BATCHES` // yellow
     );
   }

@@ -13,8 +13,14 @@ import type { EvmSource } from "@/sources/evm";
 import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
 
-import { Handlers, readHandlers } from "./readHandlers";
-import { readPonderConfig } from "./readPonderConfig";
+import type { Handlers } from "./readHandlers";
+import { readHandlers } from "./readHandlers";
+import {
+  buildEvmSources,
+  buildGraphqlApi,
+  buildSqliteStores,
+  readPonderConfig,
+} from "./readPonderConfig";
 import { readSchema } from "./readSchema";
 import type { PonderSchema } from "./schema/types";
 
@@ -64,12 +70,21 @@ export const runTask = async (task: Task) => {
 export const readPonderConfigTask: Task = {
   name: TaskName.READ_PONDER_CONFIG,
   handler: async () => {
-    const { sources, cacheStore, entityStore, api } = readPonderConfig();
+    const config = readPonderConfig();
 
+    const { sources } = buildEvmSources(config);
     state.sources = sources;
-    state.cacheStore = cacheStore;
-    state.entityStore = entityStore;
-    state.api = api;
+
+    if (!state.entityStore || !state.cacheStore) {
+      const { entityStore, cacheStore } = buildSqliteStores(config);
+      state.entityStore = entityStore;
+      state.cacheStore = cacheStore;
+    }
+
+    // This currently won't hot reload if the server port changes.
+    if (!state.api) {
+      state.api = buildGraphqlApi(config, state.entityStore);
+    }
   },
   dependencies: [
     TaskName.GENERATE_HANDLER_TYPES,

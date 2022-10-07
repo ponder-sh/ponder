@@ -16,6 +16,7 @@ export type SourceGroup = {
   provider: StaticJsonRpcProvider;
   contracts: string[];
   startBlock: number;
+  blockLimit: number;
 };
 
 // This is a pretty hacky way to get cache hit stats that works with the dev server.
@@ -53,6 +54,7 @@ export const handleReindex = async (
     const sourcesInGroup = sources.filter((s) => s.chainId === chainId);
 
     const startBlock = Math.min(...sourcesInGroup.map((s) => s.startBlock));
+    const blockLimit = Math.min(...sourcesInGroup.map((s) => s.blockLimit));
     const contractAddresses = sourcesInGroup.map((s) => s.address);
 
     return {
@@ -60,6 +62,7 @@ export const handleReindex = async (
       provider: sourcesInGroup[0].provider,
       contracts: contractAddresses,
       startBlock,
+      blockLimit,
     };
   });
 

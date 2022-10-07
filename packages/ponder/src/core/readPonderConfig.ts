@@ -6,26 +6,28 @@ import { GraphqlApi } from "@/apis/graphql";
 import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
 import { EvmSource } from "@/sources/evm";
+import type { EntityStore } from "@/stores/baseEntityStore";
 import { SqliteCacheStore } from "@/stores/sqliteCacheStore";
 import { SqliteEntityStore } from "@/stores/sqliteEntityStore";
 
-type PonderConfigFile = {
+export type PonderConfig = {
   database: {
     kind: string;
     filename?: string;
   };
+  graphql: {
+    port: number;
+  };
   sources: {
     kind: string;
     name: string;
-    chainId: 1;
+    chainId: number;
     rpcUrl: string;
     abi: string;
     address: string;
-    startBlock: number;
-  }[];
-  apis: {
-    kind: string;
-    port: number;
+    startBlock?: number;
+    pollingInterval?: number;
+    blockLimit?: number;
   }[];
 };
 
@@ -34,18 +36,17 @@ export const readPonderConfig = () => {
   // it several times in the same process and need the latest version each time.
   // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const rawUserConfig = require(CONFIG.PONDER_CONFIG_FILE_PATH);
+  const rawConfig = require(CONFIG.PONDER_CONFIG_FILE_PATH);
   delete require.cache[require.resolve(CONFIG.PONDER_CONFIG_FILE_PATH)];
 
   // TODO: Validate config kek
-  const userConfig = rawUserConfig as PonderConfigFile;
+  const config = rawConfig as PonderConfig;
 
-  if (userConfig.apis.length > 1) {
-    throw new Error(`Cannot create more than one API`);
-  }
+  return config;
+};
 
-  // Build sources.
-  const sources = userConfig.sources.map((source) => {
+export const buildEvmSources = (config: PonderConfig) => {
+  const sources = config.sources.map((source) => {
     const abiString = readFileSync(source.abi, "utf-8");
     const abiObject = JSON.parse(abiString);
     const abi = abiObject.abi ? abiObject.abi : abiObject;
@@ -62,26 +63,31 @@ export const readPonderConfig = () => {
       source.address,
       source.abi,
       abiInterface,
-      source.startBlock
+      source.startBlock,
+      source.pollingInterval,
+      source.blockLimit
     );
   });
 
+  return { sources };
+};
+
+export const buildSqliteStores = (config: PonderConfig) => {
   // Build store.
   const defaultDbFilePath = `./.ponder/cache.db`;
-  const db = Sqlite(userConfig.database.filename || defaultDbFilePath, {
+  const db = Sqlite(config.database.filename || defaultDbFilePath, {
     verbose: logger.trace,
   });
   const cacheStore = new SqliteCacheStore(db);
   const entityStore = new SqliteEntityStore(db);
 
-  // Build API.
-  const port = userConfig.apis[0].port;
-  const api = new GraphqlApi(port, entityStore);
+  return { cacheStore, entityStore };
+};
 
-  return {
-    sources,
-    cacheStore,
-    entityStore,
-    api,
-  };
+export const buildGraphqlApi = (
+  config: PonderConfig,
+  entityStore: EntityStore
+) => {
+  const port = config.graphql.port;
+  return new GraphqlApi(port, entityStore);
 };
