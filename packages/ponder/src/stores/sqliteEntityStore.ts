@@ -32,7 +32,6 @@ export class SqliteEntityStore implements BaseEntityStore {
           (field): field is ScalarField => field.kind !== FieldKind.DERIVED
         )
         .map((field) => field.migrateUpStatement);
-      columnStatements.push(`\`createdAt\` datetime`, `\`updatedAt\` datetime`);
 
       this.db
         .prepare(
