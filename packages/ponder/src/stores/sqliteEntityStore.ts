@@ -214,40 +214,6 @@ export class SqliteEntityStore implements BaseEntityStore {
     return this.deserialize(entityName, updatedEntity);
   }
 
-  async upsertEntity<T>(entityName: string, attributes: any): Promise<T> {
-    if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
-    }
-
-    const entity = this.schema.entityByName[entityName];
-
-    const columnStatements = Object.entries(attributes).map(
-      ([fieldName, value]) => {
-        const field = entity.fieldByName[fieldName];
-        return {
-          column: `\`${fieldName}\``,
-          value: `'${value}'`,
-        };
-      }
-    );
-
-    const insertFragment = `(${columnStatements
-      .map((s) => s.column)
-      .join(", ")}) values (${columnStatements
-      .map((s) => s.value)
-      .join(", ")})`;
-
-    const updateFragment = columnStatements
-      .filter((s) => s.column !== "id")
-      .map((s) => `${s.column}=excluded.${s.column}`)
-      .join(", ");
-
-    const statement = `insert into \`${entityName}\` ${insertFragment} on conflict(\`id\`) do update set ${updateFragment} returning *`;
-    const upsertedEntity = this.db.prepare(statement).get();
-
-    return this.deserialize(entityName, upsertedEntity);
-  }
-
   async deleteEntity(entityName: string, id: string): Promise<void> {
     if (!this.schema) {
       throw new Error(`SqliteStore has not been initialized with a schema yet`);

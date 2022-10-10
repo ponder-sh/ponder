@@ -34,7 +34,6 @@ export const createLogQueue = ({
       get: async (id) => entityStore.getEntity(entityName, id),
       insert: async (obj) => entityStore.insertEntity(entityName, obj),
       update: async (obj) => entityStore.updateEntity(entityName, obj),
-      upsert: async (obj) => entityStore.upsertEntity(entityName, obj),
       delete: async (id) => entityStore.deleteEntity(entityName, id),
     };
 

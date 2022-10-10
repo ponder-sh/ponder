@@ -28,8 +28,6 @@ export interface BaseEntityStore {
     attributes: { id: string } & T
   ): Promise<T>;
 
-  upsertEntity<T>(entityName: string, attributes: T): Promise<T>;
-
   deleteEntity(entityName: string, id: string): Promise<void>;
 }
 

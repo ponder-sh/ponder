@@ -23,7 +23,6 @@ export type EntityModel = {
       id: string;
     } & Partial<EntityInstance>
   ) => Promise<EntityInstance>;
-  upsert: (obj: EntityInstance) => Promise<EntityInstance>;
   delete: (id: string) => Promise<void>;
 };
 
