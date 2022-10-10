@@ -179,7 +179,7 @@ export class SqliteEntityStore implements BaseEntityStore {
     const statement = `insert into \`${entityName}\` ${insertFragment} returning *`;
     const insertedEntity = this.db.prepare(statement).get();
 
-    return insertedEntity;
+    return this.deserialize(entityName, insertedEntity);
   }
 
   async updateEntity<T>(
@@ -209,9 +209,9 @@ export class SqliteEntityStore implements BaseEntityStore {
       .join(", ");
 
     const statement = `update \`${entityName}\` set ${updateFragment} where \`id\` = @id returning *`;
-    const upsertedEntity = this.db.prepare(statement).get({ id: id });
+    const updatedEntity = this.db.prepare(statement).get({ id: id });
 
-    return upsertedEntity;
+    return this.deserialize(entityName, updatedEntity);
   }
 
   async upsertEntity<T>(entityName: string, attributes: any): Promise<T> {
@@ -245,7 +245,7 @@ export class SqliteEntityStore implements BaseEntityStore {
     const statement = `insert into \`${entityName}\` ${insertFragment} on conflict(\`id\`) do update set ${updateFragment} returning *`;
     const upsertedEntity = this.db.prepare(statement).get();
 
-    return upsertedEntity;
+    return this.deserialize(entityName, upsertedEntity);
   }
 
   async deleteEntity(entityName: string, id: string): Promise<void> {
