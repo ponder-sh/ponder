@@ -120,6 +120,11 @@ export class SqliteCacheStore implements BaseCacheStore {
 
   upsertLog = async (log: Log) => {
     try {
+      const decimalBlockNumber =
+        typeof log.blockNumber === "string"
+          ? parseInt((log.blockNumber as string).slice(2), 16)
+          : log.blockNumber;
+
       this.db
         .prepare(
           `INSERT INTO logs (\`id\`, \`blockNumber\`, \`address\`, \`data\`) VALUES (@id, @blockNumber, @address, @data)
@@ -132,7 +137,7 @@ export class SqliteCacheStore implements BaseCacheStore {
         )
         .run({
           id: `${log.blockHash}-${log.logIndex}`,
-          blockNumber: log.blockNumber,
+          blockNumber: decimalBlockNumber,
           address: log.address,
           data: JSON.stringify(log),
         });
@@ -143,13 +148,18 @@ export class SqliteCacheStore implements BaseCacheStore {
 
   insertBlock = async (block: Block) => {
     try {
+      const decimalBlockNumber =
+        typeof block.number === "string"
+          ? parseInt((block.number as string).slice(2), 16)
+          : block.number;
+
       this.db
         .prepare(
           `INSERT INTO blocks (\`id\`, \`number\`, \`data\`) VALUES (@id, @number, @data)`
         )
         .run({
           id: block.hash,
-          number: block.number,
+          number: decimalBlockNumber,
           data: JSON.stringify(block),
         });
     } catch (err) {
