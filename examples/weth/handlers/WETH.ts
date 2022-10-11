@@ -9,8 +9,8 @@ const handleTransfer: TransferHandler = async (event, context) => {
 
   const existingSrcAccount = await Account.get(src);
   if (existingSrcAccount) {
-    await Account.upsert({
-      ...existingSrcAccount,
+    await Account.update({
+      id: existingSrcAccount.id,
       balance: BigNumber.from(existingSrcAccount.balance).sub(wad).toString(),
       lastActivityTimestamp: block.timestamp,
     });
@@ -24,8 +24,8 @@ const handleTransfer: TransferHandler = async (event, context) => {
 
   const existingDstAccount = await Account.get(dst);
   if (existingDstAccount) {
-    await Account.upsert({
-      ...existingDstAccount,
+    await Account.update({
+      id: existingDstAccount.id,
       balance: BigNumber.from(existingDstAccount.balance).add(wad).toString(),
       lastActivityTimestamp: block.timestamp,
     });
@@ -46,8 +46,8 @@ const handleApproval: ApprovalHandler = async (event, context) => {
 
   const existingAllowance = await Allowance.get(allowanceId);
   if (existingAllowance) {
-    await Allowance.upsert({
-      ...existingAllowance,
+    await Allowance.update({
+      id: existingAllowance.id,
       amount: BigNumber.from(existingAllowance.amount).add(wad).toString(),
     });
   } else {
