@@ -32,7 +32,7 @@ export const createHistoricalLogsRequestQueue = ({
   >(
     { cacheStore, sourceGroup, historicalBlockRequestQueue },
     historicalLogsRequestWorker,
-    1
+    10 // TODO: Make this configurable
   );
 
   queue.error((err, task) => {

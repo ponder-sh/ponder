@@ -33,7 +33,11 @@ export const createHistoricalBlockRequestQueue = ({
   const queue = fastq.promise<
     HistoricalBlockRequestWorkerContext,
     HistoricalBlockRequestTask
-  >({ cacheStore, sourceGroup }, historicalBlockRequestWorker, 1);
+  >(
+    { cacheStore, sourceGroup },
+    historicalBlockRequestWorker,
+    10 // TODO: Make this configurable
+  );
 
   queue.error((err, task) => {
     if (err) {
