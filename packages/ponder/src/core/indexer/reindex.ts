@@ -1,4 +1,4 @@
-import type { StaticJsonRpcProvider } from "@ethersproject/providers";
+import type { Log, StaticJsonRpcProvider } from "@ethersproject/providers";
 
 import { logger } from "@/common/logger";
 import { endBenchmark, startBenchmark } from "@/common/utils";
@@ -10,6 +10,7 @@ import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
 
 import { reindexSourceGroup } from "./reindexSourceGroup";
+import { getLogIndex } from "./utils";
 
 export type SourceGroup = {
   chainId: number;
@@ -36,11 +37,9 @@ export const handleReindex = async (
   userHandlers: Handlers
 ) => {
   const startHrt = startBenchmark();
-  logger.info(
-    `\x1b[33m${`${
-      isInitialIndexing ? "FETCHING" : "PROCESSING"
-    } HISTORICAL LOGS...`}\x1b[0m`
-  ); // yellow
+  if (isInitialIndexing) {
+    logger.info(`\x1b[33m${`Fetching historical data...`}\x1b[0m`); // yellow
+  }
 
   // Prepare user store.
   await entityStore.migrate(schema);
@@ -75,20 +74,45 @@ export const handleReindex = async (
   });
   logQueue.pause();
 
+  await Promise.all(
+    sourceGroups.map((sourceGroup) =>
+      reindexSourceGroup({ cacheStore, logQueue, sourceGroup })
+    )
+  );
+
+  let logsFromAllSources: Log[] = [];
   for (const sourceGroup of sourceGroups) {
-    await reindexSourceGroup({ cacheStore, logQueue, sourceGroup });
+    const logs = await cacheStore.getLogs(
+      sourceGroup.contracts,
+      sourceGroup.startBlock
+    );
+    logsFromAllSources = logsFromAllSources.concat(logs);
   }
 
-  const diff = endBenchmark(startHrt);
+  const sortedLogs = logsFromAllSources.sort(
+    (a, b) => getLogIndex(a) - getLogIndex(b)
+  );
 
+  // Add sorted historical logs to the front of the queue (in reverse order).
+  for (const log of sortedLogs.reverse()) {
+    logQueue.unshift(log);
+  }
+
+  logger.debug(
+    `Running user handlers against ${sortedLogs.length} historical logs`
+  );
+
+  // Process historical logs (note the await).
+  logQueue.resume();
+  await logQueue.drained();
+
+  const diff = endBenchmark(startHrt);
   const rpcRequestCount =
     reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;
   const cacheHitRate = Math.round(reindexStatistics.cacheHitRate * 1000) / 10;
 
   logger.info(
-    `\x1b[32m${`${
-      isInitialIndexing ? "FETCHED" : "PROCESSED"
-    } HISTORICAL LOGS (${diff}, ${rpcRequestCount} RPC request${
+    `\x1b[32m${`Historical sync complete (${diff}, ${rpcRequestCount} RPC request${
       rpcRequestCount === 1 ? "" : "s"
     }, ${
       cacheHitRate >= 99.9 ? ">99.9" : cacheHitRate

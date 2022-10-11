@@ -1,10 +1,11 @@
-import type { Block, JsonRpcProvider } from "@ethersproject/providers";
+import type { Block } from "@ethersproject/providers";
 import type { Transaction } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import type { CacheStore } from "@/stores/baseCacheStore";
 
+import type { SourceGroup } from "./reindex";
 import { reindexStatistics } from "./reindex";
 
 export interface BlockWithTransactions extends Omit<Block, "transactions"> {
@@ -17,23 +18,28 @@ export interface TransactionWithHash extends Omit<Transaction, "hash"> {
 
 export type HistoricalBlockRequestTask = {
   blockHash: string;
-  provider: JsonRpcProvider;
 };
 
-export type HistoricalBlockRequestWorkerContext = { cacheStore: CacheStore };
+export type HistoricalBlockRequestWorkerContext = {
+  cacheStore: CacheStore;
+  sourceGroup: SourceGroup;
+};
 
 export const createHistoricalBlockRequestQueue = ({
   cacheStore,
+  sourceGroup,
 }: HistoricalBlockRequestWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<
     HistoricalBlockRequestWorkerContext,
     HistoricalBlockRequestTask
-  >({ cacheStore }, historicalBlockRequestWorker, 1);
+  >({ cacheStore, sourceGroup }, historicalBlockRequestWorker, 1);
 
   queue.error((err, task) => {
     if (err) {
-      logger.error("error in historical block worker:", { err, task });
+      logger.error("error in historical block worker, retrying...:");
+      logger.error({ task, err });
+      queue.push(task);
     }
   });
 
@@ -42,9 +48,10 @@ export const createHistoricalBlockRequestQueue = ({
 
 async function historicalBlockRequestWorker(
   this: HistoricalBlockRequestWorkerContext,
-  { blockHash, provider }: HistoricalBlockRequestTask
+  { blockHash }: HistoricalBlockRequestTask
 ) {
-  const { cacheStore } = this;
+  const { cacheStore, sourceGroup } = this;
+  const { provider } = sourceGroup;
 
   const cachedBlock = await cacheStore.getBlock(blockHash);
   if (cachedBlock) {
@@ -61,7 +68,7 @@ async function historicalBlockRequestWorker(
     reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;
   if (requestCount % 10 === 0) {
     logger.info(
-      `\x1b[34m${`${requestCount} RPC REQUESTS COMPLETED`}\x1b[0m` // blue
+      `\x1b[34m${`${requestCount} RPC requests completed`}\x1b[0m` // blue
     );
   }
 

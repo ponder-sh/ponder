@@ -1,26 +1,28 @@
-import type { JsonRpcProvider, Log } from "@ethersproject/providers";
+import type { Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
-import { CacheStore } from "@/stores/baseCacheStore";
+import type { CacheStore } from "@/stores/baseCacheStore";
 
+import type { SourceGroup } from "./reindex";
 import { reindexStatistics } from "./reindex";
 
 export type HistoricalLogsRequestTask = {
   contractAddresses: string[];
   fromBlock: number;
   toBlock: number;
-  provider: JsonRpcProvider;
 };
 
 export type HistoricalLogsRequestWorkerContext = {
   cacheStore: CacheStore;
+  sourceGroup: SourceGroup;
   historicalBlockRequestQueue: fastq.queueAsPromised;
 };
 
 export const createHistoricalLogsRequestQueue = ({
   cacheStore,
+  sourceGroup,
   historicalBlockRequestQueue,
 }: HistoricalLogsRequestWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
@@ -28,14 +30,16 @@ export const createHistoricalLogsRequestQueue = ({
     HistoricalLogsRequestWorkerContext,
     HistoricalLogsRequestTask
   >(
-    { cacheStore, historicalBlockRequestQueue },
+    { cacheStore, sourceGroup, historicalBlockRequestQueue },
     historicalLogsRequestWorker,
     1
   );
 
   queue.error((err, task) => {
     if (err) {
-      logger.error("error in historical log worker:", { err, task });
+      logger.error("error in historical log worker, retrying...:");
+      logger.error({ task, err });
+      queue.push(task);
     }
   });
 
@@ -44,9 +48,10 @@ export const createHistoricalLogsRequestQueue = ({
 
 async function historicalLogsRequestWorker(
   this: HistoricalLogsRequestWorkerContext,
-  { contractAddresses, fromBlock, toBlock, provider }: HistoricalLogsRequestTask
+  { contractAddresses, fromBlock, toBlock }: HistoricalLogsRequestTask
 ) {
-  const { cacheStore, historicalBlockRequestQueue } = this;
+  const { cacheStore, sourceGroup, historicalBlockRequestQueue } = this;
+  const { provider } = sourceGroup;
 
   const logs: Log[] = await provider.send("eth_getLogs", [
     {
@@ -61,7 +66,7 @@ async function historicalLogsRequestWorker(
     reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;
   if (requestCount % 10 === 0) {
     logger.info(
-      `\x1b[34m${`${requestCount} RPC REQUESTS COMPLETED`}\x1b[0m` // blue
+      `\x1b[34m${`${requestCount} RPC requests completed`}\x1b[0m` // blue
     );
   }
 

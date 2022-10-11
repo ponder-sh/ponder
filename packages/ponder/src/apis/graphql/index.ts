@@ -38,7 +38,7 @@ export class GraphqlApi implements BaseApi {
       this.app.use("/graphql", (...args) => this.graphqlMiddleware!(...args));
       this.server = this.app.listen(port);
       logger.info(
-        `\x1b[35m${`SERVING GRAPHQL API AT http://localhost:${port}/graphql`}\x1b[0m`
+        `\x1b[35m${`Serving GraphQL API at http://localhost:${port}/graphql`}\x1b[0m`
       ); // magenta
     } else if (newPort) {
       this.port = newPort;
@@ -46,10 +46,10 @@ export class GraphqlApi implements BaseApi {
       this.server.close();
       this.server = this.app.listen(this.port);
       logger.info(
-        `\x1b[35m${`SERVING GRAPHQL API AT http://localhost:${this.port}/graphql`}\x1b[0m`
+        `\x1b[35m${`Serving GraphQL API at http://localhost:${this.port}/graphql`}\x1b[0m`
       ); // magenta
     } else {
-      logger.info(`\x1b[35m${`RESTARTED GRAPHQL API`}\x1b[0m`); // magenta
+      logger.info(`\x1b[35m${`Restarted GraphQL server`}\x1b[0m`); // magenta
     }
   }
 }

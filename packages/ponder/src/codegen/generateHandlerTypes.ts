@@ -52,7 +52,7 @@ const generateHandlerTypes = async (sources: Source[]) => {
     })
   );
 
-  logger.info(`\x1b[36m${"GENERATED HANDLER TYPES"}\x1b[0m`); // magenta
+  logger.info(`\x1b[36m${"Generated handler types"}\x1b[0m`); // magenta
 };
 
 // HELPERS

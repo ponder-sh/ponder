@@ -10,30 +10,34 @@ import type {
   TransactionWithHash,
 } from "./historicalBlockRequestQueue";
 import type { SourceGroup } from "./reindex";
+import { getLogIndex } from "./utils";
 
 export type LiveBlockRequestTask = {
-  sourceGroup: SourceGroup;
   blockNumber: number;
 };
 
 export type LiveBlockRequestWorkerContext = {
   cacheStore: CacheStore;
+  sourceGroup: SourceGroup;
   logQueue: fastq.queueAsPromised;
 };
 
 export const createLiveBlockRequestQueue = ({
   cacheStore,
+  sourceGroup,
   logQueue,
 }: LiveBlockRequestWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<
     LiveBlockRequestWorkerContext,
     LiveBlockRequestTask
-  >({ cacheStore, logQueue }, liveBlockRequestWorker, 1);
+  >({ cacheStore, sourceGroup, logQueue }, liveBlockRequestWorker, 1);
 
   queue.error((err, task) => {
     if (err) {
-      logger.error("error in live block worker:", { err, task });
+      logger.error("error in live block worker, retrying...:");
+      logger.error({ task, err });
+      queue.push(task);
     }
   });
 
@@ -45,10 +49,10 @@ export const createLiveBlockRequestQueue = ({
 // It then enqueues a task to process the block (using user handler code).
 async function liveBlockRequestWorker(
   this: LiveBlockRequestWorkerContext,
-  { sourceGroup, blockNumber }: LiveBlockRequestTask
+  { blockNumber }: LiveBlockRequestTask
 ) {
-  const { cacheStore, logQueue } = this;
-  const { provider, chainId, contracts } = sourceGroup;
+  const { cacheStore, sourceGroup, logQueue } = this;
+  const { provider, contracts } = sourceGroup;
 
   const [logs, block] = await Promise.all([
     provider.send("eth_getLogs", [
@@ -63,13 +67,6 @@ async function liveBlockRequestWorker(
       true,
     ]) as Promise<BlockWithTransactions>,
   ]);
-
-  logger.debug({
-    chainId,
-    blockNumber,
-    matchedLogCount: logs.length,
-    blockTransactionCount: block.transactions.length,
-  });
 
   const transactions = block.transactions.filter(
     (txn): txn is TransactionWithHash => !!txn.hash
@@ -89,11 +86,9 @@ async function liveBlockRequestWorker(
   }
 
   logger.info(
-    `\x1b[34m${`FETCHED ${logs.length} LOGS FROM BLOCK ${blockNumber}`}\x1b[0m` // blue
+    `\x1b[33m${`Matched ${logs.length} logs from block ${blockNumber} (${block.transactions.length} txns)`}\x1b[0m` // blue
   );
 
-  const getLogIndex = (log: Log) =>
-    Number(log.blockNumber) * 10000 + Number(log.logIndex);
   const sortedLogs = logs.sort((a, b) => getLogIndex(a) - getLogIndex(b));
 
   // Add the logs and update metadata.
@@ -122,9 +117,7 @@ async function liveBlockRequestWorker(
     }
   }
 
-  // Add the logs to the log queue.
-  for (let i = sortedLogs.length - 1; i >= 0; i--) {
-    const log = sortedLogs[i];
-    logQueue.unshift(log);
+  for (const log of sortedLogs) {
+    logQueue.push(log);
   }
 }

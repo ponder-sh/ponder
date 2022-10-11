@@ -1,4 +1,3 @@
-import type { Log } from "@ethersproject/providers";
 import type fastq from "fastq";
 
 import { logger } from "@/common/logger";
@@ -9,6 +8,7 @@ import { createHistoricalLogsRequestQueue } from "./historicalLogsRequestQueue";
 import { createLiveBlockRequestQueue } from "./liveBlockRequestQueue";
 import type { SourceGroup } from "./reindex";
 import { reindexStatistics } from "./reindex";
+import { p1_excluding_p2 } from "./utils";
 
 export const reindexSourceGroup = async ({
   sourceGroup,
@@ -28,16 +28,27 @@ export const reindexSourceGroup = async ({
   // Create queues.
   const historicalBlockRequestQueue = createHistoricalBlockRequestQueue({
     cacheStore,
+    sourceGroup,
   });
 
   const historicalLogsRequestQueue = createHistoricalLogsRequestQueue({
     cacheStore,
+    sourceGroup,
     historicalBlockRequestQueue,
   });
 
   const liveBlockRequestQueue = createLiveBlockRequestQueue({
     cacheStore,
+    sourceGroup,
     logQueue,
+  });
+
+  // Pause the live block request queue, but begin adding tasks to it.
+  // Once the historical sync is complete, unpause it to process the backlog of
+  // tasks that were added during historical sync and new live logs.
+  liveBlockRequestQueue.pause();
+  provider.on("block", (blockNumber: number) => {
+    liveBlockRequestQueue.push({ blockNumber });
   });
 
   // Store stuff for stat calcs.
@@ -72,62 +83,37 @@ export const reindexSourceGroup = async ({
   }
 
   // Build an array of block ranges that need to be fetched for this group of contracts.
-  const blockRanges: { startBlock: number; endBlock: number }[] = [];
+  const blockRanges: number[][] = [];
 
   const cachedBlockRange = await cacheStore.getCachedBlockRange(contracts);
 
-  logger.debug({
-    requestedStartBlock,
-    requestedEndBlock,
-    cachedBlockRange,
-  });
-
-  if (!cachedBlockRange) {
-    blockRanges.push({
-      startBlock: requestedStartBlock,
-      endBlock: requestedEndBlock,
-    });
-  } else {
+  if (cachedBlockRange) {
     const { maxStartBlock, minEndBlock } = cachedBlockRange;
 
-    // If there is overlap between the right of the requested range
-    // and the left of the cached range, add the required subset.
-    if (requestedStartBlock < maxStartBlock) {
-      blockRanges.push({
-        startBlock: requestedStartBlock,
-        endBlock: maxStartBlock,
-      });
-    }
+    const requiredRanges = p1_excluding_p2(
+      [requestedStartBlock, requestedEndBlock],
+      [maxStartBlock, minEndBlock]
+    );
 
-    // If there is overlap between the right of the cached range
-    // and the left of the requested range, add the required subset.
-    // Most common scenario during hot reloading.
-    if (requestedEndBlock > minEndBlock) {
-      blockRanges.push({
-        startBlock: minEndBlock,
-        endBlock: requestedEndBlock,
-      });
-    }
-
-    // If there is no overlap between the cached range and the requested range,
-    // add the requested range.
-    if (
-      requestedEndBlock < maxStartBlock ||
-      requestedStartBlock > minEndBlock
-    ) {
-      blockRanges.push({
-        startBlock: requestedStartBlock,
-        endBlock: requestedEndBlock,
-      });
+    for (const requiredRange of requiredRanges) {
+      blockRanges.push(requiredRange);
     }
 
     cachedBlockCount += minEndBlock - maxStartBlock;
+  } else {
+    blockRanges.push([requestedStartBlock, requestedEndBlock]);
   }
 
-  logger.debug({ blockRanges });
+  logger.debug({
+    requestedRange: [requestedStartBlock, requestedEndBlock],
+    cachedRange: cachedBlockRange
+      ? [cachedBlockRange.maxStartBlock, cachedBlockRange.minEndBlock]
+      : null,
+    requiredRanges: blockRanges,
+  });
 
   for (const blockRange of blockRanges) {
-    const { startBlock, endBlock } = blockRange;
+    const [startBlock, endBlock] = blockRange;
     let fromBlock = startBlock;
     let toBlock = Math.min(fromBlock + blockLimit, endBlock);
 
@@ -136,7 +122,6 @@ export const reindexSourceGroup = async ({
         contractAddresses: contracts,
         fromBlock,
         toBlock,
-        provider,
       });
 
       fromBlock = toBlock + 1;
@@ -146,28 +131,26 @@ export const reindexSourceGroup = async ({
 
   if (totalRequestedBlockCount - cachedBlockCount > blockLimit) {
     logger.info(
-      `\x1b[33m${`FETCHING LOGS IN ~${Math.round(
+      `\x1b[33m${`Fetching historical logs in ~${Math.round(
         totalRequestedBlockCount / blockLimit
-      )}`} LOG BATCHES` // yellow
+      )}`} batches` // yellow
     );
   }
 
   reindexStatistics.cacheHitRate = cachedBlockCount / totalRequestedBlockCount;
 
+  logger.debug("Waiting for the log request queue to clear...");
   logger.debug({
     logRequestQueueLength: historicalLogsRequestQueue.length(),
     logRequestQueueIdle: historicalLogsRequestQueue.idle(),
-    blockRequestQueueLength: historicalBlockRequestQueue.length(),
-    blockRequestQueueIdle: historicalBlockRequestQueue.idle(),
   });
 
   if (!historicalLogsRequestQueue.idle()) {
     await historicalLogsRequestQueue.drained();
   }
 
+  logger.debug("Waiting for the block request queue to clear...");
   logger.debug({
-    logRequestQueueLength: historicalLogsRequestQueue.length(),
-    logRequestQueueIdle: historicalLogsRequestQueue.idle(),
     blockRequestQueueLength: historicalBlockRequestQueue.length(),
     blockRequestQueueIdle: historicalBlockRequestQueue.idle(),
   });
@@ -176,29 +159,7 @@ export const reindexSourceGroup = async ({
     await historicalBlockRequestQueue.drained();
   }
 
-  const historicalLogs = await cacheStore.getLogs(contracts, startBlock);
-
-  const getLogIndex = (log: Log) =>
-    Number(log.blockNumber) * 10000 + Number(log.logIndex);
-  const sortedLogs = historicalLogs.sort(
-    (a, b) => getLogIndex(a) - getLogIndex(b)
-  );
-
-  // Add sorted historical logs to the front of the queue (in reverse order).
-  for (let i = sortedLogs.length - 1; i >= 0; i--) {
-    const log = sortedLogs[i];
-    logQueue.unshift(log);
-  }
-
-  logger.debug(
-    `Running user handlers against ${sortedLogs.length} historical logs`
-  );
-
-  // Process historical logs (note the await).
-  logQueue.resume();
-  await logQueue.drained();
-
-  provider.on("block", (blockNumber: number) => {
-    liveBlockRequestQueue.push({ blockNumber, sourceGroup });
-  });
+  // Process live blocks, including any blocks that were fetched and enqueued during
+  // the historical sync.
+  liveBlockRequestQueue.resume();
 };

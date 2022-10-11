@@ -38,7 +38,7 @@ const generateSchemaTypes = async (gqlSchema: GraphQLSchema) => {
     "utf8"
   );
 
-  logger.info(`\x1b[36m${"GENERATED SCHEMA TYPES"}\x1b[0m`); // magenta
+  logger.info(`\x1b[36m${"Generated schema types"}\x1b[0m`); // magenta
 };
 
 export { generateSchemaTypes };
