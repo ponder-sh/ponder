@@ -44,7 +44,7 @@ const dev = async () => {
 
   const runUpdateUserHandlersTask = createWatchListener(
     async (fileName: string) => {
-      logger.info(`\x1b[33m${`Detected change in: ${fileName}`}\x1b[0m`); // yellow
+      logger.info(`\x1b[35m${`Detected change in: ${fileName}`}\x1b[0m`); // yellow
       runTask(readHandlersTask);
     },
     CONFIG.HANDLERS_DIR_PATH
@@ -52,7 +52,7 @@ const dev = async () => {
 
   const runUpdateUserConfigTask = createWatchListener(async () => {
     logger.info(
-      `\x1b[33m${`Detected change in: ${path.basename(
+      `\x1b[35m${`Detected change in: ${path.basename(
         CONFIG.PONDER_CONFIG_FILE_PATH
       )}`}\x1b[0m`
     ); // yellow
@@ -61,7 +61,7 @@ const dev = async () => {
 
   const runUpdateUserSchemaTask = createWatchListener(async () => {
     logger.info(
-      `\x1b[33m${`Detected change in: ${path.basename(
+      `\x1b[35m${`Detected change in: ${path.basename(
         CONFIG.SCHEMA_FILE_PATH
       )}`}\x1b[0m`
     ); // yellow

@@ -111,14 +111,21 @@ export const handleReindex = async (
     reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;
   const cacheHitRate = Math.round(reindexStatistics.cacheHitRate * 1000) / 10;
 
-  logger.info(
-    `\x1b[32m${`Historical sync complete (${diff}, ${rpcRequestCount} RPC request${
-      rpcRequestCount === 1 ? "" : "s"
-    }, ${
-      cacheHitRate >= 99.9 ? ">99.9" : cacheHitRate
-    }% cache hit rate)`}\x1b[0m`, // green
-    "\n"
-  );
+  const stats = `(${diff}, ${rpcRequestCount} RPC request${
+    rpcRequestCount === 1 ? "" : "s"
+  }, ${cacheHitRate >= 99.9 ? ">99.9" : cacheHitRate}% cache hit rate)`;
+
+  if (isInitialIndexing) {
+    logger.info(
+      `\x1b[32m${`Historical sync complete ${stats}`}\x1b[0m`, // green
+      "\n"
+    );
+  } else {
+    logger.info(
+      `\x1b[32m${`Reload complete ${stats}`}\x1b[0m`, // green
+      "\n"
+    );
+  }
 
   reindexStatistics = {
     logRequestCount: 0,
