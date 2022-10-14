@@ -10,6 +10,7 @@ import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
 
 import { reindexSourceGroup } from "./reindexSourceGroup";
+import { printStats, resetStats, stats } from "./stats";
 import { getLogIndex } from "./utils";
 
 export type SourceGroup = {
@@ -18,13 +19,7 @@ export type SourceGroup = {
   contracts: string[];
   startBlock: number;
   blockLimit: number;
-};
-
-// This is a pretty hacky way to get cache hit stats that works with the dev server.
-export let reindexStatistics = {
-  logRequestCount: 0,
-  blockRequestCount: 0,
-  cacheHitRate: 0,
+  sources: Source[];
 };
 
 let isInitialIndexing = true;
@@ -62,6 +57,7 @@ export const handleReindex = async (
       contracts: contractAddresses,
       startBlock,
       blockLimit,
+      sources: sourcesInGroup,
     };
   });
 
@@ -107,30 +103,21 @@ export const handleReindex = async (
   await logQueue.drained();
 
   const diff = endBenchmark(startHrt);
-  const rpcRequestCount =
-    reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;
-  const cacheHitRate = Math.round(reindexStatistics.cacheHitRate * 1000) / 10;
 
-  const stats = `(${diff}, ${rpcRequestCount} RPC request${
-    rpcRequestCount === 1 ? "" : "s"
-  }, ${cacheHitRate >= 99.9 ? ">99.9" : cacheHitRate}% cache hit rate)`;
+  printStats({ duration: diff });
 
-  if (isInitialIndexing) {
-    logger.info(
-      `\x1b[32m${`Historical sync complete ${stats}`}\x1b[0m`, // green
-      "\n"
-    );
-  } else {
-    logger.info(
-      `\x1b[32m${`Reload complete ${stats}`}\x1b[0m`, // green
-      "\n"
-    );
-  }
+  // if (isInitialIndexing) {
+  //   logger.info(
+  //     `\x1b[32m${`Historical sync complete ${statsString}`}\x1b[0m`, // green
+  //     "\n"
+  //   );
+  // } else {
+  //   logger.info(
+  //     `\x1b[32m${`Reload complete ${statsString}`}\x1b[0m`, // green
+  //     "\n"
+  //   );
+  // }
 
-  reindexStatistics = {
-    logRequestCount: 0,
-    blockRequestCount: 0,
-    cacheHitRate: 0,
-  };
+  resetStats();
   isInitialIndexing = false;
 };

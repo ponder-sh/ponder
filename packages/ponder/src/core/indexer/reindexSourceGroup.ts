@@ -7,7 +7,7 @@ import { createHistoricalBlockRequestQueue } from "./historicalBlockRequestQueue
 import { createHistoricalLogsRequestQueue } from "./historicalLogsRequestQueue";
 import { createLiveBlockRequestQueue } from "./liveBlockRequestQueue";
 import type { SourceGroup } from "./reindex";
-import { reindexStatistics } from "./reindex";
+import { stats } from "./stats";
 import { p1_excluding_p2 } from "./utils";
 
 export const reindexSourceGroup = async ({
@@ -51,10 +51,6 @@ export const reindexSourceGroup = async ({
     liveBlockRequestQueue.push({ blockNumber });
   });
 
-  // Store stuff for stat calcs.
-  let totalRequestedBlockCount = 0;
-  let cachedBlockCount = 0;
-
   // Kinda weird but should work to make sure this RPC request gets done
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   let currentBlockNumber: number = null!;
@@ -72,7 +68,6 @@ export const reindexSourceGroup = async ({
 
   const requestedStartBlock = startBlock;
   const requestedEndBlock = currentBlockNumber;
-  totalRequestedBlockCount += requestedEndBlock - requestedStartBlock;
 
   if (requestedStartBlock > currentBlockNumber) {
     throw new Error(
@@ -98,11 +93,27 @@ export const reindexSourceGroup = async ({
     for (const requiredRange of requiredRanges) {
       blockRanges.push(requiredRange);
     }
-
-    cachedBlockCount += minEndBlock - maxStartBlock;
   } else {
     blockRanges.push([requestedStartBlock, requestedEndBlock]);
   }
+
+  for (const source of sourceGroup.sources) {
+    const metadata = await cacheStore.getContractMetadata(source.address);
+    console.log({ metadata });
+
+    stats.tableRows.push({
+      "source name": source.name,
+      "start block": source.startBlock,
+      "end block": requestedEndBlock,
+      "cache rate": `>99.9%`,
+    });
+  }
+
+  stats.totalRequestedBlockCount += requestedEndBlock - requestedStartBlock;
+  stats.totalFetchedBlockCount += blockRanges.reduce(
+    (total, current) => total + current[1] - current[0],
+    0
+  );
 
   logger.debug({
     requestedRange: [requestedStartBlock, requestedEndBlock],
@@ -128,16 +139,6 @@ export const reindexSourceGroup = async ({
       toBlock = Math.min(fromBlock + blockLimit, endBlock);
     }
   }
-
-  if (totalRequestedBlockCount - cachedBlockCount > blockLimit) {
-    logger.info(
-      `\x1b[33m${`Fetching historical logs in ~${Math.round(
-        totalRequestedBlockCount / blockLimit
-      )}`} batches` // yellow
-    );
-  }
-
-  reindexStatistics.cacheHitRate = cachedBlockCount / totalRequestedBlockCount;
 
   logger.debug("Waiting for the log request queue to clear...");
   logger.debug({

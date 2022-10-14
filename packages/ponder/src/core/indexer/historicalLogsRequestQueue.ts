@@ -6,7 +6,8 @@ import { logger } from "@/common/logger";
 import type { CacheStore } from "@/stores/baseCacheStore";
 
 import type { SourceGroup } from "./reindex";
-import { reindexStatistics } from "./reindex";
+import { stats } from "./stats";
+import { hexStringToNumber } from "./utils";
 
 export type HistoricalLogsRequestTask = {
   contractAddresses: string[];
@@ -53,7 +54,7 @@ async function historicalLogsRequestWorker(
   const { cacheStore, sourceGroup, historicalBlockRequestQueue } = this;
   const { provider } = sourceGroup;
 
-  const logs: Log[] = await provider.send("eth_getLogs", [
+  const rawLogs: Log[] = await provider.send("eth_getLogs", [
     {
       address: contractAddresses,
       fromBlock: BigNumber.from(fromBlock).toHexString(),
@@ -61,9 +62,15 @@ async function historicalLogsRequestWorker(
     },
   ]);
 
-  reindexStatistics.logRequestCount += 1;
-  const requestCount =
-    reindexStatistics.logRequestCount + reindexStatistics.blockRequestCount;
+  // For MOST methods, ethers returns block numbers as hex strings (despite them being typed as 'number').
+  // This codebase treats them as decimals, so it's easiest to just convert immediately after fetching.
+  const logs = rawLogs.map((log) => ({
+    ...log,
+    blockNumber: hexStringToNumber(log.blockNumber),
+  }));
+
+  stats.logRequestCount += 1;
+  const requestCount = stats.logRequestCount + stats.blockRequestCount;
   if (requestCount % 10 === 0) {
     logger.info(
       `\x1b[34m${`${requestCount} RPC requests completed`}\x1b[0m` // blue

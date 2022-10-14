@@ -94,6 +94,7 @@ importers:
       '@types/node': ^18.7.8
       better-sqlite3: ^7.6.2
       commander: ^9.4.0
+      console-table-printer: ^2.11.1
       dotenv: ^16.0.1
       esbuild: ^0.15.2
       ethers: ^5.6.9
@@ -109,6 +110,7 @@ importers:
       '@graphql-codegen/typescript': 2.7.3_graphql@15.8.0
       better-sqlite3: 7.6.2
       commander: 9.4.0
+      console-table-printer: 2.11.1
       dotenv: 16.0.1
       esbuild: 0.15.4
       ethers: 5.6.9
@@ -2287,6 +2289,12 @@ packages:
       inherits: 2.0.4
       readable-stream: 2.3.7
       typedarray: 0.0.6
+    dev: false
+
+  /console-table-printer/2.11.1:
+    resolution: {integrity: sha512-8LfFpbF/BczoxPwo2oltto5bph8bJkGOATXsg3E9ddMJOGnWJciKHldx2zDj5XIBflaKzPfVCjOTl6tMh7lErg==}
+    dependencies:
+      simple-wcswidth: 1.0.1
     dev: false
 
   /constant-case/3.0.4:
@@ -5814,6 +5822,10 @@ packages:
       decompress-response: 6.0.0
       once: 1.4.0
       simple-concat: 1.0.1
+    dev: false
+
+  /simple-wcswidth/1.0.1:
+    resolution: {integrity: sha512-xMO/8eNREtaROt7tJvWJqHBDTMFN4eiQ5I4JRMuilwfnFcV5W9u7RUkueNkdw0jPqGMX36iCywelS5yilTuOxg==}
     dev: false
 
   /slash/3.0.0:

@@ -10,7 +10,7 @@ import type {
   TransactionWithHash,
 } from "./historicalBlockRequestQueue";
 import type { SourceGroup } from "./reindex";
-import { getLogIndex } from "./utils";
+import { getLogIndex, hexStringToNumber } from "./utils";
 
 export type LiveBlockRequestTask = {
   blockNumber: number;
@@ -54,7 +54,7 @@ async function liveBlockRequestWorker(
   const { cacheStore, sourceGroup, logQueue } = this;
   const { provider, contracts } = sourceGroup;
 
-  const [logs, block] = await Promise.all([
+  const [rawLogs, block] = await Promise.all([
     provider.send("eth_getLogs", [
       {
         address: contracts,
@@ -67,6 +67,14 @@ async function liveBlockRequestWorker(
       true,
     ]) as Promise<BlockWithTransactions>,
   ]);
+
+  // For MOST methods, ethers returns block numbers as hex strings (despite them being typed as 'number').
+  // This codebase treats them as decimals, so it's easiest to just convert immediately after fetching.
+  block.number = hexStringToNumber(block.number);
+  const logs = rawLogs.map((log) => ({
+    ...log,
+    blockNumber: hexStringToNumber(log.blockNumber),
+  }));
 
   const transactions = block.transactions.filter(
     (txn): txn is TransactionWithHash => !!txn.hash
