@@ -41,12 +41,6 @@ const buildGqlSchema = (schema: PonderSchema): GraphQLSchema => {
     query: queryType,
   });
 
-  // console.log({
-  //   typeMap: gqlSchema.getTypeMap(),
-  //   tokenType: gqlSchema.getTypeMap()["OkpcToken"].toConfig().fields,
-  //   ownerType: gqlSchema.getTypeMap()["OkpcOwner"].toConfig().fields,
-  // });
-
   return gqlSchema;
 };
 
