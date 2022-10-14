@@ -43,7 +43,7 @@ export const createHistoricalBlockRequestQueue = ({
     if (err) {
       logger.error("error in historical block worker, retrying...:");
       logger.error({ task, err });
-      queue.push(task);
+      queue.unshift(task);
     }
   });
 

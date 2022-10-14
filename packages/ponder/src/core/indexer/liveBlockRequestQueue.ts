@@ -37,7 +37,7 @@ export const createLiveBlockRequestQueue = ({
     if (err) {
       logger.error("error in live block worker, retrying...:");
       logger.error({ task, err });
-      queue.push(task);
+      queue.unshift(task);
     }
   });
 

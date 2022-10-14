@@ -39,7 +39,7 @@ export const createHistoricalLogsRequestQueue = ({
     if (err) {
       logger.error("error in historical log worker, retrying...:");
       logger.error({ task, err });
-      queue.push(task);
+      queue.unshift(task);
     }
   });
 
@@ -99,9 +99,6 @@ async function historicalLogsRequestWorker(
   // Enqueue requests to fetch the block & transaction associated with each log.
   const uniqueBlockHashes = [...new Set(logs.map((l) => l.blockHash))];
   uniqueBlockHashes.forEach((blockHash) => {
-    historicalBlockRequestQueue.push({
-      blockHash,
-      provider,
-    });
+    historicalBlockRequestQueue.push({ blockHash });
   });
 }
