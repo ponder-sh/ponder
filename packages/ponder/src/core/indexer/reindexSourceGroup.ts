@@ -21,10 +21,6 @@ export const reindexSourceGroup = async ({
 }) => {
   const { contracts, provider, chainId, startBlock, blockLimit } = sourceGroup;
 
-  // If hot reloading, we will re-enter this function during the lifecycle
-  // of the provider. Must remove the old block listener.
-  provider.removeAllListeners("block");
-
   // Create queues.
   const historicalBlockRequestQueue = createHistoricalBlockRequestQueue({
     cacheStore,
@@ -116,7 +112,7 @@ export const reindexSourceGroup = async ({
       "end block": requestedEndBlock,
       "cache rate": getPrettyPercentage(cachedCount, totalCount),
       "RPC requests":
-        logRequestCount == 0 ? "0" : `~${Math.round(logRequestCount * 2)}`,
+        logRequestCount === 0 ? "1" : `~${Math.round(logRequestCount * 2)}`,
     });
     stats.sourceCount += 1;
     if (!isHotReload && stats.sourceCount === stats.sourceTotalCount) {

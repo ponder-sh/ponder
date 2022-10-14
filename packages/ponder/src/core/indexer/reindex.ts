@@ -9,6 +9,7 @@ import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
 
+import { CachedProvider } from "./CachedProvider";
 import { reindexSourceGroup } from "./reindexSourceGroup";
 import { resetStats, stats } from "./stats";
 import { getLogIndex } from "./utils";
@@ -23,6 +24,7 @@ export type SourceGroup = {
 };
 
 export let isHotReload = false;
+let previousProviders: CachedProvider[] = [];
 
 export const handleReindex = async (
   cacheStore: CacheStore,
@@ -39,8 +41,18 @@ export const handleReindex = async (
   // Prepare cache store.
   await cacheStore.migrate();
 
+  // Unregister block listeners for stale providers.
+  for (const provider of previousProviders) {
+    provider.removeAllListeners();
+  }
+  previousProviders = [];
+
   // Indexing runs on a per-provider basis so we can batch eth_getLogs calls across contracts.
   const uniqueChainIds = [...new Set(sources.map((s) => s.chainId))];
+
+  const cachedProvidersByChainId: Record<number, CachedProvider | undefined> =
+    {};
+
   const sourceGroups: SourceGroup[] = uniqueChainIds.map((chainId) => {
     const sourcesInGroup = sources.filter((s) => s.chainId === chainId);
 
@@ -48,9 +60,20 @@ export const handleReindex = async (
     const blockLimit = Math.min(...sourcesInGroup.map((s) => s.blockLimit));
     const contractAddresses = sourcesInGroup.map((s) => s.address);
 
+    let provider = cachedProvidersByChainId[chainId];
+    if (!provider) {
+      provider = new CachedProvider(
+        cacheStore,
+        sourcesInGroup[0].rpcUrl,
+        chainId
+      );
+      cachedProvidersByChainId[chainId] = provider;
+    }
+    previousProviders.push(provider);
+
     return {
       chainId,
-      provider: sourcesInGroup[0].provider,
+      provider,
       contracts: contractAddresses,
       startBlock,
       blockLimit,
@@ -72,6 +95,7 @@ export const handleReindex = async (
     sources,
     schema,
     userHandlers,
+    cachedProvidersByChainId,
   });
   logQueue.pause();
 

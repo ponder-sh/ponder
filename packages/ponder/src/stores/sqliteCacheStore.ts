@@ -4,7 +4,11 @@ import type { Transaction } from "ethers";
 
 import { logger } from "@/common/logger";
 
-import type { BaseCacheStore, ContractMetadata } from "./baseCacheStore";
+import type {
+  BaseCacheStore,
+  ContractCall,
+  ContractMetadata,
+} from "./baseCacheStore";
 
 export class SqliteCacheStore implements BaseCacheStore {
   db: Sqlite.Database;
@@ -54,6 +58,15 @@ export class SqliteCacheStore implements BaseCacheStore {
       )`
       )
       .run();
+
+    this.db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS contractCalls (
+        \`key\` TEXT PRIMARY KEY,
+        \`result\` TEXT NOT NULL
+      )`
+      )
+      .run();
   };
 
   getContractMetadata = async (contractAddress: string) => {
@@ -92,8 +105,6 @@ export class SqliteCacheStore implements BaseCacheStore {
   };
 
   upsertContractMetadata = async (attributes: ContractMetadata) => {
-    // console.log('', {attributes})
-
     const columnStatements = Object.entries(attributes).map(
       ([fieldName, value]) => ({
         column: `\`${fieldName}\``,
@@ -122,12 +133,13 @@ export class SqliteCacheStore implements BaseCacheStore {
     try {
       this.db
         .prepare(
-          `INSERT INTO logs (\`id\`, \`blockNumber\`, \`address\`, \`data\`) VALUES (@id, @blockNumber, @address, @data)
-           ON CONFLICT(\`id\`) DO UPDATE SET
+          `
+          INSERT INTO logs (\`id\`, \`blockNumber\`, \`address\`, \`data\`) VALUES (@id, @blockNumber, @address, @data)
+          ON CONFLICT(\`id\`) DO UPDATE SET
             \`blockNumber\`=excluded.\`blockNumber\`,
             \`address\`=excluded.\`address\`,
             \`data\`=excluded.\`data\`
-           RETURNING *
+          RETURNING *
           `
         )
         .run({
@@ -219,8 +231,43 @@ export class SqliteCacheStore implements BaseCacheStore {
 
     if (!result) return null;
 
-    const block: Transaction = JSON.parse(result.data);
+    const transaction: Transaction = JSON.parse(result.data);
 
-    return block;
+    return transaction;
+  };
+
+  upsertContractCall = async (contractCall: ContractCall) => {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO contractCalls (\`key\`, \`result\`)
+          VALUES (@key, @result)
+          ON CONFLICT(\`key\`) DO UPDATE SET
+          \`result\`=excluded.\`result\`
+          RETURNING *
+          `
+        )
+        .run({
+          key: contractCall.key,
+          result: contractCall.result,
+        });
+    } catch (err) {
+      logger.warn({ err });
+    }
+  };
+
+  getContractCall = async (contractCallKey: string) => {
+    const result = this.db
+      .prepare(`SELECT * FROM \`contractCalls\` WHERE \`key\` = @key`)
+      .get({
+        key: contractCallKey,
+      });
+
+    if (!result) return null;
+
+    const contractCall = result as ContractCall;
+
+    return contractCall;
   };
 }

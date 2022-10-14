@@ -9,6 +9,7 @@ import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
 
 import type { EntityModel, Handlers } from "../readHandlers";
+import { CachedProvider } from "./CachedProvider";
 import { stats } from "./stats";
 
 export type LogTask = {
@@ -21,12 +22,14 @@ export const createLogQueue = ({
   sources,
   schema,
   userHandlers,
+  cachedProvidersByChainId,
 }: {
   cacheStore: CacheStore;
   entityStore: EntityStore;
   sources: Source[];
   schema: PonderSchema;
   userHandlers: Handlers;
+  cachedProvidersByChainId: Record<number, CachedProvider | undefined>;
 }) => {
   const entityModels: Record<string, EntityModel> = {};
   schema.entities.forEach((entity) => {
@@ -43,7 +46,12 @@ export const createLogQueue = ({
 
   const contracts: Record<string, Contract | undefined> = {};
   sources.forEach((source) => {
-    contracts[source.name] = source.contract;
+    const cachedProvider = cachedProvidersByChainId[source.chainId];
+    contracts[source.name] = new Contract(
+      source.address,
+      source.abiInterface,
+      cachedProvider
+    );
   });
 
   const handlerContext = {

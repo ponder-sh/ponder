@@ -10,6 +10,11 @@ export type ContractMetadata = {
   endBlock: number;
 };
 
+export type ContractCall = {
+  key: string; // `${chainId}-${blockNumber}-${contractAddress}-${data}`
+  result: string; // Stringified JSON of the contract call result
+};
+
 export interface BaseCacheStore {
   db: Sqlite.Database;
 
@@ -38,6 +43,10 @@ export interface BaseCacheStore {
   getBlock(blockHash: string): Promise<Block | null>;
 
   getTransaction(transactionHash: string): Promise<Transaction | null>;
+
+  upsertContractCall(contractCall: ContractCall): Promise<void>;
+
+  getContractCall(contractCallKey: string): Promise<ContractCall | null>;
 }
 
 export type CacheStore = SqliteCacheStore;
