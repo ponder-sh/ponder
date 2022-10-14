@@ -1,5 +1,7 @@
+import { CanonicalTransactionChain } from "./CanonicalTransactionChain";
 import { OKPC } from "./OKPC";
 
 export default {
-  OKPC: OKPC,
+  OKPC,
+  CanonicalTransactionChain,
 };
