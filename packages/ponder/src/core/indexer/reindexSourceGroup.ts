@@ -99,20 +99,21 @@ export const reindexSourceGroup = async ({
     requiredRanges: blockRanges,
   });
 
-  // Ideally, these stats would be calculated on a source-by-source basis.
-  const fetchedCount = blockRanges.reduce((t, c) => t + c[1] - c[0], 0);
-  const totalCount = requestedEndBlock - requestedStartBlock;
-  const cachedCount = totalCount - fetchedCount;
-  const logRequestCount = fetchedCount / blockLimit;
+  // const fetchedCount = blockRanges.reduce((t, c) => t + c[1] - c[0], 0);
+  // const totalCount = requestedEndBlock - requestedStartBlock;
+  // const cachedCount = totalCount - fetchedCount;
+  // const logRequestCount = fetchedCount / blockLimit;
 
   for (const source of sourceGroup.sources) {
     stats.requestPlanTable.addRow({
       "source name": source.name,
       "start block": source.startBlock,
       "end block": requestedEndBlock,
-      "cache rate": getPrettyPercentage(cachedCount, totalCount),
-      "RPC requests":
-        logRequestCount === 0 ? "1" : `~${Math.round(logRequestCount * 2)}`,
+      // Leaving these out for now because they are a bit misleading.
+      // Reintroduce after implementing contract-level log fetches.
+      // "cache rate": getPrettyPercentage(cachedCount, totalCount),
+      // "RPC requests":
+      //   logRequestCount === 0 ? "1" : `~${Math.round(logRequestCount * 2)}`,
     });
     stats.sourceCount += 1;
     if (!isHotReload && stats.sourceCount === stats.sourceTotalCount) {
@@ -155,7 +156,5 @@ export const reindexSourceGroup = async ({
     await historicalBlockRequestQueue.drained();
   }
 
-  // Process live blocks, including any blocks that were fetched and enqueued during
-  // the historical sync.
-  liveBlockRequestQueue.resume();
+  return liveBlockRequestQueue;
 };

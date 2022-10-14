@@ -101,7 +101,7 @@ export const handleReindex = async (
 
   logger.info(`\x1b[33m${`Starting historical sync...`}\x1b[0m`); // yellow
 
-  await Promise.all(
+  const liveBlockRequestQueues = await Promise.all(
     sourceGroups.map((sourceGroup) =>
       reindexSourceGroup({ cacheStore, logQueue, sourceGroup })
     )
@@ -145,7 +145,7 @@ export const handleReindex = async (
     stats.resultsTable.addRow({
       "source name": source.name,
       "start block": source.startBlock,
-      "matched logs": stats.sourceStats[source.name].matchedLogCount,
+      "all logs": stats.sourceStats[source.name].matchedLogCount,
       "handled logs": stats.sourceStats[source.name].handledLogCount,
     });
   }
@@ -154,6 +154,10 @@ export const handleReindex = async (
     `\x1b[32m${`Log processing complete (${endBenchmark(startHrt)})`}\x1b[0m`, // green
     "\n"
   );
+
+  // Begin processing live blocks for all source groups. This includes
+  // any blocks that were fetched and enqueued during the historical sync.
+  liveBlockRequestQueues.forEach((queue) => queue.resume());
 
   resetStats();
   isHotReload = true;
