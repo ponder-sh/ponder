@@ -1,5 +1,5 @@
 import type { Log } from "@ethersproject/providers";
-import { BigNumber, Contract } from "ethers";
+import { Contract } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
@@ -9,6 +9,7 @@ import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
 
 import type { EntityModel, Handlers } from "../readHandlers";
+import { stats } from "./stats";
 
 export type LogTask = {
   log: Log;
@@ -58,6 +59,8 @@ export const createLogQueue = ({
       return;
     }
 
+    stats.sourceStats[source.name].matchedLogCount += 1;
+
     const parsedLog = source.abiInterface.parseLog(log);
     const params = { ...parsedLog.args };
 
@@ -75,8 +78,7 @@ export const createLogQueue = ({
       return;
     }
 
-    const logBlockNumber = BigNumber.from(log.blockNumber).toNumber();
-    logger.trace(`Processing ${parsedLog.name} from block ${logBlockNumber}`);
+    stats.sourceStats[source.name].handledLogCount += 1;
 
     // Get block & transaction from the cache store and attach to the event.
     const block = await cacheStore.getBlock(log.blockHash);

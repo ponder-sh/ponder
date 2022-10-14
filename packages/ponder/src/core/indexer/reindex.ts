@@ -10,7 +10,7 @@ import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
 
 import { reindexSourceGroup } from "./reindexSourceGroup";
-import { printStats, resetStats, stats } from "./stats";
+import { resetStats, stats } from "./stats";
 import { getLogIndex } from "./utils";
 
 export type SourceGroup = {
@@ -22,7 +22,7 @@ export type SourceGroup = {
   sources: Source[];
 };
 
-let isInitialIndexing = true;
+export let isHotReload = false;
 
 export const handleReindex = async (
   cacheStore: CacheStore,
@@ -31,10 +31,7 @@ export const handleReindex = async (
   schema: PonderSchema,
   userHandlers: Handlers
 ) => {
-  const startHrt = startBenchmark();
-  if (isInitialIndexing) {
-    logger.info(`\x1b[33m${`Fetching historical data...`}\x1b[0m`); // yellow
-  }
+  let startHrt = startBenchmark();
 
   // Prepare user store.
   await entityStore.migrate(schema);
@@ -61,6 +58,14 @@ export const handleReindex = async (
     };
   });
 
+  stats.sourceTotalCount = sources.length;
+  for (const source of sources) {
+    stats.sourceStats[source.name] = {
+      matchedLogCount: 0,
+      handledLogCount: 0,
+    };
+  }
+
   const logQueue = createLogQueue({
     cacheStore,
     entityStore,
@@ -70,11 +75,25 @@ export const handleReindex = async (
   });
   logQueue.pause();
 
+  logger.info(`\x1b[33m${`Starting historical sync...`}\x1b[0m`); // yellow
+
   await Promise.all(
     sourceGroups.map((sourceGroup) =>
       reindexSourceGroup({ cacheStore, logQueue, sourceGroup })
     )
   );
+
+  if (!isHotReload) {
+    logger.info(
+      `\x1b[32m${`Historical sync complete (${endBenchmark(
+        startHrt
+      )})`}\x1b[0m`, // green
+      "\n"
+    );
+  }
+  startHrt = startBenchmark();
+
+  logger.info(`\x1b[33m${`Processing logs...`}\x1b[0m`); // yellow
 
   let logsFromAllSources: Log[] = [];
   for (const sourceGroup of sourceGroups) {
@@ -94,30 +113,24 @@ export const handleReindex = async (
     logQueue.unshift(log);
   }
 
-  logger.debug(
-    `Running user handlers against ${sortedLogs.length} historical logs`
-  );
-
   // Process historical logs (note the await).
   logQueue.resume();
   await logQueue.drained();
 
-  const diff = endBenchmark(startHrt);
-
-  printStats({ duration: diff });
-
-  // if (isInitialIndexing) {
-  //   logger.info(
-  //     `\x1b[32m${`Historical sync complete ${statsString}`}\x1b[0m`, // green
-  //     "\n"
-  //   );
-  // } else {
-  //   logger.info(
-  //     `\x1b[32m${`Reload complete ${statsString}`}\x1b[0m`, // green
-  //     "\n"
-  //   );
-  // }
+  for (const source of sources) {
+    stats.resultsTable.addRow({
+      "source name": source.name,
+      "start block": source.startBlock,
+      "matched logs": stats.sourceStats[source.name].matchedLogCount,
+      "handled logs": stats.sourceStats[source.name].handledLogCount,
+    });
+  }
+  stats.resultsTable.printTable();
+  logger.info(
+    `\x1b[32m${`Log processing complete (${endBenchmark(startHrt)})`}\x1b[0m`, // green
+    "\n"
+  );
 
   resetStats();
-  isInitialIndexing = false;
+  isHotReload = true;
 };

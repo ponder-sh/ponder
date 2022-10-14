@@ -6,8 +6,8 @@ import type { CacheStore } from "@/stores/baseCacheStore";
 import { createHistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
 import { createHistoricalLogsRequestQueue } from "./historicalLogsRequestQueue";
 import { createLiveBlockRequestQueue } from "./liveBlockRequestQueue";
-import type { SourceGroup } from "./reindex";
-import { stats } from "./stats";
+import { isHotReload, SourceGroup } from "./reindex";
+import { getPrettyPercentage, stats } from "./stats";
 import { p1_excluding_p2 } from "./utils";
 
 export const reindexSourceGroup = async ({
@@ -90,30 +90,10 @@ export const reindexSourceGroup = async ({
       [maxStartBlock, minEndBlock]
     );
 
-    for (const requiredRange of requiredRanges) {
-      blockRanges.push(requiredRange);
-    }
+    blockRanges.push(...requiredRanges);
   } else {
     blockRanges.push([requestedStartBlock, requestedEndBlock]);
   }
-
-  for (const source of sourceGroup.sources) {
-    const metadata = await cacheStore.getContractMetadata(source.address);
-    console.log({ metadata });
-
-    stats.tableRows.push({
-      "source name": source.name,
-      "start block": source.startBlock,
-      "end block": requestedEndBlock,
-      "cache rate": `>99.9%`,
-    });
-  }
-
-  stats.totalRequestedBlockCount += requestedEndBlock - requestedStartBlock;
-  stats.totalFetchedBlockCount += blockRanges.reduce(
-    (total, current) => total + current[1] - current[0],
-    0
-  );
 
   logger.debug({
     requestedRange: [requestedStartBlock, requestedEndBlock],
@@ -122,6 +102,27 @@ export const reindexSourceGroup = async ({
       : null,
     requiredRanges: blockRanges,
   });
+
+  // Ideally, these stats would be calculated on a source-by-source basis.
+  const fetchedCount = blockRanges.reduce((t, c) => t + c[1] - c[0], 0);
+  const totalCount = requestedEndBlock - requestedStartBlock;
+  const cachedCount = totalCount - fetchedCount;
+  const logRequestCount = fetchedCount / blockLimit;
+
+  for (const source of sourceGroup.sources) {
+    stats.requestPlanTable.addRow({
+      "source name": source.name,
+      "start block": source.startBlock,
+      "end block": requestedEndBlock,
+      "cache rate": getPrettyPercentage(cachedCount, totalCount),
+      "RPC requests":
+        logRequestCount == 0 ? "0" : `~${Math.round(logRequestCount * 2)}`,
+    });
+    stats.sourceCount += 1;
+    if (!isHotReload && stats.sourceCount === stats.sourceTotalCount) {
+      stats.requestPlanTable.printTable();
+    }
+  }
 
   for (const blockRange of blockRanges) {
     const [startBlock, endBlock] = blockRange;
@@ -143,7 +144,6 @@ export const reindexSourceGroup = async ({
   logger.debug("Waiting for the log request queue to clear...");
   logger.debug({
     logRequestQueueLength: historicalLogsRequestQueue.length(),
-    logRequestQueueIdle: historicalLogsRequestQueue.idle(),
   });
 
   if (!historicalLogsRequestQueue.idle()) {
@@ -153,7 +153,6 @@ export const reindexSourceGroup = async ({
   logger.debug("Waiting for the block request queue to clear...");
   logger.debug({
     blockRequestQueueLength: historicalBlockRequestQueue.length(),
-    blockRequestQueueIdle: historicalBlockRequestQueue.idle(),
   });
 
   if (!historicalBlockRequestQueue.idle()) {
