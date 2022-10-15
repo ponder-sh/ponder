@@ -99,9 +99,9 @@ export const reindexSourceGroup = async ({
     requiredRanges: blockRanges,
   });
 
-  // const fetchedCount = blockRanges.reduce((t, c) => t + c[1] - c[0], 0);
-  // const totalCount = requestedEndBlock - requestedStartBlock;
-  // const cachedCount = totalCount - fetchedCount;
+  const fetchedCount = blockRanges.reduce((t, c) => t + c[1] - c[0], 0);
+  const totalCount = requestedEndBlock - requestedStartBlock;
+  const cachedCount = totalCount - fetchedCount;
   // const logRequestCount = fetchedCount / blockLimit;
 
   for (const source of sourceGroup.sources) {
@@ -109,16 +109,22 @@ export const reindexSourceGroup = async ({
       "source name": source.name,
       "start block": source.startBlock,
       "end block": requestedEndBlock,
-      // Leaving these out for now because they are a bit misleading.
+      "cache rate": getPrettyPercentage(cachedCount, totalCount),
+      // Leaving this out for now because they are a bit misleading.
       // Reintroduce after implementing contract-level log fetches.
-      // "cache rate": getPrettyPercentage(cachedCount, totalCount),
       // "RPC requests":
       //   logRequestCount === 0 ? "1" : `~${Math.round(logRequestCount * 2)}`,
     });
     stats.sourceCount += 1;
     if (!isHotReload && stats.sourceCount === stats.sourceTotalCount) {
-      stats.requestPlanTable.printTable();
+      logger.info("Historical sync plan");
+      logger.info(stats.requestPlanTable.render(), "\n");
     }
+  }
+
+  if (!isHotReload) {
+    // This should not be happening per sourceGroup!
+    stats.progressBar.start(0, 0);
   }
 
   for (const blockRange of blockRanges) {
@@ -135,6 +141,8 @@ export const reindexSourceGroup = async ({
 
       fromBlock = toBlock + 1;
       toBlock = Math.min(fromBlock + blockLimit, endBlock);
+
+      stats.progressBar.setTotal(stats.progressBar.getTotal() + 1);
     }
   }
 

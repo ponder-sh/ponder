@@ -11,7 +11,7 @@ import type { EntityStore } from "@/stores/baseEntityStore";
 
 import { CachedProvider } from "./CachedProvider";
 import { reindexSourceGroup } from "./reindexSourceGroup";
-import { resetStats, stats } from "./stats";
+import { getPrettyPercentage, resetStats, stats } from "./stats";
 import { getLogIndex } from "./utils";
 
 export type SourceGroup = {
@@ -99,7 +99,9 @@ export const handleReindex = async (
   });
   logQueue.pause();
 
-  logger.info(`\x1b[33m${`Starting historical sync...`}\x1b[0m`); // yellow
+  if (!isHotReload) {
+    logger.info(`\x1b[33m${`Starting historical sync...`}\x1b[0m`, "\n"); // yellow
+  }
 
   const liveBlockRequestQueues = await Promise.all(
     sourceGroups.map((sourceGroup) =>
@@ -108,6 +110,7 @@ export const handleReindex = async (
   );
 
   if (!isHotReload) {
+    stats.progressBar.stop();
     logger.info(
       `\x1b[32m${`Historical sync complete (${endBenchmark(
         startHrt
@@ -141,19 +144,43 @@ export const handleReindex = async (
   logQueue.resume();
   await logQueue.drained();
 
-  for (const source of sources) {
-    stats.resultsTable.addRow({
-      "source name": source.name,
-      "start block": source.startBlock,
-      "all logs": stats.sourceStats[source.name].matchedLogCount,
-      "handled logs": stats.sourceStats[source.name].handledLogCount,
-    });
-  }
-  stats.resultsTable.printTable();
   logger.info(
     `\x1b[32m${`Log processing complete (${endBenchmark(startHrt)})`}\x1b[0m`, // green
     "\n"
   );
+
+  for (const source of sources) {
+    stats.resultsTable.addRow({
+      "source name": source.name,
+      "all logs": stats.sourceStats[source.name].matchedLogCount,
+      "handled logs": stats.sourceStats[source.name].handledLogCount,
+    });
+  }
+
+  logger.info("Log summary");
+  logger.info(stats.resultsTable.render(), "\n");
+
+  for (const [key, val] of Object.entries(stats.contractCallStats)) {
+    const [chainId, address] = key.split("-");
+
+    const source = sources.find(
+      (s) =>
+        String(s.chainId) === chainId &&
+        s.address.toLowerCase() === address.toLowerCase()
+    );
+
+    stats.contractCallsTable.addRow({
+      contract: `${address}${source && ` (${source.name})`}`,
+      "call count": val.contractCallTotalCount,
+      "cache hit rate": getPrettyPercentage(
+        val.contractCallCacheHitCount,
+        val.contractCallTotalCount
+      ),
+    });
+  }
+
+  logger.info("Contract call summary");
+  logger.info(stats.contractCallsTable.render(), "\n");
 
   // Begin processing live blocks for all source groups. This includes
   // any blocks that were fetched and enqueued during the historical sync.

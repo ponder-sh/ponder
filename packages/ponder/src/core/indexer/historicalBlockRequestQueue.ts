@@ -72,14 +72,6 @@ async function historicalBlockRequestWorker(
   // This codebase treats them as decimals, so it's easiest to just convert immediately after fetching.
   block.number = hexStringToNumber(block.number);
 
-  stats.blockRequestCount += 1;
-  const requestCount = stats.logRequestCount + stats.blockRequestCount;
-  if (requestCount % 10 === 0) {
-    logger.info(
-      `\x1b[34m${`${requestCount} RPC requests completed`}\x1b[0m` // blue
-    );
-  }
-
   const transactions = block.transactions.filter(
     (txn): txn is TransactionWithHash => !!txn.hash
   );
@@ -93,4 +85,6 @@ async function historicalBlockRequestWorker(
     cacheStore.insertBlock(blockWithoutTransactions),
     cacheStore.insertTransactions(transactions),
   ]);
+
+  stats.progressBar.increment();
 }

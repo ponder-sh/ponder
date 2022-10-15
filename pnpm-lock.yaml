@@ -90,9 +90,11 @@ importers:
       '@graphql-codegen/core': ^2.6.2
       '@graphql-codegen/typescript': ^2.7.3
       '@types/better-sqlite3': ^7.6.0
+      '@types/cli-progress': ^3.11.0
       '@types/express': ^4.17.13
       '@types/node': ^18.7.8
       better-sqlite3: ^7.6.2
+      cli-progress: ^3.11.2
       commander: ^9.4.0
       console-table-printer: ^2.11.1
       dotenv: ^16.0.1
@@ -109,6 +111,7 @@ importers:
       '@graphql-codegen/core': 2.6.2_graphql@15.8.0
       '@graphql-codegen/typescript': 2.7.3_graphql@15.8.0
       better-sqlite3: 7.6.2
+      cli-progress: 3.11.2
       commander: 9.4.0
       console-table-printer: 2.11.1
       dotenv: 16.0.1
@@ -124,6 +127,7 @@ importers:
       '@ethersproject/bytes': 5.6.1
       '@ethersproject/providers': 5.6.8
       '@types/better-sqlite3': 7.6.0
+      '@types/cli-progress': 3.11.0
       '@types/express': 4.17.13
       '@types/node': 18.7.8
       tsconfig-replace-paths: 0.0.11
@@ -1306,6 +1310,12 @@ packages:
       '@types/node': 18.7.8
     dev: true
 
+  /@types/cli-progress/3.11.0:
+    resolution: {integrity: sha512-XhXhBv1R/q2ahF3BM7qT5HLzJNlIL0wbcGyZVjqOTqAybAnsLisd7gy1UCyIqpL+5Iv6XhlSyzjLCnI2sIdbCg==}
+    dependencies:
+      '@types/node': 18.7.8
+    dev: true
+
   /@types/concat-stream/1.6.1:
     resolution: {integrity: sha512-eHE4cQPoj6ngxBZMvVf6Hw7Mh4jMW4U9lpGmS5GBPB9RYxlFg+CHaVN7ErNY4W9XfLIEn20b4VDYaIrbq0q4uA==}
     dependencies:
@@ -2199,6 +2209,13 @@ packages:
     engines: {node: '>=8'}
     dependencies:
       restore-cursor: 3.1.0
+    dev: false
+
+  /cli-progress/3.11.2:
+    resolution: {integrity: sha512-lCPoS6ncgX4+rJu5bS3F/iCz17kZ9MPZ6dpuTtI0KXKABkhyXIdYB3Inby1OpaGti3YlI3EeEkM9AuWpelJrVA==}
+    engines: {node: '>=4'}
+    dependencies:
+      string-width: 4.2.3
     dev: false
 
   /cli-spinners/2.7.0:

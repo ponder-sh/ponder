@@ -4,6 +4,8 @@ import type { Deferrable } from "ethers/lib/utils";
 
 import type { CacheStore } from "@/stores/baseCacheStore";
 
+import { stats } from "./stats";
+
 export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
   chainId: number;
   cacheStore: CacheStore;
@@ -38,7 +40,22 @@ export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
       contractCallKey
     );
 
+    if (!stats.contractCallStats[`${this.chainId}-${address}`]) {
+      stats.contractCallStats[`${this.chainId}-${address}`] = {
+        contractCallCacheHitCount: 0,
+        contractCallTotalCount: 0,
+      };
+    }
+
+    stats.contractCallStats[
+      `${this.chainId}-${address}`
+    ].contractCallTotalCount += 1;
+
     if (cachedContractCall) {
+      stats.contractCallStats[
+        `${this.chainId}-${address}`
+      ].contractCallCacheHitCount += 1;
+
       return JSON.parse(cachedContractCall.result);
     }
 

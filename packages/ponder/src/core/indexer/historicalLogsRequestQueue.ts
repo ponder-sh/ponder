@@ -69,14 +69,6 @@ async function historicalLogsRequestWorker(
     blockNumber: hexStringToNumber(log.blockNumber),
   }));
 
-  stats.logRequestCount += 1;
-  const requestCount = stats.logRequestCount + stats.blockRequestCount;
-  if (requestCount % 10 === 0) {
-    logger.info(
-      `\x1b[34m${`${requestCount} RPC requests completed`}\x1b[0m` // blue
-    );
-  }
-
   await Promise.all(
     logs.map(async (log) => {
       await cacheStore.upsertLog(log);
@@ -108,4 +100,9 @@ async function historicalLogsRequestWorker(
   uniqueBlockHashes.forEach((blockHash) => {
     historicalBlockRequestQueue.push({ blockHash });
   });
+
+  stats.progressBar.increment();
+  stats.progressBar.setTotal(
+    stats.progressBar.getTotal() + uniqueBlockHashes.length
+  );
 }
