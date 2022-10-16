@@ -1,34 +1,29 @@
-import Sqlite from "better-sqlite3";
-import { utils } from "ethers";
-import { readFileSync } from "node:fs";
-
-import { GraphqlApi } from "@/apis/graphql";
 import { CONFIG } from "@/common/config";
-import { logger } from "@/common/logger";
-import { EvmSource } from "@/sources/evm";
-import type { EntityStore } from "@/stores/baseEntityStore";
-import { SqliteCacheStore } from "@/stores/sqliteCacheStore";
-import { SqliteEntityStore } from "@/stores/sqliteEntityStore";
 
 export type PonderConfig = {
   database: {
     kind: string;
     filename?: string;
   };
-  graphql: {
-    port: number;
-  };
-  sources: {
-    kind: string;
+  networks: {
+    kind?: string;
     name: string;
     chainId: number;
     rpcUrl: string;
+  }[];
+  sources: {
+    kind?: string;
+    name: string;
+    network: string;
     abi: string;
     address: string;
     startBlock?: number;
     pollingInterval?: number;
     blockLimit?: number;
   }[];
+  graphql?: {
+    port?: number;
+  };
 };
 
 export const readPonderConfig = () => {
@@ -43,51 +38,4 @@ export const readPonderConfig = () => {
   const config = rawConfig as PonderConfig;
 
   return config;
-};
-
-export const buildEvmSources = (config: PonderConfig) => {
-  const sources = config.sources.map((source) => {
-    const abiString = readFileSync(source.abi, "utf-8");
-    const abiObject = JSON.parse(abiString);
-    const abi = abiObject.abi ? abiObject.abi : abiObject;
-    const abiInterface = new utils.Interface(abi);
-
-    if (source.rpcUrl === undefined || source.rpcUrl === "") {
-      throw new Error(`Invalid or missing RPC URL for source: ${source.name}`);
-    }
-
-    return new EvmSource(
-      source.name,
-      source.chainId,
-      source.rpcUrl,
-      source.address,
-      source.abi,
-      abiInterface,
-      source.startBlock,
-      source.pollingInterval,
-      source.blockLimit
-    );
-  });
-
-  return { sources };
-};
-
-export const buildSqliteStores = (config: PonderConfig) => {
-  // Build store.
-  const defaultDbFilePath = `./.ponder/cache.db`;
-  const db = Sqlite(config.database.filename || defaultDbFilePath, {
-    verbose: logger.trace,
-  });
-  const cacheStore = new SqliteCacheStore(db);
-  const entityStore = new SqliteEntityStore(db);
-
-  return { cacheStore, entityStore };
-};
-
-export const buildGraphqlApi = (
-  config: PonderConfig,
-  entityStore: EntityStore
-) => {
-  const port = config.graphql.port;
-  return new GraphqlApi(port, entityStore);
 };

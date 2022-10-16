@@ -1,7 +1,5 @@
 import type { GraphQLSchema } from "graphql";
 
-import type { GraphqlApi } from "@/apis/graphql";
-import { buildGqlSchema } from "@/apis/graphql/buildGqlSchema";
 import { generateContextTypes } from "@/codegen/generateContextTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { generateSchema } from "@/codegen/generateSchema";
@@ -9,24 +7,25 @@ import { generateSchemaTypes } from "@/codegen/generateSchemaTypes";
 import { logger } from "@/common/logger";
 import { handleReindex } from "@/core/indexer/reindex";
 import { buildPonderSchema } from "@/core/schema/buildPonderSchema";
+import { buildNetworks } from "@/networks/buildNetworks";
+import { buildGraphqlServer } from "@/server/buildServer";
+import type { GraphqlServer } from "@/server/graphql";
+import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
+import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
 import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
+import { buildStores } from "@/stores/buildStores";
 
 import type { Handlers } from "./readHandlers";
 import { readHandlers } from "./readHandlers";
-import {
-  buildEvmSources,
-  buildGraphqlApi,
-  buildSqliteStores,
-  readPonderConfig,
-} from "./readPonderConfig";
+import { readPonderConfig } from "./readPonderConfig";
 import { readSchema } from "./readSchema";
 import type { PonderSchema } from "./schema/types";
 
 const state: {
   sources?: EvmSource[];
-  api?: GraphqlApi;
+  server?: GraphqlServer;
   cacheStore?: CacheStore;
   entityStore?: EntityStore;
 
@@ -50,8 +49,8 @@ enum TaskName {
   GENERATE_CONTEXT_TYPES,
   GENERATE_GQL_SCHEMA,
   GENERATE_SCHEMA_TYPES,
-  START_APIS,
   REINDEX,
+  START_SERVER,
 }
 
 type Task = {
@@ -72,25 +71,33 @@ export const readPonderConfigTask: Task = {
   handler: async () => {
     const config = readPonderConfig();
 
-    const { sources } = buildEvmSources(config);
-    state.sources = sources;
-
     if (!state.entityStore || !state.cacheStore) {
-      const { entityStore, cacheStore } = buildSqliteStores(config);
+      const { entityStore, cacheStore } = buildStores({ config });
       state.entityStore = entityStore;
       state.cacheStore = cacheStore;
     }
 
     // This currently won't hot reload if the server port changes.
-    if (!state.api) {
-      state.api = buildGraphqlApi(config, state.entityStore);
+    if (!state.server) {
+      state.server = buildGraphqlServer({
+        config,
+        entityStore: state.entityStore,
+      });
     }
+
+    const { networks } = buildNetworks({
+      config,
+      cacheStore: state.cacheStore,
+    });
+
+    const { sources } = buildSources({ config, networks });
+    state.sources = sources;
   },
   dependencies: [
     TaskName.GENERATE_HANDLER_TYPES,
     TaskName.GENERATE_CONTEXT_TYPES,
     TaskName.REINDEX,
-    TaskName.START_APIS,
+    TaskName.START_SERVER,
   ],
 };
 
@@ -140,7 +147,7 @@ const buildGqlSchemaTask: Task = {
   dependencies: [
     TaskName.GENERATE_GQL_SCHEMA,
     TaskName.GENERATE_SCHEMA_TYPES,
-    TaskName.START_APIS,
+    TaskName.START_SERVER,
   ],
 };
 
@@ -212,11 +219,11 @@ const reindexTask: Task = {
   },
 };
 
-const startApisTask: Task = {
-  name: TaskName.START_APIS,
+const startServerTask: Task = {
+  name: TaskName.START_SERVER,
   handler: async () => {
-    if (state.api && state.gqlSchema) {
-      state.api.start(state.gqlSchema);
+    if (state.server && state.gqlSchema) {
+      state.server.start(state.gqlSchema);
     }
   },
 };
@@ -232,5 +239,5 @@ const taskMap: Record<TaskName, Task> = {
   [TaskName.GENERATE_GQL_SCHEMA]: generateGqlSchemaTask,
   [TaskName.GENERATE_SCHEMA_TYPES]: generateSchemaTypesTask,
   [TaskName.REINDEX]: reindexTask,
-  [TaskName.START_APIS]: startApisTask,
+  [TaskName.START_SERVER]: startServerTask,
 };

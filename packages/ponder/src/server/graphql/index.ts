@@ -7,10 +7,7 @@ import http from "node:http";
 import { logger } from "@/common/logger";
 import type { EntityStore } from "@/stores/baseEntityStore";
 
-import { ApiKind, BaseApi } from "../base";
-
-export class GraphqlApi implements BaseApi {
-  kind = ApiKind.GRAPHQL;
+export class GraphqlServer {
   port: number;
   context: { store: EntityStore };
 

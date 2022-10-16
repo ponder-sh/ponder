@@ -19,6 +19,9 @@ const DEFAULT_OPTIONS = {
     process.env.PONDER_LOG_LEVEL != undefined
       ? Number(process.env.PONDER_LOG_LEVEL)
       : 2,
+
+  // GraphQL options
+  GRAPHQL_SERVER_PORT: 42069,
 };
 
 const OPTIONS = {
