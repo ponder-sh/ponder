@@ -19,6 +19,7 @@
     "release": "pnpm run build && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(create-ponder-app): $VERSION\""
   },
   "dependencies": {
+    "@ponder/ponder": "latest",
     "commander": "^9.4.0",
     "prettier": "^2.6.2",
     "yaml": "^2.1.1"

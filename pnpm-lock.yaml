@@ -63,6 +63,7 @@ importers:
 
   packages/create-ponder-app:
     specifiers:
+      '@ponder/ponder': latest
       '@types/node': ^18.7.8
       '@types/prettier': ^2.7.1
       commander: ^9.4.0
@@ -72,6 +73,7 @@ importers:
       typescript: ^4.5.5
       yaml: ^2.1.1
     dependencies:
+      '@ponder/ponder': link:../ponder
       commander: 9.4.0
       prettier: 2.6.2
       yaml: 2.1.1
