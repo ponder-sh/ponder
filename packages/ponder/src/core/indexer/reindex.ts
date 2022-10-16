@@ -137,7 +137,7 @@ export const handleReindex = async (
 
   // Add sorted historical logs to the front of the queue (in reverse order).
   for (const log of sortedLogs.reverse()) {
-    logQueue.unshift(log);
+    logQueue.unshift({ log });
   }
 
   // Process historical logs (note the await).

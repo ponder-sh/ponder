@@ -16,6 +16,8 @@ export type LogTask = {
   log: Log;
 };
 
+export type LogQueue = fastq.queueAsPromised<LogTask>;
+
 export const createLogQueue = ({
   cacheStore,
   entityStore,
@@ -30,7 +32,7 @@ export const createLogQueue = ({
   schema: PonderSchema;
   userHandlers: Handlers;
   cachedProvidersByChainId: Record<number, CachedProvider | undefined>;
-}) => {
+}): LogQueue => {
   const entityModels: Record<string, EntityModel> = {};
   schema.entities.forEach((entity) => {
     const entityName = entity.name;
@@ -59,8 +61,7 @@ export const createLogQueue = ({
     contracts: contracts,
   };
 
-  // NOTE: This function should probably come as a standalone param.
-  const logWorker = async (log: Log) => {
+  const logWorker = async ({ log }: LogTask) => {
     const source = sources.find((source) => source.address === log.address);
     if (!source) {
       logger.warn(`Source not found for log with address: ${log.address}`);

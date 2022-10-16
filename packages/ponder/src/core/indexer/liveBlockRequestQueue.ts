@@ -22,6 +22,8 @@ export type LiveBlockRequestWorkerContext = {
   logQueue: fastq.queueAsPromised;
 };
 
+export type LiveBlockRequestQueue = fastq.queueAsPromised<LiveBlockRequestTask>;
+
 export const createLiveBlockRequestQueue = ({
   cacheStore,
   sourceGroup,

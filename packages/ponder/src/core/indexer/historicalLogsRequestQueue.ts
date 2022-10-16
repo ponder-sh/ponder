@@ -5,6 +5,7 @@ import fastq from "fastq";
 import { logger } from "@/common/logger";
 import type { CacheStore } from "@/stores/baseCacheStore";
 
+import type { HistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
 import type { SourceGroup } from "./reindex";
 import { stats } from "./stats";
 import { hexStringToNumber } from "./utils";
@@ -18,8 +19,11 @@ export type HistoricalLogsRequestTask = {
 export type HistoricalLogsRequestWorkerContext = {
   cacheStore: CacheStore;
   sourceGroup: SourceGroup;
-  historicalBlockRequestQueue: fastq.queueAsPromised;
+  historicalBlockRequestQueue: HistoricalBlockRequestQueue;
 };
+
+export type HistoricalLogsRequestQueue =
+  fastq.queueAsPromised<HistoricalLogsRequestTask>;
 
 export const createHistoricalLogsRequestQueue = ({
   cacheStore,
@@ -69,40 +73,45 @@ async function historicalLogsRequestWorker(
     blockNumber: hexStringToNumber(log.blockNumber),
   }));
 
-  await Promise.all(
-    logs.map(async (log) => {
-      await cacheStore.upsertLog(log);
-    })
-  );
+  await Promise.all(logs.map((log) => cacheStore.upsertLog(log)));
 
-  for (const contractAddress of contractAddresses) {
-    const foundContractMetadata = await cacheStore.getContractMetadata(
-      contractAddress
-    );
+  const requiredBlockHashes = new Set(logs.map((l) => l.blockHash));
 
-    if (foundContractMetadata) {
-      await cacheStore.upsertContractMetadata({
-        contractAddress,
-        startBlock: Math.min(foundContractMetadata.startBlock, fromBlock),
-        endBlock: Math.max(foundContractMetadata.endBlock, toBlock),
-      });
-    } else {
-      await cacheStore.upsertContractMetadata({
-        contractAddress,
-        startBlock: fromBlock,
-        endBlock: toBlock,
-      });
+  // The block request worker calls this callback when it finishes. This serves as
+  // a hacky way to run some code when all "child" jobs are done. In this case,
+  // we want to update the contract metadata to store that this block range has been cached.
+  const onSuccess = async (blockHash: string) => {
+    requiredBlockHashes.delete(blockHash);
+
+    if (requiredBlockHashes.size === 0) {
+      // TODO: move this to a helper that accepts (source, fromBlock, toBlock)
+      // and magically updates the contract metadata accordingly, merging ranges accordingly?
+      for (const contractAddress of contractAddresses) {
+        const metadata = await cacheStore.getContractMetadata(contractAddress);
+
+        if (metadata) {
+          await cacheStore.upsertContractMetadata({
+            contractAddress,
+            startBlock: Math.min(metadata.startBlock, fromBlock),
+            endBlock: Math.max(metadata.endBlock, toBlock),
+          });
+        } else {
+          await cacheStore.upsertContractMetadata({
+            contractAddress,
+            startBlock: fromBlock,
+            endBlock: toBlock,
+          });
+        }
+      }
     }
-  }
+  };
 
-  // Enqueue requests to fetch the block & transaction associated with each log.
-  const uniqueBlockHashes = [...new Set(logs.map((l) => l.blockHash))];
-  uniqueBlockHashes.forEach((blockHash) => {
-    historicalBlockRequestQueue.push({ blockHash });
+  [...requiredBlockHashes].forEach((blockHash) => {
+    historicalBlockRequestQueue.push({ blockHash, onSuccess });
   });
 
   stats.progressBar.increment();
   stats.progressBar.setTotal(
-    stats.progressBar.getTotal() + uniqueBlockHashes.length
+    stats.progressBar.getTotal() + requiredBlockHashes.size
   );
 }

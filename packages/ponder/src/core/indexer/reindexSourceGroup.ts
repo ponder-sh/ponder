@@ -1,11 +1,10 @@
-import type fastq from "fastq";
-
 import { logger } from "@/common/logger";
 import type { CacheStore } from "@/stores/baseCacheStore";
 
 import { createHistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
 import { createHistoricalLogsRequestQueue } from "./historicalLogsRequestQueue";
 import { createLiveBlockRequestQueue } from "./liveBlockRequestQueue";
+import type { LogQueue } from "./logQueue";
 import { isHotReload, SourceGroup } from "./reindex";
 import { getPrettyPercentage, stats } from "./stats";
 import { p1_excluding_p2 } from "./utils";
@@ -17,7 +16,7 @@ export const reindexSourceGroup = async ({
 }: {
   sourceGroup: SourceGroup;
   cacheStore: CacheStore;
-  logQueue: fastq.queueAsPromised;
+  logQueue: LogQueue;
 }) => {
   const { contracts, provider, chainId, startBlock, blockLimit } = sourceGroup;
 

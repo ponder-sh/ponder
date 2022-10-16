@@ -19,12 +19,16 @@ export interface TransactionWithHash extends Omit<Transaction, "hash"> {
 
 export type HistoricalBlockRequestTask = {
   blockHash: string;
+  onSuccess: (blockHash: string) => Promise<void>;
 };
 
 export type HistoricalBlockRequestWorkerContext = {
   cacheStore: CacheStore;
   sourceGroup: SourceGroup;
 };
+
+export type HistoricalBlockRequestQueue =
+  fastq.queueAsPromised<HistoricalBlockRequestTask>;
 
 export const createHistoricalBlockRequestQueue = ({
   cacheStore,
@@ -53,13 +57,15 @@ export const createHistoricalBlockRequestQueue = ({
 
 async function historicalBlockRequestWorker(
   this: HistoricalBlockRequestWorkerContext,
-  { blockHash }: HistoricalBlockRequestTask
+  { blockHash, onSuccess }: HistoricalBlockRequestTask
 ) {
   const { cacheStore, sourceGroup } = this;
   const { provider } = sourceGroup;
 
   const cachedBlock = await cacheStore.getBlock(blockHash);
   if (cachedBlock) {
+    await onSuccess(blockHash);
+    stats.progressBar.increment();
     return;
   }
 
@@ -85,6 +91,7 @@ async function historicalBlockRequestWorker(
     cacheStore.insertBlock(blockWithoutTransactions),
     cacheStore.insertTransactions(transactions),
   ]);
+  await onSuccess(blockHash);
 
   stats.progressBar.increment();
 }
