@@ -61,6 +61,9 @@ export const createLogQueue = ({
     const source = sources.find((source) => source.address === log.address);
     if (!source) {
       logger.warn(`Source not found for log with address: ${log.address}`);
+      stats.processingProgressBar.setTotal(
+        stats.processingProgressBar.getTotal() - 1
+      );
       return;
     }
 
@@ -72,6 +75,9 @@ export const createLogQueue = ({
     const sourceHandlers = userHandlers[source.name];
     if (!sourceHandlers) {
       logger.warn(`Handlers not found for source: ${source.name}`);
+      stats.processingProgressBar.setTotal(
+        stats.processingProgressBar.getTotal() - 1
+      );
       return;
     }
 
@@ -79,6 +85,9 @@ export const createLogQueue = ({
     if (!handler) {
       logger.trace(
         `Handler not found for event: ${source.name}-${parsedLog.name}`
+      );
+      stats.processingProgressBar.setTotal(
+        stats.processingProgressBar.getTotal() - 1
       );
       return;
     }
@@ -106,6 +115,8 @@ export const createLogQueue = ({
     } catch (err) {
       logger.error("Error in handler:", err);
     }
+
+    stats.processingProgressBar.increment();
   };
 
   return fastq.promise<LogTask>(logWorker, 1);

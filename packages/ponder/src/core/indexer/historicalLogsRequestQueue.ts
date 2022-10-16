@@ -118,8 +118,8 @@ async function historicalLogsRequestWorker(
     historicalBlockRequestQueue.push({ blockHash, onSuccess });
   });
 
-  stats.progressBar.increment();
-  stats.progressBar.setTotal(
-    stats.progressBar.getTotal() + requiredBlockHashes.length
+  stats.syncProgressBar.increment();
+  stats.syncProgressBar.setTotal(
+    stats.syncProgressBar.getTotal() + requiredBlockHashes.length
   );
 }

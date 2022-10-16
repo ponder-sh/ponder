@@ -12,7 +12,8 @@ export type Stats = {
   resultsTable: Table;
   contractCallsTable: Table;
 
-  progressBar: SingleBar;
+  syncProgressBar: SingleBar;
+  processingProgressBar: SingleBar;
 
   sourceStats: Record<
     string,
@@ -43,7 +44,10 @@ const buildDefaultStats = (): Stats => ({
   resultsTable: new Table(),
   contractCallsTable: new Table(),
 
-  progressBar: new SingleBar({
+  syncProgressBar: new SingleBar({
+    clearOnComplete: true,
+  }),
+  processingProgressBar: new SingleBar({
     clearOnComplete: true,
   }),
 

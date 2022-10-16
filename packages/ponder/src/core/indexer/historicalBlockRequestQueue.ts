@@ -65,7 +65,7 @@ async function historicalBlockRequestWorker(
   const cachedBlock = await cacheStore.getBlock(blockHash);
   if (cachedBlock) {
     await onSuccess(blockHash);
-    stats.progressBar.increment();
+    stats.syncProgressBar.increment();
     return;
   }
 
@@ -93,5 +93,5 @@ async function historicalBlockRequestWorker(
   ]);
   await onSuccess(blockHash);
 
-  stats.progressBar.increment();
+  stats.syncProgressBar.increment();
 }

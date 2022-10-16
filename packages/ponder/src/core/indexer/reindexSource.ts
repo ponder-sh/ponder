@@ -90,7 +90,7 @@ export const reindexSource = async ({
   if (!isHotReload && stats.sourceCount === stats.sourceTotalCount) {
     logger.info("Historical sync plan");
     logger.info(stats.requestPlanTable.render(), "\n");
-    stats.progressBar.start(0, 0);
+    stats.syncProgressBar.start(0, 0);
   }
 
   for (const blockRange of blockRanges) {
@@ -108,7 +108,7 @@ export const reindexSource = async ({
       fromBlock = toBlock + 1;
       toBlock = Math.min(fromBlock + source.blockLimit, endBlock);
 
-      stats.progressBar.setTotal(stats.progressBar.getTotal() + 1);
+      stats.syncProgressBar.setTotal(stats.syncProgressBar.getTotal() + 1);
     }
   }
 

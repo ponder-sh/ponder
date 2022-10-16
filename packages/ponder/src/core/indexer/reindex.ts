@@ -143,7 +143,7 @@ export const handleReindex = async (
   );
 
   if (!isHotReload) {
-    stats.progressBar.stop();
+    stats.syncProgressBar.stop();
     logger.info(
       `\x1b[32m${`Historical sync complete (${endBenchmark(
         startHrt
@@ -161,6 +161,8 @@ export const handleReindex = async (
     logsFromAllSources = logsFromAllSources.concat(logs);
   }
 
+  stats.processingProgressBar.start(logsFromAllSources.length, 0);
+
   const sortedLogs = logsFromAllSources.sort(
     (a, b) => getLogIndex(a) - getLogIndex(b)
   );
@@ -177,6 +179,8 @@ export const handleReindex = async (
   if (!logQueue.idle()) {
     await logQueue.drained();
   }
+
+  stats.processingProgressBar.stop();
 
   logger.info(
     `\x1b[32m${`Log processing complete (${endBenchmark(startHrt)})`}\x1b[0m`, // green
