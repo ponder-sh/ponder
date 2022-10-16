@@ -55,7 +55,7 @@ export const createLiveBlockRequestQueue = ({
 
 // This worker is responsible for ensuring that the block, its transactions, and any
 // logs for the logGroup within that block are written to the cacheStore.
-// It then enqueues a task to process the block (using user handler code).
+// It then enqueues a task to process any matched logs from the block.
 async function liveBlockRequestWorker(
   this: LiveBlockRequestWorkerContext,
   { blockNumber }: LiveBlockRequestTask
