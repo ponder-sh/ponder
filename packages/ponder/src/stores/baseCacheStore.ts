@@ -24,10 +24,6 @@ export interface BaseCacheStore {
     contractAddress: string
   ): Promise<ContractMetadata | null>;
 
-  getCachedBlockRange(
-    contractAddresses: string[]
-  ): Promise<{ maxStartBlock: number; minEndBlock: number } | null>;
-
   upsertContractMetadata(
     attributes: ContractMetadata
   ): Promise<ContractMetadata>;

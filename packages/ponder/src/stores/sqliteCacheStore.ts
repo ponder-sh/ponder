@@ -85,25 +85,6 @@ export class SqliteCacheStore implements BaseCacheStore {
     return contractMetadata;
   };
 
-  getCachedBlockRange = async (contractAddresses: string[]) => {
-    const result = this.db
-      .prepare(
-        `SELECT * FROM \`metadata\` WHERE \`contractAddress\` IN (${contractAddresses
-          .map((c) => `'${c}'`)
-          .join(",")})`
-      )
-      .all();
-
-    if (!result || result.length === 0) return null;
-
-    const contractMetadatas = result as ContractMetadata[];
-
-    return {
-      maxStartBlock: Math.min(...contractMetadatas.map((m) => m.startBlock)),
-      minEndBlock: Math.max(...contractMetadatas.map((m) => m.endBlock)),
-    };
-  };
-
   upsertContractMetadata = async (attributes: ContractMetadata) => {
     const columnStatements = Object.entries(attributes).map(
       ([fieldName, value]) => ({

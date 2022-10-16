@@ -46,16 +46,14 @@ export const reindexSource = async ({
   // Build an array of block ranges that need to be fetched for this group of contracts.
   const blockRanges: number[][] = [];
 
-  const cachedBlockRange = await cacheStore.getCachedBlockRange([
-    source.address,
-  ]);
+  const contractMetadata = await cacheStore.getContractMetadata(source.address);
 
-  if (cachedBlockRange) {
-    const { maxStartBlock, minEndBlock } = cachedBlockRange;
+  if (contractMetadata) {
+    const { startBlock, endBlock } = contractMetadata;
 
     const requiredRanges = p1_excluding_p2(
       [requestedStartBlock, requestedEndBlock],
-      [maxStartBlock, minEndBlock]
+      [startBlock, endBlock]
     );
 
     blockRanges.push(...requiredRanges);
@@ -65,8 +63,8 @@ export const reindexSource = async ({
 
   logger.debug({
     requestedRange: [requestedStartBlock, requestedEndBlock],
-    cachedRange: cachedBlockRange
-      ? [cachedBlockRange.maxStartBlock, cachedBlockRange.minEndBlock]
+    cachedRange: contractMetadata
+      ? [contractMetadata.startBlock, contractMetadata.endBlock]
       : null,
     requiredRanges: blockRanges,
   });
