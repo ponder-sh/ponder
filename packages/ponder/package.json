@@ -13,10 +13,14 @@
   "scripts": {
     "clean": "rm -rf dist",
     "lint": "tsc && eslint src",
-    "format": "prettier --write src",
-    "compile": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist && tsconfig-replace-paths --src src",
-    "build": "pnpm run clean && pnpm run compile && mv dist/bin/ponder.js dist/bin/ponder",
-    "release": "pnpm run build && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/ponder): $VERSION\""
+    "format": "prettier src --write",
+    "replace-paths": "tsconfig-replace-paths --src src",
+    "esbuild": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist && $npm_execpath run replace-paths",
+    "build": "$npm_execpath run clean && $npm_execpath run esbuild && mv dist/bin/ponder.js dist/bin/ponder",
+    "declarations": "(tsc --noEmit false --declaration --emitDeclarationOnly || exit 0) && $npm_execpath run replace-paths",
+    "format-dist": "prettier dist --write --loglevel warn",
+    "prerelease": "$npm_execpath run build && $npm_execpath run declarations && $npm_execpath run format-dist",
+    "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/ponder): $VERSION\""
   },
   "dependencies": {
     "@graphql-codegen/core": "^2.6.2",
