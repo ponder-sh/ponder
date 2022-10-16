@@ -10,6 +10,7 @@ import type {
   BlockWithTransactions,
   TransactionWithHash,
 } from "./historicalBlockRequestQueue";
+import type { LogQueue } from "./logQueue";
 import { getLogIndex, hexStringToNumber } from "./utils";
 
 export type LiveBlockRequestTask = {
@@ -20,7 +21,7 @@ export type LiveBlockRequestWorkerContext = {
   cacheStore: CacheStore;
   network: Network;
   contractAddresses: string[];
-  logQueue: fastq.queueAsPromised;
+  logQueue: LogQueue;
 };
 
 export type LiveBlockRequestQueue = fastq.queueAsPromised<LiveBlockRequestTask>;
@@ -130,6 +131,6 @@ async function liveBlockRequestWorker(
   }
 
   for (const log of sortedLogs) {
-    logQueue.push(log);
+    logQueue.push({ log });
   }
 }
