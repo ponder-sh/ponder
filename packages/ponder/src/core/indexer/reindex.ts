@@ -77,7 +77,7 @@ export const handleReindex = async (
   const liveBlockRequestQueueInfos = await Promise.all(
     uniqueNetworks.map(async (network) => {
       const contractAddresses = sources
-        .filter((s) => s.name === network.name)
+        .filter((s) => s.network.name === network.name)
         .map((source) => source.address);
 
       // Kinda weird but should work to make sure this RPC request gets done
