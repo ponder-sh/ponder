@@ -3,10 +3,10 @@ import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
+import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
 
 import type { HistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
-import type { SourceGroup } from "./reindex";
 import { stats } from "./stats";
 import { hexStringToNumber } from "./utils";
 
@@ -18,7 +18,7 @@ export type HistoricalLogsRequestTask = {
 
 export type HistoricalLogsRequestWorkerContext = {
   cacheStore: CacheStore;
-  sourceGroup: SourceGroup;
+  source: Source;
   historicalBlockRequestQueue: HistoricalBlockRequestQueue;
 };
 
@@ -27,7 +27,7 @@ export type HistoricalLogsRequestQueue =
 
 export const createHistoricalLogsRequestQueue = ({
   cacheStore,
-  sourceGroup,
+  source,
   historicalBlockRequestQueue,
 }: HistoricalLogsRequestWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
@@ -35,7 +35,7 @@ export const createHistoricalLogsRequestQueue = ({
     HistoricalLogsRequestWorkerContext,
     HistoricalLogsRequestTask
   >(
-    { cacheStore, sourceGroup, historicalBlockRequestQueue },
+    { cacheStore, source, historicalBlockRequestQueue },
     historicalLogsRequestWorker,
     10 // TODO: Make this configurable
   );
@@ -55,8 +55,8 @@ async function historicalLogsRequestWorker(
   this: HistoricalLogsRequestWorkerContext,
   { contractAddresses, fromBlock, toBlock }: HistoricalLogsRequestTask
 ) {
-  const { cacheStore, sourceGroup, historicalBlockRequestQueue } = this;
-  const { provider } = sourceGroup;
+  const { cacheStore, source, historicalBlockRequestQueue } = this;
+  const { provider } = source.network;
 
   const rawLogs: Log[] = await provider.send("eth_getLogs", [
     {
@@ -75,15 +75,15 @@ async function historicalLogsRequestWorker(
 
   await Promise.all(logs.map((log) => cacheStore.upsertLog(log)));
 
-  const requiredBlockHashes = new Set(logs.map((l) => l.blockHash));
+  const requiredBlockHashSet = new Set(logs.map((l) => l.blockHash));
 
   // The block request worker calls this callback when it finishes. This serves as
   // a hacky way to run some code when all "child" jobs are done. In this case,
   // we want to update the contract metadata to store that this block range has been cached.
-  const onSuccess = async (blockHash: string) => {
-    requiredBlockHashes.delete(blockHash);
+  const onSuccess = async (blockHash?: string) => {
+    if (blockHash) requiredBlockHashSet.delete(blockHash);
 
-    if (requiredBlockHashes.size === 0) {
+    if (requiredBlockHashSet.size === 0) {
       // TODO: move this to a helper that accepts (source, fromBlock, toBlock)
       // and magically updates the contract metadata accordingly, merging ranges accordingly?
       for (const contractAddress of contractAddresses) {
@@ -106,12 +106,20 @@ async function historicalLogsRequestWorker(
     }
   };
 
-  [...requiredBlockHashes].forEach((blockHash) => {
+  const requiredBlockHashes = [...requiredBlockHashSet];
+
+  // If there are no required blocks, call the batch success callback manually
+  // so we make sure to update the contract metadata accordingly.
+  if (requiredBlockHashes.length === 0) {
+    onSuccess();
+  }
+
+  requiredBlockHashes.forEach((blockHash) => {
     historicalBlockRequestQueue.push({ blockHash, onSuccess });
   });
 
   stats.progressBar.increment();
   stats.progressBar.setTotal(
-    stats.progressBar.getTotal() + requiredBlockHashes.size
+    stats.progressBar.getTotal() + requiredBlockHashes.length
   );
 }

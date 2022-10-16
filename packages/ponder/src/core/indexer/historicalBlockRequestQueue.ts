@@ -3,9 +3,9 @@ import type { Transaction } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
+import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
 
-import type { SourceGroup } from "./reindex";
 import { stats } from "./stats";
 import { hexStringToNumber } from "./utils";
 
@@ -24,7 +24,7 @@ export type HistoricalBlockRequestTask = {
 
 export type HistoricalBlockRequestWorkerContext = {
   cacheStore: CacheStore;
-  sourceGroup: SourceGroup;
+  source: Source;
 };
 
 export type HistoricalBlockRequestQueue =
@@ -32,14 +32,14 @@ export type HistoricalBlockRequestQueue =
 
 export const createHistoricalBlockRequestQueue = ({
   cacheStore,
-  sourceGroup,
+  source,
 }: HistoricalBlockRequestWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<
     HistoricalBlockRequestWorkerContext,
     HistoricalBlockRequestTask
   >(
-    { cacheStore, sourceGroup },
+    { cacheStore, source },
     historicalBlockRequestWorker,
     10 // TODO: Make this configurable
   );
@@ -59,8 +59,8 @@ async function historicalBlockRequestWorker(
   this: HistoricalBlockRequestWorkerContext,
   { blockHash, onSuccess }: HistoricalBlockRequestTask
 ) {
-  const { cacheStore, sourceGroup } = this;
-  const { provider } = sourceGroup;
+  const { cacheStore, source } = this;
+  const { provider } = source.network;
 
   const cachedBlock = await cacheStore.getBlock(blockHash);
   if (cachedBlock) {

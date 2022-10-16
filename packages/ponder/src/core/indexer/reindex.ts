@@ -9,8 +9,9 @@ import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
 
-import { CachedProvider } from "./CachedProvider";
-import { reindexSourceGroup } from "./reindexSourceGroup";
+import type { CachedProvider } from "./CachedProvider";
+import { createLiveBlockRequestQueue } from "./liveBlockRequestQueue";
+import { reindexSource } from "./reindexSource";
 import { getPrettyPercentage, resetStats, stats } from "./stats";
 import { getLogIndex } from "./utils";
 
@@ -35,10 +36,7 @@ export const handleReindex = async (
 ) => {
   let startHrt = startBenchmark();
 
-  // Prepare user store.
   await entityStore.migrate(schema);
-
-  // Prepare cache store.
   await cacheStore.migrate();
 
   // Unregister block listeners for stale providers.
@@ -46,41 +44,11 @@ export const handleReindex = async (
     provider.removeAllListeners();
   }
   previousProviders = [];
+  for (const source of sources) {
+    previousProviders.push(source.network.provider);
+  }
 
-  // Indexing runs on a per-provider basis so we can batch eth_getLogs calls across contracts.
-  const uniqueChainIds = [...new Set(sources.map((s) => s.chainId))];
-
-  const cachedProvidersByChainId: Record<number, CachedProvider | undefined> =
-    {};
-
-  const sourceGroups: SourceGroup[] = uniqueChainIds.map((chainId) => {
-    const sourcesInGroup = sources.filter((s) => s.chainId === chainId);
-
-    const startBlock = Math.min(...sourcesInGroup.map((s) => s.startBlock));
-    const blockLimit = Math.min(...sourcesInGroup.map((s) => s.blockLimit));
-    const contractAddresses = sourcesInGroup.map((s) => s.address);
-
-    let provider = cachedProvidersByChainId[chainId];
-    if (!provider) {
-      provider = new CachedProvider(
-        cacheStore,
-        sourcesInGroup[0].rpcUrl,
-        chainId
-      );
-      cachedProvidersByChainId[chainId] = provider;
-    }
-    previousProviders.push(provider);
-
-    return {
-      chainId,
-      provider,
-      contracts: contractAddresses,
-      startBlock,
-      blockLimit,
-      sources: sourcesInGroup,
-    };
-  });
-
+  // Annoying stat logging boilerplate
   stats.sourceTotalCount = sources.length;
   for (const source of sources) {
     stats.sourceStats[source.name] = {
@@ -95,7 +63,6 @@ export const handleReindex = async (
     sources,
     schema,
     userHandlers,
-    cachedProvidersByChainId,
   });
   logQueue.pause();
 
@@ -103,10 +70,76 @@ export const handleReindex = async (
     logger.info(`\x1b[33m${`Starting historical sync...`}\x1b[0m`, "\n"); // yellow
   }
 
-  const liveBlockRequestQueues = await Promise.all(
-    sourceGroups.map((sourceGroup) =>
-      reindexSourceGroup({ cacheStore, logQueue, sourceGroup })
-    )
+  const uniqueNetworks = [
+    ...new Map(sources.map((s) => s.network).map((n) => [n.name, n])).values(),
+  ];
+
+  const liveBlockRequestQueueInfos = await Promise.all(
+    uniqueNetworks.map(async (network) => {
+      const contractAddresses = sources
+        .filter((s) => s.name === network.name)
+        .map((source) => source.address);
+
+      // Kinda weird but should work to make sure this RPC request gets done
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      let currentBlockNumber: number = null!;
+      let isCurrentBlockRequestSuccessful = false;
+      while (!isCurrentBlockRequestSuccessful) {
+        try {
+          const latestBlock = await network.provider.getBlock("latest");
+          currentBlockNumber = latestBlock.number;
+          isCurrentBlockRequestSuccessful = true;
+        } catch (err) {
+          logger.error(
+            `Failed to fetch current block for network [${network.name}], retrying...`
+          );
+          isCurrentBlockRequestSuccessful = false;
+        }
+      }
+
+      const liveBlockRequestQueue = createLiveBlockRequestQueue({
+        cacheStore,
+        network,
+        contractAddresses,
+        logQueue,
+      });
+
+      // Pause the live block request queue, but begin adding tasks to it.
+      // Once the historical sync is complete, unpause it to process the backlog of
+      // tasks that were added during historical sync + new live logs.
+      liveBlockRequestQueue.pause();
+      network.provider.on("block", (blockNumber: number) => {
+        liveBlockRequestQueue.push({ blockNumber });
+      });
+
+      return {
+        networkName: network.name,
+        currentBlockNumber,
+        liveBlockRequestQueue,
+      };
+    })
+  );
+
+  await Promise.all(
+    sources.map(async (source) => {
+      const liveBlockRequestQueueInfo = liveBlockRequestQueueInfos.find(
+        (info) => info.networkName === source.network.name
+      );
+      if (!liveBlockRequestQueueInfo) {
+        throw new Error(
+          `Internal error: liveBlockRequestQueueInfo not found for network name: ${source.network.name}`
+        );
+      }
+      const { currentBlockNumber, liveBlockRequestQueue } =
+        liveBlockRequestQueueInfo;
+
+      await reindexSource({
+        source,
+        cacheStore,
+        currentBlockNumber,
+        liveBlockRequestQueue,
+      });
+    })
   );
 
   if (!isHotReload) {
@@ -123,11 +156,8 @@ export const handleReindex = async (
   logger.info(`\x1b[33m${`Processing logs...`}\x1b[0m`); // yellow
 
   let logsFromAllSources: Log[] = [];
-  for (const sourceGroup of sourceGroups) {
-    const logs = await cacheStore.getLogs(
-      sourceGroup.contracts,
-      sourceGroup.startBlock
-    );
+  for (const source of sources) {
+    const logs = await cacheStore.getLogs([source.address], source.startBlock);
     logsFromAllSources = logsFromAllSources.concat(logs);
   }
 
@@ -140,9 +170,13 @@ export const handleReindex = async (
     logQueue.unshift({ log });
   }
 
-  // Process historical logs (note the await).
   logQueue.resume();
-  await logQueue.drained();
+  // fastq has a strange quirk where, if no tasks have been added to the queue,
+  // the drained() method will hang and never resolve. Checking that the queue is
+  // not idle() before awaiting drained() seems to solve this issue.
+  if (!logQueue.idle()) {
+    await logQueue.drained();
+  }
 
   logger.info(
     `\x1b[32m${`Log processing complete (${endBenchmark(startHrt)})`}\x1b[0m`, // green
@@ -165,7 +199,7 @@ export const handleReindex = async (
 
     const source = sources.find(
       (s) =>
-        String(s.chainId) === chainId &&
+        String(s.network.chainId) === chainId &&
         s.address.toLowerCase() === address.toLowerCase()
     );
 
@@ -179,12 +213,16 @@ export const handleReindex = async (
     });
   }
 
-  logger.info("Contract call summary");
-  logger.info(stats.contractCallsTable.render(), "\n");
+  if (Object.keys(stats.contractCallStats).length > 0) {
+    logger.info("Contract call summary");
+    logger.info(stats.contractCallsTable.render(), "\n");
+  }
 
   // Begin processing live blocks for all source groups. This includes
   // any blocks that were fetched and enqueued during the historical sync.
-  liveBlockRequestQueues.forEach((queue) => queue.resume());
+  liveBlockRequestQueueInfos.forEach((info) => {
+    info.liveBlockRequestQueue.resume();
+  });
 
   resetStats();
   isHotReload = true;

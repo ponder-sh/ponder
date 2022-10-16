@@ -3,13 +3,13 @@ import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
+import { Network } from "@/networks/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
 
 import type {
   BlockWithTransactions,
   TransactionWithHash,
 } from "./historicalBlockRequestQueue";
-import type { SourceGroup } from "./reindex";
 import { getLogIndex, hexStringToNumber } from "./utils";
 
 export type LiveBlockRequestTask = {
@@ -18,7 +18,8 @@ export type LiveBlockRequestTask = {
 
 export type LiveBlockRequestWorkerContext = {
   cacheStore: CacheStore;
-  sourceGroup: SourceGroup;
+  network: Network;
+  contractAddresses: string[];
   logQueue: fastq.queueAsPromised;
 };
 
@@ -26,14 +27,19 @@ export type LiveBlockRequestQueue = fastq.queueAsPromised<LiveBlockRequestTask>;
 
 export const createLiveBlockRequestQueue = ({
   cacheStore,
-  sourceGroup,
+  network,
+  contractAddresses,
   logQueue,
 }: LiveBlockRequestWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<
     LiveBlockRequestWorkerContext,
     LiveBlockRequestTask
-  >({ cacheStore, sourceGroup, logQueue }, liveBlockRequestWorker, 1);
+  >(
+    { cacheStore, network, contractAddresses, logQueue },
+    liveBlockRequestWorker,
+    1
+  );
 
   queue.error((err, task) => {
     if (err) {
@@ -53,13 +59,13 @@ async function liveBlockRequestWorker(
   this: LiveBlockRequestWorkerContext,
   { blockNumber }: LiveBlockRequestTask
 ) {
-  const { cacheStore, sourceGroup, logQueue } = this;
-  const { provider, contracts } = sourceGroup;
+  const { cacheStore, network, contractAddresses, logQueue } = this;
+  const { provider } = network;
 
   const [rawLogs, block] = await Promise.all([
     provider.send("eth_getLogs", [
       {
-        address: contracts,
+        address: contractAddresses,
         fromBlock: BigNumber.from(blockNumber).toHexString(),
         toBlock: BigNumber.from(blockNumber).toHexString(),
       },
@@ -102,13 +108,9 @@ async function liveBlockRequestWorker(
   const sortedLogs = logs.sort((a, b) => getLogIndex(a) - getLogIndex(b));
 
   // Add the logs and update metadata.
-  await Promise.all(
-    sortedLogs.map(async (log) => {
-      await cacheStore.upsertLog(log);
-    })
-  );
+  await Promise.all(sortedLogs.map((log) => cacheStore.upsertLog(log)));
 
-  for (const contractAddress of contracts) {
+  for (const contractAddress of contractAddresses) {
     const foundContractMetadata = await cacheStore.getContractMetadata(
       contractAddress
     );

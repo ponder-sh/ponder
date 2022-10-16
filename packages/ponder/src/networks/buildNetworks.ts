@@ -32,6 +32,7 @@ export const buildNetworks = ({
       name: name,
       chainId: chainId,
       rpcUrl: rpcUrl,
+      provider: provider,
     };
 
     return network;
