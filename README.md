@@ -1,138 +1,78 @@
-### **NOTE: Not ready for public use. Please reach out via [twitter](https://twitter.com/0xOlias) dm or [email](mailto:0xolias@gmail.com) with any questions.**
+### **NOTE: Not ready for public use. Please reach out via [twitter](https://twitter.com/0xOlias) dm or [email](mailto:0xolias@gmail.com) if you're interested in using Ponder.**
 
 # Ponder
 
-A framework for building blockchain-enabled web services
+A framework for blockchain-enabled web services
 
 ## Features
 
-|                           | ponder                       | Graph Protocol                                 |
-| ------------------------- | ---------------------------- | ---------------------------------------------- |
-| runtime                   | Node.js                      | WebAssembly                                    |
-| supported networks        | EVM-compatible blockchains   | Ethereum mainnet only[^1]                      |
-| local dev server          | ✅                           | ❌                                             |
-| hot reloading             | ✅                           | N/A                                            |
-| self-hosting requirements | Node.js; Postgres (optional) | Graph Node; IPFS node; Ethereum node; Postgres |
+|                      | ponder                       | Graph Protocol                                 |
+| -------------------- | ---------------------------- | ---------------------------------------------- |
+| Runtime              | Node.js                      | WebAssembly                                    |
+| Supported networks   | Any EVM blockchain           | Ethereum mainnet only[^1]                      |
+| Local dev server     | ✅                           | ❌                                             |
+| Hot reloading        | ✅                           | N/A                                            |
+| Hosting requirements | Node.js; Postgres (optional) | Graph Node; IPFS node; Ethereum node; Postgres |
 
 ## Quickstart
 
 ### I'm replacing a Graph Protocol subgraph
 
-#### 1. Run `npx create-ponder-app`
+Ponder is an alternative to the Graph Protocol that aims to be more developer-friendly. You can quickly migrate an existing subgraph repository to Ponder using the `create-ponder-app` CLI tool.
+
+#### 1. Run `create-ponder-app`
 
 This command will create a project folder called `ponder` in your current working directory. Include the `--from-subgraph` option to bootstrap your project using an existing Graph Protocol subgraph.
 
 ```
-npx create-ponder-app --from-subgraph ./path-to-subgraph-directory
+npx create-ponder-app@latest --from-subgraph ./subgraph-directory
+# or
+yarn create ponder-app --from-subgraph ./subgraph-directory
+# or
+pnpm create ponder-app --from-subgraph ./subgraph-directory
 ```
 
 #### 2. Start the development server
 
 ```
 cd ponder
-npm run dev
 ```
 
-The development server prints logs to help you handle any configuration issues or errors. The server automatically reloads whenever you save changes in any project file.
+```
+npm run dev
+# or
+yarn dev
+# or
+pnpm run dev
+```
+
+The dev server prints logs to help you debug any configuration issues or errors. The server automatically reloads whenever you save changes in any project file.
 
 ### I'm starting a new project
 
-Coming soon!
+[TODO]
 
-## Writing event handlers
+## Guides
 
-The `handlers/` directory contains a file for each source defined in `ponder.config.js`. The `handlers/index.ts` file must export an object that maps source names event names to event handler functions.
+Getting started
 
-Event handler functions receive two arguments - `event` and `context`. The `event` object contains `params`, `block`, `transaction`, and other useful log fields. The `context` object contains a small ORM-style object for each entity defined in your `schema.graphql`. Use these entity objects to insert, and update the entities that will be served via GraphQL, just like in your subgraph.
+Event sources & networks
 
-Here's an example handler function for an ERC20 `Transfer` event.
+Event handlers
 
-```graphql
-# schema.graphql
+Database
 
-type Account @entity {
-  id: ID!
-  balance: BigInt!
-  lastActiveAt: Int
-}
-```
+Deploying to production
 
-```ts
-// handlers/MyERC20Token.ts
+## API reference
 
-const handleTransfer = async (event, context) => {
-  const { Account } = context.entities;
-  const { timestamp } = event.block
-  const { to, from, amount } = event.params;
+Create ponder app
 
-  let sender = await Account.find({ id: from })
-  if (!sender) {
-    sender = await Account.insert({ id: from, balance: 0 })
-  }
-  await sender.update({
-    balance: sender.balance - amount,
-    lastActiveAt: timestamp
-  })
+Event handler context
 
-  let recipient = await Account.find({ id: to })
-  if (!recipient) {
-    recipient = await Account.insert({ id: to, balance: 0 })
-  }
-  await recipient.update({
-    balance: recipient.balance + amount
-  })
-};
+ponder.config.js
 
-export {
-  Transfer: handleTransfer
-}
-```
-
-## Deploying to production
-
-Ponder apps can be deployed on any cloud provider that offers a Node.js web service runtime.
-
-#### Render
-
-Coming soon!
-
-#### Railway
-
-Coming soon!
-
-## API Reference
-
-### create-ponder-app
-
-### @ponder/ponder
-
-## Docs
-
-### Project files
-
-#### 1. `ponder.config.js`
-
-This file contains contract addresses, paths to ABIs, and RPC URLs for each of your sources. It is analogous to a subgraph's `subgraph.yaml` file.
-
-#### 2. `schema.graphql`
-
-This file works exactly like a subgraph's `schema.graphql`. It supports the `@entity` and `@derivedFrom("field")` directives.
-
-#### 3. `handlers/`
-
-This directory contains your event handler functions. Ponder uses these functions to process blockchain events. Event handlers can create and update Entities, which are served by the autogenerated GraphQL API.
-
-#### 4. `abis/`
-
-This directory contains the ABIs for your contracts. You can download these files from Etherscan, or (more likely) generate them from a local smart contract development tool like Hardhat or Foundry.
-
-#### 5. `generated/`
-
-This gitignored directory stores autogenerated Typescript types for your handler files to import. It also contains the final schema that is served by the GraphQL API.
-
-#### 6. `.ponder/`
-
-This gitignored directory stores ponder's internal cache store and the compiled handler code. You shouldn't need to worry about it, but if you delete it, ponder will need to refetch any cached logs from the RPC.
+schema.graphql
 
 ## Packages
 
@@ -141,12 +81,12 @@ This gitignored directory stores ponder's internal cache store and the compiled 
 
 ## About
 
-Ponder is MIT-licensed, open-source, self-hosted software.
+Ponder is MIT-licensed open-source software.
 
 #### Goals
 
-- Be the best tool for building blockchain app backends
-- Work seamlessly alongside best-in-class frameworks like Foundry and Next.js
+- Be the best tool for building web services that rely on blockchain events
+- Work seamlessly alongside frameworks like Foundry and Next.js
 
 #### Non-goals
 
