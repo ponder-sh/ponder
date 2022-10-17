@@ -11,7 +11,6 @@ A framework for blockchain-enabled web services
 | Runtime              | Node.js                      | WebAssembly                                    |
 | Supported networks   | Any EVM blockchain           | Ethereum mainnet only[^1]                      |
 | Local dev server     | ✅                           | ❌                                             |
-| Hot reloading        | ✅                           | N/A                                            |
 | Hosting requirements | Node.js; Postgres (optional) | Graph Node; IPFS node; Ethereum node; Postgres |
 
 ## Quickstart
@@ -48,31 +47,27 @@ pnpm run dev
 
 The dev server prints logs to help you debug any configuration issues or errors. The server automatically reloads whenever you save changes in any project file.
 
-### I'm starting a new project
-
-[TODO]
-
 ## Guides
 
-Getting started
+[Getting started](https://github.com/0xOlias/ponder/blob/main/docs/getting-started.md)
 
-Event sources & networks
+[Event sources & networks](https://github.com/0xOlias/ponder/blob/main/docs/event-sources-and-networks.md)
 
-Event handlers
+[Event handlers](https://github.com/0xOlias/ponder/blob/main/docs/event-handlers.md)
 
-Database
+[Database](https://github.com/0xOlias/ponder/blob/main/docs/database.md)
 
-Deploying to production
+[Deploying to production](https://github.com/0xOlias/ponder/blob/main/docs/deploying-to-production.md)
 
 ## API reference
 
-Create ponder app
+[Create ponder app](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/create-ponder-app.md)
 
-Event handler context
+[Event handler context](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/event-handler-context.md)
 
-ponder.config.js
+[`ponder.config.js`](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/ponder-config-js.md)
 
-schema.graphql
+[`schema.graphql`](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/schema-graphql.md)
 
 ## Packages
 
