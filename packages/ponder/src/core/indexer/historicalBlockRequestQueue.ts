@@ -1,21 +1,11 @@
-import type { Block } from "@ethersproject/providers";
-import type { Transaction } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
+import { parseBlock, parseTransaction } from "@/stores/utils";
 
 import { stats } from "./stats";
-import { hexStringToNumber } from "./utils";
-
-export interface BlockWithTransactions extends Omit<Block, "transactions"> {
-  transactions: Transaction[];
-}
-
-export interface TransactionWithHash extends Omit<Transaction, "hash"> {
-  hash: string;
-}
 
 export type HistoricalBlockRequestTask = {
   blockHash: string;
@@ -69,28 +59,21 @@ async function historicalBlockRequestWorker(
     return;
   }
 
-  const block: BlockWithTransactions = await provider.send(
-    "eth_getBlockByHash",
-    [blockHash, true]
-  );
+  const rawBlock = await provider.send("eth_getBlockByHash", [blockHash, true]);
 
-  // For MOST methods, ethers returns block numbers as hex strings (despite them being typed as 'number').
-  // This codebase treats them as decimals, so it's easiest to just convert immediately after fetching.
-  block.number = hexStringToNumber(block.number);
+  const block = parseBlock(rawBlock);
 
-  const transactions = block.transactions.filter(
-    (txn): txn is TransactionWithHash => !!txn.hash
-  );
-
-  const blockWithoutTransactions: Block = {
-    ...block,
-    transactions: transactions.map((txn) => txn.hash),
-  };
+  // Filter out pending transactions (this might not be necessary?).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const transactions = (rawBlock.transactions as any[])
+    .filter((txn) => !!txn.hash)
+    .map(parseTransaction);
 
   await Promise.all([
-    cacheStore.insertBlock(blockWithoutTransactions),
+    cacheStore.insertBlock(block),
     cacheStore.insertTransactions(transactions),
   ]);
+
   await onSuccess(blockHash);
 
   stats.syncProgressBar.increment();

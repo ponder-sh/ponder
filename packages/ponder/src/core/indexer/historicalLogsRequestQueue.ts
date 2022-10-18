@@ -1,14 +1,13 @@
-import type { Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
+import { parseLog } from "@/stores/utils";
 
 import type { HistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
 import { stats } from "./stats";
-import { hexStringToNumber } from "./utils";
 
 export type HistoricalLogsRequestTask = {
   contractAddresses: string[];
@@ -58,7 +57,7 @@ async function historicalLogsRequestWorker(
   const { cacheStore, source, historicalBlockRequestQueue } = this;
   const { provider } = source.network;
 
-  const rawLogs: Log[] = await provider.send("eth_getLogs", [
+  const rawLogs = await provider.send("eth_getLogs", [
     {
       address: contractAddresses,
       fromBlock: BigNumber.from(fromBlock).toHexString(),
@@ -66,16 +65,13 @@ async function historicalLogsRequestWorker(
     },
   ]);
 
-  // For MOST methods, ethers returns block numbers as hex strings (despite them being typed as 'number').
-  // This codebase treats them as decimals, so it's easiest to just convert immediately after fetching.
-  const logs = rawLogs.map((log) => ({
-    ...log,
-    blockNumber: hexStringToNumber(log.blockNumber),
-  }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const logs = (rawLogs as any[]).map(parseLog);
 
-  await Promise.all(logs.map((log) => cacheStore.upsertLog(log)));
+  await cacheStore.insertLogs(logs);
 
   const requiredBlockHashSet = new Set(logs.map((l) => l.blockHash));
+  const requiredBlockHashes = [...requiredBlockHashSet];
 
   // The block request worker calls this callback when it finishes. This serves as
   // a hacky way to run some code when all "child" jobs are done. In this case,
@@ -105,8 +101,6 @@ async function historicalLogsRequestWorker(
       }
     }
   };
-
-  const requiredBlockHashes = [...requiredBlockHashSet];
 
   // If there are no required blocks, call the batch success callback manually
   // so we make sure to update the contract metadata accordingly.

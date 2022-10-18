@@ -1,6 +1,4 @@
-import type { Block, Log } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
-import type { Transaction } from "ethers";
 
 import { logger } from "@/common/logger";
 
@@ -9,68 +7,105 @@ import type {
   ContractCall,
   ContractMetadata,
 } from "./baseCacheStore";
+import type { CachedBlock, CachedLog, CachedTransaction } from "./utils";
 
 export class SqliteCacheStore implements BaseCacheStore {
   db: Sqlite.Database;
 
   constructor(db: Sqlite.Database) {
     this.db = db;
+    this.db.pragma("journal_mode = WAL");
   }
 
   migrate = async () => {
     this.db
       .prepare(
-        `CREATE TABLE IF NOT EXISTS metadata (
-        \`contractAddress\` TEXT PRIMARY KEY,
-        \`startBlock\` INT NOT NULL,
-        \`endBlock\` INT NOT NULL
-      )`
+        `
+        CREATE TABLE IF NOT EXISTS metadata (
+          \`contractAddress\` TEXT PRIMARY KEY,
+          \`startBlock\` INT NOT NULL,
+          \`endBlock\` INT NOT NULL
+        )`
       )
       .run();
 
     this.db
       .prepare(
-        `CREATE TABLE IF NOT EXISTS logs (
-        \`id\` TEXT PRIMARY KEY,
-        \`blockNumber\` INT NOT NULL,
-        \`address\` TEXT NOT NULL,
-        \`data\` TEXT NOT NULL
-      )`
+        `
+        CREATE TABLE IF NOT EXISTS logs (
+          \`logId\` TEXT PRIMARY KEY,
+          \`logSortKey\` INT NOT NULL,
+          \`address\` TEXT NOT NULL,
+          \`data\` TEXT NOT NULL,
+          \`topics\` TEXT NOT NULL,
+          \`blockHash\` TEXT NOT NULL,
+          \`blockNumber\` INT NOT NULL,
+          \`logIndex\` INT NOT NULL,
+          \`transactionHash\` TEXT NOT NULL,
+          \`transactionIndex\` INT NOT NULL,
+          \`removed\` INT NOT NULL
+        )`
       )
       .run();
 
     this.db
       .prepare(
-        `CREATE TABLE IF NOT EXISTS blocks (
-        \`id\` TEXT PRIMARY KEY,
-        \`number\` INT NOT NULL,
-        \`data\` TEXT NOT NULL
-      )`
+        `
+        CREATE TABLE IF NOT EXISTS blocks (
+          \`hash\` TEXT PRIMARY KEY,
+          \`number\` INT NOT NULL,
+          \`timestamp\` INT NOT NULL,
+          \`gasLimit\` TEXT NOT NULL,
+          \`gasUsed\` TEXT NOT NULL,
+          \`baseFeePerGas\` TEXT NOT NULL,
+          \`miner\` TEXT NOT NULL,
+          \`extraData\` TEXT NOT NULL,
+          \`size\` INT NOT NULL,
+          \`parentHash\` TEXT NOT NULL,
+          \`stateRoot\` TEXT NOT NULL,
+          \`transactionsRoot\` TEXT NOT NULL,
+          \`receiptsRoot\` TEXT NOT NULL,
+          \`logsBloom\` TEXT NOT NULL,
+          \`totalDifficulty\` TEXT NOT NULL
+        )`
       )
       .run();
 
     this.db
       .prepare(
-        `CREATE TABLE IF NOT EXISTS transactions (
-        \`id\` TEXT PRIMARY KEY,
-        \`to\` TEXT,
-        \`data\` TEXT NOT NULL
-      )`
+        `
+        CREATE TABLE IF NOT EXISTS transactions (
+          \`hash\` TEXT PRIMARY KEY,
+          \`nonce\` INT NOT NULL,
+          \`from\` TEXT NOT NULL,
+          \`to\` TEXT,
+          \`value\` TEXT NOT NULL,
+          \`input\` TEXT NOT NULL,
+          \`gas\` TEXT NOT NULL,
+          \`gasPrice\` TEXT NOT NULL,
+          \`maxFeePerGas\` TEXT,
+          \`maxPriorityFeePerGas\` TEXT,
+          \`blockHash\` TEXT NOT NULL,
+          \`blockNumber\` INT NOT NULL,
+          \`transactionIndex\` INT NOT NULL,
+          \`chainId\` INT
+        )`
       )
       .run();
 
     this.db
       .prepare(
-        `CREATE TABLE IF NOT EXISTS contractCalls (
-        \`key\` TEXT PRIMARY KEY,
-        \`result\` TEXT NOT NULL
-      )`
+        `
+        CREATE TABLE IF NOT EXISTS contractCalls (
+          \`key\` TEXT PRIMARY KEY,
+          \`result\` TEXT NOT NULL
+        )`
       )
       .run();
   };
 
   getContractMetadata = async (contractAddress: string) => {
-    const result = this.db
+    const contractMetadata = this.db
       .prepare(
         `SELECT * FROM \`metadata\` WHERE \`contractAddress\` = @contractAddress`
       )
@@ -78,11 +113,9 @@ export class SqliteCacheStore implements BaseCacheStore {
         contractAddress: contractAddress,
       });
 
-    if (!result) return null;
+    if (!contractMetadata) return null;
 
-    const contractMetadata = result as ContractMetadata;
-
-    return contractMetadata;
+    return <ContractMetadata>contractMetadata;
   };
 
   upsertContractMetadata = async (attributes: ContractMetadata) => {
@@ -110,69 +143,147 @@ export class SqliteCacheStore implements BaseCacheStore {
     return upsertedEntity;
   };
 
-  upsertLog = async (log: Log) => {
-    try {
-      this.db
-        .prepare(
-          `
-          INSERT INTO logs (\`id\`, \`blockNumber\`, \`address\`, \`data\`) VALUES (@id, @blockNumber, @address, @data)
-          ON CONFLICT(\`id\`) DO UPDATE SET
-            \`blockNumber\`=excluded.\`blockNumber\`,
-            \`address\`=excluded.\`address\`,
-            \`data\`=excluded.\`data\`
-          RETURNING *
-          `
-        )
-        .run({
-          id: `${log.blockHash}-${log.logIndex}`,
-          blockNumber: log.blockNumber,
-          address: log.address,
-          data: JSON.stringify(log),
-        });
-    } catch (err) {
-      logger.warn({ err });
-    }
-  };
+  insertLogs = async (logs: CachedLog[]) => {
+    const insertLog = this.db.prepare(
+      `
+      INSERT INTO \`logs\` (
+        \`logId\`,
+        \`logSortKey\`,
+        \`address\`,
+        \`data\`,
+        \`topics\`,
+        \`blockHash\`,
+        \`blockNumber\`,
+        \`logIndex\`,
+        \`transactionHash\`,
+        \`transactionIndex\`,
+        \`removed\`
+      ) VALUES (
+        @logId,
+        @logSortKey,
+        @address,
+        @data,
+        @topics,
+        @blockHash,
+        @blockNumber,
+        @logIndex,
+        @transactionHash,
+        @transactionIndex,
+        @removed
+      ) ON CONFLICT(\`logId\`) DO NOTHING
+      `
+    );
 
-  insertBlock = async (block: Block) => {
-    try {
-      this.db
-        .prepare(
-          `INSERT INTO blocks (\`id\`, \`number\`, \`data\`) VALUES (@id, @number, @data)`
-        )
-        .run({
-          id: block.hash,
-          number: block.number,
-          data: JSON.stringify(block),
-        });
-    } catch (err) {
-      logger.warn({ err });
-    }
-  };
-
-  insertTransactions = async (transactions: Transaction[]) => {
-    transactions.forEach((txn) => {
-      try {
-        this.db
-          .prepare(
-            `INSERT INTO transactions (\`id\`, \`to\`, \`data\`) VALUES (@id, @to, @data)`
-          )
-          .run({
-            id: txn.hash,
-            to: txn.to,
-            data: JSON.stringify(txn),
-          });
-      } catch (err) {
-        logger.warn({ err });
-      }
+    const insertLogs = this.db.transaction((logs) => {
+      for (const log of logs) insertLog.run(log);
     });
+
+    try {
+      insertLogs(logs);
+    } catch (err) {
+      logger.warn({ err });
+    }
+  };
+
+  insertBlock = async (block: CachedBlock) => {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO blocks (
+            \`hash\`,
+            \`number\`,
+            \`timestamp\`,
+            \`gasLimit\`,
+            \`gasUsed\`,
+            \`baseFeePerGas\`,
+            \`miner\`,
+            \`extraData\`,
+            \`size\`,
+            \`parentHash\`,
+            \`stateRoot\`,
+            \`transactionsRoot\`,
+            \`receiptsRoot\`,
+            \`logsBloom\`,
+            \`totalDifficulty\`
+          ) VALUES (
+            @hash,
+            @number,
+            @timestamp,
+            @gasLimit,
+            @gasUsed,
+            @baseFeePerGas,
+            @miner,
+            @extraData,
+            @size,
+            @parentHash,
+            @stateRoot,
+            @transactionsRoot,
+            @receiptsRoot,
+            @logsBloom,
+            @totalDifficulty
+          ) ON CONFLICT(\`hash\`) DO NOTHING
+          `
+        )
+        .run({ ...block, id: block.hash });
+    } catch (err) {
+      logger.warn({ err });
+    }
+  };
+
+  insertTransactions = async (transactions: CachedTransaction[]) => {
+    const insertTransaction = this.db.prepare(
+      `
+      INSERT INTO \`transactions\` (
+        \`hash\`,
+        \`nonce\`,
+        \`from\`,
+        \`to\`,
+        \`value\`,
+        \`input\`,
+        \`gas\`,
+        \`gasPrice\`,
+        \`maxFeePerGas\`,
+        \`maxPriorityFeePerGas\`,
+        \`blockHash\`,
+        \`blockNumber\`,
+        \`transactionIndex\`,
+        \`chainId\`
+      ) VALUES (
+        @hash,
+        @nonce,
+        @from,
+        @to,
+        @value,
+        @input,
+        @gas,
+        @gasPrice,
+        @maxFeePerGas,
+        @maxPriorityFeePerGas,
+        @blockHash,
+        @blockNumber,
+        @transactionIndex,
+        @chainId
+      ) ON CONFLICT(\`hash\`) DO NOTHING
+      `
+    );
+
+    const insertTransactions = this.db.transaction((txns) => {
+      for (const txn of txns) insertTransaction.run(txn);
+    });
+
+    try {
+      insertTransactions(transactions);
+    } catch (err) {
+      logger.warn({ err });
+    }
   };
 
   getLogs = async (addresses: string[], fromBlock: number) => {
     const addressesStatement = `(${addresses.map((a) => `'${a}'`).join(",")})`;
 
     try {
-      const result: { id: string; data: string }[] = this.db
+      const logs = this.db
         .prepare(
           `SELECT * FROM logs WHERE \`blockNumber\` >= @fromBlock AND \`address\` IN ${addressesStatement}`
         )
@@ -180,41 +291,35 @@ export class SqliteCacheStore implements BaseCacheStore {
           fromBlock: fromBlock,
         });
 
-      const logs: Log[] = result.map((log) => JSON.parse(log.data));
-
-      return logs;
+      return <CachedLog[]>logs;
     } catch (err) {
       logger.warn({ err });
       return [];
     }
   };
 
-  getBlock = async (blockHash: string) => {
-    const result = this.db
-      .prepare(`SELECT * FROM \`blocks\` WHERE \`id\` = @id`)
+  getBlock = async (hash: string) => {
+    const block = this.db
+      .prepare(`SELECT * FROM \`blocks\` WHERE \`hash\` = @hash`)
       .get({
-        id: blockHash,
+        hash: hash,
       });
 
-    if (!result) return null;
+    if (!block) return null;
 
-    const block: Block = JSON.parse(result.data);
-
-    return block;
+    return <CachedBlock>block;
   };
 
-  getTransaction = async (transactionHash: string) => {
-    const result = this.db
-      .prepare(`SELECT * FROM transactions WHERE \`id\` = @id`)
+  getTransaction = async (hash: string) => {
+    const transaction = this.db
+      .prepare(`SELECT * FROM transactions WHERE \`hash\` = @hash`)
       .get({
-        id: transactionHash,
+        hash: hash,
       });
 
-    if (!result) return null;
+    if (!transaction) return null;
 
-    const transaction: Transaction = JSON.parse(result.data);
-
-    return transaction;
+    return <CachedTransaction>transaction;
   };
 
   upsertContractCall = async (contractCall: ContractCall) => {

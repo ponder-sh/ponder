@@ -1,4 +1,3 @@
-import type { Log } from "@ethersproject/providers";
 import { Contract } from "ethers";
 import fastq from "fastq";
 
@@ -7,12 +6,13 @@ import type { PonderSchema } from "@/core/schema/types";
 import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
+import type { CachedLog } from "@/stores/utils";
 
 import type { EntityModel, Handlers } from "../readHandlers";
 import { stats } from "./stats";
 
 export type LogTask = {
-  log: Log;
+  log: CachedLog;
 };
 
 export type LogQueue = fastq.queueAsPromised<LogTask>;
@@ -69,9 +69,6 @@ export const createLogQueue = ({
 
     stats.sourceStats[source.name].matchedLogCount += 1;
 
-    const parsedLog = source.abiInterface.parseLog(log);
-    const params = { ...parsedLog.args };
-
     const sourceHandlers = userHandlers[source.name];
     if (!sourceHandlers) {
       logger.warn(`Handlers not found for source: ${source.name}`);
@@ -80,6 +77,11 @@ export const createLogQueue = ({
       );
       return;
     }
+
+    const parsedLog = source.abiInterface.parseLog({
+      data: log.data,
+      topics: JSON.parse(log.topics),
+    });
 
     const handler = sourceHandlers[parsedLog.name];
     if (!handler) {
@@ -107,7 +109,12 @@ export const createLogQueue = ({
       );
     }
 
-    const event = { ...parsedLog, params: params, block, transaction };
+    const event = {
+      ...log,
+      params: { ...parsedLog.args },
+      block,
+      transaction,
+    };
 
     // YAY: We're running user code here!
     try {

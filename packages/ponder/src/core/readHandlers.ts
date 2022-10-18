@@ -1,16 +1,15 @@
-import { LogDescription } from "@ethersproject/abi";
-import { Block } from "@ethersproject/providers";
 import { build } from "esbuild";
-import type { Contract, Transaction } from "ethers";
+import type { Contract } from "ethers";
 import path from "node:path";
 
 import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
+import { CachedBlock, CachedLog, CachedTransaction } from "@/stores/utils";
 
 // Handler event types
-export interface HandlerEvent extends LogDescription {
-  block: Block;
-  transaction: Transaction;
+export interface HandlerEvent extends CachedLog {
+  block: CachedBlock;
+  transaction: CachedTransaction;
 }
 
 // Handler context types

@@ -1,5 +1,3 @@
-import type { Log, StaticJsonRpcProvider } from "@ethersproject/providers";
-
 import { logger } from "@/common/logger";
 import { endBenchmark, startBenchmark } from "@/common/utils";
 import { createLogQueue } from "@/core/indexer/logQueue";
@@ -8,21 +6,12 @@ import type { PonderSchema } from "@/core/schema/types";
 import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
+import type { CachedLog } from "@/stores/utils";
 
 import type { CachedProvider } from "./CachedProvider";
 import { createLiveBlockRequestQueue } from "./liveBlockRequestQueue";
 import { reindexSource } from "./reindexSource";
 import { getPrettyPercentage, resetStats, stats } from "./stats";
-import { getLogIndex } from "./utils";
-
-export type SourceGroup = {
-  chainId: number;
-  provider: StaticJsonRpcProvider;
-  contracts: string[];
-  startBlock: number;
-  blockLimit: number;
-  sources: Source[];
-};
 
 export let isHotReload = false;
 let previousProviders: CachedProvider[] = [];
@@ -155,7 +144,7 @@ export const handleReindex = async (
 
   logger.info(`\x1b[33m${`Processing logs...`}\x1b[0m`); // yellow
 
-  let logsFromAllSources: Log[] = [];
+  let logsFromAllSources: CachedLog[] = [];
   for (const source of sources) {
     const logs = await cacheStore.getLogs([source.address], source.startBlock);
     logsFromAllSources = logsFromAllSources.concat(logs);
@@ -164,7 +153,7 @@ export const handleReindex = async (
   stats.processingProgressBar.start(logsFromAllSources.length, 0);
 
   const sortedLogs = logsFromAllSources.sort(
-    (a, b) => getLogIndex(a) - getLogIndex(b)
+    (a, b) => a.logSortKey - b.logSortKey
   );
 
   // Add sorted historical logs to the front of the queue (in reverse order).

@@ -1,14 +1,3 @@
-import { Log } from "@ethersproject/providers";
-
-export const getLogIndex = (log: Log) =>
-  Number(log.blockNumber) * 10000 + Number(log.logIndex);
-
-export const hexStringToNumber = (value: string | number) => {
-  return typeof value === "string"
-    ? parseInt((value as string).slice(2), 16)
-    : value;
-};
-
 // From https://stackoverflow.com/a/33857786/12841788
 
 /* This method takes 2 points p1 and p2 and returns an array of

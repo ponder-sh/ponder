@@ -1,17 +1,12 @@
-import type { Block, Log } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
-import { Network } from "@/networks/base";
+import type { Network } from "@/networks/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
+import { parseBlock, parseLog, parseTransaction } from "@/stores/utils";
 
-import type {
-  BlockWithTransactions,
-  TransactionWithHash,
-} from "./historicalBlockRequestQueue";
 import type { LogQueue } from "./logQueue";
-import { getLogIndex, hexStringToNumber } from "./utils";
 
 export type LiveBlockRequestTask = {
   blockNumber: number;
@@ -63,53 +58,36 @@ async function liveBlockRequestWorker(
   const { cacheStore, network, contractAddresses, logQueue } = this;
   const { provider } = network;
 
-  const [rawLogs, block] = await Promise.all([
+  const [rawLogs, rawBlock] = await Promise.all([
     provider.send("eth_getLogs", [
       {
         address: contractAddresses,
         fromBlock: BigNumber.from(blockNumber).toHexString(),
         toBlock: BigNumber.from(blockNumber).toHexString(),
       },
-    ]) as Promise<Log[]>,
+    ]),
     provider.send("eth_getBlockByNumber", [
       BigNumber.from(blockNumber).toHexString(),
       true,
-    ]) as Promise<BlockWithTransactions>,
+    ]),
   ]);
 
-  // For MOST methods, ethers returns block numbers as hex strings (despite them being typed as 'number').
-  // This codebase treats them as decimals, so it's easiest to just convert immediately after fetching.
-  block.number = hexStringToNumber(block.number);
-  const logs = rawLogs.map((log) => ({
-    ...log,
-    blockNumber: hexStringToNumber(log.blockNumber),
-  }));
+  const block = parseBlock(rawBlock);
 
-  const transactions = block.transactions.filter(
-    (txn): txn is TransactionWithHash => !!txn.hash
-  );
+  // Filter out pending transactions (this might not be necessary?).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const transactions = (rawBlock.transactions as any[])
+    .filter((txn) => !!txn.hash)
+    .map(parseTransaction);
 
-  const blockWithoutTransactions: Block = {
-    ...block,
-    transactions: transactions.map((txn) => txn.hash),
-  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const logs = (rawLogs as any[]).map(parseLog);
 
-  const cachedBlock = await cacheStore.getBlock(block.hash);
-  if (!cachedBlock) {
-    await Promise.all([
-      cacheStore.insertBlock(blockWithoutTransactions),
-      cacheStore.insertTransactions(transactions),
-    ]);
-  }
-
-  logger.info(
-    `\x1b[33m${`Matched ${logs.length} logs from block ${blockNumber} (${block.transactions.length} txns)`}\x1b[0m` // blue
-  );
-
-  const sortedLogs = logs.sort((a, b) => getLogIndex(a) - getLogIndex(b));
-
-  // Add the logs and update metadata.
-  await Promise.all(sortedLogs.map((log) => cacheStore.upsertLog(log)));
+  await Promise.all([
+    cacheStore.insertBlock(block),
+    cacheStore.insertTransactions(transactions),
+    cacheStore.insertLogs(logs),
+  ]);
 
   for (const contractAddress of contractAddresses) {
     const foundContractMetadata = await cacheStore.getContractMetadata(
@@ -129,6 +107,12 @@ async function liveBlockRequestWorker(
       });
     }
   }
+
+  logger.info(
+    `\x1b[33m${`Matched ${logs.length} logs from block ${blockNumber} (${transactions.length} txns)`}\x1b[0m` // blue
+  );
+
+  const sortedLogs = logs.sort((a, b) => a.logSortKey - b.logSortKey);
 
   for (const log of sortedLogs) {
     logQueue.push({ log });
