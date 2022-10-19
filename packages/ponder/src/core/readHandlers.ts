@@ -4,12 +4,12 @@ import path from "node:path";
 
 import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
-import { CachedBlock, CachedLog, CachedTransaction } from "@/stores/utils";
+import { Block, EventLog, Transaction } from "@/types";
 
 // Handler event types
-export interface HandlerEvent extends CachedLog {
-  block: CachedBlock;
-  transaction: CachedTransaction;
+export interface HandlerEvent extends EventLog {
+  block: Block;
+  transaction: Transaction;
 }
 
 // Handler context types

@@ -6,13 +6,13 @@ import type { PonderSchema } from "@/core/schema/types";
 import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
-import type { CachedLog } from "@/stores/utils";
+import type { EventLog } from "@/types";
 
 import type { EntityModel, Handlers } from "../readHandlers";
 import { stats } from "./stats";
 
 export type LogTask = {
-  log: CachedLog;
+  log: EventLog;
 };
 
 export type LogQueue = fastq.queueAsPromised<LogTask>;

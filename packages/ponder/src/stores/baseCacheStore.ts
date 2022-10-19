@@ -1,7 +1,8 @@
 import type Sqlite from "better-sqlite3";
 
+import type { Block, EventLog, Transaction } from "@/types";
+
 import { SqliteCacheStore } from "./sqliteCacheStore";
-import { CachedBlock, CachedLog, CachedTransaction } from "./utils";
 
 export type ContractMetadata = {
   contractAddress: string;
@@ -27,17 +28,17 @@ export interface BaseCacheStore {
     attributes: ContractMetadata
   ): Promise<ContractMetadata>;
 
-  insertLogs(log: CachedLog[]): Promise<void>;
+  insertLogs(log: EventLog[]): Promise<void>;
 
-  insertBlock(block: CachedBlock): Promise<void>;
+  insertBlock(block: Block): Promise<void>;
 
-  insertTransactions(transactions: CachedTransaction[]): Promise<void>;
+  insertTransactions(transactions: Transaction[]): Promise<void>;
 
-  getLogs(addresses: string[], fromBlock: number): Promise<CachedLog[]>;
+  getLogs(addresses: string[], fromBlock: number): Promise<EventLog[]>;
 
-  getBlock(hash: string): Promise<CachedBlock | null>;
+  getBlock(hash: string): Promise<Block | null>;
 
-  getTransaction(hash: string): Promise<CachedTransaction | null>;
+  getTransaction(hash: string): Promise<Transaction | null>;
 
   upsertContractCall(contractCall: ContractCall): Promise<void>;
 

@@ -13,9 +13,8 @@ const header = `
 `;
 
 const imports = `
-import type { LogDescription } from "@ethersproject/abi";
-import type { Block } from "@ethersproject/providers";
-import type { BigNumber, Transaction } from "ethers";
+import type { Block, EventLog, Transaction } from "@ponder/ponder";
+import type { BigNumber } from "ethers";
 
 import type { Context } from "./context";
 `;
@@ -66,7 +65,7 @@ const generateEventHandlerType = (
   const parameterType = generateParamsType(event.inputs);
 
   const eventHandlerTypes = `
-  export interface ${eventName}Event extends LogDescription {
+  export interface ${eventName}Event extends EventLog {
     name: "${eventName}";
     params: ${parameterType};
     block: Block;

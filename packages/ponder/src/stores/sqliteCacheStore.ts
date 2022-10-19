@@ -1,13 +1,13 @@
 import type Sqlite from "better-sqlite3";
 
 import { logger } from "@/common/logger";
+import type { Block, EventLog, Transaction } from "@/types";
 
 import type {
   BaseCacheStore,
   ContractCall,
   ContractMetadata,
 } from "./baseCacheStore";
-import type { CachedBlock, CachedLog, CachedTransaction } from "./utils";
 
 export class SqliteCacheStore implements BaseCacheStore {
   db: Sqlite.Database;
@@ -143,7 +143,7 @@ export class SqliteCacheStore implements BaseCacheStore {
     return upsertedEntity;
   };
 
-  insertLogs = async (logs: CachedLog[]) => {
+  insertLogs = async (logs: EventLog[]) => {
     const insertLog = this.db.prepare(
       `
       INSERT INTO \`logs\` (
@@ -185,7 +185,7 @@ export class SqliteCacheStore implements BaseCacheStore {
     }
   };
 
-  insertBlock = async (block: CachedBlock) => {
+  insertBlock = async (block: Block) => {
     try {
       this.db
         .prepare(
@@ -231,7 +231,7 @@ export class SqliteCacheStore implements BaseCacheStore {
     }
   };
 
-  insertTransactions = async (transactions: CachedTransaction[]) => {
+  insertTransactions = async (transactions: Transaction[]) => {
     const insertTransaction = this.db.prepare(
       `
       INSERT INTO \`transactions\` (
@@ -291,7 +291,7 @@ export class SqliteCacheStore implements BaseCacheStore {
           fromBlock: fromBlock,
         });
 
-      return <CachedLog[]>logs;
+      return <EventLog[]>logs;
     } catch (err) {
       logger.warn({ err });
       return [];
@@ -307,7 +307,7 @@ export class SqliteCacheStore implements BaseCacheStore {
 
     if (!block) return null;
 
-    return <CachedBlock>block;
+    return <Block>block;
   };
 
   getTransaction = async (hash: string) => {
@@ -319,7 +319,7 @@ export class SqliteCacheStore implements BaseCacheStore {
 
     if (!transaction) return null;
 
-    return <CachedTransaction>transaction;
+    return <Transaction>transaction;
   };
 
   upsertContractCall = async (contractCall: ContractCall) => {

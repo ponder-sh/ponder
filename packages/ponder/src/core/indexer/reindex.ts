@@ -6,7 +6,7 @@ import type { PonderSchema } from "@/core/schema/types";
 import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
 import type { EntityStore } from "@/stores/baseEntityStore";
-import type { CachedLog } from "@/stores/utils";
+import type { EventLog } from "@/types";
 
 import type { CachedProvider } from "./CachedProvider";
 import { createLiveBlockRequestQueue } from "./liveBlockRequestQueue";
@@ -144,7 +144,7 @@ export const handleReindex = async (
 
   logger.info(`\x1b[33m${`Processing logs...`}\x1b[0m`); // yellow
 
-  let logsFromAllSources: CachedLog[] = [];
+  let logsFromAllSources: EventLog[] = [];
   for (const source of sources) {
     const logs = await cacheStore.getLogs([source.address], source.startBlock);
     logsFromAllSources = logsFromAllSources.concat(logs);

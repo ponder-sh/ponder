@@ -1,63 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export interface CachedBlock {
-  hash: string;
-  number: number;
-  timestamp: number;
-
-  gasLimit: string; // BigNumber
-  gasUsed: string; // BigNumber
-  baseFeePerGas: string; // BigNumber
-
-  miner: string;
-  extraData: string;
-  size: number;
-
-  parentHash: string;
-  stateRoot: string;
-  transactionsRoot: string;
-  receiptsRoot: string;
-  logsBloom: string;
-  totalDifficulty: string; // BigNumber
-}
-
-export interface CachedTransaction {
-  hash: string;
-  nonce: number;
-
-  from: string;
-  to?: string; // null if contract creation
-  value: string; // BigNumber
-  input: string;
-
-  gas: string; // BigNumber
-  gasPrice: string; // BigNumber
-  maxFeePerGas?: string; // BigNumber
-  maxPriorityFeePerGas?: string; // BigNumber
-
-  blockHash: string;
-  blockNumber: number;
-  transactionIndex: number;
-  chainId: number;
-}
-
-export interface CachedLog {
-  logId: string; // `${log.blockHash}-${log.logIndex}`
-  logSortKey: number;
-
-  address: string;
-  data: string;
-  topics: string; // JSON.stringify-ed array of topic strings
-
-  blockHash: string;
-  blockNumber: number;
-  logIndex: number;
-
-  transactionHash: string;
-  transactionIndex: number;
-
-  removed: number; // boolean, 0 or 1
-}
+import type { Block, EventLog, Transaction } from "@/types";
 
 export const hexStringToDecimal = (value: string | number) => {
   return typeof value === "string"
@@ -96,7 +39,7 @@ export const hexStringToDecimal = (value: string | number) => {
   The argument is typed as any here for convenience, because ethers does not
   seem to export types that correspond to the return type of the raw RPC methods.
 */
-export const parseBlock = (block: any): CachedBlock => ({
+export const parseBlock = (block: any): Block => ({
   number: hexStringToDecimal(block.number),
   hash: block.hash,
   timestamp: hexStringToDecimal(block.timestamp),
@@ -144,7 +87,7 @@ export const parseBlock = (block: any): CachedBlock => ({
   The argument is typed as any here for convenience, because ethers does not
   seem to export types that correspond to the return type of the raw RPC methods.
 */
-export const parseTransaction = (txn: any): CachedTransaction => ({
+export const parseTransaction = (txn: any): Transaction => ({
   hash: txn.hash,
   nonce: hexStringToDecimal(txn.nonce),
 
@@ -186,7 +129,7 @@ export const parseTransaction = (txn: any): CachedTransaction => ({
   seem to export types that correspond to the return type of the raw RPC methods.
 */
 
-export const parseLog = (log: any): CachedLog => ({
+export const parseLog = (log: any): EventLog => ({
   logId: `${log.blockHash}-${log.logIndex}`,
   logSortKey:
     hexStringToDecimal(log.blockNumber) * 100000 +
