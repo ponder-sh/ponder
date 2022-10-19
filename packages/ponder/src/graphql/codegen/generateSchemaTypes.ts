@@ -4,7 +4,7 @@ import { GraphQLSchema, parse, printSchema } from "graphql";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CONFIG } from "@/common/config";
+import { OPTIONS } from "@/common/options";
 import { formatPrettier } from "@/common/utils";
 
 const header = `
@@ -32,7 +32,7 @@ const generateSchemaTypes = async (gqlSchema: GraphQLSchema) => {
   const final = formatPrettier(header + body);
 
   await writeFile(
-    path.join(CONFIG.GENERATED_DIR_PATH, "schema.ts"),
+    path.join(OPTIONS.GENERATED_DIR_PATH, "schema.ts"),
     final,
     "utf8"
   );

@@ -2,7 +2,7 @@ import type { WatchListener } from "node:fs";
 import { watch } from "node:fs";
 import path from "node:path";
 
-import { CONFIG } from "@/common/config";
+import { OPTIONS } from "@/common/options";
 import { logger } from "@/common/logger";
 import {
   ensureDirectoriesExist,
@@ -48,14 +48,14 @@ const dev = async () => {
       logger.info(`\x1b[35m${`Detected change in: ${fileName}`}\x1b[0m`); // yellow
       runTask(readHandlersTask);
     },
-    CONFIG.HANDLERS_DIR_PATH
+    OPTIONS.HANDLERS_DIR_PATH
   );
 
   const runUpdateUserConfigTask = createWatchListener(async () => {
     logger.info("");
     logger.info(
       `\x1b[35m${`Detected change in: ${path.basename(
-        CONFIG.PONDER_CONFIG_FILE_PATH
+        OPTIONS.PONDER_CONFIG_FILE_PATH
       )}`}\x1b[0m`
     ); // yellow
     runTask(readPonderConfigTask);
@@ -65,15 +65,15 @@ const dev = async () => {
     logger.info("");
     logger.info(
       `\x1b[35m${`Detected change in: ${path.basename(
-        CONFIG.SCHEMA_FILE_PATH
+        OPTIONS.SCHEMA_FILE_PATH
       )}`}\x1b[0m`
     ); // yellow
     runTask(readSchemaTask);
   });
 
-  watch(CONFIG.HANDLERS_DIR_PATH, runUpdateUserHandlersTask);
-  watch(CONFIG.PONDER_CONFIG_FILE_PATH, runUpdateUserConfigTask);
-  watch(CONFIG.SCHEMA_FILE_PATH, runUpdateUserSchemaTask);
+  watch(OPTIONS.HANDLERS_DIR_PATH, runUpdateUserHandlersTask);
+  watch(OPTIONS.PONDER_CONFIG_FILE_PATH, runUpdateUserConfigTask);
+  watch(OPTIONS.SCHEMA_FILE_PATH, runUpdateUserSchemaTask);
 };
 
 export { dev };

@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import type { Contract } from "ethers";
 import path from "node:path";
 
-import { CONFIG } from "@/common/config";
+import { OPTIONS } from "@/common/options";
 import { logger } from "@/common/logger";
 import { Block, EventLog, Transaction } from "@/types";
 
@@ -25,9 +25,9 @@ export type SourceHandlers = Record<string, Handler | undefined>;
 export type Handlers = Record<string, SourceHandlers | undefined>;
 
 export const readHandlers = async (): Promise<Handlers> => {
-  const buildFile = path.join(CONFIG.PONDER_DIR_PATH, "handlers.js");
+  const buildFile = path.join(OPTIONS.PONDER_DIR_PATH, "handlers.js");
 
-  const handlersRootFilePath = path.join(CONFIG.HANDLERS_DIR_PATH, "index.ts");
+  const handlersRootFilePath = path.join(OPTIONS.HANDLERS_DIR_PATH, "index.ts");
 
   try {
     await build({

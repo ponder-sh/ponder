@@ -2,7 +2,7 @@ import { Kind } from "graphql";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CONFIG } from "@/common/config";
+import { OPTIONS } from "@/common/options";
 import { logger } from "@/common/logger";
 import { formatPrettier } from "@/common/utils";
 import { FieldKind, PonderSchema } from "@/graphql/schema/types";
@@ -134,7 +134,7 @@ const generateContextTypes = async (
   const final = formatPrettier(header + imports + body);
 
   await writeFile(
-    path.join(CONFIG.GENERATED_DIR_PATH, "context.d.ts"),
+    path.join(OPTIONS.GENERATED_DIR_PATH, "context.d.ts"),
     final,
     "utf8"
   );

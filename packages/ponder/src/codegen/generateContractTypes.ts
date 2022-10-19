@@ -1,7 +1,7 @@
 import path from "node:path";
 import { runTypeChain } from "typechain";
 
-import { CONFIG } from "@/common/config";
+import { OPTIONS } from "@/common/options";
 import type { Source } from "@/sources/base";
 
 export const generateContractTypes = async (sources: Source[]) => {
@@ -15,7 +15,7 @@ export const generateContractTypes = async (sources: Source[]) => {
     cwd,
     filesToProcess: abiFilePaths,
     allFiles: abiFilePaths,
-    outDir: path.join(CONFIG.GENERATED_DIR_PATH, "typechain"),
+    outDir: path.join(OPTIONS.GENERATED_DIR_PATH, "typechain"),
     target: "ethers-v5",
   });
 };

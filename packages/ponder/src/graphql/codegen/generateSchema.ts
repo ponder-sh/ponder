@@ -3,7 +3,7 @@ import { printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { CONFIG } from "@/common/config";
+import { OPTIONS } from "@/common/options";
 import { formatPrettier } from "@/common/utils";
 
 const header = `
@@ -16,7 +16,7 @@ const generateSchema = (gqlSchema: GraphQLSchema) => {
   const final = formatPrettier(header + body, { parser: "graphql" });
 
   writeFileSync(
-    path.join(CONFIG.GENERATED_DIR_PATH, "schema.graphql"),
+    path.join(OPTIONS.GENERATED_DIR_PATH, "schema.graphql"),
     final,
     "utf8"
   );

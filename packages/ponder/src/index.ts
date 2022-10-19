@@ -1,5 +1,5 @@
 export { generateContextTypes } from "./codegen/generateContextTypes";
 export { generateHandlerTypes } from "./codegen/generateHandlerTypes";
-export { generateSchema } from "./graphql/codegen/generateSchema";
-export { generateSchemaTypes } from "./codegen/generateSchemaTypes";
-export { Block, EventLog, Transaction } from "./types";
+export type { Logger } from "./common/logger";
+export type { PonderDatabase } from "./stores/db";
+export type { Block, EventLog, Transaction } from "./types";

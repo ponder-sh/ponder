@@ -1,4 +1,4 @@
-import { CONFIG } from "@/common/config";
+import { OPTIONS } from "@/common/options";
 
 export enum LogLevel {
   // Silent 0
@@ -19,18 +19,18 @@ export type Logger = {
 
 export const logger: Logger = {
   error: (...args: Parameters<typeof console.log>) => {
-    if (CONFIG.LOG_LEVEL > LogLevel.Error) console.log(...args);
+    if (OPTIONS.LOG_LEVEL > LogLevel.Error) console.log(...args);
   },
   info: (...args: Parameters<typeof console.log>) => {
-    if (CONFIG.LOG_LEVEL > LogLevel.Info) console.log(...args);
+    if (OPTIONS.LOG_LEVEL > LogLevel.Info) console.log(...args);
   },
   warn: (...args: Parameters<typeof console.log>) => {
-    if (CONFIG.LOG_LEVEL > LogLevel.Warn) console.log(...args);
+    if (OPTIONS.LOG_LEVEL > LogLevel.Warn) console.log(...args);
   },
   debug: (...args: Parameters<typeof console.log>) => {
-    if (CONFIG.LOG_LEVEL > LogLevel.Debug) console.log(...args);
+    if (OPTIONS.LOG_LEVEL > LogLevel.Debug) console.log(...args);
   },
   trace: (...args: Parameters<typeof console.log>) => {
-    if (CONFIG.LOG_LEVEL > LogLevel.Trace) console.log(...args);
+    if (OPTIONS.LOG_LEVEL > LogLevel.Trace) console.log(...args);
   },
 };

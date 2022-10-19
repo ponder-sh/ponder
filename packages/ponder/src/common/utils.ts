@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { mkdirSync, readFileSync } from "fs";
 import prettier from "prettier";
 
-import { CONFIG } from "@/common/config";
+import { OPTIONS } from "@/common/options";
 import { logger } from "@/common/logger";
 
 export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
@@ -45,8 +45,8 @@ export const isFileChanged = (filePath: string) => {
 };
 
 export const ensureDirectoriesExist = () => {
-  mkdirSync(CONFIG.PONDER_DIR_PATH, { recursive: true });
-  mkdirSync(CONFIG.GENERATED_DIR_PATH, { recursive: true });
+  mkdirSync(OPTIONS.PONDER_DIR_PATH, { recursive: true });
+  mkdirSync(OPTIONS.GENERATED_DIR_PATH, { recursive: true });
 };
 
 let prettierConfig: prettier.Options = { parser: "typescript" };

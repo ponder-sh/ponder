@@ -3,7 +3,7 @@ import { Contract } from "ethers";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CONFIG } from "@/common/config";
+import { OPTIONS } from "@/common/options";
 import { logger } from "@/common/logger";
 import { formatPrettier } from "@/common/utils";
 import { Source } from "@/sources/base";
@@ -44,7 +44,7 @@ const generateHandlerTypes = async (sources: Source[]) => {
       );
 
       await writeFile(
-        path.join(CONFIG.GENERATED_DIR_PATH, `${source.name}.d.ts`),
+        path.join(OPTIONS.GENERATED_DIR_PATH, `${source.name}.d.ts`),
         final,
         "utf8"
       );
