@@ -2,9 +2,9 @@ import { build } from "esbuild";
 import type { Contract } from "ethers";
 import path from "node:path";
 
-import { OPTIONS } from "@/common/options";
 import { logger } from "@/common/logger";
-import { Block, EventLog, Transaction } from "@/types";
+import { OPTIONS } from "@/common/options";
+import type { Block, EventLog, Transaction } from "@/types";
 
 // Handler event types
 export interface HandlerEvent extends EventLog {

@@ -1,4 +1,5 @@
 import { OPTIONS } from "@/common/options";
+import type { ResolvedPonderPlugin } from "@/plugin";
 
 export type PonderConfig = {
   database: {
@@ -21,9 +22,7 @@ export type PonderConfig = {
     pollingInterval?: number;
     blockLimit?: number;
   }[];
-  graphql?: {
-    port?: number;
-  };
+  plugins: ResolvedPonderPlugin[];
 };
 
 export const readPonderConfig = () => {

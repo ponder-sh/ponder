@@ -2,8 +2,8 @@ import { createHash } from "crypto";
 import { mkdirSync, readFileSync } from "fs";
 import prettier from "prettier";
 
-import { OPTIONS } from "@/common/options";
 import { logger } from "@/common/logger";
+import { OPTIONS } from "@/common/options";
 
 export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
   return array.reduce<{ [k: string | number]: T[] }>((acc, item) => {

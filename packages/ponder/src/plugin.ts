@@ -1,9 +1,10 @@
 // export type Plugin
 
-import type { Logger } from "@/common/logger";
+import type { PonderLogger } from "@/common/logger";
+import type { PonderOptions } from "@/common/options";
+import type { PonderDatabase } from "@/db/db";
 import type { Network } from "@/networks/base";
 import type { Source } from "@/sources/base";
-import type { PonderDatabase } from "@/stores/db";
 
 export type PonderPluginCallbackResult<PluginHandlerContext> = {
   watchFiles?: string[];
@@ -18,7 +19,8 @@ export type ResolvedPonderPlugin<
     database: PonderDatabase;
     sources: Source[];
     networks: Network[];
-    logger: Logger;
+    logger: PonderLogger;
+    options: PonderOptions;
   }) => Promise<PonderPluginCallbackResult<PluginHandlerContext>>;
   onBackfillComplete?: () => Promise<
     PonderPluginCallbackResult<PluginHandlerContext>

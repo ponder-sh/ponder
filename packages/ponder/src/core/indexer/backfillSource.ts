@@ -1,6 +1,6 @@
 import { logger } from "@/common/logger";
-import { Source } from "@/sources/base";
-import type { CacheStore } from "@/stores/baseCacheStore";
+import type { CacheStore } from "@/db/baseCacheStore";
+import type { Source } from "@/sources/base";
 
 import { createHistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
 import { createHistoricalLogsRequestQueue } from "./historicalLogsRequestQueue";

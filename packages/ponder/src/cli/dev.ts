@@ -1,79 +1,156 @@
-import type { WatchListener } from "node:fs";
-import { watch } from "node:fs";
-import path from "node:path";
-
-import { OPTIONS } from "@/common/options";
+import { generateContextTypes } from "@/codegen/generateContextTypes";
+import { generateContractTypes } from "@/codegen/generateContractTypes";
+import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger } from "@/common/logger";
-import {
-  ensureDirectoriesExist,
-  isFileChanged,
-  readPrettierConfig,
-} from "@/common/utils";
+import { OPTIONS } from "@/common/options";
+import { ensureDirectoriesExist, readPrettierConfig } from "@/common/utils";
+import { backfill } from "@/core/indexer/backfill";
+import { indexLogs } from "@/core/indexer/indexLogs";
+import { createLogQueue, LogQueue } from "@/core/indexer/logQueue";
+import { Handlers, readHandlers } from "@/core/readHandlers";
+import { readPonderConfig } from "@/core/readPonderConfig";
+import { buildCacheStore, CacheStore } from "@/db/baseCacheStore";
+import { buildDb, PonderDatabase } from "@/db/db";
+import type { Network } from "@/networks/base";
+import { buildNetworks } from "@/networks/buildNetworks";
+import type { ResolvedPonderPlugin } from "@/plugin";
+import { buildSources } from "@/sources/buildSources";
+import type { EvmSource } from "@/sources/evm";
 
-import {
-  readHandlersTask,
-  readPonderConfigTask,
-  readSchemaTask,
-  runTask,
-} from "../core/tasks";
+const state: {
+  database?: PonderDatabase;
+  sources?: EvmSource[];
+  networks?: Network[];
 
-// This function is fully broken because it passes only the file name, not the path,
-// to isFileChanged, which then uses fileReadSync using only the file name, which will
-// break if the file is not in the repository root.
-const createWatchListener = (
-  fn: (fileName: string) => Promise<void>,
-  pathPrefix?: string
-): WatchListener<string> => {
-  return async (_, fileName) => {
-    const filePath = pathPrefix ? path.join(pathPrefix, fileName) : fileName;
-    if (isFileChanged(filePath)) {
-      fn(fileName);
-    }
-  };
+  cacheStore?: CacheStore;
+  handlers?: Handlers;
+
+  plugins: ResolvedPonderPlugin[];
+
+  watchFiles: string[];
+  handlerContext: Record<string, unknown>;
+
+  isHotReload: boolean;
+} = {
+  plugins: [],
+  watchFiles: [],
+  handlerContext: {},
+  isHotReload: false,
 };
 
-const dev = async () => {
+export const dev = async () => {
   ensureDirectoriesExist();
   await readPrettierConfig();
 
-  // TODO: Make the dev server response to handler file changes again
-  /// by rearranging the task dependency graph.
-  runTask(readHandlersTask);
-  runTask(readPonderConfigTask);
-  runTask(readSchemaTask);
+  // 1. Read `ponder.config.js` and build db, networks & sources
+  // 4. Register plugins
+  // 5. Call onSetup plugin callbacks
+  // 6. ?? Register file watching
+  // 7. Kick off backfill
+  // 8. Call onBackfillComplete plugin callbacks
+  // 9. Kick off log processing
+  // 10. Call onBackfillHandlersComplete plugin callbacks
 
-  const runUpdateUserHandlersTask = createWatchListener(
-    async (fileName: string) => {
-      logger.info("");
-      logger.info(`\x1b[35m${`Detected change in: ${fileName}`}\x1b[0m`); // yellow
-      runTask(readHandlersTask);
-    },
-    OPTIONS.HANDLERS_DIR_PATH
-  );
+  // 1) Read `ponder.config.js` and build database, networks, sources
+  const config = readPonderConfig();
 
-  const runUpdateUserConfigTask = createWatchListener(async () => {
-    logger.info("");
-    logger.info(
-      `\x1b[35m${`Detected change in: ${path.basename(
-        OPTIONS.PONDER_CONFIG_FILE_PATH
-      )}`}\x1b[0m`
-    ); // yellow
-    runTask(readPonderConfigTask);
+  state.watchFiles = [];
+
+  if (!state.database || !state.cacheStore) {
+    state.database = buildDb(config);
+    state.cacheStore = buildCacheStore(state.database);
+  }
+
+  const { networks } = buildNetworks({
+    config,
+    cacheStore: state.cacheStore,
+  });
+  state.networks = networks;
+
+  const { sources } = buildSources({ config, networks });
+  state.sources = sources;
+
+  // 2. Codegen
+  generateContractTypes(state.sources); // This is a promise but no need to block on it
+  generateHandlerTypes(state.sources);
+  generateContextTypes(state.sources);
+
+  // 2. Register plugins
+  state.plugins = config.plugins;
+
+  // 3. Call onSetup plugin callbacks
+  for (const plugin of state.plugins) {
+    if (!plugin.onSetup) return;
+
+    const { watchFiles, handlerContext } = await plugin.onSetup({
+      database: state.database,
+      sources: state.sources,
+      networks: state.networks,
+      logger: logger,
+      options: OPTIONS,
+    });
+
+    if (watchFiles) {
+      state.watchFiles.push(...watchFiles);
+    }
+
+    if (handlerContext) {
+      state.handlerContext = {
+        ...state.handlerContext,
+        ...handlerContext,
+      };
+    }
+  }
+
+  // 4. Begin backfill
+
+  // This is a hack required to create the liveBlockRequestQueue BEFORE
+  // creating the logQueue. The liveBlockRequestQueue calls
+  // stableLogQueueObject.logQueue.push(task) whenever it processes a new block.
+  // Would be better if fastq allowed you to replace a worker function on the fly.
+  const stableLogQueueObject = {
+    logQueue: null as unknown as LogQueue,
+  };
+
+  const { liveNetworkInfos } = await backfill({
+    cacheStore: state.cacheStore,
+    sources: state.sources,
+    stableLogQueueObject: stableLogQueueObject,
+    isHotReload: state.isHotReload,
   });
 
-  const runUpdateUserSchemaTask = createWatchListener(async () => {
-    logger.info("");
-    logger.info(
-      `\x1b[35m${`Detected change in: ${path.basename(
-        OPTIONS.SCHEMA_FILE_PATH
-      )}`}\x1b[0m`
-    ); // yellow
-    runTask(readSchemaTask);
+  state.handlers = await readHandlers();
+
+  // TODO: transfer tasks that were added to the dummy logQueue
+  const logQueue = createLogQueue({
+    cacheStore: state.cacheStore,
+    sources: state.sources,
+    handlers: state.handlers,
+    pluginHandlerContext: state.handlerContext,
   });
 
-  watch(OPTIONS.HANDLERS_DIR_PATH, runUpdateUserHandlersTask);
-  watch(OPTIONS.PONDER_CONFIG_FILE_PATH, runUpdateUserConfigTask);
-  watch(OPTIONS.SCHEMA_FILE_PATH, runUpdateUserSchemaTask);
+  // Now that the logQueue exists, override the null property with the actual queue.
+  stableLogQueueObject.logQueue = logQueue;
+
+  // Process historical / backfilled logs.
+  await indexLogs({
+    cacheStore: state.cacheStore,
+    sources: state.sources,
+    logQueue,
+  });
+
+  // Begin processing live blocks for all source groups. This includes
+  // any blocks that were fetched and enqueued during the backfill.
+  liveNetworkInfos.forEach((info) => {
+    info.liveBlockRequestQueue.resume();
+  });
+
+  // 5. Call onBackfillComplete plugin callbacks
+  for (const plugin of state.plugins) {
+    if (!plugin.onBackfillComplete) return;
+
+    await plugin.onBackfillComplete();
+  }
+
+  state.isHotReload = true;
 };
-
-export { dev };

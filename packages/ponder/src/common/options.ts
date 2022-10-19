@@ -40,3 +40,5 @@ export const OPTIONS = {
   GENERATED_DIR_PATH: getAbsolutePath(MERGED_OPTIONS.GENERATED_DIR_PATH),
   PONDER_DIR_PATH: getAbsolutePath(MERGED_OPTIONS.PONDER_DIR_PATH),
 };
+
+export type PonderOptions = typeof OPTIONS;

@@ -2,9 +2,9 @@ import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
+import type { CacheStore } from "@/db/baseCacheStore";
+import { parseLog } from "@/db/utils";
 import type { Source } from "@/sources/base";
-import type { CacheStore } from "@/stores/baseCacheStore";
-import { parseLog } from "@/stores/utils";
 
 import type { HistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
 import { stats } from "./stats";

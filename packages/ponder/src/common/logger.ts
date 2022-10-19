@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { OPTIONS } from "@/common/options";
 
 export enum LogLevel {
@@ -9,7 +10,7 @@ export enum LogLevel {
   Trace, // 5
 }
 
-export type Logger = {
+export type PonderLogger = {
   error: (message?: any, ...optionalParams: any[]) => void;
   info: (message?: any, ...optionalParams: any[]) => void;
   warn: (message?: any, ...optionalParams: any[]) => void;
@@ -17,7 +18,7 @@ export type Logger = {
   trace: (message?: any, ...optionalParams: any[]) => void;
 };
 
-export const logger: Logger = {
+export const logger: PonderLogger = {
   error: (...args: Parameters<typeof console.log>) => {
     if (OPTIONS.LOG_LEVEL > LogLevel.Error) console.log(...args);
   },

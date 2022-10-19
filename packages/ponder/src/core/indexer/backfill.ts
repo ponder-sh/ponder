@@ -1,8 +1,8 @@
 import { logger } from "@/common/logger";
 import { endBenchmark, startBenchmark } from "@/common/utils";
-import { LogQueue } from "@/core/indexer/logQueue";
+import type { LogQueue } from "@/core/indexer/logQueue";
+import type { CacheStore } from "@/db/baseCacheStore";
 import type { Source } from "@/sources/base";
-import type { CacheStore } from "@/stores/baseCacheStore";
 
 import { backfillSource } from "./backfillSource";
 import type { CachedProvider } from "./CachedProvider";
