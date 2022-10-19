@@ -30,6 +30,7 @@ const MERGED_OPTIONS = {
 };
 
 export const OPTIONS = {
+  ...MERGED_OPTIONS,
   // Resolve absolute paths
   PONDER_CONFIG_FILE_PATH: getAbsolutePath(
     MERGED_OPTIONS.PONDER_CONFIG_FILE_PATH
