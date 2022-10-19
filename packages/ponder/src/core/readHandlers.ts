@@ -12,21 +12,7 @@ export interface HandlerEvent extends EventLog {
   transaction: Transaction;
 }
 
-// Handler context types
-export type EntityInstance = { [key: string]: string | number | null };
-export type EntityModel = {
-  get: (id: string) => Promise<EntityInstance | null>;
-  insert: (obj: EntityInstance) => Promise<EntityInstance>;
-  update: (
-    obj: {
-      id: string;
-    } & Partial<EntityInstance>
-  ) => Promise<EntityInstance>;
-  delete: (id: string) => Promise<void>;
-};
-
 export type HandlerContext = {
-  entities: Record<string, EntityModel | undefined>;
   contracts: Record<string, Contract | undefined>;
 };
 

@@ -2,7 +2,7 @@ import { CONFIG } from "@/common/config";
 
 export type PonderConfig = {
   database: {
-    kind: string;
+    kind: "sqlite" | "postgres";
     filename?: string;
   };
   networks: {

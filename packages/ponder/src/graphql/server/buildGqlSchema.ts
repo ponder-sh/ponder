@@ -1,7 +1,7 @@
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
 
-import { PonderSchema } from "@/core/schema/types";
-import { EntityStore } from "@/stores/baseEntityStore";
+import { PonderSchema } from "@/graphql/schema/types";
+import { EntityStore } from "@/graphql/store/entityStore";
 
 import { buildEntityType } from "./buildEntityType";
 import { buildPluralField } from "./buildPluralField";

@@ -5,12 +5,11 @@ import {
   FieldKind,
   PonderSchema,
   ScalarField,
-} from "@/core/schema/types";
+} from "@/graphql/schema/types";
 
-import { BaseEntityStore, EntityFilter, StoreKind } from "./baseEntityStore";
+import { EntityFilter, EntityStore } from "./entityStore";
 
-export class SqliteEntityStore implements BaseEntityStore {
-  kind = StoreKind.SQLITE;
+export class SqliteEntityStore implements EntityStore {
   db: Sqlite.Database;
   schema?: PonderSchema;
 

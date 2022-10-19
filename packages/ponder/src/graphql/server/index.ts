@@ -6,7 +6,7 @@ import type { GraphQLSchema } from "graphql";
 import http from "node:http";
 
 import { logger } from "@/common/logger";
-import type { EntityStore } from "@/stores/baseEntityStore";
+import type { EntityStore } from "@/graphql/store/entityStore";
 
 export class GraphqlServer {
   port: number;

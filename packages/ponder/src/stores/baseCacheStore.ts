@@ -1,7 +1,6 @@
-import type Sqlite from "better-sqlite3";
-
 import type { Block, EventLog, Transaction } from "@/types";
 
+import { PonderDatabase } from "./db";
 import { SqliteCacheStore } from "./sqliteCacheStore";
 
 export type ContractMetadata = {
@@ -15,9 +14,7 @@ export type ContractCall = {
   result: string; // Stringified JSON of the contract call result
 };
 
-export interface BaseCacheStore {
-  db: Sqlite.Database;
-
+export interface CacheStore {
   migrate(): Promise<void>;
 
   getContractMetadata(
@@ -45,4 +42,13 @@ export interface BaseCacheStore {
   getContractCall(contractCallKey: string): Promise<ContractCall | null>;
 }
 
-export type CacheStore = SqliteCacheStore;
+export const buildCacheStore = (database: PonderDatabase) => {
+  switch (database.kind) {
+    case "sqlite": {
+      return new SqliteCacheStore(database.db);
+    }
+    default: {
+      throw new Error(`Unsupported database kind: ${database.kind}`);
+    }
+  }
+};

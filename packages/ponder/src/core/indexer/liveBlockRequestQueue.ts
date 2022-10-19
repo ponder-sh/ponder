@@ -16,7 +16,7 @@ export type LiveBlockRequestWorkerContext = {
   cacheStore: CacheStore;
   network: Network;
   contractAddresses: string[];
-  logQueue: LogQueue;
+  stableLogQueueObject: { logQueue: LogQueue };
 };
 
 export type LiveBlockRequestQueue = fastq.queueAsPromised<LiveBlockRequestTask>;
@@ -25,14 +25,14 @@ export const createLiveBlockRequestQueue = ({
   cacheStore,
   network,
   contractAddresses,
-  logQueue,
+  stableLogQueueObject,
 }: LiveBlockRequestWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<
     LiveBlockRequestWorkerContext,
     LiveBlockRequestTask
   >(
-    { cacheStore, network, contractAddresses, logQueue },
+    { cacheStore, network, contractAddresses, stableLogQueueObject },
     liveBlockRequestWorker,
     1
   );
@@ -55,7 +55,7 @@ async function liveBlockRequestWorker(
   this: LiveBlockRequestWorkerContext,
   { blockNumber }: LiveBlockRequestTask
 ) {
-  const { cacheStore, network, contractAddresses, logQueue } = this;
+  const { cacheStore, network, contractAddresses, stableLogQueueObject } = this;
   const { provider } = network;
 
   const [rawLogs, rawBlock] = await Promise.all([
@@ -115,6 +115,6 @@ async function liveBlockRequestWorker(
   const sortedLogs = logs.sort((a, b) => a.logSortKey - b.logSortKey);
 
   for (const log of sortedLogs) {
-    logQueue.push({ log });
+    stableLogQueueObject.logQueue.push({ log });
   }
 }

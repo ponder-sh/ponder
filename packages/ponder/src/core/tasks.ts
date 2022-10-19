@@ -3,26 +3,26 @@ import type { GraphQLSchema } from "graphql";
 import { generateContextTypes } from "@/codegen/generateContextTypes";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
-import { generateSchema } from "@/codegen/generateSchema";
 import { generateSchemaTypes } from "@/codegen/generateSchemaTypes";
 import { logger } from "@/common/logger";
 import { handleReindex } from "@/core/indexer/reindex";
-import { buildPonderSchema } from "@/core/schema/buildPonderSchema";
+import { buildGraphqlServer } from "@/graphql/buildServer";
+import { generateSchema } from "@/graphql/codegen/generateSchema";
+import { buildPonderSchema } from "@/graphql/schema/buildPonderSchema";
+import type { GraphqlServer } from "@/graphql/server";
+import { buildGqlSchema } from "@/graphql/server/buildGqlSchema";
+import type { EntityStore } from "@/graphql/store/entityStore";
 import { buildNetworks } from "@/networks/buildNetworks";
-import { buildGraphqlServer } from "@/server/buildServer";
-import type { GraphqlServer } from "@/server/graphql";
-import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
 import type { CacheStore } from "@/stores/baseCacheStore";
-import type { EntityStore } from "@/stores/baseEntityStore";
 import { buildStores } from "@/stores/buildStores";
 
+import { readSchema } from "../graphql/readSchema";
+import type { PonderSchema } from "../graphql/schema/types";
 import type { Handlers } from "./readHandlers";
 import { readHandlers } from "./readHandlers";
 import { readPonderConfig } from "./readPonderConfig";
-import { readSchema } from "./readSchema";
-import type { PonderSchema } from "./schema/types";
 
 const state: {
   sources?: EvmSource[];

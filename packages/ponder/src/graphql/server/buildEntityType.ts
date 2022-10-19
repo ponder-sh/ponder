@@ -7,7 +7,7 @@ import {
   GraphQLOutputType,
 } from "graphql";
 
-import { Entity, FieldKind } from "@/core/schema/types";
+import { Entity, FieldKind } from "@/graphql/schema/types";
 
 import type { Context, Source } from "./buildGqlSchema";
 

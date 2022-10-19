@@ -1,6 +1,6 @@
 import { CONFIG } from "@/common/config";
 
-enum LogLevel {
+export enum LogLevel {
   // Silent 0
   Error, // 1
   Info, // 2
@@ -9,7 +9,15 @@ enum LogLevel {
   Trace, // 5
 }
 
-const logger = {
+export type Logger = {
+  error: (message?: any, ...optionalParams: any[]) => void;
+  info: (message?: any, ...optionalParams: any[]) => void;
+  warn: (message?: any, ...optionalParams: any[]) => void;
+  debug: (message?: any, ...optionalParams: any[]) => void;
+  trace: (message?: any, ...optionalParams: any[]) => void;
+};
+
+export const logger: Logger = {
   error: (...args: Parameters<typeof console.log>) => {
     if (CONFIG.LOG_LEVEL > LogLevel.Error) console.log(...args);
   },
@@ -26,5 +34,3 @@ const logger = {
     if (CONFIG.LOG_LEVEL > LogLevel.Trace) console.log(...args);
   },
 };
-
-export { logger, LogLevel };

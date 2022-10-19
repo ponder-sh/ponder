@@ -2,13 +2,11 @@ import { Contract } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
-import type { PonderSchema } from "@/core/schema/types";
 import type { Source } from "@/sources/base";
 import type { CacheStore } from "@/stores/baseCacheStore";
-import type { EntityStore } from "@/stores/baseEntityStore";
 import type { EventLog } from "@/types";
 
-import type { EntityModel, Handlers } from "../readHandlers";
+import type { Handlers } from "../readHandlers";
 import { stats } from "./stats";
 
 export type LogTask = {
@@ -19,30 +17,15 @@ export type LogQueue = fastq.queueAsPromised<LogTask>;
 
 export const createLogQueue = ({
   cacheStore,
-  entityStore,
   sources,
-  schema,
-  userHandlers,
+  handlers,
+  pluginHandlerContext,
 }: {
   cacheStore: CacheStore;
-  entityStore: EntityStore;
   sources: Source[];
-  schema: PonderSchema;
-  userHandlers: Handlers;
+  handlers: Handlers;
+  pluginHandlerContext: Record<string, unknown>;
 }): LogQueue => {
-  const entityModels: Record<string, EntityModel> = {};
-  schema.entities.forEach((entity) => {
-    const entityName = entity.name;
-    const entityModel: EntityModel = {
-      get: async (id) => entityStore.getEntity(entityName, id),
-      insert: async (obj) => entityStore.insertEntity(entityName, obj),
-      update: async (obj) => entityStore.updateEntity(entityName, obj),
-      delete: async (id) => entityStore.deleteEntity(entityName, id),
-    };
-
-    entityModels[entityName] = entityModel;
-  });
-
   const contracts: Record<string, Contract | undefined> = {};
   sources.forEach((source) => {
     contracts[source.name] = new Contract(
@@ -53,8 +36,8 @@ export const createLogQueue = ({
   });
 
   const handlerContext = {
-    entities: entityModels,
     contracts: contracts,
+    ...pluginHandlerContext,
   };
 
   const logWorker = async ({ log }: LogTask) => {
@@ -69,7 +52,7 @@ export const createLogQueue = ({
 
     stats.sourceStats[source.name].matchedLogCount += 1;
 
-    const sourceHandlers = userHandlers[source.name];
+    const sourceHandlers = handlers[source.name];
     if (!sourceHandlers) {
       logger.warn(`Handlers not found for source: ${source.name}`);
       stats.processingProgressBar.setTotal(

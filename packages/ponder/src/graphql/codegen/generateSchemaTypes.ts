@@ -5,7 +5,6 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { CONFIG } from "@/common/config";
-import { logger } from "@/common/logger";
 import { formatPrettier } from "@/common/utils";
 
 const header = `
@@ -37,8 +36,6 @@ const generateSchemaTypes = async (gqlSchema: GraphQLSchema) => {
     final,
     "utf8"
   );
-
-  logger.info(`\x1b[36m${"Generated schema types"}\x1b[0m`); // magenta
 };
 
 export { generateSchemaTypes };

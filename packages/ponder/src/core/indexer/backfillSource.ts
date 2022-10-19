@@ -4,21 +4,19 @@ import type { CacheStore } from "@/stores/baseCacheStore";
 
 import { createHistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
 import { createHistoricalLogsRequestQueue } from "./historicalLogsRequestQueue";
-import type { LiveBlockRequestQueue } from "./liveBlockRequestQueue";
-import { isHotReload } from "./reindex";
 import { getPrettyPercentage, stats } from "./stats";
 import { p1_excluding_p2 } from "./utils";
 
-export const reindexSource = async ({
+export const backfillSource = async ({
   source,
   cacheStore,
-  liveBlockRequestQueue,
   currentBlockNumber,
+  isHotReload,
 }: {
   source: Source;
   cacheStore: CacheStore;
-  liveBlockRequestQueue: LiveBlockRequestQueue;
   currentBlockNumber: number;
+  isHotReload: boolean;
 }) => {
   // Create queues.
   const historicalBlockRequestQueue = createHistoricalBlockRequestQueue({
@@ -127,6 +125,4 @@ export const reindexSource = async ({
   if (!historicalBlockRequestQueue.idle()) {
     await historicalBlockRequestQueue.drained();
   }
-
-  return liveBlockRequestQueue;
 };

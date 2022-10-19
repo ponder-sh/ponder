@@ -1,6 +1,7 @@
-import type { PonderSchema } from "@/core/schema/types";
+import type { PonderSchema } from "@/graphql/schema/types";
+import type { PonderDatabase } from "@/stores/db";
 
-import type { SqliteEntityStore } from "./sqliteEntityStore";
+import { SqliteEntityStore } from "./sqliteEntityStore";
 
 export type EntityFilter = {
   where?: {
@@ -12,9 +13,7 @@ export type EntityFilter = {
   orderDirection?: "asc" | "desc";
 };
 
-export interface BaseEntityStore {
-  kind: StoreKind;
-
+export interface EntityStore {
   migrate(schema: PonderSchema): Promise<void>;
 
   getEntity<T>(entityName: string, id: string): Promise<T | null>;
@@ -31,8 +30,13 @@ export interface BaseEntityStore {
   deleteEntity(entityName: string, id: string): Promise<void>;
 }
 
-export enum StoreKind {
-  SQLITE = "sqlite",
-}
-
-export type EntityStore = SqliteEntityStore;
+export const buildEntityStore = (database: PonderDatabase) => {
+  switch (database.kind) {
+    case "sqlite": {
+      return new SqliteEntityStore(database.db);
+    }
+    default: {
+      throw new Error(`Unsupported database kind: ${database.kind}`);
+    }
+  }
+};

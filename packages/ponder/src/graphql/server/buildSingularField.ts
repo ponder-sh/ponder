@@ -11,7 +11,7 @@ import {
   Entity,
   FieldKind,
   RelationshipField,
-} from "@/core/schema/types";
+} from "@/graphql/schema/types";
 
 import type { Context, Source } from "./buildGqlSchema";
 

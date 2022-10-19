@@ -4,12 +4,12 @@ import { logger } from "@/common/logger";
 import type { Block, EventLog, Transaction } from "@/types";
 
 import type {
-  BaseCacheStore,
+  CacheStore,
   ContractCall,
   ContractMetadata,
 } from "./baseCacheStore";
 
-export class SqliteCacheStore implements BaseCacheStore {
+export class SqliteCacheStore implements CacheStore {
   db: Sqlite.Database;
 
   constructor(db: Sqlite.Database) {

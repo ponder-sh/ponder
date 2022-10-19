@@ -5,7 +5,7 @@ import path from "node:path";
 import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
 import { formatPrettier } from "@/common/utils";
-import { FieldKind, PonderSchema } from "@/core/schema/types";
+import { FieldKind, PonderSchema } from "@/graphql/schema/types";
 import { Source, SourceKind } from "@/sources/base";
 
 const gqlScalarToTsType: Record<string, string | undefined> = {

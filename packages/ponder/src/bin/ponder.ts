@@ -12,7 +12,7 @@ program
   .command("dev")
   .description("start local development server")
   .action(() => {
-    require("../cli/dev").dev();
+    require("../core/dev").dev();
   });
 
 program
