@@ -94,12 +94,14 @@ importers:
       '@typechain/ethers-v5': ^10.1.0
       '@types/better-sqlite3': ^7.6.0
       '@types/cli-progress': ^3.11.0
+      '@types/cors': ^2.8.12
       '@types/express': ^4.17.13
       '@types/node': ^18.7.8
       better-sqlite3: ^7.6.2
       cli-progress: ^3.11.2
       commander: ^9.4.0
       console-table-printer: ^2.11.1
+      cors: ^2.8.5
       dotenv: ^16.0.1
       esbuild: ^0.15.2
       ethers: ^5.6.9
@@ -119,6 +121,7 @@ importers:
       cli-progress: 3.11.2
       commander: 9.4.0
       console-table-printer: 2.11.1
+      cors: 2.8.5
       dotenv: 16.0.1
       esbuild: 0.15.4
       ethers: 5.6.9
@@ -134,6 +137,7 @@ importers:
       '@ethersproject/providers': 5.6.8
       '@types/better-sqlite3': 7.6.0
       '@types/cli-progress': 3.11.0
+      '@types/cors': 2.8.12
       '@types/express': 4.17.13
       '@types/node': 18.7.8
       tsconfig-replace-paths: 0.0.11
@@ -1353,6 +1357,10 @@ packages:
     dependencies:
       '@types/node': 18.7.8
 
+  /@types/cors/2.8.12:
+    resolution: {integrity: sha512-vt+kDhq/M2ayberEtJcIN/hxXy1Pk+59g2FV/ZQceeaTyCtCucjL2Q7FXlFjtWn4n15KCr1NE2lNNFhp0lEThw==}
+    dev: true
+
   /@types/express-serve-static-core/4.17.30:
     resolution: {integrity: sha512-gstzbTWro2/nFed1WXtf+TtrpwxH7Ggs4RLYTLbeVgIkUQOI3WG/JKjgeOU1zXDvezllupjrf8OPIdvTbIaVOQ==}
     dependencies:
@@ -2410,6 +2418,14 @@ packages:
 
   /core-util-is/1.0.3:
     resolution: {integrity: sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==}
+    dev: false
+
+  /cors/2.8.5:
+    resolution: {integrity: sha512-KIHbLJqu73RGr/hnbrO9uBeixNGuvSQjul/jdFvS/KFSIH1hWVd1ng7zOHx+YrEfInLG7q4n6GHQ9cDtxv/P6g==}
+    engines: {node: '>= 0.10'}
+    dependencies:
+      object-assign: 4.1.1
+      vary: 1.1.2
     dev: false
 
   /cosmiconfig/6.0.0:

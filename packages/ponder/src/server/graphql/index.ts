@@ -1,3 +1,4 @@
+import cors from "cors";
 import type { Express } from "express";
 import express from "express";
 import { graphqlHTTP } from "express-graphql";
@@ -20,6 +21,7 @@ export class GraphqlServer {
     this.context = { store };
 
     this.app = express();
+    this.app.use(cors());
   }
 
   start(schema: GraphQLSchema, newPort?: number) {
