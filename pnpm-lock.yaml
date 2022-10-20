@@ -36,12 +36,14 @@ importers:
 
   examples/okpc:
     specifiers:
-      "@ethersproject/abi": ^5.0.0
-      "@ethersproject/providers": ^5.0.0
-      "@ponder/ponder": latest
+      '@ethersproject/abi': ^5.0.0
+      '@ethersproject/providers': ^5.0.0
+      '@ponder/graphql': latest
+      '@ponder/ponder': latest
       ethers: ^5.6.9
     dependencies:
-      "@ponder/ponder": link:../../packages/ponder
+      '@ponder/graphql': link:../../packages/graphql
+      '@ponder/ponder': link:../../packages/ponder
     devDependencies:
       "@ethersproject/abi": 5.6.4
       "@ethersproject/providers": 5.6.8
