@@ -8,11 +8,11 @@ import { GraphqlServer } from "./server";
 import { buildGqlSchema } from "./server/buildGqlSchema";
 import { buildEntityStore } from "./store/entityStore";
 
-type PonderGraphqlPluginOptions = {
+export type PonderGraphqlPluginOptions = {
   port?: number;
 };
 
-type PonderGraphqlPluginHandlerContext = {
+export type PonderGraphqlPluginHandlerContext = {
   entities: Record<string, unknown>;
 };
 
