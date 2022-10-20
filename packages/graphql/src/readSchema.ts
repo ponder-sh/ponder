@@ -1,3 +1,4 @@
+import type { PonderOptions } from "@ponder/ponder";
 import { buildSchema, GraphQLSchema } from "graphql";
 import { readFileSync } from "node:fs";
 

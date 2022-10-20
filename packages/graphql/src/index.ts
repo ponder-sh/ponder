@@ -37,8 +37,8 @@ export const graphqlPlugin: PonderPlugin<
 > = ({ port = 42069 } = {}) => {
   return {
     name: "graphql",
-    onSetup: async ({ database, logger }) => {
-      const userSchema = readSchema();
+    onSetup: async ({ database, logger, options }) => {
+      const userSchema = readSchema(options);
       const ponderSchema = buildPonderSchema(userSchema);
       const gqlSchema = buildGqlSchema(ponderSchema);
 
@@ -48,7 +48,7 @@ export const graphqlPlugin: PonderPlugin<
 
       // Build Express GraphQL server
       if (!server) {
-        server = new GraphqlServer(port, entityStore);
+        server = new GraphqlServer(port, entityStore, logger);
       }
       server.start(gqlSchema, port);
 
@@ -66,9 +66,9 @@ export const graphqlPlugin: PonderPlugin<
         entityModels[entityName] = entityModel;
       });
 
-      await generateSchemaTypes(gqlSchema);
+      await generateSchemaTypes(gqlSchema, options);
       logger.info(`\x1b[36m${"Generated schema types"}\x1b[0m`); // cyan
-      generateSchema(gqlSchema);
+      generateSchema(gqlSchema, options);
       logger.debug(`Generated schema.graphql file`);
 
       return {

@@ -1,4 +1,4 @@
-import type { Logger } from "@ponder/ponder";
+import type { PonderLogger } from "@ponder/ponder";
 import type { Express } from "express";
 import express from "express";
 import { graphqlHTTP } from "express-graphql";
@@ -10,14 +10,16 @@ import type { EntityStore } from "@/store/entityStore";
 export class GraphqlServer {
   port: number;
   context: { store: EntityStore };
+  logger: PonderLogger;
 
   app: Express;
   server?: http.Server;
   graphqlMiddleware?: express.Handler;
 
-  constructor(port: number, store: EntityStore, logger: Logger) {
+  constructor(port: number, store: EntityStore, logger: PonderLogger) {
     this.port = port;
     this.context = { store };
+    this.logger = logger;
 
     this.app = express();
   }
@@ -34,7 +36,7 @@ export class GraphqlServer {
       const port = newPort || this.port;
       this.app.use("/graphql", (...args) => this.graphqlMiddleware!(...args));
       this.server = this.app.listen(port);
-      logger.info(
+      this.logger.info(
         `\x1b[35m${`Serving GraphQL API at http://localhost:${port}/graphql`}\x1b[0m`
       ); // magenta
     } else if (newPort) {
@@ -42,11 +44,11 @@ export class GraphqlServer {
       // Close all connections to the now-stale server.
       this.server.close();
       this.server = this.app.listen(this.port);
-      logger.info(
+      this.logger.info(
         `\x1b[35m${`Serving GraphQL API at http://localhost:${this.port}/graphql`}\x1b[0m`
       ); // magenta
     } else {
-      logger.info(`\x1b[35m${`Restarted GraphQL server`}\x1b[0m`); // magenta
+      this.logger.info(`\x1b[35m${`Restarted GraphQL server`}\x1b[0m`); // magenta
     }
   }
 }

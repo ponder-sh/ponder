@@ -21,6 +21,12 @@ export interface EntityStore {
 
   getEntities<T>(entityName: string, filter?: EntityFilter): Promise<T[]>;
 
+  getEntityDerivedField(
+    entityName: string,
+    id: string,
+    derivedFieldName: string
+  ): Promise<unknown[]>;
+
   insertEntity<T>(entityName: string, attributes: T): Promise<T>;
 
   updateEntity<T>(
