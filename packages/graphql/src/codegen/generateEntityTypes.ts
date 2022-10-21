@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import type { PonderLogger, PonderOptions } from "@ponder/ponder";
 import { Kind } from "graphql";
 import { writeFileSync } from "node:fs";
@@ -69,11 +70,15 @@ export const generateEntityTypes = async (
               }
               tsBaseType = scalarTsType;
             } else if (
+              // @ts-ignore
               field.baseGqlType.astNode?.kind === Kind.ENUM_TYPE_DEFINITION
             ) {
+              // @ts-ignore
               const enumValues = (field.baseGqlType.astNode?.values || []).map(
+                // @ts-ignore
                 (v) => v.name.value
               );
+              // @ts-ignore
               tsBaseType = `(${enumValues.map((v) => `"${v}"`).join(" | ")})`;
             } else {
               throw new Error(
