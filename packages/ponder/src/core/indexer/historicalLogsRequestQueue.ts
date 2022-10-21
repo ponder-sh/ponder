@@ -80,25 +80,15 @@ async function historicalLogsRequestWorker(
     if (blockHash) requiredBlockHashSet.delete(blockHash);
 
     if (requiredBlockHashSet.size === 0) {
-      // TODO: move this to a helper that accepts (source, fromBlock, toBlock)
-      // and magically updates the contract metadata accordingly, merging ranges accordingly?
-      for (const contractAddress of contractAddresses) {
-        const metadata = await cacheStore.getContractMetadata(contractAddress);
-
-        if (metadata) {
-          await cacheStore.upsertContractMetadata({
-            contractAddress,
-            startBlock: Math.min(metadata.startBlock, fromBlock),
-            endBlock: Math.max(metadata.endBlock, toBlock),
-          });
-        } else {
-          await cacheStore.upsertContractMetadata({
+      await Promise.all(
+        contractAddresses.map((contractAddress) =>
+          cacheStore.insertCachedInterval({
             contractAddress,
             startBlock: fromBlock,
             endBlock: toBlock,
-          });
-        }
-      }
+          })
+        )
+      );
     }
   };
 

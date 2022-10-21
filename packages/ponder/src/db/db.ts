@@ -1,7 +1,7 @@
 import Sqlite from "better-sqlite3";
 
 import { logger } from "@/common/logger";
-import { PonderConfig } from "@/core/readPonderConfig";
+import type { PonderConfig } from "@/core/readPonderConfig";
 
 export interface SqliteDb {
   kind: "sqlite";

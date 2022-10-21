@@ -1,11 +1,11 @@
 import { logger } from "@/common/logger";
+import { p1_excluding_all } from "@/common/utils";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
 
 import { createHistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
 import { createHistoricalLogsRequestQueue } from "./historicalLogsRequestQueue";
 import { getPrettyPercentage, stats } from "./stats";
-import { p1_excluding_p2 } from "./utils";
 
 export const backfillSource = async ({
   source,
@@ -41,33 +41,22 @@ export const backfillSource = async ({
     );
   }
 
-  // Build an array of block ranges that need to be fetched for this group of contracts.
-  const blockRanges: number[][] = [];
-
-  const contractMetadata = await cacheStore.getContractMetadata(source.address);
-
-  if (contractMetadata) {
-    const { startBlock, endBlock } = contractMetadata;
-
-    const requiredRanges = p1_excluding_p2(
-      [requestedStartBlock, requestedEndBlock],
-      [startBlock, endBlock]
-    );
-
-    blockRanges.push(...requiredRanges);
-  } else {
-    blockRanges.push([requestedStartBlock, requestedEndBlock]);
-  }
+  const cachedIntervals = await cacheStore.getCachedIntervals(source.address);
+  const requiredBlockIntervals = p1_excluding_all(
+    [requestedStartBlock, requestedEndBlock],
+    cachedIntervals.map((i) => [i.startBlock, i.endBlock])
+  );
 
   logger.debug({
-    requestedRange: [requestedStartBlock, requestedEndBlock],
-    cachedRange: contractMetadata
-      ? [contractMetadata.startBlock, contractMetadata.endBlock]
-      : null,
-    requiredRanges: blockRanges,
+    requestedInterval: [requestedStartBlock, requestedEndBlock],
+    cachedIntervals,
+    requiredInterval: requiredBlockIntervals,
   });
 
-  const fetchedCount = blockRanges.reduce((t, c) => t + c[1] - c[0], 0);
+  const fetchedCount = requiredBlockIntervals.reduce(
+    (t, c) => t + c[1] - c[0],
+    0
+  );
   const totalCount = requestedEndBlock - requestedStartBlock;
   const cachedCount = totalCount - fetchedCount;
   // const logRequestCount = fetchedCount / blockLimit;
@@ -89,8 +78,8 @@ export const backfillSource = async ({
     stats.syncProgressBar.start(0, 0);
   }
 
-  for (const blockRange of blockRanges) {
-    const [startBlock, endBlock] = blockRange;
+  for (const blockInterval of requiredBlockIntervals) {
+    const [startBlock, endBlock] = blockInterval;
     let fromBlock = startBlock;
     let toBlock = Math.min(fromBlock + source.blockLimit, endBlock);
 

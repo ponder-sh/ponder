@@ -3,7 +3,7 @@ import type { Block, EventLog, Transaction } from "@/types";
 import { PonderDatabase } from "./db";
 import { SqliteCacheStore } from "./sqliteCacheStore";
 
-export type ContractMetadata = {
+export type CachedInterval = {
   contractAddress: string;
   startBlock: number;
   endBlock: number;
@@ -17,13 +17,9 @@ export type ContractCall = {
 export interface CacheStore {
   migrate(): Promise<void>;
 
-  getContractMetadata(
-    contractAddress: string
-  ): Promise<ContractMetadata | null>;
+  getCachedIntervals(contractAddress: string): Promise<CachedInterval[]>;
 
-  upsertContractMetadata(
-    attributes: ContractMetadata
-  ): Promise<ContractMetadata>;
+  insertCachedInterval(interval: CachedInterval): Promise<void>;
 
   insertLogs(log: EventLog[]): Promise<void>;
 
