@@ -1,7 +1,7 @@
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
-import type { CacheStore } from "@/db/baseCacheStore";
+import type { CacheStore } from "@/db/cacheStore";
 import { parseBlock, parseTransaction } from "@/db/utils";
 import type { Source } from "@/sources/base";
 

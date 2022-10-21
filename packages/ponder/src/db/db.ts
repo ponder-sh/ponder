@@ -26,7 +26,6 @@ export const buildDb = (config: PonderConfig): PonderDatabase => {
           verbose: logger.trace,
         }),
       };
-      break;
     }
     default: {
       throw new Error(`Unsupported database kind: ${config.database.kind}`);

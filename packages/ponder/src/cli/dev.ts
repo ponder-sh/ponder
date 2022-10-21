@@ -9,7 +9,7 @@ import { indexLogs } from "@/core/indexer/indexLogs";
 import { createLogQueue, LogQueue } from "@/core/indexer/logQueue";
 import { Handlers, readHandlers } from "@/core/readHandlers";
 import { readPonderConfig } from "@/core/readPonderConfig";
-import { buildCacheStore, CacheStore } from "@/db/baseCacheStore";
+import { buildCacheStore, CacheStore } from "@/db/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
 import type { Network } from "@/networks/base";
 import { buildNetworks } from "@/networks/buildNetworks";

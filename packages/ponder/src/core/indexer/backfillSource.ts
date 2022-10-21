@@ -1,5 +1,5 @@
 import { logger } from "@/common/logger";
-import type { CacheStore } from "@/db/baseCacheStore";
+import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
 
 import { createHistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";

@@ -3,11 +3,7 @@ import type Sqlite from "better-sqlite3";
 import { logger } from "@/common/logger";
 import type { Block, EventLog, Transaction } from "@/types";
 
-import type {
-  CacheStore,
-  ContractCall,
-  ContractMetadata,
-} from "./baseCacheStore";
+import type { CacheStore, ContractCall, ContractMetadata } from "./cacheStore";
 
 export class SqliteCacheStore implements CacheStore {
   db: Sqlite.Database;
