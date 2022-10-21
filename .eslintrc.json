@@ -16,6 +16,6 @@
     "simple-import-sort/exports": "error",
     "import/first": "error",
     "import/newline-after-import": "error",
-    "@typescript-eslint/no-var-requires": "ignore"
+    "@typescript-eslint/no-var-requires": "off"
   }
 }

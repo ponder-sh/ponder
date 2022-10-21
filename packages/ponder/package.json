@@ -25,9 +25,6 @@
     "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/ponder): $VERSION\""
   },
   "dependencies": {
-    "@ethersproject/bytes": "^5.7.0",
-    "@graphql-codegen/core": "^2.6.2",
-    "@graphql-codegen/typescript": "^2.7.3",
     "@typechain/ethers-v5": "^10.1.0",
     "better-sqlite3": "^7.6.2",
     "cli-progress": "^3.11.2",
@@ -44,11 +41,10 @@
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.0.0",
+    "@ethersproject/bytes": "^5.7.0",
     "@ethersproject/providers": "^5.0.0",
     "@types/better-sqlite3": "^7.6.0",
     "@types/cli-progress": "^3.11.0",
-    "@types/cors": "^2.8.12",
-    "@types/express": "^4.17.13",
     "@types/node": "^18.7.8",
     "tsconfig-replace-paths": "^0.0.11"
   },
