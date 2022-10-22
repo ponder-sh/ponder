@@ -1,5 +1,6 @@
 import { build } from "esbuild";
 import type { Contract } from "ethers";
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 
 import { logger } from "@/common/logger";
@@ -25,6 +26,7 @@ export type SourceHandlers = Record<string, Handler | undefined>;
 export type Handlers = Record<string, SourceHandlers | undefined>;
 
 export const readHandlers = async (): Promise<Handlers> => {
+  mkdirSync(OPTIONS.PONDER_DIR_PATH, { recursive: true });
   const buildFile = path.join(OPTIONS.PONDER_DIR_PATH, "handlers.js");
 
   const handlersRootFilePath = path.join(OPTIONS.HANDLERS_DIR_PATH, "index.ts");

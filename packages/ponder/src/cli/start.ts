@@ -1,5 +1,3 @@
-import { ensureDirectoriesExist, readPrettierConfig } from "@/common/utils";
-
 // import {
 //   readHandlersTask,
 //   readPonderConfigTask,
@@ -8,9 +6,6 @@ import { ensureDirectoriesExist, readPrettierConfig } from "@/common/utils";
 // } from "../core/tasks";
 
 const start = async () => {
-  ensureDirectoriesExist();
-  await readPrettierConfig();
-
   // runTask(readPonderConfigTask);
   // runTask(readSchemaTask);
   // runTask(readHandlersTask);

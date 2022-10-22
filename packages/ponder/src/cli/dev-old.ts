@@ -4,11 +4,7 @@ import path from "node:path";
 
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
-import {
-  ensureDirectoriesExist,
-  isFileChanged,
-  readPrettierConfig,
-} from "@/common/utils";
+import { isFileChanged } from "@/common/utils";
 
 // import {
 //   readHandlersTask,
@@ -33,15 +29,11 @@ const createWatchListener = (
 };
 
 const dev = async () => {
-  ensureDirectoriesExist();
-  await readPrettierConfig();
-
   // // TODO: Make the dev server response to handler file changes again
   // /// by rearranging the task dependency graph.
   // runTask(readHandlersTask);
   // runTask(readPonderConfigTask);
   // runTask(readSchemaTask);
-
   // const runUpdateUserHandlersTask = createWatchListener(
   //   async (fileName: string) => {
   //     logger.info("");
@@ -50,7 +42,6 @@ const dev = async () => {
   //   },
   //   OPTIONS.HANDLERS_DIR_PATH
   // );
-
   // const runUpdateUserConfigTask = createWatchListener(async () => {
   //   logger.info("");
   //   logger.info(
@@ -60,7 +51,6 @@ const dev = async () => {
   //   ); // yellow
   //   runTask(readPonderConfigTask);
   // });
-
   // const runUpdateUserSchemaTask = createWatchListener(async () => {
   //   logger.info("");
   //   logger.info(
@@ -70,7 +60,6 @@ const dev = async () => {
   //   ); // yellow
   //   runTask(readSchemaTask);
   // });
-
   // watch(OPTIONS.HANDLERS_DIR_PATH, runUpdateUserHandlersTask);
   // watch(OPTIONS.PONDER_CONFIG_FILE_PATH, runUpdateUserConfigTask);
   // watch(OPTIONS.SCHEMA_FILE_PATH, runUpdateUserSchemaTask);

@@ -23,12 +23,12 @@ export interface LiveNetworkInfo {
 export const backfill = async ({
   cacheStore,
   sources,
-  stableLogQueueObject,
+  logQueue,
   isHotReload,
 }: {
   cacheStore: CacheStore;
   sources: Source[];
-  stableLogQueueObject: { logQueue: LogQueue };
+  logQueue: LogQueue;
   isHotReload: boolean;
 }) => {
   const startHrt = startBenchmark();
@@ -88,7 +88,7 @@ export const backfill = async ({
         cacheStore,
         network,
         contractAddresses,
-        stableLogQueueObject,
+        logQueue,
       });
 
       // Pause the live block request queue, but begin adding tasks to it.
@@ -138,7 +138,15 @@ export const backfill = async ({
     );
   }
 
+  const startLiveIndexing = () => {
+    // Begin processing live blocks for all source groups. This includes
+    // any blocks that were fetched and enqueued during the backfill.
+    liveNetworkInfos.forEach((info) => {
+      info.liveBlockRequestQueue.resume();
+    });
+  };
+
   return {
-    liveNetworkInfos,
+    startLiveIndexing,
   };
 };

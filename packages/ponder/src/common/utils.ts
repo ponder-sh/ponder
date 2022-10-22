@@ -1,9 +1,5 @@
 import { createHash } from "crypto";
-import { mkdirSync, readFileSync } from "fs";
-import prettier from "prettier";
-
-import { logger } from "@/common/logger";
-import { OPTIONS } from "@/common/options";
+import { readFileSync } from "fs";
 
 export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
   return array.reduce<{ [k: string | number]: T[] }>((acc, item) => {
@@ -42,35 +38,6 @@ export const isFileChanged = (filePath: string) => {
     // If there is a previous hash, check if the content hash has changed.
     return prevHash !== hash;
   }
-};
-
-export const ensureDirectoriesExist = () => {
-  mkdirSync(OPTIONS.PONDER_DIR_PATH, { recursive: true });
-  mkdirSync(OPTIONS.GENERATED_DIR_PATH, { recursive: true });
-};
-
-let prettierConfig: prettier.Options = { parser: "typescript" };
-
-export const readPrettierConfig = async () => {
-  if (prettierConfig) return prettierConfig;
-
-  const configFilePath = await prettier.resolveConfigFile();
-  if (configFilePath) {
-    const foundConfig = await prettier.resolveConfig(configFilePath);
-    if (foundConfig) {
-      logger.info(`Found prettier config at: ${configFilePath}`);
-      prettierConfig = foundConfig;
-    }
-  }
-
-  return prettierConfig;
-};
-
-export const formatPrettier = (
-  source: string,
-  configOverrides?: Partial<prettier.Options>
-) => {
-  return prettier.format(source, { ...prettierConfig, ...configOverrides });
 };
 
 // These methods are used in the cached interval calculations

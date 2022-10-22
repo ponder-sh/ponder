@@ -3,10 +3,9 @@ import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
-import { ensureDirectoriesExist, readPrettierConfig } from "@/common/utils";
 import { backfill } from "@/core/indexer/backfill";
 import { indexLogs } from "@/core/indexer/indexLogs";
-import { createLogQueue, LogQueue } from "@/core/indexer/logQueue";
+import { createLogQueue } from "@/core/indexer/logQueue";
 import { Handlers, readHandlers } from "@/core/readHandlers";
 import { readPonderConfig } from "@/core/readPonderConfig";
 import { buildCacheStore, CacheStore } from "@/db/cacheStore";
@@ -39,9 +38,6 @@ const state: {
 };
 
 export const dev = async () => {
-  ensureDirectoriesExist();
-  await readPrettierConfig();
-
   // 1. Read `ponder.config.js` and build db, networks & sources
   // 4. Register plugins
   // 5. Call onSetup plugin callbacks
@@ -104,21 +100,6 @@ export const dev = async () => {
 
   // 4. Begin backfill
 
-  // This is a hack required to create the liveBlockRequestQueue BEFORE
-  // creating the logQueue. The liveBlockRequestQueue calls
-  // stableLogQueueObject.logQueue.push(task) whenever it processes a new block.
-  // Would be better if fastq allowed you to replace a worker function on the fly.
-  const stableLogQueueObject = {
-    logQueue: null as unknown as LogQueue,
-  };
-
-  const { liveNetworkInfos } = await backfill({
-    cacheStore: state.cacheStore,
-    sources: state.sources,
-    stableLogQueueObject: stableLogQueueObject,
-    isHotReload: state.isHotReload,
-  });
-
   state.handlers = await readHandlers();
 
   // TODO: transfer tasks that were added to the dummy logQueue
@@ -129,8 +110,12 @@ export const dev = async () => {
     pluginHandlerContext: state.handlerContext,
   });
 
-  // Now that the logQueue exists, override the null property with the actual queue.
-  stableLogQueueObject.logQueue = logQueue;
+  const { startLiveIndexing } = await backfill({
+    cacheStore: state.cacheStore,
+    sources: state.sources,
+    logQueue,
+    isHotReload: state.isHotReload,
+  });
 
   // Process historical / backfilled logs.
   await indexLogs({
@@ -139,11 +124,7 @@ export const dev = async () => {
     logQueue,
   });
 
-  // Begin processing live blocks for all source groups. This includes
-  // any blocks that were fetched and enqueued during the backfill.
-  liveNetworkInfos.forEach((info) => {
-    info.liveBlockRequestQueue.resume();
-  });
+  startLiveIndexing();
 
   // 5. Call onBackfillComplete plugin callbacks
   for (const plugin of state.plugins) {
