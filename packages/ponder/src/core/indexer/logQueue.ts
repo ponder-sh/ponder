@@ -131,5 +131,15 @@ export const createLogQueue = ({
     stats.processingProgressBar.increment();
   };
 
-  return fastq.promise<LogTask>(logWorker, 1);
+  const queue = fastq.promise<LogTask>(logWorker, 1);
+
+  queue.error((err, task) => {
+    if (err) {
+      logger.error("error in log worker, retrying...:");
+      logger.error({ task, err });
+      queue.unshift(task);
+    }
+  });
+
+  return queue;
 };
