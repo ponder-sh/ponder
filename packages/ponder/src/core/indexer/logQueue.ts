@@ -66,7 +66,12 @@ export const createLogQueue = ({
       );
       return;
     }
-
+    if (!stats.sourceStats[source.name]) {
+      stats.sourceStats[source.name] = {
+        matchedLogCount: 0,
+        handledLogCount: 0,
+      };
+    }
     stats.sourceStats[source.name].matchedLogCount += 1;
 
     const sourceHandlers = userHandlers[source.name];
