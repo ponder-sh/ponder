@@ -1,4 +1,3 @@
-import type { PonderOptions } from "@ponder/ponder";
 import { buildSchema, GraphQLSchema } from "graphql";
 import { readFileSync } from "node:fs";
 
@@ -15,8 +14,8 @@ scalar Bytes
 scalar BigInt
 `;
 
-const readSchema = (options: PonderOptions): GraphQLSchema => {
-  const schemaBody = readFileSync(options.SCHEMA_FILE_PATH);
+const readSchema = (filePath: string): GraphQLSchema => {
+  const schemaBody = readFileSync(filePath);
   const schemaSource = schemaHeader + schemaBody.toString();
   const schema = buildSchema(schemaSource);
 

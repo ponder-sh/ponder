@@ -10,10 +10,7 @@ import { buildEntityStore } from "./store/entityStore";
 
 export type PonderGraphqlPluginOptions = {
   port?: number;
-};
-
-export type PonderGraphqlPluginHandlerContext = {
-  entities: Record<string, unknown>;
+  schemaFilePath?: string;
 };
 
 // Handler context types
@@ -31,24 +28,24 @@ export type EntityModel = {
 
 let server: GraphqlServer;
 
-export const graphqlPlugin: PonderPlugin<
-  PonderGraphqlPluginOptions,
-  PonderGraphqlPluginHandlerContext
-> = ({ port = 42069 } = {}) => {
+export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
+  port = 42069,
+  schemaFilePath = "schema.graphql",
+} = {}) => {
   return {
     name: "graphql",
-    onSetup: async ({ database, logger, options }) => {
-      const userSchema = readSchema(options);
+    setup: async (ponder) => {
+      const userSchema = readSchema(schemaFilePath);
       const ponderSchema = buildPonderSchema(userSchema);
       const gqlSchema = buildGqlSchema(ponderSchema);
 
       // Create the Entity store
-      const entityStore = buildEntityStore(database);
+      const entityStore = buildEntityStore(ponder.database);
       await entityStore.migrate(ponderSchema);
 
       // Build Express GraphQL server
       if (!server) {
-        server = new GraphqlServer(port, entityStore, logger);
+        server = new GraphqlServer(port, entityStore, ponder.logger);
       }
       server.start(gqlSchema, port);
 
@@ -66,16 +63,17 @@ export const graphqlPlugin: PonderPlugin<
         entityModels[entityName] = entityModel;
       });
 
-      await generateSchemaTypes(gqlSchema, options);
-      logger.info(`\x1b[36m${"Generated schema types"}\x1b[0m`); // cyan
-      generateSchema(gqlSchema, options);
-      logger.debug(`Generated schema.graphql file`);
+      await generateSchemaTypes(gqlSchema, ponder.options);
+      ponder.logger.info(`\x1b[36m${"Generated schema types"}\x1b[0m`); // cyan
 
-      return {
-        handlerContext: {
-          entities: entityModels,
-        },
-      };
+      generateSchema(gqlSchema, ponder.options);
+      ponder.logger.debug(`Generated schema.graphql file`);
+
+      ponder.addToHandlerContext({
+        entities: entityModels,
+      });
+
+      ponder.addWatchFile(schemaFilePath);
     },
   };
 };
