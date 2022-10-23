@@ -1,7 +1,9 @@
-const { graphqlPlugin } = require("@ponder/graphql");
+// const { graphqlPlugin } = require("@ponder/graphql");
 
 module.exports = {
-  plugins: [graphqlPlugin({ port: 12345 })],
+  plugins: [
+    // graphqlPlugin({ port: 12345 })
+  ],
   database: {
     kind: "sqlite",
   },

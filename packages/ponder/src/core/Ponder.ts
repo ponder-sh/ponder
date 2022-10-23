@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 
 import { generateContextTypes } from "@/codegen/generateContextTypes";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
+import { generateContractTypes2 } from "@/codegen/generateContractTypes2";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
@@ -56,12 +57,14 @@ export class Ponder {
   }
 
   async start() {
+    await this.setupPlugins();
     await this.codegen();
     await this.createLogQueue();
     await this.backfill();
   }
 
   async dev() {
+    await this.setupPlugins();
     await this.codegen();
     await this.createLogQueue();
     await this.backfill();
@@ -69,6 +72,7 @@ export class Ponder {
 
   async codegen() {
     await generateContractTypes(this.sources);
+    generateContractTypes2(this.sources);
     generateHandlerTypes(this.sources);
     generateContextTypes(this.sources);
   }

@@ -1,14 +1,10 @@
-// import {
-//   readHandlersTask,
-//   readPonderConfigTask,
-//   readSchemaTask,
-//   runTask,
-// } from "../core/tasks";
+import { Ponder } from "@/core/Ponder";
+import { readPonderConfig } from "@/core/readPonderConfig";
 
-const start = async () => {
-  // runTask(readPonderConfigTask);
-  // runTask(readSchemaTask);
-  // runTask(readHandlersTask);
+export const start = async () => {
+  const config = readPonderConfig();
+
+  const ponder = new Ponder(config);
+
+  await ponder.start();
 };
-
-export { start };
