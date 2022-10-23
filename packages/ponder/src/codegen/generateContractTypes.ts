@@ -1,21 +1,26 @@
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { runTypeChain } from "typechain";
 
 import { OPTIONS } from "@/common/options";
 import type { Source } from "@/sources/base";
 
-export const generateContractTypes = async (sources: Source[]) => {
-  const cwd = process.cwd();
+import { formatPrettier } from "./utils";
 
-  const abiFilePaths = sources.map((source) => source.abiFilePath);
+export const generateContractTypes = (sources: Source[]) => {
+  sources.forEach((source) => {
+    const abiFileContents = readFileSync(source.abiFilePath, "utf-8");
 
-  // TODO: don't parse all the ABI files again, use the Contract.Interface we already have?
-  // TODO: don't generate factory files, we don't need them?
-  await runTypeChain({
-    cwd,
-    filesToProcess: abiFilePaths,
-    allFiles: abiFilePaths,
-    outDir: path.join(OPTIONS.GENERATED_DIR_PATH, "typechain"),
-    target: "ethers-v5",
+    const raw = `
+      export default ${abiFileContents.trimEnd()} as const;
+    `;
+    const final = formatPrettier(raw);
+
+    const abiTsFileName = path.join(
+      OPTIONS.GENERATED_DIR_PATH,
+      `abitype/${source.name}.ts`
+    );
+
+    mkdirSync(path.dirname(abiTsFileName), { recursive: true });
+    writeFileSync(abiTsFileName, final, "utf8");
   });
 };

@@ -2,7 +2,6 @@ import { writeFileSync } from "node:fs";
 
 import { generateContextTypes } from "@/codegen/generateContextTypes";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
-import { generateContractTypes2 } from "@/codegen/generateContractTypes2";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
@@ -32,7 +31,6 @@ export class Ponder {
   pluginHandlerContext: Record<string, unknown>;
 
   // Backfill/indexing state
-  isHotReload = false;
   logQueue?: LogQueue;
 
   constructor(config: PonderConfig) {
@@ -71,8 +69,7 @@ export class Ponder {
   }
 
   async codegen() {
-    await generateContractTypes(this.sources);
-    generateContractTypes2(this.sources);
+    generateContractTypes(this.sources);
     generateHandlerTypes(this.sources);
     generateContextTypes(this.sources);
   }
@@ -101,7 +98,7 @@ export class Ponder {
       cacheStore: this.cacheStore,
       sources: this.sources,
       logQueue: this.logQueue,
-      isHotReload: this.isHotReload,
+      isHotReload: false,
     });
 
     // Process historical / backfilled logs.
@@ -112,8 +109,6 @@ export class Ponder {
     });
 
     startLiveIndexing();
-
-    this.isHotReload = true;
   }
 
   /* Plugin-related methods */
@@ -141,9 +136,12 @@ export class Ponder {
       options: OPTIONS,
 
       // Actions
-      addWatchFile: this.addWatchFile,
-      emitFile: this.emitFile,
-      addToHandlerContext: this.addToHandlerContext,
+      // TODO: Maybe change this... seems meh
+      addWatchFile: (filePath: string) => this.addWatchFile(filePath),
+      emitFile: (filePath: string, contents: string | Buffer) =>
+        this.emitFile(filePath, contents),
+      addToHandlerContext: (handlerContext: Record<string, unknown>) =>
+        this.addToHandlerContext(handlerContext),
     };
   }
 
@@ -156,9 +154,9 @@ export class Ponder {
   }
 
   addToHandlerContext(handlerContext: Record<string, unknown>) {
-    const duplicatedHandlerContextKeys = Object.keys(handlerContext).filter(
-      (key) => Object.keys(this.pluginHandlerContext).includes(key)
-    );
+    const duplicatedHandlerContextKeys = Object.keys(
+      this.pluginHandlerContext
+    ).filter((key) => Object.keys(handlerContext).includes(key));
 
     if (duplicatedHandlerContextKeys.length > 0) {
       throw new Error(
@@ -168,7 +166,7 @@ export class Ponder {
 
     this.pluginHandlerContext = {
       ...this.pluginHandlerContext,
-      handlerContext,
+      ...handlerContext,
     };
   }
 }
