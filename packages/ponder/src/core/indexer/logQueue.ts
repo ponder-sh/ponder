@@ -2,9 +2,9 @@ import { Contract } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
+import type { EventLog } from "@/common/types";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
-import type { EventLog } from "@/types";
 
 import type { Handlers } from "../readHandlers";
 import { stats } from "./stats";

@@ -1,9 +1,9 @@
 import { logger } from "@/common/logger";
+import type { EventLog } from "@/common/types";
 import { endBenchmark, startBenchmark } from "@/common/utils";
 import type { LogQueue } from "@/core/indexer/logQueue";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
-import type { EventLog } from "@/types";
 
 import { getPrettyPercentage, resetStats, stats } from "./stats";
 

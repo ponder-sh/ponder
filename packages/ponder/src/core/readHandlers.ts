@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
-import type { Block, EventLog, Transaction } from "@/types";
+import type { Block, EventLog, Transaction } from "@/common/types";
 
 // Handler event types
 export interface HandlerEvent extends EventLog {
