@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+
 import { generateContextTypes } from "@/codegen/generateContextTypes";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
@@ -6,30 +8,33 @@ import { OPTIONS } from "@/common/options";
 import { backfill } from "@/core/indexer/backfill";
 import { indexLogs } from "@/core/indexer/indexLogs";
 import { createLogQueue, LogQueue } from "@/core/indexer/logQueue";
+import type { PonderPluginArgument, ResolvedPonderPlugin } from "@/core/plugin";
 import { readHandlers } from "@/core/readHandlers";
-import { PonderConfig, readPonderConfig } from "@/core/readPonderConfig";
+import type { PonderConfig } from "@/core/readPonderConfig";
 import { buildCacheStore, CacheStore } from "@/db/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
 import type { Network } from "@/networks/base";
 import { buildNetworks } from "@/networks/buildNetworks";
-import type { ResolvedPonderPlugin } from "@/plugin";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
 
 export class Ponder {
-  // Constructor
+  // Ponder internal state
   sources: EvmSource[];
   networks: Network[];
   database: PonderDatabase;
   cacheStore: CacheStore;
-  plugins: ResolvedPonderPlugin[];
 
-  // Backfill/indexing
+  // Plugin state
+  plugins: ResolvedPonderPlugin[];
+  watchFiles: string[];
+  pluginHandlerContext: Record<string, unknown>;
+
+  // Backfill/indexing state
   isHotReload = false;
   logQueue?: LogQueue;
 
   constructor(config: PonderConfig) {
-    this.plugins = config.plugins;
     this.database = buildDb(config);
     this.cacheStore = buildCacheStore(this.database);
 
@@ -41,6 +46,13 @@ export class Ponder {
 
     const { sources } = buildSources({ config, networks });
     this.sources = sources;
+
+    this.plugins = config.plugins;
+    this.watchFiles = [
+      OPTIONS.PONDER_CONFIG_FILE_PATH,
+      ...sources.map((s) => s.abiFilePath),
+    ];
+    this.pluginHandlerContext = {};
   }
 
   async start() {
@@ -72,7 +84,7 @@ export class Ponder {
       cacheStore: this.cacheStore,
       sources: this.sources,
       handlers: handlers,
-      pluginHandlerContext: {}, // TODO: actually get plugin context properties here
+      pluginHandlerContext: this.pluginHandlerContext,
     });
   }
 
@@ -98,5 +110,61 @@ export class Ponder {
     startLiveIndexing();
 
     this.isHotReload = true;
+  }
+
+  /* Plugin-related methods */
+
+  async setupPlugins() {
+    for (const plugin of this.plugins) {
+      if (!plugin.setup) return;
+      await plugin.setup(this.getPluginArgument());
+    }
+  }
+
+  async reloadPlugins() {
+    for (const plugin of this.plugins) {
+      if (!plugin.reload) return;
+      await plugin.reload(this.getPluginArgument());
+    }
+  }
+
+  getPluginArgument(): PonderPluginArgument {
+    return {
+      database: this.database,
+      sources: this.sources,
+      networks: this.networks,
+      logger: logger,
+      options: OPTIONS,
+
+      // Actions
+      addWatchFile: this.addWatchFile,
+      emitFile: this.emitFile,
+      addToHandlerContext: this.addToHandlerContext,
+    };
+  }
+
+  addWatchFile(filePath: string) {
+    this.watchFiles.push(filePath);
+  }
+
+  emitFile(filePath: string, contents: string | Buffer) {
+    writeFileSync(filePath, contents);
+  }
+
+  addToHandlerContext(handlerContext: Record<string, unknown>) {
+    const duplicatedHandlerContextKeys = Object.keys(handlerContext).filter(
+      (key) => Object.keys(this.pluginHandlerContext).includes(key)
+    );
+
+    if (duplicatedHandlerContextKeys.length > 0) {
+      throw new Error(
+        `Duplicate handler context key from plugins: ${duplicatedHandlerContextKeys}`
+      );
+    }
+
+    this.pluginHandlerContext = {
+      ...this.pluginHandlerContext,
+      handlerContext,
+    };
   }
 }

@@ -1,5 +1,5 @@
 import { OPTIONS } from "@/common/options";
-import type { ResolvedPonderPlugin } from "@/plugin";
+import type { ResolvedPonderPlugin } from "@/core/plugin";
 
 export type PonderConfig = {
   database: {

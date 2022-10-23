@@ -12,7 +12,7 @@ import { buildCacheStore, CacheStore } from "@/db/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
 import type { Network } from "@/networks/base";
 import { buildNetworks } from "@/networks/buildNetworks";
-import type { ResolvedPonderPlugin } from "@/plugin";
+import type { ResolvedPonderPlugin } from "@/core/plugin";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
 
