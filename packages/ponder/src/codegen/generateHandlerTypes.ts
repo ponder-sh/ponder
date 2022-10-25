@@ -50,7 +50,7 @@ export const generateHandlerTypes = (sources: Source[]) => {
     );
   });
 
-  logger.info(`\x1b[36m${"Generated handler types"}\x1b[0m`); // magenta
+  logger.debug("Generated handler types");
 };
 
 // HELPERS
