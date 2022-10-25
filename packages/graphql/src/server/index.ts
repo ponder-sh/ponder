@@ -41,16 +41,12 @@ export class GraphqlServer {
       this.logger.info(
         `\x1b[35m${`Serving GraphQL API at http://localhost:${port}/graphql`}\x1b[0m`
       ); // magenta
-    } else if (newPort) {
+    } else if (newPort && newPort !== this.port) {
       this.port = newPort;
       // Close all connections to the now-stale server.
       this.server.close();
       this.server = this.app.listen(this.port);
-      this.logger.info(
-        `\x1b[35m${`Serving GraphQL API at http://localhost:${this.port}/graphql`}\x1b[0m`
-      ); // magenta
-    } else {
-      this.logger.info(`\x1b[35m${`Restarted GraphQL server`}\x1b[0m`); // magenta
+      this.logger.debug(`\x1b[35m${`Restarted GraphQL server`}\x1b[0m`); // magenta
     }
   }
 }

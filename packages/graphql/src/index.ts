@@ -67,7 +67,7 @@ export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
       ponder.logger.debug(`Generated entities.ts file`);
 
       await generateSchemaTypes(gqlSchema, ponder.options);
-      ponder.logger.info(`\x1b[36m${"Generated schema types"}\x1b[0m`); // cyan
+      ponder.logger.debug(`Generated schema types`);
 
       generateSchema(gqlSchema, ponder.options);
       ponder.logger.debug(`Generated schema.graphql file`);
