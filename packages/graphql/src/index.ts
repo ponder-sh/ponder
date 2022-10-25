@@ -1,5 +1,6 @@
 import type { PonderPlugin } from "@ponder/ponder";
 
+import { generateEntityTypes } from "./codegen/generateEntityTypes";
 import { generateSchema } from "./codegen/generateSchema";
 import { generateSchemaTypes } from "./codegen/generateSchemaTypes";
 import { readSchema } from "./readSchema";
@@ -62,6 +63,9 @@ export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
 
         entityModels[entityName] = entityModel;
       });
+
+      generateEntityTypes(ponderSchema, ponder.logger, ponder.options);
+      ponder.logger.debug(`Generated entities.ts file`);
 
       await generateSchemaTypes(gqlSchema, ponder.options);
       ponder.logger.info(`\x1b[36m${"Generated schema types"}\x1b[0m`); // cyan
