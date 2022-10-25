@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { generateContextTypes } from "@/codegen/generateContextTypes";
@@ -6,6 +6,7 @@ import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
+import { isFileChanged } from "@/common/utils";
 import { backfill } from "@/core/indexer/backfill";
 import { indexLogs } from "@/core/indexer/indexLogs";
 import { createLogQueue, LogQueue } from "@/core/indexer/logQueue";
@@ -32,6 +33,7 @@ export class Ponder {
   pluginHandlerContext: Record<string, unknown>;
 
   // Backfill/indexing state
+  isReload: boolean;
   logQueue?: LogQueue;
 
   constructor(config: PonderConfig) {
@@ -49,10 +51,11 @@ export class Ponder {
 
     this.plugins = config.plugins;
     this.watchFiles = [
-      OPTIONS.PONDER_CONFIG_FILE_PATH,
+      OPTIONS.HANDLERS_DIR_PATH,
       ...sources.map((s) => s.abiFilePath),
     ];
     this.pluginHandlerContext = {};
+    this.isReload = false;
   }
 
   async start() {
@@ -69,6 +72,8 @@ export class Ponder {
     await this.codegen();
     await this.createLogQueue();
     await this.backfill();
+
+    this.watch();
   }
 
   async setup() {
@@ -83,10 +88,6 @@ export class Ponder {
   }
 
   async createLogQueue() {
-    if (this.logQueue) {
-      this.logQueue.killAndDrain();
-    }
-
     const handlers = await readHandlers();
 
     this.logQueue = createLogQueue({
@@ -106,7 +107,7 @@ export class Ponder {
       cacheStore: this.cacheStore,
       sources: this.sources,
       logQueue: this.logQueue,
-      isHotReload: false,
+      isHotReload: this.isReload,
     });
 
     // Process historical / backfilled logs.
@@ -117,6 +118,39 @@ export class Ponder {
     });
 
     startLiveIndexing();
+  }
+
+  async reload() {
+    this.logQueue?.killAndDrain();
+    this.isReload = true;
+
+    await this.reloadPlugins();
+    await this.codegen();
+    await this.createLogQueue();
+    await this.backfill();
+  }
+
+  watch() {
+    this.watchFiles.forEach((fileOrDirName) => {
+      watch(fileOrDirName, { recursive: true }, (_, fileName) => {
+        const fullPath =
+          path.basename(fileOrDirName) === fileName
+            ? fileOrDirName
+            : path.join(fileOrDirName, fileName);
+
+        logger.debug("File changed:");
+        logger.debug({ fileOrDirName, fileName, fullPath });
+
+        if (isFileChanged(fullPath)) {
+          logger.info("");
+          logger.info(`\x1b[35m${`Detected change in: ${fileName}`}\x1b[0m`); // yellow
+
+          this.reload();
+        } else {
+          logger.debug("File content not changed, not reloading");
+        }
+      });
+    });
   }
 
   /* Plugin-related methods */

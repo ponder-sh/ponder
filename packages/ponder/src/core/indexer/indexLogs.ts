@@ -53,6 +53,13 @@ export const indexLogs = async ({
   );
 
   for (const source of sources) {
+    if (!stats.sourceStats[source.name]) {
+      stats.sourceStats[source.name] = {
+        matchedLogCount: 0,
+        handledLogCount: 0,
+      };
+    }
+
     stats.resultsTable.addRow({
       "source name": source.name,
       "all logs": stats.sourceStats[source.name].matchedLogCount,
