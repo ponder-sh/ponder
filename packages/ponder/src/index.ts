@@ -1,3 +1,4 @@
+export type { AbitypedEthersContract } from "@/codegen/ethers-abitype";
 export { generateContextTypes } from "@/codegen/generateContextTypes";
 export { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 export type { PonderLogger } from "@/common/logger";

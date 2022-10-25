@@ -1,4 +1,5 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 
 import { generateContextTypes } from "@/codegen/generateContextTypes";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
@@ -55,6 +56,7 @@ export class Ponder {
   }
 
   async start() {
+    await this.setup();
     await this.setupPlugins();
     await this.codegen();
     await this.createLogQueue();
@@ -62,16 +64,22 @@ export class Ponder {
   }
 
   async dev() {
+    await this.setup();
     await this.setupPlugins();
     await this.codegen();
     await this.createLogQueue();
     await this.backfill();
   }
 
+  async setup() {
+    mkdirSync(path.join(OPTIONS.GENERATED_DIR_PATH), { recursive: true });
+    mkdirSync(path.join(OPTIONS.PONDER_DIR_PATH), { recursive: true });
+  }
+
   async codegen() {
     generateContractTypes(this.sources);
     generateHandlerTypes(this.sources);
-    generateContextTypes(this.sources);
+    generateContextTypes(this.sources, this.pluginHandlerContext);
   }
 
   async createLogQueue() {
