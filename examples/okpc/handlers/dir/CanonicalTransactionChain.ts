@@ -1,5 +1,5 @@
-import { SequencerBatchAppendedHandler } from "../generated/CanonicalTransactionChain";
-import { OkpcOwnerTrait } from "../generated/schema";
+import { SequencerBatchAppendedHandler } from "../../generated/CanonicalTransactionChain";
+import { OkpcOwnerTrait } from "../../generated/schema";
 
 const handleSequencerBatchAppended: SequencerBatchAppendedHandler = async (
   event,
