@@ -31,7 +31,7 @@ export interface EntityStore {
 
   updateEntity<T>(
     entityName: string,
-    attributes: { id: string } & T
+    attributes: { id: string } & Partial<T>
   ): Promise<T>;
 
   deleteEntity(entityName: string, id: string): Promise<void>;

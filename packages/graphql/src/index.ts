@@ -7,7 +7,7 @@ import { readSchema } from "./readSchema";
 import { buildPonderSchema } from "./schema/buildPonderSchema";
 import { GraphqlServer } from "./server";
 import { buildGqlSchema } from "./server/buildGqlSchema";
-import { buildEntityStore } from "./store/entityStore";
+import { buildEntityStore, EntityStore } from "./store/entityStore";
 
 export type PonderGraphqlPluginOptions = {
   port?: number;
@@ -27,6 +27,7 @@ export type EntityModel = {
   delete: (id: string) => Promise<void>;
 };
 
+let entityStore: EntityStore;
 let server: GraphqlServer;
 
 export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
@@ -41,13 +42,11 @@ export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
       const gqlSchema = buildGqlSchema(ponderSchema);
 
       // Create the Entity store
-      const entityStore = buildEntityStore(ponder.database);
+      entityStore = buildEntityStore(ponder.database);
       await entityStore.migrate(ponderSchema);
 
       // Build Express GraphQL server
-      if (!server) {
-        server = new GraphqlServer(port, entityStore, ponder.logger);
-      }
+      server = new GraphqlServer(port, entityStore, ponder.logger);
       server.start(gqlSchema, port);
 
       // Build handler context entity models
@@ -78,6 +77,19 @@ export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
       });
 
       ponder.addWatchFile(schemaFilePath);
+    },
+    reload: async (ponder) => {
+      const userSchema = readSchema(schemaFilePath);
+      const ponderSchema = buildPonderSchema(userSchema);
+      const gqlSchema = buildGqlSchema(ponderSchema);
+
+      if (!entityStore) {
+        entityStore = buildEntityStore(ponder.database);
+      }
+
+      await entityStore.migrate(ponderSchema);
+
+      server.start(gqlSchema, port);
     },
   };
 };

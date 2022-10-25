@@ -183,7 +183,7 @@ export class SqliteEntityStore implements EntityStore {
 
   async updateEntity<T>(
     entityName: string,
-    attributes: { id: string } & any
+    attributes: { id: string } & Partial<T>
   ): Promise<T> {
     if (!this.schema) {
       throw new Error(`SqliteStore has not been initialized with a schema yet`);
