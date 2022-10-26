@@ -62,7 +62,6 @@ export class Ponder {
     await this.setup();
     await this.setupPlugins();
     await this.codegen();
-    await this.createLogQueue();
     await this.backfill();
   }
 
@@ -70,7 +69,6 @@ export class Ponder {
     await this.setup();
     await this.setupPlugins();
     await this.codegen();
-    await this.createLogQueue();
     await this.backfill();
 
     this.watch();
@@ -87,7 +85,7 @@ export class Ponder {
     generateContextTypes(this.sources, this.pluginHandlerContext);
   }
 
-  async createLogQueue() {
+  async backfill() {
     const handlers = await readHandlers();
 
     this.logQueue = createLogQueue({
@@ -96,12 +94,6 @@ export class Ponder {
       handlers: handlers,
       pluginHandlerContext: this.pluginHandlerContext,
     });
-  }
-
-  async backfill() {
-    if (!this.logQueue) {
-      throw new Error(`Cannot begin backfill before creating log queue`);
-    }
 
     const { startLiveIndexing } = await backfill({
       cacheStore: this.cacheStore,
@@ -120,13 +112,20 @@ export class Ponder {
     startLiveIndexing();
   }
 
+  // This reload method is not working - can be triggered multiple times
+  // leading to multiple backfills happening at the same time.
   async reload() {
-    this.logQueue?.killAndDrain();
+    if (this.logQueue) {
+      this.logQueue.kill();
+      if (!this.logQueue.idle()) {
+        await this.logQueue.drained();
+      }
+    }
+
     this.isReload = true;
 
     await this.reloadPlugins();
     await this.codegen();
-    await this.createLogQueue();
     await this.backfill();
   }
 
