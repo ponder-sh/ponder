@@ -29,11 +29,11 @@ It also contains `ethers.Contract` objects for each contract defined in your `po
 
 ```ts
 interface Context {
-  entities: {
-    MyTokenEntity: MyTokenEntityModel;
-  };
   contracts: {
     MyNftContract: MyNftContract;
+  };
+  entities: {
+    MyTokenEntity: MyTokenEntityModel;
   };
 }
 
