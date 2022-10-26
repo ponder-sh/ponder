@@ -12,11 +12,17 @@ import { parse } from "yaml";
 import { getGraphProtocolChainId } from "./helpers/getGraphProtocolChainId";
 import { validateGraphProtocolSource } from "./helpers/validateGraphProtocolSource";
 
-type PonderSource = {
-  kind: "evm";
+type PonderNetwork = {
+  kind: string;
   name: string;
   chainId: number;
   rpcUrl: string;
+};
+
+type PonderSource = {
+  kind: "evm";
+  name: string;
+  network: string;
   abi: string;
   address: string;
   startBlock?: number;
@@ -29,6 +35,7 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
   mkdirSync(path.join(ponderRootDirPath, "abis"), { recursive: true });
   mkdirSync(path.join(ponderRootDirPath, "handlers"), { recursive: true });
 
+  let ponderNetworks: PonderNetwork[] = [];
   let ponderSources: PonderSource[] = [];
 
   if (subgraphRootDir) {
@@ -86,6 +93,15 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
           throw new Error(`Unhandled network name: ${network}`);
         }
 
+        if (!ponderNetworks.map((n) => n.name).includes(network)) {
+          ponderNetworks.push({
+            kind: "evm",
+            name: network,
+            chainId: chainId,
+            rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
+          });
+        }
+
         // Copy the ABI file.
         const abiAbsolutePath = path.join(subgraphRootDirPath, abiPath);
         const abiFileName = path.basename(abiPath);
@@ -134,8 +150,7 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
         return <PonderSource>{
           kind: "evm",
           name: source.name,
-          chainId: chainId,
-          rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
+          network: network,
           address: source.source.address,
           abi: ponderAbiRelativePath,
           startBlock: source.source.startBlock,
@@ -150,12 +165,20 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
     const abiAbsolutePath = path.join(ponderRootDirPath, abiRelativePath);
     writeFileSync(abiAbsolutePath, abiFileContents);
 
+    ponderNetworks = [
+      {
+        kind: "evm",
+        name: "mainnet",
+        chainId: 1,
+        rpcUrl: `process.env.PONDER_RPC_URL_1`,
+      },
+    ];
+
     ponderSources = [
       {
         kind: "evm",
         name: "ExampleContract",
-        chainId: 1,
-        rpcUrl: `process.env.PONDER_RPC_URL_1`,
+        network: "mainnet",
         address: "0x0",
         abi: abiRelativePath,
         startBlock: 1234567,
@@ -202,21 +225,28 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
 
   // Write the ponder.config.js file.
   const ponderConfig = {
+    plugins: ["graphqlPlugin()"],
     database: {
       kind: "sqlite",
     },
-    graphql: {
-      port: 42069,
-    },
+    networks: ponderNetworks,
     sources: ponderSources,
   };
 
-  const finalPonderConfig = (
-    "module.exports = " + JSON.stringify(ponderConfig)
-  ).replaceAll(
+  const finalPonderConfig = `const { graphqlPlugin } = require("@ponder/graphql");
+
+module.exports = {
+  plugins: [graphqlPlugin()],
+  database: {
+    kind: "sqlite",
+  },
+  networks: ${JSON.stringify(ponderNetworks).replaceAll(
     /"process.env.PONDER_RPC_URL_(.*?)"/g,
     "process.env.PONDER_RPC_URL_$1"
-  );
+  )},
+  sources: ${JSON.stringify(ponderSources)},
+}
+  `;
 
   writeFileSync(
     path.join(ponderRootDirPath, "ponder.config.js"),
@@ -225,7 +255,7 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
 
   // Write the .env.local file.
   const uniqueChainIds = Array.from(
-    new Set(ponderConfig.sources.map((s) => s.chainId))
+    new Set(ponderConfig.networks.map((n) => n.chainId))
   );
   const envLocal = `${uniqueChainIds.map(
     (chainId) => `PONDER_RPC_URL_${chainId}=""\n`
@@ -243,10 +273,9 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
       },
       "dependencies": {
         "@ponder/ponder": "latest",
+        "@ponder/graphql": "latest"
       },
       "devDependencies": {
-        "@ethersproject/abi": "^5.0.0",
-        "@ethersproject/providers": "^5.0.0",
         "ethers": "^5.6.9"
       },
       "engines": {
@@ -287,6 +316,6 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
 
   // TODO: Add more/better instructions here.
   console.log(
-    `Go to ${ponderRootDir}, run npm/yarn/pnpm install, and run pnpm run dev to start the development server.`
+    `Go to ${ponderRootDir}, npm/yarn/pnpm install, and pnpm run dev to start the development server.`
   );
 };
