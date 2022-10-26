@@ -28,7 +28,7 @@ importers:
     specifiers:
       '@graphprotocol/graph-cli': 0.30.1
       '@graphprotocol/graph-ts': 0.27.0
-      create-ponder-app: latest
+      create-ponder-app: workspace:latest
     dependencies:
       '@graphprotocol/graph-cli': 0.30.1
       '@graphprotocol/graph-ts': 0.27.0
