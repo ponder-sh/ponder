@@ -73,7 +73,7 @@ export const backfillSource = async ({
   });
   stats.sourceCount += 1;
   if (!isHotReload && stats.sourceCount === stats.sourceTotalCount) {
-    logger.info("Historical sync plan");
+    logger.info("Backfill plan");
     logger.info(stats.requestPlanTable.render(), "\n");
     stats.syncProgressBar.start(0, 0);
   }

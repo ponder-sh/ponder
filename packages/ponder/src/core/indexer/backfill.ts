@@ -54,7 +54,7 @@ export const backfill = async ({
   }
 
   if (!isHotReload) {
-    logger.info(`\x1b[33m${`Starting historical sync...`}\x1b[0m`, "\n"); // yellow
+    logger.info(`\x1b[33m${`Starting backfill...`}\x1b[0m`, "\n"); // yellow
   }
 
   const uniqueNetworks = [
@@ -96,7 +96,12 @@ export const backfill = async ({
       // tasks that were added during historical sync + new live logs.
       liveBlockRequestQueue.pause();
       network.provider.on("block", (blockNumber: number) => {
-        liveBlockRequestQueue.push({ blockNumber });
+        // Messy way to avoid double-processing currentBlockNumber.
+        // Also noticed taht this approach sometimes skips the block
+        // immediately after currentBlockNumber.
+        if (blockNumber > currentBlockNumber) {
+          liveBlockRequestQueue.push({ blockNumber });
+        }
       });
 
       return {
