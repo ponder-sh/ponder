@@ -13,6 +13,7 @@ export type PonderPluginArgument = {
   networks: Network[];
   logger: PonderLogger;
   options: PonderOptions;
+  prettier: (raw: string) => string;
 
   // Actions
   addWatchFile: (fileName: string) => void;

@@ -4,6 +4,7 @@ import path from "node:path";
 import { generateContextTypes } from "@/codegen/generateContextTypes";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
+import { formatPrettier } from "@/codegen/utils";
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
 import { isFileChanged } from "@/common/utils";
@@ -175,6 +176,7 @@ export class Ponder {
       networks: this.networks,
       logger: logger,
       options: OPTIONS,
+      prettier: formatPrettier,
 
       // Actions
       // TODO: Maybe change this... seems meh
