@@ -136,9 +136,7 @@ export const backfill = async ({
   if (!isHotReload) {
     stats.syncProgressBar.stop();
     logger.info(
-      `\x1b[32m${`Historical sync complete (${endBenchmark(
-        startHrt
-      )})`}\x1b[0m`, // green
+      `\x1b[32m${`Backfill complete (${endBenchmark(startHrt)})`}\x1b[0m`, // green
       "\n"
     );
   }
