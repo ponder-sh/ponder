@@ -26,17 +26,21 @@ const latestFileHash: Record<string, string | undefined> = {};
 export const isFileChanged = (filePath: string) => {
   // TODO: I think this throws if the file being watched gets deleted while
   // the development server is running. Should handle this case gracefully.
-  const content = readFileSync(filePath, "utf-8");
-  const hash = createHash("md5").update(content).digest("hex");
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const hash = createHash("md5").update(content).digest("hex");
 
-  const prevHash = latestFileHash[filePath];
-  latestFileHash[filePath] = hash;
-  if (!prevHash) {
-    // If there is no previous hash, this file is being changed for the first time.
+    const prevHash = latestFileHash[filePath];
+    latestFileHash[filePath] = hash;
+    if (!prevHash) {
+      // If there is no previous hash, this file is being changed for the first time.
+      return true;
+    } else {
+      // If there is a previous hash, check if the content hash has changed.
+      return prevHash !== hash;
+    }
+  } catch (e) {
     return true;
-  } else {
-    // If there is a previous hash, check if the content hash has changed.
-    return prevHash !== hash;
   }
 };
 
