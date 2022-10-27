@@ -1,4 +1,4 @@
-import type { PonderOptions } from "@ponder/ponder";
+import type { PonderPluginArgument } from "@ponder/ponder";
 import type { GraphQLSchema } from "graphql";
 import { printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
@@ -10,14 +10,14 @@ const header = `
 
 export const generateSchema = (
   gqlSchema: GraphQLSchema,
-  options: PonderOptions
+  ponder: PonderPluginArgument
 ) => {
   const body = printSchema(gqlSchema);
 
   const final = header + body;
 
   writeFileSync(
-    path.join(options.GENERATED_DIR_PATH, "schema.graphql"),
+    path.join(ponder.options.GENERATED_DIR_PATH, "schema.graphql"),
     final,
     "utf8"
   );

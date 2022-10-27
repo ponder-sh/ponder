@@ -63,13 +63,13 @@ export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
         entityModels[entityName] = entityModel;
       });
 
-      generateEntityTypes(ponderSchema, ponder.logger, ponder.options);
+      generateEntityTypes(ponderSchema, ponder);
       ponder.logger.debug(`Generated entities.ts file`);
 
-      await generateSchemaTypes(gqlSchema, ponder.options);
+      await generateSchemaTypes(gqlSchema, ponder);
       ponder.logger.debug(`Generated schema types`);
 
-      generateSchema(gqlSchema, ponder.options);
+      generateSchema(gqlSchema, ponder);
       ponder.logger.debug(`Generated schema.graphql file`);
 
       ponder.addToHandlerContext({

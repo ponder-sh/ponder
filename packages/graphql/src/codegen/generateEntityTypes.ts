@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-import type { PonderLogger, PonderOptions } from "@ponder/ponder";
+import type { PonderPluginArgument } from "@ponder/ponder";
 import { Kind } from "graphql";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
@@ -19,8 +19,7 @@ const gqlScalarToTsType: Record<string, string | undefined> = {
 
 export const generateEntityTypes = async (
   schema: PonderSchema,
-  logger: PonderLogger,
-  OPTIONS: PonderOptions
+  ponder: PonderPluginArgument
 ) => {
   const entityNames = schema.entities.map((entity) => entity.name);
 
@@ -115,11 +114,13 @@ export const generateEntityTypes = async (
     }
   `;
 
+  const final = ponder.prettier(raw);
+
   writeFileSync(
-    path.join(OPTIONS.GENERATED_DIR_PATH, "entities.ts"),
-    raw,
+    path.join(ponder.options.GENERATED_DIR_PATH, "entities.ts"),
+    final,
     "utf8"
   );
 
-  logger.debug(`Generated entities.ts file`);
+  ponder.logger.debug(`Generated entities.ts file`);
 };

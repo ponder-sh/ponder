@@ -1,6 +1,6 @@
 import { codegen } from "@graphql-codegen/core";
 import * as typescriptPlugin from "@graphql-codegen/typescript";
-import { PonderOptions } from "@ponder/ponder";
+import type { PonderPluginArgument } from "@ponder/ponder";
 import { GraphQLSchema, parse, printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
@@ -11,7 +11,7 @@ const header = `
 
 export const generateSchemaTypes = async (
   gqlSchema: GraphQLSchema,
-  options: PonderOptions
+  ponder: PonderPluginArgument
 ) => {
   const body = await codegen({
     documents: [],
@@ -30,10 +30,10 @@ export const generateSchemaTypes = async (
     },
   });
 
-  const final = header + body;
+  const final = ponder.prettier(header + body);
 
   writeFileSync(
-    path.join(options.GENERATED_DIR_PATH, "schema.ts"),
+    path.join(ponder.options.GENERATED_DIR_PATH, "schema.ts"),
     final,
     "utf8"
   );
