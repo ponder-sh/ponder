@@ -1,7 +1,10 @@
 const { graphqlPlugin } = require("@ponder/graphql");
 
-module.exports = {
-  plugins: [graphqlPlugin({ port: 12345 })],
+/**
+ * @type {import('@ponder/ponder').PonderConfig}
+ */
+const ponderConfig = {
+  plugins: [graphqlPlugin()],
   database: {
     kind: "sqlite",
   },
@@ -32,3 +35,5 @@ module.exports = {
     },
   ],
 };
+
+module.exports = ponderConfig;
