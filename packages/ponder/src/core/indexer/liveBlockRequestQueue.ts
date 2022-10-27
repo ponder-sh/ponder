@@ -2,9 +2,9 @@ import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
+import type { CacheStore } from "@/db/cacheStore";
+import { parseBlock, parseLog, parseTransaction } from "@/db/utils";
 import type { Network } from "@/networks/base";
-import type { CacheStore } from "@/stores/baseCacheStore";
-import { parseBlock, parseLog, parseTransaction } from "@/stores/utils";
 
 import type { LogQueue } from "./logQueue";
 
@@ -89,24 +89,15 @@ async function liveBlockRequestWorker(
     cacheStore.insertLogs(logs),
   ]);
 
-  for (const contractAddress of contractAddresses) {
-    const foundContractMetadata = await cacheStore.getContractMetadata(
-      contractAddress
-    );
-
-    if (foundContractMetadata) {
-      await cacheStore.upsertContractMetadata({
-        ...foundContractMetadata,
-        endBlock: block.number,
-      });
-    } else {
-      await cacheStore.upsertContractMetadata({
+  await Promise.all(
+    contractAddresses.map((contractAddress) =>
+      cacheStore.insertCachedInterval({
         contractAddress,
         startBlock: block.number,
         endBlock: block.number,
-      });
-    }
-  }
+      })
+    )
+  );
 
   logger.info(
     `\x1b[33m${`Matched ${logs.length} logs from block ${blockNumber} (${transactions.length} txns)`}\x1b[0m` // blue

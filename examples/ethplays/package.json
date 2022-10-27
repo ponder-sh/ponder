@@ -2,7 +2,7 @@
   "name": "ethplays-v0",
   "license": "UNLICENSED",
   "scripts": {
-    "create-ponder-app": "create-ponder-app --from-subgraph . ../ponder",
+    "create-ponder-app": "create-ponder-app --dir ../ponder --from-subgraph .",
     "codegen": "graph codegen",
     "build": "graph build",
     "deploy": "graph deploy --node https://api.thegraph.com/deploy/ 0xolias/ethplays-v0",
@@ -15,6 +15,6 @@
     "@graphprotocol/graph-ts": "0.27.0"
   },
   "devDependencies": {
-    "create-ponder-app": "latest"
+    "create-ponder-app": "workspace:latest"
   }
 }

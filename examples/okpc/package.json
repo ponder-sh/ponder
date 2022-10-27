@@ -5,7 +5,8 @@
     "start": "ponder start"
   },
   "dependencies": {
-    "@ponder/ponder": "latest"
+    "@ponder/graphql": "workspace:latest",
+    "@ponder/ponder": "workspace:latest"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.0.0",

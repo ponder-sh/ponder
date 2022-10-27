@@ -2,9 +2,9 @@ import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
+import type { CacheStore } from "@/db/cacheStore";
+import { parseLog } from "@/db/utils";
 import type { Source } from "@/sources/base";
-import type { CacheStore } from "@/stores/baseCacheStore";
-import { parseLog } from "@/stores/utils";
 
 import type { HistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
 import { stats } from "./stats";
@@ -80,25 +80,15 @@ async function historicalLogsRequestWorker(
     if (blockHash) requiredBlockHashSet.delete(blockHash);
 
     if (requiredBlockHashSet.size === 0) {
-      // TODO: move this to a helper that accepts (source, fromBlock, toBlock)
-      // and magically updates the contract metadata accordingly, merging ranges accordingly?
-      for (const contractAddress of contractAddresses) {
-        const metadata = await cacheStore.getContractMetadata(contractAddress);
-
-        if (metadata) {
-          await cacheStore.upsertContractMetadata({
-            contractAddress,
-            startBlock: Math.min(metadata.startBlock, fromBlock),
-            endBlock: Math.max(metadata.endBlock, toBlock),
-          });
-        } else {
-          await cacheStore.upsertContractMetadata({
+      await Promise.all(
+        contractAddresses.map((contractAddress) =>
+          cacheStore.insertCachedInterval({
             contractAddress,
             startBlock: fromBlock,
             endBlock: toBlock,
-          });
-        }
-      }
+          })
+        )
+      );
     }
   };
 

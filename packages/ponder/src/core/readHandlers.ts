@@ -1,10 +1,11 @@
 import { build } from "esbuild";
 import type { Contract } from "ethers";
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 
-import { CONFIG } from "@/common/config";
 import { logger } from "@/common/logger";
-import { Block, EventLog, Transaction } from "@/types";
+import { OPTIONS } from "@/common/options";
+import type { Block, EventLog, Transaction } from "@/common/types";
 
 // Handler event types
 export interface HandlerEvent extends EventLog {
@@ -12,21 +13,7 @@ export interface HandlerEvent extends EventLog {
   transaction: Transaction;
 }
 
-// Handler context types
-export type EntityInstance = { [key: string]: string | number | null };
-export type EntityModel = {
-  get: (id: string) => Promise<EntityInstance | null>;
-  insert: (obj: EntityInstance) => Promise<EntityInstance>;
-  update: (
-    obj: {
-      id: string;
-    } & Partial<EntityInstance>
-  ) => Promise<EntityInstance>;
-  delete: (id: string) => Promise<void>;
-};
-
 export type HandlerContext = {
-  entities: Record<string, EntityModel | undefined>;
   contracts: Record<string, Contract | undefined>;
 };
 
@@ -39,9 +26,10 @@ export type SourceHandlers = Record<string, Handler | undefined>;
 export type Handlers = Record<string, SourceHandlers | undefined>;
 
 export const readHandlers = async (): Promise<Handlers> => {
-  const buildFile = path.join(CONFIG.PONDER_DIR_PATH, "handlers.js");
+  mkdirSync(OPTIONS.PONDER_DIR_PATH, { recursive: true });
+  const buildFile = path.join(OPTIONS.PONDER_DIR_PATH, "handlers.js");
 
-  const handlersRootFilePath = path.join(CONFIG.HANDLERS_DIR_PATH, "index.ts");
+  const handlersRootFilePath = path.join(OPTIONS.HANDLERS_DIR_PATH, "index.ts");
 
   try {
     await build({

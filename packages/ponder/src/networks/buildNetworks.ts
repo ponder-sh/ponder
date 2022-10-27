@@ -1,6 +1,6 @@
 import { CachedProvider } from "@/core/indexer/CachedProvider";
 import type { PonderConfig } from "@/core/readPonderConfig";
-import type { CacheStore } from "@/stores/baseCacheStore";
+import type { CacheStore } from "@/db/cacheStore";
 
 import type { EvmNetwork } from "./evm";
 

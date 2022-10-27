@@ -1,6 +1,6 @@
 {
   "name": "@ponder/ponder",
-  "version": "0.0.35",
+  "version": "0.0.36",
   "description": "API builder for blockchain apps",
   "license": "MIT",
   "author": "olias.eth",
@@ -25,10 +25,10 @@
     "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/ponder): $VERSION\""
   },
   "dependencies": {
-    "@ethersproject/bytes": "^5.7.0",
-    "@graphql-codegen/core": "^2.6.2",
-    "@graphql-codegen/typescript": "^2.7.3",
+    "@ethersproject/abi": "^5.6.4",
+    "@ethersproject/providers": "^5.6.8",
     "@typechain/ethers-v5": "^10.1.0",
+    "abitype": "^0.1.7",
     "better-sqlite3": "^7.6.2",
     "cli-progress": "^3.11.2",
     "commander": "^9.4.0",
@@ -37,21 +37,15 @@
     "dotenv": "^16.0.1",
     "esbuild": "^0.15.2",
     "ethers": "^5.6.9",
-    "express": "^4.18.1",
-    "express-graphql": "^0.12.0",
     "fastq": "^1.13.0",
-    "graphql": "^15.3.0",
     "prettier": "^2.6.2",
     "typechain": "^8.1.0",
-    "typescript": "^4.5.5"
+    "typescript": "^4.8.4"
   },
   "devDependencies": {
-    "@ethersproject/abi": "^5.0.0",
-    "@ethersproject/providers": "^5.0.0",
+    "@ethersproject/bytes": "^5.7.0",
     "@types/better-sqlite3": "^7.6.0",
     "@types/cli-progress": "^3.11.0",
-    "@types/cors": "^2.8.12",
-    "@types/express": "^4.17.13",
     "@types/node": "^18.7.8",
     "tsconfig-replace-paths": "^0.0.11"
   },

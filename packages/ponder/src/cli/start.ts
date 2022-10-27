@@ -1,19 +1,10 @@
-import { ensureDirectoriesExist, readPrettierConfig } from "@/common/utils";
+import { Ponder } from "@/core/Ponder";
+import { readPonderConfig } from "@/core/readPonderConfig";
 
-import {
-  readHandlersTask,
-  readPonderConfigTask,
-  readSchemaTask,
-  runTask,
-} from "../core/tasks";
+export const start = async () => {
+  const config = readPonderConfig();
 
-const start = async () => {
-  ensureDirectoriesExist();
-  await readPrettierConfig();
+  const ponder = new Ponder(config);
 
-  runTask(readPonderConfigTask);
-  runTask(readSchemaTask);
-  runTask(readHandlersTask);
+  await ponder.start();
 };
-
-export { start };

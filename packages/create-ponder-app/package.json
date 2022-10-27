@@ -1,6 +1,6 @@
 {
   "name": "create-ponder-app",
-  "version": "0.0.12",
+  "version": "0.0.14",
   "description": "Tool to bootstrap a Ponder project",
   "license": "MIT",
   "author": "olias.eth",
@@ -19,6 +19,8 @@
     "release": "pnpm run build && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(create-ponder-app): $VERSION\""
   },
   "dependencies": {
+    "@ethersproject/abi": "^5.6.4",
+    "@ethersproject/providers": "^5.6.8",
     "@ponder/ponder": "latest",
     "commander": "^9.4.0",
     "prettier": "^2.6.2",
