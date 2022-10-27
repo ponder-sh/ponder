@@ -35,3 +35,7 @@ const chainIdByGraphNetwork: Record<string, number | undefined> = {
 export const getGraphProtocolChainId = (networkName: string) => {
   return chainIdByGraphNetwork[networkName];
 };
+
+export const subgraphYamlFileNames = ["subgraph.yaml"].concat(
+  Object.keys(chainIdByGraphNetwork).map((n) => `subgraph-${n}.yaml`)
+);

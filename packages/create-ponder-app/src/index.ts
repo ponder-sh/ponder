@@ -1,15 +1,12 @@
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
 import { parse } from "yaml";
 
-import { getGraphProtocolChainId } from "./helpers/getGraphProtocolChainId";
+import {
+  getGraphProtocolChainId,
+  subgraphYamlFileNames,
+} from "./helpers/getGraphProtocolChainId";
 import { validateGraphProtocolSource } from "./helpers/validateGraphProtocolSource";
 
 type PonderNetwork = {
@@ -43,26 +40,23 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
     const subgraphRootDirPath = path.resolve(subgraphRootDir);
 
     // Read and parse the subgraph YAML file.
-    let subgraphYamlRaw: string;
+    let subgraphYamlRaw = "";
 
-    if (existsSync(path.join(subgraphRootDirPath, "subgraph.yaml"))) {
-      subgraphYamlRaw = readFileSync(
-        path.join(subgraphRootDirPath, "subgraph.yaml"),
-        {
-          encoding: "utf-8",
-        }
-      );
-    } else if (
-      existsSync(path.join(subgraphRootDirPath, "subgraph-mainnet.yaml"))
-    ) {
-      // This is a hack, need to think about how to handle different networks.
-      subgraphYamlRaw = readFileSync(
-        path.join(subgraphRootDirPath, "subgraph-mainnet.yaml"),
-        {
-          encoding: "utf-8",
-        }
-      );
-    } else {
+    for (const subgraphYamlFileName of subgraphYamlFileNames) {
+      try {
+        subgraphYamlRaw = readFileSync(
+          path.join(subgraphRootDirPath, subgraphYamlFileName),
+          {
+            encoding: "utf-8",
+          }
+        );
+        break;
+      } catch (e) {
+        continue;
+      }
+    }
+
+    if (subgraphYamlRaw === "") {
       throw new Error(`subgraph.yaml file not found`);
     }
 
@@ -235,7 +229,10 @@ export const run = (ponderRootDir: string, subgraphRootDir?: string) => {
 
   const finalPonderConfig = `const { graphqlPlugin } = require("@ponder/graphql");
 
-module.exports = {
+/**
+ * @type {import('@ponder/ponder').PonderConfig}
+ */
+const ponderConfig = {
   plugins: [graphqlPlugin()],
   database: {
     kind: "sqlite",
@@ -245,8 +242,9 @@ module.exports = {
     "process.env.PONDER_RPC_URL_$1"
   )},
   sources: ${JSON.stringify(ponderSources)},
-}
-  `;
+};
+
+module.exports = ponderConfig;`;
 
   writeFileSync(
     path.join(ponderRootDirPath, "ponder.config.js"),
