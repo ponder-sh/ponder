@@ -1,5 +1,4 @@
 import { build } from "esbuild";
-import type { Contract } from "ethers";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
@@ -7,20 +6,15 @@ import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
 import type { Block, EventLog, Transaction } from "@/common/types";
 
-// Handler event types
 export interface HandlerEvent extends EventLog {
+  name: string;
   block: Block;
   transaction: Transaction;
 }
 
-export type HandlerContext = {
-  contracts: Record<string, Contract | undefined>;
-};
-
-// Handler types
 export type Handler = (
   event: HandlerEvent,
-  context: HandlerContext
+  context: unknown
 ) => Promise<void> | void;
 export type SourceHandlers = Record<string, Handler | undefined>;
 export type Handlers = Record<string, SourceHandlers | undefined>;

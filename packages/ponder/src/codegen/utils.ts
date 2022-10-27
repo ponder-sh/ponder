@@ -4,7 +4,7 @@ import { logger } from "@/common/logger";
 
 let prettierConfig: prettier.Options = { parser: "typescript" };
 
-const getPrettierConfig = async () => {
+const loadPrettierConfig = async () => {
   if (prettierConfig) return prettierConfig;
 
   const configFilePath = await prettier.resolveConfigFile();
@@ -15,12 +15,10 @@ const getPrettierConfig = async () => {
       prettierConfig = foundConfig;
     }
   }
-
-  return prettierConfig;
 };
 
 // Just call this once on process start
-getPrettierConfig();
+loadPrettierConfig();
 
 export const formatPrettier = (
   source: string,

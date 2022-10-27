@@ -15,7 +15,7 @@ const header = `
 
 const imports = `
 import type { Block, EventLog, Transaction } from "@ponder/ponder";
-import type { BigNumber } from "ethers";
+import type { BigNumber, BytesLike } from "ethers";
 
 import type { Context } from "./context";
 `;
@@ -85,7 +85,7 @@ const valueTypeMap: { [baseType: string]: string | undefined } = {
   string: "string",
   int: "BigNumber",
   uint: "BigNumber",
-  bytes: "Bytes",
+  bytes: "BytesLike",
 };
 
 const generateParamsType = (params: ParamType[]): string => {

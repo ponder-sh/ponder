@@ -100,6 +100,7 @@ export const createLogQueue = ({
 
     const event = {
       ...log,
+      name: parsedLog.name,
       params: { ...parsedLog.args },
       block,
       transaction,
