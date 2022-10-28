@@ -3,8 +3,8 @@ import type { HandlerQueue } from "@/core/queues/handlerQueue";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
 
+import type { CachedProvider } from "../../networks/CachedProvider";
 import { createBlockFrontfillQueue } from "../queues/blockFrontfillQueue";
-import type { CachedProvider } from "./CachedProvider";
 
 let previousProviders: CachedProvider[] = [];
 

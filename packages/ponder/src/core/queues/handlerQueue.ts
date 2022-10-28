@@ -6,8 +6,8 @@ import type { EventLog } from "@/common/types";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
 
-import { stats } from "../indexer/stats";
 import type { Handlers } from "../readHandlers";
+import { stats } from "../tasks/stats";
 
 export type HandlerTask = {
   log: EventLog;

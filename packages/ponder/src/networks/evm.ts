@@ -1,4 +1,4 @@
-import type { CachedProvider } from "@/core/indexer/CachedProvider";
+import type { CachedProvider } from "@/networks/CachedProvider";
 
 export type EvmNetwork = {
   name: string;

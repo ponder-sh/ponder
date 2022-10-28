@@ -5,7 +5,7 @@ import type { CacheStore } from "@/db/cacheStore";
 import { parseBlock, parseTransaction } from "@/db/utils";
 import type { Source } from "@/sources/base";
 
-import { stats } from "../indexer/stats";
+import { stats } from "../tasks/stats";
 
 export type BlockBackfillTask = {
   blockHash: string;

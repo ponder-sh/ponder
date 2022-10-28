@@ -6,7 +6,7 @@ import type { CacheStore } from "@/db/cacheStore";
 import { parseLog } from "@/db/utils";
 import type { Source } from "@/sources/base";
 
-import { stats } from "../indexer/stats";
+import { stats } from "../tasks/stats";
 import type { BlockBackfillQueue } from "./blockBackfillQueue";
 
 export type LogBackfillTask = {

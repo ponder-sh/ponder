@@ -8,20 +8,19 @@ import { formatPrettier } from "@/codegen/utils";
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
 import { isFileChanged } from "@/common/utils";
-import { backfill } from "@/core/indexer/backfill";
-import { processLogs } from "@/core/indexer/processLogs";
-import type { PonderPluginArgument, ResolvedPonderPlugin } from "@/core/plugin";
 import { createHandlerQueue, HandlerQueue } from "@/core/queues/handlerQueue";
 import { readHandlers } from "@/core/readHandlers";
 import type { PonderConfig } from "@/core/readPonderConfig";
+import { backfill } from "@/core/tasks/backfill";
+import { buildLiveBlockQueues } from "@/core/tasks/buildLiveBlockQueues";
+import { processLogs } from "@/core/tasks/processLogs";
 import { buildCacheStore, CacheStore } from "@/db/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
 import type { Network } from "@/networks/base";
 import { buildNetworks } from "@/networks/buildNetworks";
+import type { PonderPluginArgument, ResolvedPonderPlugin } from "@/plugin";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
-
-import { buildLiveBlockQueues } from "./indexer/buildLiveBlockQueues";
 
 export class Ponder {
   // Ponder internal state
