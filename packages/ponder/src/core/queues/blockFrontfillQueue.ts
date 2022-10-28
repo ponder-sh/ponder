@@ -6,34 +6,31 @@ import type { CacheStore } from "@/db/cacheStore";
 import { parseBlock, parseLog, parseTransaction } from "@/db/utils";
 import type { Network } from "@/networks/base";
 
-import type { LogQueue } from "./logQueue";
+import type { HandlerQueue } from "./handlerQueue";
 
-export type LiveBlockRequestTask = {
+export type BlockFrontfillTask = {
   blockNumber: number;
 };
 
-export type LiveBlockRequestWorkerContext = {
+export type BlockFrontfillWorkerContext = {
   cacheStore: CacheStore;
   network: Network;
   contractAddresses: string[];
-  logQueue: LogQueue;
+  handlerQueue: HandlerQueue;
 };
 
-export type LiveBlockRequestQueue = fastq.queueAsPromised<LiveBlockRequestTask>;
+export type BlockFrontfillQueue = fastq.queueAsPromised<BlockFrontfillTask>;
 
-export const createLiveBlockRequestQueue = ({
+export const createBlockFrontfillQueue = ({
   cacheStore,
   network,
   contractAddresses,
-  logQueue,
-}: LiveBlockRequestWorkerContext) => {
-  // Queue for fetching historical blocks and transactions.
-  const queue = fastq.promise<
-    LiveBlockRequestWorkerContext,
-    LiveBlockRequestTask
-  >(
-    { cacheStore, network, contractAddresses, logQueue },
-    liveBlockRequestWorker,
+  handlerQueue,
+}: BlockFrontfillWorkerContext) => {
+  // Queue for fetching live blocks, transactions, and.
+  const queue = fastq.promise<BlockFrontfillWorkerContext, BlockFrontfillTask>(
+    { cacheStore, network, contractAddresses, handlerQueue },
+    blockFrontfillWorker,
     1
   );
 
@@ -51,11 +48,11 @@ export const createLiveBlockRequestQueue = ({
 // This worker is responsible for ensuring that the block, its transactions, and any
 // logs for the logGroup within that block are written to the cacheStore.
 // It then enqueues a task to process any matched logs from the block.
-async function liveBlockRequestWorker(
-  this: LiveBlockRequestWorkerContext,
-  { blockNumber }: LiveBlockRequestTask
+async function blockFrontfillWorker(
+  this: BlockFrontfillWorkerContext,
+  { blockNumber }: BlockFrontfillTask
 ) {
-  const { cacheStore, network, contractAddresses, logQueue } = this;
+  const { cacheStore, network, contractAddresses, handlerQueue } = this;
   const { provider } = network;
 
   const [rawLogs, rawBlock] = await Promise.all([
@@ -106,6 +103,6 @@ async function liveBlockRequestWorker(
   const sortedLogs = logs.sort((a, b) => a.logSortKey - b.logSortKey);
 
   for (const log of sortedLogs) {
-    logQueue.push({ log });
+    handlerQueue.push({ log });
   }
 }

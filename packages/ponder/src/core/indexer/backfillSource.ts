@@ -3,39 +3,39 @@ import { p1_excluding_all } from "@/common/utils";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
 
-import { createHistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
-import { createHistoricalLogsRequestQueue } from "./historicalLogsRequestQueue";
+import { createBlockBackfillQueue } from "../queues/blockBackfillQueue";
+import { createLogBackfillQueue } from "../queues/logBackfillQueue";
 import { getPrettyPercentage, stats } from "./stats";
 
 export const backfillSource = async ({
   source,
   cacheStore,
-  currentBlockNumber,
+  latestBlockNumber,
   isHotReload,
 }: {
   source: Source;
   cacheStore: CacheStore;
-  currentBlockNumber: number;
+  latestBlockNumber: number;
   isHotReload: boolean;
 }) => {
   // Create queues.
-  const historicalBlockRequestQueue = createHistoricalBlockRequestQueue({
+  const blockBackfillQueue = createBlockBackfillQueue({
     cacheStore,
     source,
   });
 
-  const historicalLogsRequestQueue = createHistoricalLogsRequestQueue({
+  const logBackfillQueue = createLogBackfillQueue({
     cacheStore,
     source,
-    historicalBlockRequestQueue,
+    blockBackfillQueue,
   });
 
   const requestedStartBlock = source.startBlock;
-  const requestedEndBlock = currentBlockNumber;
+  const requestedEndBlock = latestBlockNumber;
 
-  if (requestedStartBlock > currentBlockNumber) {
+  if (requestedStartBlock > latestBlockNumber) {
     throw new Error(
-      `Start block number (${requestedStartBlock}) is greater than latest block number (${currentBlockNumber}).
+      `Start block number (${requestedStartBlock}) is greater than latest block number (${latestBlockNumber}).
        Are you sure the RPC endpoint is for the correct network?
       `
     );
@@ -84,7 +84,7 @@ export const backfillSource = async ({
     let toBlock = Math.min(fromBlock + source.blockLimit, endBlock);
 
     while (fromBlock < endBlock) {
-      historicalLogsRequestQueue.push({
+      logBackfillQueue.push({
         contractAddresses: [source.address],
         fromBlock,
         toBlock,
@@ -97,21 +97,15 @@ export const backfillSource = async ({
     }
   }
 
-  logger.debug("Waiting for the log request queue to clear...");
-  logger.debug({
-    logRequestQueueLength: historicalLogsRequestQueue.length(),
-  });
-
-  if (!historicalLogsRequestQueue.idle()) {
-    await historicalLogsRequestQueue.drained();
+  logger.debug(`Processing ${logBackfillQueue.length()} log backfill tasks...`);
+  if (!logBackfillQueue.idle()) {
+    await logBackfillQueue.drained();
   }
 
-  logger.debug("Waiting for the block request queue to clear...");
-  logger.debug({
-    blockRequestQueueLength: historicalBlockRequestQueue.length(),
-  });
-
-  if (!historicalBlockRequestQueue.idle()) {
-    await historicalBlockRequestQueue.drained();
+  logger.debug(
+    `Processing ${blockBackfillQueue.length()} block backfill tasks...`
+  );
+  if (!blockBackfillQueue.idle()) {
+    await blockBackfillQueue.drained();
   }
 };

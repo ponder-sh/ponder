@@ -6,16 +6,16 @@ import type { EventLog } from "@/common/types";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
 
+import { stats } from "../indexer/stats";
 import type { Handlers } from "../readHandlers";
-import { stats } from "./stats";
 
-export type LogTask = {
+export type HandlerTask = {
   log: EventLog;
 };
 
-export type LogQueue = fastq.queueAsPromised<LogTask>;
+export type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
 
-export const createLogQueue = ({
+export const createHandlerQueue = ({
   cacheStore,
   sources,
   handlers,
@@ -25,7 +25,7 @@ export const createLogQueue = ({
   sources: Source[];
   handlers: Handlers;
   pluginHandlerContext: Record<string, unknown>;
-}): LogQueue => {
+}): HandlerQueue => {
   const contracts: Record<string, Contract | undefined> = {};
   sources.forEach((source) => {
     contracts[source.name] = new Contract(
@@ -40,7 +40,7 @@ export const createLogQueue = ({
     ...pluginHandlerContext,
   };
 
-  const logWorker = async ({ log }: LogTask) => {
+  const handlerWorker = async ({ log }: HandlerTask) => {
     const source = sources.find((source) => source.address === log.address);
     if (!source) {
       logger.warn(`Source not found for log with address: ${log.address}`);
@@ -106,8 +106,8 @@ export const createLogQueue = ({
       transaction,
     };
 
-    // YAY: We're running user code here!
     try {
+      // Running user code here!
       await handler(event, handlerContext);
     } catch (err) {
       logger.error("Error in handler:", err);
@@ -116,7 +116,7 @@ export const createLogQueue = ({
     stats.processingProgressBar.increment();
   };
 
-  const queue = fastq.promise<LogTask>(logWorker, 1);
+  const queue = fastq.promise<HandlerTask>(handlerWorker, 1);
 
   queue.error((err, task) => {
     if (err) {

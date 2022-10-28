@@ -5,38 +5,34 @@ import type { CacheStore } from "@/db/cacheStore";
 import { parseBlock, parseTransaction } from "@/db/utils";
 import type { Source } from "@/sources/base";
 
-import { stats } from "./stats";
+import { stats } from "../indexer/stats";
 
-export type HistoricalBlockRequestTask = {
+export type BlockBackfillTask = {
   blockHash: string;
   onSuccess: (blockHash: string) => Promise<void>;
 };
 
-export type HistoricalBlockRequestWorkerContext = {
+export type BlockBackfillWorkerContext = {
   cacheStore: CacheStore;
   source: Source;
 };
 
-export type HistoricalBlockRequestQueue =
-  fastq.queueAsPromised<HistoricalBlockRequestTask>;
+export type BlockBackfillQueue = fastq.queueAsPromised<BlockBackfillTask>;
 
-export const createHistoricalBlockRequestQueue = ({
+export const createBlockBackfillQueue = ({
   cacheStore,
   source,
-}: HistoricalBlockRequestWorkerContext) => {
+}: BlockBackfillWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
-  const queue = fastq.promise<
-    HistoricalBlockRequestWorkerContext,
-    HistoricalBlockRequestTask
-  >(
+  const queue = fastq.promise<BlockBackfillWorkerContext, BlockBackfillTask>(
     { cacheStore, source },
-    historicalBlockRequestWorker,
+    blockBackfillWorker,
     10 // TODO: Make this configurable
   );
 
   queue.error((err, task) => {
     if (err) {
-      logger.error("error in historical block worker, retrying...:");
+      logger.error("Error in block backfill worker, retrying...:");
       logger.error({ task, err });
       queue.unshift(task);
     }
@@ -45,9 +41,9 @@ export const createHistoricalBlockRequestQueue = ({
   return queue;
 };
 
-async function historicalBlockRequestWorker(
-  this: HistoricalBlockRequestWorkerContext,
-  { blockHash, onSuccess }: HistoricalBlockRequestTask
+async function blockBackfillWorker(
+  this: BlockBackfillWorkerContext,
+  { blockHash, onSuccess }: BlockBackfillTask
 ) {
   const { cacheStore, source } = this;
   const { provider } = source.network;

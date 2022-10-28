@@ -1,20 +1,20 @@
 import { logger } from "@/common/logger";
 import type { EventLog } from "@/common/types";
 import { endBenchmark, startBenchmark } from "@/common/utils";
-import type { LogQueue } from "@/core/indexer/logQueue";
+import type { HandlerQueue } from "@/core/queues/handlerQueue";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
 
 import { getPrettyPercentage, resetStats, stats } from "./stats";
 
-export const indexLogs = async ({
-  cacheStore,
+export const processLogs = async ({
   sources,
-  logQueue,
+  cacheStore,
+  handlerQueue,
 }: {
-  cacheStore: CacheStore;
   sources: Source[];
-  logQueue: LogQueue;
+  cacheStore: CacheStore;
+  handlerQueue: HandlerQueue;
 }) => {
   const startHrt = startBenchmark();
 
@@ -32,17 +32,17 @@ export const indexLogs = async ({
     (a, b) => a.logSortKey - b.logSortKey
   );
 
-  // Add sorted historical logs to the front of the queue (in reverse order).
+  // Add sorted logs to the front of the queue (in reverse order).
   for (const log of sortedLogs.reverse()) {
-    logQueue.unshift({ log });
+    handlerQueue.unshift({ log });
   }
 
-  logQueue.resume();
+  handlerQueue.resume();
   // fastq has a strange quirk where, if no tasks have been added to the queue,
   // the drained() method will hang and never resolve. Checking that the queue is
   // not idle() before awaiting drained() seems to solve this issue.
-  if (!logQueue.idle()) {
-    await logQueue.drained();
+  if (!handlerQueue.idle()) {
+    await handlerQueue.drained();
   }
 
   stats.processingProgressBar.stop();

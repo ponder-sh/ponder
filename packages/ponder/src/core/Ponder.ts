@@ -9,9 +9,9 @@ import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
 import { isFileChanged } from "@/common/utils";
 import { backfill } from "@/core/indexer/backfill";
-import { indexLogs } from "@/core/indexer/indexLogs";
-import { createLogQueue, LogQueue } from "@/core/indexer/logQueue";
+import { processLogs } from "@/core/indexer/processLogs";
 import type { PonderPluginArgument, ResolvedPonderPlugin } from "@/core/plugin";
+import { createHandlerQueue, HandlerQueue } from "@/core/queues/handlerQueue";
 import { readHandlers } from "@/core/readHandlers";
 import type { PonderConfig } from "@/core/readPonderConfig";
 import { buildCacheStore, CacheStore } from "@/db/cacheStore";
@@ -20,6 +20,8 @@ import type { Network } from "@/networks/base";
 import { buildNetworks } from "@/networks/buildNetworks";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
+
+import { buildLiveBlockQueues } from "./indexer/buildLiveBlockQueues";
 
 export class Ponder {
   // Ponder internal state
@@ -35,7 +37,7 @@ export class Ponder {
 
   // Backfill/indexing state
   isReload: boolean;
-  logQueue?: LogQueue;
+  handlerQueue?: HandlerQueue;
 
   constructor(config: PonderConfig) {
     this.database = buildDb(config);
@@ -89,37 +91,44 @@ export class Ponder {
   async backfill() {
     const handlers = await readHandlers();
 
-    this.logQueue = createLogQueue({
+    this.handlerQueue = createHandlerQueue({
       cacheStore: this.cacheStore,
       sources: this.sources,
       handlers: handlers,
       pluginHandlerContext: this.pluginHandlerContext,
     });
 
-    const { startLiveIndexing } = await backfill({
-      cacheStore: this.cacheStore,
+    const { latestBlockNumberByNetwork, resumeLiveBlockQueues } =
+      await buildLiveBlockQueues({
+        sources: this.sources,
+        cacheStore: this.cacheStore,
+        handlerQueue: this.handlerQueue,
+      });
+
+    await backfill({
       sources: this.sources,
-      logQueue: this.logQueue,
+      cacheStore: this.cacheStore,
+      latestBlockNumberByNetwork,
       isHotReload: this.isReload,
     });
 
-    // Process historical / backfilled logs.
-    await indexLogs({
-      cacheStore: this.cacheStore,
+    // Process backfilled logs.
+    await processLogs({
       sources: this.sources,
-      logQueue: this.logQueue,
+      cacheStore: this.cacheStore,
+      handlerQueue: this.handlerQueue,
     });
 
-    startLiveIndexing();
+    resumeLiveBlockQueues();
   }
 
   // This reload method is not working - can be triggered multiple times
   // leading to multiple backfills happening at the same time.
   async reload() {
-    if (this.logQueue) {
-      this.logQueue.kill();
-      if (!this.logQueue.idle()) {
-        await this.logQueue.drained();
+    if (this.handlerQueue) {
+      this.handlerQueue.kill();
+      if (!this.handlerQueue.idle()) {
+        await this.handlerQueue.drained();
       }
     }
 

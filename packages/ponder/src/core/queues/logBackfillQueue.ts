@@ -6,42 +6,38 @@ import type { CacheStore } from "@/db/cacheStore";
 import { parseLog } from "@/db/utils";
 import type { Source } from "@/sources/base";
 
-import type { HistoricalBlockRequestQueue } from "./historicalBlockRequestQueue";
-import { stats } from "./stats";
+import { stats } from "../indexer/stats";
+import type { BlockBackfillQueue } from "./blockBackfillQueue";
 
-export type HistoricalLogsRequestTask = {
+export type LogBackfillTask = {
   contractAddresses: string[];
   fromBlock: number;
   toBlock: number;
 };
 
-export type HistoricalLogsRequestWorkerContext = {
+export type LogBackfillWorkerContext = {
   cacheStore: CacheStore;
   source: Source;
-  historicalBlockRequestQueue: HistoricalBlockRequestQueue;
+  blockBackfillQueue: BlockBackfillQueue;
 };
 
-export type HistoricalLogsRequestQueue =
-  fastq.queueAsPromised<HistoricalLogsRequestTask>;
+export type LogBackfillQueue = fastq.queueAsPromised<LogBackfillTask>;
 
-export const createHistoricalLogsRequestQueue = ({
+export const createLogBackfillQueue = ({
   cacheStore,
   source,
-  historicalBlockRequestQueue,
-}: HistoricalLogsRequestWorkerContext) => {
+  blockBackfillQueue,
+}: LogBackfillWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
-  const queue = fastq.promise<
-    HistoricalLogsRequestWorkerContext,
-    HistoricalLogsRequestTask
-  >(
-    { cacheStore, source, historicalBlockRequestQueue },
-    historicalLogsRequestWorker,
+  const queue = fastq.promise<LogBackfillWorkerContext, LogBackfillTask>(
+    { cacheStore, source, blockBackfillQueue },
+    logBackfillWorker,
     10 // TODO: Make this configurable
   );
 
   queue.error((err, task) => {
     if (err) {
-      logger.error("error in historical log worker, retrying...:");
+      logger.error("Error in log backfill worker, retrying...:");
       logger.error({ task, err });
       queue.unshift(task);
     }
@@ -50,11 +46,11 @@ export const createHistoricalLogsRequestQueue = ({
   return queue;
 };
 
-async function historicalLogsRequestWorker(
-  this: HistoricalLogsRequestWorkerContext,
-  { contractAddresses, fromBlock, toBlock }: HistoricalLogsRequestTask
+async function logBackfillWorker(
+  this: LogBackfillWorkerContext,
+  { contractAddresses, fromBlock, toBlock }: LogBackfillTask
 ) {
-  const { cacheStore, source, historicalBlockRequestQueue } = this;
+  const { cacheStore, source, blockBackfillQueue } = this;
   const { provider } = source.network;
 
   const rawLogs = await provider.send("eth_getLogs", [
@@ -99,7 +95,7 @@ async function historicalLogsRequestWorker(
   }
 
   requiredBlockHashes.forEach((blockHash) => {
-    historicalBlockRequestQueue.push({ blockHash, onSuccess });
+    blockBackfillQueue.push({ blockHash, onSuccess });
   });
 
   stats.syncProgressBar.increment();
