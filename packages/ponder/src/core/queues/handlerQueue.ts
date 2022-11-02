@@ -83,6 +83,8 @@ export const createHandlerQueue = ({
       return;
     }
 
+    logger.trace(`Handling event: ${source.name}-${parsedLog.name}`);
+
     stats.sourceStats[source.name].handledLogCount += 1;
 
     // Get block & transaction from the cache store and attach to the event.
