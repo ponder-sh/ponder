@@ -47,9 +47,11 @@ pnpm run dev
 
 The dev server prints logs to help you debug any configuration issues or errors. The server automatically reloads whenever you save changes in any project file.
 
-## Guides
+#### 3. Migrate event handler functions
 
-[Getting started](https://github.com/0xOlias/ponder/blob/main/docs/getting-started.md)
+Ponder event handler functions are similar but not identical to Graph Protocol mapping functions. [More docs here](https://github.com/0xOlias/ponder/blob/main/docs/event-handlers.md).
+
+## Guides
 
 [Event sources & networks](https://github.com/0xOlias/ponder/blob/main/docs/event-sources-and-networks.md)
 
@@ -72,6 +74,7 @@ The dev server prints logs to help you debug any configuration issues or errors.
 ## Packages
 
 - `@ponder/ponder`
+- `@ponder/graphql`
 - `create-ponder-app`
 
 ## About
