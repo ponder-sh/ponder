@@ -252,10 +252,9 @@ export class PostgresCacheStore implements CacheStore {
   insertTransactions = async (transactions: Transaction[]) => {
     if (transactions.length === 0) return;
 
-    const query = this.pgp.helpers.insert(
-      transactions,
-      this.transactionsColumnSet
-    );
+    const query =
+      this.pgp.helpers.insert(transactions, this.transactionsColumnSet) +
+      `ON CONFLICT("hash") DO NOTHING`;
 
     await this.db.none(query);
   };
