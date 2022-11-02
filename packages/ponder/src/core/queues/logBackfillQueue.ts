@@ -95,7 +95,7 @@ async function logBackfillWorker(
   }
 
   requiredBlockHashes.forEach((blockHash) => {
-    blockBackfillQueue.push({ blockHash, onSuccess });
+    blockBackfillQueue.push({ blockHash, contractAddresses, onSuccess });
   });
 
   stats.syncProgressBar.increment();

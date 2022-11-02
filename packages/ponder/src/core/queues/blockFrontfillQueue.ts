@@ -75,6 +75,7 @@ async function blockFrontfillWorker(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transactions = (rawBlock.transactions as any[])
     .filter((txn) => !!txn.hash)
+    .filter((txn) => contractAddresses.includes(txn.to))
     .map(parseTransaction);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

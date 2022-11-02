@@ -9,6 +9,7 @@ import { stats } from "../tasks/stats";
 
 export type BlockBackfillTask = {
   blockHash: string;
+  contractAddresses: string[];
   onSuccess: (blockHash: string) => Promise<void>;
 };
 
@@ -43,17 +44,10 @@ export const createBlockBackfillQueue = ({
 
 async function blockBackfillWorker(
   this: BlockBackfillWorkerContext,
-  { blockHash, onSuccess }: BlockBackfillTask
+  { blockHash, contractAddresses, onSuccess }: BlockBackfillTask
 ) {
   const { cacheStore, source } = this;
   const { provider } = source.network;
-
-  const cachedBlock = await cacheStore.getBlock(blockHash);
-  if (cachedBlock) {
-    await onSuccess(blockHash);
-    stats.syncProgressBar.increment();
-    return;
-  }
 
   const rawBlock = await provider.send("eth_getBlockByHash", [blockHash, true]);
 
@@ -63,6 +57,7 @@ async function blockBackfillWorker(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transactions = (rawBlock.transactions as any[])
     .filter((txn) => !!txn.hash)
+    .filter((txn) => contractAddresses.includes(txn.to))
     .map(parseTransaction);
 
   await Promise.all([
