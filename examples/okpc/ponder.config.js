@@ -6,7 +6,9 @@ const { graphqlPlugin } = require("@ponder/graphql");
 const ponderConfig = {
   plugins: [graphqlPlugin()],
   database: {
-    kind: "sqlite",
+    // kind: "sqlite",
+    kind: "postgres",
+    connectionString: "postgresql://localhost",
   },
   networks: [
     {
