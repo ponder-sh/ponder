@@ -11,6 +11,8 @@ services:
     envVars:
       - key: PONDER_RPC_URL_1
         sync: false
+      - key: START_BLOCK
+        sync: false
       - key: POSTGRES_URL
         fromDatabase:
           name: ponder-examples-db
