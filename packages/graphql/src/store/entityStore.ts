@@ -2,6 +2,7 @@ import type { PonderDatabase } from "@ponder/ponder";
 
 import type { PonderSchema } from "@/schema/types";
 
+import { PostgresEntityStore } from "./postgresEntityStore";
 import { SqliteEntityStore } from "./sqliteEntityStore";
 
 export type EntityFilter = {
@@ -41,6 +42,9 @@ export const buildEntityStore = (database: PonderDatabase) => {
   switch (database.kind) {
     case "sqlite": {
       return new SqliteEntityStore(database.db);
+    }
+    case "postgres": {
+      return new PostgresEntityStore(database.pgp, database.db);
     }
     default: {
       throw new Error(`Unsupported database kind: ${database.kind}`);

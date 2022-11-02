@@ -121,6 +121,4 @@ export const generateEntityTypes = async (
     final,
     "utf8"
   );
-
-  ponder.logger.debug(`Generated entities.ts file`);
 };

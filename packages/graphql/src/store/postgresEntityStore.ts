@@ -1,4 +1,4 @@
-import type Sqlite from "better-sqlite3";
+import type PgPromise from "pg-promise";
 
 import {
   DerivedField,
@@ -10,18 +10,22 @@ import {
 import { EntityFilter, EntityStore } from "./entityStore";
 import { sqlOperatorsForFilterType } from "./utils";
 
-export class SqliteEntityStore implements EntityStore {
-  db: Sqlite.Database;
+export class PostgresEntityStore implements EntityStore {
+  pgp: PgPromise.IMain;
+  db: PgPromise.IDatabase<unknown>;
   schema?: PonderSchema;
 
-  constructor(db: Sqlite.Database) {
+  constructor(pgp: PgPromise.IMain, db: PgPromise.IDatabase<unknown>) {
+    this.pgp = pgp;
     this.db = db;
   }
 
   async migrate(schema: PonderSchema) {
-    schema.entities.forEach((entity) => {
+    this.schema = schema;
+
+    schema.entities.forEach(async (entity) => {
       // Drop the table if it already exists
-      this.db.prepare(`drop table if exists \`${entity.name}\``).run();
+      await this.db.none(`DROP TABLE IF EXISTS "${entity.name}"`);
 
       // Build the create table statement using field migration fragments.
       // TODO: Update this so the generation of the field migration fragments happens here
@@ -33,30 +37,26 @@ export class SqliteEntityStore implements EntityStore {
         )
         .map((field) => field.migrateUpStatement);
 
-      this.db
-        .prepare(
-          `create table \`${entity.name}\` (${columnStatements.join(", ")})`
-        )
-        .run();
+      await this.db.none(
+        `CREATE TABLE "${entity.name}" (${columnStatements.join(", ")})`
+      );
     });
-
-    this.schema = schema;
   }
 
   async getEntity<T>(entityName: string, id: string): Promise<T | null> {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const entity = this.schema.entityByName[entityName];
 
     const statement = `
-      select \`${entityName}\`.*
-      from \`${entityName}\`
-      where \`${entityName}\`.\`id\` = @id
+      SELECT "${entityName}".*
+      FROM "${entityName}"
+      WHERE "${entityName}"."id" = $(id)
     `;
 
-    const rawEntityInstance = this.db.prepare(statement).get({
+    const rawEntityInstance = await this.db.oneOrNone(statement, {
       id: id,
     });
 
@@ -77,7 +77,7 @@ export class SqliteEntityStore implements EntityStore {
     filter?: EntityFilter
   ): Promise<T[]> {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const where = filter?.where;
@@ -117,14 +117,14 @@ export class SqliteEntityStore implements EntityStore {
           finalValue = `'${finalValue}'`;
         }
 
-        whereFragments.push(`\`${fieldName}\` ${operator} ${finalValue}`);
+        whereFragments.push(`"${fieldName}" ${operator} ${finalValue}`);
       }
 
-      fragments.push(`where ${whereFragments.join(" and ")}`);
+      fragments.push(`WHERE ${whereFragments.join(" AND ")}`);
     }
 
     if (orderBy) {
-      fragments.push(`order by \`${orderBy}\``);
+      fragments.push(`ORDER BY "${orderBy}"`);
     }
 
     if (orderDirection) {
@@ -132,19 +132,19 @@ export class SqliteEntityStore implements EntityStore {
     }
 
     if (first) {
-      fragments.push(`limit ${first}`);
+      fragments.push(`LIMIT ${first}`);
     }
 
     if (skip) {
       if (!first) {
-        fragments.push(`limit -1`); // Must add a no-op limit for SQLite to handle offset
+        fragments.push(`LIMIT -1`); // Must add a no-op limit for SQLite to handle offset
       }
-      fragments.push(`offset ${skip}`);
+      fragments.push(`OFFSET ${skip}`);
     }
 
-    const statement = `select * from \`${entityName}\` ${fragments.join(" ")}`;
+    const statement = `SELECT * FROM "${entityName}" ${fragments.join(" ")}`;
 
-    const rawEntityInstances = this.db.prepare(statement).all();
+    const rawEntityInstances = await this.db.manyOrNone(statement);
 
     const entityInstances = rawEntityInstances.map((instance) =>
       this.deserialize(entityName, instance)
@@ -155,7 +155,7 @@ export class SqliteEntityStore implements EntityStore {
 
   async insertEntity<T>(entityName: string, attributes: any): Promise<T> {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const entity = this.schema.entityByName[entityName];
@@ -164,7 +164,7 @@ export class SqliteEntityStore implements EntityStore {
       ([fieldName, value]) => {
         const field = entity.fieldByName[fieldName];
         return {
-          column: `\`${fieldName}\``,
+          column: `"${fieldName}"`,
           value: `'${value}'`,
         };
       }
@@ -172,12 +172,12 @@ export class SqliteEntityStore implements EntityStore {
 
     const insertFragment = `(${columnStatements
       .map((s) => s.column)
-      .join(", ")}) values (${columnStatements
+      .join(", ")}) VALUES (${columnStatements
       .map((s) => s.value)
       .join(", ")})`;
 
-    const statement = `insert into \`${entityName}\` ${insertFragment} returning *`;
-    const insertedEntity = this.db.prepare(statement).get();
+    const statement = `INSERT INTO "${entityName}" ${insertFragment} RETURNING *`;
+    const insertedEntity = await this.db.oneOrNone(statement);
 
     return this.deserialize(entityName, insertedEntity);
   }
@@ -187,7 +187,7 @@ export class SqliteEntityStore implements EntityStore {
     attributes: { id: string } & Partial<T>
   ): Promise<T> {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const entity = this.schema.entityByName[entityName];
@@ -196,7 +196,7 @@ export class SqliteEntityStore implements EntityStore {
       ([fieldName, value]) => {
         const field = entity.fieldByName[fieldName];
         return {
-          column: `\`${fieldName}\``,
+          column: `"${fieldName}"`,
           value: `'${value}'`,
         };
       }
@@ -208,27 +208,25 @@ export class SqliteEntityStore implements EntityStore {
       .map((s) => `${s.column} = ${s.value}`)
       .join(", ");
 
-    const statement = `update \`${entityName}\` set ${updateFragment} where \`id\` = @id returning *`;
-    const updatedEntity = this.db.prepare(statement).get({ id: id });
+    const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = $(id) RETURNING *`;
+    const updatedEntity = await this.db.oneOrNone(statement, { id });
 
     return this.deserialize(entityName, updatedEntity);
   }
 
   async deleteEntity(entityName: string, id: string): Promise<void> {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const statement = `delete from \`${entityName}\` where \`id\` = @id`;
+    const statement = `DELETE FROM "${entityName}" WHERE "id" = $(id)`;
 
-    this.db.prepare(statement).run({ id: id });
-
-    return;
+    await this.db.oneOrNone(statement, { id });
   }
 
   deserialize(entityName: string, instance: any) {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const entity = this.schema.entityByName[entityName];
@@ -264,7 +262,7 @@ export class SqliteEntityStore implements EntityStore {
     derivedFieldName: string
   ) {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const entity = this.schema.entityByName[entityName];

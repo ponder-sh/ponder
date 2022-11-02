@@ -218,7 +218,7 @@ const getIdField = (
     baseGqlType: baseType,
     originalFieldType,
     notNull: true,
-    migrateUpStatement: `id text not null primary key`,
+    migrateUpStatement: `"id" TEXT NOT NULL PRIMARY KEY`,
     sqlType: "string",
   };
 };
@@ -234,9 +234,9 @@ const getScalarField = (
     throw new Error(`Unhandled scalar type: ${baseType.name}`);
   }
 
-  let migrateUpStatement = `\`${fieldName}\` ${sqlType}`;
+  let migrateUpStatement = `"${fieldName}" ${sqlType}`;
   if (isNotNull) {
-    migrateUpStatement += " not null";
+    migrateUpStatement += " NOT NULL";
   }
 
   return <ScalarField>{
@@ -258,12 +258,12 @@ const getEnumField = (
 ) => {
   const enumValues = (baseType.astNode?.values || []).map((v) => v.name.value);
 
-  let migrateUpStatement = `\`${fieldName}\` text check (\`${fieldName}\` in (${enumValues
+  let migrateUpStatement = `"${fieldName}" TEXT CHECK ("${fieldName}" IN (${enumValues
     .map((v) => `'${v}'`)
     .join(", ")}))`;
 
   if (isNotNull) {
-    migrateUpStatement += " not null";
+    migrateUpStatement += " NOT NULL";
   }
 
   return <EnumField>{
@@ -284,9 +284,9 @@ const getListField = (
   originalFieldType: TypeNode,
   isNotNull: boolean
 ) => {
-  let migrateUpStatement = `\`${fieldName}\` text`;
+  let migrateUpStatement = `"${fieldName}" TEXT`;
   if (isNotNull) {
-    migrateUpStatement += " not null";
+    migrateUpStatement += " NOT NULL";
   }
 
   return <ListField>{
@@ -306,9 +306,9 @@ const getRelationshipField = (
   originalFieldType: TypeNode,
   isNotNull: boolean
 ) => {
-  let migrateUpStatement = `\`${fieldName}\` text`;
+  let migrateUpStatement = `"${fieldName}" TEXT`;
   if (isNotNull) {
-    migrateUpStatement += " not null";
+    migrateUpStatement += " NOT NULL";
   }
 
   // Everything downstream requires the base type as a GraphQLInputObject type, but idk how to safely convert it.
