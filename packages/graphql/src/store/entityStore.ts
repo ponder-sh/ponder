@@ -46,8 +46,5 @@ export const buildEntityStore = (database: PonderDatabase) => {
     case "postgres": {
       return new PostgresEntityStore(database.pgp, database.db);
     }
-    default: {
-      throw new Error(`Unsupported database kind: ${database.kind}`);
-    }
   }
 };
