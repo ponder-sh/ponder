@@ -9,9 +9,49 @@ export class PostgresCacheStore implements CacheStore {
   pgp: PgPromise.IMain;
   db: PgPromise.IDatabase<unknown>;
 
+  logsColumnSet: PgPromise.ColumnSet;
+  transactionsColumnSet: PgPromise.ColumnSet;
+
   constructor(pgp: PgPromise.IMain, db: PgPromise.IDatabase<unknown>) {
     this.pgp = pgp;
     this.db = db;
+
+    this.logsColumnSet = new this.pgp.helpers.ColumnSet(
+      [
+        "logId",
+        "logSortKey",
+        "address",
+        "data",
+        "topics",
+        "blockHash",
+        "blockNumber",
+        "logIndex",
+        "transactionHash",
+        "transactionIndex",
+        "removed",
+      ],
+      { table: "logs" }
+    );
+
+    this.transactionsColumnSet = new this.pgp.helpers.ColumnSet(
+      [
+        "hash",
+        "nonce",
+        "from",
+        "to",
+        "value",
+        "input",
+        "gas",
+        "gasPrice",
+        "maxFeePerGas",
+        "maxPriorityFeePerGas",
+        "blockHash",
+        "blockNumber",
+        "transactionIndex",
+        "chainId",
+      ],
+      { table: "transactions" }
+    );
   }
 
   migrate = async () => {
@@ -161,24 +201,9 @@ export class PostgresCacheStore implements CacheStore {
   insertLogs = async (logs: EventLog[]) => {
     if (logs.length === 0) return;
 
-    const logsColumns = new this.pgp.helpers.ColumnSet(
-      [
-        "logId",
-        "logSortKey",
-        "address",
-        "data",
-        "topics",
-        "blockHash",
-        "blockNumber",
-        "logIndex",
-        "transactionHash",
-        "transactionIndex",
-        "removed",
-      ],
-      { table: "logs" }
-    );
-
-    const query = this.pgp.helpers.insert(logs, logsColumns);
+    const query =
+      this.pgp.helpers.insert(logs, this.logsColumnSet) +
+      `ON CONFLICT("logId") DO NOTHING`;
 
     await this.db.none(query);
   };
@@ -227,27 +252,10 @@ export class PostgresCacheStore implements CacheStore {
   insertTransactions = async (transactions: Transaction[]) => {
     if (transactions.length === 0) return;
 
-    const transactionsColumns = new this.pgp.helpers.ColumnSet(
-      [
-        "hash",
-        "nonce",
-        "from",
-        "to",
-        "value",
-        "input",
-        "gas",
-        "gasPrice",
-        "maxFeePerGas",
-        "maxPriorityFeePerGas",
-        "blockHash",
-        "blockNumber",
-        "transactionIndex",
-        "chainId",
-      ],
-      { table: "transactions" }
+    const query = this.pgp.helpers.insert(
+      transactions,
+      this.transactionsColumnSet
     );
-
-    const query = this.pgp.helpers.insert(transactions, transactionsColumns);
 
     await this.db.none(query);
   };
@@ -298,11 +306,9 @@ export class PostgresCacheStore implements CacheStore {
   upsertContractCall = async (contractCall: ContractCall) => {
     await this.db.none(
       `
-      INSERT INTO contractCalls ("key", "result")
+      INSERT INTO "contractCalls" ("key", "result")
       VALUES ($(key), $(result))
-      ON CONFLICT("key") DO UPDATE SET
-      "result"=excluded."result"
-      RETURNING *
+      ON CONFLICT("key") DO NOTHING
       `,
       {
         key: contractCall.key,
