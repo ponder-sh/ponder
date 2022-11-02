@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: okpc-app
+    env: node
+    rootDir: examples/okpc
+    buildCommand: pnpm install --filter "."
+    startCommand: pnpm run start
+    envVars:
+      - key: PONDER_RPC_URL_1
+        sync: false
+      - key: POSTGRES_URL
+        fromDatabase:
+          name: okpc
+          property: connectionString
+      - fromGroup: okpc-env # these env vars are only required within the ponder monorepo
+
+databases:
+  - name: okpc-db
+
+envVarGroups:
+  - name: okpc-env
+    envVars:
+      - key: npm_config_LINK_WORKSPACE_PACKAGES
+        value: false
+      - key: npm_config_LOCKFILE
+        value: false
+      - key: PONDER_LOG_LEVEL
+        value: 4
