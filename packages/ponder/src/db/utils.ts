@@ -57,7 +57,7 @@ export const parseBlock = (block: any): Block => ({
   transactionsRoot: block.transactionsRoot,
   receiptsRoot: block.receiptsRoot,
   logsBloom: block.logsBloom,
-  totalDifficulty: block.logsBloom, // BigNumber
+  totalDifficulty: block.totalDifficulty, // BigNumber
 });
 
 /*

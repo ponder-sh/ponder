@@ -51,7 +51,7 @@ export class Ponder {
     const { sources } = buildSources({ config, networks });
     this.sources = sources;
 
-    this.plugins = config.plugins;
+    this.plugins = config.plugins || [];
     this.watchFiles = [
       OPTIONS.HANDLERS_DIR_PATH,
       ...sources.map((s) => s.abiFilePath),

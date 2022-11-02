@@ -2,10 +2,15 @@ import { OPTIONS } from "@/common/options";
 import type { ResolvedPonderPlugin } from "@/plugin";
 
 export type PonderConfig = {
-  database: {
-    kind: "sqlite" | "postgres";
-    filename?: string;
-  };
+  database:
+    | {
+        kind: "sqlite";
+        filename?: string;
+      }
+    | {
+        kind: "postgres";
+        connectionString: string;
+      };
   networks: {
     kind?: string;
     name: string;
@@ -22,7 +27,7 @@ export type PonderConfig = {
     pollingInterval?: number;
     blockLimit?: number;
   }[];
-  plugins: ResolvedPonderPlugin[];
+  plugins?: ResolvedPonderPlugin[];
 };
 
 export const readPonderConfig = () => {

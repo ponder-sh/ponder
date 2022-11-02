@@ -1,6 +1,7 @@
 import type { Block, EventLog, Transaction } from "@/common/types";
 
 import { PonderDatabase } from "./db";
+import { PostgresCacheStore } from "./postgresCacheStore";
 import { SqliteCacheStore } from "./sqliteCacheStore";
 
 export type CachedInterval = {
@@ -43,8 +44,8 @@ export const buildCacheStore = (database: PonderDatabase) => {
     case "sqlite": {
       return new SqliteCacheStore(database.db);
     }
-    default: {
-      throw new Error(`Unsupported database kind: ${database.kind}`);
+    case "postgres": {
+      return new PostgresCacheStore(database.pgp, database.db);
     }
   }
 };

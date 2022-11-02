@@ -1,6 +1,7 @@
 import Sqlite from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+import PgPromise from "pg-promise";
 
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
@@ -15,7 +16,8 @@ export interface SqliteDb {
 export interface PostgresDb {
   kind: "postgres";
 
-  db: unknown;
+  pgp: PgPromise.IMain<unknown>;
+  db: PgPromise.IDatabase<unknown>;
 }
 
 export type PonderDatabase = SqliteDb | PostgresDb;
@@ -32,8 +34,20 @@ export const buildDb = (config: PonderConfig): PonderDatabase => {
         }),
       };
     }
-    default: {
-      throw new Error(`Unsupported database kind: ${config.database.kind}`);
+    case "postgres": {
+      const pgp = PgPromise({
+        query: (e) => {
+          logger.trace({ query: e.query });
+        },
+      });
+      return {
+        kind: "postgres",
+        pgp,
+        db: pgp({
+          connectionString: config.database.connectionString,
+          keepAlive: true,
+        }),
+      };
     }
   }
 };
