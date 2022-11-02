@@ -1,6 +1,9 @@
+# This render.yaml deploys a web service for each example in the `examples` directory,
+# and a Postgres database that all of those services connect to.
+
 services:
   - type: web
-    name: okpc-app
+    name: ponder-examples-okpc
     env: node
     rootDir: examples/okpc
     buildCommand: pnpm install --filter "."
@@ -10,15 +13,16 @@ services:
         sync: false
       - key: POSTGRES_URL
         fromDatabase:
-          name: okpc
+          name: ponder-examples-db
           property: connectionString
-      - fromGroup: okpc-env # these env vars are only required within the ponder monorepo
+      - fromGroup: ponder-examples-env # these env vars are only required within the ponder monorepo
 
 databases:
-  - name: okpc-db
+  - name: ponder-examples-db
+    postgresMajorVersion: 14
 
 envVarGroups:
-  - name: okpc-env
+  - name: ponder-examples-env
     envVars:
       - key: npm_config_LINK_WORKSPACE_PACKAGES
         value: false
