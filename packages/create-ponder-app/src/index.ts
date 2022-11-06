@@ -148,6 +148,7 @@ module.exports = ponderConfig;`;
       "scripts": {
         "dev": "ponder dev",
         "start": "ponder start",
+        "codegen": "ponder codegen"
       },
       "dependencies": {
         "@ponder/ponder": "latest",
