@@ -1,4 +1,5 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { ethers } from "ethers";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
 
@@ -48,6 +49,62 @@ export const run = async (options: CreatePonderAppOptions) => {
     ponderConfig = fromBasic(options);
   }
 
+  // Write the handler ts files.
+  ponderConfig.sources.forEach((source) => {
+    const abi = readFileSync(path.join(ponderRootDir, source.abi), {
+      encoding: "utf-8",
+    });
+    const abiInterface = new ethers.utils.Interface(abi);
+    const eventNames = Object.keys(abiInterface.events);
+
+    const handlers = eventNames.map((eventName) => {
+      const eventBaseName = eventName.split("(")[0];
+
+      const handlerFunctionType = `${eventBaseName}Handler`;
+      const handlerFunctionName = `handle${eventBaseName}`;
+
+      return {
+        handlerFunctionType,
+        handlerFunction: `const ${handlerFunctionName}: ${handlerFunctionType} = async (event, context) => { return }\n`,
+        handlerExport: `${eventBaseName}: ${handlerFunctionName}`,
+      };
+    });
+
+    const handlerFileContents = `
+      import { ${handlers.map((h) => h.handlerFunctionType).join(",")} }
+        from '../generated/${source.name}'
+
+      ${handlers.map((h) => h.handlerFunction).join("\n")}
+      
+      export const ${source.name} = {
+        ${handlers.map((h) => h.handlerExport).join(",")}
+      }
+    `;
+
+    writeFileSync(
+      path.join(ponderRootDir, `./handlers/${source.name}.ts`),
+      prettier.format(handlerFileContents, { parser: "typescript" })
+    );
+  });
+
+  // Write the handler index.ts file.
+  const handlerIndexFileContents = `
+    ${ponderConfig.sources
+      .map((source) => `import { ${source.name} } from "./${source.name}"`)
+      .join("\n")}
+      
+    export default {
+      ${ponderConfig.sources
+        .map((source) => `${source.name}: ${source.name}`)
+        .join(",")}
+    }
+  `;
+  writeFileSync(
+    path.join(ponderRootDir, `./handlers/index.ts`),
+    prettier.format(handlerIndexFileContents, { parser: "typescript" })
+  );
+
+  // Write the ponder.config.js file.
   const finalPonderConfig = `const { graphqlPlugin } = require("@ponder/graphql");
 
 /**

@@ -1,6 +1,5 @@
-import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, readFileSync } from "node:fs";
 import path from "node:path";
-import prettier from "prettier";
 import type {
   PartialPonderConfig,
   PonderNetwork,
@@ -98,39 +97,6 @@ export const fromSubgraph = (options: CreatePonderAppOptions) => {
 
       copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
 
-      // Generate a template handlers file.
-      const handlers = (source.mapping.eventHandlers || []).map((handler) => {
-        const eventBaseName = handler.event.split("(")[0];
-
-        const handlerFunctionType = `${eventBaseName}Handler`;
-        const handlerFunctionName = `handle${eventBaseName}`;
-
-        return {
-          handlerFunctionType,
-          handlerFunction: `const ${handlerFunctionName}: ${handlerFunctionType} = async (event, context) => {
-            return
-          }
-          `,
-          handlerExport: `${eventBaseName}: ${handlerFunctionName}`,
-        };
-      });
-
-      const handlerFileContents = `
-        import { ${handlers.map((h) => h.handlerFunctionType).join(",")} }
-          from '../generated/${source.name}'
-
-        ${handlers.map((h) => h.handlerFunction).join("\n")}
-        
-        export const ${source.name} = {
-          ${handlers.map((h) => h.handlerExport).join(",")}
-        }
-      `;
-
-      writeFileSync(
-        path.join(ponderRootDir, `./handlers/${source.name}.ts`),
-        prettier.format(handlerFileContents, { parser: "typescript" })
-      );
-
       return <PonderSource>{
         kind: "evm",
         name: source.name,
@@ -140,23 +106,6 @@ export const fromSubgraph = (options: CreatePonderAppOptions) => {
         startBlock: source.source.startBlock,
       };
     });
-
-  // Write the handler index.ts file.
-  const handlerIndexFileContents = `
-    ${ponderSources
-      .map((source) => `import { ${source.name} } from "./${source.name}"`)
-      .join("\n")}
-
-    export default {
-      ${ponderSources
-        .map((source) => `${source.name}: ${source.name}`)
-        .join(",")}
-    }
-  `;
-  writeFileSync(
-    path.join(ponderRootDir, `./handlers/index.ts`),
-    prettier.format(handlerIndexFileContents, { parser: "typescript" })
-  );
 
   // Build the partial ponder config.
   const ponderConfig: PartialPonderConfig = {
