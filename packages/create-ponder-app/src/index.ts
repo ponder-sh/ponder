@@ -1,4 +1,6 @@
+import { detect } from "detect-package-manager";
 import { ethers } from "ethers";
+import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
@@ -156,7 +158,6 @@ module.exports = ponderConfig;`;
       },
       "engines": {
         "node": "16",
-        "pnpm": "7"
       }
     }
   `;
@@ -190,8 +191,23 @@ module.exports = ponderConfig;`;
     `.env.local\n.ponder/\ngenerated/`
   );
 
+  // Install packages.
+  const packageManager = await detect();
+  console.log(`Installing with ${packageManager}...`);
+  execSync(`${packageManager} install`, {
+    cwd: ponderRootDir,
+    stdio: "inherit",
+  });
+
+  // Run codegen.
+  // execSync(`${packageManager} run dev`, {
+  //   cwd: ponderRootDir,
+  //   stdio: "inherit",
+  // });
+
   // TODO: Add more/better instructions here.
+  console.log(`1) Go to ${path.resolve(".", ponderRootDir)}`);
   console.log(
-    `Go to ${ponderRootDir}, npm/yarn/pnpm install, and pnpm run dev to start the development server.`
+    `2) Use ${packageManager} run dev to start the development serve.`
   );
 };
