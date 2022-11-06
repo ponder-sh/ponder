@@ -2,18 +2,43 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 
 import { Command } from "commander";
+import path from "node:path";
+
+interface RawCreatePonderAppOptions {
+  dir?: string;
+  fromSubgraph?: string;
+  fromEtherscan?: string;
+}
 
 const program = new Command();
-
 program
   .description("Create a Ponder project")
   .option("--dir <string>", "Path to directory for generated Ponder project")
-  .option("--from-subgraph <string>", "Path to subgraph directory");
+  .option("--from-subgraph <string>", "Path to subgraph directory")
+  .option("--from-etherscan <string>", "Link to etherscan contract page");
 
 program.parse();
-const options = program.opts();
+const options = program.opts() as RawCreatePonderAppOptions;
 
-const ponderRootDir = options.dir ? options.dir : "ponder";
-const subgraphRootDir = options.fromSubgraph;
+// Validate CLI options.
+export interface CreatePonderAppOptions {
+  ponderRootDir: string;
+  fromSubgraph?: string;
+  fromEtherscan?: string;
+}
 
-require("../index").run(ponderRootDir, subgraphRootDir);
+if (options.fromSubgraph && options.fromEtherscan) {
+  throw new Error(`Cannot specify more than one "--from" option:
+--from-subgraph
+--from-etherscan
+`);
+}
+
+const validatedOptions: CreatePonderAppOptions = {
+  // Default `dir` to "ponder".
+  ponderRootDir: path.resolve(options.dir ? options.dir : "ponder"),
+  fromSubgraph: options.fromSubgraph,
+  fromEtherscan: options.fromEtherscan,
+};
+
+require("../index").run(validatedOptions);
