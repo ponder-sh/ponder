@@ -22,4 +22,11 @@ program
     require("../cli/start").start();
   });
 
+program
+  .command("codegen")
+  .description("start local development server")
+  .action(() => {
+    require("../cli/codegen").codegen();
+  });
+
 program.parse();
