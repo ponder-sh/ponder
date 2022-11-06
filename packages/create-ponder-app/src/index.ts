@@ -32,7 +32,7 @@ export type PartialPonderConfig = {
   sources: PonderSource[];
 };
 
-export const run = (options: CreatePonderAppOptions) => {
+export const run = async (options: CreatePonderAppOptions) => {
   const { ponderRootDir } = options;
 
   // Create required directories.
@@ -43,7 +43,7 @@ export const run = (options: CreatePonderAppOptions) => {
   if (options.fromSubgraph) {
     ponderConfig = fromSubgraph(options);
   } else if (options.fromEtherscan) {
-    ponderConfig = fromEtherscan(options);
+    ponderConfig = await fromEtherscan(options);
   } else {
     ponderConfig = fromBasic(options);
   }

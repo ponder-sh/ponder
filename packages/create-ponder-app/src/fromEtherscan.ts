@@ -1,33 +1,155 @@
-import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+import { writeFileSync } from "node:fs";
 import path from "node:path";
+import fetch from "node-fetch";
 import prettier from "prettier";
-import type {
-  PartialPonderConfig,
-  PonderNetwork,
-  PonderSource,
-} from "src/index";
+import type { PartialPonderConfig } from "src/index";
 
 import type { CreatePonderAppOptions } from "./bin/create-ponder-app";
+import { getNetworkByEtherscanHostname } from "./helpers/getEtherscanChainId";
 
-export const fromEtherscan = (options: CreatePonderAppOptions) => {
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const fromEtherscan = async (options: CreatePonderAppOptions) => {
+  const { ponderRootDir } = options;
+
   if (!options.fromEtherscan) {
     throw new Error(`Internal error: fromSubgraph undefined`);
   }
+  const apiKey = options.etherscanApiKey;
 
-  const { ponderRootDir } = options;
+  const url = new URL(options.fromEtherscan);
+  const network = getNetworkByEtherscanHostname(url.hostname);
+  if (!network) {
+    throw new Error(`Unrecognized etherscan hostname: ${url.hostname}`);
+  }
 
-  const ponderNetworks: PonderNetwork[] = [];
-  const ponderSources: PonderSource[] = [];
+  const apiUrl = `https://api.${url.hostname}/api`;
+  const contractAddress = url.pathname.slice(1).split("/")[1];
 
-  // Build the partial ponder config.
+  const txHash = await getContractCreationTxn(contractAddress, apiUrl, apiKey);
+
+  if (!apiKey) {
+    console.log("(1/2) Waiting 5 seconds for Etherscan API rate limit");
+    await delay(5000);
+  }
+  const blockNumber = await getTxBlockNumber(txHash, apiUrl, apiKey);
+
+  if (!apiKey) {
+    console.log("(2/2) Waiting 5 seconds for Etherscan API rate limit");
+    await delay(5000);
+  }
+  const { abi, contractName } = await getContractAbiAndName(
+    contractAddress,
+    apiUrl,
+    apiKey
+  );
+
+  // Write contract ABI file.
+  const abiRelativePath = `./abis/${contractName}.json`;
+  const abiAbsolutePath = path.join(ponderRootDir, abiRelativePath);
+  writeFileSync(abiAbsolutePath, abi);
+
+  const schemaGraphqlFileContents = `
+    type ExampleEntity @entity {
+      id: ID!
+      name: String!
+      trait: ExampleTrait!
+    }
+    enum ExampleTrait {
+      GOOD
+      BAD
+    }
+  `;
+
+  // Generate the schema.graphql file.
+  const ponderSchemaFilePath = path.join(ponderRootDir, "schema.graphql");
+  writeFileSync(
+    ponderSchemaFilePath,
+    prettier.format(schemaGraphqlFileContents, { parser: "graphql" })
+  );
+
+  // Build and return the partial ponder config.
   const ponderConfig: PartialPonderConfig = {
     plugins: ["graphqlPlugin()"],
     database: {
       kind: "sqlite",
     },
-    networks: ponderNetworks,
-    sources: ponderSources,
+    networks: [
+      { kind: "evm", name: network.name, chainId: network.chainId, rpcUrl: "" },
+    ],
+    sources: [
+      {
+        kind: "evm",
+        name: contractName,
+        network: network.name,
+        abi: abiRelativePath,
+        address: contractAddress,
+        startBlock: blockNumber,
+      },
+    ],
   };
 
   return ponderConfig;
+};
+
+const fetchEtherscan = async (url: string) => {
+  const response = await fetch(url);
+  const data = await response.json();
+  if (data.status === "0") {
+    throw new Error(`Etherscan API error: ${data.result}`);
+  }
+  return data;
+};
+
+const getContractCreationTxn = async (
+  contractAddress: string,
+  apiUrl: string,
+  apiKey?: string
+) => {
+  const searchParams = new URLSearchParams({
+    module: "contract",
+    action: "getcontractcreation",
+    contractaddresses: contractAddress,
+  });
+  if (apiKey) searchParams.append("apikey", apiKey);
+  const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
+
+  return data.result[0].txHash as string;
+};
+
+const getTxBlockNumber = async (
+  txHash: string,
+  apiUrl: string,
+  apiKey?: string
+) => {
+  const searchParams = new URLSearchParams({
+    module: "proxy",
+    action: "eth_getTransactionByHash",
+    txhash: txHash,
+  });
+  if (apiKey) searchParams.append("apikey", apiKey);
+  const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
+
+  const hexBlockNumber = data.result.blockNumber as string;
+  return parseInt(hexBlockNumber.slice(2), 16);
+};
+
+const getContractAbiAndName = async (
+  contractAddress: string,
+  apiUrl: string,
+  apiKey?: string
+) => {
+  const searchParams = new URLSearchParams({
+    module: "contract",
+    action: "getsourcecode",
+    address: contractAddress,
+  });
+  if (apiKey) searchParams.append("apikey", apiKey);
+  const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
+
+  const abi = data.result[0].ABI as string;
+  const contractName = data.result[0].ContractName as string;
+
+  return { abi, contractName };
 };

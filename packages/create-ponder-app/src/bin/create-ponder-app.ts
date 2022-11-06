@@ -8,6 +8,7 @@ interface RawCreatePonderAppOptions {
   dir?: string;
   fromSubgraph?: string;
   fromEtherscan?: string;
+  etherscanApiKey?: string;
 }
 
 const program = new Command();
@@ -15,7 +16,8 @@ program
   .description("Create a Ponder project")
   .option("--dir <string>", "Path to directory for generated Ponder project")
   .option("--from-subgraph <string>", "Path to subgraph directory")
-  .option("--from-etherscan <string>", "Link to etherscan contract page");
+  .option("--from-etherscan <string>", "Link to etherscan contract page")
+  .option("--etherscan-api-key <string>", "Etherscan API key");
 
 program.parse();
 const options = program.opts() as RawCreatePonderAppOptions;
@@ -25,6 +27,7 @@ export interface CreatePonderAppOptions {
   ponderRootDir: string;
   fromSubgraph?: string;
   fromEtherscan?: string;
+  etherscanApiKey?: string;
 }
 
 if (options.fromSubgraph && options.fromEtherscan) {
@@ -39,6 +42,7 @@ const validatedOptions: CreatePonderAppOptions = {
   ponderRootDir: path.resolve(options.dir ? options.dir : "ponder"),
   fromSubgraph: options.fromSubgraph,
   fromEtherscan: options.fromEtherscan,
+  etherscanApiKey: options.etherscanApiKey,
 };
 
 require("../index").run(validatedOptions);
