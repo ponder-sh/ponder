@@ -201,10 +201,11 @@ module.exports = ponderConfig;`;
   });
 
   // Run codegen.
-  // execSync(`${packageManager} run dev`, {
-  //   cwd: ponderRootDir,
-  //   stdio: "inherit",
-  // });
+  console.log(`Running \`ponder codegen\`...`);
+  execSync(`${packageManager} run codegen`, {
+    cwd: ponderRootDir,
+    stdio: "inherit",
+  });
 
   // TODO: Add more/better instructions here.
   console.log(`1) Go to ${path.resolve(".", ponderRootDir)}`);

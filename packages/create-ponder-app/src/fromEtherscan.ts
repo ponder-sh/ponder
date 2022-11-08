@@ -76,7 +76,12 @@ export const fromEtherscan = async (options: CreatePonderAppOptions) => {
       kind: "sqlite",
     },
     networks: [
-      { kind: "evm", name: network.name, chainId: network.chainId, rpcUrl: "" },
+      {
+        kind: "evm",
+        name: network.name,
+        chainId: network.chainId,
+        rpcUrl: `process.env.PONDER_RPC_URL_${network.chainId}`,
+      },
     ],
     sources: [
       {
