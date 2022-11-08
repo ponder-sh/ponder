@@ -9,7 +9,7 @@ import { stats } from "../tasks/stats";
 
 export type BlockBackfillTask = {
   blockHash: string;
-  contractAddresses: string[];
+  requiredTxnHashes: string[];
   onSuccess: (blockHash: string) => Promise<void>;
 };
 
@@ -44,7 +44,7 @@ export const createBlockBackfillQueue = ({
 
 async function blockBackfillWorker(
   this: BlockBackfillWorkerContext,
-  { blockHash, contractAddresses, onSuccess }: BlockBackfillTask
+  { blockHash, requiredTxnHashes, onSuccess }: BlockBackfillTask
 ) {
   const { cacheStore, source } = this;
   const { provider } = source.network;
@@ -53,11 +53,13 @@ async function blockBackfillWorker(
 
   const block = parseBlock(rawBlock);
 
+  const requiredTxnHashesSet = new Set(requiredTxnHashes);
+
   // Filter out pending transactions (this might not be necessary?).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transactions = (rawBlock.transactions as any[])
     .filter((txn) => !!txn.hash)
-    .filter((txn) => contractAddresses.includes(txn.to))
+    .filter((txn) => requiredTxnHashesSet.has(txn.hash))
     .map(parseTransaction);
 
   await Promise.all([

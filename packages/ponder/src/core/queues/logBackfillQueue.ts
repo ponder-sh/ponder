@@ -66,8 +66,17 @@ async function logBackfillWorker(
 
   await cacheStore.insertLogs(logs);
 
-  const requiredBlockHashSet = new Set(logs.map((l) => l.blockHash));
-  const requiredBlockHashes = [...requiredBlockHashSet];
+  const txnHashesForBlockHash = logs.reduce((acc, log) => {
+    if (acc[log.blockHash]) {
+      acc[log.blockHash].push(log.transactionHash);
+    } else {
+      acc[log.blockHash] = [log.transactionHash];
+    }
+    return acc;
+  }, {} as Record<string, string[]>);
+
+  const requiredBlockHashes = Object.keys(txnHashesForBlockHash);
+  const requiredBlockHashSet = new Set(requiredBlockHashes);
 
   // The block request worker calls this callback when it finishes. This serves as
   // a hacky way to run some code when all "child" jobs are done. In this case,
@@ -95,7 +104,11 @@ async function logBackfillWorker(
   }
 
   requiredBlockHashes.forEach((blockHash) => {
-    blockBackfillQueue.push({ blockHash, contractAddresses, onSuccess });
+    blockBackfillQueue.push({
+      blockHash,
+      requiredTxnHashes: txnHashesForBlockHash[blockHash],
+      onSuccess,
+    });
   });
 
   stats.syncProgressBar.increment();

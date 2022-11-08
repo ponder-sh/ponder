@@ -71,15 +71,17 @@ async function blockFrontfillWorker(
 
   const block = parseBlock(rawBlock);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const logs = (rawLogs as any[]).map(parseLog);
+
+  const requiredTxnHashSet = new Set(logs.map((l) => l.transactionHash));
+
   // Filter out pending transactions (this might not be necessary?).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transactions = (rawBlock.transactions as any[])
     .filter((txn) => !!txn.hash)
-    .filter((txn) => contractAddresses.includes(txn.to))
+    .filter((txn) => requiredTxnHashSet.has(txn.to))
     .map(parseTransaction);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const logs = (rawLogs as any[]).map(parseLog);
 
   await Promise.all([
     cacheStore.insertBlock(block),
