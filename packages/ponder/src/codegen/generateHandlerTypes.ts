@@ -95,14 +95,19 @@ const generateParamsType = (params: ParamType[]): string => {
         return `${param.name}: ${generateParamsType(param.components)}; `;
       }
 
-      // Remove any trailing numbers (uint256 -> uint)
+      // Likely buggy for more complex event types.
+      if (param.baseType === "array") {
+        const elementType = param.arrayChildren.type.replace(/[0-9]+$/, "");
+        return `${param.name}: ${valueTypeMap[elementType]}[]; `;
+      }
+
       const trimmedParamBaseType = param.baseType.replace(/[0-9]+$/, "");
       const valueType = valueTypeMap[trimmedParamBaseType];
       if (valueType) {
         return `${param.name}: ${valueType}; `;
       }
 
-      console.error("unhandled param:", { param });
+      logger.warn("unhandled param:", { param });
       return `${param.name}: unknown; `;
     })
     .join("");
