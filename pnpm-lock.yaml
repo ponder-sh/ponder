@@ -24,6 +24,17 @@ importers:
       prettier: 2.6.2
       typescript: 4.7.3
 
+  examples/art-gobblers:
+    specifiers:
+      '@ponder/graphql': latest
+      '@ponder/ponder': latest
+      ethers: ^5.6.9
+    dependencies:
+      '@ponder/graphql': link:../../packages/graphql
+      '@ponder/ponder': link:../../packages/ponder
+    devDependencies:
+      ethers: 5.6.9
+
   examples/ethplays:
     specifiers:
       '@graphprotocol/graph-cli': 0.30.1

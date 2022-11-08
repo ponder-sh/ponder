@@ -1,0 +1,9 @@
+type ExampleEntity @entity {
+  id: ID!
+  name: String!
+  trait: ExampleTrait!
+}
+enum ExampleTrait {
+  GOOD
+  BAD
+}
