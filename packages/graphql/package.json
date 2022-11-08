@@ -39,9 +39,5 @@
     "pg-promise": "^10.12.1",
     "tsconfig-replace-paths": "^0.0.11",
     "typescript": "^4.5.5"
-  },
-  "engines": {
-    "node": "16",
-    "pnpm": "7"
   }
 }

@@ -49,9 +49,5 @@
     "@types/cli-progress": "^3.11.0",
     "@types/node": "^18.7.8",
     "tsconfig-replace-paths": "^0.0.11"
-  },
-  "engines": {
-    "node": "16",
-    "pnpm": "7"
   }
 }
