@@ -1,7 +1,5 @@
+import type { EntityStore, PonderSchema } from "@ponder/ponder";
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
-
-import type { PonderSchema } from "@/schema/types";
-import type { EntityStore } from "@/store/entityStore";
 
 import { buildEntityType } from "./buildEntityType";
 import { buildPluralField } from "./buildPluralField";

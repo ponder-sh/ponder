@@ -1,3 +1,4 @@
+import type { Entity } from "@ponder/ponder";
 import {
   GraphQLFieldConfig,
   GraphQLFieldResolver,
@@ -5,8 +6,6 @@ import {
   GraphQLNonNull,
   GraphQLObjectType,
 } from "graphql";
-
-import { Entity } from "@/schema/types";
 
 import type { Context, Source } from "./buildGqlSchema";
 

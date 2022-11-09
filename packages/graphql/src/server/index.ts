@@ -1,12 +1,10 @@
-import type { PonderLogger } from "@ponder/ponder";
+import type { EntityStore, PonderLogger } from "@ponder/ponder";
 import cors from "cors";
 import type { Express } from "express";
 import express from "express";
 import { graphqlHTTP } from "express-graphql";
 import type { GraphQLSchema } from "graphql";
 import http from "node:http";
-
-import type { EntityStore } from "@/store/entityStore";
 
 export class GraphqlServer {
   port: number;
