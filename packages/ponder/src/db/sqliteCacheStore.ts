@@ -374,8 +374,8 @@ export class SqliteCacheStore implements CacheStore {
           `
           SELECT * FROM logs
           WHERE "address" = @address
-          AND "blockTimestamp" >= @fromBlockTimestamp
-          AND "blockTimestamp" < @toBlockTimestamp
+          AND "blockTimestamp" > @fromBlockTimestamp
+          AND "blockTimestamp" <= @toBlockTimestamp
           `
         )
         .all({

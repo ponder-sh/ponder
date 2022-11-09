@@ -181,9 +181,8 @@ export class Ponder extends EventEmitter {
       return;
     }
 
-    // KNOWN BUG: when this method gets triggered by the frontfill queue,
-    // the "new" logs from the lates block get excluded here because
-    // cacheStore.getLogs is exclusive to the right.
+    // NOTE: cacheStore.getLogs is exclusive to the left and inclusive to the right.
+    // This is fine because this.latestProcessedTimestamp starts at zero.
     const logs = await Promise.all(
       this.sources.map(async (source) => {
         return await this.cacheStore.getLogs(
