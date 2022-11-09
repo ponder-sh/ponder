@@ -24,7 +24,6 @@
   "dependencies": {
     "@ethersproject/abi": "^5.6.4",
     "@ethersproject/providers": "^5.6.8",
-    "@ponder/ponder": "latest",
     "commander": "^9.4.0",
     "detect-package-manager": "^2.0.1",
     "ethers": "^5.6.9",
