@@ -195,7 +195,7 @@ export class Ponder extends EventEmitter {
 
     const sortedLogs = logs.flat().sort((a, b) => a.logSortKey - b.logSortKey);
 
-    console.log(
+    logger.debug(
       `Pushing ${sortedLogs.length} logs to the queue [${this.latestProcessedTimestamp}, ${minimumCachedToTimestamp})`
     );
 
