@@ -51,8 +51,7 @@ export const startSourceBackfillQueues = async ({
 
   logger.debug({
     requestedInterval: [requestedStartBlock, requestedEndBlock],
-    cachedIntervals,
-    requiredInterval: requiredBlockIntervals,
+    requiredBlockIntervals: requiredBlockIntervals,
   });
 
   const fetchedCount = requiredBlockIntervals.reduce(
@@ -84,6 +83,17 @@ export const startSourceBackfillQueues = async ({
     const [startBlock, endBlock] = blockInterval;
     let fromBlock = startBlock;
     let toBlock = Math.min(fromBlock + source.blockLimit, endBlock);
+
+    // Handle special case for a one block range. Probably shouldn't need this.
+    if (fromBlock === toBlock) {
+      logBackfillQueue.push({
+        contractAddresses: [source.address],
+        fromBlock,
+        toBlock,
+      });
+      stats.syncProgressBar.setTotal(stats.syncProgressBar.getTotal() + 1);
+      return;
+    }
 
     while (fromBlock < endBlock) {
       logBackfillQueue.push({

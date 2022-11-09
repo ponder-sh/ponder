@@ -21,7 +21,7 @@ export class EvmSource implements BaseSource {
     abiFilePath: string,
     abiInterface: ethers.utils.Interface,
     startBlock = 0,
-    blockLimit = 2000
+    blockLimit = 20
   ) {
     this.name = name;
     this.network = network;
