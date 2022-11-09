@@ -1,8 +1,8 @@
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
-import type { Ponder } from "@/core/Ponder";
-import { parseBlock, parseTransaction } from "@/db/utils";
+import { parseBlock, parseTransaction } from "@/db/cache/utils";
+import type { Ponder } from "@/Ponder";
 import type { Source } from "@/sources/base";
 
 export type BlockBackfillTask = {

@@ -5,7 +5,7 @@ import PgPromise from "pg-promise";
 
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
-import type { PonderConfig } from "@/core/readPonderConfig";
+import type { PonderConfig } from "@/cli/readPonderConfig";
 
 export interface SqliteDb {
   kind: "sqlite";

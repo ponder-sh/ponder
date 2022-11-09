@@ -1,44 +1,52 @@
 import cliProgress from "cli-progress";
 import { Table } from "console-table-printer";
 import EventEmitter from "node:events";
-import { mkdirSync, watch, writeFileSync } from "node:fs";
+import { mkdirSync, watch } from "node:fs";
 import path from "node:path";
 
+import type { PonderConfig } from "@/cli/readPonderConfig";
 import { generateContextTypes } from "@/codegen/generateContextTypes";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
+import { generateEntityTypes } from "@/codegen/generateEntityTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
-import { formatPrettier } from "@/codegen/utils";
-import { logger } from "@/common/logger";
-import { OPTIONS } from "@/common/options";
+import { logger, PonderLogger } from "@/common/logger";
+import { OPTIONS, PonderOptions } from "@/common/options";
 import { isFileChanged } from "@/common/utils";
-import { createHandlerQueue, HandlerQueue } from "@/core/queues/handlerQueue";
-import { readHandlers } from "@/core/readHandlers";
-import type { PonderConfig } from "@/core/readPonderConfig";
-import { startBackfillQueues } from "@/core/tasks/startBackfillQueues";
-import { startLiveBlockQueues } from "@/core/tasks/startLiveBlockQueues";
-import { buildCacheStore, CacheStore } from "@/db/cacheStore";
+import { buildCacheStore, CacheStore } from "@/db/cache/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
+import { buildEntityStore, EntityStore } from "@/db/entity/entityStore";
+import { createHandlerQueue, HandlerQueue } from "@/handlers/handlerQueue";
+import { readHandlers } from "@/handlers/readHandlers";
+import { startBackfill } from "@/indexer/tasks/startBackfill";
+import { startFrontfill } from "@/indexer/tasks/startFrontfill";
 import type { Network } from "@/networks/base";
 import { buildNetworks } from "@/networks/buildNetworks";
-import type { PonderPluginArgument, ResolvedPonderPlugin } from "@/plugin";
+import type { ResolvedPonderPlugin } from "@/plugin";
+import { buildPonderSchema } from "@/schema/buildPonderSchema";
+import { readSchema } from "@/schema/readSchema";
+import type { PonderSchema } from "@/schema/types";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
 
 export class Ponder extends EventEmitter {
-  // Ponder internal state
   sources: EvmSource[];
   networks: Network[];
+
   database: PonderDatabase;
   cacheStore: CacheStore;
+  entityStore: EntityStore;
 
-  // Plugin state
-  plugins: ResolvedPonderPlugin[];
-  watchFiles: string[];
-  pluginHandlerContext: Record<string, unknown>;
-
-  // Backfill/indexing state
-  latestProcessedTimestamp: number;
+  schema?: PonderSchema;
   handlerQueue?: HandlerQueue;
+  latestProcessedTimestamp: number;
+
+  // Hot reloading
+  watchFiles: string[];
+
+  // Plugins
+  plugins: ResolvedPonderPlugin[];
+  logger: PonderLogger;
+  options: PonderOptions;
 
   // Backfill/handlers stats
   backfillSourcesStarted: number;
@@ -52,6 +60,10 @@ export class Ponder extends EventEmitter {
     super();
     this.database = buildDb(config);
     this.cacheStore = buildCacheStore(this.database);
+    this.entityStore = buildEntityStore(this.database);
+
+    this.logger = logger;
+    this.options = OPTIONS;
 
     const { networks } = buildNetworks({
       config,
@@ -64,10 +76,10 @@ export class Ponder extends EventEmitter {
 
     this.plugins = config.plugins || [];
     this.watchFiles = [
+      OPTIONS.SCHEMA_FILE_PATH,
       OPTIONS.HANDLERS_DIR_PATH,
       ...sources.map((s) => s.abiFilePath),
     ];
-    this.pluginHandlerContext = {};
 
     this.latestProcessedTimestamp = 0;
 
@@ -107,20 +119,28 @@ export class Ponder extends EventEmitter {
 
   async start() {
     this.setup();
-    await this.setupPlugins();
+
+    await this.reloadSchema();
     this.codegen();
+    await this.reloadHandlers();
+
+    await this.setupPlugins();
+
     await this.backfill();
+    this.runHandlers();
   }
 
   async dev() {
     this.setup();
-    await this.setupPlugins();
+
+    await this.reloadSchema();
     this.codegen();
+    await this.reloadHandlers();
 
-    await this.setupHandlerQueue();
+    this.setupPlugins();
 
-    // Not awaiting here!
     this.backfill();
+    this.runHandlers();
   }
 
   setup() {
@@ -131,16 +151,39 @@ export class Ponder extends EventEmitter {
   codegen() {
     generateContractTypes(this.sources);
     generateHandlerTypes(this.sources);
-    generateContextTypes(this.sources, this.pluginHandlerContext);
+    generateContextTypes(this.sources, this.schema);
+    if (this.schema) generateEntityTypes(this.schema);
+  }
+
+  async reloadSchema() {
+    const userSchema = readSchema();
+    this.schema = buildPonderSchema(userSchema);
+  }
+
+  async reloadHandlers() {
+    if (this.handlerQueue) {
+      this.handlerQueue.kill();
+      // Unsure if this is necessary after killing it.
+      if (!this.handlerQueue.idle()) {
+        await this.handlerQueue.drained();
+      }
+    }
+
+    const handlers = await readHandlers();
+
+    this.handlerQueue = createHandlerQueue({
+      ponder: this,
+      handlers: handlers,
+    });
   }
 
   async backfill() {
     await this.cacheStore.migrate();
 
     const { latestBlockNumberByNetwork, resumeLiveBlockQueues } =
-      await startLiveBlockQueues({ ponder: this });
+      await startFrontfill({ ponder: this });
 
-    await startBackfillQueues({
+    await startBackfill({
       ponder: this,
       latestBlockNumberByNetwork,
     });
@@ -152,14 +195,27 @@ export class Ponder extends EventEmitter {
     resumeLiveBlockQueues();
   }
 
-  async setupHandlerQueue() {
-    const handlers = await readHandlers();
+  async runHandlers() {
+    if (!this.schema) {
+      console.error(`Cannot run handlers before building schema`);
+      return;
+    }
 
-    this.handlerQueue = createHandlerQueue({
-      ponder: this,
-      handlers: handlers,
-      pluginHandlerContext: this.pluginHandlerContext,
-    });
+    await this.entityStore.migrate(this.schema);
+    this.latestProcessedTimestamp = 0;
+
+    this.handleNewLogs();
+  }
+
+  // This reload method is not working - can be triggered multiple times
+  // leading to multiple backfills happening at the same time.
+  async reload() {
+    await this.reloadSchema();
+    this.codegen();
+    await this.reloadHandlers();
+    await this.reloadPlugins();
+
+    this.runHandlers();
   }
 
   async handleNewLogs() {
@@ -232,21 +288,6 @@ export class Ponder extends EventEmitter {
     this.latestProcessedTimestamp = minimumCachedToTimestamp;
   }
 
-  // This reload method is not working - can be triggered multiple times
-  // leading to multiple backfills happening at the same time.
-  async reload() {
-    if (this.handlerQueue) {
-      this.handlerQueue.kill();
-      if (!this.handlerQueue.idle()) {
-        await this.handlerQueue.drained();
-      }
-    }
-
-    await this.reloadPlugins();
-    this.codegen();
-    // this.runHandlers();
-  }
-
   watch() {
     this.watchFiles.forEach((fileOrDirName) => {
       watch(fileOrDirName, { recursive: true }, (_, fileName) => {
@@ -270,63 +311,17 @@ export class Ponder extends EventEmitter {
     });
   }
 
-  /* Plugin-related methods */
-
   async setupPlugins() {
     for (const plugin of this.plugins) {
       if (!plugin.setup) return;
-      await plugin.setup(this.getPluginArgument());
+      await plugin.setup(this);
     }
   }
 
   async reloadPlugins() {
     for (const plugin of this.plugins) {
       if (!plugin.reload) return;
-      await plugin.reload(this.getPluginArgument());
+      await plugin.reload(this);
     }
-  }
-
-  getPluginArgument(): PonderPluginArgument {
-    return {
-      database: this.database,
-      sources: this.sources,
-      networks: this.networks,
-      logger: logger,
-      options: OPTIONS,
-      prettier: formatPrettier,
-
-      // Actions
-      // TODO: Maybe change this... seems meh
-      addWatchFile: (filePath: string) => this.addWatchFile(filePath),
-      emitFile: (filePath: string, contents: string | Buffer) =>
-        this.emitFile(filePath, contents),
-      addToHandlerContext: (handlerContext: Record<string, unknown>) =>
-        this.addToHandlerContext(handlerContext),
-    };
-  }
-
-  addWatchFile(filePath: string) {
-    this.watchFiles.push(filePath);
-  }
-
-  emitFile(filePath: string, contents: string | Buffer) {
-    writeFileSync(filePath, contents);
-  }
-
-  addToHandlerContext(handlerContext: Record<string, unknown>) {
-    const duplicatedHandlerContextKeys = Object.keys(
-      this.pluginHandlerContext
-    ).filter((key) => Object.keys(handlerContext).includes(key));
-
-    if (duplicatedHandlerContextKeys.length > 0) {
-      throw new Error(
-        `Duplicate handler context key from plugins: ${duplicatedHandlerContextKeys}`
-      );
-    }
-
-    this.pluginHandlerContext = {
-      ...this.pluginHandlerContext,
-      ...handlerContext,
-    };
   }
 }

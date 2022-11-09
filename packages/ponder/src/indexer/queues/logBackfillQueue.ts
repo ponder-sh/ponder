@@ -2,8 +2,8 @@ import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
-import type { Ponder } from "@/core/Ponder";
-import { parseBlock, parseLog } from "@/db/utils";
+import { parseBlock, parseLog } from "@/db/cache/utils";
+import type { Ponder } from "@/Ponder";
 import type { Source } from "@/sources/base";
 
 import type { BlockBackfillQueue } from "./blockBackfillQueue";

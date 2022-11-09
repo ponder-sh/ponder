@@ -1,10 +1,10 @@
 import { logger } from "@/common/logger";
 import { endBenchmark, startBenchmark } from "@/common/utils";
-import type { Ponder } from "@/core/Ponder";
+import type { Ponder } from "@/Ponder";
 
-import { startSourceBackfillQueues } from "./startSourceBackfillQueues";
+import { startBackfillForSource } from "./startBackfillForSource";
 
-export const startBackfillQueues = async ({
+export const startBackfill = async ({
   ponder,
   latestBlockNumberByNetwork,
 }: {
@@ -22,7 +22,7 @@ export const startBackfillQueues = async ({
         );
       }
 
-      await startSourceBackfillQueues({
+      await startBackfillForSource({
         ponder,
         source,
         latestBlockNumber,

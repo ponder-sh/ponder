@@ -1,5 +1,5 @@
-import { Ponder } from "@/core/Ponder";
-import { readPonderConfig } from "@/core/readPonderConfig";
+import { readPonderConfig } from "@/cli/readPonderConfig";
+import { Ponder } from "@/Ponder";
 
 export const dev = async () => {
   const config = readPonderConfig();

@@ -2,9 +2,9 @@ import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
-import type { Ponder } from "@/core/Ponder";
-import { parseBlock, parseLog, parseTransaction } from "@/db/utils";
+import { parseBlock, parseLog, parseTransaction } from "@/db/cache/utils";
 import type { Network } from "@/networks/base";
+import type { Ponder } from "@/Ponder";
 
 export type BlockFrontfillTask = {
   blockNumber: number;

@@ -1,12 +1,12 @@
 import { logger } from "@/common/logger";
-import type { Ponder } from "@/core/Ponder";
+import type { Ponder } from "@/Ponder";
 
 import type { CachedProvider } from "../../networks/CachedProvider";
 import { createBlockFrontfillQueue } from "../queues/blockFrontfillQueue";
 
 let previousProviders: CachedProvider[] = [];
 
-export const startLiveBlockQueues = async ({ ponder }: { ponder: Ponder }) => {
+export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
   // Unregister block listeners for stale providers.
   for (const provider of previousProviders) {
     provider.removeAllListeners();

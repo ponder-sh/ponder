@@ -1,13 +1,13 @@
 import { logger } from "@/common/logger";
 import { p1_excluding_all } from "@/common/utils";
-import type { Ponder } from "@/core/Ponder";
+import type { Ponder } from "@/Ponder";
 import type { Source } from "@/sources/base";
 
 import { createBlockBackfillQueue } from "../queues/blockBackfillQueue";
 import { createLogBackfillQueue } from "../queues/logBackfillQueue";
-import { getPrettyPercentage } from "./stats";
+import { getPrettyPercentage } from "../stats";
 
-export const startSourceBackfillQueues = async ({
+export const startBackfillForSource = async ({
   ponder,
   source,
   latestBlockNumber,

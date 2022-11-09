@@ -3,10 +3,11 @@ import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import type { EventLog } from "@/common/types";
-import type { Ponder } from "@/core/Ponder";
+import { EntityModel } from "@/db/entity/utils";
+import type { Ponder } from "@/Ponder";
 
-import type { Handlers } from "../readHandlers";
-import { stats } from "../tasks/stats";
+import { stats } from "../indexer/stats";
+import type { Handlers } from "./readHandlers";
 
 export type HandlerTask = {
   log: EventLog;
@@ -17,12 +18,11 @@ export type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
 export const createHandlerQueue = ({
   ponder,
   handlers,
-  pluginHandlerContext,
 }: {
   ponder: Ponder;
   handlers: Handlers;
-  pluginHandlerContext: Record<string, unknown>;
 }): HandlerQueue => {
+  // Build contracts for event handler context.
   const contracts: Record<string, Contract | undefined> = {};
   ponder.sources.forEach((source) => {
     contracts[source.name] = new Contract(
@@ -32,9 +32,27 @@ export const createHandlerQueue = ({
     );
   });
 
+  if (!ponder.schema) {
+    throw new Error(`Cannot create handler queue before building schema.`);
+  }
+
+  // Build entity models for event handler context.
+  const entityModels: Record<string, EntityModel> = {};
+  ponder.schema.entities.forEach((entity) => {
+    const entityName = entity.name;
+    const entityModel: EntityModel = {
+      get: async (id) => ponder.entityStore.getEntity(entityName, id),
+      insert: async (obj) => ponder.entityStore.insertEntity(entityName, obj),
+      update: async (obj) => ponder.entityStore.updateEntity(entityName, obj),
+      delete: async (id) => ponder.entityStore.deleteEntity(entityName, id),
+    };
+
+    entityModels[entityName] = entityModel;
+  });
+
   const handlerContext = {
     contracts: contracts,
-    ...pluginHandlerContext,
+    entities: entityModels,
   };
 
   const handlerWorker = async ({ log }: HandlerTask) => {

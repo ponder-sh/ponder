@@ -1,5 +1,5 @@
-import type { PonderConfig } from "@/core/readPonderConfig";
-import type { CacheStore } from "@/db/cacheStore";
+import type { PonderConfig } from "@/cli/readPonderConfig";
+import type { CacheStore } from "@/db/cache/cacheStore";
 import { CachedProvider } from "@/networks/CachedProvider";
 
 import type { EvmNetwork } from "./evm";

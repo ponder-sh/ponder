@@ -2,9 +2,9 @@ import type { BlockTag, TransactionRequest } from "@ethersproject/providers";
 import { ethers } from "ethers";
 import type { Deferrable } from "ethers/lib/utils";
 
-import type { CacheStore } from "@/db/cacheStore";
+import type { CacheStore } from "@/db/cache/cacheStore";
 
-import { stats } from "../core/tasks/stats";
+import { stats } from "../indexer/stats";
 
 // This class extends the ethers provider and caches contract calls in the
 // Ponder CacheStore. It's a WIP.

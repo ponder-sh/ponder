@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { readFileSync } from "node:fs";
 
-import type { PonderConfig } from "@/core/readPonderConfig";
+import type { PonderConfig } from "@/cli/readPonderConfig";
 import { Network } from "@/networks/base";
 
 import { EvmSource } from "./evm";

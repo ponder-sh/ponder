@@ -1,6 +1,6 @@
 import type { Block, EventLog, Transaction } from "@/common/types";
 
-import { PonderDatabase } from "./db";
+import { PonderDatabase } from "../db";
 import { PostgresCacheStore } from "./postgresCacheStore";
 import { SqliteCacheStore } from "./sqliteCacheStore";
 
