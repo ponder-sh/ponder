@@ -22,7 +22,8 @@ export class SqliteCacheStore implements CacheStore {
           "id" INTEGER PRIMARY KEY,
           "contractAddress" TEXT NOT NULL,
           "startBlock" INTEGER NOT NULL,
-          "endBlock" INTEGER NOT NULL
+          "endBlock" INTEGER NOT NULL,
+          "endBlockTimestamp" INTEGER NOT NULL
         )
         `
       )
@@ -47,11 +48,20 @@ export class SqliteCacheStore implements CacheStore {
           "topics" TEXT NOT NULL,
           "blockHash" TEXT NOT NULL,
           "blockNumber" INTEGER NOT NULL,
+          "blockTimestamp" INTEGER,
           "logIndex" INTEGER NOT NULL,
           "transactionHash" TEXT NOT NULL,
           "transactionIndex" INTEGER NOT NULL,
           "removed" INTEGER NOT NULL
         )
+        `
+      )
+      .run();
+    this.db
+      .prepare(
+        `
+        CREATE INDEX IF NOT EXISTS "logsBlockTimestamp"
+        ON "logs" ("blockTimestamp")
         `
       )
       .run();
@@ -138,31 +148,60 @@ export class SqliteCacheStore implements CacheStore {
       INSERT INTO "cachedIntervals" (
         "contractAddress",
         "startBlock",
-        "endBlock"
+        "endBlock",
+        "endBlockTimestamp"
       ) VALUES (
         @contractAddress,
         @startBlock,
-        @endBlock
+        @endBlock,
+        @endBlockTimestamp
       )
     `);
 
     const insertIntervalTxn = this.db.transaction(
       (newInterval: CachedInterval) => {
+        const { contractAddress } = newInterval;
+
         // Delete and return all intervals for this contract
         const existingIntervalRows = deleteIntervals.all({
           contractAddress: interval.contractAddress,
         }) as CachedInterval[];
+
+        // Handle the special case where there were no existing intervals.
+        if (existingIntervalRows.length === 0) {
+          insertInterval.run(newInterval);
+          return;
+        }
 
         const mergedIntervals = merge_intervals([
           ...existingIntervalRows.map((row) => [row.startBlock, row.endBlock]),
           [newInterval.startBlock, newInterval.endBlock],
         ]);
 
-        mergedIntervals.forEach((interval) => {
+        mergedIntervals.forEach((mergedInterval) => {
+          const startBlock = mergedInterval[0];
+          const endBlock = mergedInterval[1];
+
+          // For each new merged interval, its endBlock will be found EITHER in the newly
+          // added interval OR among the endBlocks of the removed intervals.
+          // Find it so we can propogate the endBlockTimestamp correctly.
+          const endBlockInterval = [newInterval, ...existingIntervalRows].find(
+            (oldInterval) => oldInterval.endBlock === endBlock
+          );
+          if (!endBlockInterval) {
+            logger.error("Old interval with endBlock not found:", {
+              existingIntervalRows,
+              endBlock,
+            });
+            throw new Error(`Old interval with endBlock not found`);
+          }
+          const { endBlockTimestamp } = endBlockInterval;
+
           insertInterval.run({
-            contractAddress: newInterval.contractAddress,
-            startBlock: interval[0],
-            endBlock: interval[1],
+            contractAddress,
+            startBlock,
+            endBlock,
+            endBlockTimestamp,
           });
         });
       }
@@ -258,6 +297,19 @@ export class SqliteCacheStore implements CacheStore {
           `
         )
         .run({ ...block, id: block.hash });
+
+      this.db
+        .prepare(
+          `
+          UPDATE "logs"
+          SET "blockTimestamp" = @blockTimestamp
+          WHERE "blockHash" = @blockHash
+          `
+        )
+        .run({
+          blockHash: block.hash,
+          blockTimestamp: block.timestamp,
+        });
     } catch (err) {
       logger.warn({ err });
     }
@@ -311,18 +363,25 @@ export class SqliteCacheStore implements CacheStore {
     }
   };
 
-  getLogs = async (addresses: string[], fromBlock: number) => {
-    const addressesStatement = `(${addresses.map((a) => `'${a}'`).join(",")})`;
-
+  getLogs = async (
+    address: string,
+    fromBlockTimestamp: number,
+    toBlockTimestamp: number
+  ) => {
     try {
       const logs = this.db
         .prepare(
           `
-          SELECT * FROM logs WHERE "blockNumber" >= @fromBlock AND "address" IN ${addressesStatement}
+          SELECT * FROM logs
+          WHERE "address" = @address
+          AND "blockTimestamp" >= @fromBlockTimestamp
+          AND "blockTimestamp" < @toBlockTimestamp
           `
         )
         .all({
-          fromBlock: fromBlock,
+          address,
+          fromBlockTimestamp,
+          toBlockTimestamp,
         });
 
       return <EventLog[]>logs;

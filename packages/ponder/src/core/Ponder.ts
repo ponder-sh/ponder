@@ -1,3 +1,4 @@
+import EventEmitter from "node:events";
 import { mkdirSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -11,9 +12,8 @@ import { isFileChanged } from "@/common/utils";
 import { createHandlerQueue, HandlerQueue } from "@/core/queues/handlerQueue";
 import { readHandlers } from "@/core/readHandlers";
 import type { PonderConfig } from "@/core/readPonderConfig";
-import { backfill } from "@/core/tasks/backfill";
-import { buildLiveBlockQueues } from "@/core/tasks/buildLiveBlockQueues";
-import { processLogs } from "@/core/tasks/processLogs";
+import { startBackfillQueues } from "@/core/tasks/startBackfillQueues";
+import { startLiveBlockQueues } from "@/core/tasks/startLiveBlockQueues";
 import { buildCacheStore, CacheStore } from "@/db/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
 import type { Network } from "@/networks/base";
@@ -22,7 +22,7 @@ import type { PonderPluginArgument, ResolvedPonderPlugin } from "@/plugin";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
 
-export class Ponder {
+export class Ponder extends EventEmitter {
   // Ponder internal state
   sources: EvmSource[];
   networks: Network[];
@@ -35,10 +35,11 @@ export class Ponder {
   pluginHandlerContext: Record<string, unknown>;
 
   // Backfill/indexing state
-  isReload: boolean;
+  latestProcessedTimestamp: number;
   handlerQueue?: HandlerQueue;
 
   constructor(config: PonderConfig) {
+    super();
     this.database = buildDb(config);
     this.cacheStore = buildCacheStore(this.database);
 
@@ -57,37 +58,74 @@ export class Ponder {
       ...sources.map((s) => s.abiFilePath),
     ];
     this.pluginHandlerContext = {};
-    this.isReload = false;
+
+    this.latestProcessedTimestamp = 0;
+
+    this.on("newBackfillLogs", () => {
+      this.handleNewLogs();
+    });
+
+    this.on("backfillComplete", () => {
+      this.handleNewLogs();
+    });
+
+    this.on("newFrontfillLogs", () => {
+      this.handleNewLogs();
+    });
   }
 
   async start() {
-    await this.setup();
+    this.setup();
     await this.setupPlugins();
-    await this.codegen();
+    this.codegen();
     await this.backfill();
   }
 
   async dev() {
-    await this.setup();
+    this.setup();
     await this.setupPlugins();
-    await this.codegen();
-    await this.backfill();
+    this.codegen();
 
-    this.watch();
+    await this.setupHandlerQueue();
+
+    // Not awaiting here!
+    this.backfill();
   }
 
-  async setup() {
+  setup() {
     mkdirSync(path.join(OPTIONS.GENERATED_DIR_PATH), { recursive: true });
     mkdirSync(path.join(OPTIONS.PONDER_DIR_PATH), { recursive: true });
   }
 
-  async codegen() {
+  codegen() {
     generateContractTypes(this.sources);
     generateHandlerTypes(this.sources);
     generateContextTypes(this.sources, this.pluginHandlerContext);
   }
 
   async backfill() {
+    await this.cacheStore.migrate();
+
+    const { latestBlockNumberByNetwork, resumeLiveBlockQueues } =
+      await startLiveBlockQueues({
+        sources: this.sources,
+        cacheStore: this.cacheStore,
+        ponder: this,
+      });
+
+    await startBackfillQueues({
+      sources: this.sources,
+      cacheStore: this.cacheStore,
+      latestBlockNumberByNetwork,
+      ponder: this,
+    });
+
+    this.emit("backfillComplete");
+
+    resumeLiveBlockQueues();
+  }
+
+  async setupHandlerQueue() {
     const handlers = await readHandlers();
 
     this.handlerQueue = createHandlerQueue({
@@ -96,29 +134,77 @@ export class Ponder {
       handlers: handlers,
       pluginHandlerContext: this.pluginHandlerContext,
     });
+  }
 
-    const { latestBlockNumberByNetwork, resumeLiveBlockQueues } =
-      await buildLiveBlockQueues({
-        sources: this.sources,
-        cacheStore: this.cacheStore,
-        handlerQueue: this.handlerQueue,
-      });
+  async handleNewLogs() {
+    if (!this.handlerQueue) {
+      console.error(
+        `Attempted to handle new block, but handler queue doesnt exist`
+      );
+      return;
+    }
 
-    await backfill({
-      sources: this.sources,
-      cacheStore: this.cacheStore,
-      latestBlockNumberByNetwork,
-      isHotReload: this.isReload,
-    });
+    // Whenever the live block handler queue emits the "newBlock" event,
+    // check the cached metadata for all sources. If the minimum cached block across
+    // all sources is greater than the lastHandledLogTimestamp, fetch the newly available
+    // logs and add them to the queue.
+    const cachedToTimestamps = await Promise.all(
+      this.sources.map(async (source) => {
+        const cachedIntervals = await this.cacheStore.getCachedIntervals(
+          source.address
+        );
 
-    // Process backfilled logs.
-    await processLogs({
-      sources: this.sources,
-      cacheStore: this.cacheStore,
-      handlerQueue: this.handlerQueue,
-    });
+        // Find the cached interval that includes the source's startBlock.
+        const startingCachedInterval = cachedIntervals.find(
+          (interval) =>
+            interval.startBlock <= source.startBlock &&
+            interval.endBlock >= source.startBlock
+        );
 
-    resumeLiveBlockQueues();
+        // If there is no cached data that includes the start block, return -1.
+        if (!startingCachedInterval) return -1;
+
+        return startingCachedInterval.endBlockTimestamp;
+      })
+    );
+
+    // If any of the sources have no cached data yet, return early
+    if (cachedToTimestamps.includes(-1)) {
+      return;
+    }
+
+    const minimumCachedToTimestamp = Math.min(...cachedToTimestamps);
+
+    // If the minimum cached timestamp across all sources is less than the
+    // latest processed timestamp, we can't process any new logs.
+    if (minimumCachedToTimestamp <= this.latestProcessedTimestamp) {
+      return;
+    }
+
+    // KNOWN BUG: when this method gets triggered by the frontfill queue,
+    // the "new" logs from the lates block get excluded here because
+    // cacheStore.getLogs is exclusive to the right.
+    const logs = await Promise.all(
+      this.sources.map(async (source) => {
+        return await this.cacheStore.getLogs(
+          source.address,
+          this.latestProcessedTimestamp,
+          minimumCachedToTimestamp
+        );
+      })
+    );
+
+    const sortedLogs = logs.flat().sort((a, b) => a.logSortKey - b.logSortKey);
+
+    console.log(
+      `Pushing ${sortedLogs.length} logs to the queue [${this.latestProcessedTimestamp}, ${minimumCachedToTimestamp})`
+    );
+
+    for (const log of sortedLogs) {
+      this.handlerQueue.push({ log });
+    }
+
+    this.latestProcessedTimestamp = minimumCachedToTimestamp;
   }
 
   // This reload method is not working - can be triggered multiple times
@@ -131,11 +217,9 @@ export class Ponder {
       }
     }
 
-    this.isReload = true;
-
     await this.reloadPlugins();
-    await this.codegen();
-    await this.backfill();
+    this.codegen();
+    // this.runHandlers();
   }
 
   watch() {

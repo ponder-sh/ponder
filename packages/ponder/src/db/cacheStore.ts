@@ -8,6 +8,7 @@ export type CachedInterval = {
   contractAddress: string;
   startBlock: number;
   endBlock: number;
+  endBlockTimestamp: number;
 };
 
 export type ContractCall = {
@@ -28,7 +29,11 @@ export interface CacheStore {
 
   insertTransactions(transactions: Transaction[]): Promise<void>;
 
-  getLogs(addresses: string[], fromBlock: number): Promise<EventLog[]>;
+  getLogs(
+    contractAddress: string,
+    fromBlockTimestamp: number,
+    toBlockTimestamp: number
+  ): Promise<EventLog[]>;
 
   getBlock(hash: string): Promise<Block | null>;
 

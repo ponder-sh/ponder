@@ -2,11 +2,10 @@ import { BigNumber } from "ethers";
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
+import type { Ponder } from "@/core/Ponder";
 import type { CacheStore } from "@/db/cacheStore";
 import { parseBlock, parseLog, parseTransaction } from "@/db/utils";
 import type { Network } from "@/networks/base";
-
-import type { HandlerQueue } from "./handlerQueue";
 
 export type BlockFrontfillTask = {
   blockNumber: number;
@@ -16,7 +15,7 @@ export type BlockFrontfillWorkerContext = {
   cacheStore: CacheStore;
   network: Network;
   contractAddresses: string[];
-  handlerQueue: HandlerQueue;
+  ponder: Ponder;
 };
 
 export type BlockFrontfillQueue = fastq.queueAsPromised<BlockFrontfillTask>;
@@ -25,11 +24,11 @@ export const createBlockFrontfillQueue = ({
   cacheStore,
   network,
   contractAddresses,
-  handlerQueue,
+  ponder,
 }: BlockFrontfillWorkerContext) => {
   // Queue for fetching live blocks, transactions, and.
   const queue = fastq.promise<BlockFrontfillWorkerContext, BlockFrontfillTask>(
-    { cacheStore, network, contractAddresses, handlerQueue },
+    { cacheStore, network, contractAddresses, ponder },
     blockFrontfillWorker,
     1
   );
@@ -52,7 +51,7 @@ async function blockFrontfillWorker(
   this: BlockFrontfillWorkerContext,
   { blockNumber }: BlockFrontfillTask
 ) {
-  const { cacheStore, network, contractAddresses, handlerQueue } = this;
+  const { cacheStore, network, contractAddresses, ponder } = this;
   const { provider } = network;
 
   const [rawLogs, rawBlock] = await Promise.all([
@@ -70,9 +69,7 @@ async function blockFrontfillWorker(
   ]);
 
   const block = parseBlock(rawBlock);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const logs = (rawLogs as any[]).map(parseLog);
+  const logs = (rawLogs as unknown[]).map(parseLog);
 
   const requiredTxnHashSet = new Set(logs.map((l) => l.transactionHash));
 
@@ -80,14 +77,16 @@ async function blockFrontfillWorker(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transactions = (rawBlock.transactions as any[])
     .filter((txn) => !!txn.hash)
-    .filter((txn) => requiredTxnHashSet.has(txn.to))
+    .filter((txn) => requiredTxnHashSet.has(txn.hash))
     .map(parseTransaction);
 
   await Promise.all([
-    cacheStore.insertBlock(block),
-    cacheStore.insertTransactions(transactions),
     cacheStore.insertLogs(logs),
+    cacheStore.insertTransactions(transactions),
   ]);
+
+  // Must insert the block AFTER the logs to make sure log.blockTimestamp gets updated.
+  await cacheStore.insertBlock(block);
 
   await Promise.all(
     contractAddresses.map((contractAddress) =>
@@ -95,17 +94,14 @@ async function blockFrontfillWorker(
         contractAddress,
         startBlock: block.number,
         endBlock: block.number,
+        endBlockTimestamp: block.timestamp,
       })
     )
   );
 
+  ponder.emit("newFrontfillLogs");
+
   logger.info(
-    `\x1b[33m${`Matched ${logs.length} logs from block ${blockNumber} (${transactions.length} txns)`}\x1b[0m` // blue
+    `\x1b[33m${`Matched ${logs.length} logs from block ${blockNumber} (${rawBlock.transactions.length} txns)`}\x1b[0m` // blue
   );
-
-  const sortedLogs = logs.sort((a, b) => a.logSortKey - b.logSortKey);
-
-  for (const log of sortedLogs) {
-    handlerQueue.push({ log });
-  }
 }

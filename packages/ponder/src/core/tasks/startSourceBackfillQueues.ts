@@ -1,5 +1,6 @@
 import { logger } from "@/common/logger";
 import { p1_excluding_all } from "@/common/utils";
+import type { Ponder } from "@/core/Ponder";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
 
@@ -7,16 +8,16 @@ import { createBlockBackfillQueue } from "../queues/blockBackfillQueue";
 import { createLogBackfillQueue } from "../queues/logBackfillQueue";
 import { getPrettyPercentage, stats } from "./stats";
 
-export const backfillSource = async ({
+export const startSourceBackfillQueues = async ({
   source,
   cacheStore,
   latestBlockNumber,
-  isHotReload,
+  ponder,
 }: {
   source: Source;
   cacheStore: CacheStore;
   latestBlockNumber: number;
-  isHotReload: boolean;
+  ponder: Ponder;
 }) => {
   // Create queues.
   const blockBackfillQueue = createBlockBackfillQueue({
@@ -28,6 +29,7 @@ export const backfillSource = async ({
     cacheStore,
     source,
     blockBackfillQueue,
+    ponder,
   });
 
   const requestedStartBlock = source.startBlock;
@@ -72,10 +74,10 @@ export const backfillSource = async ({
     //   logRequestCount === 0 ? "1" : `~${Math.round(logRequestCount * 2)}`,
   });
   stats.sourceCount += 1;
-  if (!isHotReload && stats.sourceCount === stats.sourceTotalCount) {
+  if (stats.sourceCount === stats.sourceTotalCount) {
     logger.info("Backfill plan");
     logger.info(stats.requestPlanTable.render(), "\n");
-    stats.syncProgressBar.start(0, 0);
+    // stats.syncProgressBar.start(0, 0);
   }
 
   for (const blockInterval of requiredBlockIntervals) {

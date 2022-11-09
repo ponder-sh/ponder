@@ -1,25 +1,24 @@
 import { logger } from "@/common/logger";
 import { endBenchmark, startBenchmark } from "@/common/utils";
+import type { Ponder } from "@/core/Ponder";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
 
-import { backfillSource } from "./backfillSource";
+import { startSourceBackfillQueues } from "./startSourceBackfillQueues";
 import { stats } from "./stats";
 
-export const backfill = async ({
+export const startBackfillQueues = async ({
   cacheStore,
   sources,
   latestBlockNumberByNetwork,
-  isHotReload,
+  ponder,
 }: {
   cacheStore: CacheStore;
   sources: Source[];
   latestBlockNumberByNetwork: Record<string, number | undefined>;
-  isHotReload: boolean;
+  ponder: Ponder;
 }) => {
   const startHrt = startBenchmark();
-
-  await cacheStore.migrate();
 
   // Annoying stat logging boilerplate
   stats.sourceTotalCount = sources.length;
@@ -30,9 +29,7 @@ export const backfill = async ({
     };
   }
 
-  if (!isHotReload) {
-    logger.info(`\x1b[33m${`Starting backfill...`}\x1b[0m`, "\n"); // yellow
-  }
+  logger.info(`\x1b[33m${`Starting backfill...`}\x1b[0m`, "\n"); // yellow
 
   await Promise.all(
     sources.map(async (source) => {
@@ -43,20 +40,18 @@ export const backfill = async ({
         );
       }
 
-      await backfillSource({
+      await startSourceBackfillQueues({
         source,
         cacheStore,
         latestBlockNumber,
-        isHotReload,
+        ponder,
       });
     })
   );
 
-  if (!isHotReload) {
-    stats.syncProgressBar.stop();
-    logger.info(
-      `\x1b[32m${`Backfill complete (${endBenchmark(startHrt)})`}\x1b[0m`, // green
-      "\n"
-    );
-  }
+  stats.syncProgressBar.stop();
+  logger.info(
+    `\x1b[32m${`Backfill complete (${endBenchmark(startHrt)})`}\x1b[0m`, // green
+    "\n"
+  );
 };

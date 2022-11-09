@@ -259,16 +259,18 @@ export class PostgresCacheStore implements CacheStore {
     await this.db.none(query);
   };
 
-  getLogs = async (addresses: string[], fromBlock: number) => {
-    const addressesRaw = `(${addresses.map((a) => `'${a}'`).join(",")})`;
-
+  getLogs = async (address: string, fromBlock: number, toBlock: number) => {
     const logs = await this.db.manyOrNone<EventLog>(
       `
-        SELECT * FROM logs WHERE "blockNumber" >= $(fromBlock) AND "address" IN $(addressesRaw^)
-        `,
+      SELECT * FROM logs
+      WHERE "address" = $(address)
+      AND "blockNumber" >= $(fromBlock)
+      AND "blockNumber" <= $(toBlock)
+      `,
       {
+        address,
         fromBlock,
-        addressesRaw,
+        toBlock,
       }
     );
 

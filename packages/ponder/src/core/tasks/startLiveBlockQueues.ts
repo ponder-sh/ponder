@@ -1,5 +1,5 @@
 import { logger } from "@/common/logger";
-import type { HandlerQueue } from "@/core/queues/handlerQueue";
+import type { Ponder } from "@/core/Ponder";
 import type { CacheStore } from "@/db/cacheStore";
 import type { Source } from "@/sources/base";
 
@@ -8,14 +8,14 @@ import { createBlockFrontfillQueue } from "../queues/blockFrontfillQueue";
 
 let previousProviders: CachedProvider[] = [];
 
-export const buildLiveBlockQueues = async ({
+export const startLiveBlockQueues = async ({
   sources,
   cacheStore,
-  handlerQueue,
+  ponder,
 }: {
   sources: Source[];
   cacheStore: CacheStore;
-  handlerQueue: HandlerQueue;
+  ponder: Ponder;
 }) => {
   // Unregister block listeners for stale providers.
   for (const provider of previousProviders) {
@@ -61,7 +61,7 @@ export const buildLiveBlockQueues = async ({
         cacheStore,
         network,
         contractAddresses,
-        handlerQueue,
+        ponder,
       });
 
       // Pause the live block request queue, but begin adding tasks to it.
