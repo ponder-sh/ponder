@@ -3,11 +3,9 @@ import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import type { Ponder } from "@/core/Ponder";
-import type { CacheStore } from "@/db/cacheStore";
 import { parseBlock, parseLog } from "@/db/utils";
 import type { Source } from "@/sources/base";
 
-import { stats } from "../tasks/stats";
 import type { BlockBackfillQueue } from "./blockBackfillQueue";
 
 export type LogBackfillTask = {
@@ -17,23 +15,21 @@ export type LogBackfillTask = {
 };
 
 export type LogBackfillWorkerContext = {
-  cacheStore: CacheStore;
+  ponder: Ponder;
   source: Source;
   blockBackfillQueue: BlockBackfillQueue;
-  ponder: Ponder;
 };
 
 export type LogBackfillQueue = fastq.queueAsPromised<LogBackfillTask>;
 
 export const createLogBackfillQueue = ({
-  cacheStore,
+  ponder,
   source,
   blockBackfillQueue,
-  ponder,
 }: LogBackfillWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<LogBackfillWorkerContext, LogBackfillTask>(
-    { cacheStore, source, blockBackfillQueue, ponder },
+    { ponder, source, blockBackfillQueue },
     logBackfillWorker,
     10 // TODO: Make this configurable
   );
@@ -53,7 +49,7 @@ async function logBackfillWorker(
   this: LogBackfillWorkerContext,
   { contractAddresses, fromBlock, toBlock }: LogBackfillTask
 ) {
-  const { cacheStore, source, blockBackfillQueue, ponder } = this;
+  const { ponder, source, blockBackfillQueue } = this;
   const { provider } = source.network;
 
   const [rawLogs, rawToBlock] = await Promise.all([
@@ -75,7 +71,7 @@ async function logBackfillWorker(
 
   const logs = (rawLogs as unknown[]).map(parseLog);
 
-  await cacheStore.insertLogs(logs);
+  await ponder.cacheStore.insertLogs(logs);
 
   const txnHashesForBlockHash = logs.reduce((acc, log) => {
     if (acc[log.blockHash]) {
@@ -102,7 +98,7 @@ async function logBackfillWorker(
     if (requiredBlockHashSet.size === 0) {
       await Promise.all(
         contractAddresses.map((contractAddress) =>
-          cacheStore.insertCachedInterval({
+          ponder.cacheStore.insertCachedInterval({
             contractAddress,
             startBlock: fromBlock,
             endBlock: toBlock,
@@ -128,8 +124,8 @@ async function logBackfillWorker(
     });
   });
 
-  stats.syncProgressBar.increment();
-  stats.syncProgressBar.setTotal(
-    stats.syncProgressBar.getTotal() + requiredBlockHashes.length
+  ponder.progressBarSync.increment();
+  ponder.progressBarSync.setTotal(
+    ponder.progressBarSync.getTotal() + requiredBlockHashes.length
   );
 }

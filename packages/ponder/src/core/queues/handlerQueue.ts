@@ -3,8 +3,7 @@ import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import type { EventLog } from "@/common/types";
-import type { CacheStore } from "@/db/cacheStore";
-import type { Source } from "@/sources/base";
+import type { Ponder } from "@/core/Ponder";
 
 import type { Handlers } from "../readHandlers";
 import { stats } from "../tasks/stats";
@@ -16,18 +15,16 @@ export type HandlerTask = {
 export type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
 
 export const createHandlerQueue = ({
-  cacheStore,
-  sources,
+  ponder,
   handlers,
   pluginHandlerContext,
 }: {
-  cacheStore: CacheStore;
-  sources: Source[];
+  ponder: Ponder;
   handlers: Handlers;
   pluginHandlerContext: Record<string, unknown>;
 }): HandlerQueue => {
   const contracts: Record<string, Contract | undefined> = {};
-  sources.forEach((source) => {
+  ponder.sources.forEach((source) => {
     contracts[source.name] = new Contract(
       source.address,
       source.abiInterface,
@@ -41,7 +38,9 @@ export const createHandlerQueue = ({
   };
 
   const handlerWorker = async ({ log }: HandlerTask) => {
-    const source = sources.find((source) => source.address === log.address);
+    const source = ponder.sources.find(
+      (source) => source.address === log.address
+    );
     if (!source) {
       logger.warn(`Source not found for log with address: ${log.address}`);
       stats.processingProgressBar.setTotal(
@@ -88,12 +87,14 @@ export const createHandlerQueue = ({
     stats.sourceStats[source.name].handledLogCount += 1;
 
     // Get block & transaction from the cache store and attach to the event.
-    const block = await cacheStore.getBlock(log.blockHash);
+    const block = await ponder.cacheStore.getBlock(log.blockHash);
     if (!block) {
       throw new Error(`Block with hash not found: ${log.blockHash}`);
     }
 
-    const transaction = await cacheStore.getTransaction(log.transactionHash);
+    const transaction = await ponder.cacheStore.getTransaction(
+      log.transactionHash
+    );
     if (!transaction) {
       throw new Error(
         `Transaction with hash not found: ${log.transactionHash}`

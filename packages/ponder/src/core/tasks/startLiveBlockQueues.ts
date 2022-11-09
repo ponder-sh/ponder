@@ -1,40 +1,32 @@
 import { logger } from "@/common/logger";
 import type { Ponder } from "@/core/Ponder";
-import type { CacheStore } from "@/db/cacheStore";
-import type { Source } from "@/sources/base";
 
 import type { CachedProvider } from "../../networks/CachedProvider";
 import { createBlockFrontfillQueue } from "../queues/blockFrontfillQueue";
 
 let previousProviders: CachedProvider[] = [];
 
-export const startLiveBlockQueues = async ({
-  sources,
-  cacheStore,
-  ponder,
-}: {
-  sources: Source[];
-  cacheStore: CacheStore;
-  ponder: Ponder;
-}) => {
+export const startLiveBlockQueues = async ({ ponder }: { ponder: Ponder }) => {
   // Unregister block listeners for stale providers.
   for (const provider of previousProviders) {
     provider.removeAllListeners();
   }
   previousProviders = [];
-  for (const source of sources) {
+  for (const source of ponder.sources) {
     previousProviders.push(source.network.provider);
   }
 
   const uniqueNetworks = [
-    ...new Map(sources.map((s) => s.network).map((n) => [n.name, n])).values(),
+    ...new Map(
+      ponder.sources.map((s) => s.network).map((n) => [n.name, n])
+    ).values(),
   ];
 
   const latestBlockNumberByNetwork: Record<string, number | undefined> = {};
 
   const liveNetworkStatuses = await Promise.all(
     uniqueNetworks.map(async (network) => {
-      const contractAddresses = sources
+      const contractAddresses = ponder.sources
         .filter((s) => s.network.name === network.name)
         .map((source) => source.address);
 
@@ -58,10 +50,9 @@ export const startLiveBlockQueues = async ({
       latestBlockNumberByNetwork[network.name] = latestBlockNumber;
 
       const liveBlockRequestQueue = createBlockFrontfillQueue({
-        cacheStore,
+        ponder,
         network,
         contractAddresses,
-        ponder,
       });
 
       // Pause the live block request queue, but begin adding tasks to it.

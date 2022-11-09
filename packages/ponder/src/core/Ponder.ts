@@ -1,3 +1,5 @@
+import cliProgress from "cli-progress";
+import { Table } from "console-table-printer";
 import EventEmitter from "node:events";
 import { mkdirSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -38,6 +40,14 @@ export class Ponder extends EventEmitter {
   latestProcessedTimestamp: number;
   handlerQueue?: HandlerQueue;
 
+  // Backfill/handlers stats
+  backfillSourcesStarted: number;
+  tableRequestPlan: Table;
+  tableResults: Table;
+  tableContractCalls: Table;
+  progressBarSync: cliProgress.SingleBar;
+  progressBarHandlers: cliProgress.SingleBar;
+
   constructor(config: PonderConfig) {
     super();
     this.database = buildDb(config);
@@ -72,6 +82,27 @@ export class Ponder extends EventEmitter {
     this.on("newFrontfillLogs", () => {
       this.handleNewLogs();
     });
+
+    this.backfillSourcesStarted = 0;
+    this.tableRequestPlan = new Table();
+    this.tableResults = new Table();
+    this.tableContractCalls = new Table();
+
+    this.progressBarSync = new cliProgress.SingleBar(
+      {
+        clearOnComplete: true,
+        // forceRedraw: true,
+      },
+      cliProgress.Presets.shades_classic
+    );
+
+    this.progressBarHandlers = new cliProgress.SingleBar(
+      {
+        clearOnComplete: true,
+        // forceRedraw: true,
+      },
+      cliProgress.Presets.shades_classic
+    );
   }
 
   async start() {
@@ -107,18 +138,14 @@ export class Ponder extends EventEmitter {
     await this.cacheStore.migrate();
 
     const { latestBlockNumberByNetwork, resumeLiveBlockQueues } =
-      await startLiveBlockQueues({
-        sources: this.sources,
-        cacheStore: this.cacheStore,
-        ponder: this,
-      });
+      await startLiveBlockQueues({ ponder: this });
 
     await startBackfillQueues({
-      sources: this.sources,
-      cacheStore: this.cacheStore,
-      latestBlockNumberByNetwork,
       ponder: this,
+      latestBlockNumberByNetwork,
     });
+
+    this.progressBarSync.stop();
 
     this.emit("backfillComplete");
 
@@ -129,8 +156,7 @@ export class Ponder extends EventEmitter {
     const handlers = await readHandlers();
 
     this.handlerQueue = createHandlerQueue({
-      cacheStore: this.cacheStore,
-      sources: this.sources,
+      ponder: this,
       handlers: handlers,
       pluginHandlerContext: this.pluginHandlerContext,
     });

@@ -1,38 +1,20 @@
 import { logger } from "@/common/logger";
 import { endBenchmark, startBenchmark } from "@/common/utils";
 import type { Ponder } from "@/core/Ponder";
-import type { CacheStore } from "@/db/cacheStore";
-import type { Source } from "@/sources/base";
 
 import { startSourceBackfillQueues } from "./startSourceBackfillQueues";
-import { stats } from "./stats";
 
 export const startBackfillQueues = async ({
-  cacheStore,
-  sources,
-  latestBlockNumberByNetwork,
   ponder,
+  latestBlockNumberByNetwork,
 }: {
-  cacheStore: CacheStore;
-  sources: Source[];
-  latestBlockNumberByNetwork: Record<string, number | undefined>;
   ponder: Ponder;
+  latestBlockNumberByNetwork: Record<string, number | undefined>;
 }) => {
   const startHrt = startBenchmark();
 
-  // Annoying stat logging boilerplate
-  stats.sourceTotalCount = sources.length;
-  for (const source of sources) {
-    stats.sourceStats[source.name] = {
-      matchedLogCount: 0,
-      handledLogCount: 0,
-    };
-  }
-
-  logger.info(`\x1b[33m${`Starting backfill...`}\x1b[0m`, "\n"); // yellow
-
   await Promise.all(
-    sources.map(async (source) => {
+    ponder.sources.map(async (source) => {
       const latestBlockNumber = latestBlockNumberByNetwork[source.network.name];
       if (!latestBlockNumber) {
         throw new Error(
@@ -41,17 +23,18 @@ export const startBackfillQueues = async ({
       }
 
       await startSourceBackfillQueues({
-        source,
-        cacheStore,
-        latestBlockNumber,
         ponder,
+        source,
+        latestBlockNumber,
       });
     })
   );
 
-  stats.syncProgressBar.stop();
+  const duration = endBenchmark(startHrt);
+
+  logger.info("\n");
   logger.info(
-    `\x1b[32m${`Backfill complete (${endBenchmark(startHrt)})`}\x1b[0m`, // green
+    `\x1b[32m${`Backfill complete (${duration})`}\x1b[0m`, // green
     "\n"
   );
 };

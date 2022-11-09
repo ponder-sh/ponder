@@ -1,11 +1,9 @@
 import fastq from "fastq";
 
 import { logger } from "@/common/logger";
-import type { CacheStore } from "@/db/cacheStore";
+import type { Ponder } from "@/core/Ponder";
 import { parseBlock, parseTransaction } from "@/db/utils";
 import type { Source } from "@/sources/base";
-
-import { stats } from "../tasks/stats";
 
 export type BlockBackfillTask = {
   blockHash: string;
@@ -14,19 +12,19 @@ export type BlockBackfillTask = {
 };
 
 export type BlockBackfillWorkerContext = {
-  cacheStore: CacheStore;
+  ponder: Ponder;
   source: Source;
 };
 
 export type BlockBackfillQueue = fastq.queueAsPromised<BlockBackfillTask>;
 
 export const createBlockBackfillQueue = ({
-  cacheStore,
+  ponder,
   source,
 }: BlockBackfillWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<BlockBackfillWorkerContext, BlockBackfillTask>(
-    { cacheStore, source },
+    { ponder, source },
     blockBackfillWorker,
     10 // TODO: Make this configurable
   );
@@ -46,7 +44,7 @@ async function blockBackfillWorker(
   this: BlockBackfillWorkerContext,
   { blockHash, requiredTxnHashes, onSuccess }: BlockBackfillTask
 ) {
-  const { cacheStore, source } = this;
+  const { ponder, source } = this;
   const { provider } = source.network;
 
   const rawBlock = await provider.send("eth_getBlockByHash", [blockHash, true]);
@@ -63,11 +61,11 @@ async function blockBackfillWorker(
     .map(parseTransaction);
 
   await Promise.all([
-    cacheStore.insertBlock(block),
-    cacheStore.insertTransactions(transactions),
+    ponder.cacheStore.insertBlock(block),
+    ponder.cacheStore.insertTransactions(transactions),
   ]);
 
   await onSuccess(blockHash);
 
-  stats.syncProgressBar.increment();
+  ponder.progressBarSync.increment();
 }

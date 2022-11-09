@@ -3,7 +3,6 @@ import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import type { Ponder } from "@/core/Ponder";
-import type { CacheStore } from "@/db/cacheStore";
 import { parseBlock, parseLog, parseTransaction } from "@/db/utils";
 import type { Network } from "@/networks/base";
 
@@ -12,23 +11,21 @@ export type BlockFrontfillTask = {
 };
 
 export type BlockFrontfillWorkerContext = {
-  cacheStore: CacheStore;
+  ponder: Ponder;
   network: Network;
   contractAddresses: string[];
-  ponder: Ponder;
 };
 
 export type BlockFrontfillQueue = fastq.queueAsPromised<BlockFrontfillTask>;
 
 export const createBlockFrontfillQueue = ({
-  cacheStore,
+  ponder,
   network,
   contractAddresses,
-  ponder,
 }: BlockFrontfillWorkerContext) => {
   // Queue for fetching live blocks, transactions, and.
   const queue = fastq.promise<BlockFrontfillWorkerContext, BlockFrontfillTask>(
-    { cacheStore, network, contractAddresses, ponder },
+    { ponder, network, contractAddresses },
     blockFrontfillWorker,
     1
   );
@@ -51,7 +48,7 @@ async function blockFrontfillWorker(
   this: BlockFrontfillWorkerContext,
   { blockNumber }: BlockFrontfillTask
 ) {
-  const { cacheStore, network, contractAddresses, ponder } = this;
+  const { ponder, network, contractAddresses } = this;
   const { provider } = network;
 
   const [rawLogs, rawBlock] = await Promise.all([
@@ -81,16 +78,16 @@ async function blockFrontfillWorker(
     .map(parseTransaction);
 
   await Promise.all([
-    cacheStore.insertLogs(logs),
-    cacheStore.insertTransactions(transactions),
+    ponder.cacheStore.insertLogs(logs),
+    ponder.cacheStore.insertTransactions(transactions),
   ]);
 
   // Must insert the block AFTER the logs to make sure log.blockTimestamp gets updated.
-  await cacheStore.insertBlock(block);
+  await ponder.cacheStore.insertBlock(block);
 
   await Promise.all(
     contractAddresses.map((contractAddress) =>
-      cacheStore.insertCachedInterval({
+      ponder.cacheStore.insertCachedInterval({
         contractAddress,
         startBlock: block.number,
         endBlock: block.number,
