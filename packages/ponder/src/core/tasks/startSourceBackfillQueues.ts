@@ -72,7 +72,6 @@ export const startSourceBackfillQueues = async ({
   });
   ponder.backfillSourcesStarted += 1;
   if (ponder.backfillSourcesStarted === ponder.sources.length) {
-    logger.info("\n");
     logger.info(`Backfill plan`);
     logger.info(ponder.tableRequestPlan.render(), "\n");
     ponder.progressBarSync.start(0, 0);
