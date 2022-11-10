@@ -36,15 +36,15 @@ export class GraphqlServer {
       const port = newPort || this.port;
       this.app.use("/graphql", (...args) => this.graphqlMiddleware!(...args));
       this.server = this.app.listen(port);
-      this.logger.info(
-        `\x1b[35m${`Serving GraphQL API at http://localhost:${port}/graphql`}\x1b[0m`
-      ); // magenta
+      // this.logger.info(
+      //   `\x1b[35m${`Serving GraphQL API at http://localhost:${port}/graphql`}\x1b[0m`
+      // ); // magenta
     } else if (newPort && newPort !== this.port) {
       this.port = newPort;
       // Close all connections to the now-stale server.
       this.server.close();
       this.server = this.app.listen(this.port);
-      this.logger.debug(`\x1b[35m${`Restarted GraphQL server`}\x1b[0m`); // magenta
+      // this.logger.debug(`\x1b[35m${`Restarted GraphQL server`}\x1b[0m`); // magenta
     }
   }
 }
