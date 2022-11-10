@@ -4,7 +4,7 @@ import type { Deferrable } from "ethers/lib/utils";
 
 import type { CacheStore } from "@/db/cache/cacheStore";
 
-import { stats } from "../indexer/stats";
+// import { stats } from "../indexer/stats";
 
 // This class extends the ethers provider and caches contract calls in the
 // Ponder CacheStore. It's a WIP.
@@ -42,21 +42,21 @@ export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
       contractCallKey
     );
 
-    if (!stats.contractCallStats[`${this.chainId}-${address}`]) {
-      stats.contractCallStats[`${this.chainId}-${address}`] = {
-        contractCallCacheHitCount: 0,
-        contractCallTotalCount: 0,
-      };
-    }
+    // if (!stats.contractCallStats[`${this.chainId}-${address}`]) {
+    //   stats.contractCallStats[`${this.chainId}-${address}`] = {
+    //     contractCallCacheHitCount: 0,
+    //     contractCallTotalCount: 0,
+    //   };
+    // }
 
-    stats.contractCallStats[
-      `${this.chainId}-${address}`
-    ].contractCallTotalCount += 1;
+    // stats.contractCallStats[
+    //   `${this.chainId}-${address}`
+    // ].contractCallTotalCount += 1;
 
     if (cachedContractCall) {
-      stats.contractCallStats[
-        `${this.chainId}-${address}`
-      ].contractCallCacheHitCount += 1;
+      // stats.contractCallStats[
+      //   `${this.chainId}-${address}`
+      // ].contractCallCacheHitCount += 1;
 
       return JSON.parse(cachedContractCall.result);
     }

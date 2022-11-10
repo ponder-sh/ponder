@@ -1,4 +1,3 @@
-import { Table } from "console-table-printer";
 import EventEmitter from "node:events";
 import { mkdirSync, watch } from "node:fs";
 import path from "node:path";
@@ -56,20 +55,8 @@ export class Ponder extends EventEmitter {
   // Interface
   interfaceState: InterfaceState;
 
-  // Backfill/handlers stats
-  backfillSourcesStarted: number;
-  tableRequestPlan: Table;
-  tableResults: Table;
-  tableContractCalls: Table;
-  // progressBarSync: cliProgress.SingleBar;
-  // progressBarHandlers: cliProgress.SingleBar;
-
   constructor(config: PonderConfig) {
     super();
-
-    setInterval(() => {
-      this.emit("render");
-    }, 200);
 
     this.database = buildDb(config);
     this.cacheStore = buildCacheStore(this.database);
@@ -98,19 +85,14 @@ export class Ponder extends EventEmitter {
 
     this.interfaceState = initialInterfaceState;
 
+    this.on("newNetworkConnected", this.handleNewNetworkConnected);
     this.on("newBackfillLogs", this.handleNewLogs);
-    this.on("backfillComplete", this.handleNewLogs);
     this.on("newFrontfillLogs", this.handleNewFrontfillLogs);
-
-    this.on("render", this.handleRender);
 
     this.on("backfillTasksAdded", this.handleBackfillTasksAdded);
     this.on("backfillTaskCompleted", this.handleBackfillTaskCompleted);
 
-    this.backfillSourcesStarted = 0;
-    this.tableRequestPlan = new Table();
-    this.tableResults = new Table();
-    this.tableContractCalls = new Table();
+    this.on("handlerTaskCompleted", this.handleHandlerTaskCompleted);
   }
 
   async start() {
@@ -130,7 +112,9 @@ export class Ponder extends EventEmitter {
     this.setup();
 
     await this.reloadSchema();
+
     this.codegen();
+
     await this.reloadHandlers();
 
     this.setupPlugins();
@@ -140,7 +124,10 @@ export class Ponder extends EventEmitter {
   }
 
   setup() {
-    this.handleRender();
+    setInterval(() => {
+      this.interfaceState.timestamp = Math.floor(Date.now() / 1000);
+      renderApp(this.interfaceState);
+    }, 1000);
 
     mkdirSync(path.join(OPTIONS.GENERATED_DIR_PATH), { recursive: true });
     mkdirSync(path.join(OPTIONS.PONDER_DIR_PATH), { recursive: true });
@@ -191,6 +178,7 @@ export class Ponder extends EventEmitter {
       ...this.interfaceState,
       backfillStartTimestamp: Math.floor(Date.now() / 1000),
     };
+    renderApp(this.interfaceState);
 
     const { latestBlockNumberByNetwork, resumeLiveBlockQueues } =
       await startFrontfill({ ponder: this });
@@ -200,12 +188,12 @@ export class Ponder extends EventEmitter {
       latestBlockNumberByNetwork,
     });
 
-    this.emit("backfillComplete");
     this.interfaceState = {
       ...this.interfaceState,
       isBackfillComplete: true,
       backfillDuration: duration,
     };
+    renderApp(this.interfaceState);
 
     resumeLiveBlockQueues();
   }
@@ -267,28 +255,13 @@ export class Ponder extends EventEmitter {
 
     // If any of the sources have no cached data yet, return early
     if (cachedToTimestamps.includes(-1)) {
-      // this.emit("updateInterfaceState", {
-      //   handlersStatus: HandlersStatus.SOURCE_NOT_READY,
-      // });
-      this.interfaceState = {
-        ...this.interfaceState,
-        handlersStatus: HandlersStatus.SOURCE_NOT_READY,
-      };
       return;
     }
 
-    const minimumCachedToTimestamp = Math.min(...cachedToTimestamps);
-
     // If the minimum cached timestamp across all sources is less than the
     // latest processed timestamp, we can't process any new logs.
+    const minimumCachedToTimestamp = Math.min(...cachedToTimestamps);
     if (minimumCachedToTimestamp <= this.latestProcessedTimestamp) {
-      // this.emit("updateInterfaceState", {
-      //   handlersStatus: HandlersStatus.UP_TO_DATE,
-      // });
-      this.interfaceState = {
-        ...this.interfaceState,
-        handlersStatus: HandlersStatus.UP_TO_DATE,
-      };
       return;
     }
 
@@ -310,6 +283,9 @@ export class Ponder extends EventEmitter {
       `Pushing ${sortedLogs.length} logs to the queue [${this.latestProcessedTimestamp}, ${minimumCachedToTimestamp})`
     );
 
+    this.interfaceState.handlersTotal += sortedLogs.length;
+    renderApp(this.interfaceState);
+
     for (const log of sortedLogs) {
       this.handlerQueue.push({ log });
     }
@@ -319,22 +295,51 @@ export class Ponder extends EventEmitter {
 
   handleBackfillTasksAdded(taskCount: number) {
     this.interfaceState.backfillTaskTotal += taskCount;
-    this.interfaceState.backfillEta = Math.round(
-      ((Math.floor(Date.now() / 1000) -
-        this.interfaceState.backfillStartTimestamp) /
-        this.interfaceState.backfillTaskCurrent) *
-        this.interfaceState.backfillTaskTotal
-    );
+    this.updateBackfillEta();
+    renderApp(this.interfaceState);
   }
 
   handleBackfillTaskCompleted() {
     this.interfaceState.backfillTaskCurrent += 1;
-    this.interfaceState.backfillEta = Math.round(
+    this.updateBackfillEta();
+    renderApp(this.interfaceState);
+  }
+
+  private updateBackfillEta() {
+    const newEta = Math.round(
       ((Math.floor(Date.now() / 1000) -
         this.interfaceState.backfillStartTimestamp) /
         this.interfaceState.backfillTaskCurrent) *
         this.interfaceState.backfillTaskTotal
     );
+    if (Number.isFinite(newEta)) this.interfaceState.backfillEta = newEta;
+  }
+
+  handleHandlerTaskCompleted() {
+    this.interfaceState.handlersCurrent += 1;
+    this.interfaceState.handlersStatus =
+      this.interfaceState.handlersCurrent === this.interfaceState.handlersTotal
+        ? HandlersStatus.UP_TO_DATE
+        : HandlersStatus.IN_PROGRESS;
+    renderApp(this.interfaceState);
+  }
+
+  handleNewNetworkConnected({
+    network,
+    blockNumber,
+    blockTimestamp,
+  }: {
+    network: string;
+    blockNumber: number;
+    blockTimestamp: number;
+  }) {
+    this.interfaceState.networks[network] = {
+      name: network,
+      blockNumber: blockNumber,
+      blockTimestamp: blockTimestamp,
+      blockTxnCount: -1,
+      matchedLogCount: -1,
+    };
   }
 
   handleNewFrontfillLogs({
@@ -358,7 +363,7 @@ export class Ponder extends EventEmitter {
       blockTxnCount: blockTxnCount,
       matchedLogCount: matchedLogCount,
     };
-    this.emit("render");
+    renderApp(this.interfaceState);
   }
 
   handleRender() {

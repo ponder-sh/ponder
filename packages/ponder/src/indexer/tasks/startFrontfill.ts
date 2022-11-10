@@ -52,6 +52,12 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
         }
       }
 
+      ponder.emit("newNetworkConnected", {
+        network: network.name,
+        blockNumber: latestBlockNumber,
+        blockTimestamp: latestBlockTimestamp,
+      });
+
       latestBlockNumberByNetwork[network.name] = latestBlockNumber;
 
       const liveBlockRequestQueue = createBlockFrontfillQueue({
@@ -63,7 +69,7 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
       // Pause the live block request queue, but begin adding tasks to it.
       // Once the backfill is complete, unpause it to process the backlog of
       // tasks that were added during backfill + new live logs.
-      liveBlockRequestQueue.pause();
+      // liveBlockRequestQueue.pause();
       network.provider.on("block", (blockNumber: number) => {
         // Messy way to avoid double-processing latestBlockNumber.
         // Also noticed taht this approach sometimes skips the block
@@ -71,13 +77,6 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
         if (blockNumber > latestBlockNumber) {
           liveBlockRequestQueue.push({ blockNumber });
         }
-      });
-
-      // TODO: Emit a more specific event here.
-      ponder.emit("newFrontfillLogs", {
-        network: network.name,
-        blockNumber: latestBlockNumber,
-        blockTimestamp: latestBlockTimestamp,
       });
 
       return {

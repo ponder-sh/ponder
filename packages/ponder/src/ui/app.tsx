@@ -4,11 +4,14 @@ import React from "react";
 import { ProgressBar } from "./ProgressBar";
 
 export enum HandlersStatus {
-  SOURCE_NOT_READY,
+  NOT_STARTED,
+  IN_PROGRESS,
   UP_TO_DATE,
 }
 
 export type InterfaceState = {
+  timestamp: number;
+
   backfillStartTimestamp: number;
   backfillEta: number;
   backfillTaskCurrent: number;
@@ -18,8 +21,8 @@ export type InterfaceState = {
   backfillDuration: string;
 
   handlersStatus: HandlersStatus;
-  logsCurrent: number;
-  logsTotal: number;
+  handlersCurrent: number;
+  handlersTotal: number;
 
   networks: Record<
     string,
@@ -34,6 +37,8 @@ export type InterfaceState = {
 };
 
 export const initialInterfaceState: InterfaceState = {
+  timestamp: 0,
+
   backfillStartTimestamp: 0,
   backfillEta: 0,
   backfillTaskCurrent: 0,
@@ -42,15 +47,17 @@ export const initialInterfaceState: InterfaceState = {
   isBackfillComplete: false,
   backfillDuration: "",
 
-  handlersStatus: HandlersStatus.SOURCE_NOT_READY,
-  logsCurrent: 0,
-  logsTotal: 0,
+  handlersStatus: HandlersStatus.NOT_STARTED,
+  handlersCurrent: 0,
+  handlersTotal: 0,
 
   networks: {},
 };
 
 const App = (props: InterfaceState) => {
   const {
+    timestamp,
+
     backfillEta,
     backfillTaskCurrent,
     backfillTaskTotal,
@@ -59,21 +66,32 @@ const App = (props: InterfaceState) => {
     backfillDuration,
 
     handlersStatus,
-    logsCurrent,
-    logsTotal,
+    handlersCurrent,
+    handlersTotal,
 
     networks,
   } = props;
 
-  const [timestamp, setTimestamp] = React.useState(
-    Math.floor(Date.now() / 1000)
-  );
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setTimestamp(Math.floor(Date.now() / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const handlersStatusText = () => {
+    switch (handlersStatus) {
+      case HandlersStatus.NOT_STARTED:
+        return <Text>(not started)</Text>;
+      case HandlersStatus.IN_PROGRESS:
+        return <Text color="yellowBright">(in progress)</Text>;
+      case HandlersStatus.UP_TO_DATE:
+        return <Text color="greenBright">(up to date)</Text>;
+    }
+  };
+
+  const backfillPercent = `${Math.round(
+    100 * (backfillTaskCurrent / Math.max(backfillTaskTotal, 1))
+  )}%`;
+  const backfillEtaText =
+    backfillEta && backfillEta > 0 ? `| ETA: ${backfillEta}s` : null;
+  const backfillCountText =
+    backfillTaskTotal > 0
+      ? `| ${backfillTaskCurrent}/${backfillTaskTotal} RPC calls`
+      : null;
 
   return (
     <Box flexDirection="column">
@@ -89,12 +107,15 @@ const App = (props: InterfaceState) => {
       </Box>
       {!isBackfillComplete && (
         <Box flexDirection="row">
-          <ProgressBar end={backfillTaskTotal} current={backfillTaskCurrent} />
+          <ProgressBar
+            current={backfillTaskCurrent}
+            end={Math.max(backfillTaskTotal, 1)}
+          />
           <Text>
             {" "}
-            {Math.round(100 * (backfillTaskCurrent / backfillTaskTotal))}% |
-            ETA: {backfillEta}s | {backfillTaskCurrent}/{backfillTaskTotal}
-            {/* Newline below progress bar row */}
+            {backfillPercent}
+            {backfillEtaText}
+            {backfillCountText}
             <Newline />
           </Text>
         </Box>
@@ -102,17 +123,13 @@ const App = (props: InterfaceState) => {
 
       <Box flexDirection="row">
         <Text bold={true}>Handlers </Text>
-        {handlersStatus === HandlersStatus.SOURCE_NOT_READY ? (
-          <Text color="redBright">(blocked)</Text>
-        ) : (
-          <Text color="greenBright">(up to date)</Text>
-        )}
+        {handlersStatusText()}
       </Box>
       <Box flexDirection="row">
-        <ProgressBar end={logsCurrent} current={logsTotal} />
+        <ProgressBar current={handlersCurrent} end={handlersTotal} />
         <Text>
           {" "}
-          {logsCurrent}/{logsCurrent}
+          {handlersCurrent}/{handlersTotal} events
           {/* Newline below progress bar row */}
           <Newline />
         </Text>
@@ -121,19 +138,39 @@ const App = (props: InterfaceState) => {
       <Box flexDirection="column">
         {Object.values(networks).map((network) => (
           <Box flexDirection="row" key={network.name}>
-            <Text>
-              [{network.name}] Matched {network.matchedLogCount} logs from block{" "}
-              {network.blockNumber}, {timestamp - network.blockTimestamp}s ago
+            <Text color="cyanBright" bold={true}>
+              [{network.name}]{" "}
             </Text>
+            {network.blockTxnCount !== -1 ? (
+              <Text>
+                Block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
+                {network.matchedLogCount} matched logs,{" "}
+                {timestamp - network.blockTimestamp}s ago)
+                {/* Newline below progress bar row */}
+                <Newline />
+              </Text>
+            ) : (
+              <Text>
+                Block {network.blockNumber} (
+                {Math.max(timestamp - network.blockTimestamp, 0)}s ago)
+                {/* Newline below progress bar row */}
+                <Newline />
+              </Text>
+            )}
           </Box>
         ))}
       </Box>
 
-      {/* <Text color="greenBright">
-        {handlersStatus === HandlersStatus.SOURCE_NOT_READY
-          ? "Blocked"
-          : "Up to date"}
-      </Text> */}
+      {handlersCurrent > 0 && (
+        <Box flexDirection="column">
+          <Box flexDirection="row">
+            <Text color="magentaBright" bold={true}>
+              [graphql]{" "}
+            </Text>
+            <Text>Server live at http://localhost:42069/graphql</Text>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 };

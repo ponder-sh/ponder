@@ -1,18 +1,15 @@
-import { Box, Text } from "ink";
+import { Text } from "ink";
 import React from "react";
 
 export const ProgressBar = ({
+  end = 10,
+  current = 5,
   start = 0,
-  end = 100,
-  current = 47,
   width = 50,
-  left = 0,
-  right = 0,
 }) => {
   const fraction = (current - start) / (end - start);
 
-  const screen = width || process.stdout.columns || 80;
-  const maxCount = screen - right - left;
+  const maxCount = width || process.stdout.columns || 80;
   const count = Math.min(Math.floor(maxCount * fraction), maxCount);
   const chars = "█".repeat(count);
   const bar = chars + "░".repeat(maxCount - count);
