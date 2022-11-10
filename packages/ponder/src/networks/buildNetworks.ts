@@ -14,12 +14,6 @@ export const buildNetworks = ({
   cacheStore: CacheStore;
 }) => {
   const networks = config.networks.map(({ name, rpcUrl, chainId }) => {
-    // TODO: Throw this error near the beginning of Ponder.backfill() instead,
-    // and probably catch it in the "user error" handler.
-    // if (rpcUrl === undefined || rpcUrl === "") {
-    //   throw new Error(`Invalid or missing RPC URL for network: ${name}`);
-    // }
-
     if (chainId === undefined || typeof chainId !== "number") {
       throw new Error(`Invalid or missing chain ID for network: ${name}`);
     }

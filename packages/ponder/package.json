@@ -17,7 +17,7 @@
     "lint": "(tsc || exit 0) && eslint src",
     "format": "prettier src --write",
     "replace-paths": "tsconfig-replace-paths --src src",
-    "esbuild": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist && $npm_execpath run replace-paths",
+    "esbuild": "esbuild `find src \\( -name '*.ts' -o -name '*.tsx' \\)` --platform=node --format=cjs --outdir=dist && $npm_execpath run replace-paths",
     "build": "$npm_execpath run clean && $npm_execpath run esbuild && mv dist/bin/ponder.js dist/bin/ponder",
     "declarations": "(tsc --noEmit false --declaration --emitDeclarationOnly || exit 0) && $npm_execpath run replace-paths",
     "format-dist": "prettier dist --write --loglevel warn",
@@ -40,8 +40,10 @@
     "ethers": "^5.6.9",
     "fastq": "^1.13.0",
     "graphql": "^15.3.0",
+    "ink": "^3.2.0",
     "pg-promise": "^10.12.1",
     "prettier": "^2.6.2",
+    "react": "^18.2.0",
     "typechain": "^8.1.0",
     "typescript": "^4.8.4"
   },
@@ -49,6 +51,7 @@
     "@types/better-sqlite3": "^7.6.0",
     "@types/cli-progress": "^3.11.0",
     "@types/node": "^18.7.8",
+    "@types/react": "^18.0.25",
     "tsconfig-replace-paths": "^0.0.11"
   }
 }

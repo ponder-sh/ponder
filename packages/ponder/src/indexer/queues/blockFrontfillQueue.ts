@@ -96,9 +96,11 @@ async function blockFrontfillWorker(
     )
   );
 
-  ponder.emit("newFrontfillLogs");
-
-  logger.info(
-    `\x1b[33m${`Matched ${logs.length} logs from block ${blockNumber} (${rawBlock.transactions.length} txns)`}\x1b[0m` // blue
-  );
+  ponder.emit("newFrontfillLogs", {
+    network: network.name,
+    blockNumber: block.number,
+    blockTimestamp: block.timestamp,
+    blockTxnCount: rawBlock.transactions.length,
+    matchedLogCount: logs.length,
+  });
 }

@@ -124,8 +124,6 @@ async function logBackfillWorker(
     });
   });
 
-  ponder.progressBarSync.increment();
-  ponder.progressBarSync.setTotal(
-    ponder.progressBarSync.getTotal() + requiredBlockHashes.length
-  );
+  ponder.emit("backfillTasksAdded", requiredBlockHashes.length);
+  ponder.emit("backfillTaskCompleted");
 }

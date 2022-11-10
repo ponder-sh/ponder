@@ -66,6 +66,5 @@ async function blockBackfillWorker(
   ]);
 
   await onSuccess(blockHash);
-
-  ponder.progressBarSync.increment();
+  ponder.emit("backfillTaskCompleted");
 }

@@ -31,13 +31,18 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
         .map((source) => source.address);
 
       // Kinda weird but should work to make sure this RPC request gets done
+      let isLatestBlockRequestSuccessful = false;
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       let latestBlockNumber: number = null!;
-      let isLatestBlockRequestSuccessful = false;
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      let latestBlockTimestamp: number = null!;
+
       while (!isLatestBlockRequestSuccessful) {
         try {
           const latestBlock = await network.provider.getBlock("latest");
           latestBlockNumber = latestBlock.number;
+          latestBlockTimestamp = latestBlock.timestamp;
+
           isLatestBlockRequestSuccessful = true;
         } catch (err) {
           logger.error(
@@ -66,6 +71,13 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
         if (blockNumber > latestBlockNumber) {
           liveBlockRequestQueue.push({ blockNumber });
         }
+      });
+
+      // TODO: Emit a more specific event here.
+      ponder.emit("newFrontfillLogs", {
+        network: network.name,
+        blockNumber: latestBlockNumber,
+        blockTimestamp: latestBlockTimestamp,
       });
 
       return {

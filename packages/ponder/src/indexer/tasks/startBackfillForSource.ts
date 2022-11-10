@@ -5,7 +5,6 @@ import type { Source } from "@/sources/base";
 
 import { createBlockBackfillQueue } from "../queues/blockBackfillQueue";
 import { createLogBackfillQueue } from "../queues/logBackfillQueue";
-import { getPrettyPercentage } from "../stats";
 
 export const startBackfillForSource = async ({
   ponder,
@@ -52,30 +51,30 @@ export const startBackfillForSource = async ({
     requiredBlockIntervals: requiredBlockIntervals,
   });
 
-  const fetchedCount = requiredBlockIntervals.reduce(
-    (t, c) => t + c[1] - c[0],
-    0
-  );
-  const totalCount = requestedEndBlock - requestedStartBlock;
-  const cachedCount = totalCount - fetchedCount;
+  // const fetchedCount = requiredBlockIntervals.reduce(
+  //   (t, c) => t + c[1] - c[0],
+  //   0
+  // );
+  // const totalCount = requestedEndBlock - requestedStartBlock;
+  // const cachedCount = totalCount - fetchedCount;
   // const logRequestCount = fetchedCount / blockLimit;
 
-  ponder.tableRequestPlan.addRow({
-    "source name": source.name,
-    "start block": source.startBlock,
-    "end block": requestedEndBlock,
-    "cache rate": getPrettyPercentage(cachedCount, totalCount),
-    // Leaving this out for now because they are a bit misleading.
-    // Reintroduce after implementing contract-level log fetches.
-    // "RPC requests":
-    //   logRequestCount === 0 ? "1" : `~${Math.round(logRequestCount * 2)}`,
-  });
-  ponder.backfillSourcesStarted += 1;
-  if (ponder.backfillSourcesStarted === ponder.sources.length) {
-    logger.info(`Backfill plan`);
-    logger.info(ponder.tableRequestPlan.render(), "\n");
-    ponder.progressBarSync.start(0, 0);
-  }
+  // ponder.tableRequestPlan.addRow({
+  //   "source name": source.name,
+  //   "start block": source.startBlock,
+  //   "end block": requestedEndBlock,
+  //   "cache rate": getPrettyPercentage(cachedCount, totalCount),
+  // // Leaving this out for now because they are a bit misleading.
+  // // Reintroduce after implementing contract-level log fetches.
+  // "RPC requests":
+  //   logRequestCount === 0 ? "1" : `~${Math.round(logRequestCount * 2)}`,
+  // });
+  // ponder.backfillSourcesStarted += 1;
+  // if (ponder.backfillSourcesStarted === ponder.sources.length) {
+  //   logger.info(`Backfill plan`);
+  //   logger.info(ponder.tableRequestPlan.render(), "\n");
+  //   ponder.progressBarSync.start(0, 0);
+  // }
 
   for (const blockInterval of requiredBlockIntervals) {
     const [startBlock, endBlock] = blockInterval;
@@ -89,7 +88,7 @@ export const startBackfillForSource = async ({
         fromBlock,
         toBlock,
       });
-      ponder.progressBarSync.setTotal(ponder.progressBarSync.getTotal() + 1);
+      ponder.emit("backfillTasksAdded", 1);
       return;
     }
 
@@ -102,8 +101,7 @@ export const startBackfillForSource = async ({
 
       fromBlock = toBlock + 1;
       toBlock = Math.min(fromBlock + source.blockLimit, endBlock);
-
-      ponder.progressBarSync.setTotal(ponder.progressBarSync.getTotal() + 1);
+      ponder.emit("backfillTasksAdded", 1);
     }
   }
 

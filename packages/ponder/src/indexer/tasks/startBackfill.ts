@@ -1,4 +1,3 @@
-import { logger } from "@/common/logger";
 import { endBenchmark, startBenchmark } from "@/common/utils";
 import type { Ponder } from "@/Ponder";
 
@@ -32,9 +31,5 @@ export const startBackfill = async ({
 
   const duration = endBenchmark(startHrt);
 
-  logger.info("\n");
-  logger.info(
-    `\x1b[32m${`Backfill complete (${duration})`}\x1b[0m`, // green
-    "\n"
-  );
+  return { duration };
 };

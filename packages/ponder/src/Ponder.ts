@@ -1,4 +1,3 @@
-import cliProgress from "cli-progress";
 import { Table } from "console-table-printer";
 import EventEmitter from "node:events";
 import { mkdirSync, watch } from "node:fs";
@@ -27,6 +26,12 @@ import { readSchema } from "@/schema/readSchema";
 import type { PonderSchema } from "@/schema/types";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
+import {
+  HandlersStatus,
+  initialInterfaceState,
+  InterfaceState,
+  renderApp,
+} from "@/ui/app";
 
 export class Ponder extends EventEmitter {
   sources: EvmSource[];
@@ -48,16 +53,24 @@ export class Ponder extends EventEmitter {
   logger: PonderLogger;
   options: PonderOptions;
 
+  // Interface
+  interfaceState: InterfaceState;
+
   // Backfill/handlers stats
   backfillSourcesStarted: number;
   tableRequestPlan: Table;
   tableResults: Table;
   tableContractCalls: Table;
-  progressBarSync: cliProgress.SingleBar;
-  progressBarHandlers: cliProgress.SingleBar;
+  // progressBarSync: cliProgress.SingleBar;
+  // progressBarHandlers: cliProgress.SingleBar;
 
   constructor(config: PonderConfig) {
     super();
+
+    setInterval(() => {
+      this.emit("render");
+    }, 200);
+
     this.database = buildDb(config);
     this.cacheStore = buildCacheStore(this.database);
     this.entityStore = buildEntityStore(this.database);
@@ -83,38 +96,21 @@ export class Ponder extends EventEmitter {
 
     this.latestProcessedTimestamp = 0;
 
-    this.on("newBackfillLogs", () => {
-      this.handleNewLogs();
-    });
+    this.interfaceState = initialInterfaceState;
 
-    this.on("backfillComplete", () => {
-      this.handleNewLogs();
-    });
+    this.on("newBackfillLogs", this.handleNewLogs);
+    this.on("backfillComplete", this.handleNewLogs);
+    this.on("newFrontfillLogs", this.handleNewFrontfillLogs);
 
-    this.on("newFrontfillLogs", () => {
-      this.handleNewLogs();
-    });
+    this.on("render", this.handleRender);
+
+    this.on("backfillTasksAdded", this.handleBackfillTasksAdded);
+    this.on("backfillTaskCompleted", this.handleBackfillTaskCompleted);
 
     this.backfillSourcesStarted = 0;
     this.tableRequestPlan = new Table();
     this.tableResults = new Table();
     this.tableContractCalls = new Table();
-
-    this.progressBarSync = new cliProgress.SingleBar(
-      {
-        clearOnComplete: true,
-        // forceRedraw: true,
-      },
-      cliProgress.Presets.shades_classic
-    );
-
-    this.progressBarHandlers = new cliProgress.SingleBar(
-      {
-        clearOnComplete: true,
-        // forceRedraw: true,
-      },
-      cliProgress.Presets.shades_classic
-    );
   }
 
   async start() {
@@ -144,6 +140,8 @@ export class Ponder extends EventEmitter {
   }
 
   setup() {
+    this.handleRender();
+
     mkdirSync(path.join(OPTIONS.GENERATED_DIR_PATH), { recursive: true });
     mkdirSync(path.join(OPTIONS.PONDER_DIR_PATH), { recursive: true });
   }
@@ -178,19 +176,36 @@ export class Ponder extends EventEmitter {
   }
 
   async backfill() {
+    this.networks.forEach((network) => {
+      if (network.rpcUrl === undefined || network.rpcUrl === "") {
+        this.emit(
+          "backfillError",
+          `Invalid or missing RPC URL for network: ${network.name}`
+        );
+      }
+    });
+
     await this.cacheStore.migrate();
+
+    this.interfaceState = {
+      ...this.interfaceState,
+      backfillStartTimestamp: Math.floor(Date.now() / 1000),
+    };
 
     const { latestBlockNumberByNetwork, resumeLiveBlockQueues } =
       await startFrontfill({ ponder: this });
 
-    await startBackfill({
+    const { duration } = await startBackfill({
       ponder: this,
       latestBlockNumberByNetwork,
     });
 
-    this.progressBarSync.stop();
-
     this.emit("backfillComplete");
+    this.interfaceState = {
+      ...this.interfaceState,
+      isBackfillComplete: true,
+      backfillDuration: duration,
+    };
 
     resumeLiveBlockQueues();
   }
@@ -252,6 +267,13 @@ export class Ponder extends EventEmitter {
 
     // If any of the sources have no cached data yet, return early
     if (cachedToTimestamps.includes(-1)) {
+      // this.emit("updateInterfaceState", {
+      //   handlersStatus: HandlersStatus.SOURCE_NOT_READY,
+      // });
+      this.interfaceState = {
+        ...this.interfaceState,
+        handlersStatus: HandlersStatus.SOURCE_NOT_READY,
+      };
       return;
     }
 
@@ -260,6 +282,13 @@ export class Ponder extends EventEmitter {
     // If the minimum cached timestamp across all sources is less than the
     // latest processed timestamp, we can't process any new logs.
     if (minimumCachedToTimestamp <= this.latestProcessedTimestamp) {
+      // this.emit("updateInterfaceState", {
+      //   handlersStatus: HandlersStatus.UP_TO_DATE,
+      // });
+      this.interfaceState = {
+        ...this.interfaceState,
+        handlersStatus: HandlersStatus.UP_TO_DATE,
+      };
       return;
     }
 
@@ -286,6 +315,54 @@ export class Ponder extends EventEmitter {
     }
 
     this.latestProcessedTimestamp = minimumCachedToTimestamp;
+  }
+
+  handleBackfillTasksAdded(taskCount: number) {
+    this.interfaceState.backfillTaskTotal += taskCount;
+    this.interfaceState.backfillEta = Math.round(
+      ((Math.floor(Date.now() / 1000) -
+        this.interfaceState.backfillStartTimestamp) /
+        this.interfaceState.backfillTaskCurrent) *
+        this.interfaceState.backfillTaskTotal
+    );
+  }
+
+  handleBackfillTaskCompleted() {
+    this.interfaceState.backfillTaskCurrent += 1;
+    this.interfaceState.backfillEta = Math.round(
+      ((Math.floor(Date.now() / 1000) -
+        this.interfaceState.backfillStartTimestamp) /
+        this.interfaceState.backfillTaskCurrent) *
+        this.interfaceState.backfillTaskTotal
+    );
+  }
+
+  handleNewFrontfillLogs({
+    network,
+    blockNumber,
+    blockTimestamp,
+    blockTxnCount,
+    matchedLogCount,
+  }: {
+    network: string;
+    blockNumber: number;
+    blockTimestamp: number;
+    blockTxnCount: number;
+    matchedLogCount: number;
+  }) {
+    this.handleNewLogs();
+    this.interfaceState.networks[network] = {
+      name: network,
+      blockNumber: blockNumber,
+      blockTimestamp: blockTimestamp,
+      blockTxnCount: blockTxnCount,
+      matchedLogCount: matchedLogCount,
+    };
+    this.emit("render");
+  }
+
+  handleRender() {
+    renderApp(this.interfaceState);
   }
 
   watch() {
