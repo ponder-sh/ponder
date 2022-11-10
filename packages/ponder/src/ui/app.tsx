@@ -87,11 +87,17 @@ const App = (props: InterfaceState) => {
     100 * (backfillTaskCurrent / Math.max(backfillTaskTotal, 1))
   )}%`;
   const backfillEtaText =
-    backfillEta && backfillEta > 0 ? `| ETA: ${backfillEta}s` : null;
+    backfillEta && backfillEta > 0 ? ` | ETA: ${backfillEta}s` : null;
   const backfillCountText =
     backfillTaskTotal > 0
-      ? `| ${backfillTaskCurrent}/${backfillTaskTotal} RPC calls`
+      ? ` | ${backfillTaskCurrent}/${backfillTaskTotal} RPC calls`
       : null;
+
+  const handlersPercent = `${Math.round(
+    100 * (handlersCurrent / Math.max(handlersTotal, 1))
+  )}%`;
+  const handlersCountText =
+    handlersTotal > 0 ? ` | ${handlersCurrent}/${handlersTotal} events` : null;
 
   return (
     <Box flexDirection="column">
@@ -126,10 +132,15 @@ const App = (props: InterfaceState) => {
         {handlersStatusText()}
       </Box>
       <Box flexDirection="row">
-        <ProgressBar current={handlersCurrent} end={handlersTotal} />
+        <ProgressBar
+          current={handlersCurrent}
+          end={Math.max(handlersTotal, 1)}
+        />
         <Text>
           {" "}
-          {handlersCurrent}/{handlersTotal} events
+          {handlersPercent}
+          {handlersCountText}
+          {/* {handlersCurrent}/{handlersTotal} events */}
           {/* Newline below progress bar row */}
           <Newline />
         </Text>
