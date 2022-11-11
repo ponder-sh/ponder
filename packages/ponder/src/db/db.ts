@@ -3,9 +3,9 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import PgPromise from "pg-promise";
 
+import type { PonderConfig } from "@/cli/readPonderConfig";
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
-import type { PonderConfig } from "@/cli/readPonderConfig";
 
 export interface SqliteDb {
   kind: "sqlite";
@@ -38,6 +38,9 @@ export const buildDb = (config: PonderConfig): PonderDatabase => {
       const pgp = PgPromise({
         query: (e) => {
           logger.trace({ query: e.query });
+        },
+        error: (err, e) => {
+          logger.error({ err, e });
         },
       });
       return {

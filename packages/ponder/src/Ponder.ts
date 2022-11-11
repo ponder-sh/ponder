@@ -32,6 +32,8 @@ import {
   renderApp,
 } from "@/ui/app";
 
+import { getLogs } from "./indexer/tasks/getLogs";
+
 export class Ponder extends EventEmitter {
   sources: EvmSource[];
   networks: Network[];
@@ -42,7 +44,7 @@ export class Ponder extends EventEmitter {
 
   schema?: PonderSchema;
   handlerQueue?: HandlerQueue;
-  latestProcessedTimestamp: number;
+  logsProcessedToTimestamp: number;
 
   // Hot reloading
   watchFiles: string[];
@@ -81,7 +83,7 @@ export class Ponder extends EventEmitter {
       ...sources.map((s) => s.abiFilePath),
     ];
 
-    this.latestProcessedTimestamp = 0;
+    this.logsProcessedToTimestamp = 0;
 
     this.interfaceState = initialInterfaceState;
 
@@ -98,11 +100,14 @@ export class Ponder extends EventEmitter {
   async start() {
     this.setup();
 
-    await this.reloadSchema();
-    this.codegen();
-    await this.reloadHandlers();
+    await Promise.all([
+      this.reloadSchema(),
+      this.reloadHandlers(),
+      this.cacheStore.migrate(),
+    ]);
 
-    await this.setupPlugins();
+    this.codegen();
+    this.setupPlugins();
 
     await this.backfill();
     this.runHandlers();
@@ -111,12 +116,13 @@ export class Ponder extends EventEmitter {
   async dev() {
     this.setup();
 
-    await this.reloadSchema();
+    await Promise.all([
+      this.reloadSchema(),
+      this.reloadHandlers(),
+      this.cacheStore.migrate(),
+    ]);
 
     this.codegen();
-
-    await this.reloadHandlers();
-
     this.setupPlugins();
 
     this.backfill();
@@ -172,8 +178,6 @@ export class Ponder extends EventEmitter {
       }
     });
 
-    await this.cacheStore.migrate();
-
     this.interfaceState = {
       ...this.interfaceState,
       backfillStartTimestamp: Math.floor(Date.now() / 1000),
@@ -205,7 +209,7 @@ export class Ponder extends EventEmitter {
     }
 
     await this.entityStore.migrate(this.schema);
-    this.latestProcessedTimestamp = 0;
+    this.logsProcessedToTimestamp = 0;
 
     this.handleNewLogs();
   }
@@ -229,68 +233,21 @@ export class Ponder extends EventEmitter {
       return;
     }
 
-    // Whenever the live block handler queue emits the "newBlock" event,
-    // check the cached metadata for all sources. If the minimum cached block across
-    // all sources is greater than the lastHandledLogTimestamp, fetch the newly available
-    // logs and add them to the queue.
-    const cachedToTimestamps = await Promise.all(
-      this.sources.map(async (source) => {
-        const cachedIntervals = await this.cacheStore.getCachedIntervals(
-          source.address
-        );
+    const { hasNewLogs, toTimestamp, logs } = await getLogs({
+      ponder: this,
+      fromTimestamp: this.logsProcessedToTimestamp,
+    });
 
-        // Find the cached interval that includes the source's startBlock.
-        const startingCachedInterval = cachedIntervals.find(
-          (interval) =>
-            interval.startBlock <= source.startBlock &&
-            interval.endBlock >= source.startBlock
-        );
+    if (!hasNewLogs) return;
 
-        // If there is no cached data that includes the start block, return -1.
-        if (!startingCachedInterval) return -1;
-
-        return startingCachedInterval.endBlockTimestamp;
-      })
-    );
-
-    // If any of the sources have no cached data yet, return early
-    if (cachedToTimestamps.includes(-1)) {
-      return;
-    }
-
-    // If the minimum cached timestamp across all sources is less than the
-    // latest processed timestamp, we can't process any new logs.
-    const minimumCachedToTimestamp = Math.min(...cachedToTimestamps);
-    if (minimumCachedToTimestamp <= this.latestProcessedTimestamp) {
-      return;
-    }
-
-    // NOTE: cacheStore.getLogs is exclusive to the left and inclusive to the right.
-    // This is fine because this.latestProcessedTimestamp starts at zero.
-    const logs = await Promise.all(
-      this.sources.map(async (source) => {
-        return await this.cacheStore.getLogs(
-          source.address,
-          this.latestProcessedTimestamp,
-          minimumCachedToTimestamp
-        );
-      })
-    );
-
-    const sortedLogs = logs.flat().sort((a, b) => a.logSortKey - b.logSortKey);
-
-    logger.debug(
-      `Pushing ${sortedLogs.length} logs to the queue [${this.latestProcessedTimestamp}, ${minimumCachedToTimestamp})`
-    );
-
-    this.interfaceState.handlersTotal += sortedLogs.length;
+    this.interfaceState.handlersTotal += logs.length;
     renderApp(this.interfaceState);
 
-    for (const log of sortedLogs) {
+    for (const log of logs) {
       this.handlerQueue.push({ log });
     }
 
-    this.latestProcessedTimestamp = minimumCachedToTimestamp;
+    this.logsProcessedToTimestamp = toTimestamp;
   }
 
   handleBackfillTasksAdded(taskCount: number) {

@@ -163,18 +163,18 @@ export class SqliteCacheStore implements CacheStore {
         const { contractAddress } = newInterval;
 
         // Delete and return all intervals for this contract
-        const existingIntervalRows = deleteIntervals.all({
+        const existingIntervals = deleteIntervals.all({
           contractAddress: interval.contractAddress,
         }) as CachedInterval[];
 
         // Handle the special case where there were no existing intervals.
-        if (existingIntervalRows.length === 0) {
+        if (existingIntervals.length === 0) {
           insertInterval.run(newInterval);
           return;
         }
 
         const mergedIntervals = merge_intervals([
-          ...existingIntervalRows.map((row) => [row.startBlock, row.endBlock]),
+          ...existingIntervals.map((row) => [row.startBlock, row.endBlock]),
           [newInterval.startBlock, newInterval.endBlock],
         ]);
 
@@ -185,12 +185,12 @@ export class SqliteCacheStore implements CacheStore {
           // For each new merged interval, its endBlock will be found EITHER in the newly
           // added interval OR among the endBlocks of the removed intervals.
           // Find it so we can propogate the endBlockTimestamp correctly.
-          const endBlockInterval = [newInterval, ...existingIntervalRows].find(
+          const endBlockInterval = [newInterval, ...existingIntervals].find(
             (oldInterval) => oldInterval.endBlock === endBlock
           );
           if (!endBlockInterval) {
             logger.error("Old interval with endBlock not found:", {
-              existingIntervalRows,
+              existingIntervals,
               endBlock,
             });
             throw new Error(`Old interval with endBlock not found`);

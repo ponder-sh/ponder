@@ -1,5 +1,6 @@
 import type PgPromise from "pg-promise";
 
+import { logger } from "@/common/logger";
 import type { Block, EventLog, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
 
@@ -62,7 +63,8 @@ export class PostgresCacheStore implements CacheStore {
           "id" SERIAL PRIMARY KEY,
           "contractAddress" TEXT NOT NULL,
           "startBlock" INTEGER NOT NULL,
-          "endBlock" INTEGER NOT NULL
+          "endBlock" INTEGER NOT NULL,
+          "endBlockTimestamp" INTEGER NOT NULL
         )
         `
       );
@@ -84,11 +86,19 @@ export class PostgresCacheStore implements CacheStore {
           "topics" TEXT NOT NULL,
           "blockHash" TEXT NOT NULL,
           "blockNumber" INTEGER NOT NULL,
+          "blockTimestamp" INTEGER,
           "logIndex" INTEGER NOT NULL,
           "transactionHash" TEXT NOT NULL,
           "transactionIndex" INTEGER NOT NULL,
           "removed" INTEGER NOT NULL
         )
+        `
+      );
+
+      await t.none(
+        `
+        CREATE INDEX IF NOT EXISTS "logsBlockTimestamp"
+        ON "logs" ("blockTimestamp")
         `
       );
 
@@ -159,6 +169,8 @@ export class PostgresCacheStore implements CacheStore {
 
   insertCachedInterval = async (newInterval: CachedInterval) => {
     await this.db.tx(async (t) => {
+      const { contractAddress } = newInterval;
+
       const existingIntervals = await t.manyOrNone<CachedInterval>(
         `
         DELETE FROM "cachedIntervals" WHERE "contractAddress" = $(contractAddress) RETURNING *
@@ -168,29 +180,71 @@ export class PostgresCacheStore implements CacheStore {
         }
       );
 
+      // Handle the special case where there were no existing intervals.
+      if (existingIntervals.length === 0) {
+        await t.none(
+          `
+          INSERT INTO "cachedIntervals" (
+            "contractAddress",
+            "startBlock",
+            "endBlock",
+            "endBlockTimestamp"
+          ) VALUES (
+            $(contractAddress),
+            $(startBlock),
+            $(endBlock),
+            $(endBlockTimestamp)
+          )
+          `,
+          newInterval
+        );
+        return;
+      }
+
       const mergedIntervals = merge_intervals([
         ...existingIntervals.map((row) => [row.startBlock, row.endBlock]),
         [newInterval.startBlock, newInterval.endBlock],
       ]);
 
       await Promise.all(
-        mergedIntervals.map(async (interval) => {
-          await this.db.none(
+        mergedIntervals.map(async (mergedInterval) => {
+          const startBlock = mergedInterval[0];
+          const endBlock = mergedInterval[1];
+
+          // For each new merged interval, its endBlock will be found EITHER in the newly
+          // added interval OR among the endBlocks of the removed intervals.
+          // Find it so we can propogate the endBlockTimestamp correctly.
+          const endBlockInterval = [newInterval, ...existingIntervals].find(
+            (oldInterval) => oldInterval.endBlock === endBlock
+          );
+          if (!endBlockInterval) {
+            logger.error("Old interval with endBlock not found:", {
+              existingIntervals,
+              endBlock,
+            });
+            throw new Error(`Old interval with endBlock not found`);
+          }
+          const { endBlockTimestamp } = endBlockInterval;
+
+          await t.none(
             `
             INSERT INTO "cachedIntervals" (
               "contractAddress",
               "startBlock",
-              "endBlock"
+              "endBlock",
+              "endBlockTimestamp"
             ) VALUES (
               $(contractAddress),
               $(startBlock),
-              $(endBlock)
+              $(endBlock),
+              $(endBlockTimestamp)
             )
             `,
             {
-              contractAddress: newInterval.contractAddress,
-              startBlock: interval[0],
-              endBlock: interval[1],
+              contractAddress,
+              startBlock,
+              endBlock,
+              endBlockTimestamp,
             }
           );
         })
@@ -247,6 +301,18 @@ export class PostgresCacheStore implements CacheStore {
       `,
       { ...block, id: block.hash }
     );
+
+    await this.db.none(
+      `
+      UPDATE "logs"
+      SET "blockTimestamp" = $(blockTimestamp)
+      WHERE "blockHash" = $(blockHash)
+      `,
+      {
+        blockHash: block.hash,
+        blockTimestamp: block.timestamp,
+      }
+    );
   };
 
   insertTransactions = async (transactions: Transaction[]) => {
@@ -259,18 +325,22 @@ export class PostgresCacheStore implements CacheStore {
     await this.db.none(query);
   };
 
-  getLogs = async (address: string, fromBlock: number, toBlock: number) => {
+  getLogs = async (
+    address: string,
+    fromBlockTimestamp: number,
+    toBlockTimestamp: number
+  ) => {
     const logs = await this.db.manyOrNone<EventLog>(
       `
       SELECT * FROM logs
       WHERE "address" = $(address)
-      AND "blockNumber" >= $(fromBlock)
-      AND "blockNumber" <= $(toBlock)
+      AND "blockTimestamp" > $(fromBlockTimestamp)
+      AND "blockTimestamp" <= $(toBlockTimestamp)
       `,
       {
         address,
-        fromBlock,
-        toBlock,
+        fromBlockTimestamp,
+        toBlockTimestamp,
       }
     );
 
