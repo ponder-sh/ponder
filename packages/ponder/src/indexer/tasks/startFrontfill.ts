@@ -45,7 +45,7 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
 
           isLatestBlockRequestSuccessful = true;
         } catch (err) {
-          logger.error(
+          logger.warn(
             `Failed to fetch latest block for network [${network.name}], retrying...`
           );
           isLatestBlockRequestSuccessful = false;

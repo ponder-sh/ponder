@@ -171,10 +171,11 @@ export class Ponder extends EventEmitter {
   async backfill() {
     this.networks.forEach((network) => {
       if (network.rpcUrl === undefined || network.rpcUrl === "") {
-        this.emit(
-          "backfillError",
-          `Invalid or missing RPC URL for network: ${network.name}`
-        );
+        this.interfaceState = {
+          ...this.interfaceState,
+          handlerError: `Invalid or missing RPC URL for network: ${network.name}`,
+        };
+        renderApp(this.interfaceState);
       }
     });
 

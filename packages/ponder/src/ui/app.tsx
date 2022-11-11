@@ -24,6 +24,8 @@ export type InterfaceState = {
   handlersCurrent: number;
   handlersTotal: number;
 
+  handlerError: string | null;
+
   networks: Record<
     string,
     {
@@ -51,27 +53,29 @@ export const initialInterfaceState: InterfaceState = {
   handlersCurrent: 0,
   handlersTotal: 0,
 
+  handlerError: null,
+
   networks: {},
 };
 
-const App = (props: InterfaceState) => {
-  const {
-    timestamp,
+const App = ({
+  timestamp,
 
-    backfillEta,
-    backfillTaskCurrent,
-    backfillTaskTotal,
+  backfillEta,
+  backfillTaskCurrent,
+  backfillTaskTotal,
 
-    isBackfillComplete,
-    backfillDuration,
+  isBackfillComplete,
+  backfillDuration,
 
-    handlersStatus,
-    handlersCurrent,
-    handlersTotal,
+  handlersStatus,
+  handlersCurrent,
+  handlersTotal,
 
-    networks,
-  } = props;
+  handlerError,
 
+  networks,
+}: InterfaceState) => {
   const handlersStatusText = () => {
     switch (handlersStatus) {
       case HandlersStatus.NOT_STARTED:
@@ -98,6 +102,23 @@ const App = (props: InterfaceState) => {
   )}%`;
   const handlersCountText =
     handlersTotal > 0 ? ` | ${handlersCurrent}/${handlersTotal} events` : null;
+
+  if (handlerError) {
+    return (
+      <Box flexDirection="column">
+        <Box flexDirection="row">
+          <Text color="redBright" bold={true}>
+            [ERROR]{" "}
+          </Text>
+          <Text>
+            {handlerError}
+            <Newline />
+          </Text>
+          <Newline />
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column">
