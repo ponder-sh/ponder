@@ -6,6 +6,14 @@ import { merge_intervals } from "@/common/utils";
 
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
 
+const POSTGRES_TABLE_PREFIX = "__ponder__v1__";
+
+const cachedIntervalsTableName = `${POSTGRES_TABLE_PREFIX}cachedIntervals`;
+const logsTableName = `${POSTGRES_TABLE_PREFIX}logs`;
+const blocksTableName = `${POSTGRES_TABLE_PREFIX}blocks`;
+const transactionsTableName = `${POSTGRES_TABLE_PREFIX}transactions`;
+const contractCallsTableName = `${POSTGRES_TABLE_PREFIX}contractCalls`;
+
 export class PostgresCacheStore implements CacheStore {
   pgp: PgPromise.IMain;
   db: PgPromise.IDatabase<unknown>;
@@ -31,7 +39,7 @@ export class PostgresCacheStore implements CacheStore {
         "transactionIndex",
         "removed",
       ],
-      { table: "logs" }
+      { table: logsTableName }
     );
 
     this.transactionsColumnSet = new this.pgp.helpers.ColumnSet(
@@ -51,7 +59,7 @@ export class PostgresCacheStore implements CacheStore {
         "transactionIndex",
         "chainId",
       ],
-      { table: "transactions" }
+      { table: transactionsTableName }
     );
   }
 
@@ -59,7 +67,7 @@ export class PostgresCacheStore implements CacheStore {
     await this.db.task("migrate", async (t) => {
       await t.none(
         `
-        CREATE TABLE IF NOT EXISTS "cachedIntervals" (
+        CREATE TABLE IF NOT EXISTS "${cachedIntervalsTableName}" (
           "id" SERIAL PRIMARY KEY,
           "contractAddress" TEXT NOT NULL,
           "startBlock" INTEGER NOT NULL,
@@ -71,14 +79,14 @@ export class PostgresCacheStore implements CacheStore {
 
       await t.none(
         `
-        CREATE INDEX IF NOT EXISTS "cachedIntervalsContractAddress"
-        ON "cachedIntervals" ("contractAddress")
+        CREATE INDEX IF NOT EXISTS "${cachedIntervalsTableName}ContractAddress"
+        ON "${cachedIntervalsTableName}" ("contractAddress")
         `
       );
 
       await t.none(
         `
-        CREATE TABLE IF NOT EXISTS "logs" (
+        CREATE TABLE IF NOT EXISTS "${logsTableName}" (
           "logId" TEXT PRIMARY KEY,
           "logSortKey" BIGINT NOT NULL,
           "address" TEXT NOT NULL,
@@ -97,14 +105,14 @@ export class PostgresCacheStore implements CacheStore {
 
       await t.none(
         `
-        CREATE INDEX IF NOT EXISTS "logsBlockTimestamp"
-        ON "logs" ("blockTimestamp")
+        CREATE INDEX IF NOT EXISTS "${logsTableName}BlockTimestamp"
+        ON "${logsTableName}" ("blockTimestamp")
         `
       );
 
       await t.none(
         `
-        CREATE TABLE IF NOT EXISTS "blocks" (
+        CREATE TABLE IF NOT EXISTS "${blocksTableName}" (
           "hash" TEXT PRIMARY KEY,
           "number" INTEGER NOT NULL,
           "timestamp" INTEGER NOT NULL,
@@ -126,7 +134,7 @@ export class PostgresCacheStore implements CacheStore {
 
       await t.none(
         `
-        CREATE TABLE IF NOT EXISTS "transactions" (
+        CREATE TABLE IF NOT EXISTS "${transactionsTableName}" (
           "hash" TEXT PRIMARY KEY,
           "nonce" INTEGER NOT NULL,
           "from" TEXT NOT NULL,
@@ -147,7 +155,7 @@ export class PostgresCacheStore implements CacheStore {
 
       await t.none(
         `
-        CREATE TABLE IF NOT EXISTS "contractCalls" (
+        CREATE TABLE IF NOT EXISTS "${contractCallsTableName}" (
           "key" TEXT PRIMARY KEY,
           "result" TEXT NOT NULL
         )
@@ -159,7 +167,7 @@ export class PostgresCacheStore implements CacheStore {
   getCachedIntervals = async (contractAddress: string) => {
     return await this.db.manyOrNone<CachedInterval>(
       `
-      SELECT * FROM "cachedIntervals" WHERE "contractAddress" = $(contractAddress)
+      SELECT * FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = $(contractAddress)
       `,
       {
         contractAddress: contractAddress,
@@ -173,7 +181,7 @@ export class PostgresCacheStore implements CacheStore {
 
       const existingIntervals = await t.manyOrNone<CachedInterval>(
         `
-        DELETE FROM "cachedIntervals" WHERE "contractAddress" = $(contractAddress) RETURNING *
+        DELETE FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = $(contractAddress) RETURNING *
         `,
         {
           contractAddress: newInterval.contractAddress,
@@ -184,7 +192,7 @@ export class PostgresCacheStore implements CacheStore {
       if (existingIntervals.length === 0) {
         await t.none(
           `
-          INSERT INTO "cachedIntervals" (
+          INSERT INTO "${cachedIntervalsTableName}" (
             "contractAddress",
             "startBlock",
             "endBlock",
@@ -228,7 +236,7 @@ export class PostgresCacheStore implements CacheStore {
 
           await t.none(
             `
-            INSERT INTO "cachedIntervals" (
+            INSERT INTO "${cachedIntervalsTableName}" (
               "contractAddress",
               "startBlock",
               "endBlock",
@@ -265,7 +273,7 @@ export class PostgresCacheStore implements CacheStore {
   insertBlock = async (block: Block) => {
     await this.db.none(
       `
-      INSERT INTO "blocks" (
+      INSERT INTO "${blocksTableName}" (
         "hash",
         "number",
         "timestamp",
@@ -304,7 +312,7 @@ export class PostgresCacheStore implements CacheStore {
 
     await this.db.none(
       `
-      UPDATE "logs"
+      UPDATE "${logsTableName}"
       SET "blockTimestamp" = $(blockTimestamp)
       WHERE "blockHash" = $(blockHash)
       `,
@@ -332,7 +340,7 @@ export class PostgresCacheStore implements CacheStore {
   ) => {
     const logs = await this.db.manyOrNone<EventLog>(
       `
-      SELECT * FROM logs
+      SELECT * FROM "${logsTableName}"
       WHERE "address" = $(address)
       AND "blockTimestamp" > $(fromBlockTimestamp)
       AND "blockTimestamp" <= $(toBlockTimestamp)
@@ -355,7 +363,7 @@ export class PostgresCacheStore implements CacheStore {
   getBlock = async (hash: string) => {
     return await this.db.oneOrNone<Block>(
       `
-      SELECT * FROM "blocks" WHERE "hash" = $(hash)
+      SELECT * FROM "${blocksTableName}" WHERE "hash" = $(hash)
       `,
       {
         hash: hash,
@@ -366,7 +374,7 @@ export class PostgresCacheStore implements CacheStore {
   getTransaction = async (hash: string) => {
     return await this.db.oneOrNone<Transaction>(
       `
-      SELECT * FROM "transactions" WHERE "hash" = $(hash)
+      SELECT * FROM "${transactionsTableName}" WHERE "hash" = $(hash)
       `,
       {
         hash: hash,
@@ -377,7 +385,7 @@ export class PostgresCacheStore implements CacheStore {
   upsertContractCall = async (contractCall: ContractCall) => {
     await this.db.none(
       `
-      INSERT INTO "contractCalls" ("key", "result")
+      INSERT INTO "${contractCallsTableName}" ("key", "result")
       VALUES ($(key), $(result))
       ON CONFLICT("key") DO NOTHING
       `,
@@ -390,7 +398,7 @@ export class PostgresCacheStore implements CacheStore {
 
   getContractCall = async (contractCallKey: string) => {
     return await this.db.oneOrNone<ContractCall>(
-      `SELECT * FROM "contractCalls" WHERE "key" = $(key)`,
+      `SELECT * FROM "${contractCallsTableName}" WHERE "key" = $(key)`,
       {
         key: contractCallKey,
       }

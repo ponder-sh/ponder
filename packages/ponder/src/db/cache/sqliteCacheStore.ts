@@ -6,6 +6,14 @@ import { merge_intervals } from "@/common/utils";
 
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
 
+const SQLITE_TABLE_PREFIX = "__ponder__v1__";
+
+const cachedIntervalsTableName = `${SQLITE_TABLE_PREFIX}cachedIntervals`;
+const logsTableName = `${SQLITE_TABLE_PREFIX}logs`;
+const blocksTableName = `${SQLITE_TABLE_PREFIX}blocks`;
+const transactionsTableName = `${SQLITE_TABLE_PREFIX}transactions`;
+const contractCallsTableName = `${SQLITE_TABLE_PREFIX}contractCalls`;
+
 export class SqliteCacheStore implements CacheStore {
   db: Sqlite.Database;
 
@@ -18,7 +26,7 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE TABLE IF NOT EXISTS "cachedIntervals" (
+        CREATE TABLE IF NOT EXISTS "${cachedIntervalsTableName}" (
           "id" INTEGER PRIMARY KEY,
           "contractAddress" TEXT NOT NULL,
           "startBlock" INTEGER NOT NULL,
@@ -31,8 +39,8 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE INDEX IF NOT EXISTS "cachedIntervalsContractAddress"
-        ON "cachedIntervals" ("contractAddress")
+        CREATE INDEX IF NOT EXISTS "${cachedIntervalsTableName}ContractAddress"
+        ON "${cachedIntervalsTableName}" ("contractAddress")
         `
       )
       .run();
@@ -40,7 +48,7 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE TABLE IF NOT EXISTS "logs" (
+        CREATE TABLE IF NOT EXISTS "${logsTableName}" (
           "logId" TEXT PRIMARY KEY,
           "logSortKey" INTEGER NOT NULL,
           "address" TEXT NOT NULL,
@@ -60,8 +68,8 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE INDEX IF NOT EXISTS "logsBlockTimestamp"
-        ON "logs" ("blockTimestamp")
+        CREATE INDEX IF NOT EXISTS "${logsTableName}BlockTimestamp"
+        ON "${logsTableName}" ("blockTimestamp")
         `
       )
       .run();
@@ -69,7 +77,7 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE TABLE IF NOT EXISTS "blocks" (
+        CREATE TABLE IF NOT EXISTS "${blocksTableName}" (
           "hash" TEXT PRIMARY KEY,
           "number" INTEGER NOT NULL,
           "timestamp" INTEGER NOT NULL,
@@ -93,7 +101,7 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE TABLE IF NOT EXISTS "transactions" (
+        CREATE TABLE IF NOT EXISTS "${transactionsTableName}" (
           "hash" TEXT PRIMARY KEY,
           "nonce" INTEGER NOT NULL,
           "from" TEXT NOT NULL,
@@ -116,7 +124,7 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE TABLE IF NOT EXISTS "contractCalls" (
+        CREATE TABLE IF NOT EXISTS "${contractCallsTableName}" (
           "key" TEXT PRIMARY KEY,
           "result" TEXT NOT NULL
         )
@@ -129,7 +137,7 @@ export class SqliteCacheStore implements CacheStore {
     const cachedIntervalRows = this.db
       .prepare(
         `
-        SELECT * FROM "cachedIntervals" WHERE "contractAddress" = @contractAddress
+        SELECT * FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = @contractAddress
         `
       )
       .all({
@@ -141,11 +149,11 @@ export class SqliteCacheStore implements CacheStore {
 
   insertCachedInterval = async (interval: CachedInterval) => {
     const deleteIntervals = this.db.prepare(`
-      DELETE FROM "cachedIntervals" WHERE "contractAddress" = @contractAddress RETURNING *  
+      DELETE FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = @contractAddress RETURNING *  
     `);
 
     const insertInterval = this.db.prepare(`
-      INSERT INTO "cachedIntervals" (
+      INSERT INTO "${cachedIntervalsTableName}" (
         "contractAddress",
         "startBlock",
         "endBlock",
@@ -217,7 +225,7 @@ export class SqliteCacheStore implements CacheStore {
   insertLogs = async (logs: EventLog[]) => {
     const insertLog = this.db.prepare(
       `
-      INSERT INTO "logs" (
+      INSERT INTO "${logsTableName}" (
         "logId",
         "logSortKey",
         "address",
@@ -261,7 +269,7 @@ export class SqliteCacheStore implements CacheStore {
       this.db
         .prepare(
           `
-          INSERT INTO "blocks" (
+          INSERT INTO "${blocksTableName}" (
             "hash",
             "number",
             "timestamp",
@@ -301,7 +309,7 @@ export class SqliteCacheStore implements CacheStore {
       this.db
         .prepare(
           `
-          UPDATE "logs"
+          UPDATE "${logsTableName}"
           SET "blockTimestamp" = @blockTimestamp
           WHERE "blockHash" = @blockHash
           `
@@ -318,7 +326,7 @@ export class SqliteCacheStore implements CacheStore {
   insertTransactions = async (transactions: Transaction[]) => {
     const insertTransaction = this.db.prepare(
       `
-      INSERT INTO "transactions" (
+      INSERT INTO "${transactionsTableName}" (
         "hash",
         "nonce",
         "from",
@@ -372,7 +380,7 @@ export class SqliteCacheStore implements CacheStore {
       const logs = this.db
         .prepare(
           `
-          SELECT * FROM logs
+          SELECT * FROM "${logsTableName}"
           WHERE "address" = @address
           AND "blockTimestamp" > @fromBlockTimestamp
           AND "blockTimestamp" <= @toBlockTimestamp
@@ -395,7 +403,7 @@ export class SqliteCacheStore implements CacheStore {
     const block = this.db
       .prepare(
         `
-        SELECT * FROM "blocks" WHERE "hash" = @hash
+        SELECT * FROM "${blocksTableName}" WHERE "hash" = @hash
         `
       )
       .get({
@@ -411,7 +419,7 @@ export class SqliteCacheStore implements CacheStore {
     const transaction = this.db
       .prepare(
         `
-        SELECT * FROM "transactions" WHERE "hash" = @hash
+        SELECT * FROM "${transactionsTableName}" WHERE "hash" = @hash
         `
       )
       .get({
@@ -428,7 +436,7 @@ export class SqliteCacheStore implements CacheStore {
       this.db
         .prepare(
           `
-          INSERT INTO contractCalls ("key", "result")
+          INSERT INTO "${contractCallsTableName}" ("key", "result")
           VALUES (@key, @result)
           ON CONFLICT("key") DO UPDATE SET
           "result"=excluded."result"
@@ -446,7 +454,7 @@ export class SqliteCacheStore implements CacheStore {
 
   getContractCall = async (contractCallKey: string) => {
     const result = this.db
-      .prepare(`SELECT * FROM "contractCalls" WHERE "key" = @key`)
+      .prepare(`SELECT * FROM "${contractCallsTableName}" WHERE "key" = @key`)
       .get({
         key: contractCallKey,
       });
