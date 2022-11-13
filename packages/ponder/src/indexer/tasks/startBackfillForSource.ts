@@ -105,15 +105,17 @@ export const startBackfillForSource = async ({
     }
   }
 
-  logger.debug(`Processing ${logBackfillQueue.length()} log backfill tasks...`);
+  const logQueueLength = logBackfillQueue.length();
+  logger.debug(`Started: ${logQueueLength} log backfill tasks`);
   if (!logBackfillQueue.idle()) {
     await logBackfillQueue.drained();
   }
+  logger.debug(`Done: ${logQueueLength} log backfill tasks`);
 
-  logger.debug(
-    `Processing ${blockBackfillQueue.length()} block backfill tasks...`
-  );
+  const blockQueueLength = logBackfillQueue.length();
+  logger.debug(`Started: ${blockQueueLength} block backfill tasks`);
   if (!blockBackfillQueue.idle()) {
     await blockBackfillQueue.drained();
   }
+  logger.debug(`Done: ${blockQueueLength} block backfill tasks`);
 };

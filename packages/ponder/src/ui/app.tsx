@@ -122,6 +122,8 @@ const App = ({
 
   return (
     <Box flexDirection="column">
+      {/* Newline above interface */}
+      <Text> </Text>
       <Box flexDirection="row">
         <Text bold={true}>Backfill </Text>
         {isBackfillComplete ? (

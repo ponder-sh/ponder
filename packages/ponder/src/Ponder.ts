@@ -117,6 +117,7 @@ export class Ponder extends EventEmitter {
 
   async dev() {
     this.setup();
+    this.watch();
 
     await Promise.all([
       this.reloadSchema(),
@@ -128,6 +129,22 @@ export class Ponder extends EventEmitter {
     this.setupPlugins();
 
     this.backfill();
+    this.runHandlers();
+  }
+
+  async reload() {
+    await Promise.all([
+      this.reloadSchema(),
+      this.reloadHandlers(),
+      this.cacheStore.migrate(),
+    ]);
+
+    this.codegen();
+    this.reloadPlugins();
+
+    this.interfaceState.handlersCurrent = 0;
+    this.interfaceState.handlersTotal = 0;
+
     this.runHandlers();
   }
 
@@ -155,11 +172,13 @@ export class Ponder extends EventEmitter {
 
   async reloadHandlers() {
     if (this.handlerQueue) {
+      logger.debug("Killing old handlerQueue");
       this.handlerQueue.kill();
       // Unsure if this is necessary after killing it.
       if (!this.handlerQueue.idle()) {
         await this.handlerQueue.drained();
       }
+      this.isHandlingLogs = false;
     }
 
     const handlers = await readHandlers();
@@ -187,13 +206,16 @@ export class Ponder extends EventEmitter {
     };
     renderApp(this.interfaceState);
 
-    const { latestBlockNumberByNetwork, resumeLiveBlockQueues } =
-      await startFrontfill({ ponder: this });
+    const { latestBlockNumberByNetwork } = await startFrontfill({
+      ponder: this,
+    });
 
     const { duration } = await startBackfill({
       ponder: this,
       latestBlockNumberByNetwork,
     });
+
+    logger.debug(`Backfill completed in ${duration}`);
 
     this.interfaceState = {
       ...this.interfaceState,
@@ -201,8 +223,6 @@ export class Ponder extends EventEmitter {
       backfillDuration: duration,
     };
     renderApp(this.interfaceState);
-
-    resumeLiveBlockQueues();
   }
 
   async runHandlers() {
@@ -217,17 +237,6 @@ export class Ponder extends EventEmitter {
     this.handleNewLogs();
   }
 
-  // This reload method is not working - can be triggered multiple times
-  // leading to multiple backfills happening at the same time.
-  async reload() {
-    await this.reloadSchema();
-    this.codegen();
-    await this.reloadHandlers();
-    await this.reloadPlugins();
-
-    this.runHandlers();
-  }
-
   async handleNewLogs() {
     if (!this.handlerQueue) {
       console.error(
@@ -236,15 +245,20 @@ export class Ponder extends EventEmitter {
       return;
     }
 
+    logger.debug("in handleNewLogs", {
+      isHandlingLogs: this.isHandlingLogs,
+      logsProcessedToTimestamp: this.logsProcessedToTimestamp,
+    });
+
     if (this.isHandlingLogs) return;
     this.isHandlingLogs = true;
-
-    console.log("in handleNewLogs");
 
     const { hasNewLogs, toTimestamp, logs } = await getLogs({
       ponder: this,
       fromTimestamp: this.logsProcessedToTimestamp,
     });
+
+    logger.debug(`Got ${logs.length} logs, adding to queue`);
 
     if (!hasNewLogs) return;
 
@@ -255,6 +269,7 @@ export class Ponder extends EventEmitter {
       this.handlerQueue.push({ log });
     }
 
+    logger.debug(`Resetting logsProcessedToTimestamp`);
     this.logsProcessedToTimestamp = toTimestamp;
     this.isHandlingLogs = false;
   }
@@ -332,10 +347,6 @@ export class Ponder extends EventEmitter {
     renderApp(this.interfaceState);
   }
 
-  handleRender() {
-    renderApp(this.interfaceState);
-  }
-
   watch() {
     this.watchFiles.forEach((fileOrDirName) => {
       watch(fileOrDirName, { recursive: true }, (_, fileName) => {
@@ -350,6 +361,7 @@ export class Ponder extends EventEmitter {
         if (isFileChanged(fullPath)) {
           logger.info("");
           logger.info(`\x1b[35m${`Detected change in: ${fileName}`}\x1b[0m`); // yellow
+          logger.info("");
 
           this.reload();
         } else {

@@ -1,21 +1,9 @@
 import { logger } from "@/common/logger";
 import type { Ponder } from "@/Ponder";
 
-import type { CachedProvider } from "../../networks/CachedProvider";
 import { createBlockFrontfillQueue } from "../queues/blockFrontfillQueue";
 
-let previousProviders: CachedProvider[] = [];
-
 export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
-  // Unregister block listeners for stale providers.
-  for (const provider of previousProviders) {
-    provider.removeAllListeners();
-  }
-  previousProviders = [];
-  for (const source of ponder.sources) {
-    previousProviders.push(source.network.provider);
-  }
-
   const uniqueNetworks = [
     ...new Map(
       ponder.sources.map((s) => s.network).map((n) => [n.name, n])
@@ -24,7 +12,7 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
 
   const latestBlockNumberByNetwork: Record<string, number | undefined> = {};
 
-  const liveNetworkStatuses = await Promise.all(
+  await Promise.all(
     uniqueNetworks.map(async (network) => {
       const contractAddresses = ponder.sources
         .filter((s) => s.network.name === network.name)
@@ -87,16 +75,7 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
     })
   );
 
-  const resumeLiveBlockQueues = () => {
-    // Begin processing live blocks for all source groups. This includes
-    // any blocks that were fetched and enqueued during the backfill.
-    liveNetworkStatuses.forEach((status) => {
-      status.liveBlockRequestQueue.resume();
-    });
-  };
-
   return {
     latestBlockNumberByNetwork,
-    resumeLiveBlockQueues,
   };
 };
