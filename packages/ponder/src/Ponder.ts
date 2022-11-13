@@ -45,6 +45,7 @@ export class Ponder extends EventEmitter {
   schema?: PonderSchema;
   handlerQueue?: HandlerQueue;
   logsProcessedToTimestamp: number;
+  isHandlingLogs: boolean;
 
   // Hot reloading
   watchFiles: string[];
@@ -84,6 +85,7 @@ export class Ponder extends EventEmitter {
     ];
 
     this.logsProcessedToTimestamp = 0;
+    this.isHandlingLogs = false;
 
     this.interfaceState = initialInterfaceState;
 
@@ -234,6 +236,11 @@ export class Ponder extends EventEmitter {
       return;
     }
 
+    if (this.isHandlingLogs) return;
+    this.isHandlingLogs = true;
+
+    console.log("in handleNewLogs");
+
     const { hasNewLogs, toTimestamp, logs } = await getLogs({
       ponder: this,
       fromTimestamp: this.logsProcessedToTimestamp,
@@ -249,6 +256,7 @@ export class Ponder extends EventEmitter {
     }
 
     this.logsProcessedToTimestamp = toTimestamp;
+    this.isHandlingLogs = false;
   }
 
   handleBackfillTasksAdded(taskCount: number) {
