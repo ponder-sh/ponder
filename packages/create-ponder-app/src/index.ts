@@ -260,11 +260,4 @@ databases:
         `cd ${path.relative(".", ponderRootDir)} && ${packageManager} run dev`
       )}`
   );
-
-  // console.log(
-  //   chalk.bold.cyanBright("[create-ponder-app] ") +
-  //     `To get started: ${chalk.bold.yellowBright(
-  //       `cd ${path.relative(".", ponderRootDir)} && ${packageManager} run dev`
-  //     )}`
-  // );
 };
