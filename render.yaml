@@ -2,10 +2,26 @@
 # and a Postgres database that all of those services connect to.
 
 services:
+  # - type: web
+  #   name: ponder-examples-okpc
+  #   env: node
+  #   rootDir: examples/okpc
+  #   buildCommand: pnpm install --filter "."
+  #   startCommand: pnpm run start
+  #   envVars:
+  #     - key: PONDER_RPC_URL_1
+  #       sync: false
+  #     - key: START_BLOCK
+  #       sync: false
+  #     - key: POSTGRES_URL
+  #       fromDatabase:
+  #         name: ponder-examples-db
+  #         property: connectionString
+  #     - fromGroup: ponder-examples-env # these env vars are only required within the ponder monorepo
   - type: web
-    name: ponder-examples-okpc
+    name: ponder-examples-art-gobblers
     env: node
-    rootDir: examples/okpc
+    rootDir: examples/art-gobblers
     buildCommand: pnpm install --filter "."
     startCommand: pnpm run start
     envVars:

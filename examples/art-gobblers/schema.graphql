@@ -1,8 +1,8 @@
-type ExampleEntity @entity {
-  id: ID!
-  name: String!
-  trait: ExampleTrait!
+type GobbledArt @entity {
+  id: ID! # gobblerId
+  user: String! # user
 }
+
 enum ExampleTrait {
   GOOD
   BAD
