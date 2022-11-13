@@ -161,7 +161,7 @@ importers:
       ink: ^3.2.0
       pg-promise: ^10.12.1
       prettier: ^2.6.2
-      react: ^18.2.0
+      react: '17'
       tsconfig-replace-paths: ^0.0.11
       typechain: ^8.1.0
       typescript: ^4.8.4
@@ -181,10 +181,10 @@ importers:
       ethers: 5.6.9
       fastq: 1.13.0
       graphql: 15.8.0
-      ink: 3.2.0_fan5qbzahqtxlm5dzefqlqx5ia
+      ink: 3.2.0_qnxonbsml5syl42mqdnwkqq4yu
       pg-promise: 10.12.1
       prettier: 2.6.2
-      react: 18.2.0
+      react: 17.0.2
       typechain: 8.1.0_typescript@4.8.4
       typescript: 4.8.4
     devDependencies:
@@ -3319,7 +3319,7 @@ packages:
     resolution: {integrity: sha512-JV/yugV2uzW5iMRSiZAyDtQd+nxtUnjeLt0acNdw98kKLrvuRVyB80tsREOE7yvGVgalhZ6RNXCmEHkUKBKxew==}
     dev: false
 
-  /ink/3.2.0_fan5qbzahqtxlm5dzefqlqx5ia:
+  /ink/3.2.0_qnxonbsml5syl42mqdnwkqq4yu:
     resolution: {integrity: sha512-firNp1q3xxTzoItj/eOOSZQnYSlyrWks5llCTVX37nJ59K3eXbQ8PtzCguqo8YI19EELo5QxaKnJd4VxzhU8tg==}
     engines: {node: '>=10'}
     peerDependencies:
@@ -3341,9 +3341,9 @@ packages:
       is-ci: 2.0.0
       lodash: 4.17.21
       patch-console: 1.0.0
-      react: 18.2.0
+      react: 17.0.2
       react-devtools-core: 4.26.1
-      react-reconciler: 0.26.2_react@18.2.0
+      react-reconciler: 0.26.2_react@17.0.2
       scheduler: 0.20.2
       signal-exit: 3.0.7
       slice-ansi: 3.0.0
@@ -4183,7 +4183,7 @@ packages:
       - utf-8-validate
     dev: false
 
-  /react-reconciler/0.26.2_react@18.2.0:
+  /react-reconciler/0.26.2_react@17.0.2:
     resolution: {integrity: sha512-nK6kgY28HwrMNwDnMui3dvm3rCFjZrcGiuwLc5COUipBK5hWHLOxMJhSnSomirqWwjPBJKV1QcbkI0VJr7Gl1Q==}
     engines: {node: '>=0.10.0'}
     peerDependencies:
@@ -4191,15 +4191,16 @@ packages:
     dependencies:
       loose-envify: 1.4.0
       object-assign: 4.1.1
-      react: 18.2.0
+      react: 17.0.2
       scheduler: 0.20.2
     dev: false
 
-  /react/18.2.0:
-    resolution: {integrity: sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==}
+  /react/17.0.2:
+    resolution: {integrity: sha512-gnhPt75i/dq/z3/6q/0asP78D0u592D5L1pd7M8P+dck6Fu/jJeL6iVVK23fptSUZj8Vjf++7wXA8UNclGQcbA==}
     engines: {node: '>=0.10.0'}
     dependencies:
       loose-envify: 1.4.0
+      object-assign: 4.1.1
     dev: false
 
   /readable-stream/3.6.0:
