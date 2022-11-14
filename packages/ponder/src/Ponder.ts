@@ -88,7 +88,7 @@ export class Ponder extends EventEmitter {
     this.interfaceState = initialInterfaceState;
 
     this.on("newNetworkConnected", this.handleNewNetworkConnected);
-    this.on("newBackfillLogs", this.handleNewLogs);
+    this.on("newBackfillLogs", this.handleNewBackfillLogs);
     this.on("newFrontfillLogs", this.handleNewFrontfillLogs);
 
     this.on("backfillTasksAdded", this.handleBackfillTasksAdded);
@@ -98,40 +98,27 @@ export class Ponder extends EventEmitter {
   }
 
   async start() {
+    this.interfaceState.isProd = true;
     await this.setup();
 
-    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
+    await Promise.all([this.loadSchema(), this.loadHandlers()]);
 
     this.codegen();
     this.setupPlugins();
 
     await this.backfill();
-    this.runHandlers();
   }
 
   async dev() {
     await this.setup();
     this.watch();
 
-    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
+    await Promise.all([this.loadSchema(), this.loadHandlers()]);
 
     this.codegen();
     this.setupPlugins();
 
     this.backfill();
-    this.runHandlers();
-  }
-
-  async reload() {
-    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
-
-    this.codegen();
-    this.reloadPlugins();
-
-    this.interfaceState.handlersCurrent = 0;
-    this.interfaceState.handlersTotal = 0;
-
-    this.runHandlers();
   }
 
   async setup() {
@@ -151,12 +138,13 @@ export class Ponder extends EventEmitter {
     if (this.schema) generateHandlerTypes(this.sources, this.schema);
   }
 
-  async reloadSchema() {
+  async loadSchema() {
     const userSchema = readSchema();
     this.schema = buildPonderSchema(userSchema);
+    await this.entityStore.migrate(this.schema);
   }
 
-  async reloadHandlers() {
+  async loadHandlers() {
     if (this.handlerQueue) {
       logger.debug("Killing old handlerQueue");
       this.handlerQueue.kill();
@@ -173,6 +161,22 @@ export class Ponder extends EventEmitter {
       ponder: this,
       handlers: handlers,
     });
+  }
+
+  async reload() {
+    await Promise.all([this.loadSchema(), this.loadHandlers()]);
+
+    this.codegen();
+    this.reloadPlugins();
+
+    // This drops and creates the entity tables.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    await this.entityStore.migrate(this.schema!);
+    this.logsProcessedToTimestamp = 0;
+    this.interfaceState.handlersTotal = 0;
+    this.interfaceState.handlersCurrent = 0;
+
+    this.handleNewLogs();
   }
 
   async backfill() {
@@ -211,18 +215,6 @@ export class Ponder extends EventEmitter {
     renderApp(this.interfaceState);
   }
 
-  async runHandlers() {
-    if (!this.schema) {
-      console.error(`Cannot run handlers before building schema`);
-      return;
-    }
-
-    await this.entityStore.migrate(this.schema);
-    this.logsProcessedToTimestamp = 0;
-
-    this.handleNewLogs();
-  }
-
   async handleNewLogs() {
     if (!this.handlerQueue) {
       console.error(
@@ -230,11 +222,6 @@ export class Ponder extends EventEmitter {
       );
       return;
     }
-
-    logger.debug("in handleNewLogs", {
-      isHandlingLogs: this.isHandlingLogs,
-      logsProcessedToTimestamp: this.logsProcessedToTimestamp,
-    });
 
     if (this.isHandlingLogs) return;
     this.isHandlingLogs = true;
@@ -244,8 +231,6 @@ export class Ponder extends EventEmitter {
       fromTimestamp: this.logsProcessedToTimestamp,
     });
 
-    logger.debug(`Got ${logs.length} logs, adding to queue`);
-
     if (!hasNewLogs) {
       this.isHandlingLogs = false;
       return;
@@ -254,11 +239,12 @@ export class Ponder extends EventEmitter {
     this.interfaceState.handlersTotal += logs.length;
     renderApp(this.interfaceState);
 
+    logger.debug(`Adding ${logs.length} to handlerQueue`);
+
     for (const log of logs) {
       this.handlerQueue.push({ log });
     }
 
-    logger.debug(`Resetting logsProcessedToTimestamp`);
     this.logsProcessedToTimestamp = toTimestamp;
     this.isHandlingLogs = false;
   }
@@ -334,6 +320,10 @@ export class Ponder extends EventEmitter {
       matchedLogCount: matchedLogCount,
     };
     renderApp(this.interfaceState);
+  }
+
+  handleNewBackfillLogs() {
+    this.handleNewLogs();
   }
 
   watch() {

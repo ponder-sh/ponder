@@ -1,6 +1,8 @@
 import { Box, Newline, render, Text } from "ink";
 import React from "react";
 
+import { logger } from "@/common/logger";
+
 import { ProgressBar } from "./ProgressBar";
 
 export enum HandlersStatus {
@@ -10,6 +12,8 @@ export enum HandlersStatus {
 }
 
 export type InterfaceState = {
+  isProd: boolean;
+
   timestamp: number;
 
   backfillStartTimestamp: number;
@@ -39,6 +43,8 @@ export type InterfaceState = {
 };
 
 export const initialInterfaceState: InterfaceState = {
+  isProd: false,
+
   timestamp: 0,
 
   backfillStartTimestamp: 0,
@@ -58,7 +64,10 @@ export const initialInterfaceState: InterfaceState = {
   networks: {},
 };
 
+let prevTimestamp = 0;
+
 const App = ({
+  isProd,
   timestamp,
 
   backfillEta,
@@ -102,6 +111,21 @@ const App = ({
   )}%`;
   const handlersCountText =
     handlersTotal > 0 ? ` | ${handlersCurrent}/${handlersTotal} events` : null;
+
+  if (isProd) {
+    if (timestamp > prevTimestamp + 5) {
+      logger.debug({
+        handlerError,
+        backfillPercent,
+        backfillCountText,
+        handlersPercent,
+        handlersCountText,
+      });
+      prevTimestamp = timestamp;
+    }
+
+    return null;
+  }
 
   if (handlerError) {
     return (
