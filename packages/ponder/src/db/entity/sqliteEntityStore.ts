@@ -45,7 +45,7 @@ export class SqliteEntityStore implements EntityStore {
 
   async getEntity<T>(entityName: string, id: string): Promise<T | null> {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const entity = this.schema.entityByName[entityName];
@@ -77,7 +77,7 @@ export class SqliteEntityStore implements EntityStore {
     filter?: EntityFilter
   ): Promise<T[]> {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const where = filter?.where;
@@ -155,7 +155,7 @@ export class SqliteEntityStore implements EntityStore {
 
   async insertEntity<T>(entityName: string, attributes: any): Promise<T> {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const entity = this.schema.entityByName[entityName];
@@ -187,7 +187,7 @@ export class SqliteEntityStore implements EntityStore {
     attributes: { id: string } & Partial<T>
   ): Promise<T> {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const entity = this.schema.entityByName[entityName];
@@ -216,7 +216,7 @@ export class SqliteEntityStore implements EntityStore {
 
   async deleteEntity(entityName: string, id: string): Promise<void> {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const statement = `delete from \`${entityName}\` where \`id\` = @id`;
@@ -228,7 +228,7 @@ export class SqliteEntityStore implements EntityStore {
 
   deserialize(entityName: string, instance: any) {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const entity = this.schema.entityByName[entityName];
@@ -264,7 +264,7 @@ export class SqliteEntityStore implements EntityStore {
     derivedFieldName: string
   ) {
     if (!this.schema) {
-      throw new Error(`SqliteStore has not been initialized with a schema yet`);
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
     const entity = this.schema.entityByName[entityName];
