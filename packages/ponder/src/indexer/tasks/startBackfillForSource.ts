@@ -89,7 +89,7 @@ export const startBackfillForSource = async ({
         toBlock,
       });
       ponder.emit("backfillTasksAdded", 1);
-      return;
+      continue;
     }
 
     while (fromBlock < endBlock) {
@@ -106,16 +106,20 @@ export const startBackfillForSource = async ({
   }
 
   const logQueueLength = logBackfillQueue.length();
-  logger.debug(`Started: ${logQueueLength} log backfill tasks`);
+  logger.debug(`${source.name}: Started ${logQueueLength} log backfill tasks`);
   if (!logBackfillQueue.idle()) {
     await logBackfillQueue.drained();
   }
-  logger.debug(`Done: ${logQueueLength} log backfill tasks`);
+  logger.debug(`${source.name}: Finished ${logQueueLength} log backfill tasks`);
 
   const blockQueueLength = logBackfillQueue.length();
-  logger.debug(`Started: ${blockQueueLength} block backfill tasks`);
+  logger.debug(
+    `${source.name}: Started ${blockQueueLength} block backfill tasks`
+  );
   if (!blockBackfillQueue.idle()) {
     await blockBackfillQueue.drained();
   }
-  logger.debug(`Done: ${blockQueueLength} block backfill tasks`);
+  logger.debug(
+    `${source.name}: Finished ${blockQueueLength} block backfill tasks`
+  );
 };

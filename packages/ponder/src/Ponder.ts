@@ -260,7 +260,10 @@ export class Ponder extends EventEmitter {
 
     logger.debug(`Got ${logs.length} logs, adding to queue`);
 
-    if (!hasNewLogs) return;
+    if (!hasNewLogs) {
+      this.isHandlingLogs = false;
+      return;
+    }
 
     this.interfaceState.handlersTotal += logs.length;
     renderApp(this.interfaceState);
