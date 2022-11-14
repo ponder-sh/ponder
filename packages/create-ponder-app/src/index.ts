@@ -83,7 +83,7 @@ export const run = async (options: CreatePonderAppOptions) => {
 
     const handlerFileContents = `
       import { ${handlers.map((h) => h.handlerFunctionType).join(",")} }
-        from '../generated/${source.name}'
+        from '../generated/handlers'
 
       ${handlers.map((h) => h.handlerFunction).join("\n")}
       
