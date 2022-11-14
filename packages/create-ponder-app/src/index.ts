@@ -198,7 +198,7 @@ module.exports = ponderConfig;`;
   // Write the .gitignore file.
   writeFileSync(
     path.join(ponderRootDir, ".gitignore"),
-    `.env.local\n.ponder/\ngenerated/`
+    `node_modules/\n.DS_Store\n\n.env.local\n.ponder/\ngenerated/`
   );
 
   const packageManager = await detect();
