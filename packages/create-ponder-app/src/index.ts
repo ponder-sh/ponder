@@ -53,7 +53,7 @@ export const run = async (options: CreatePonderAppOptions) => {
   } else if (options.fromEtherscan) {
     console.log(
       chalk.bold.cyanBright("[create-ponder-app] ") +
-        `Bootstrapping from Etherscan...`
+        `Bootstrapping from Etherscan`
     );
     ponderConfig = await fromEtherscan(options);
   } else {
