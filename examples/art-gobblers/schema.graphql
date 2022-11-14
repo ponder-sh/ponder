@@ -2,8 +2,3 @@ type GobbledArt @entity {
   id: ID! # gobblerId
   user: String! # user
 }
-
-enum ExampleTrait {
-  GOOD
-  BAD
-}

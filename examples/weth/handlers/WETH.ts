@@ -1,6 +1,6 @@
 import { BigNumber } from "ethers";
 
-import { ApprovalHandler, TransferHandler } from "../generated/WETH";
+import { ApprovalHandler, TransferHandler } from "../generated/handlers";
 
 const handleTransfer: TransferHandler = async (event, context) => {
   const { block } = event;

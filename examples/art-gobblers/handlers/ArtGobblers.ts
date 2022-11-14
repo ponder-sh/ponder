@@ -1,4 +1,4 @@
-import { ArtGobbledHandler } from "../generated/ArtGobblers";
+import { ArtGobbledHandler } from "../generated/handlers";
 
 const handleArtGobbled: ArtGobbledHandler = async (event, context) => {
   console.log("Art Gobbled!");

@@ -1,4 +1,4 @@
-import { TransferHandler } from "../generated/OKPC";
+import { TransferHandler } from "../generated/handlers";
 import { OkpcOwnerTrait } from "../generated/schema";
 
 const handleTransfer: TransferHandler = async (event, context) => {
@@ -10,7 +10,7 @@ const handleTransfer: TransferHandler = async (event, context) => {
   if (token) {
     await OkpcToken.update({
       id: tokenId.toNumber().toString(),
-      tokenId: block.nonce,
+      tokenId: tokenId.toNumber().toString(),
       owner: to,
     });
   } else {

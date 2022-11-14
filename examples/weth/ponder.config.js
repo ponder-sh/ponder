@@ -1,4 +1,10 @@
-module.exports = {
+const { graphqlPlugin } = require("@ponder/graphql");
+
+/**
+ * @type {import('@ponder/ponder').PonderConfig}
+ */
+const ponderConfig = {
+  plugins: [graphqlPlugin()],
   database: {
     kind: "sqlite",
     filename: process.env.DATABASE_FILE_PATH,
@@ -19,7 +25,8 @@ module.exports = {
       address: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       abi: "./abis/WETH.json",
       startBlock: Number(process.env.WETH_START_BLOCK),
-      blockLimit: 10,
     },
   ],
 };
+
+module.exports = ponderConfig;
