@@ -3,9 +3,7 @@ import { mkdirSync, watch } from "node:fs";
 import path from "node:path";
 
 import type { PonderConfig } from "@/cli/readPonderConfig";
-import { generateContextTypes } from "@/codegen/generateContextTypes";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
-import { generateEntityTypes } from "@/codegen/generateEntityTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger, PonderLogger } from "@/common/logger";
 import { OPTIONS, PonderOptions } from "@/common/options";
@@ -100,13 +98,9 @@ export class Ponder extends EventEmitter {
   }
 
   async start() {
-    this.setup();
+    await this.setup();
 
-    await Promise.all([
-      this.reloadSchema(),
-      this.reloadHandlers(),
-      this.cacheStore.migrate(),
-    ]);
+    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
 
     this.codegen();
     this.setupPlugins();
@@ -116,14 +110,10 @@ export class Ponder extends EventEmitter {
   }
 
   async dev() {
-    this.setup();
+    await this.setup();
     this.watch();
 
-    await Promise.all([
-      this.reloadSchema(),
-      this.reloadHandlers(),
-      this.cacheStore.migrate(),
-    ]);
+    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
 
     this.codegen();
     this.setupPlugins();
@@ -133,11 +123,7 @@ export class Ponder extends EventEmitter {
   }
 
   async reload() {
-    await Promise.all([
-      this.reloadSchema(),
-      this.reloadHandlers(),
-      this.cacheStore.migrate(),
-    ]);
+    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
 
     this.codegen();
     this.reloadPlugins();
@@ -148,7 +134,7 @@ export class Ponder extends EventEmitter {
     this.runHandlers();
   }
 
-  setup() {
+  async setup() {
     setInterval(() => {
       this.interfaceState.timestamp = Math.floor(Date.now() / 1000);
       renderApp(this.interfaceState);
@@ -156,13 +142,13 @@ export class Ponder extends EventEmitter {
 
     mkdirSync(path.join(OPTIONS.GENERATED_DIR_PATH), { recursive: true });
     mkdirSync(path.join(OPTIONS.PONDER_DIR_PATH), { recursive: true });
+
+    await this.cacheStore.migrate();
   }
 
   codegen() {
     generateContractTypes(this.sources);
-    generateHandlerTypes(this.sources);
-    generateContextTypes(this.sources, this.schema);
-    if (this.schema) generateEntityTypes(this.schema);
+    if (this.schema) generateHandlerTypes(this.sources, this.schema);
   }
 
   async reloadSchema() {

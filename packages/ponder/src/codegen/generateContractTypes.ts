@@ -31,20 +31,4 @@ export const generateContractTypes = (sources: Source[]) => {
 
     writeFileSync(abiTsFileName, final, "utf8");
   });
-
-  // Now, create an `index.ts` file that exports each source's contract type.
-  const contractNames = sources.map((source) => source.name);
-
-  const raw = `
-    ${contractNames
-      .map((name) => `export { ${name} } from './${name}';`)
-      .join(" ")}
-  `;
-  const final = formatPrettier(raw);
-
-  writeFileSync(
-    path.join(OPTIONS.GENERATED_DIR_PATH, `contracts/index.ts`),
-    final,
-    "utf8"
-  );
 };
