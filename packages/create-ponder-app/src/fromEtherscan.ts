@@ -14,9 +14,9 @@ export const fromEtherscan = async (options: CreatePonderAppOptions) => {
   const { ponderRootDir } = options;
 
   if (!options.fromEtherscan) {
-    throw new Error(`Internal error: fromSubgraph undefined`);
+    throw new Error(`Internal error: fromEtherscan undefined`);
   }
-  const apiKey = options.etherscanApiKey;
+  const apiKey = options.etherscanApiKey || process.env.ETHERSCAN_API_KEY;
 
   const url = new URL(options.fromEtherscan);
   const network = getNetworkByEtherscanHostname(url.hostname);

@@ -1,5 +1,4 @@
 import chalk from "chalk";
-import { detect } from "detect-package-manager";
 import { ethers } from "ethers";
 import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -10,6 +9,7 @@ import type { CreatePonderAppOptions } from "./bin/create-ponder-app";
 import { fromBasic } from "./fromBasic";
 import { fromEtherscan } from "./fromEtherscan";
 import { fromSubgraph } from "./fromSubgraph";
+import { detect } from "./helpers/detectPackageManager";
 
 export type PonderNetwork = {
   kind: string;

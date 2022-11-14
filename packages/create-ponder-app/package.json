@@ -1,6 +1,6 @@
 {
   "name": "create-ponder-app",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "description": "Tool to bootstrap a Ponder project",
   "license": "MIT",
   "author": "olias.eth",
@@ -26,8 +26,8 @@
     "@ethersproject/providers": "^5.6.8",
     "chalk": "4",
     "commander": "^9.4.0",
-    "detect-package-manager": "^2.0.1",
     "ethers": "^5.6.9",
+    "execa": "^6.1.0",
     "node-fetch": "2",
     "prettier": "^2.6.2",
     "yaml": "^2.1.1"
