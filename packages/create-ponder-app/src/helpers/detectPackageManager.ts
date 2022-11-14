@@ -29,7 +29,8 @@ function hasGlobalInstallation(pm: PM): Promise<boolean> {
     .then((value) => {
       cache.set(key, value);
       return value;
-    });
+    })
+    .catch(() => false);
 }
 
 function getTypeofLockFile(cwd = "."): Promise<PM | null> {
