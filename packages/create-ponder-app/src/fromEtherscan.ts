@@ -54,11 +54,6 @@ export const fromEtherscan = async (options: CreatePonderAppOptions) => {
     type ExampleEntity @entity {
       id: ID!
       name: String!
-      trait: ExampleTrait!
-    }
-    enum ExampleTrait {
-      GOOD
-      BAD
     }
   `;
 
