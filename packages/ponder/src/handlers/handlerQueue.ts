@@ -56,6 +56,8 @@ export const createHandlerQueue = ({
   };
 
   const handlerWorker = async ({ log }: HandlerTask) => {
+    ponder.emit("handlerTaskStarted");
+
     const source = ponder.sources.find(
       (source) => source.address === log.address
     );
@@ -133,8 +135,6 @@ export const createHandlerQueue = ({
     } catch (err) {
       logger.error("Error in handler:", err);
     }
-
-    ponder.emit("handlerTaskCompleted");
   };
 
   const queue = fastq.promise<HandlerTask>(handlerWorker, 1);

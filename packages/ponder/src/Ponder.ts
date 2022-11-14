@@ -96,7 +96,7 @@ export class Ponder extends EventEmitter {
     this.on("backfillTasksAdded", this.handleBackfillTasksAdded);
     this.on("backfillTaskCompleted", this.handleBackfillTaskCompleted);
 
-    this.on("handlerTaskCompleted", this.handleHandlerTaskCompleted);
+    this.on("handlerTaskStarted", this.handleHandlerTaskStarted);
   }
 
   async start() {
@@ -296,7 +296,7 @@ export class Ponder extends EventEmitter {
     if (Number.isFinite(newEta)) this.interfaceState.backfillEta = newEta;
   }
 
-  handleHandlerTaskCompleted() {
+  handleHandlerTaskStarted() {
     this.interfaceState.handlersCurrent += 1;
     this.interfaceState.handlersStatus =
       this.interfaceState.handlersCurrent === this.interfaceState.handlersTotal
