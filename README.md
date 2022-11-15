@@ -43,13 +43,13 @@ The dev server prints logs to help you debug any configuration issues or errors.
 
 #### 3. Write event handlers
 
-Ponder event handler functions are similar to Graph Protocol mapping functions. [More docs here](https://github.com/0xOlias/ponder/blob/main/docs/event-handlers.md).
+Ponder event handler functions are similar to Graph Protocol mapping functions. [More docs here](https://github.com/0xOlias/ponder/blob/main/docs/writing-event-handlers.md).
 
 ## Guides
 
-[Event sources & networks](https://github.com/0xOlias/ponder/blob/main/docs/event-sources-and-networks.md)
+[Configuring contracts & networks](https://github.com/0xOlias/ponder/blob/main/docs/event-sources-and-networks.md)
 
-[Event handlers](https://github.com/0xOlias/ponder/blob/main/docs/event-handlers.md)
+[Writing event handlers](https://github.com/0xOlias/ponder/blob/main/docs/writing-event-handlers.md)
 
 [Database](https://github.com/0xOlias/ponder/blob/main/docs/database.md)
 
@@ -57,9 +57,9 @@ Ponder event handler functions are similar to Graph Protocol mapping functions. 
 
 ## API reference
 
-[Create ponder app](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/create-ponder-app.md)
+[Create Ponder App](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/create-ponder-app.md)
 
-[Event handler context](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/event-handler-context.md)
+[Event handler functions](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/event-handlers.md)
 
 [`ponder.config.js`](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/ponder-config-js.md)
 
