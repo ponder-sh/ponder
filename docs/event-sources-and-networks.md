@@ -1,11 +1,12 @@
 # Event sources & networks
 
-Ponder fetches event logs for each source defined in `ponder.config.js`. Then, Ponder processes each log using your event handler functions.
+**Sources** are EVM smart contracts, and **networks** are EVM blockchains (e.g. Ethereum mainnet, Optimism, a local Anvil node, etc).
 
-Each of your sources must reference a network (e.g. Ethereum mainnet, Optimism, or a local Anvil node). Here's a sample `ponder.config.js` for the CryptoPunks NFT contract.
+Sources and networks are specified in `ponder.config.js`. To fetch the event log data for a source, Ponder sends RPC requests to the corresponding `network.rpcUrl`. Each source must reference a network by name. Here's a sample `ponder.config.js` for the CryptoPunks NFT contract.
 
 ```js
 // ponder.config.js
+
 module.exports = {
   networks: {
     name: "mainnet",

@@ -1,13 +1,13 @@
 ### `ponder.config.js`
 
-Your project's `ponder.config.js` file contains contract addresses, paths to ABIs, RPC URLs for each of your sources (smart contracts). It's similar to a Graph Protocol `subgraph.yaml` file.
+`ponder.config.js` contains smart contract addresses, paths to ABIs, RPC URLs for each network, and more. It's similar to a Graph Protocol `subgraph.yaml` file.
 
-`ponder.config.js` also contains your GraphQL server and database configuration.
-
-Here is the TypeScript type for `ponder.config.js`.
+`ponder.config.js` is also used for database configuration and plugins.
 
 ```ts
 type PonderConfig = {
+  plugins: ResolvedPonderPlugin[];
+
   networks: {
     name: string;
     chainId: number;
@@ -31,11 +31,7 @@ type PonderConfig = {
         kind: "postgres";
         connectionString: string;
       };
-
-  graphql?: {
-    port?: number; // default: 42069
-  };
 };
 ```
 
-[inset box] Avoid using new JavaScript features not available in your target Node.js version. `ponder.config.js` will not be parsed by TypeScript or ESBuild.
+**Note: Avoid using new JavaScript features not available in your target Node.js version. `ponder.config.js` will not be parsed by TypeScript or ESBuild.**
