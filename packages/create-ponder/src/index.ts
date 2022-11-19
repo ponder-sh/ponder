@@ -150,7 +150,6 @@ module.exports = ponderConfig;`;
   // Write the package.json file.
   const packageJson = `
     {
-      "version": "0.1.0",
       "private": true,
       "scripts": {
         "dev": "ponder dev",
