@@ -1,6 +1,6 @@
 {
-  "name": "@ponder/ponder",
-  "version": "0.0.48",
+  "name": "@ponder/core",
+  "version": "0.0.0",
   "description": "API builder for blockchain apps",
   "license": "MIT",
   "author": "olias.eth",
@@ -22,7 +22,7 @@
     "declarations": "(tsc --noEmit false --declaration --emitDeclarationOnly || exit 0) && $npm_execpath run replace-paths",
     "format-dist": "prettier dist --write --loglevel warn",
     "prerelease": "$npm_execpath run build && $npm_execpath run declarations && $npm_execpath run format-dist",
-    "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/ponder): $VERSION\""
+    "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/core): $VERSION\""
   },
   "dependencies": {
     "@ethersproject/abi": "^5.6.4",
