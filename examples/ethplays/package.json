@@ -1,8 +1,7 @@
 {
-  "name": "ethplays-v0",
-  "license": "UNLICENSED",
+  "private": true,
   "scripts": {
-    "create-ponder-app": "create-ponder-app --dir ../ponder --from-subgraph .",
+    "create-ponder": "create-ponder --dir ../ponder --from-subgraph .",
     "codegen": "graph codegen",
     "build": "graph build",
     "deploy": "graph deploy --node https://api.thegraph.com/deploy/ 0xolias/ethplays-v0",
@@ -11,6 +10,6 @@
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 0xolias/ethplays-v0"
   },
   "devDependencies": {
-    "create-ponder-app": "workspace:latest"
+    "create-ponder": "workspace:latest"
   }
 }

@@ -1,6 +1,6 @@
 {
-  "name": "create-ponder-app",
-  "version": "0.0.25",
+  "name": "create-ponder",
+  "version": "0.0.0",
   "description": "Tool to bootstrap a Ponder project",
   "license": "MIT",
   "author": "olias.eth",
@@ -8,7 +8,7 @@
     "dist"
   ],
   "bin": {
-    "create-ponder-app": "./dist/bin/create-ponder-app"
+    "create-ponder": "./dist/bin/create-ponder"
   },
   "scripts": {
     "clean": "rm -rf dist",
@@ -16,10 +16,10 @@
     "format": "prettier src --write",
     "replace-paths": "tsconfig-replace-paths --src src",
     "esbuild": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist && $npm_execpath run replace-paths",
-    "build": "$npm_execpath run clean && $npm_execpath run esbuild && mv dist/bin/create-ponder-app.js dist/bin/create-ponder-app",
+    "build": "$npm_execpath run clean && $npm_execpath run esbuild && mv dist/bin/create-ponder.js dist/bin/create-ponder",
     "format-dist": "prettier dist --write --loglevel warn",
     "prerelease": "$npm_execpath run build && $npm_execpath run format-dist",
-    "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(create-ponder-app): $VERSION\""
+    "release": "$npm_execpath run prerelease && VERSION=$($npm_execpath version patch) && $npm_execpath publish && git add ./package.json && git commit -m \"release(create-ponder): $VERSION\""
   },
   "dependencies": {
     "@ethersproject/abi": "^5.6.4",

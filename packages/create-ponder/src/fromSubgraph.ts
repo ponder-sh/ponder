@@ -7,7 +7,7 @@ import type {
 } from "src/index";
 import { parse } from "yaml";
 
-import type { CreatePonderAppOptions } from "./bin/create-ponder-app";
+import type { CreatePonderAppOptions } from "./bin/create-ponder";
 import {
   getGraphProtocolChainId,
   subgraphYamlFileNames,
