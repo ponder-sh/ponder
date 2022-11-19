@@ -26,7 +26,11 @@ Ponder is an alternative to the Graph Protocol. You can quickly migrate an exist
 This command will create a project folder called `ponder` in the current working directory. Include the `--from-subgraph` option to bootstrap your project using an existing Graph Protocol subgraph.
 
 ```
-npm init ponder@latest --from-subgraph [path/to/subgraph]
+npm init ponder -- --from-subgraph [path]
+# or
+pnpm create ponder --from-subgraph [path]
+# or
+yarn create ponder --from-subgraph [path]
 ```
 
 #### 2. Start the development server
