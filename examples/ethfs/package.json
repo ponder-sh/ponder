@@ -1,0 +1,18 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "codegen": "ponder codegen"
+  },
+  "dependencies": {
+    "@ponder/core": "latest",
+    "@ponder/graphql": "latest"
+  },
+  "devDependencies": {
+    "ethers": "^5.6.9"
+  },
+  "engines": {
+    "node": ">=16.0.0 <19.0.0"
+  }
+}
