@@ -80,7 +80,11 @@ export const createHandlerQueue = ({
     const params = parsedLog.eventFragment.inputs.reduce<
       Record<string, unknown>
     >((acc, input, index) => {
-      acc[input.name] = parsedLog.args[index];
+      let value = parsedLog.args[index];
+      if (typeof value === "object" && value._isIndexed) {
+        value = value.hash;
+      }
+      acc[input.name] = value;
       return acc;
     }, {});
 

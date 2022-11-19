@@ -43,6 +43,8 @@ export type Context = {
 
 /* HANDLER TYPES */
 
+type Hash = string;
+
 ${buildHandlerTypes(sources)}
   `;
 
