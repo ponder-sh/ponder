@@ -1,15 +1,15 @@
-import chalk from "chalk";
 import { ethers } from "ethers";
 import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import pico from "picocolors";
 import prettier from "prettier";
 
-import type { CreatePonderAppOptions } from "./bin/create-ponder";
-import { fromBasic } from "./fromBasic";
-import { fromEtherscan } from "./fromEtherscan";
-import { fromSubgraph } from "./fromSubgraph";
+import type { CreatePonderOptions } from "./bin/create-ponder";
 import { detect } from "./helpers/detectPackageManager";
+import { fromBasic } from "./templates/basic";
+import { fromEtherscan } from "./templates/etherscan";
+import { fromSubgraph } from "./templates/subgraph";
 
 export type PonderNetwork = {
   kind: string;
@@ -36,7 +36,7 @@ export type PartialPonderConfig = {
   sources: PonderSource[];
 };
 
-export const run = async (options: CreatePonderAppOptions) => {
+export const run = async (options: CreatePonderOptions) => {
   const { ponderRootDir } = options;
 
   // Create required directories.
@@ -45,14 +45,10 @@ export const run = async (options: CreatePonderAppOptions) => {
 
   let ponderConfig: PartialPonderConfig;
   if (options.fromSubgraph) {
-    console.log(
-      chalk.bold.cyanBright("[create-ponder] ") + `Bootstrapping from subgraph`
-    );
+    console.log(pico.cyan("[create-ponder] ") + `Bootstrapping from subgraph`);
     ponderConfig = fromSubgraph(options);
   } else if (options.fromEtherscan) {
-    console.log(
-      chalk.bold.cyanBright("[create-ponder] ") + `Bootstrapping from Etherscan`
-    );
+    console.log(pico.cyan("[create-ponder] ") + `Bootstrapping from Etherscan`);
     ponderConfig = await fromEtherscan(options);
   } else {
     ponderConfig = fromBasic(options);
@@ -231,8 +227,7 @@ databases:
 
   // Install packages.
   console.log(
-    chalk.bold.cyanBright("[create-ponder] ") +
-      `Installing using ${packageManager}`
+    pico.cyan("[create-ponder] ") + `Installing using ${packageManager}`
   );
 
   execSync(`${packageManager} install`, {
@@ -241,7 +236,7 @@ databases:
   });
 
   // Run codegen.
-  console.log(chalk.bold.cyanBright("[create-ponder] ") + `Generating types`);
+  console.log(pico.cyan("[create-ponder] ") + `Generating types`);
 
   execSync(`${packageManager} run  --silent codegen`, {
     cwd: ponderRootDir,
@@ -249,9 +244,9 @@ databases:
   });
 
   console.log(
-    chalk.bold.cyanBright("[create-ponder] ") +
-      chalk.bold.greenBright("Done! ") +
-      `To get started: ${chalk.bold.yellowBright(
+    pico.cyan("[create-ponder] ") +
+      pico.green("Done! ") +
+      `To get started: ${pico.yellow(
         `cd ${path.relative(".", ponderRootDir)} && ${packageManager} run dev`
       )}`
   );

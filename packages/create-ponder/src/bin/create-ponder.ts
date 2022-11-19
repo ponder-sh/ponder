@@ -1,35 +1,35 @@
 #!/usr/bin/env node
 /* eslint-disable @typescript-eslint/no-var-requires */
 
-import { Command } from "commander";
+import { cac } from "cac";
 import path from "node:path";
 
-interface RawCreatePonderAppOptions {
+import packageJson from "../../package.json";
+
+const cli = cac(packageJson.name)
+  .version(packageJson.version)
+  .usage("[options]")
+  .help()
+  .option("--dir [path]", "Path to directory for generated project")
+  .option("--from-subgraph [path]", "Path to subgraph directory")
+  .option("--from-etherscan [url]", "Link to etherscan contract page")
+  .option("--etherscan-api-key [key]", "Etherscan API key");
+
+const parsed = cli.parse(process.argv);
+
+const options = parsed.options as {
+  help?: boolean;
   dir?: string;
   fromSubgraph?: string;
   fromEtherscan?: string;
   etherscanApiKey?: string;
+};
+
+if (options.help) {
+  process.exit(0);
 }
-
-const program = new Command();
-program
-  .description("Create a Ponder project")
-  .option("--dir <string>", "Path to directory for generated Ponder project")
-  .option("--from-subgraph <string>", "Path to subgraph directory")
-  .option("--from-etherscan <string>", "Link to etherscan contract page")
-  .option("--etherscan-api-key <string>", "Etherscan API key");
-
-program.parse();
-const options = program.opts() as RawCreatePonderAppOptions;
 
 // Validate CLI options.
-export interface CreatePonderAppOptions {
-  ponderRootDir: string;
-  fromSubgraph?: string;
-  fromEtherscan?: string;
-  etherscanApiKey?: string;
-}
-
 if (options.fromSubgraph && options.fromEtherscan) {
   throw new Error(`Cannot specify more than one "--from" option:
 --from-subgraph
@@ -37,9 +37,16 @@ if (options.fromSubgraph && options.fromEtherscan) {
 `);
 }
 
-const validatedOptions: CreatePonderAppOptions = {
+export interface CreatePonderOptions {
+  ponderRootDir: string;
+  fromSubgraph?: string;
+  fromEtherscan?: string;
+  etherscanApiKey?: string;
+}
+
+const validatedOptions: CreatePonderOptions = {
   // Default `dir` to "ponder".
-  ponderRootDir: path.resolve(options.dir ? options.dir : "ponder"),
+  ponderRootDir: path.resolve(".", options.dir ? options.dir : "ponder"),
   fromSubgraph: options.fromSubgraph,
   fromEtherscan: options.fromEtherscan,
   etherscanApiKey: options.etherscanApiKey,

@@ -5,12 +5,12 @@ import fetch from "node-fetch";
 import prettier from "prettier";
 import type { PartialPonderConfig } from "src/index";
 
-import type { CreatePonderAppOptions } from "./bin/create-ponder";
-import { getNetworkByEtherscanHostname } from "./helpers/getEtherscanChainId";
+import type { CreatePonderOptions } from "../bin/create-ponder";
+import { getNetworkByEtherscanHostname } from "../helpers/getEtherscanChainId";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const fromEtherscan = async (options: CreatePonderAppOptions) => {
+export const fromEtherscan = async (options: CreatePonderOptions) => {
   const { ponderRootDir } = options;
 
   if (!options.fromEtherscan) {
