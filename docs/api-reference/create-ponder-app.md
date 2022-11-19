@@ -1,14 +1,18 @@
 # Create Ponder app
 
-The easist way to get started with Ponder is `create-ponder-app`. This CLI tool enables you to smoothly migrate your Graph Protocol subgraph to Ponder, or start a new project from scratch.
+The easist way to get started with Ponder is `create-ponder`. This CLI tool enables you to smoothly migrate your Graph Protocol subgraph to Ponder, or start a new project from scratch.
 
 ```shell
-npx create-ponder-app@latest
+npm init ponder@latest
+# or
+pnpm create ponder@latest
+# or
+yarn create ponder@latest
 ```
 
 ## Options
 
-`create-ponder-app` offers the following options:
+`create-ponder` offers the following options:
 
 - **--from-subgraph [path/to/subgraph]**
   Bootstrap the project from an existing Graph Protocol subgraph repository.

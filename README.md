@@ -19,14 +19,14 @@ A framework for blockchain-enabled web services
 
 ### I'm replacing a Graph Protocol subgraph
 
-Ponder is an alternative to the Graph Protocol. You can quickly migrate an existing subgraph repository to Ponder using the `create-ponder-app` CLI tool.
+Ponder is an alternative to the Graph Protocol. You can quickly migrate an existing subgraph repository to Ponder using the `create-ponder` CLI tool.
 
-#### 1. Run `create-ponder-app`
+#### 1. Run `create-ponder`
 
 This command will create a project folder called `ponder` in the current working directory. Include the `--from-subgraph` option to bootstrap your project using an existing Graph Protocol subgraph.
 
 ```
-npx create-ponder-app@latest --from-subgraph [path/to/subgraph]
+npm init ponder@latest --from-subgraph [path/to/subgraph]
 ```
 
 #### 2. Start the development server
@@ -36,7 +36,11 @@ cd ponder
 ```
 
 ```shell
-npm run dev # | yarn dev | pnpm run dev
+npm run dev
+# or
+yarn dev
+# or
+pnpm run dev
 ```
 
 The dev server prints logs to help you debug any configuration issues or errors. The server automatically reloads whenever you save changes in any project file.
@@ -57,7 +61,7 @@ Ponder event handler functions are similar to Graph Protocol mapping functions. 
 
 ## API reference
 
-[Create Ponder App](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/create-ponder-app.md)
+[Create Ponder App](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/create-ponder.md)
 
 [Event handler functions](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/event-handlers.md)
 
@@ -69,7 +73,7 @@ Ponder event handler functions are similar to Graph Protocol mapping functions. 
 
 - `@ponder/ponder`
 - `@ponder/graphql`
-- `create-ponder-app`
+- `create-ponder`
 
 ## About
 

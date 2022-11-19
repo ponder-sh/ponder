@@ -2,7 +2,7 @@
 
 ## Render
 
-`create-ponder-app` automatically generates a `render.yaml` file which enables zero-config deployment to [Render](https://render.com).
+`create-ponder` automatically generates a `render.yaml` file which enables zero-config deployment to [Render](https://render.com).
 
 Steps to deploy to Render:
 
