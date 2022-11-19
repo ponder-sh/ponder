@@ -164,7 +164,7 @@ module.exports = ponderConfig;`;
         "ethers": "^5.6.9"
       },
       "engines": {
-        "node": "16",
+        "node": ">=16.0.0 <19.0.0"
       }
     }
   `;
