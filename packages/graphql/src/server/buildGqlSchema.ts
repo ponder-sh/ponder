@@ -1,4 +1,4 @@
-import type { EntityStore, PonderSchema } from "@ponder/ponder";
+import type { EntityStore, PonderSchema } from "@ponder/core";
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
 
 import { buildEntityType } from "./buildEntityType";

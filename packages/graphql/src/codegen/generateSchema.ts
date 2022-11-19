@@ -1,4 +1,4 @@
-import type { Ponder } from "@ponder/ponder";
+import type { Ponder } from "@ponder/core";
 import type { GraphQLSchema } from "graphql";
 import { printSchema } from "graphql";
 import { writeFileSync } from "node:fs";

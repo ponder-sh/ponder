@@ -1,4 +1,4 @@
-import type { Entity } from "@ponder/ponder";
+import type { Entity } from "@ponder/core";
 import {
   GraphQLFieldConfig,
   GraphQLFieldResolver,

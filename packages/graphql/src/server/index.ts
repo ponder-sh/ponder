@@ -1,4 +1,4 @@
-import type { EntityStore, PonderLogger } from "@ponder/ponder";
+import type { EntityStore, PonderLogger } from "@ponder/core";
 import cors from "cors";
 import type { Express } from "express";
 import express from "express";

@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "@ponder/graphql": "latest",
-    "@ponder/ponder": "latest"
+    "@ponder/core": "latest"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.0.0",

@@ -15,7 +15,7 @@ export const generateContractTypes = (sources: Source[]) => {
     const abiFileContents = readFileSync(source.abiFilePath, "utf-8");
 
     const raw = `
-      import { AbitypedEthersContract } from "@ponder/ponder";
+      import { AbitypedEthersContract } from "@ponder/core";
 
       const ${source.name}Abi = ${abiFileContents.trimEnd()} as const;
 

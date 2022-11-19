@@ -117,7 +117,7 @@ export const run = async (options: CreatePonderAppOptions) => {
   const finalPonderConfig = `const { graphqlPlugin } = require("@ponder/graphql");
 
 /**
- * @type {import('@ponder/ponder').PonderConfig}
+ * @type {import('@ponder/core').PonderConfig}
  */
 const ponderConfig = {
   plugins: [graphqlPlugin()],
@@ -157,7 +157,7 @@ module.exports = ponderConfig;`;
         "codegen": "ponder codegen"
       },
       "dependencies": {
-        "@ponder/ponder": "latest",
+        "@ponder/core": "latest",
         "@ponder/graphql": "latest"
       },
       "devDependencies": {

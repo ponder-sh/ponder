@@ -71,7 +71,7 @@ Ponder event handler functions are similar to Graph Protocol mapping functions. 
 
 ## Packages
 
-- `@ponder/ponder`
+- `@ponder/core`
 - `@ponder/graphql`
 - `create-ponder`
 

@@ -1,7 +1,7 @@
 const { graphqlPlugin } = require("@ponder/graphql");
 
 /**
- * @type {import('@ponder/ponder').PonderConfig}
+ * @type {import('@ponder/core').PonderConfig}
  */
 const ponderConfig = {
   plugins: [graphqlPlugin()],

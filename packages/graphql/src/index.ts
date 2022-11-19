@@ -1,4 +1,4 @@
-import type { PonderPlugin } from "@ponder/ponder";
+import type { PonderPlugin } from "@ponder/core";
 
 import { generateSchema } from "./codegen/generateSchema";
 import { generateSchemaTypes } from "./codegen/generateSchemaTypes";

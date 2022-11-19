@@ -7,7 +7,7 @@
     "codegen": "ponder codegen"
   },
   "dependencies": {
-    "@ponder/ponder": "latest",
+    "@ponder/core": "latest",
     "@ponder/graphql": "latest"
   },
   "devDependencies": {

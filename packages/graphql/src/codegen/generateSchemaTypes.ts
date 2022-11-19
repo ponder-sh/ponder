@@ -1,6 +1,6 @@
 import { codegen } from "@graphql-codegen/core";
 import * as typescriptPlugin from "@graphql-codegen/typescript";
-import type { Ponder } from "@ponder/ponder";
+import type { Ponder } from "@ponder/core";
 import { GraphQLSchema, parse, printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
