@@ -2,6 +2,7 @@
   "private": true,
   "scripts": {
     "create-ponder": "create-ponder --dir ../ponder --from-subgraph .",
+    "create-ponder-help": "create-ponder --help",
     "codegen": "graph codegen",
     "build": "graph build",
     "deploy": "graph deploy --node https://api.thegraph.com/deploy/ 0xolias/ethplays-v0",
