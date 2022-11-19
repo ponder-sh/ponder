@@ -19,7 +19,7 @@
     "build": "$npm_execpath run clean && $npm_execpath run esbuild && mv dist/bin/create-ponder.js dist/bin/create-ponder",
     "format-dist": "prettier dist --write --loglevel warn",
     "prerelease": "$npm_execpath run build && $npm_execpath run format-dist",
-    "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && pnpm publish --no-git-checks && git add ./package.json && git commit -m \"release(create-ponder): $VERSION\""
+    "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(create-ponder): $VERSION\""
   },
   "dependencies": {
     "@ethersproject/abi": "^5.6.4",
