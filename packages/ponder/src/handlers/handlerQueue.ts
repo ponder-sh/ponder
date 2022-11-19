@@ -63,26 +63,12 @@ export const createHandlerQueue = ({
     );
     if (!source) {
       logger.warn(`Source not found for log with address: ${log.address}`);
-      // stats.processingProgressBar.setTotal(
-      //   stats.processingProgressBar.getTotal() - 1
-      // );
       return;
     }
-
-    // if (!stats.sourceStats[source.name]) {
-    //   stats.sourceStats[source.name] = {
-    //     matchedLogCount: 0,
-    //     handledLogCount: 0,
-    //   };
-    // }
-    // stats.sourceStats[source.name].matchedLogCount += 1;
 
     const sourceHandlers = handlers[source.name];
     if (!sourceHandlers) {
       logger.warn(`Handlers not found for source: ${source.name}`);
-      // stats.processingProgressBar.setTotal(
-      //   stats.processingProgressBar.getTotal() - 1
-      // );
       return;
     }
 
@@ -91,20 +77,22 @@ export const createHandlerQueue = ({
       topics: JSON.parse(log.topics),
     });
 
+    const params = parsedLog.eventFragment.inputs.reduce<
+      Record<string, unknown>
+    >((acc, input, index) => {
+      acc[input.name] = parsedLog.args[index];
+      return acc;
+    }, {});
+
     const handler = sourceHandlers[parsedLog.name];
     if (!handler) {
       logger.trace(
         `Handler not found for event: ${source.name}-${parsedLog.name}`
       );
-      // stats.processingProgressBar.setTotal(
-      //   stats.processingProgressBar.getTotal() - 1
-      // );
       return;
     }
 
     logger.trace(`Handling event: ${source.name}-${parsedLog.name}`);
-
-    // stats.sourceStats[source.name].handledLogCount += 1;
 
     // Get block & transaction from the cache store and attach to the event.
     const block = await ponder.cacheStore.getBlock(log.blockHash);
@@ -124,7 +112,7 @@ export const createHandlerQueue = ({
     const event = {
       ...log,
       name: parsedLog.name,
-      params: { ...parsedLog.args },
+      params: params,
       block,
       transaction,
     };
