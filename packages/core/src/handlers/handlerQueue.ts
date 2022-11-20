@@ -121,21 +121,16 @@ export const createHandlerQueue = ({
       transaction,
     };
 
-    try {
-      // Running user code here!
-      await handler(event, handlerContext);
-    } catch (err) {
-      logger.error("Error in handler:", err);
-    }
+    // Running user code here!
+    await handler(event, handlerContext);
   };
 
   const queue = fastq.promise<HandlerTask>(handlerWorker, 1);
 
-  queue.error((err, task) => {
+  queue.error((err) => {
     if (err) {
-      logger.error("error in log worker, retrying...:");
-      logger.error({ task, err });
-      queue.unshift(task);
+      queue.pause();
+      ponder.emit("handlerTaskError", err.message);
     }
   });
 

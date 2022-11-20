@@ -28,6 +28,7 @@ export type InterfaceState = {
   handlersCurrent: number;
   handlersTotal: number;
 
+  configError: string | null;
   handlerError: string | null;
 
   networks: Record<
@@ -59,6 +60,7 @@ export const initialInterfaceState: InterfaceState = {
   handlersCurrent: 0,
   handlersTotal: 0,
 
+  configError: null,
   handlerError: null,
 
   networks: {},
@@ -81,6 +83,7 @@ const App = ({
   handlersCurrent,
   handlersTotal,
 
+  configError,
   handlerError,
 
   networks,
@@ -127,17 +130,38 @@ const App = ({
     return null;
   }
 
+  if (configError) {
+    return (
+      <Box flexDirection="column">
+        <Box flexDirection="row">
+          <Text color="redBright" bold={true}>
+            [Config error]{" "}
+          </Text>
+          <Text>
+            {configError}
+            <Newline />
+          </Text>
+          <Newline />
+          <Newline />
+          <Newline />
+        </Box>
+      </Box>
+    );
+  }
+
   if (handlerError) {
     return (
       <Box flexDirection="column">
         <Box flexDirection="row">
           <Text color="redBright" bold={true}>
-            [ERROR]{" "}
+            [Event handler error]{" "}
           </Text>
           <Text>
             {handlerError}
             <Newline />
           </Text>
+          <Newline />
+          <Newline />
           <Newline />
         </Box>
       </Box>

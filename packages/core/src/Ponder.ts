@@ -59,6 +59,22 @@ export class Ponder extends EventEmitter {
   constructor(config: PonderConfig) {
     super();
 
+    this.on("newNetworkConnected", this.handleNewNetworkConnected);
+    this.on("newBackfillLogs", this.handleNewBackfillLogs);
+    this.on("newFrontfillLogs", this.handleNewFrontfillLogs);
+
+    this.on("backfillTasksAdded", this.handleBackfillTasksAdded);
+    this.on("backfillTaskCompleted", this.handleBackfillTaskCompleted);
+
+    this.on("handlerTaskStarted", this.handleHandlerTaskStarted);
+
+    this.on("configError", this.handleConfigError);
+    this.on("handlerTaskError", this.handleHandlerTaskError);
+
+    this.logsProcessedToTimestamp = 0;
+    this.isHandlingLogs = false;
+    this.interfaceState = initialInterfaceState;
+
     this.database = buildDb(config);
     this.cacheStore = buildCacheStore(this.database);
     this.entityStore = buildEntityStore(this.database);
@@ -68,7 +84,7 @@ export class Ponder extends EventEmitter {
 
     const { networks } = buildNetworks({
       config,
-      cacheStore: this.cacheStore,
+      ponder: this,
     });
     this.networks = networks;
 
@@ -81,20 +97,6 @@ export class Ponder extends EventEmitter {
       OPTIONS.HANDLERS_DIR_PATH,
       ...sources.map((s) => s.abiFilePath),
     ];
-
-    this.logsProcessedToTimestamp = 0;
-    this.isHandlingLogs = false;
-
-    this.interfaceState = initialInterfaceState;
-
-    this.on("newNetworkConnected", this.handleNewNetworkConnected);
-    this.on("newBackfillLogs", this.handleNewBackfillLogs);
-    this.on("newFrontfillLogs", this.handleNewFrontfillLogs);
-
-    this.on("backfillTasksAdded", this.handleBackfillTasksAdded);
-    this.on("backfillTaskCompleted", this.handleBackfillTaskCompleted);
-
-    this.on("handlerTaskStarted", this.handleHandlerTaskStarted);
   }
 
   async start() {
@@ -102,6 +104,12 @@ export class Ponder extends EventEmitter {
     await this.setup();
 
     await Promise.all([this.loadSchema(), this.loadHandlers()]);
+
+    // If there is a config error, display the error and exit the process.
+    // Eventually, it might make sense to support hot reloading for ponder.config.js.
+    if (this.interfaceState.configError) {
+      process.exit(1);
+    }
 
     this.codegen();
     this.setupPlugins();
@@ -114,6 +122,11 @@ export class Ponder extends EventEmitter {
     this.watch();
 
     await Promise.all([this.loadSchema(), this.loadHandlers()]);
+
+    // See comment in start()
+    if (this.interfaceState.configError) {
+      process.exit(1);
+    }
 
     this.codegen();
     this.setupPlugins();
@@ -175,21 +188,12 @@ export class Ponder extends EventEmitter {
     this.logsProcessedToTimestamp = 0;
     this.interfaceState.handlersTotal = 0;
     this.interfaceState.handlersCurrent = 0;
+    this.interfaceState.handlerError = null;
 
     this.handleNewLogs();
   }
 
   async backfill() {
-    this.networks.forEach((network) => {
-      if (network.rpcUrl === undefined || network.rpcUrl === "") {
-        this.interfaceState = {
-          ...this.interfaceState,
-          handlerError: `Invalid or missing RPC URL for network: ${network.name}`,
-        };
-        renderApp(this.interfaceState);
-      }
-    });
-
     this.interfaceState = {
       ...this.interfaceState,
       backfillStartTimestamp: Math.floor(Date.now() / 1000),
@@ -277,6 +281,22 @@ export class Ponder extends EventEmitter {
       this.interfaceState.handlersCurrent === this.interfaceState.handlersTotal
         ? HandlersStatus.UP_TO_DATE
         : HandlersStatus.IN_PROGRESS;
+    renderApp(this.interfaceState);
+  }
+
+  handleConfigError(error: string) {
+    this.interfaceState = {
+      ...this.interfaceState,
+      configError: error,
+    };
+    renderApp(this.interfaceState);
+  }
+
+  handleHandlerTaskError(error: string) {
+    this.interfaceState = {
+      ...this.interfaceState,
+      handlerError: error,
+    };
     renderApp(this.interfaceState);
   }
 
