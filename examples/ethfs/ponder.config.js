@@ -25,6 +25,14 @@ const ponderConfig = {
       address: "0x9746fD0A77829E12F8A9DBe70D7a322412325B91",
       startBlock: 15963553,
     },
+    {
+      kind: "evm",
+      name: "FileStoreFrontend",
+      network: "mainnet",
+      address: "0xBc66C61BCF49Cc3fe4E321aeCEa307F61EC57C0b",
+      abi: "./abis/FileStoreFrontend.json",
+      startBlock: 15963553,
+    },
   ],
 };
 
