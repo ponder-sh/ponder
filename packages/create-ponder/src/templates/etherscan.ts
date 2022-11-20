@@ -72,7 +72,6 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
     },
     networks: [
       {
-        kind: "evm",
         name: network.name,
         chainId: network.chainId,
         rpcUrl: `process.env.PONDER_RPC_URL_${network.chainId}`,
@@ -80,7 +79,6 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
     ],
     sources: [
       {
-        kind: "evm",
         name: contractName,
         network: network.name,
         abi: abiRelativePath,

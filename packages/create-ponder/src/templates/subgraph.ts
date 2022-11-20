@@ -78,7 +78,6 @@ export const fromSubgraph = (options: CreatePonderOptions) => {
 
       if (!ponderNetworks.map((n) => n.name).includes(network)) {
         ponderNetworks.push({
-          kind: "evm",
           name: network,
           chainId: chainId,
           rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
@@ -98,7 +97,6 @@ export const fromSubgraph = (options: CreatePonderOptions) => {
       copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
 
       return <PonderSource>{
-        kind: "evm",
         name: source.name,
         network: network,
         address: source.source.address,

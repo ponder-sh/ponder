@@ -41,7 +41,6 @@ export const fromBasic = (options: CreatePonderOptions) => {
     },
     networks: [
       {
-        kind: "evm",
         name: "mainnet",
         chainId: 1,
         rpcUrl: `process.env.PONDER_RPC_URL_1`,
@@ -49,7 +48,6 @@ export const fromBasic = (options: CreatePonderOptions) => {
     ],
     sources: [
       {
-        kind: "evm",
         name: "ExampleContract",
         network: "mainnet",
         address: "0x0",

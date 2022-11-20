@@ -12,14 +12,14 @@ import { fromEtherscan } from "./templates/etherscan";
 import { fromSubgraph } from "./templates/subgraph";
 
 export type PonderNetwork = {
-  kind: string;
+  kind?: string;
   name: string;
   chainId: number;
   rpcUrl: string;
 };
 
 export type PonderSource = {
-  kind: "evm";
+  kind?: "evm";
   name: string;
   network: string;
   abi: string;
