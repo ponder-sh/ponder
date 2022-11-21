@@ -3,10 +3,8 @@ import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import type { EventLog } from "@/common/types";
-import { EntityModel } from "@/db/entity/utils";
 import type { Ponder } from "@/Ponder";
 
-// import { stats } from "../indexer/stats";
 import type { Handlers } from "./readHandlers";
 
 export type HandlerTask = {
@@ -37,14 +35,19 @@ export const createHandlerQueue = ({
   }
 
   // Build entity models for event handler context.
-  const entityModels: Record<string, EntityModel> = {};
+  const entityModels: Record<string, unknown> = {};
   ponder.schema.entities.forEach((entity) => {
     const entityName = entity.name;
-    const entityModel: EntityModel = {
-      get: async (id) => ponder.entityStore.getEntity(entityName, id),
-      insert: async (obj) => ponder.entityStore.insertEntity(entityName, obj),
-      update: async (obj) => ponder.entityStore.updateEntity(entityName, obj),
-      delete: async (id) => ponder.entityStore.deleteEntity(entityName, id),
+    const entityModel = {
+      get: async (id: string) => ponder.entityStore.getEntity(entityName, id),
+      delete: async (id: string) =>
+        ponder.entityStore.deleteEntity(entityName, id),
+      insert: async (id: string, obj: Record<string, unknown>) =>
+        ponder.entityStore.insertEntity(entityName, id, obj),
+      update: async (id: string, obj: Record<string, unknown>) =>
+        ponder.entityStore.updateEntity(entityName, id, obj),
+      upsert: async (id: string, obj: Record<string, unknown>) =>
+        ponder.entityStore.upsertEntity(entityName, id, obj),
     };
 
     entityModels[entityName] = entityModel;

@@ -7,7 +7,7 @@ import { PonderSchema } from "@/schema/types";
 import { Source } from "@/sources/base";
 
 import { buildEntityTypes } from "./buildEntityTypes";
-import { buildHandlerTypes } from "./buildHandlerTypes";
+import { buildEventTypes } from "./buildEventTypes";
 import { formatPrettier } from "./utils";
 
 export const generateHandlerTypes = (
@@ -45,7 +45,7 @@ export type Context = {
 
 type Hash = string;
 
-${buildHandlerTypes(sources)}
+${buildEventTypes(sources)}
   `;
 
   const final = formatPrettier(raw);

@@ -21,7 +21,7 @@ export class SqliteEntityStore implements EntityStore {
   async migrate(schema: PonderSchema) {
     schema.entities.forEach((entity) => {
       // Drop the table if it already exists
-      this.db.prepare(`drop table if exists \`${entity.name}\``).run();
+      this.db.prepare(`DROP TABLE IF EXISTS "${entity.name}"`).run();
 
       // Build the create table statement using field migration fragments.
       // TODO: Update this so the generation of the field migration fragments happens here
@@ -35,7 +35,7 @@ export class SqliteEntityStore implements EntityStore {
 
       this.db
         .prepare(
-          `create table \`${entity.name}\` (${columnStatements.join(", ")})`
+          `CREATE TABLE "${entity.name}" (${columnStatements.join(", ")})`
         )
         .run();
     });
@@ -43,33 +43,128 @@ export class SqliteEntityStore implements EntityStore {
     this.schema = schema;
   }
 
-  async getEntity<T>(entityName: string, id: string): Promise<T | null> {
+  async getEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string
+  ): Promise<T | null> {
     if (!this.schema) {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const entity = this.schema.entityByName[entityName];
+    const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = @id`;
+    const instance = this.db.prepare(statement).get({ id });
 
-    const statement = `
-      select \`${entityName}\`.*
-      from \`${entityName}\`
-      where \`${entityName}\`.\`id\` = @id
-    `;
+    if (!instance) return null;
 
-    const rawEntityInstance = this.db.prepare(statement).get({
-      id: id,
-    });
+    return this.deserialize(entityName, instance);
+  }
 
-    if (!rawEntityInstance) {
-      return null;
+  async insertEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string,
+    instance: T
+  ): Promise<T> {
+    if (!this.schema) {
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const deserializedEntityInstance = this.deserialize(
-      entity.name,
-      rawEntityInstance
+    if (instance.id && instance.id !== id) {
+      throw new Error(
+        `Invalid ${entityName}.insert(id, instance): If instance.id is defined, it must match id`
+      );
+    }
+
+    const columnStatements = Object.entries(instance).map(
+      ([fieldName, value]) => ({
+        column: `"${fieldName}"`,
+        value: `'${value}'`,
+      })
     );
 
-    return deserializedEntityInstance;
+    const insertFragment = `(${columnStatements
+      .map((s) => s.column)
+      .join(", ")}) VALUES (${columnStatements
+      .map((s) => s.value)
+      .join(", ")})`;
+
+    const statement = `INSERT INTO "${entityName}" ${insertFragment} RETURNING *`;
+    const insertedEntity = this.db.prepare(statement).get();
+
+    return this.deserialize(entityName, insertedEntity);
+  }
+
+  async updateEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string,
+    instance: Partial<T>
+  ): Promise<T> {
+    if (!this.schema) {
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
+    }
+
+    const columnStatements = Object.entries(instance).map(
+      ([fieldName, value]) => ({
+        column: `"${fieldName}"`,
+        value: `'${value}'`,
+      })
+    );
+
+    const updateFragment = columnStatements
+      .filter(({ column }) => column !== "id")
+      .map(({ column, value }) => `${column} = ${value}`)
+      .join(", ");
+
+    const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = @id RETURNING *`;
+    const updatedEntity = this.db.prepare(statement).get({ id });
+
+    return this.deserialize(entityName, updatedEntity);
+  }
+
+  async upsertEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string,
+    instance: T
+  ): Promise<T> {
+    if (!this.schema) {
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
+    }
+
+    const columnStatements = Object.entries(instance).map(
+      ([fieldName, value]) => ({
+        column: `"${fieldName}"`,
+        value: `'${value}'`,
+      })
+    );
+
+    const insertFragment = `(${columnStatements
+      .map((s) => s.column)
+      .join(", ")}) VALUES (${columnStatements
+      .map((s) => s.value)
+      .join(", ")})`;
+
+    const updateFragment = columnStatements
+      .filter(({ column }) => column !== "id")
+      .map(({ column, value }) => `${column} = ${value}`)
+      .join(", ");
+
+    const statement = `INSERT INTO "${entityName}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
+
+    const upsertedEntity = this.db.prepare(statement).get({ id });
+
+    return this.deserialize(entityName, upsertedEntity);
+  }
+
+  async deleteEntity(entityName: string, id: string): Promise<boolean> {
+    if (!this.schema) {
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
+    }
+
+    const statement = `DELETE FROM "${entityName}" WHERE "id" = @id`;
+
+    const { changes } = this.db.prepare(statement).run({ id: id });
+
+    // `changes` is equal to the number of rows that were updated/inserted/deleted by the query.
+    return changes === 1;
   }
 
   async getEntities<T>(
@@ -112,19 +207,19 @@ export class SqliteEntityStore implements EntityStore {
         if (patternSuffix) finalValue = finalValue + patternSuffix;
 
         if (isList) {
-          finalValue = `(${(finalValue as any[]).join(",")})`;
+          finalValue = `(${(finalValue as (string | number)[]).join(",")})`;
         } else {
           finalValue = `'${finalValue}'`;
         }
 
-        whereFragments.push(`\`${fieldName}\` ${operator} ${finalValue}`);
+        whereFragments.push(`"${fieldName}" ${operator} ${finalValue}`);
       }
 
-      fragments.push(`where ${whereFragments.join(" and ")}`);
+      fragments.push(`WHERE ${whereFragments.join(" AND ")}`);
     }
 
     if (orderBy) {
-      fragments.push(`order by \`${orderBy}\``);
+      fragments.push(`ORDER BY "${orderBy}"`);
     }
 
     if (orderDirection) {
@@ -132,130 +227,23 @@ export class SqliteEntityStore implements EntityStore {
     }
 
     if (first) {
-      fragments.push(`limit ${first}`);
+      fragments.push(`LIMIT ${first}`);
     }
 
     if (skip) {
       if (!first) {
-        fragments.push(`limit -1`); // Must add a no-op limit for SQLite to handle offset
+        fragments.push(`LIMIT -1`); // Must add a no-op limit for SQLite to handle offset
       }
-      fragments.push(`offset ${skip}`);
+      fragments.push(`OFFSET ${skip}`);
     }
 
-    const statement = `select * from \`${entityName}\` ${fragments.join(" ")}`;
+    const statement = `SELECT * FROM "${entityName}" ${fragments.join(" ")}`;
 
-    const rawEntityInstances = this.db.prepare(statement).all();
+    const instances = this.db.prepare(statement).all();
 
-    const entityInstances = rawEntityInstances.map((instance) =>
-      this.deserialize(entityName, instance)
+    return instances.map((instance) =>
+      this.deserialize<T>(entityName, instance)
     );
-
-    return entityInstances;
-  }
-
-  async insertEntity<T>(entityName: string, attributes: any): Promise<T> {
-    if (!this.schema) {
-      throw new Error(`EntityStore has not been initialized with a schema yet`);
-    }
-
-    const entity = this.schema.entityByName[entityName];
-
-    const columnStatements = Object.entries(attributes).map(
-      ([fieldName, value]) => {
-        const field = entity.fieldByName[fieldName];
-        return {
-          column: `\`${fieldName}\``,
-          value: `'${value}'`,
-        };
-      }
-    );
-
-    const insertFragment = `(${columnStatements
-      .map((s) => s.column)
-      .join(", ")}) values (${columnStatements
-      .map((s) => s.value)
-      .join(", ")})`;
-
-    const statement = `insert into \`${entityName}\` ${insertFragment} returning *`;
-    const insertedEntity = this.db.prepare(statement).get();
-
-    return this.deserialize(entityName, insertedEntity);
-  }
-
-  async updateEntity<T>(
-    entityName: string,
-    attributes: { id: string } & Partial<T>
-  ): Promise<T> {
-    if (!this.schema) {
-      throw new Error(`EntityStore has not been initialized with a schema yet`);
-    }
-
-    const entity = this.schema.entityByName[entityName];
-
-    const columnStatements = Object.entries(attributes).map(
-      ([fieldName, value]) => {
-        const field = entity.fieldByName[fieldName];
-        return {
-          column: `\`${fieldName}\``,
-          value: `'${value}'`,
-        };
-      }
-    );
-
-    const { id } = attributes;
-    const updateFragment = columnStatements
-      .filter((s) => s.column !== "id")
-      .map((s) => `${s.column} = ${s.value}`)
-      .join(", ");
-
-    const statement = `update \`${entityName}\` set ${updateFragment} where \`id\` = @id returning *`;
-    const updatedEntity = this.db.prepare(statement).get({ id: id });
-
-    return this.deserialize(entityName, updatedEntity);
-  }
-
-  async deleteEntity(entityName: string, id: string): Promise<void> {
-    if (!this.schema) {
-      throw new Error(`EntityStore has not been initialized with a schema yet`);
-    }
-
-    const statement = `delete from \`${entityName}\` where \`id\` = @id`;
-
-    this.db.prepare(statement).run({ id: id });
-
-    return;
-  }
-
-  deserialize(entityName: string, instance: any) {
-    if (!this.schema) {
-      throw new Error(`EntityStore has not been initialized with a schema yet`);
-    }
-
-    const entity = this.schema.entityByName[entityName];
-    if (!entity) {
-      throw new Error(`Entity not found in schema: ${entityName}`);
-    }
-
-    const deserializedInstance = { ...instance };
-
-    // For each property on the instance, look for a field defined on the entity
-    // with the same name and apply any required deserialization transforms.
-    Object.entries(instance).forEach(([fieldName, value]) => {
-      const field = entity.fieldByName[fieldName];
-      if (!field) return;
-
-      switch (field.kind) {
-        case FieldKind.LIST: {
-          deserializedInstance[fieldName] = (value as string).split(",");
-          break;
-        }
-        default: {
-          deserializedInstance[fieldName] = value;
-        }
-      }
-    });
-
-    return deserializedInstance;
   }
 
   async getEntityDerivedField(
@@ -293,5 +281,37 @@ export class SqliteEntityStore implements EntityStore {
     );
 
     return derivedFieldInstances;
+  }
+
+  deserialize<T>(entityName: string, instance: Record<string, unknown>) {
+    if (!this.schema) {
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
+    }
+
+    const entity = this.schema.entityByName[entityName];
+    if (!entity) {
+      throw new Error(`Entity not found in schema: ${entityName}`);
+    }
+
+    const deserializedInstance = { ...instance };
+
+    // For each property on the instance, look for a field defined on the entity
+    // with the same name and apply any required deserialization transforms.
+    Object.entries(instance).forEach(([fieldName, value]) => {
+      const field = entity.fieldByName[fieldName];
+      if (!field) return;
+
+      switch (field.kind) {
+        case FieldKind.LIST: {
+          deserializedInstance[fieldName] = (value as string).split(",");
+          break;
+        }
+        default: {
+          deserializedInstance[fieldName] = value;
+        }
+      }
+    });
+
+    return deserializedInstance as T;
   }
 }

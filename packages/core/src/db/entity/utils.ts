@@ -46,16 +46,3 @@ export const sqlOperatorsForFilterType: Record<
   not_ends_with: { operator: "not like", patternSuffix: "%" },
   not_ends_with_nocase: { operator: "not like", patternSuffix: "%" },
 };
-
-// Handler context types
-export type EntityInstance = { [key: string]: string | number | null };
-export type EntityModel = {
-  get: (id: string) => Promise<EntityInstance | null>;
-  insert: (obj: EntityInstance) => Promise<EntityInstance>;
-  update: (
-    obj: {
-      id: string;
-    } & Partial<EntityInstance>
-  ) => Promise<EntityInstance>;
-  delete: (id: string) => Promise<void>;
-};

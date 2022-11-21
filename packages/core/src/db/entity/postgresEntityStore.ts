@@ -43,36 +43,130 @@ export class PostgresEntityStore implements EntityStore {
     });
   }
 
-  async getEntity<T>(entityName: string, id: string): Promise<T | null> {
+  async getEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string
+  ): Promise<T | null> {
     if (!this.schema) {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const entity = this.schema.entityByName[entityName];
+    const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = $(id)`;
+    const instance = await this.db.oneOrNone(statement, { id });
 
-    const statement = `
-      SELECT "${entityName}".*
-      FROM "${entityName}"
-      WHERE "${entityName}"."id" = $(id)
-    `;
+    if (!instance) return null;
 
-    const rawEntityInstance = await this.db.oneOrNone(statement, {
-      id: id,
-    });
-
-    if (!rawEntityInstance) {
-      return null;
-    }
-
-    const deserializedEntityInstance = this.deserialize(
-      entity.name,
-      rawEntityInstance
-    );
-
-    return deserializedEntityInstance;
+    return this.deserialize(entityName, instance);
   }
 
-  async getEntities<T>(
+  async insertEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string,
+    instance: T
+  ): Promise<T> {
+    if (!this.schema) {
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
+    }
+
+    if (instance.id && instance.id !== id) {
+      throw new Error(
+        `Invalid ${entityName}.insert(id, instance): If instance.id is defined, it must match id`
+      );
+    }
+
+    const columnStatements = Object.entries(instance).map(
+      ([fieldName, value]) => ({
+        column: `"${fieldName}"`,
+        value: `'${value}'`,
+      })
+    );
+
+    const insertFragment = `(${columnStatements
+      .map((s) => s.column)
+      .join(", ")}) VALUES (${columnStatements
+      .map((s) => s.value)
+      .join(", ")})`;
+
+    const statement = `INSERT INTO "${entityName}" ${insertFragment} RETURNING *`;
+    const insertedEntity = await this.db.oneOrNone(statement);
+
+    return this.deserialize(entityName, insertedEntity);
+  }
+
+  async updateEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string,
+    instance: Partial<T>
+  ): Promise<T> {
+    if (!this.schema) {
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
+    }
+
+    const columnStatements = Object.entries(instance).map(
+      ([fieldName, value]) => ({
+        column: `"${fieldName}"`,
+        value: `'${value}'`,
+      })
+    );
+
+    const updateFragment = columnStatements
+      .filter(({ column }) => column !== "id")
+      .map(({ column, value }) => `${column} = ${value}`)
+      .join(", ");
+
+    const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = $(id) RETURNING *`;
+    const updatedEntity = await this.db.oneOrNone(statement, { id });
+
+    return this.deserialize(entityName, updatedEntity);
+  }
+
+  async upsertEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string,
+    instance: T
+  ): Promise<T> {
+    if (!this.schema) {
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
+    }
+
+    const columnStatements = Object.entries(instance).map(
+      ([fieldName, value]) => ({
+        column: `"${fieldName}"`,
+        value: `'${value}'`,
+      })
+    );
+
+    const insertFragment = `(${columnStatements
+      .map((s) => s.column)
+      .join(", ")}) VALUES (${columnStatements
+      .map((s) => s.value)
+      .join(", ")})`;
+
+    const updateFragment = columnStatements
+      .filter(({ column }) => column !== "id")
+      .map(({ column, value }) => `${column} = ${value}`)
+      .join(", ");
+
+    const statement = `INSERT INTO "${entityName}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
+    const upsertedEntity = await this.db.oneOrNone(statement, { id });
+
+    return this.deserialize(entityName, upsertedEntity);
+  }
+
+  async deleteEntity(entityName: string, id: string): Promise<boolean> {
+    if (!this.schema) {
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
+    }
+
+    const statement = `DELETE FROM "${entityName}" WHERE "id" = $(id)`;
+
+    const { rowCount } = await this.db.result(statement, { id });
+
+    // `rowCount` is equal to the number of rows that were updated/inserted/deleted by the query.
+    return rowCount === 1;
+  }
+
+  async getEntities<T extends Record<string, unknown>>(
     entityName: string,
     filter?: EntityFilter
   ): Promise<T[]> {
@@ -112,7 +206,7 @@ export class PostgresEntityStore implements EntityStore {
         if (patternSuffix) finalValue = finalValue + patternSuffix;
 
         if (isList) {
-          finalValue = `(${(finalValue as any[]).join(",")})`;
+          finalValue = `(${(finalValue as (string | number)[]).join(",")})`;
         } else {
           finalValue = `'${finalValue}'`;
         }
@@ -143,117 +237,11 @@ export class PostgresEntityStore implements EntityStore {
     }
 
     const statement = `SELECT * FROM "${entityName}" ${fragments.join(" ")}`;
+    const instances = await this.db.manyOrNone(statement);
 
-    const rawEntityInstances = await this.db.manyOrNone(statement);
-
-    const entityInstances = rawEntityInstances.map((instance) =>
-      this.deserialize(entityName, instance)
+    return instances.map((instance) =>
+      this.deserialize<T>(entityName, instance)
     );
-
-    return entityInstances;
-  }
-
-  async insertEntity<T>(entityName: string, attributes: any): Promise<T> {
-    if (!this.schema) {
-      throw new Error(`EntityStore has not been initialized with a schema yet`);
-    }
-
-    const entity = this.schema.entityByName[entityName];
-
-    const columnStatements = Object.entries(attributes).map(
-      ([fieldName, value]) => {
-        const field = entity.fieldByName[fieldName];
-        return {
-          column: `"${fieldName}"`,
-          value: `'${value}'`,
-        };
-      }
-    );
-
-    const insertFragment = `(${columnStatements
-      .map((s) => s.column)
-      .join(", ")}) VALUES (${columnStatements
-      .map((s) => s.value)
-      .join(", ")})`;
-
-    const statement = `INSERT INTO "${entityName}" ${insertFragment} RETURNING *`;
-    const insertedEntity = await this.db.oneOrNone(statement);
-
-    return this.deserialize(entityName, insertedEntity);
-  }
-
-  async updateEntity<T>(
-    entityName: string,
-    attributes: { id: string } & Partial<T>
-  ): Promise<T> {
-    if (!this.schema) {
-      throw new Error(`EntityStore has not been initialized with a schema yet`);
-    }
-
-    const entity = this.schema.entityByName[entityName];
-
-    const columnStatements = Object.entries(attributes).map(
-      ([fieldName, value]) => {
-        const field = entity.fieldByName[fieldName];
-        return {
-          column: `"${fieldName}"`,
-          value: `'${value}'`,
-        };
-      }
-    );
-
-    const { id } = attributes;
-    const updateFragment = columnStatements
-      .filter((s) => s.column !== "id")
-      .map((s) => `${s.column} = ${s.value}`)
-      .join(", ");
-
-    const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = $(id) RETURNING *`;
-    const updatedEntity = await this.db.oneOrNone(statement, { id });
-
-    return this.deserialize(entityName, updatedEntity);
-  }
-
-  async deleteEntity(entityName: string, id: string): Promise<void> {
-    if (!this.schema) {
-      throw new Error(`EntityStore has not been initialized with a schema yet`);
-    }
-
-    const statement = `DELETE FROM "${entityName}" WHERE "id" = $(id)`;
-
-    await this.db.oneOrNone(statement, { id });
-  }
-
-  deserialize(entityName: string, instance: any) {
-    if (!this.schema) {
-      throw new Error(`EntityStore has not been initialized with a schema yet`);
-    }
-
-    const entity = this.schema.entityByName[entityName];
-    if (!entity) {
-      throw new Error(`Entity not found in schema: ${entityName}`);
-    }
-
-    const deserializedInstance = { ...instance };
-
-    // For each property on the instance, look for a field defined on the entity
-    // with the same name and apply any required deserialization transforms.
-    Object.entries(instance).forEach(([fieldName, value]) => {
-      const field = entity.fieldByName[fieldName];
-      if (!field) return;
-
-      switch (field.kind) {
-        case FieldKind.LIST: {
-          deserializedInstance[fieldName] = (value as string).split(",");
-          break;
-        }
-        default: {
-          deserializedInstance[fieldName] = value;
-        }
-      }
-    });
-
-    return deserializedInstance;
   }
 
   async getEntityDerivedField(
@@ -285,11 +273,43 @@ export class PostgresEntityStore implements EntityStore {
       derivedField.derivedFromEntityName,
       {
         where: {
-          [`${derivedField.derivedFromFieldName}`]: id,
+          [derivedField.derivedFromFieldName]: id,
         },
       }
     );
 
     return derivedFieldInstances;
+  }
+
+  deserialize<T>(entityName: string, instance: Record<string, unknown>) {
+    if (!this.schema) {
+      throw new Error(`EntityStore has not been initialized with a schema yet`);
+    }
+
+    const entity = this.schema.entityByName[entityName];
+    if (!entity) {
+      throw new Error(`Entity not found in schema: ${entityName}`);
+    }
+
+    const deserializedInstance = { ...instance };
+
+    // For each property on the instance, look for a field defined on the entity
+    // with the same name and apply any required deserialization transforms.
+    Object.entries(instance).forEach(([fieldName, value]) => {
+      const field = entity.fieldByName[fieldName];
+      if (!field) return;
+
+      switch (field.kind) {
+        case FieldKind.LIST: {
+          deserializedInstance[fieldName] = (value as string).split(",");
+          break;
+        }
+        default: {
+          deserializedInstance[fieldName] = value;
+        }
+      }
+    });
+
+    return deserializedInstance as T;
   }
 }

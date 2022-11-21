@@ -6,7 +6,7 @@ Event handlers are TypeScript/JavaScript functions that respond to blockchain ev
 
 ### Entity objects are injected via `context.entities`
 
-You can access the entities defined in `schema.graphql` on the `context.entities` object. These ORM-style entity objects have `get`, `insert`, `update`, and `remove` methods.
+You can access the entities defined in `schema.graphql` on the `context.entities` object. These ORM-style entity objects have `get`, `insert`, `update`, `delete`, and `upsert` methods.
 
 ### Event handlers must be exported from `handlers/index.ts`
 

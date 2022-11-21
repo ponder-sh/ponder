@@ -85,10 +85,15 @@ export const buildEntityTypes = (schema: PonderSchema) => {
 
   export type ${entity.name}Model = {
     get: (id: string) => Promise<${entity.name}Instance | null>;
-    insert: (obj: ${entity.name}Instance) => Promise<${entity.name}Instance>;
-    update: (obj: { id: string } & Partial<${entity.name}Instance>) =>
+    insert: (id: string, obj: ${entity.name}Instance) => Promise<${
+        entity.name
+      }Instance>;
+    update: (id: string, obj: Partial<${entity.name}Instance>) =>
       Promise<${entity.name}Instance>;
-    delete: (id: string) => Promise<void>;
+    delete: (id: string) => Promise<boolean>;
+    upsert: (id: string, obj: ${entity.name}Instance) => Promise<${
+        entity.name
+      }Instance>;
   };
     `;
     })

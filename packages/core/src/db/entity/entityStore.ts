@@ -17,24 +17,41 @@ export type EntityFilter = {
 export interface EntityStore {
   migrate(schema: PonderSchema): Promise<void>;
 
-  getEntity<T>(entityName: string, id: string): Promise<T | null>;
+  getEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string
+  ): Promise<T | null>;
 
-  getEntities<T>(entityName: string, filter?: EntityFilter): Promise<T[]>;
+  insertEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string,
+    instance: T
+  ): Promise<T>;
+
+  upsertEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string,
+    instance: T
+  ): Promise<T>;
+
+  updateEntity<T extends Record<string, unknown>>(
+    entityName: string,
+    id: string,
+    instance: Partial<T>
+  ): Promise<T>;
+
+  deleteEntity(entityName: string, id: string): Promise<boolean>;
+
+  getEntities<T extends Record<string, unknown>>(
+    entityName: string,
+    filter?: EntityFilter
+  ): Promise<T[]>;
 
   getEntityDerivedField(
     entityName: string,
     id: string,
     derivedFieldName: string
   ): Promise<unknown[]>;
-
-  insertEntity<T>(entityName: string, attributes: T): Promise<T>;
-
-  updateEntity<T>(
-    entityName: string,
-    attributes: { id: string } & Partial<T>
-  ): Promise<T>;
-
-  deleteEntity(entityName: string, id: string): Promise<void>;
 }
 
 export const buildEntityStore = (database: PonderDatabase) => {

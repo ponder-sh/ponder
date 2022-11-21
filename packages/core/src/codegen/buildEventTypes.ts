@@ -4,14 +4,14 @@ import { Contract } from "ethers";
 import { logger } from "@/common/logger";
 import type { Source } from "@/sources/base";
 
-export const buildHandlerTypes = (sources: Source[]) => {
+export const buildEventTypes = (sources: Source[]) => {
   const handlerTypes = sources
     .map((source) => {
       const contract = new Contract(source.address, source.abiInterface);
 
       const eventHandlers = Object.entries(contract.interface.events).map(
         ([eventSignature, event]) =>
-          generateEventHandlerType(eventSignature, event)
+          buildEventHandlerType(eventSignature, event)
       );
 
       const eventHandlersTypeString = eventHandlers
@@ -35,7 +35,7 @@ export const buildHandlerTypes = (sources: Source[]) => {
 
 // HELPERS
 
-const generateEventHandlerType = (
+const buildEventHandlerType = (
   eventSignature: string,
   event: EventFragment
 ) => {

@@ -96,11 +96,10 @@ type MyNftContract = ethers.Contract;
 
 interface MyTokenEntityModel {
   get: (id: string) => Promise<MyTokenEntity | null>;
-  insert: (obj: MyTokenEntity) => Promise<MyTokenEntity>;
-  update: (
-    obj: { id: string } & Partial<MyTokenEntity>
-  ) => Promise<MyTokenEntity>;
-  delete: (id: string) => Promise<void>;
+  insert: (id: string, obj: MyTokenEntity) => Promise<MyTokenEntity>;
+  update: (id: string, obj: Partial<MyTokenEntity>) => Promise<MyTokenEntity>;
+  delete: (id: string) => Promise<boolean>;
+  upsert: (id: string, obj: MyTokenEntity) => Promise<MyTokenEntity>;
 }
 ```
 
