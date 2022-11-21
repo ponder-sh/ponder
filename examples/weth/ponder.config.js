@@ -7,7 +7,7 @@ const ponderConfig = {
   plugins: [graphqlPlugin()],
   database: {
     kind: "sqlite",
-    filename: process.env.DATABASE_FILE_PATH,
+    // filename: process.env.DATABASE_FILE_PATH,
   },
   networks: [
     {
