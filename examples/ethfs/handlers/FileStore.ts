@@ -15,7 +15,7 @@ const handleFileCreated: FileCreatedHandler = async (event, context) => {
 
   const metadata = parseJson(ethers.utils.toUtf8String(rawMetadata));
 
-  await context.entities.File.insert({
+  await context.entities.File.insert(filename, {
     id: filename,
     name: filename,
     size: size.toNumber(),

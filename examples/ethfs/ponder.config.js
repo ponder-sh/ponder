@@ -1,13 +1,20 @@
 const { graphqlPlugin } = require("@ponder/graphql");
 
+const isProduction = process.env.NODE_ENV === "production";
+
 /**
  * @type {import('@ponder/core').PonderConfig}
  */
 const ponderConfig = {
   plugins: [graphqlPlugin()],
-  database: {
-    kind: "sqlite",
-  },
+  database: isProduction
+    ? {
+        kind: "postgres",
+        connectionString: process.env.POSTGRES_URL,
+      }
+    : {
+        kind: "sqlite",
+      },
   networks: [
     {
       kind: "evm",
