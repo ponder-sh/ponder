@@ -217,6 +217,10 @@ export class Ponder extends EventEmitter {
       backfillDuration: duration,
     };
     renderApp(this.interfaceState);
+
+    // If there were no backfill logs, handleNewLogs won't get triggered until the next
+    // set of frontfill logs. So, trigger it manually here.
+    this.handleNewLogs();
   }
 
   async handleNewLogs() {
