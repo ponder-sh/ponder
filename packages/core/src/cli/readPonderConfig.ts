@@ -21,10 +21,9 @@ export type PonderConfig = {
     kind?: string;
     name: string;
     network: string;
-    abi: string;
+    abi: string | any[] | Record<string, any>;
     address: string;
     startBlock?: number;
-    pollingInterval?: number;
     blockLimit?: number;
   }[];
   plugins?: ResolvedPonderPlugin[];

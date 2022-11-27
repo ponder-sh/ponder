@@ -14,9 +14,21 @@ export const buildSources = ({
   networks: Network[];
 }) => {
   const sources = config.sources.map((source) => {
-    const abiString = readFileSync(source.abi, "utf-8");
-    const abiObject = JSON.parse(abiString);
-    const abi = abiObject.abi ? abiObject.abi : abiObject;
+    let abiFilePath: string | undefined;
+    let abiObject: any;
+
+    if (typeof source.abi === "string") {
+      // If it's a string, assume it's a file path.
+      abiFilePath = source.abi;
+      const abiString = readFileSync(source.abi, "utf-8");
+      abiObject = JSON.parse(abiString);
+    } else {
+      // If it's not a string, assume it's the ABI itself.
+      abiObject = source.abi;
+    }
+
+    // Handle the case where the ABI is actually the `abi` property of an object. Hardhat emits ABIs like this.
+    const abi = abiObject?.abi ? abiObject.abi : abiObject;
     const abiInterface = new ethers.utils.Interface(abi);
 
     const network = networks.find((n) => n.name === source.network);
@@ -26,15 +38,18 @@ export const buildSources = ({
       );
     }
 
-    return new EvmSource(
-      source.name,
-      network,
-      source.address,
-      source.abi,
-      abiInterface,
-      source.startBlock,
-      source.blockLimit
-    );
+    return new EvmSource({
+      name: source.name,
+      network: network,
+      address: source.address,
+
+      abiFilePath: abiFilePath,
+      abi: abi,
+      abiInterface: abiInterface,
+
+      startBlock: source.startBlock,
+      blockLimit: source.blockLimit,
+    });
   });
 
   return { sources };
