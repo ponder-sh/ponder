@@ -54,6 +54,7 @@ export class Ponder extends EventEmitter {
   options: PonderOptions;
 
   // Interface
+  renderInterval?: NodeJS.Timer;
   interfaceState: InterfaceState;
 
   constructor(config: PonderConfig) {
@@ -101,6 +102,19 @@ export class Ponder extends EventEmitter {
     ];
   }
 
+  async setup() {
+    this.renderInterval = setInterval(() => {
+      this.interfaceState.timestamp = Math.floor(Date.now() / 1000);
+      renderApp(this.interfaceState);
+    }, 1000);
+
+    await this.cacheStore.migrate();
+  }
+
+  kill() {
+    clearInterval(this.renderInterval);
+  }
+
   async start() {
     this.interfaceState.isProd = true;
     await this.setup();
@@ -134,15 +148,6 @@ export class Ponder extends EventEmitter {
     this.setupPlugins();
 
     this.backfill();
-  }
-
-  async setup() {
-    setInterval(() => {
-      this.interfaceState.timestamp = Math.floor(Date.now() / 1000);
-      renderApp(this.interfaceState);
-    }, 1000);
-
-    await this.cacheStore.migrate();
   }
 
   codegen() {
@@ -256,13 +261,13 @@ export class Ponder extends EventEmitter {
     this.isHandlingLogs = false;
   }
 
-  handleBackfillTasksAdded(taskCount: number) {
+  private handleBackfillTasksAdded(taskCount: number) {
     this.interfaceState.backfillTaskTotal += taskCount;
     this.updateBackfillEta();
     renderApp(this.interfaceState);
   }
 
-  handleBackfillTaskCompleted() {
+  private handleBackfillTaskCompleted() {
     this.interfaceState.backfillTaskCurrent += 1;
     this.updateBackfillEta();
     renderApp(this.interfaceState);
@@ -278,7 +283,7 @@ export class Ponder extends EventEmitter {
     if (Number.isFinite(newEta)) this.interfaceState.backfillEta = newEta;
   }
 
-  handleHandlerTaskStarted() {
+  private handleHandlerTaskStarted() {
     this.interfaceState.handlersCurrent += 1;
     this.interfaceState.handlersStatus =
       this.interfaceState.handlersCurrent === this.interfaceState.handlersTotal
@@ -287,7 +292,7 @@ export class Ponder extends EventEmitter {
     renderApp(this.interfaceState);
   }
 
-  handleConfigError(error: string) {
+  private handleConfigError(error: string) {
     this.interfaceState = {
       ...this.interfaceState,
       configError: error,
@@ -295,7 +300,7 @@ export class Ponder extends EventEmitter {
     renderApp(this.interfaceState);
   }
 
-  handleHandlerTaskError(error: string) {
+  private handleHandlerTaskError(error: string) {
     this.interfaceState = {
       ...this.interfaceState,
       handlerError: error,
@@ -303,7 +308,7 @@ export class Ponder extends EventEmitter {
     renderApp(this.interfaceState);
   }
 
-  handleNewNetworkConnected({
+  private handleNewNetworkConnected({
     network,
     blockNumber,
     blockTimestamp,
@@ -321,7 +326,7 @@ export class Ponder extends EventEmitter {
     };
   }
 
-  handleNewFrontfillLogs({
+  private handleNewFrontfillLogs({
     network,
     blockNumber,
     blockTimestamp,
@@ -345,7 +350,7 @@ export class Ponder extends EventEmitter {
     renderApp(this.interfaceState);
   }
 
-  handleNewBackfillLogs() {
+  private handleNewBackfillLogs() {
     this.handleNewLogs();
   }
 
