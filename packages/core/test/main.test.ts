@@ -1,8 +1,9 @@
 import type Sqlite from "better-sqlite3";
+import path from "node:path";
 
+import { readPonderConfig } from "@/cli/readPonderConfig";
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
-import type { PonderConfig } from "@/index";
 import { CachedProvider } from "@/networks/CachedProvider";
 import { Ponder } from "@/Ponder";
 import { initialInterfaceState } from "@/ui/app";
@@ -30,74 +31,14 @@ jest.mock("@ethersproject/providers", () => {
   };
 });
 
-const abi = [
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "string",
-        name: "indexedFilename",
-        type: "string",
-      },
-      {
-        indexed: true,
-        internalType: "bytes32",
-        name: "checksum",
-        type: "bytes32",
-      },
-      {
-        indexed: false,
-        internalType: "string",
-        name: "filename",
-        type: "string",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "size",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "bytes",
-        name: "metadata",
-        type: "bytes",
-      },
-    ],
-    name: "FileCreated",
-    type: "event",
-  },
-];
-
-const ponderConfig: PonderConfig = {
-  database: {
-    kind: "sqlite",
-    filename: ":memory:",
-  },
-  networks: [
-    {
-      name: "mainnet",
-      chainId: 1,
-      rpcUrl: "rpc://test",
-    },
-  ],
-  sources: [
-    {
-      name: "FileStore",
-      network: "mainnet",
-      abi: abi,
-      address: "0x9746fD0A77829E12F8A9DBe70D7a322412325B91",
-      startBlock: 15963553,
-    },
-  ],
-};
+const configPath = path.resolve("./test/basic/ponder.config.js");
+const config = require(configPath);
 
 describe("Ponder", () => {
   let ponder: Ponder;
 
   beforeEach(() => {
-    ponder = new Ponder(ponderConfig);
+    ponder = new Ponder(config);
   });
 
   afterEach(() => {
