@@ -71,7 +71,6 @@ async function blockFrontfillWorker(
   const requiredTxnHashSet = new Set(logs.map((l) => l.transactionHash));
 
   // Filter out pending transactions (this might not be necessary?).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const transactions = (rawBlock.transactions as any[])
     .filter((txn) => !!txn.hash)
     .filter((txn) => requiredTxnHashSet.has(txn.hash))
