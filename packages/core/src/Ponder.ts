@@ -1,5 +1,5 @@
 import EventEmitter from "node:events";
-import { mkdirSync, watch } from "node:fs";
+import { watch } from "node:fs";
 import path from "node:path";
 
 import type { PonderConfig } from "@/cli/readPonderConfig";
@@ -95,7 +95,9 @@ export class Ponder extends EventEmitter {
     this.watchFiles = [
       OPTIONS.SCHEMA_FILE_PATH,
       OPTIONS.HANDLERS_DIR_PATH,
-      ...sources.map((s) => s.abiFilePath),
+      ...sources
+        .map((s) => s.abiFilePath)
+        .filter((p): p is string => typeof p === "string"),
     ];
   }
 
@@ -139,9 +141,6 @@ export class Ponder extends EventEmitter {
       this.interfaceState.timestamp = Math.floor(Date.now() / 1000);
       renderApp(this.interfaceState);
     }, 1000);
-
-    mkdirSync(path.join(OPTIONS.GENERATED_DIR_PATH), { recursive: true });
-    mkdirSync(path.join(OPTIONS.PONDER_DIR_PATH), { recursive: true });
 
     await this.cacheStore.migrate();
   }

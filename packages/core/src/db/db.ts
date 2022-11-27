@@ -1,11 +1,11 @@
 import Sqlite from "better-sqlite3";
-import { mkdirSync } from "node:fs";
 import path from "node:path";
 import PgPromise from "pg-promise";
 
 import type { PonderConfig } from "@/cli/readPonderConfig";
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
+import { ensureDirExists } from "@/common/utils";
 
 export interface SqliteDb {
   kind: "sqlite";
@@ -25,13 +25,14 @@ export type PonderDatabase = SqliteDb | PostgresDb;
 export const buildDb = (config: PonderConfig): PonderDatabase => {
   switch (config.database.kind) {
     case "sqlite": {
-      mkdirSync(OPTIONS.PONDER_DIR_PATH, { recursive: true });
-      const dbFile = path.join(OPTIONS.PONDER_DIR_PATH, "cache.db");
+      const dbFilePath =
+        config.database.filename ||
+        path.join(OPTIONS.PONDER_DIR_PATH, "cache.db");
+      ensureDirExists(dbFilePath);
+
       return {
         kind: "sqlite",
-        db: Sqlite(config.database.filename || dbFile, {
-          verbose: logger.trace,
-        }),
+        db: Sqlite(dbFilePath, { verbose: logger.trace }),
       };
     }
     case "postgres": {
@@ -43,6 +44,7 @@ export const buildDb = (config: PonderConfig): PonderDatabase => {
           logger.error({ err, e });
         },
       });
+
       return {
         kind: "postgres",
         pgp,

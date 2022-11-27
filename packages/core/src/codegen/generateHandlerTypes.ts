@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
+import { ensureDirExists } from "@/common/utils";
 import { PonderSchema } from "@/schema/types";
 import { Source } from "@/sources/base";
 
@@ -50,11 +51,10 @@ ${buildEventTypes(sources)}
 
   const final = formatPrettier(raw);
 
-  writeFileSync(
-    path.join(OPTIONS.GENERATED_DIR_PATH, "handlers.ts"),
-    final,
-    "utf8"
-  );
+  const filePath = path.join(OPTIONS.GENERATED_DIR_PATH, "handlers.ts");
+
+  ensureDirExists(filePath);
+  writeFileSync(filePath, final, "utf8");
 
   logger.debug(`Generated handlers.ts file`);
 };

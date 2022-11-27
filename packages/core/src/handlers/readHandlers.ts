@@ -1,10 +1,10 @@
 import { build } from "esbuild";
-import { mkdirSync } from "node:fs";
 import path from "node:path";
 
 import { logger } from "@/common/logger";
 import { OPTIONS } from "@/common/options";
 import type { Block, EventLog, Transaction } from "@/common/types";
+import { ensureDirExists } from "@/common/utils";
 
 export interface HandlerEvent extends EventLog {
   name: string;
@@ -20,8 +20,8 @@ export type SourceHandlers = Record<string, Handler | undefined>;
 export type Handlers = Record<string, SourceHandlers | undefined>;
 
 export const readHandlers = async (): Promise<Handlers> => {
-  mkdirSync(OPTIONS.PONDER_DIR_PATH, { recursive: true });
   const buildFile = path.join(OPTIONS.PONDER_DIR_PATH, "handlers.js");
+  ensureDirExists(buildFile);
 
   const handlersRootFilePath = path.join(OPTIONS.HANDLERS_DIR_PATH, "index.ts");
 
