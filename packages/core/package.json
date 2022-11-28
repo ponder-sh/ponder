@@ -14,13 +14,14 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "lint": "(tsc || exit 0) && eslint src",
+    "typecheck": "tsc",
+    "lint": "eslint src",
     "format": "prettier src --write",
     "replace-paths": "tsconfig-replace-paths --src .",
     "esbuild": "esbuild `find . \\( -name '*.ts' -o -name '*.tsx' \\)` --platform=node --format=cjs --outdir=dist && $npm_execpath run replace-paths",
     "build": "$npm_execpath run clean && $npm_execpath run esbuild && mv dist/src/bin/ponder.js dist/src/bin/ponder",
     "declarations": "(tsc --noEmit false --declaration --emitDeclarationOnly || exit 0) && $npm_execpath run replace-paths",
-    "format-dist": "prettier dist --write --loglevel warn",
+    "format-dist": "prettier dist --write --loglevel warn --ignore-path dist/src/codegen/ethers-abitype/*",
     "prerelease": "$npm_execpath run build && $npm_execpath run declarations && $npm_execpath run format-dist",
     "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/core): $VERSION\"",
     "test": "jest"
