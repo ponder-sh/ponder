@@ -1,35 +1,40 @@
-import { endBenchmark, startBenchmark } from "@/common/utils";
 import type { Ponder } from "@/Ponder";
 
 import { startBackfillForSource } from "./startBackfillForSource";
 
 export const startBackfill = async ({
   ponder,
-  latestBlockNumberByNetwork,
+  blockNumberByNetwork,
 }: {
   ponder: Ponder;
-  latestBlockNumberByNetwork: Record<string, number | undefined>;
+  blockNumberByNetwork: Record<string, number | undefined>;
 }) => {
-  const startHrt = startBenchmark();
-
-  await Promise.all(
+  const queueFuncs = await Promise.all(
     ponder.sources.map(async (source) => {
-      const latestBlockNumber = latestBlockNumberByNetwork[source.network.name];
+      const latestBlockNumber = blockNumberByNetwork[source.network.name];
       if (!latestBlockNumber) {
         throw new Error(
           `Internal error: latestBlockNumber not found for network: ${source.network.name}`
         );
       }
 
-      await startBackfillForSource({
+      const { killQueues, drainQueues } = await startBackfillForSource({
         ponder,
         source,
         latestBlockNumber,
       });
+
+      return { killQueues, drainQueues };
     })
   );
 
-  const duration = endBenchmark(startHrt);
+  const killBackfillQueues = () => {
+    queueFuncs.map((f) => f.killQueues());
+  };
 
-  return { duration };
+  const drainBackfillQueues = async () => {
+    await Promise.all(queueFuncs.map((f) => f.drainQueues()));
+  };
+
+  return { killBackfillQueues, drainBackfillQueues };
 };

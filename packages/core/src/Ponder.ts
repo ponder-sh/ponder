@@ -8,6 +8,7 @@ import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger, PonderLogger } from "@/common/logger";
 import { buildOptions, PonderOptions } from "@/common/options";
 import { PonderConfig, readPonderConfig } from "@/common/readPonderConfig";
+import { endBenchmark, startBenchmark } from "@/common/utils";
 import { isFileChanged } from "@/common/utils";
 import { buildCacheStore, CacheStore } from "@/db/cache/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
@@ -49,6 +50,9 @@ export class Ponder extends EventEmitter {
 
   // Hot reloading
   watchFiles: string[];
+  killFrontfillQueues?: () => void;
+  killBackfillQueues?: () => void;
+  killWatchers?: () => void;
 
   // Plugins
   plugins: ResolvedPonderPlugin[];
@@ -127,6 +131,11 @@ export class Ponder extends EventEmitter {
 
   kill() {
     clearInterval(this.renderInterval);
+    this.handlerQueue?.kill();
+    this.killFrontfillQueues?.();
+    this.killBackfillQueues?.();
+    this.killWatchers?.();
+    this.teardownPlugins();
   }
 
   async start() {
@@ -166,10 +175,6 @@ export class Ponder extends EventEmitter {
     if (this.handlerQueue) {
       logger.debug("Killing old handlerQueue");
       this.handlerQueue.kill();
-      // Unsure if this is necessary after killing it.
-      if (!this.handlerQueue.idle()) {
-        await this.handlerQueue.drained();
-      }
       this.isHandlingLogs = false;
     }
 
@@ -202,14 +207,21 @@ export class Ponder extends EventEmitter {
     };
     renderApp(this.interfaceState);
 
-    const { latestBlockNumberByNetwork } = await startFrontfill({
-      ponder: this,
-    });
+    const startHrt = startBenchmark();
 
-    const { duration } = await startBackfill({
+    const { blockNumberByNetwork, killFrontfillQueues } = await startFrontfill({
       ponder: this,
-      latestBlockNumberByNetwork,
     });
+    this.killFrontfillQueues = killFrontfillQueues;
+
+    const { killBackfillQueues, drainBackfillQueues } = await startBackfill({
+      ponder: this,
+      blockNumberByNetwork,
+    });
+    this.killBackfillQueues = killBackfillQueues;
+
+    await drainBackfillQueues();
+    const duration = endBenchmark(startHrt);
 
     logger.debug(`Backfill completed in ${duration}`);
 
@@ -358,7 +370,7 @@ export class Ponder extends EventEmitter {
   }
 
   watch() {
-    this.watchFiles.forEach((fileOrDirName) => {
+    const watchers = this.watchFiles.map((fileOrDirName) =>
       watch(fileOrDirName, { recursive: true }, (_, fileName) => {
         const fullPath =
           path.basename(fileOrDirName) === fileName
@@ -377,8 +389,12 @@ export class Ponder extends EventEmitter {
         } else {
           logger.debug("File content not changed, not reloading");
         }
-      });
-    });
+      })
+    );
+
+    this.killWatchers = () => {
+      watchers.forEach((w) => w.close());
+    };
   }
 
   async setupPlugins() {
@@ -392,6 +408,13 @@ export class Ponder extends EventEmitter {
     for (const plugin of this.plugins) {
       if (!plugin.reload) return;
       await plugin.reload(this);
+    }
+  }
+
+  async teardownPlugins() {
+    for (const plugin of this.plugins) {
+      if (!plugin.teardown) return;
+      plugin.teardown(this);
     }
   }
 }
