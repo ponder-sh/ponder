@@ -42,6 +42,7 @@ jobs:
             node_modules
             examples/**/node_modules
             packages/**/node_modules
+            packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install Dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -72,6 +73,7 @@ jobs:
             node_modules
             examples/**/node_modules
             packages/**/node_modules
+            packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Build
         run: pnpm build
@@ -101,6 +103,7 @@ jobs:
             node_modules
             examples/**/node_modules
             packages/**/node_modules
+            packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Test
         run: pnpm test
