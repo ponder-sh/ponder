@@ -1,4 +1,4 @@
-name: Main
+name: main
 
 on:
   pull_request:
@@ -12,17 +12,16 @@ concurrency:
 
 jobs:
   install:
-    name: Install
+    name: install
     runs-on: ubuntu-latest
     strategy:
       matrix:
         node-version: [16]
-        pnpm-version: [7]
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v2.2.4
         with:
-          version: ${{ matrix.pnpm-version }}
+          version: 7
       - name: Set up Node ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
@@ -49,18 +48,17 @@ jobs:
         run: pnpm i
 
   build:
-    name: Build
+    name: build
     needs: install
     runs-on: ubuntu-latest
     strategy:
       matrix:
         node-version: [16]
-        pnpm-version: [7]
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v2.2.4
         with:
-          version: ${{ matrix.pnpm-version }}
+          version: 7
       - name: Set up Node ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
@@ -79,18 +77,17 @@ jobs:
         run: pnpm build
 
   test:
-    name: Test
+    name: test
     needs: build
     runs-on: ubuntu-latest
     strategy:
       matrix:
         node-version: [16]
-        pnpm-version: [7]
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v2.2.4
         with:
-          version: ${{ matrix.pnpm-version }}
+          version: 7
       - name: Set up Node ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
