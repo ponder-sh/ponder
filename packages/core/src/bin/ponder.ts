@@ -1,32 +1,48 @@
 #!/usr/bin/env node
 /* eslint-disable @typescript-eslint/no-var-requires */
 
-import { Command } from "commander";
+import { cac } from "cac";
 import dotenv from "dotenv";
 
 dotenv.config({ path: ".env.local" });
 
-const program = new Command();
+const cli = cac("ponder")
+  .usage("<command> [options]")
+  .help()
+  .option(
+    "--config-file [path]",
+    `Path to config file. Default: "ponder.config.js"`
+  )
+  .option("--root-dir [path]", `Path to project root directory. Default: "."`);
 
-program
-  .command("dev")
-  .description("start local development server")
-  .action(() => {
-    require("../cli/dev").dev();
+export type PonderCliOptions = {
+  help?: boolean;
+  configFile?: string;
+  rootDir?: string;
+};
+
+cli
+  .command("dev", "Start the development server")
+  .action((options: PonderCliOptions) => {
+    if (options.help) process.exit(0);
+
+    require("../cli/dev").dev(options);
   });
 
-program
-  .command("start")
-  .description("start server")
-  .action(() => {
-    require("../cli/start").start();
+cli
+  .command("start", "Start the production server")
+  .action((options: PonderCliOptions) => {
+    if (options.help) process.exit(0);
+
+    require("../cli/start").start(options);
   });
 
-program
-  .command("codegen")
-  .description("start local development server")
-  .action(() => {
-    require("../cli/codegen").codegen();
+cli
+  .command("codegen", "Emit type files, then exit")
+  .action((options: PonderCliOptions) => {
+    if (options.help) process.exit(0);
+
+    require("../cli/codegen").codegen(options);
   });
 
-program.parse();
+cli.parse();

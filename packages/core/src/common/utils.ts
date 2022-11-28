@@ -1,5 +1,15 @@
 import { createHash } from "crypto";
 import { readFileSync } from "fs";
+import { existsSync, mkdirSync } from "node:fs";
+import path from "node:path";
+
+export const ensureDirExists = (filePath: string) => {
+  const dirname = path.dirname(filePath);
+  if (existsSync(dirname)) {
+    return;
+  }
+  mkdirSync(dirname), { recursive: true };
+};
 
 export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
   return array.reduce<{ [k: string | number]: T[] }>((acc, item) => {

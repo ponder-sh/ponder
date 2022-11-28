@@ -1,10 +1,8 @@
-import { readPonderConfig } from "@/cli/readPonderConfig";
+import type { PonderCliOptions } from "@/bin/ponder";
 import { Ponder } from "@/Ponder";
 
-export const dev = async () => {
-  const config = readPonderConfig();
-
-  const ponder = new Ponder(config);
+export const dev = async (options: PonderCliOptions) => {
+  const ponder = new Ponder(options);
 
   await ponder.dev();
 };

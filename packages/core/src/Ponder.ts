@@ -1,18 +1,20 @@
 import EventEmitter from "node:events";
-import { mkdirSync, watch } from "node:fs";
+import { watch } from "node:fs";
 import path from "node:path";
 
-import type { PonderConfig } from "@/cli/readPonderConfig";
+import { PonderCliOptions } from "@/bin/ponder";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger, PonderLogger } from "@/common/logger";
-import { OPTIONS, PonderOptions } from "@/common/options";
+import { buildOptions, PonderOptions } from "@/common/options";
+import { PonderConfig, readPonderConfig } from "@/common/readPonderConfig";
 import { isFileChanged } from "@/common/utils";
 import { buildCacheStore, CacheStore } from "@/db/cache/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
 import { buildEntityStore, EntityStore } from "@/db/entity/entityStore";
 import { createHandlerQueue, HandlerQueue } from "@/handlers/handlerQueue";
 import { readHandlers } from "@/handlers/readHandlers";
+import { getLogs } from "@/indexer/tasks/getLogs";
 import { startBackfill } from "@/indexer/tasks/startBackfill";
 import { startFrontfill } from "@/indexer/tasks/startFrontfill";
 import type { Network } from "@/networks/base";
@@ -30,9 +32,9 @@ import {
   renderApp,
 } from "@/ui/app";
 
-import { getLogs } from "./indexer/tasks/getLogs";
-
 export class Ponder extends EventEmitter {
+  config: PonderConfig;
+
   sources: EvmSource[];
   networks: Network[];
 
@@ -40,7 +42,7 @@ export class Ponder extends EventEmitter {
   cacheStore: CacheStore;
   entityStore: EntityStore;
 
-  schema?: PonderSchema;
+  schema: PonderSchema;
   handlerQueue?: HandlerQueue;
   logsProcessedToTimestamp: number;
   isHandlingLogs: boolean;
@@ -54,9 +56,10 @@ export class Ponder extends EventEmitter {
   options: PonderOptions;
 
   // Interface
+  renderInterval?: NodeJS.Timer;
   interfaceState: InterfaceState;
 
-  constructor(config: PonderConfig) {
+  constructor(cliOptions: PonderCliOptions) {
     super();
 
     this.on("newNetworkConnected", this.handleNewNetworkConnected);
@@ -75,89 +78,91 @@ export class Ponder extends EventEmitter {
     this.isHandlingLogs = false;
     this.interfaceState = initialInterfaceState;
 
-    this.database = buildDb(config);
+    this.options = buildOptions(cliOptions);
+    this.config = readPonderConfig(this.options.PONDER_CONFIG_FILE_PATH);
+
+    this.database = buildDb({ ponder: this });
     this.cacheStore = buildCacheStore(this.database);
     this.entityStore = buildEntityStore(this.database);
 
     this.logger = logger;
-    this.options = OPTIONS;
 
-    const { networks } = buildNetworks({
-      config,
-      ponder: this,
-    });
+    const { networks } = buildNetworks({ ponder: this });
     this.networks = networks;
 
-    const { sources } = buildSources({ config, networks });
+    const { sources } = buildSources({ ponder: this });
     this.sources = sources;
 
-    this.plugins = config.plugins || [];
+    const userSchema = readSchema({ ponder: this });
+    this.schema = buildPonderSchema(userSchema);
+
+    this.plugins = this.config.plugins || [];
     this.watchFiles = [
-      OPTIONS.SCHEMA_FILE_PATH,
-      OPTIONS.HANDLERS_DIR_PATH,
-      ...sources.map((s) => s.abiFilePath),
+      this.options.SCHEMA_FILE_PATH,
+      this.options.HANDLERS_DIR_PATH,
+      ...sources
+        .map((s) => s.abiFilePath)
+        .filter((p): p is string => typeof p === "string"),
     ];
   }
 
-  async start() {
-    this.interfaceState.isProd = true;
-    await this.setup();
+  async setup() {
+    this.renderInterval = setInterval(() => {
+      this.interfaceState.timestamp = Math.floor(Date.now() / 1000);
+      renderApp(this.interfaceState);
+    }, 1000);
 
-    await Promise.all([this.loadSchema(), this.loadHandlers()]);
+    await Promise.all([
+      this.cacheStore.migrate(),
+      this.entityStore.migrate(this.schema),
+      this.reloadHandlers(),
+    ]);
 
     // If there is a config error, display the error and exit the process.
     // Eventually, it might make sense to support hot reloading for ponder.config.js.
     if (this.interfaceState.configError) {
       process.exit(1);
     }
+  }
+
+  kill() {
+    clearInterval(this.renderInterval);
+  }
+
+  async start() {
+    this.interfaceState.isProd = true;
+    await this.setup();
 
     this.codegen();
     this.setupPlugins();
 
     await this.backfill();
+    this.handleNewLogs();
   }
 
   async dev() {
     await this.setup();
     this.watch();
 
-    await Promise.all([this.loadSchema(), this.loadHandlers()]);
-
-    // See comment in start()
-    if (this.interfaceState.configError) {
-      process.exit(1);
-    }
-
     this.codegen();
     this.setupPlugins();
 
     this.backfill();
-  }
-
-  async setup() {
-    setInterval(() => {
-      this.interfaceState.timestamp = Math.floor(Date.now() / 1000);
-      renderApp(this.interfaceState);
-    }, 1000);
-
-    mkdirSync(path.join(OPTIONS.GENERATED_DIR_PATH), { recursive: true });
-    mkdirSync(path.join(OPTIONS.PONDER_DIR_PATH), { recursive: true });
-
-    await this.cacheStore.migrate();
+    this.handleNewLogs();
   }
 
   codegen() {
-    generateContractTypes(this.sources);
-    if (this.schema) generateHandlerTypes(this.sources, this.schema);
+    generateContractTypes({ ponder: this });
+    generateHandlerTypes({ ponder: this });
   }
 
-  async loadSchema() {
-    const userSchema = readSchema();
+  async reloadSchema() {
+    const userSchema = readSchema({ ponder: this });
     this.schema = buildPonderSchema(userSchema);
     await this.entityStore.migrate(this.schema);
   }
 
-  async loadHandlers() {
+  async reloadHandlers() {
     if (this.handlerQueue) {
       logger.debug("Killing old handlerQueue");
       this.handlerQueue.kill();
@@ -168,7 +173,7 @@ export class Ponder extends EventEmitter {
       this.isHandlingLogs = false;
     }
 
-    const handlers = await readHandlers();
+    const handlers = await readHandlers({ ponder: this });
 
     this.handlerQueue = createHandlerQueue({
       ponder: this,
@@ -177,14 +182,11 @@ export class Ponder extends EventEmitter {
   }
 
   async reload() {
-    await Promise.all([this.loadSchema(), this.loadHandlers()]);
+    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
 
     this.codegen();
     this.reloadPlugins();
 
-    // This drops and creates the entity tables.
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    await this.entityStore.migrate(this.schema!);
     this.logsProcessedToTimestamp = 0;
     this.interfaceState.handlersTotal = 0;
     this.interfaceState.handlersCurrent = 0;
@@ -257,13 +259,13 @@ export class Ponder extends EventEmitter {
     this.isHandlingLogs = false;
   }
 
-  handleBackfillTasksAdded(taskCount: number) {
+  private handleBackfillTasksAdded(taskCount: number) {
     this.interfaceState.backfillTaskTotal += taskCount;
     this.updateBackfillEta();
     renderApp(this.interfaceState);
   }
 
-  handleBackfillTaskCompleted() {
+  private handleBackfillTaskCompleted() {
     this.interfaceState.backfillTaskCurrent += 1;
     this.updateBackfillEta();
     renderApp(this.interfaceState);
@@ -276,10 +278,15 @@ export class Ponder extends EventEmitter {
         this.interfaceState.backfillTaskCurrent) *
         this.interfaceState.backfillTaskTotal
     );
-    if (Number.isFinite(newEta)) this.interfaceState.backfillEta = newEta;
+    if (!Number.isFinite(newEta)) return;
+
+    this.interfaceState.backfillEta =
+      newEta -
+      (this.interfaceState.timestamp -
+        this.interfaceState.backfillStartTimestamp);
   }
 
-  handleHandlerTaskStarted() {
+  private handleHandlerTaskStarted() {
     this.interfaceState.handlersCurrent += 1;
     this.interfaceState.handlersStatus =
       this.interfaceState.handlersCurrent === this.interfaceState.handlersTotal
@@ -288,7 +295,7 @@ export class Ponder extends EventEmitter {
     renderApp(this.interfaceState);
   }
 
-  handleConfigError(error: string) {
+  private handleConfigError(error: string) {
     this.interfaceState = {
       ...this.interfaceState,
       configError: error,
@@ -296,7 +303,7 @@ export class Ponder extends EventEmitter {
     renderApp(this.interfaceState);
   }
 
-  handleHandlerTaskError(error: string) {
+  private handleHandlerTaskError(error: string) {
     this.interfaceState = {
       ...this.interfaceState,
       handlerError: error,
@@ -304,7 +311,7 @@ export class Ponder extends EventEmitter {
     renderApp(this.interfaceState);
   }
 
-  handleNewNetworkConnected({
+  private handleNewNetworkConnected({
     network,
     blockNumber,
     blockTimestamp,
@@ -322,7 +329,7 @@ export class Ponder extends EventEmitter {
     };
   }
 
-  handleNewFrontfillLogs({
+  private handleNewFrontfillLogs({
     network,
     blockNumber,
     blockTimestamp,
@@ -346,7 +353,7 @@ export class Ponder extends EventEmitter {
     renderApp(this.interfaceState);
   }
 
-  handleNewBackfillLogs() {
+  private handleNewBackfillLogs() {
     this.handleNewLogs();
   }
 

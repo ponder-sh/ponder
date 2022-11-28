@@ -1,7 +1,7 @@
-export type { PonderConfig } from "@/cli/readPonderConfig";
 export type { AbitypedEthersContract } from "@/codegen/ethers-abitype";
 export type { PonderLogger } from "@/common/logger";
 export type { PonderOptions } from "@/common/options";
+export type { PonderConfig } from "@/common/readPonderConfig";
 export type { Block, EventLog, Transaction } from "@/common/types";
 export type { EntityStore } from "@/db/entity/entityStore";
 export type { PonderPlugin, ResolvedPonderPlugin } from "@/plugin";

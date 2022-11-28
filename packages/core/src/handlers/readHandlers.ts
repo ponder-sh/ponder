@@ -1,10 +1,11 @@
 import { build } from "esbuild";
-import { mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { logger } from "@/common/logger";
-import { OPTIONS } from "@/common/options";
 import type { Block, EventLog, Transaction } from "@/common/types";
+import { ensureDirExists } from "@/common/utils";
+import type { Ponder } from "@/Ponder";
 
 export interface HandlerEvent extends EventLog {
   name: string;
@@ -19,11 +20,21 @@ export type Handler = (
 export type SourceHandlers = Record<string, Handler | undefined>;
 export type Handlers = Record<string, SourceHandlers | undefined>;
 
-export const readHandlers = async (): Promise<Handlers> => {
-  mkdirSync(OPTIONS.PONDER_DIR_PATH, { recursive: true });
-  const buildFile = path.join(OPTIONS.PONDER_DIR_PATH, "handlers.js");
+export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
+  const buildFile = path.join(ponder.options.PONDER_DIR_PATH, "handlers.js");
+  ensureDirExists(buildFile);
 
-  const handlersRootFilePath = path.join(OPTIONS.HANDLERS_DIR_PATH, "index.ts");
+  const handlersRootFilePath = path.join(
+    ponder.options.HANDLERS_DIR_PATH,
+    "index.ts"
+  );
+
+  if (!existsSync(handlersRootFilePath)) {
+    ponder.emit(
+      "configError",
+      `Handlers not found, expected file: ${handlersRootFilePath}`
+    );
+  }
 
   try {
     await build({

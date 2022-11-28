@@ -4,6 +4,7 @@
     "esbenp.prettier-vscode",
     "rvest.vs-code-prettier-eslint",
     "redhat.vscode-yaml",
-    "mikestead.dotenv"
+    "mikestead.dotenv",
+    "graphql.vscode-graphql"
   ]
 }

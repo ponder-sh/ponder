@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import type { Block, EventLog, Transaction } from "@/common/types";
 
 export const hexStringToDecimal = (value: string | number) => {

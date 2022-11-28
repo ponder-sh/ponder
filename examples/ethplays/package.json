@@ -2,13 +2,7 @@
   "private": true,
   "scripts": {
     "create-ponder": "create-ponder --dir ../ponder --from-subgraph .",
-    "create-ponder-help": "create-ponder --help",
-    "codegen": "graph codegen",
-    "build": "graph build",
-    "deploy": "graph deploy --node https://api.thegraph.com/deploy/ 0xolias/ethplays-v0",
-    "create-local": "graph create --node http://localhost:8020/ 0xolias/ethplays-v0",
-    "remove-local": "graph remove --node http://localhost:8020/ 0xolias/ethplays-v0",
-    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 0xolias/ethplays-v0"
+    "create-ponder-help": "create-ponder --help"
   },
   "devDependencies": {
     "create-ponder": "workspace:latest"
