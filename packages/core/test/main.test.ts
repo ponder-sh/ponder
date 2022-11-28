@@ -40,10 +40,6 @@ describe("Ponder", () => {
     ponder.kill();
   });
 
-  it("fails", () => {
-    expect(1).toBe(2);
-  });
-
   describe("constructor", () => {
     it("creates a network using CachedProvider", async () => {
       expect(ponder.networks.length).toBe(1);
