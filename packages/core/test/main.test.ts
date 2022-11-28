@@ -146,4 +146,16 @@ describe("Ponder", () => {
       expect(ponder.handlerQueue?.length()).toBe(0);
     });
   });
+
+  describe("backfill()", () => {
+    beforeEach(async () => {
+      await ponder.setup();
+    });
+
+    it("works", async () => {
+      await ponder.backfill();
+
+      expect(1).toBe(2);
+    });
+  });
 });

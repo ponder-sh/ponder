@@ -23,8 +23,7 @@
     "format-dist": "prettier dist --write --loglevel warn",
     "prerelease": "$npm_execpath run build && $npm_execpath run declarations && $npm_execpath run format-dist",
     "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/core): $VERSION\"",
-    "test": "jest dist",
-    "t": "$npm_execpath run build && jest dist"
+    "test": "jest dist"
   },
   "dependencies": {
     "@ethersproject/abi": "^5.6.4",
