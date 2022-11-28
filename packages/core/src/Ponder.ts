@@ -278,7 +278,12 @@ export class Ponder extends EventEmitter {
         this.interfaceState.backfillTaskCurrent) *
         this.interfaceState.backfillTaskTotal
     );
-    if (Number.isFinite(newEta)) this.interfaceState.backfillEta = newEta;
+    if (!Number.isFinite(newEta)) return;
+
+    this.interfaceState.backfillEta =
+      newEta -
+      (this.interfaceState.timestamp -
+        this.interfaceState.backfillStartTimestamp);
   }
 
   private handleHandlerTaskStarted() {
