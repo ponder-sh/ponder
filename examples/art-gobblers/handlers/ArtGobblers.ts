@@ -3,7 +3,7 @@ import { ArtGobbledHandler } from "../generated/handlers";
 const handleArtGobbled: ArtGobbledHandler = async (event, context) => {
   console.log("Art Gobbled!");
 
-  context.entities.GobbledArt.insert({
+  context.entities.GobbledArt.insert(`${event.params.nft}-${event.params.id}`, {
     id: `${event.params.nft}-${event.params.id}`,
     user: event.params.user,
   });
