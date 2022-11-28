@@ -11,14 +11,12 @@ export type PonderOptions = {
 };
 
 export const buildOptions = (options: PonderCliOptions): PonderOptions => {
-  const PONDER_CONFIG_FILE_PATH = options.configFile || "ponder.config.js";
-
-  const dir = process.cwd();
-  const abs = (targetPath: string) => path.join(dir, targetPath);
+  const configFile = options.configFile || "ponder.config.js";
+  const rootDir = path.resolve(options.rootDir || process.cwd());
 
   const defaults = {
     // File path options
-    PONDER_CONFIG_FILE_PATH: PONDER_CONFIG_FILE_PATH,
+    PONDER_CONFIG_FILE_PATH: configFile,
     SCHEMA_FILE_PATH: "schema.graphql",
     HANDLERS_DIR_PATH: "handlers",
     GENERATED_DIR_PATH: "generated",
@@ -27,11 +25,14 @@ export const buildOptions = (options: PonderCliOptions): PonderOptions => {
 
   return {
     ...defaults,
-    // Resolve absolute paths
-    PONDER_CONFIG_FILE_PATH: abs(defaults.PONDER_CONFIG_FILE_PATH),
-    SCHEMA_FILE_PATH: abs(defaults.SCHEMA_FILE_PATH),
-    HANDLERS_DIR_PATH: abs(defaults.HANDLERS_DIR_PATH),
-    GENERATED_DIR_PATH: abs(defaults.GENERATED_DIR_PATH),
-    PONDER_DIR_PATH: abs(defaults.PONDER_DIR_PATH),
+    // Resolve paths
+    PONDER_CONFIG_FILE_PATH: path.join(
+      rootDir,
+      defaults.PONDER_CONFIG_FILE_PATH
+    ),
+    SCHEMA_FILE_PATH: path.join(rootDir, defaults.SCHEMA_FILE_PATH),
+    HANDLERS_DIR_PATH: path.join(rootDir, defaults.HANDLERS_DIR_PATH),
+    GENERATED_DIR_PATH: path.join(rootDir, defaults.GENERATED_DIR_PATH),
+    PONDER_DIR_PATH: path.join(rootDir, defaults.PONDER_DIR_PATH),
   };
 };

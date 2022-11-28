@@ -12,11 +12,13 @@ const cli = cac("ponder")
   .option(
     "--config-file [path]",
     `Path to config file. Default: "ponder.config.js"`
-  );
+  )
+  .option("--root-dir [path]", `Path to project root directory. Default: "."`);
 
 export type PonderCliOptions = {
   help?: boolean;
   configFile?: string;
+  rootDir?: string;
 };
 
 cli

@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import type { Ponder } from "@/Ponder";
 
@@ -12,8 +13,14 @@ export const buildSources = ({ ponder }: { ponder: Ponder }) => {
 
     if (typeof source.abi === "string") {
       // If it's a string, assume it's a file path.
-      abiFilePath = source.abi;
-      const abiString = readFileSync(source.abi, "utf-8");
+      abiFilePath = path.isAbsolute(source.abi)
+        ? source.abi
+        : path.join(
+            path.dirname(ponder.options.PONDER_CONFIG_FILE_PATH),
+            source.abi
+          );
+
+      const abiString = readFileSync(abiFilePath, "utf-8");
       abiObject = JSON.parse(abiString);
     } else {
       // If it's not a string, assume it's the ABI itself.

@@ -1,4 +1,5 @@
 import { build } from "esbuild";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { logger } from "@/common/logger";
@@ -27,6 +28,13 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
     ponder.options.HANDLERS_DIR_PATH,
     "index.ts"
   );
+
+  if (!existsSync(handlersRootFilePath)) {
+    ponder.emit(
+      "configError",
+      `Handlers not found, expected file: ${handlersRootFilePath}`
+    );
+  }
 
   try {
     await build({
