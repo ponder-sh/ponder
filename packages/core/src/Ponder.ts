@@ -117,6 +117,12 @@ export class Ponder extends EventEmitter {
       this.entityStore.migrate(this.schema),
       this.reloadHandlers(),
     ]);
+
+    // If there is a config error, display the error and exit the process.
+    // Eventually, it might make sense to support hot reloading for ponder.config.js.
+    if (this.interfaceState.configError) {
+      process.exit(1);
+    }
   }
 
   kill() {
@@ -127,31 +133,22 @@ export class Ponder extends EventEmitter {
     this.interfaceState.isProd = true;
     await this.setup();
 
-    // If there is a config error, display the error and exit the process.
-    // Eventually, it might make sense to support hot reloading for ponder.config.js.
-    if (this.interfaceState.configError) {
-      process.exit(1);
-    }
-
     this.codegen();
     this.setupPlugins();
 
     await this.backfill();
+    this.handleNewLogs();
   }
 
   async dev() {
     await this.setup();
     this.watch();
 
-    // See comment in start()
-    if (this.interfaceState.configError) {
-      process.exit(1);
-    }
-
     this.codegen();
     this.setupPlugins();
 
     this.backfill();
+    this.handleNewLogs();
   }
 
   codegen() {
