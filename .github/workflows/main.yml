@@ -1,4 +1,4 @@
-name: main
+name: Main
 
 on:
   pull_request:
@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   install:
-    name: install
+    name: Install
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -48,7 +48,7 @@ jobs:
         run: pnpm i
 
   build:
-    name: build
+    name: Build
     needs: install
     runs-on: ubuntu-latest
     strategy:
@@ -77,7 +77,7 @@ jobs:
         run: pnpm build
 
   test:
-    name: test
+    name: Test
     needs: build
     runs-on: ubuntu-latest
     strategy:
@@ -102,5 +102,7 @@ jobs:
             packages/**/node_modules
             packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Build
+        run: pnpm build
       - name: Test
         run: pnpm test
