@@ -105,21 +105,34 @@ export const startBackfillForSource = async ({
     }
   }
 
-  const logQueueLength = logBackfillQueue.length();
-  logger.debug(`${source.name}: Started ${logQueueLength} log backfill tasks`);
-  if (!logBackfillQueue.idle()) {
-    await logBackfillQueue.drained();
-  }
-  logger.debug(`${source.name}: Finished ${logQueueLength} log backfill tasks`);
+  const killQueues = () => {
+    logBackfillQueue.kill();
+    blockBackfillQueue.kill();
+  };
 
-  const blockQueueLength = logBackfillQueue.length();
-  logger.debug(
-    `${source.name}: Started ${blockQueueLength} block backfill tasks`
-  );
-  if (!blockBackfillQueue.idle()) {
-    await blockBackfillQueue.drained();
-  }
-  logger.debug(
-    `${source.name}: Finished ${blockQueueLength} block backfill tasks`
-  );
+  const drainQueues = async () => {
+    const logQueueLength = logBackfillQueue.length();
+    logger.debug(
+      `${source.name}: Started ${logQueueLength} log backfill tasks`
+    );
+    if (!logBackfillQueue.idle()) {
+      await logBackfillQueue.drained();
+    }
+    logger.debug(
+      `${source.name}: Finished ${logQueueLength} log backfill tasks`
+    );
+
+    const blockQueueLength = blockBackfillQueue.length();
+    logger.debug(
+      `${source.name}: Started ${blockQueueLength} block backfill tasks`
+    );
+    if (!blockBackfillQueue.idle()) {
+      await blockBackfillQueue.drained();
+    }
+    logger.debug(
+      `${source.name}: Finished ${blockQueueLength} block backfill tasks`
+    );
+  };
+
+  return { killQueues, drainQueues };
 };

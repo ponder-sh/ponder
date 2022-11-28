@@ -10,15 +10,16 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
     ).values(),
   ];
 
-  const latestBlockNumberByNetwork: Record<string, number | undefined> = {};
+  const blockNumberByNetwork: Record<string, number | undefined> = {};
 
-  await Promise.all(
+  const killQueueFuncs = await Promise.all(
     uniqueNetworks.map(async (network) => {
       const contractAddresses = ponder.sources
         .filter((s) => s.network.name === network.name)
         .map((source) => source.address);
 
       // Kinda weird but should work to make sure this RPC request gets done
+      let latestBlockRequestCount = 0;
       let isLatestBlockRequestSuccessful = false;
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       let latestBlockNumber: number = null!;
@@ -36,7 +37,11 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
           logger.warn(
             `Failed to fetch latest block for network [${network.name}], retrying...`
           );
-          isLatestBlockRequestSuccessful = false;
+          latestBlockRequestCount += 1;
+          if (latestBlockRequestCount > 5) {
+            logger.error(`Unable to get latest block after 5 retries:`);
+            throw err;
+          }
         }
       }
 
@@ -46,7 +51,7 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
         blockTimestamp: latestBlockTimestamp,
       });
 
-      latestBlockNumberByNetwork[network.name] = latestBlockNumber;
+      blockNumberByNetwork[network.name] = latestBlockNumber;
 
       const liveBlockRequestQueue = createBlockFrontfillQueue({
         ponder,
@@ -54,28 +59,32 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
         contractAddresses,
       });
 
-      // Pause the live block request queue, but begin adding tasks to it.
-      // Once the backfill is complete, unpause it to process the backlog of
-      // tasks that were added during backfill + new live logs.
-      // liveBlockRequestQueue.pause();
-      network.provider.on("block", (blockNumber: number) => {
+      const blockListener = (blockNumber: number) => {
         // Messy way to avoid double-processing latestBlockNumber.
         // Also noticed taht this approach sometimes skips the block
         // immediately after latestBlockNumber.
         if (blockNumber > latestBlockNumber) {
           liveBlockRequestQueue.push({ blockNumber });
         }
-      });
-
-      return {
-        networkName: network.name,
-        latestBlockNumber,
-        liveBlockRequestQueue,
       };
+
+      network.provider.on("block", blockListener);
+
+      const killQueue = () => {
+        liveBlockRequestQueue.kill();
+        network.provider.off("block", blockListener);
+      };
+
+      return killQueue;
     })
   );
 
+  const killFrontfillQueues = () => {
+    killQueueFuncs.forEach((c) => c());
+  };
+
   return {
-    latestBlockNumberByNetwork,
+    blockNumberByNetwork,
+    killFrontfillQueues,
   };
 };

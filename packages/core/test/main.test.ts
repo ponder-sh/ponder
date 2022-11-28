@@ -16,9 +16,20 @@ jest.mock("@ethersproject/providers", () => {
     }
 
     async send(method: string, params: Array<unknown>) {
-      console.log({ method, params });
-
-      return null;
+      switch (method) {
+        case "eth_getBlockByNumber": {
+          if (params[0] === "latest") {
+            return {};
+          } else {
+            return {};
+          }
+        }
+        default: {
+          throw new Error(
+            `MockedStaticJsonRpcProvider: Unhandled method ${method}`
+          );
+        }
+      }
     }
   }
 
@@ -146,4 +157,16 @@ describe("Ponder", () => {
       expect(ponder.handlerQueue?.length()).toBe(0);
     });
   });
+
+  // describe("backfill()", () => {
+  //   beforeEach(async () => {
+  //     await ponder.setup();
+  //   });
+
+  //   it("works", async () => {
+  //     await ponder.backfill();
+
+  //     expect(1).toBe(2);
+  //   });
+  // });
 });

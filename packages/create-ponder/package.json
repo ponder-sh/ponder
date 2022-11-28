@@ -12,7 +12,8 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "lint": "(tsc || exit 0) && eslint src",
+    "typecheck": "tsc",
+    "lint": "eslint src",
     "format": "prettier src --write",
     "replace-paths": "tsconfig-replace-paths --src src",
     "esbuild": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist && $npm_execpath run replace-paths",

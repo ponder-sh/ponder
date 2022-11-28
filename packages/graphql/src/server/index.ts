@@ -47,4 +47,8 @@ export class GraphqlServer {
       // this.logger.debug(`\x1b[35m${`Restarted GraphQL server`}\x1b[0m`); // magenta
     }
   }
+
+  teardown() {
+    this.server?.close();
+  }
 }
