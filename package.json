@@ -7,9 +7,7 @@
   ],
   "scripts": {
     "preinstall": "npx -y only-allow pnpm",
-    "dev": "pnpm --parallel dev",
-    "format": "pnpm --parallel --no-bail format",
-    "lint": "pnpm --parallel --no-bail lint",
+    "build": "pnpm --parallel build",
     "test": "pnpm --parallel --no-bail test"
   },
   "devDependencies": {
