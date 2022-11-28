@@ -49,7 +49,7 @@ jobs:
 
   test:
     name: Test
-    needs: build
+    needs: install
     runs-on: ubuntu-latest
     strategy:
       matrix:
