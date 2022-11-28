@@ -10,6 +10,7 @@
     "typecheck": "pnpm --parallel typecheck",
     "lint": "pnpm --parallel lint",
     "build": "pnpm --parallel build",
+    "declarations": "pnpm --parallel declarations",
     "test": "pnpm --parallel --no-bail test"
   },
   "devDependencies": {
