@@ -3,7 +3,6 @@
 
 import { cac } from "cac";
 import dotenv from "dotenv";
-import path from "node:path";
 
 dotenv.config({ path: ".env.local" });
 
@@ -11,54 +10,35 @@ const cli = cac("ponder")
   .usage("<command> [options]")
   .help()
   .option(
-    "--config [path]",
+    "--config-file [path]",
     `Path to config file. Default: "ponder.config.js"`
   );
 
-type RawCliOptions = {
-  help?: boolean;
-  dir?: string;
-  config?: string;
-};
-
 export type PonderCliOptions = {
-  configFilePath: string;
-};
-
-const resolveOptions = (options: RawCliOptions): PonderCliOptions => {
-  const configFilePath = path.join(
-    process.cwd(),
-    options.config || "ponder.config.js"
-  );
-
-  return {
-    configFilePath,
-  };
+  help?: boolean;
+  configFile?: string;
 };
 
 cli
   .command("dev", "Start the development server")
-  .action((rawOptions: RawCliOptions) => {
-    if (rawOptions.help) process.exit(0);
-    const options = resolveOptions(rawOptions);
+  .action((options: PonderCliOptions) => {
+    if (options.help) process.exit(0);
 
     require("../cli/dev").dev(options);
   });
 
 cli
   .command("start", "Start the production server")
-  .action((rawOptions: RawCliOptions) => {
-    if (rawOptions.help) process.exit(0);
-    const options = resolveOptions(rawOptions);
+  .action((options: PonderCliOptions) => {
+    if (options.help) process.exit(0);
 
     require("../cli/start").start(options);
   });
 
 cli
   .command("codegen", "Emit type files, then exit")
-  .action((rawOptions: RawCliOptions) => {
-    if (rawOptions.help) process.exit(0);
-    const options = resolveOptions(rawOptions);
+  .action((options: PonderCliOptions) => {
+    if (options.help) process.exit(0);
 
     require("../cli/codegen").codegen(options);
   });

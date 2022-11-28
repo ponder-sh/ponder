@@ -1,7 +1,7 @@
 import type Sqlite from "better-sqlite3";
 import path from "node:path";
 
-import { readPonderConfig } from "@/cli/readPonderConfig";
+import { readPonderConfig } from "@/common/readPonderConfig";
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
 import { CachedProvider } from "@/networks/CachedProvider";

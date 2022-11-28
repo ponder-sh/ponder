@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { OPTIONS } from "@/common/options";
-
 export enum LogLevel {
   // Silent 0
   Error, // 1
@@ -18,20 +15,28 @@ export type PonderLogger = {
   trace: (message?: any, ...optionalParams: any[]) => void;
 };
 
+// This is a hack for now because the options/config/etc approach is still
+// a bit awkward. The only way to configure LOG_LEVEL is through the PONDER_LOG_LEVEL env var.
+
+const LOG_LEVEL =
+  process.env.PONDER_LOG_LEVEL != undefined
+    ? Number(process.env.PONDER_LOG_LEVEL)
+    : 2;
+
 export const logger: PonderLogger = {
   error: (...args: Parameters<typeof console.log>) => {
-    if (OPTIONS.LOG_LEVEL > LogLevel.Error) console.log(...args);
+    if (LOG_LEVEL > LogLevel.Error) console.log(...args);
   },
   info: (...args: Parameters<typeof console.log>) => {
-    if (OPTIONS.LOG_LEVEL > LogLevel.Info) console.log(...args);
+    if (LOG_LEVEL > LogLevel.Info) console.log(...args);
   },
   warn: (...args: Parameters<typeof console.log>) => {
-    if (OPTIONS.LOG_LEVEL > LogLevel.Warn) console.log(...args);
+    if (LOG_LEVEL > LogLevel.Warn) console.log(...args);
   },
   debug: (...args: Parameters<typeof console.log>) => {
-    if (OPTIONS.LOG_LEVEL > LogLevel.Debug) console.log(...args);
+    if (LOG_LEVEL > LogLevel.Debug) console.log(...args);
   },
   trace: (...args: Parameters<typeof console.log>) => {
-    if (OPTIONS.LOG_LEVEL > LogLevel.Trace) console.log(...args);
+    if (LOG_LEVEL > LogLevel.Trace) console.log(...args);
   },
 };

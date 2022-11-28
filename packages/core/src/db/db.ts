@@ -2,10 +2,9 @@ import Sqlite from "better-sqlite3";
 import path from "node:path";
 import PgPromise from "pg-promise";
 
-import type { PonderConfig } from "@/cli/readPonderConfig";
 import { logger } from "@/common/logger";
-import { OPTIONS } from "@/common/options";
 import { ensureDirExists } from "@/common/utils";
+import type { Ponder } from "@/Ponder";
 
 export interface SqliteDb {
   kind: "sqlite";
@@ -22,12 +21,12 @@ export interface PostgresDb {
 
 export type PonderDatabase = SqliteDb | PostgresDb;
 
-export const buildDb = (config: PonderConfig): PonderDatabase => {
-  switch (config.database.kind) {
+export const buildDb = ({ ponder }: { ponder: Ponder }): PonderDatabase => {
+  switch (ponder.config.database.kind) {
     case "sqlite": {
       const dbFilePath =
-        config.database.filename ||
-        path.join(OPTIONS.PONDER_DIR_PATH, "cache.db");
+        ponder.config.database.filename ||
+        path.join(ponder.options.PONDER_DIR_PATH, "cache.db");
       ensureDirExists(dbFilePath);
 
       return {
@@ -49,7 +48,7 @@ export const buildDb = (config: PonderConfig): PonderDatabase => {
         kind: "postgres",
         pgp,
         db: pgp({
-          connectionString: config.database.connectionString,
+          connectionString: ponder.config.database.connectionString,
           keepAlive: true,
         }),
       };

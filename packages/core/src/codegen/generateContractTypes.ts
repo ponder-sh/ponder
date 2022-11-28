@@ -1,14 +1,13 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { OPTIONS } from "@/common/options";
 import { ensureDirExists } from "@/common/utils";
-import type { Source } from "@/sources/base";
+import type { Ponder } from "@/Ponder";
 
 import { formatPrettier } from "./utils";
 
-export const generateContractTypes = (sources: Source[]) => {
-  sources.forEach((source) => {
+export const generateContractTypes = ({ ponder }: { ponder: Ponder }) => {
+  ponder.sources.forEach((source) => {
     const raw = `
       import { AbitypedEthersContract } from "@ponder/core";
 
@@ -22,7 +21,7 @@ export const generateContractTypes = (sources: Source[]) => {
     const final = formatPrettier(raw);
 
     const filePath = path.join(
-      OPTIONS.GENERATED_DIR_PATH,
+      ponder.options.GENERATED_DIR_PATH,
       `contracts/${source.name}.ts`
     );
 

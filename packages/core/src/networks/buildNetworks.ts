@@ -1,19 +1,12 @@
-import type { PonderConfig } from "@/cli/readPonderConfig";
 import { CachedProvider } from "@/networks/CachedProvider";
+import type { Ponder } from "@/Ponder";
 
-import type { Ponder } from "../Ponder";
 import type { EvmNetwork } from "./evm";
 
 const cachedProvidersByChainId: Record<number, CachedProvider | undefined> = {};
 
-export const buildNetworks = ({
-  config,
-  ponder,
-}: {
-  config: PonderConfig;
-  ponder: Ponder;
-}) => {
-  const networks = config.networks.map(({ name, rpcUrl, chainId }) => {
+export const buildNetworks = ({ ponder }: { ponder: Ponder }) => {
+  const networks = ponder.config.networks.map(({ name, rpcUrl, chainId }) => {
     if (chainId === undefined || typeof chainId !== "number") {
       ponder.emit(
         "configError",
