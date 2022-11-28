@@ -1,7 +1,5 @@
 import type Sqlite from "better-sqlite3";
-import path from "node:path";
 
-import { readPonderConfig } from "@/common/readPonderConfig";
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
 import { CachedProvider } from "@/networks/CachedProvider";
@@ -31,14 +29,11 @@ jest.mock("@ethersproject/providers", () => {
   };
 });
 
-const configPath = path.resolve("./test/basic/ponder.config.js");
-const config = require(configPath);
-
 describe("Ponder", () => {
   let ponder: Ponder;
 
   beforeEach(() => {
-    ponder = new Ponder(config);
+    ponder = new Ponder({ rootDir: "./test/basic" });
   });
 
   afterEach(() => {
@@ -86,6 +81,10 @@ describe("Ponder", () => {
       expect(ponder.entityStore).toBeInstanceOf(SqliteEntityStore);
     });
 
+    it("builds the schema", async () => {
+      expect(ponder.schema.entities.length).toBe(1);
+    });
+
     it("registers event listeners", async () => {
       expect(ponder.eventNames()).toMatchObject([
         "newNetworkConnected",
@@ -117,19 +116,34 @@ describe("Ponder", () => {
     it("migrates the cache store", async () => {
       await ponder.setup();
 
-      const db = ponder.database.db as Sqlite.Database;
-
-      const tables = db
+      const tables = (ponder.database.db as Sqlite.Database)
         .prepare(`SELECT name FROM sqlite_master WHERE type='table'`)
         .all();
+      const tableNames = tables.map((t) => t.name);
 
-      expect(tables).toMatchObject([
-        { name: "__ponder__v1__cachedIntervals" },
-        { name: "__ponder__v1__logs" },
-        { name: "__ponder__v1__blocks" },
-        { name: "__ponder__v1__transactions" },
-        { name: "__ponder__v1__contractCalls" },
-      ]);
+      expect(tableNames).toContain("__ponder__v1__cachedIntervals");
+      expect(tableNames).toContain("__ponder__v1__logs");
+      expect(tableNames).toContain("__ponder__v1__blocks");
+      expect(tableNames).toContain("__ponder__v1__transactions");
+      expect(tableNames).toContain("__ponder__v1__contractCalls");
+    });
+
+    it("migrates the entity store", async () => {
+      await ponder.setup();
+
+      const tables = (ponder.database.db as Sqlite.Database)
+        .prepare(`SELECT name FROM sqlite_master WHERE type='table'`)
+        .all();
+      const tableNames = tables.map((t) => t.name);
+
+      expect(tableNames).toContain("File");
+    });
+
+    it("creates the handler queue", async () => {
+      await ponder.setup();
+
+      expect(ponder.handlerQueue).toBeTruthy();
+      expect(ponder.handlerQueue?.length()).toBe(0);
     });
   });
 });
