@@ -48,5 +48,8 @@ export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
 
       server.start(gqlSchema, port);
     },
+    teardown: async () => {
+      server.teardown();
+    },
   };
 };
