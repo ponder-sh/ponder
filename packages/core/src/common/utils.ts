@@ -8,7 +8,7 @@ export const ensureDirExists = (filePath: string) => {
   if (existsSync(dirname)) {
     return;
   }
-  mkdirSync(dirname), { recursive: true };
+  mkdirSync(dirname, { recursive: true });
 };
 
 export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
