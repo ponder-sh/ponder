@@ -40,6 +40,6 @@ export class EvmSource implements BaseSource {
     this.abiInterface = options.abiInterface;
 
     this.startBlock = options.startBlock || 0;
-    this.blockLimit = options.blockLimit || 1000;
+    this.blockLimit = options.blockLimit || 50;
   }
 }
