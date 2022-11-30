@@ -68,11 +68,11 @@ export class SqliteEntityStore implements EntityStore {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    if (instance.id && instance.id !== id) {
-      throw new Error(
-        `Invalid ${entityName}.insert(id, instance): If instance.id is defined, it must match id`
-      );
-    }
+    // If `instance.id` is defined, replace it with the id passed as a parameter.
+    // Should also log a warning here.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    instance.id = id;
 
     const columnStatements = Object.entries(instance).map(
       ([fieldName, value]) => ({
@@ -110,7 +110,7 @@ export class SqliteEntityStore implements EntityStore {
     );
 
     const updateFragment = columnStatements
-      .filter(({ column }) => column !== "id")
+      .filter(({ column }) => column !== "id") // Ignore `instance.id` field for update fragment
       .map(({ column, value }) => `${column} = ${value}`)
       .join(", ");
 
@@ -129,6 +129,12 @@ export class SqliteEntityStore implements EntityStore {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
+    // If `instance.id` is defined, replace it with the id passed as a parameter.
+    // Should also log a warning here.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    instance.id = id;
+
     const columnStatements = Object.entries(instance).map(
       ([fieldName, value]) => ({
         column: `"${fieldName}"`,
@@ -143,7 +149,7 @@ export class SqliteEntityStore implements EntityStore {
       .join(", ")})`;
 
     const updateFragment = columnStatements
-      .filter(({ column }) => column !== "id")
+      .filter(({ column }) => column !== "id") // Ignore `instance.id` field for update fragment
       .map(({ column, value }) => `${column} = ${value}`)
       .join(", ");
 
