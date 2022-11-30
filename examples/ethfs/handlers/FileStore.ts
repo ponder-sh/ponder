@@ -15,12 +15,11 @@ const handleFileCreated: FileCreatedHandler = async (event, context) => {
 
   const metadata = parseJson(ethers.utils.toUtf8String(rawMetadata));
 
-  await context.entities.File.insert(filename, {
-    id: filename,
+  await context.entities.File.upsert(filename, {
     name: filename,
     size: size.toNumber(),
     contents: await context.contracts.FileStoreFrontend.readFile(
-      event.address as `0x{string}`,
+      event.transaction.to as `0x{string}`,
       filename,
       {
         blockTag: event.block.number,
