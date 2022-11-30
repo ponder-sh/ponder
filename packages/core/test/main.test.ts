@@ -77,7 +77,7 @@ describe("Ponder", () => {
       );
 
       expect(source.startBlock).toBe(15963553);
-      expect(source.blockLimit).toBe(1000);
+      expect(source.blockLimit).toBe(50);
     });
 
     it("creates a sqlite database", async () => {
