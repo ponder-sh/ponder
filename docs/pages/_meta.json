@@ -1,0 +1,12 @@
+{
+  "index": {
+    "title": "Introduction",
+    "display": "hidden"
+  },
+  "getting-started": {
+    "title": "Getting started"
+  },
+  "writing-event-handlers": {
+    "title": "Writing event handlers"
+  }
+}
