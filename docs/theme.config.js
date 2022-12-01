@@ -1,8 +1,6 @@
-/* eslint-disable import/no-anonymous-default-export */
-export default {
-  github: "https://github.com/0xOlias/ponder",
+const config = {
+  projectLink: "https://github.com/0xOlias/ponder",
   docsRepositoryBase: "https://github.com/0xOlias/ponder/tree/main/docs/pages",
-  titleSuffix: " - Ponder",
   logo: (
     <>
       <span className="mr-2 font-extrabold hidden md:inline">Ponder</span>
@@ -58,10 +56,8 @@ export default {
       <meta name="msapplication-TileImage" content="/ms-icon-144x144.png" />
     </>
   ),
-  search: true,
   prevLinks: true,
   nextLinks: true,
-  footer: true,
   footerEditLink: "Edit this page on GitHub",
   // footerText: <>MIT {new Date().getFullYear()}</>,
   unstable_faviconGlyph: "👋",
@@ -69,3 +65,5 @@ export default {
     defaultTheme: "dark",
   },
 };
+
+export default config;
