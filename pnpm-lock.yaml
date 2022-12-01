@@ -26,6 +26,9 @@ importers:
 
   docs:
     specifiers:
+      '@types/node': ^18.7.8
+      '@types/react': ^18.0.25
+      '@types/react-dom': ^18.0.9
       next: ^12.3.1
       nextra: ^1.1.0
       nextra-theme-docs: ^1.2.2
@@ -34,9 +37,13 @@ importers:
     dependencies:
       next: 12.3.4_sfoxds7t5ydpegc3knd667wn6m
       nextra: 1.1.0_react@17.0.2
-      nextra-theme-docs: 1.2.6_dwjfwrt6uv2f53xn6wotzcxyoa
+      nextra-theme-docs: 1.2.6_en4nsz7z7qauc4hq2u3767veey
       react: 17.0.2
       react-dom: 17.0.2_react@17.0.2
+    devDependencies:
+      '@types/node': 18.7.8
+      '@types/react': 18.0.25
+      '@types/react-dom': 18.0.9
 
   examples/art-gobblers:
     specifiers:
@@ -2078,6 +2085,12 @@ packages:
 
   /@types/range-parser/1.2.4:
     resolution: {integrity: sha512-EEhsLsD6UsDM1yFhAvy0Cjr6VwmpMWqFBCb9w07wVugF7w9nfajxLuVmngTIpgS6svCnm6Vaw+MZhoDCKnOfsw==}
+    dev: true
+
+  /@types/react-dom/18.0.9:
+    resolution: {integrity: sha512-qnVvHxASt/H7i+XG1U1xMiY5t+IHcPGUK7TDMDzom08xa7e86eCeKOiLZezwCKVxJn6NEiiy2ekgX8aQssjIKg==}
+    dependencies:
+      '@types/react': 18.0.25
     dev: true
 
   /@types/react/18.0.25:
@@ -6388,7 +6401,7 @@ packages:
       - babel-plugin-macros
     dev: false
 
-  /nextra-theme-docs/1.2.6_dwjfwrt6uv2f53xn6wotzcxyoa:
+  /nextra-theme-docs/1.2.6_en4nsz7z7qauc4hq2u3767veey:
     resolution: {integrity: sha512-6tSq74EEw/lfZXfrN9TXr8UFov1mddW+yXnwQB57XRF9hBVq3WtVl6lJT7Xe9q0S0s9lkEeGviHtq+NRpONcQQ==}
     peerDependencies:
       next: '>=9.5.3'
@@ -6409,7 +6422,7 @@ packages:
       prism-react-renderer: 1.3.5_react@17.0.2
       react: 17.0.2
       react-dom: 17.0.2_react@17.0.2
-      react-innertext: 1.1.5_react@17.0.2
+      react-innertext: 1.1.5_qnxonbsml5syl42mqdnwkqq4yu
       title: 3.5.3
     transitivePeerDependencies:
       - '@types/react'
@@ -7094,12 +7107,13 @@ packages:
       scheduler: 0.20.2
     dev: false
 
-  /react-innertext/1.1.5_react@17.0.2:
+  /react-innertext/1.1.5_qnxonbsml5syl42mqdnwkqq4yu:
     resolution: {integrity: sha512-PWAqdqhxhHIv80dT9znP2KvS+hfkbRovFp4zFYHFFlOoQLRiawIic81gKb3U1wEyJZgMwgs3JoLtwryASRWP3Q==}
     peerDependencies:
       '@types/react': '>=0.0.0 <=99'
       react: '>=0.0.0 <=99'
     dependencies:
+      '@types/react': 18.0.25
       react: 17.0.2
     dev: false
 
