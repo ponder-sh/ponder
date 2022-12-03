@@ -6,6 +6,9 @@
   "getting-started": {
     "title": "Getting started"
   },
+  "concepts": {
+    "title": "Concepts"
+  },
   "writing-event-handlers": {
     "title": "Writing event handlers"
   }
