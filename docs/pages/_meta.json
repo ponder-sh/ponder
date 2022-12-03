@@ -6,11 +6,8 @@
   "getting-started": {
     "title": "Getting started"
   },
-  "production": {
-    "title": "Deploying to production"
-  },
-  "database": {
-    "title": "Database"
+  "faq": {
+    "title": "FAQ"
   },
   "api-reference": {
     "title": "API reference"

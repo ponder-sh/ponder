@@ -21,8 +21,10 @@ const config = {
     </>
   ),
 
-  prevLinks: true,
-  nextLinks: true,
+  navigation: {
+    prev: true,
+    next: true,
+  },
   footerEditLink: "Edit this page on GitHub",
   footer: {
     component: null,
