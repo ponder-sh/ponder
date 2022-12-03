@@ -5,7 +5,7 @@ export const ProgressBar = ({
   end = 10,
   current = 5,
   start = 0,
-  width = 50,
+  width = 40,
 }) => {
   const fraction = (current - start) / (end - start);
 

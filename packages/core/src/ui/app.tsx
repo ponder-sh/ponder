@@ -114,14 +114,23 @@ const App = ({
     backfillEta && backfillEta > 0 ? ` | ETA: ${backfillEta}s` : null;
   const backfillCountText =
     backfillTaskTotal > 0
-      ? ` | ${backfillTaskCurrent}/${backfillTaskTotal} RPC calls`
+      ? ` | ${backfillTaskCurrent}/${backfillTaskTotal}`
       : null;
 
   const handlersPercent = `${Math.round(
     100 * (handlersCurrent / Math.max(handlersTotal, 1))
   )}%`;
+
+  const handlerBottomText =
+    !isBackfillComplete &&
+    handlersTotal > 0 &&
+    handlersTotal === handlersCurrent
+      ? ""
+      : `/${handlersTotal}`;
   const handlersCountText =
-    handlersTotal > 0 ? ` | ${handlersCurrent}/${handlersTotal} events` : null;
+    handlersTotal > 0
+      ? ` | ${handlersCurrent}${handlerBottomText} events`
+      : null;
 
   if (isProd) {
     if (timestamp > prevTimestamp + 5) {
