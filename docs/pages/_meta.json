@@ -8,5 +8,14 @@
   },
   "concepts": {
     "title": "Concepts"
+  },
+  "production": {
+    "title": "Deploying to production"
+  },
+  "database": {
+    "title": "Database"
+  },
+  "api-reference": {
+    "title": "API reference"
   }
 }

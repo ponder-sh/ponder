@@ -1,0 +1,22 @@
+import { Tabs, Tab } from "nextra-theme-docs";
+
+# `create-ponder`
+
+This CLI tool bootstraps a TypeScript project directory with `package.json`, `ponder.config.js`, `schema.graphql`, and other configuration files.
+
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tab>```pnpm create ponder {...options}```</Tab>
+  <Tab>```yarn create ponder {...options}```</Tab>
+  <Tab>```npm init ponder@latest -- {...options}```</Tab>
+</Tabs>
+
+## Options
+
+- `--from-subgraph [/path/to/subgraph]`
+  Bootstrap the project from an existing Graph Protocol subgraph repository.
+- `--from-etherscan [etherscan-url]`
+  Bootstrap the project from an Etherscan contract page. Mutually exclusive with `--from-subgraph`.
+- `--etherscan-api-key [key]`
+  Provider an Etherscan API key to avoid rate limits with `--from-etherscan`.
+- `--dir [/path/to/directory]`
+  Create the Ponder project in the specified directory. Defaults to `./ponder`.

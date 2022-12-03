@@ -1,0 +1,44 @@
+import { Callout } from "nextra-theme-docs";
+import { Tabs, Tab } from "nextra-theme-docs";
+
+# `ponder.config.js`
+
+`ponder.config.js` contains smart contract addresses, paths to ABIs, RPC URLs, database configuration, and plugin configuration.
+
+<Callout type="warning">
+  `ponder.config.js` is not parsed by TypeScript or ESBuild, so avoid using
+  newer JavaScript features not available in your target Node.js version.
+</Callout>
+
+Ponder loads the `ponder.config.js` file on startup, and expects `module.exports` with this TypeScript type:
+
+```ts
+type PonderConfig = {
+  networks: {
+    name: string;
+    chainId: number;
+    rpcUrl: string;
+  }[];
+
+  sources: {
+    name: string;
+    network: string; // References networks.name field above
+    abi: string;
+    address: string;
+    startBlock?: number; // Default: 0
+    blockLimit?: number; // Max block range for eth_getLogs calls. Default: 50
+  }[];
+
+  database:
+    | {
+        kind: "sqlite";
+        filename?: string; // Default: ./.ponder/cache.db
+      }
+    | {
+        kind: "postgres";
+        connectionString: string;
+      };
+
+  plugins?: ResolvedPonderPlugin[]; // Reference plugin documentation for details
+};
+```
