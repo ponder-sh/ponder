@@ -36,8 +36,8 @@ export const createLogBackfillQueue = ({
 
   queue.error((err, task) => {
     if (err) {
-      logger.error("Error in log backfill worker, retrying...:");
-      logger.error({ task, err });
+      logger.debug("Error in log backfill worker, retrying...:");
+      logger.debug({ task, err });
       queue.unshift(task);
     }
   });
