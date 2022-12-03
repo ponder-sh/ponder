@@ -1,7 +1,63 @@
----
-title: "Deploying to production"
----
-
 # Deploying to production
 
-## TODO!
+## Render
+
+It's very easy to deploy Ponder apps to [Render](https://render.com), a Heroku-like cloud provider.
+
+### Update `ponder.config.js`
+
+In production, Ponder apps use Postgres. Update your `ponder.config.js` file to use Postgres in production, and SQLite in development. Render will provide the `POSTGRES_URL` environment variable.
+
+```js
+// ponder.config.js
+
+module.exports = {
+    database: process.env.NODE_ENV === "production"
+      ? {
+          kind: "postgres",
+          connectionString: process.env.POSTGRES_URL,
+        }
+      : {
+          kind: "sqlite",
+        },
+    ...
+}
+```
+
+### Create `render.yaml`
+
+Render supports infrastructure-as-code using their Blueprint product. The `render.yaml` file **must be at the root of your git repository**. Otherwise, Render will not recognize the repository as Blueprint-compatible.
+
+```yaml
+# render.yaml
+
+services:
+  - type: web
+    name: my-ponder-app # Rename this to your project name
+    env: node
+    buildCommand: pnpm install # Or yarn, npm
+    startCommand: pnpm start # Or yarn, npm
+    envVars:
+      - key: POSTGRES_URL
+        fromDatabase:
+          name: my-ponder-db
+          property: connectionString
+      # Include any environment variables that your project needs
+      - key: PONDER_RPC_URL_1
+        sync: false
+
+databases:
+  - name: my-ponder-db
+    postgresMajorVersion: 14
+```
+
+### Render steps
+
+1. Sign up for Render and connect your GitHub or GitLab account.
+2. Go to the dashboard, click **New +**, then click **Blueprint**.
+3. Find your Ponder app in the list of repositories and click **Connect**.
+4. Give your service group a name, then click **Create New Resources**.
+
+## Other cloud providers (Railway, AWS, etc)
+
+Ponder has not been thoroughly tested on cloud providers other than Render. However, Ponder apps should work in any environment that supports Node.js and can connect to a Postgres database. If you're attempting to host a Ponder app elsewhere, the sample `render.yaml` above might be helpful.
