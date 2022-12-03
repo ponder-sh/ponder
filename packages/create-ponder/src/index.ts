@@ -240,7 +240,7 @@ databases:
   // Run codegen.
   console.log(pico.cyan("[create-ponder] ") + `Generating types`);
 
-  execSync(`${runCommand} --silent codegen`, {
+  execSync(`${runCommand} --silent codegen --silent`, {
     cwd: ponderRootDir,
     stdio: "inherit",
   });
