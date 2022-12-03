@@ -7,8 +7,8 @@
     "codegen": "ponder codegen"
   },
   "dependencies": {
-    "@ponder/core": "latest",
-    "@ponder/graphql": "latest"
+    "@ponder/core": "workspace:latest",
+    "@ponder/graphql": "workspace:latest"
   },
   "devDependencies": {
     "ethers": "^5.6.9"
