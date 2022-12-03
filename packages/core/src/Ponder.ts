@@ -26,12 +26,7 @@ import { readSchema } from "@/schema/readSchema";
 import type { PonderSchema } from "@/schema/types";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
-import {
-  HandlersStatus,
-  initialInterfaceState,
-  InterfaceState,
-  renderApp,
-} from "@/ui/app";
+import { getUiState, HandlersStatus, render, UiState } from "@/ui/app";
 
 export class Ponder extends EventEmitter {
   config: PonderConfig;
@@ -61,7 +56,7 @@ export class Ponder extends EventEmitter {
 
   // Interface
   renderInterval?: NodeJS.Timer;
-  interfaceState: InterfaceState;
+  ui: UiState;
 
   constructor(cliOptions: PonderCliOptions) {
     super();
@@ -78,11 +73,12 @@ export class Ponder extends EventEmitter {
     this.on("configError", this.handleConfigError);
     this.on("handlerTaskError", this.handleHandlerTaskError);
 
+    this.options = buildOptions(cliOptions);
+
     this.logsProcessedToTimestamp = 0;
     this.isHandlingLogs = false;
-    this.interfaceState = initialInterfaceState;
+    this.ui = getUiState(this.options);
 
-    this.options = buildOptions(cliOptions);
     this.config = readPonderConfig(this.options.PONDER_CONFIG_FILE_PATH);
 
     this.database = buildDb({ ponder: this });
@@ -112,8 +108,8 @@ export class Ponder extends EventEmitter {
 
   async setup() {
     this.renderInterval = setInterval(() => {
-      this.interfaceState.timestamp = Math.floor(Date.now() / 1000);
-      renderApp(this.interfaceState);
+      this.ui.timestamp = Math.floor(Date.now() / 1000);
+      render(this.ui);
     }, 1000);
 
     await Promise.all([
@@ -124,7 +120,7 @@ export class Ponder extends EventEmitter {
 
     // If there is a config error, display the error and exit the process.
     // Eventually, it might make sense to support hot reloading for ponder.config.js.
-    if (this.interfaceState.configError) {
+    if (this.ui.configError) {
       process.exit(1);
     }
   }
@@ -139,7 +135,7 @@ export class Ponder extends EventEmitter {
   }
 
   async start() {
-    this.interfaceState.isProd = true;
+    this.ui.isProd = true;
     await this.setup();
 
     this.codegen();
@@ -193,19 +189,19 @@ export class Ponder extends EventEmitter {
     this.reloadPlugins();
 
     this.logsProcessedToTimestamp = 0;
-    this.interfaceState.handlersTotal = 0;
-    this.interfaceState.handlersCurrent = 0;
-    this.interfaceState.handlerError = null;
+    this.ui.handlersTotal = 0;
+    this.ui.handlersCurrent = 0;
+    this.ui.handlerError = null;
 
     this.handleNewLogs();
   }
 
   async backfill() {
-    this.interfaceState = {
-      ...this.interfaceState,
+    this.ui = {
+      ...this.ui,
       backfillStartTimestamp: Math.floor(Date.now() / 1000),
     };
-    renderApp(this.interfaceState);
+    render(this.ui);
 
     const startHrt = startBenchmark();
 
@@ -225,12 +221,12 @@ export class Ponder extends EventEmitter {
 
     logger.debug(`Backfill completed in ${duration}`);
 
-    this.interfaceState = {
-      ...this.interfaceState,
+    this.ui = {
+      ...this.ui,
       isBackfillComplete: true,
       backfillDuration: duration,
     };
-    renderApp(this.interfaceState);
+    render(this.ui);
 
     // If there were no backfill logs, handleNewLogs won't get triggered until the next
     // set of frontfill logs. So, trigger it manually here.
@@ -258,8 +254,8 @@ export class Ponder extends EventEmitter {
       return;
     }
 
-    this.interfaceState.handlersTotal += logs.length;
-    renderApp(this.interfaceState);
+    this.ui.handlersTotal += logs.length;
+    render(this.ui);
 
     logger.debug(`Adding ${logs.length} to handlerQueue`);
 
@@ -272,55 +268,52 @@ export class Ponder extends EventEmitter {
   }
 
   private handleBackfillTasksAdded(taskCount: number) {
-    this.interfaceState.backfillTaskTotal += taskCount;
+    this.ui.backfillTaskTotal += taskCount;
     this.updateBackfillEta();
-    renderApp(this.interfaceState);
+    render(this.ui);
   }
 
   private handleBackfillTaskCompleted() {
-    this.interfaceState.backfillTaskCurrent += 1;
+    this.ui.backfillTaskCurrent += 1;
     this.updateBackfillEta();
-    renderApp(this.interfaceState);
+    render(this.ui);
   }
 
   private updateBackfillEta() {
     const newEta = Math.round(
-      ((Math.floor(Date.now() / 1000) -
-        this.interfaceState.backfillStartTimestamp) /
-        this.interfaceState.backfillTaskCurrent) *
-        this.interfaceState.backfillTaskTotal
+      ((Math.floor(Date.now() / 1000) - this.ui.backfillStartTimestamp) /
+        this.ui.backfillTaskCurrent) *
+        this.ui.backfillTaskTotal
     );
     if (!Number.isFinite(newEta)) return;
 
-    this.interfaceState.backfillEta =
-      newEta -
-      (this.interfaceState.timestamp -
-        this.interfaceState.backfillStartTimestamp);
+    this.ui.backfillEta =
+      newEta - (this.ui.timestamp - this.ui.backfillStartTimestamp);
   }
 
   private handleHandlerTaskStarted() {
-    this.interfaceState.handlersCurrent += 1;
-    this.interfaceState.handlersStatus =
-      this.interfaceState.handlersCurrent === this.interfaceState.handlersTotal
+    this.ui.handlersCurrent += 1;
+    this.ui.handlersStatus =
+      this.ui.handlersCurrent === this.ui.handlersTotal
         ? HandlersStatus.UP_TO_DATE
         : HandlersStatus.IN_PROGRESS;
-    renderApp(this.interfaceState);
+    render(this.ui);
   }
 
   private handleConfigError(error: string) {
-    this.interfaceState = {
-      ...this.interfaceState,
+    this.ui = {
+      ...this.ui,
       configError: error,
     };
-    renderApp(this.interfaceState);
+    render(this.ui);
   }
 
   private handleHandlerTaskError(error: string) {
-    this.interfaceState = {
-      ...this.interfaceState,
+    this.ui = {
+      ...this.ui,
       handlerError: error,
     };
-    renderApp(this.interfaceState);
+    render(this.ui);
   }
 
   private handleNewNetworkConnected({
@@ -332,7 +325,7 @@ export class Ponder extends EventEmitter {
     blockNumber: number;
     blockTimestamp: number;
   }) {
-    this.interfaceState.networks[network] = {
+    this.ui.networks[network] = {
       name: network,
       blockNumber: blockNumber,
       blockTimestamp: blockTimestamp,
@@ -355,14 +348,14 @@ export class Ponder extends EventEmitter {
     matchedLogCount: number;
   }) {
     this.handleNewLogs();
-    this.interfaceState.networks[network] = {
+    this.ui.networks[network] = {
       name: network,
       blockNumber: blockNumber,
       blockTimestamp: blockTimestamp,
       blockTxnCount: blockTxnCount,
       matchedLogCount: matchedLogCount,
     };
-    renderApp(this.interfaceState);
+    render(this.ui);
   }
 
   private handleNewBackfillLogs() {

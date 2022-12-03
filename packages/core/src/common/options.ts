@@ -8,13 +8,17 @@ export type PonderOptions = {
   HANDLERS_DIR_PATH: string;
   GENERATED_DIR_PATH: string;
   PONDER_DIR_PATH: string;
+
+  SILENT: boolean;
 };
 
 export const buildOptions = (options: PonderCliOptions): PonderOptions => {
-  const configFile = options.configFile || "ponder.config.js";
-  const rootDir = path.resolve(options.rootDir || process.cwd());
+  const configFile = options.configFile;
+  const rootDir = path.resolve(options.rootDir);
+  const silent = options.silent;
 
   const defaults = {
+    SILENT: silent,
     // File path options
     PONDER_CONFIG_FILE_PATH: configFile,
     SCHEMA_FILE_PATH: "schema.graphql",

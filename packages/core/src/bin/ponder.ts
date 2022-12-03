@@ -9,16 +9,21 @@ dotenv.config({ path: ".env.local" });
 const cli = cac("ponder")
   .usage("<command> [options]")
   .help()
-  .option(
-    "--config-file [path]",
-    `Path to config file. Default: "ponder.config.js"`
-  )
-  .option("--root-dir [path]", `Path to project root directory. Default: "."`);
+  .option("--config-file [path]", `Path to config file`, {
+    default: "ponder.config.js",
+  })
+  .option("--root-dir [path]", `Path to project root directory`, {
+    default: ".",
+  })
+  .option("--silent [boolean]", `Command should not emit logs`, {
+    default: false,
+  });
 
 export type PonderCliOptions = {
   help?: boolean;
-  configFile?: string;
-  rootDir?: string;
+  configFile: string;
+  rootDir: string;
+  silent: boolean;
 };
 
 cli

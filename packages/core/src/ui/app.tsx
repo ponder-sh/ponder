@@ -1,7 +1,8 @@
-import { Box, Newline, render, Text } from "ink";
+import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
 import { logger } from "@/common/logger";
+import { PonderOptions } from "@/common/options";
 
 import { ProgressBar } from "./ProgressBar";
 
@@ -11,7 +12,8 @@ export enum HandlersStatus {
   UP_TO_DATE,
 }
 
-export type InterfaceState = {
+export type UiState = {
+  isSilent: boolean;
   isProd: boolean;
 
   timestamp: number;
@@ -43,32 +45,36 @@ export type InterfaceState = {
   >;
 };
 
-export const initialInterfaceState: InterfaceState = {
-  isProd: false,
+export const getUiState = (options: PonderOptions): UiState => {
+  return {
+    isSilent: options.SILENT,
+    isProd: false,
 
-  timestamp: 0,
+    timestamp: 0,
 
-  backfillStartTimestamp: 0,
-  backfillEta: 0,
-  backfillTaskCurrent: 0,
-  backfillTaskTotal: 0,
+    backfillStartTimestamp: 0,
+    backfillEta: 0,
+    backfillTaskCurrent: 0,
+    backfillTaskTotal: 0,
 
-  isBackfillComplete: false,
-  backfillDuration: "",
+    isBackfillComplete: false,
+    backfillDuration: "",
 
-  handlersStatus: HandlersStatus.NOT_STARTED,
-  handlersCurrent: 0,
-  handlersTotal: 0,
+    handlersStatus: HandlersStatus.NOT_STARTED,
+    handlersCurrent: 0,
+    handlersTotal: 0,
 
-  configError: null,
-  handlerError: null,
+    configError: null,
+    handlerError: null,
 
-  networks: {},
+    networks: {},
+  };
 };
 
 let prevTimestamp = 0;
 
 const App = ({
+  isSilent,
   isProd,
   timestamp,
 
@@ -87,7 +93,9 @@ const App = ({
   handlerError,
 
   networks,
-}: InterfaceState) => {
+}: UiState) => {
+  if (isSilent) return null;
+
   const handlersStatusText = () => {
     switch (handlersStatus) {
       case HandlersStatus.NOT_STARTED:
@@ -257,6 +265,6 @@ const App = ({
   );
 };
 
-export const renderApp = (props: InterfaceState) => {
-  render(<App {...props} />);
+export const render = (props: UiState) => {
+  inkRender(<App {...props} />);
 };
