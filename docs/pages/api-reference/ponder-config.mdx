@@ -12,7 +12,7 @@ import { Tabs, Tab } from "nextra-theme-docs";
 
 Ponder loads the `ponder.config.js` file on startup, and expects `module.exports` with this TypeScript type:
 
-```ts
+```ts filename="PonderConfig.d.ts"
 type PonderConfig = {
   networks: {
     name: string;

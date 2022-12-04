@@ -2,21 +2,32 @@ import { Tabs, Tab } from "nextra-theme-docs";
 
 # `create-ponder`
 
-This CLI tool bootstraps a TypeScript project directory with `package.json`, `ponder.config.js`, `schema.graphql`, and other configuration files.
+This command line interface (CLI) bootstraps a TypeScript project directory with `package.json`, `ponder.config.js`, `schema.graphql`, and other configuration files.
 
+{/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tab>```pnpm create ponder {...options}```</Tab>
-  <Tab>```yarn create ponder {...options}```</Tab>
-  <Tab>```npm init ponder@latest -- {...options}```</Tab>
+  <Tab>
+```bash
+pnpm create ponder {...options}
+```
+</Tab>
+  <Tab>
+```bash
+yarn create ponder {...options}
+```
+</Tab>
+  <Tab>
+```bash
+npm init ponder@latest {...options}
+```
+</Tab>
 </Tabs>
 
 ## Options
 
-- `--from-subgraph [/path/to/subgraph]`
-  Bootstrap the project from an existing Graph Protocol subgraph repository.
-- `--from-etherscan [etherscan-url]`
-  Bootstrap the project from an Etherscan contract page. Mutually exclusive with `--from-subgraph`.
-- `--etherscan-api-key [key]`
-  Provider an Etherscan API key to avoid rate limits with `--from-etherscan`.
-- `--dir [/path/to/directory]`
-  Create the Ponder project in the specified directory. Defaults to `./ponder`.
+| option                      | description                                                              |
+| :-------------------------- | :----------------------------------------------------------------------- |
+| `--from-subgraph [path]`    | Bootstrap the project from a Graph Protocol subgraph repository          |
+| `--from-etherscan [url]`    | Bootstrap the project from an Etherscan contract.                        |
+| `--etherscan-api-key [key]` | An Etherscan API key to avoid rate limits with `--from-etherscan`.       |
+| `--dir [path]`              | Create the Ponder project in the specified directory. Default: `ponder`. |

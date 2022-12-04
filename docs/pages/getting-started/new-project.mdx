@@ -13,34 +13,73 @@ The `create-ponder` CLI tool is the easiest way to get started with Ponder.
 
 This command creates a project folder called `ponder` in the current working directory.
 
-#### a) Etherscan contract link
+#### 1a) Etherscan contract link
 
-The `--from-etherscan` option bootstraps a Ponder project for an existing contract.
+The `--from-etherscan` option bootstraps a Ponder project for an existing contract. Replace the `...` with a link to a contract page on Etherscan (also accepts Polygonscan, Arbiscan, etc).
 
+{/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tab>```pnpm create ponder --from-etherscan [link]```</Tab>
-  <Tab>```yarn create ponder --from-etherscan [link]```</Tab>
-  <Tab>```npm init ponder@latest -- --from-etherscan [link]```</Tab>
+  <Tab>
+```bash
+pnpm create ponder --from-etherscan ...
+```
+</Tab>
+  <Tab>
+```bash
+yarn create ponder --from-etherscan ...
+```
+</Tab>
+  <Tab>
+```bash
+npm init ponder@latest -- --from-etherscan ...
+```
+</Tab>
 </Tabs>
 
-#### b) Blank slate
+#### 1b) Blank slate
 
 If you don't have a contract in mind, this command will create a Ponder project for an example NFT contract. Soon, `create-ponder` will support more template options, like Foundry and Hardhat projects.
 
+{/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tab>```pnpm create ponder```</Tab>
-  <Tab>```yarn create ponder```</Tab>
-  <Tab>```npm init ponder@latest```</Tab>
+  <Tab>
+```bash
+pnpm create ponder
+```
+</Tab>
+  <Tab>
+```bash
+yarn create ponder
+```
+</Tab>
+  <Tab>
+```bash
+npm init ponder@latest
+```
+</Tab>
 </Tabs>
 
 ### 2) Start the development server
 
 The dev server is an important part of the Ponder development workflow. Just like Next.js, the dev server automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
 
+{/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
-  <Tab>```cd ponder && pnpm dev```</Tab>
-  <Tab>```cd ponder && yarn dev```</Tab>
-  <Tab>```cd ponder && npm run dev```</Tab>
+  <Tab>
+```bash
+cd ponder && pnpm dev
+```
+</Tab>
+  <Tab>
+```bash
+cd ponder && yarn dev
+```
+</Tab>
+  <Tab>
+```bash
+cd ponder && npm run dev
+```
+</Tab>
 </Tabs>
 
 ### 3) Add contracts & networks to `ponder.config.js`
@@ -57,9 +96,7 @@ Using this schema, Ponder automatically generates a GraphQL API that serves enti
 
 The files in the `handlers/` folder contain event handler functions. Ponder uses these functions to process blockchain events. These functions are where you should insert and update the entity data that will get served by the GraphQL API. Here's a sample event handler function:
 
-```js
-// MyNftContract.ts
-
+```js filename="MyNftContract.ts"
 export async function handleTransfer(event, context) {
   const { Token } = context.entities;
   const { MyNftContract } = context.contracts;

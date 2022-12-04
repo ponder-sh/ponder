@@ -6,7 +6,7 @@ Event handler functions receive two arguments: `event` and `context`.
 
 The `context` object exposes the entities defined in `schema.graphql` and the contracts defined in `ponder.config.js`.
 
-```ts
+```ts filename="Context.d.ts"
 interface Context {
   // Keyed by entity type names from schema.graphql
   entities: Record<string, EntityModel>;
@@ -19,7 +19,7 @@ interface Context {
 
 `context.entities` an object-relational mapper for each entity in your `schema.graphql`. You can use these objects to insert and update entities that will be served automatically by the GraphQL server.
 
-```ts
+```ts filename="EntityModel.d.ts"
 interface EntityModel {
   get: (id: string) => Promise<Entity | null>;
   insert: (id: string, obj: Omit<Entity, "id">) => Promise<Entity>;
