@@ -1,0 +1,75 @@
+---
+title: "Create a new Ponder project"
+description: "Get started building with Ponder!"
+---
+
+import { Tabs, Tab } from "nextra-theme-docs";
+
+# Create a new Ponder project
+
+The `create-ponder` CLI tool is the easiest way to get started with Ponder.
+
+### 1) Run the `create-ponder` CLI
+
+This command creates a project folder called `ponder` in the current working directory.
+
+#### a) Etherscan contract link
+
+The `--from-etherscan` option bootstraps a Ponder project for an existing contract.
+
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tab>```pnpm create ponder --from-etherscan [link]```</Tab>
+  <Tab>```yarn create ponder --from-etherscan [link]```</Tab>
+  <Tab>```npm init ponder@latest -- --from-etherscan [link]```</Tab>
+</Tabs>
+
+#### b) Blank slate
+
+If you don't have a contract in mind, this command will create a Ponder project for an example NFT contract. Soon, `create-ponder` will support more template options, like Foundry and Hardhat projects.
+
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tab>```pnpm create ponder```</Tab>
+  <Tab>```yarn create ponder```</Tab>
+  <Tab>```npm init ponder@latest```</Tab>
+</Tabs>
+
+### 2) Start the development server
+
+The dev server is an important part of the Ponder development workflow. Just like Next.js, the dev server automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
+
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tab>```cd ponder && pnpm dev```</Tab>
+  <Tab>```cd ponder && yarn dev```</Tab>
+  <Tab>```cd ponder && npm run dev```</Tab>
+</Tabs>
+
+### 3) Add contracts & networks to `ponder.config.js`
+
+Ponder uses `ponder.config.js` to determine what blockchain data it needs to fetch. This is where you provide contract addresses, paths to ABI files, RPC URLs, start blocks, and more.
+
+### 4) Define your schema
+
+Ponder uses `schema.graphql` to define the project's schema. Any types marked with the `@entity` directive will become available as entity models in your handler functions.
+
+Using this schema, Ponder automatically generates a GraphQL API that serves entity data.
+
+### 5) Write event handlers
+
+The files in the `handlers/` folder contain event handler functions. Ponder uses these functions to process blockchain events. These functions are where you should insert and update the entity data that will get served by the GraphQL API. Here's a sample event handler function:
+
+```js
+// MyNftContract.ts
+
+export async function handleTransfer(event, context) {
+  const { Token } = context.entities;
+  const { MyNftContract } = context.contracts;
+
+  // Get an entity object
+  const token = await Token.get(event.params.id);
+
+  // Call a contract read function
+  const tokenUri = await MyNftContract.tokenUri(token.id);
+
+  // ...
+}
+```

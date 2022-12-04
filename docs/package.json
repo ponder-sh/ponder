@@ -1,0 +1,26 @@
+{
+  "name": "ponder-docs",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^12.2.0",
+    "next-themes": "^0.2.0",
+    "nextra": "2.0.0-beta.41",
+    "nextra-theme-docs": "2.0.0-beta.41",
+    "react": "^18.1.0",
+    "react-dom": "^18.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.7.8",
+    "@types/react": "^18.0.25",
+    "@types/react-dom": "^18.0.9",
+    "eslint": "^8.17.0",
+    "eslint-config-next": "^13.0.5",
+    "typescript": "^4.9.3"
+  }
+}

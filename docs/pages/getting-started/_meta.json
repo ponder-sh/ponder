@@ -1,0 +1,8 @@
+{
+  "migrate-subgraph": {
+    "title": "Migrate a Graph Protocol subgraph"
+  },
+  "new-project": {
+    "title": "Create a new Ponder project"
+  }
+}

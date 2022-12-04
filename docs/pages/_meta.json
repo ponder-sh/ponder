@@ -1,0 +1,15 @@
+{
+  "index": {
+    "title": "Introduction",
+    "display": "hidden"
+  },
+  "getting-started": {
+    "title": "Getting started"
+  },
+  "faq": {
+    "title": "FAQ"
+  },
+  "api-reference": {
+    "title": "API reference"
+  }
+}
