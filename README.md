@@ -1,12 +1,12 @@
-### **NOTE: Not ready for public use. Please send a [twitter](https://twitter.com/0xOlias) dm if you're interested in using Ponder.**
-
 # Ponder
 
 A framework for blockchain-enabled web services
 
 ## Features
 
-|                          | ponder                       | Graph Protocol                                 |
+Ponder is an open-source framework for building APIs and web services that depend on blockchain data. It's an alternative to Graph Protocol subgraphs
+
+|                          | Ponder                       | Graph Protocol                                 |
 | ------------------------ | ---------------------------- | ---------------------------------------------- |
 | Local dev server         | ✅                           | ❌                                             |
 | Hot reloading            | ✅                           | ❌                                             |
@@ -15,63 +15,59 @@ A framework for blockchain-enabled web services
 | Hosting requirements     | Node.js; Postgres (optional) | Graph Node; IPFS node; Ethereum node; Postgres |
 | Supported networks       | Any EVM blockchain           | Ethereum mainnet only[^1]                      |
 
+## Documentation
+
+For full documentation, visit [ponder.sh](https://ponder.sh/getting-started).
+
 ## Quickstart
 
-### I'm replacing a Graph Protocol subgraph
+The `create-ponder` command line interface is the easiest way to get started with Ponder.
 
-Ponder is an alternative to the Graph Protocol. You can quickly migrate an existing subgraph repository to Ponder using the `create-ponder` CLI tool.
+### 1) Run the `create-ponder` CLI
 
-#### 1. Run `create-ponder`
+This command creates a project folder called `ponder` in the current working directory. You can also bootstrap your project from a Graph Protocol subgraph (`--from-subgraph`) or an Etherscan contract link (`--from-etherscan`).
 
-This command will create a project folder called `ponder` in the current working directory. Include the `--from-subgraph` option to bootstrap your project using an existing Graph Protocol subgraph.
-
-```
-npm init ponder -- --from-subgraph [path]
+```bash
+npm init ponder@latest
 # or
-pnpm create ponder --from-subgraph [path]
+pnpm create ponder
 # or
-yarn create ponder --from-subgraph [path]
+yarn create ponder
 ```
 
-#### 2. Start the development server
+### 2) Start the development server
 
-```shell
+The dev server is an important part of the Ponder development workflow. Just like Next.js, the dev server automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
+
+```bash
 cd ponder
 ```
 
-```shell
+```bash
 npm run dev
 # or
-yarn dev
+pnpm dev
 # or
-pnpm run dev
+yarn dev
 ```
 
-The dev server prints logs to help you debug any configuration issues or errors. The server automatically reloads whenever you save changes in any project file.
+### 3) Add contracts & networks to `ponder.config.js`
 
-#### 3. Write event handlers
+Ponder uses `ponder.config.js` to determine what blockchain data it needs to fetch. This is where you provide contract addresses, paths to ABI files, RPC URLs, start blocks, and more.
 
-Ponder event handler functions are similar to Graph Protocol mapping functions. [More docs here](https://github.com/0xOlias/ponder/blob/main/docs/writing-event-handlers.md).
+### 4) Define your schema
 
-## Guides
+Ponder uses `schema.graphql` to define the project's schema. Any types marked with the `@entity` directive will become available as entity models in your handler functions.
 
-[Configuring contracts & networks](https://github.com/0xOlias/ponder/blob/main/docs/event-sources-and-networks.md)
+Using this schema, Ponder automatically generates a GraphQL API that serves entity data.
 
-[Writing event handlers](https://github.com/0xOlias/ponder/blob/main/docs/writing-event-handlers.md)
+### 5) Write event handlers
 
-[Database](https://github.com/0xOlias/ponder/blob/main/docs/database.md)
+The files in the `handlers/` folder contain event handler functions. Ponder uses these functions to process blockchain events. These functions are where you should insert and update the entity data that will get served by the GraphQL API. [Visit the docs](https://ponder.sh/getting-started) to learn more about writing event handlers.
 
-[Deploying to production](https://github.com/0xOlias/ponder/blob/main/docs/deploying-to-production.md)
+## Contributing
 
-## API reference
-
-[Create Ponder App](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/create-ponder.md)
-
-[Event handler functions](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/event-handlers.md)
-
-[`ponder.config.js`](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/ponder-config-js.md)
-
-[`schema.graphql`](https://github.com/0xOlias/ponder/blob/main/docs/api-reference/schema-graphql.md)
+If you're interested in contributing to Ponder, you can reach out via Twitter DM or open a GitHub discussion thread.
 
 ## Packages
 
