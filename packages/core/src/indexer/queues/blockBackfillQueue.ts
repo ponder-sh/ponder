@@ -31,8 +31,8 @@ export const createBlockBackfillQueue = ({
 
   queue.error((err, task) => {
     if (err) {
-      logger.error("Error in block backfill worker, retrying...:");
-      logger.error({ task, err });
+      logger.debug("Error in block backfill worker, retrying...:");
+      logger.debug({ task, err });
       queue.unshift(task);
     }
   });

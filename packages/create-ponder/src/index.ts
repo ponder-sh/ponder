@@ -195,6 +195,8 @@ module.exports = ponderConfig;`;
   );
 
   const packageManager = await detect();
+  const runCommand =
+    packageManager === "npm" ? `${packageManager} run` : packageManager;
 
   // Write the render.yaml file
   const renderYaml = `
@@ -206,7 +208,7 @@ services:
     name: ponder-app
     env: node
     buildCommand: ${packageManager} install
-    startCommand: ${packageManager} run start
+    startCommand: ${runCommand} start
     envVars:
       - key: POSTGRES_URL
         fromDatabase:
@@ -238,7 +240,7 @@ databases:
   // Run codegen.
   console.log(pico.cyan("[create-ponder] ") + `Generating types`);
 
-  execSync(`${packageManager} run  --silent codegen`, {
+  execSync(`${runCommand} --silent codegen --silent`, {
     cwd: ponderRootDir,
     stdio: "inherit",
   });
@@ -246,8 +248,6 @@ databases:
   console.log(
     pico.cyan("[create-ponder] ") +
       pico.green("Done! ") +
-      `To get started: ${pico.yellow(
-        `cd ${path.relative(".", ponderRootDir)} && ${packageManager} run dev`
-      )}`
+      `To get started run ${pico.yellow(`${runCommand} dev`)}`
   );
 };

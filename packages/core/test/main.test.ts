@@ -4,7 +4,7 @@ import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
 import { CachedProvider } from "@/networks/CachedProvider";
 import { Ponder } from "@/Ponder";
-import { initialInterfaceState } from "@/ui/app";
+import { getUiState } from "@/ui/app";
 
 jest.mock("@ethersproject/providers", () => {
   const originalModule = jest.requireActual("@ethersproject/providers");
@@ -44,7 +44,11 @@ describe("Ponder", () => {
   let ponder: Ponder;
 
   beforeEach(() => {
-    ponder = new Ponder({ rootDir: "./test/basic" });
+    ponder = new Ponder({
+      rootDir: "./test/basic",
+      configFile: "ponder.config.js",
+      silent: false,
+    });
   });
 
   afterEach(() => {
@@ -112,7 +116,7 @@ describe("Ponder", () => {
     it("initializes internal state", async () => {
       expect(ponder.logsProcessedToTimestamp).toBe(0);
       expect(ponder.isHandlingLogs).toBe(false);
-      expect(ponder.interfaceState).toMatchObject(initialInterfaceState);
+      expect(ponder.ui).toMatchObject(getUiState(ponder.options));
       expect(ponder.plugins).toMatchObject([]);
     });
   });

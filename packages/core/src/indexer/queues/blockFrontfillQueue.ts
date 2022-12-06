@@ -32,8 +32,8 @@ export const createBlockFrontfillQueue = ({
 
   queue.error((err, task) => {
     if (err) {
-      logger.error("error in live block worker, retrying...:");
-      logger.error({ task, err });
+      logger.debug("error in live block worker, retrying...:");
+      logger.debug({ task, err });
       queue.unshift(task);
     }
   });
