@@ -5,6 +5,6 @@ export type { PonderConfig } from "@/common/readPonderConfig";
 export type { Block, EventLog, Transaction } from "@/common/types";
 export type { EntityStore } from "@/db/entity/entityStore";
 export type { PonderPlugin, ResolvedPonderPlugin } from "@/plugin";
-export type { Ponder } from "@/Ponder";
+export { Ponder } from "@/Ponder";
 export type { Entity, Field, PonderSchema } from "@/schema/types";
 export { FieldKind } from "@/schema/types";
