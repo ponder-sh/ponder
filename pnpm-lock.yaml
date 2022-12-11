@@ -32,17 +32,15 @@ importers:
       eslint: ^8.17.0
       eslint-config-next: ^13.0.5
       next: ^12.2.0
-      next-themes: ^0.2.0
-      nextra: 2.0.0-beta.41
-      nextra-theme-docs: 2.0.0-beta.41
+      nextra: ^2.0.1
+      nextra-theme-docs: ^2.0.1
       react: ^18.1.0
       react-dom: ^18.1.0
       typescript: ^4.9.3
     dependencies:
       next: 12.3.4_biqbaboplfbrettd7655fr4n2y
-      next-themes: 0.2.1_bhgafntz2ozm43l35i5qtimxry
-      nextra: 2.0.0-beta.41_bhgafntz2ozm43l35i5qtimxry
-      nextra-theme-docs: 2.0.0-beta.41_bhgafntz2ozm43l35i5qtimxry
+      nextra: 2.0.1_bhgafntz2ozm43l35i5qtimxry
+      nextra-theme-docs: 2.0.1_bhgafntz2ozm43l35i5qtimxry
       react: 18.2.0
       react-dom: 18.2.0_react@18.2.0
     devDependencies:
@@ -6440,8 +6438,8 @@ packages:
       - babel-plugin-macros
     dev: false
 
-  /nextra-theme-docs/2.0.0-beta.41_bhgafntz2ozm43l35i5qtimxry:
-    resolution: {integrity: sha512-KKShzab63vNcfzHmINWFj0UYuoq4b5eXzL4PcJDzF+suXHGVuPQDs/+bnF0U2foK17Edmk7X6mZn3o/0aEZQMw==}
+  /nextra-theme-docs/2.0.1_bhgafntz2ozm43l35i5qtimxry:
+    resolution: {integrity: sha512-vrxSQjfG5hcWXd0foVUgRu1T9rD+dQdVnKzJhpEG+ncAIYTT/o7GajvYUEPPZMYvvZwehmNIUhSTDN9unnVsxw==}
     peerDependencies:
       next: '>=9.5.3'
       react: '>=16.13.1'
@@ -6466,8 +6464,8 @@ packages:
       scroll-into-view-if-needed: 2.2.31
     dev: false
 
-  /nextra/2.0.0-beta.41_bhgafntz2ozm43l35i5qtimxry:
-    resolution: {integrity: sha512-AlJdLRYe1r/mMKEjGfr6VqwWkUFKj0AdOBby1k2JILgAK33X+/xiJJ4JF2zLQx0clacINKg3wod8txSJwSWJ0g==}
+  /nextra/2.0.1_bhgafntz2ozm43l35i5qtimxry:
+    resolution: {integrity: sha512-IOBwqMREnadxGryNHvwr3sZuD90uyaTxCWi9yxDB56UndsLBTulKwXNIOdW1FV+vKTbSGpz89wNe665Moli7Kw==}
     peerDependencies:
       next: '>=9.5.3'
       react: '>=16.13.1'

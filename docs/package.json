@@ -9,9 +9,8 @@
   },
   "dependencies": {
     "next": "^12.2.0",
-    "next-themes": "^0.2.0",
-    "nextra": "2.0.0-beta.41",
-    "nextra-theme-docs": "2.0.0-beta.41",
+    "nextra": "^2.0.1",
+    "nextra-theme-docs": "^2.0.1",
     "react": "^18.1.0",
     "react-dom": "^18.1.0"
   },
