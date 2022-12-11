@@ -1,8 +1,4 @@
 {
-  "production": {
-    "title": "Deploying to production"
-  },
-  "database": {
-    "title": "Database"
-  }
+  "production": "Deploying to production",
+  "database": "Database"
 }

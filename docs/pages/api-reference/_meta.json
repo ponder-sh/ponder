@@ -1,17 +1,7 @@
 {
-  "create-ponder": {
-    "title": "create-ponder CLI"
-  },
-  "ponder-config": {
-    "title": "ponder.config.js"
-  },
-  "schema-graphql": {
-    "title": "schema.graphql"
-  },
-  "event": {
-    "title": "event"
-  },
-  "context": {
-    "title": "context"
-  }
+  "create-ponder": "create-ponder CLI",
+  "ponder-config": "ponder.config.js",
+  "schema-graphql": "schema.graphql",
+  "event": "event",
+  "context": "context"
 }
