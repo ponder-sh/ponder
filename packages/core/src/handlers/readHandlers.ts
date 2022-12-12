@@ -1,8 +1,7 @@
-import { build } from "esbuild";
-import { existsSync } from "node:fs";
+import { build, formatMessagesSync, Message } from "esbuild";
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import { logger } from "@/common/logger";
 import type { Block, EventLog, Transaction } from "@/common/types";
 import { ensureDirExists } from "@/common/utils";
 import type { Ponder } from "@/Ponder";
@@ -34,7 +33,12 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
       "configError",
       `Handlers not found, expected file: ${handlersRootFilePath}`
     );
+    return null;
   }
+
+  // Delete the build file before attempted to write it. This fixes a bug where a file
+  // inside handlers/ gets renamed, the build fails, but the stale `handlers.js` file remains.
+  rmSync(buildFile, { force: true });
 
   try {
     await build({
@@ -42,9 +46,19 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
       outfile: buildFile,
       platform: "node",
       bundle: true,
+      logLevel: "silent",
     });
   } catch (err) {
-    logger.warn("esbuild error:", err);
+    const error = err as Error & { errors: Message[]; warnings: Message[] };
+    // Hack to use esbuilds very pretty stack traces when rendering errors to the user.
+    const stackTraces = formatMessagesSync(error.errors, {
+      kind: "error",
+      color: true,
+    });
+    error.stack = stackTraces.join("\n");
+
+    ponder.emit("handlerTaskError", error);
+    return null;
   }
 
   // Load and then remove the module from the require cache, because we are loading
