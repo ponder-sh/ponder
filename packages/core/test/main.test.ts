@@ -158,7 +158,6 @@ describe("Ponder", () => {
       await ponder.setup();
 
       expect(ponder.handlerQueue).toBeTruthy();
-      expect(ponder.handlerQueue?.length()).toBe(0);
     });
   });
 
