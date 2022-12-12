@@ -1,4 +1,4 @@
-import type { PonderDatabase } from "@/db/db";
+import type { Ponder } from "@/Ponder";
 import type { PonderSchema } from "@/schema/types";
 
 import { PostgresEntityStore } from "./postgresEntityStore";
@@ -14,53 +14,53 @@ export type EntityFilter = {
   orderDirection?: "asc" | "desc";
 };
 
+type Entity = Record<string, unknown>;
+type MaybePromise<T> = T | Promise<T>;
+
 export interface EntityStore {
-  migrate(schema: PonderSchema): Promise<void>;
+  migrate(schema: PonderSchema): MaybePromise<void>;
 
-  getEntity<T extends Record<string, unknown>>(
-    entityName: string,
-    id: string
-  ): Promise<T | null>;
+  getEntity(entityName: string, id: string): MaybePromise<Entity | null>;
 
-  insertEntity<T extends Record<string, unknown>>(
+  insertEntity(
     entityName: string,
     id: string,
-    instance: T
-  ): Promise<T>;
+    instance: Entity
+  ): MaybePromise<Entity>;
 
-  upsertEntity<T extends Record<string, unknown>>(
+  upsertEntity(
     entityName: string,
     id: string,
-    instance: T
-  ): Promise<T>;
+    instance: Entity
+  ): MaybePromise<Entity>;
 
-  updateEntity<T extends Record<string, unknown>>(
+  updateEntity(
     entityName: string,
     id: string,
-    instance: Partial<T>
-  ): Promise<T>;
+    instance: Partial<Entity>
+  ): MaybePromise<Entity>;
 
-  deleteEntity(entityName: string, id: string): Promise<boolean>;
+  deleteEntity(entityName: string, id: string): MaybePromise<boolean>;
 
-  getEntities<T extends Record<string, unknown>>(
+  getEntities(
     entityName: string,
     filter?: EntityFilter
-  ): Promise<T[]>;
+  ): MaybePromise<Entity[]>;
 
   getEntityDerivedField(
     entityName: string,
     id: string,
     derivedFieldName: string
-  ): Promise<unknown[]>;
+  ): MaybePromise<unknown[]>;
 }
 
-export const buildEntityStore = (database: PonderDatabase) => {
-  switch (database.kind) {
+export const buildEntityStore = ({ ponder }: { ponder: Ponder }) => {
+  switch (ponder.database.kind) {
     case "sqlite": {
-      return new SqliteEntityStore(database.db);
+      return new SqliteEntityStore({ db: ponder.database.db, ponder });
     }
     case "postgres": {
-      return new PostgresEntityStore(database.pgp, database.db);
+      return new PostgresEntityStore({ db: ponder.database.db });
     }
   }
 };
