@@ -9,7 +9,7 @@ import { ProgressBar } from "./ProgressBar";
 export enum HandlersStatus {
   NOT_STARTED,
   IN_PROGRESS,
-  UP_TO_DATE,
+  UP_TO_LATEST,
 }
 
 export type UiState = {
@@ -31,7 +31,7 @@ export type UiState = {
   handlersTotal: number;
 
   configError: string | null;
-  handlerError: string | null;
+  handlerError: Error | null;
 
   networks: Record<
     string,
@@ -102,7 +102,7 @@ const App = ({
         return <Text>(not started)</Text>;
       case HandlersStatus.IN_PROGRESS:
         return <Text color="yellowBright">(in progress)</Text>;
-      case HandlersStatus.UP_TO_DATE:
+      case HandlersStatus.UP_TO_LATEST:
         return <Text color="greenBright">(up to date)</Text>;
     }
   };
@@ -158,9 +158,6 @@ const App = ({
             {configError}
             <Newline />
           </Text>
-          <Newline />
-          <Newline />
-          <Newline />
         </Box>
       </Box>
     );
@@ -169,18 +166,12 @@ const App = ({
   if (handlerError) {
     return (
       <Box flexDirection="column">
-        <Box flexDirection="row">
-          <Text color="redBright" bold={true}>
-            [Event handler error]{" "}
-          </Text>
-          <Text>
-            {handlerError}
-            <Newline />
-          </Text>
-          <Newline />
-          <Newline />
-          <Newline />
-        </Box>
+        <Text> </Text>
+        <Text>{handlerError.stack}</Text>
+        <Text> </Text>
+        <Text color="cyan">
+          Resolve the error and save your changes to reload the server.
+        </Text>
       </Box>
     );
   }

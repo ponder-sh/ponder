@@ -1,5 +1,4 @@
 import { Contract } from "ethers";
-import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import type { EventLog } from "@/common/types";
@@ -7,11 +6,37 @@ import type { Ponder } from "@/Ponder";
 
 import type { Handlers } from "./readHandlers";
 
-export type HandlerTask = {
-  log: EventLog;
-};
+export function createNotSoFastQueue<T>(
+  worker: (task: T) => Promise<any> | any,
+  errorHandler: (err: unknown) => any
+) {
+  let tasks: T[] = [];
 
-export type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
+  return {
+    push: async (newTasks: T[]) => {
+      tasks = tasks.concat(newTasks);
+    },
+    process: async () => {
+      while (tasks.length > 0) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          await worker(tasks.shift()!);
+        } catch (err) {
+          errorHandler(err);
+        }
+      }
+    },
+    kill: () => {
+      tasks = [];
+    },
+  };
+}
+
+export type HandlerQueue<T = any> = {
+  push: (newTasks: T[]) => Promise<void>;
+  process: () => Promise<void>;
+  kill: () => void;
+};
 
 export const createHandlerQueue = ({
   ponder,
@@ -39,14 +64,13 @@ export const createHandlerQueue = ({
   ponder.schema.entities.forEach((entity) => {
     const entityName = entity.name;
     const entityModel = {
-      get: async (id: string) => ponder.entityStore.getEntity(entityName, id),
-      delete: async (id: string) =>
-        ponder.entityStore.deleteEntity(entityName, id),
-      insert: async (id: string, obj: Record<string, unknown>) =>
+      get: (id: string) => ponder.entityStore.getEntity(entityName, id),
+      delete: (id: string) => ponder.entityStore.deleteEntity(entityName, id),
+      insert: (id: string, obj: Record<string, unknown>) =>
         ponder.entityStore.insertEntity(entityName, id, obj),
-      update: async (id: string, obj: Record<string, unknown>) =>
+      update: (id: string, obj: Record<string, unknown>) =>
         ponder.entityStore.updateEntity(entityName, id, obj),
-      upsert: async (id: string, obj: Record<string, unknown>) =>
+      upsert: (id: string, obj: Record<string, unknown>) =>
         ponder.entityStore.upsertEntity(entityName, id, obj),
     };
 
@@ -58,7 +82,7 @@ export const createHandlerQueue = ({
     entities: entityModels,
   };
 
-  const handlerWorker = async ({ log }: HandlerTask) => {
+  const handlerWorker = async (log: EventLog) => {
     ponder.emit("handlerTaskStarted");
 
     const source = ponder.sources.find(
@@ -128,12 +152,9 @@ export const createHandlerQueue = ({
     await handler(event, handlerContext);
   };
 
-  const queue = fastq.promise<HandlerTask>(handlerWorker, 1);
-
-  queue.error((err) => {
+  const queue = createNotSoFastQueue(handlerWorker, (err) => {
     if (err) {
-      queue.pause();
-      ponder.emit("handlerTaskError", err.message);
+      ponder.emit("handlerTaskError", err);
     }
   });
 
