@@ -1,3 +1,4 @@
+import { StaticJsonRpcProvider } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
 
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
@@ -6,23 +7,46 @@ import { CachedProvider } from "@/networks/CachedProvider";
 import { Ponder } from "@/Ponder";
 import { getUiState } from "@/ui/app";
 
-jest.mock("@ethersproject/providers", () => {
-  const originalModule = jest.requireActual("@ethersproject/providers");
-  const StaticJsonRpcProvider = originalModule.StaticJsonRpcProvider;
+import { Hash, mockLog, randomHex } from "./utils";
+import { mockBlock, toHex, toNumber } from "./utils";
 
-  class MockedStaticJsonRpcProvider extends StaticJsonRpcProvider {
-    constructor(url: unknown, chainId: unknown) {
-      super(url, chainId);
-    }
+type SendArgs =
+  | ["eth_getBlockByNumber", ["latest" | Hash, boolean]]
+  | ["eth_getBlockByHash", ["latest" | Hash, boolean]]
+  | ["eth_getLogs", [{ address: Hash[]; fromBlock: Hash; toBlock: Hash }]];
 
-    async send(method: string, params: Array<unknown>) {
+beforeAll(() => {
+  jest
+    .spyOn(StaticJsonRpcProvider.prototype, "send")
+    .mockImplementation(async (...args) => {
+      const [method, params] = args as unknown as SendArgs;
+
+      console.log("in send with:", { method, params });
+
       switch (method) {
         case "eth_getBlockByNumber": {
-          if (params[0] === "latest") {
-            return {};
-          } else {
-            return {};
-          }
+          const [number] = params;
+          const mockNumber = number === "latest" ? toHex(10) : number;
+          return mockBlock({ number: mockNumber });
+        }
+        case "eth_getBlockByHash": {
+          const [hash, includeTxns] = params;
+          const mockHash = hash === "latest" ? randomHex() : hash;
+          return mockBlock({ hash: mockHash });
+        }
+        case "eth_getLogs": {
+          const [{ address, fromBlock, toBlock }] = params;
+          const logAddress = address[0];
+          const middleBlock = toHex(
+            Math.floor(toNumber(toBlock) - toNumber(fromBlock) / 2) +
+              toNumber(toBlock)
+          );
+
+          return [
+            mockLog({ address: logAddress, blockNumber: fromBlock }),
+            mockLog({ address: logAddress, blockNumber: middleBlock }),
+            mockLog({ address: logAddress, blockNumber: toBlock }),
+          ];
         }
         default: {
           throw new Error(
@@ -30,14 +54,11 @@ jest.mock("@ethersproject/providers", () => {
           );
         }
       }
-    }
-  }
+    });
+});
 
-  return {
-    __esModule: true,
-    ...originalModule,
-    StaticJsonRpcProvider: MockedStaticJsonRpcProvider,
-  };
+afterAll(() => {
+  jest.restoreAllMocks();
 });
 
 describe("Ponder", () => {
@@ -62,26 +83,23 @@ describe("Ponder", () => {
       const network = ponder.networks[0];
       expect(network.name).toBe("mainnet");
       expect(network.chainId).toBe(1);
-
       expect(network.provider).toBeInstanceOf(CachedProvider);
       expect(network.provider.network.chainId).toBe(1);
       expect(network.provider.connection.url).toBe("rpc://test");
     });
 
-    it("creates a source using defaults", async () => {
+    it("creates a source matching config", async () => {
       expect(ponder.sources.length).toBe(1);
 
       const source = ponder.sources[0];
-
       expect(source.name).toBe("FileStore");
       expect(source.network.name).toBe("mainnet");
       expect(source.network.provider).toBeInstanceOf(CachedProvider);
       expect(source.address).toBe(
         "0x9746fD0A77829E12F8A9DBe70D7a322412325B91".toLowerCase()
       );
-
-      expect(source.startBlock).toBe(15963553);
-      expect(source.blockLimit).toBe(50);
+      expect(source.startBlock).toBe(0);
+      expect(source.blockLimit).toBe(5);
     });
 
     it("creates a sqlite database", async () => {
@@ -165,15 +183,15 @@ describe("Ponder", () => {
     });
   });
 
-  // describe("backfill()", () => {
-  //   beforeEach(async () => {
-  //     await ponder.setup();
-  //   });
+  describe("backfill()", () => {
+    beforeEach(async () => {
+      await ponder.setup();
+    });
 
-  //   it("works", async () => {
-  //     await ponder.backfill();
+    it("works", async () => {
+      await ponder.backfill();
 
-  //     expect(1).toBe(2);
-  //   });
-  // });
+      expect(1).toBe(2);
+    });
+  });
 });
