@@ -26,6 +26,7 @@ importers:
 
   docs:
     specifiers:
+      '@mdx-js/react': ^2.1.5
       '@types/node': ^18.7.8
       '@types/react': ^18.0.25
       '@types/react-dom': ^18.0.9
@@ -44,6 +45,7 @@ importers:
       react: 18.2.0
       react-dom: 18.2.0_react@18.2.0
     devDependencies:
+      '@mdx-js/react': 2.1.5_react@18.2.0
       '@types/node': 18.7.8
       '@types/react': 18.0.25
       '@types/react-dom': 18.0.9
@@ -1678,7 +1680,6 @@ packages:
       '@types/mdx': 2.0.3
       '@types/react': 18.0.25
       react: 18.2.0
-    dev: false
 
   /@napi-rs/simple-git-android-arm-eabi/0.1.8:
     resolution: {integrity: sha512-JJCejHBB1G6O8nxjQLT4quWCcvLpC3oRdJJ9G3MFYSCoYS8i1bWCWeU+K7Br+xT+D6s1t9q8kNJAwJv9Ygpi0g==}
@@ -2159,7 +2160,6 @@ packages:
 
   /@types/mdx/2.0.3:
     resolution: {integrity: sha512-IgHxcT3RC8LzFLhKwP3gbMPeaK7BM9eBH46OdapPA7yvuIUJ8H6zHZV53J8hGZcTSnt95jANt+rTBNUUc22ACQ==}
-    dev: false
 
   /@types/mime/3.0.1:
     resolution: {integrity: sha512-Y4XFY5VJAuw0FgAqPNd6NNoV44jbq9Bz2L7Rh/J6jLTiHBSBJa9fxqQIvkIld4GsoDOcCbvzOUAbLPsSKKg+uA==}
@@ -7149,7 +7149,6 @@ packages:
     engines: {node: '>=0.10.0'}
     dependencies:
       loose-envify: 1.4.0
-    dev: false
 
   /readable-stream/3.6.0:
     resolution: {integrity: sha512-BViHy7LKeTz4oNnkcLJ+lVSL6vpiFeX6/d3oSH8zCW7UxP2onchk+vTGB143xuFjHS3deTgkKoXXymXqymiIdA==}

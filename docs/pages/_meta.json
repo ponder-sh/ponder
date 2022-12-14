@@ -3,6 +3,7 @@
     "title": "Introduction",
     "display": "hidden"
   },
+  "introduction": "Introduction",
   "getting-started": "Getting started",
   "faq": "FAQ",
   "api-reference": "API reference"
