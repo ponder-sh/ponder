@@ -4,16 +4,12 @@ A framework for blockchain-enabled web services
 
 ## Features
 
-Ponder is an open-source framework for building APIs and web services that depend on blockchain data. It can be used as an alternative to Graph Protocol subgraphs.
+Ponder is an open-source framework for building frontend-ready APIs that serve blockchain data. It can be used as an alternative to Graph Protocol subgraphs.
 
-|                          | Ponder                       | Graph Protocol                                 |
-| ------------------------ | ---------------------------- | ---------------------------------------------- |
-| Local dev server         | ✅                           | ❌                                             |
-| Hot reloading            | ✅                           | ❌                                             |
-| Debug with `console.log` | ✅                           | ❌                                             |
-| Import NPM packages      | ✅                           | ❌                                             |
-| Hosting requirements     | Node.js; Postgres (optional) | Graph Node; IPFS node; Ethereum node; Postgres |
-| Supported networks       | Any EVM blockchain           | Ethereum mainnet only[^1]                      |
+- Local development server with hot reloading
+- Built using the familiar Node.js runtime and NPM package ecosystem
+- Works with any Ethereum-based blockchain, and natively supports cross-chain apps
+- Plugin API that exposes hooks into the core indexing engine
 
 ## Documentation
 
