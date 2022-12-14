@@ -17,9 +17,8 @@ const contractCallsTableName = `${SQLITE_TABLE_PREFIX}contractCalls`;
 export class SqliteCacheStore implements CacheStore {
   db: Sqlite.Database;
 
-  constructor(db: Sqlite.Database) {
+  constructor({ db }: { db: Sqlite.Database }) {
     this.db = db;
-    this.db.pragma("journal_mode = WAL");
   }
 
   migrate = async () => {

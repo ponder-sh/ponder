@@ -7,16 +7,14 @@ import {
   ScalarField,
 } from "@/schema/types";
 
-import { EntityFilter, EntityStore } from "./entityStore";
+import type { EntityFilter, EntityStore } from "./entityStore";
 import { sqlOperatorsForFilterType } from "./utils";
 
 export class PostgresEntityStore implements EntityStore {
-  pgp: PgPromise.IMain;
   db: PgPromise.IDatabase<unknown>;
   schema?: PonderSchema;
 
-  constructor(pgp: PgPromise.IMain, db: PgPromise.IDatabase<unknown>) {
-    this.pgp = pgp;
+  constructor({ db }: { db: PgPromise.IDatabase<unknown> }) {
     this.db = db;
   }
 
@@ -43,10 +41,7 @@ export class PostgresEntityStore implements EntityStore {
     });
   }
 
-  async getEntity<T extends Record<string, unknown>>(
-    entityName: string,
-    id: string
-  ): Promise<T | null> {
+  async getEntity(entityName: string, id: string) {
     if (!this.schema) {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
@@ -59,11 +54,11 @@ export class PostgresEntityStore implements EntityStore {
     return this.deserialize(entityName, instance);
   }
 
-  async insertEntity<T extends Record<string, unknown>>(
+  async insertEntity(
     entityName: string,
     id: string,
-    instance: T
-  ): Promise<T> {
+    instance: Record<string, unknown>
+  ) {
     if (!this.schema) {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
@@ -93,11 +88,11 @@ export class PostgresEntityStore implements EntityStore {
     return this.deserialize(entityName, insertedEntity);
   }
 
-  async updateEntity<T extends Record<string, unknown>>(
+  async updateEntity(
     entityName: string,
     id: string,
-    instance: Partial<T>
-  ): Promise<T> {
+    instance: Record<string, unknown>
+  ) {
     if (!this.schema) {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
@@ -120,11 +115,11 @@ export class PostgresEntityStore implements EntityStore {
     return this.deserialize(entityName, updatedEntity);
   }
 
-  async upsertEntity<T extends Record<string, unknown>>(
+  async upsertEntity(
     entityName: string,
     id: string,
-    instance: T
-  ): Promise<T> {
+    instance: Record<string, unknown>
+  ) {
     if (!this.schema) {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
@@ -172,10 +167,7 @@ export class PostgresEntityStore implements EntityStore {
     return rowCount === 1;
   }
 
-  async getEntities<T extends Record<string, unknown>>(
-    entityName: string,
-    filter?: EntityFilter
-  ): Promise<T[]> {
+  async getEntities(entityName: string, filter?: EntityFilter) {
     if (!this.schema) {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
@@ -245,9 +237,7 @@ export class PostgresEntityStore implements EntityStore {
     const statement = `SELECT * FROM "${entityName}" ${fragments.join(" ")}`;
     const instances = await this.db.manyOrNone(statement);
 
-    return instances.map((instance) =>
-      this.deserialize<T>(entityName, instance)
-    );
+    return instances.map((instance) => this.deserialize(entityName, instance));
   }
 
   async getEntityDerivedField(
@@ -287,7 +277,7 @@ export class PostgresEntityStore implements EntityStore {
     return derivedFieldInstances;
   }
 
-  deserialize<T>(entityName: string, instance: Record<string, unknown>) {
+  deserialize(entityName: string, instance: Record<string, unknown>) {
     if (!this.schema) {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
@@ -316,6 +306,6 @@ export class PostgresEntityStore implements EntityStore {
       }
     });
 
-    return deserializedInstance as T;
+    return deserializedInstance as Record<string, unknown>;
   }
 }

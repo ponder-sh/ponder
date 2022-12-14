@@ -1,6 +1,7 @@
 import EventEmitter from "node:events";
 import { watch } from "node:fs";
 import path from "node:path";
+import pico from "picocolors";
 
 import { PonderCliOptions } from "@/bin/ponder";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
@@ -82,8 +83,8 @@ export class Ponder extends EventEmitter {
     this.config = readPonderConfig(this.options.PONDER_CONFIG_FILE_PATH);
 
     this.database = buildDb({ ponder: this });
-    this.cacheStore = buildCacheStore(this.database);
-    this.entityStore = buildEntityStore(this.database);
+    this.cacheStore = buildCacheStore({ ponder: this });
+    this.entityStore = buildEntityStore({ ponder: this });
 
     this.logger = logger;
 
@@ -171,27 +172,30 @@ export class Ponder extends EventEmitter {
     if (this.handlerQueue) {
       logger.debug("Killing old handlerQueue");
       this.handlerQueue.kill();
+      delete this.handlerQueue;
       this.isHandlingLogs = false;
     }
 
     const handlers = await readHandlers({ ponder: this });
 
-    this.handlerQueue = createHandlerQueue({
-      ponder: this,
-      handlers: handlers,
-    });
+    if (handlers) {
+      this.handlerQueue = createHandlerQueue({
+        ponder: this,
+        handlers: handlers,
+      });
+    }
   }
 
   async reload() {
-    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
-
-    this.codegen();
-    this.reloadPlugins();
-
     this.logsProcessedToTimestamp = 0;
     this.ui.handlersTotal = 0;
     this.ui.handlersCurrent = 0;
     this.ui.handlerError = null;
+
+    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
+
+    this.codegen();
+    this.reloadPlugins();
 
     this.handleNewLogs();
   }
@@ -234,14 +238,7 @@ export class Ponder extends EventEmitter {
   }
 
   async handleNewLogs() {
-    if (!this.handlerQueue) {
-      console.error(
-        `Attempted to handle new block, but handler queue doesnt exist`
-      );
-      return;
-    }
-
-    if (this.isHandlingLogs) return;
+    if (!this.handlerQueue || this.isHandlingLogs) return;
     this.isHandlingLogs = true;
 
     const { hasNewLogs, toTimestamp, logs } = await getLogs({
@@ -258,10 +255,8 @@ export class Ponder extends EventEmitter {
     render(this.ui);
 
     logger.debug(`Adding ${logs.length} to handlerQueue`);
-
-    for (const log of logs) {
-      this.handlerQueue.push({ log });
-    }
+    this.handlerQueue.push(logs);
+    await this.handlerQueue.process();
 
     this.logsProcessedToTimestamp = toTimestamp;
     this.isHandlingLogs = false;
@@ -295,7 +290,7 @@ export class Ponder extends EventEmitter {
     this.ui.handlersCurrent += 1;
     this.ui.handlersStatus =
       this.ui.handlersCurrent === this.ui.handlersTotal
-        ? HandlersStatus.UP_TO_DATE
+        ? HandlersStatus.UP_TO_LATEST
         : HandlersStatus.IN_PROGRESS;
     render(this.ui);
   }
@@ -308,7 +303,13 @@ export class Ponder extends EventEmitter {
     render(this.ui);
   }
 
-  private handleHandlerTaskError(error: string) {
+  private handleHandlerTaskError(error: Error) {
+    logger.info("");
+    logger.info(
+      pico.red(`Handler error: `) + pico.bold(`${error.name}: ${error.message}`)
+    );
+    this.handlerQueue?.kill();
+
     this.ui = {
       ...this.ui,
       handlerError: error,
@@ -375,8 +376,9 @@ export class Ponder extends EventEmitter {
 
         if (isFileChanged(fullPath)) {
           logger.info("");
-          logger.info(`\x1b[35m${`Detected change in: ${fileName}`}\x1b[0m`); // yellow
-          logger.info("");
+          logger.info(
+            pico.magenta(`Detected change in: `) + pico.bold(`${fileName}`)
+          );
 
           this.reload();
         } else {
