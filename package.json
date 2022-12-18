@@ -9,8 +9,8 @@
     "preinstall": "npx -y only-allow pnpm",
     "typecheck": "pnpm --parallel typecheck",
     "lint": "pnpm --parallel lint",
-    "install:packages": "pnpm --filter './packages/**' --parallel install",
-    "install:examples": "pnpm --filter './examples/**' --parallel install",
+    "install:packages": "pnpm --filter './packages/**' install",
+    "install:examples": "pnpm --filter './examples/**' install",
     "build": "pnpm --filter './packages/**' --parallel build",
     "declarations": "pnpm --parallel declarations",
     "test": "pnpm --parallel --no-bail test"
