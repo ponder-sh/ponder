@@ -5,11 +5,15 @@ const { graphqlPlugin } = require("@ponder/graphql");
  */
 const ponderConfig = {
   plugins: [graphqlPlugin()],
-  database: {
-    kind: "sqlite",
-    // kind: "postgres",
-    // connectionString: process.env.POSTGRES_URL,
-  },
+  database:
+    process.env.NODE_ENV === "production"
+      ? {
+          kind: "postgres",
+          connectionString: process.env.DATABASE_URL,
+        }
+      : {
+          kind: "sqlite",
+        },
   networks: [
     {
       kind: "evm",
