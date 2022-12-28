@@ -45,6 +45,18 @@ export const startBackfillForSource = async ({
     cachedIntervals.map((i) => [i.startBlock, i.endBlock])
   );
 
+  const requiredBlockCount = requiredBlockIntervals.reduce((acc, cur) => {
+    return acc + (cur[1] + 1 - cur[0]);
+  }, 0);
+  const cacheRate = Math.max(
+    0,
+    1 - requiredBlockCount / (requestedEndBlock - requestedStartBlock)
+  );
+  ponder.emit("backfill_sourceStarted", {
+    source: source.name,
+    cacheRate: cacheRate,
+  });
+
   let totalLogTasks = 0;
 
   for (const blockInterval of requiredBlockIntervals) {
@@ -59,7 +71,10 @@ export const startBackfillForSource = async ({
         fromBlock,
         toBlock,
       });
-      ponder.emit("backfill_tasksAdded", { taskCount: 1 });
+      ponder.emit("backfill_logTasksAdded", {
+        source: source.name,
+        taskCount: 1,
+      });
       totalLogTasks++;
       continue;
     }
@@ -73,7 +88,10 @@ export const startBackfillForSource = async ({
 
       fromBlock = toBlock + 1;
       toBlock = Math.min(fromBlock + source.blockLimit, endBlock);
-      ponder.emit("backfill_tasksAdded", { taskCount: 1 });
+      ponder.emit("backfill_logTasksAdded", {
+        source: source.name,
+        taskCount: 1,
+      });
       totalLogTasks++;
     }
   }

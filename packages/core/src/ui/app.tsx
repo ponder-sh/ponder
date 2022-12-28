@@ -2,7 +2,9 @@ import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
 import { PonderOptions } from "@/common/options";
+import { Source } from "@/sources/base";
 
+import { BackfillBar } from "./BackfillBar";
 import { ProgressBar } from "./ProgressBar";
 
 export enum HandlersStatus {
@@ -21,24 +23,30 @@ export type UiState = {
   stats: Record<
     string,
     {
+      cacheRate: number;
+
+      logStartTimestamp: number;
       logTotal: number;
       logCurrent: number;
       logCheckpointTimestamp: number;
-      logAvgDuration: number;
+      logAvgDurationInst: number;
+      logAvgDurationTotal: number;
       logCheckpointBlockCount: number;
-      logAvgBlockCount: number;
+      logAvgBlockCountInst: number;
+      logAvgBlockCountTotal: number;
 
+      blockStartTimestamp: number;
       blockTotal: number;
       blockCurrent: number;
       blockCheckpointTimestamp: number;
-      blockAvgDuration: number;
+      blockAvgDurationInst: number;
+      blockAvgDurationTotal: number;
+
+      eta: number;
     }
   >;
 
   backfillStartTimestamp: number;
-  backfillTaskCurrent: number;
-  backfillTaskTotal: number;
-
   isBackfillComplete: boolean;
   backfillDuration: string;
 
@@ -71,9 +79,6 @@ export const getUiState = (options: PonderOptions): UiState => {
     stats: {},
 
     backfillStartTimestamp: 0,
-    backfillTaskCurrent: 0,
-    backfillTaskTotal: 0,
-
     isBackfillComplete: false,
     backfillDuration: "",
 
@@ -88,24 +93,48 @@ export const getUiState = (options: PonderOptions): UiState => {
   };
 };
 
+export const hydrateUi = ({
+  ui,
+  sources,
+}: {
+  ui: UiState;
+  sources: Source[];
+}) => {
+  sources.forEach((source) => {
+    ui.stats[source.name] = {
+      cacheRate: 0,
+      logStartTimestamp: 0,
+      logTotal: 0,
+      logCurrent: 0,
+      logCheckpointTimestamp: 0,
+      logAvgDurationInst: 0,
+      logAvgDurationTotal: 0,
+      logCheckpointBlockCount: 0,
+      logAvgBlockCountInst: 0,
+      logAvgBlockCountTotal: 0,
+      blockStartTimestamp: 0,
+      blockTotal: 0,
+      blockCurrent: 0,
+      blockCheckpointTimestamp: 0,
+      blockAvgDurationInst: 0,
+      blockAvgDurationTotal: 0,
+      eta: 0,
+    };
+  });
+};
+
 const App = ({
   isSilent,
   isProd,
   timestamp,
-
-  backfillTaskCurrent,
-  backfillTaskTotal,
-
+  stats,
   isBackfillComplete,
   backfillDuration,
-
   handlersStatus,
   handlersCurrent,
   handlersTotal,
-
   configError,
   handlerError,
-
   networks,
 }: UiState) => {
   if (isSilent) return null;
@@ -120,16 +149,6 @@ const App = ({
         return <Text color="greenBright">(up to date)</Text>;
     }
   };
-
-  const backfillPercent = `${Math.round(
-    100 * (backfillTaskCurrent / Math.max(backfillTaskTotal, 1))
-  )}%`;
-  const backfillEtaText = "";
-  // backfillEta && backfillEta > 0 ? ` | ETA: ${backfillEta}s` : null;
-  const backfillCountText =
-    backfillTaskTotal > 0
-      ? ` | ${backfillTaskCurrent}/${backfillTaskTotal}`
-      : null;
 
   const handlersPercent = `${Math.round(
     100 * (handlersCurrent / Math.max(handlersTotal, 1))
@@ -192,18 +211,11 @@ const App = ({
         )}
       </Box>
       {!isBackfillComplete && (
-        <Box flexDirection="row">
-          <ProgressBar
-            current={backfillTaskCurrent}
-            end={Math.max(backfillTaskTotal, 1)}
-          />
-          <Text>
-            {" "}
-            {backfillPercent}
-            {backfillEtaText}
-            {backfillCountText}
-            <Newline />
-          </Text>
+        <Box flexDirection="column">
+          {Object.entries(stats).map(([source, stat]) => (
+            <BackfillBar key={source} source={source} stat={stat} />
+          ))}
+          <Text> </Text>
         </Box>
       )}
 

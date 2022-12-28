@@ -27,7 +27,7 @@ export const endBenchmark = (hrt: [number, number]) => {
 
 export const formatEta = (ms: number) => {
   // If less than 1 second, return ms.
-  if (ms < 1000) return `${ms}ms`;
+  if (ms < 1000) return `${Math.round(ms)}ms`;
   const seconds = Math.floor(ms / 1000);
 
   const h = Math.floor(seconds / 3600);

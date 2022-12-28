@@ -27,7 +27,8 @@ import { readSchema } from "@/schema/readSchema";
 import type { PonderSchema } from "@/schema/types";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
-import { getUiState, HandlersStatus, render, UiState } from "@/ui/app";
+import type { UiState } from "@/ui/app";
+import { getUiState, HandlersStatus, hydrateUi, render } from "@/ui/app";
 
 type Events = {
   config_error: (arg: { error: string }) => void;
@@ -37,10 +38,15 @@ type Events = {
     blockNumber: number;
     blockTimestamp: number;
   }) => void;
-  backfill_newLogs: () => void;
-  backfill_tasksAdded: (arg: { taskCount: number }) => void;
+  backfill_sourceStarted: (arg: { source: string; cacheRate: number }) => void;
+  backfill_logTasksAdded: (arg: { source: string; taskCount: number }) => void;
+  backfill_blockTasksAdded: (arg: {
+    source: string;
+    taskCount: number;
+  }) => void;
   backfill_logTaskDone: (arg: { source: string }) => void;
   backfill_blockTaskDone: (arg: { source: string }) => void;
+  backfill_newLogs: () => void;
 
   frontfill_newLogs: (arg: {
     network: string;
@@ -82,6 +88,7 @@ export class Ponder extends EventEmitter<Events> {
 
   // Interface
   renderInterval?: NodeJS.Timer;
+  etaInterval?: NodeJS.Timer;
   ui: UiState;
 
   constructor(cliOptions: PonderCliOptions) {
@@ -90,10 +97,12 @@ export class Ponder extends EventEmitter<Events> {
     this.on("config_error", this.config_error);
 
     this.on("backfill_networkConnected", this.backfill_networkConnected);
-    this.on("backfill_newLogs", this.backfill_newLogs);
-    this.on("backfill_tasksAdded", this.backfill_tasksAdded);
+    this.on("backfill_sourceStarted", this.backfill_sourceStarted);
+    this.on("backfill_logTasksAdded", this.backfill_logTasksAdded);
+    this.on("backfill_blockTasksAdded", this.backfill_blockTasksAdded);
     this.on("backfill_logTaskDone", this.backfill_logTaskDone);
     this.on("backfill_blockTaskDone", this.backfill_blockTaskDone);
+    this.on("backfill_newLogs", this.backfill_newLogs);
 
     this.on("frontfill_newLogs", this.frontfill_newLogs);
 
@@ -131,6 +140,8 @@ export class Ponder extends EventEmitter<Events> {
         .map((s) => s.abiFilePath)
         .filter((p): p is string => typeof p === "string"),
     ];
+
+    hydrateUi({ ui: this.ui, sources });
   }
 
   // --------------------------- PUBLIC METHODS --------------------------- //
@@ -153,7 +164,6 @@ export class Ponder extends EventEmitter<Events> {
     this.setupPlugins();
 
     this.backfill();
-    this.handleNewLogs();
   }
 
   codegen() {
@@ -163,6 +173,7 @@ export class Ponder extends EventEmitter<Events> {
 
   kill() {
     clearInterval(this.renderInterval);
+    clearInterval(this.etaInterval);
     this.handlerQueue?.kill();
     this.killFrontfillQueues?.();
     this.killBackfillQueues?.();
@@ -182,7 +193,8 @@ export class Ponder extends EventEmitter<Events> {
     this.renderInterval = setInterval(() => {
       this.ui.timestamp = Math.floor(Date.now() / 1000);
       render(this.ui);
-    }, 1000);
+    }, 17);
+    this.etaInterval = setInterval(this.updateBackfillEta, 1000);
 
     await Promise.all([
       this.cacheStore.migrate(),
@@ -253,12 +265,6 @@ export class Ponder extends EventEmitter<Events> {
   }
 
   async backfill() {
-    this.ui = {
-      ...this.ui,
-      backfillStartTimestamp: Math.floor(Date.now() / 1000),
-    };
-    render(this.ui);
-
     const startHrt = startBenchmark();
 
     const { blockNumberByNetwork, killFrontfillQueues } = await startFrontfill({
@@ -271,6 +277,7 @@ export class Ponder extends EventEmitter<Events> {
       blockNumberByNetwork,
     });
     this.killBackfillQueues = killBackfillQueues;
+    this.ui.backfillStartTimestamp = Date.now();
 
     await drainBackfillQueues();
     const duration = formatEta(endBenchmark(startHrt));
@@ -284,7 +291,6 @@ export class Ponder extends EventEmitter<Events> {
       isBackfillComplete: true,
       backfillDuration: duration,
     };
-    render(this.ui);
 
     // If there were no backfill logs, handleNewLogs won't get triggered until the next
     // set of frontfill logs. So, trigger it manually here.
@@ -306,7 +312,6 @@ export class Ponder extends EventEmitter<Events> {
     }
 
     this.ui.handlersTotal += logs.length;
-    render(this.ui);
 
     this.handlerQueue.push(logs);
     await this.handlerQueue.process();
@@ -341,11 +346,7 @@ export class Ponder extends EventEmitter<Events> {
   // --------------------------- EVENT HANDLERS --------------------------- //
 
   private config_error: Events["config_error"] = (e) => {
-    this.ui = {
-      ...this.ui,
-      configError: e.error,
-    };
-    render(this.ui);
+    this.ui = { ...this.ui, configError: e.error };
   };
 
   private backfill_networkConnected: Events["backfill_networkConnected"] = (
@@ -360,15 +361,87 @@ export class Ponder extends EventEmitter<Events> {
     };
   };
 
-  private backfill_newLogs = () => this.handleNewLogs();
-
-  private backfill_tasksAdded: Events["backfill_tasksAdded"] = (e) => {
-    this.ui.backfillTaskTotal += e.taskCount;
+  private backfill_sourceStarted: Events["backfill_sourceStarted"] = (e) => {
+    // this.ui.stats[e.source].startTimestamp = Date.now();
+    this.ui.stats[e.source].cacheRate = e.cacheRate;
   };
 
-  private backfill_logTaskDone: Events["backfill_logTaskDone"] = () => {};
+  private backfill_logTasksAdded: Events["backfill_logTasksAdded"] = (e) => {
+    this.ui.stats[e.source].logTotal += e.taskCount;
+  };
+  private backfill_blockTasksAdded: Events["backfill_blockTasksAdded"] = (
+    e
+  ) => {
+    this.ui.stats[e.source].blockTotal += e.taskCount;
+  };
 
-  private backfill_blockTaskDone: Events["backfill_blockTaskDone"] = () => {};
+  private backfill_logTaskDone: Events["backfill_logTaskDone"] = (e) => {
+    if (this.ui.stats[e.source].logCurrent === 0) {
+      this.ui.stats[e.source].logStartTimestamp = Date.now();
+    }
+
+    const newLogCurrent = this.ui.stats[e.source].logCurrent + 1;
+
+    if (!(newLogCurrent % 75 === 0)) {
+      this.ui.stats[e.source] = {
+        ...this.ui.stats[e.source],
+        logCurrent: newLogCurrent,
+      };
+      return;
+    }
+
+    const now = Date.now();
+    const newBlockCount = this.ui.stats[e.source].blockTotal;
+
+    this.ui.stats[e.source] = {
+      ...this.ui.stats[e.source],
+      logCurrent: newLogCurrent,
+      logAvgDurationInst:
+        (now - this.ui.stats[e.source].logCheckpointTimestamp) / 75,
+      logAvgDurationTotal:
+        (now - this.ui.stats[e.source].logStartTimestamp) /
+        this.ui.stats[e.source].logCurrent,
+      logCheckpointTimestamp: now,
+      logAvgBlockCountInst:
+        (newBlockCount - this.ui.stats[e.source].logCheckpointBlockCount) / 75,
+      logAvgBlockCountTotal:
+        this.ui.stats[e.source].blockTotal / this.ui.stats[e.source].logCurrent,
+      logCheckpointBlockCount: newBlockCount,
+    };
+  };
+
+  private backfill_blockTaskDone: Events["backfill_blockTaskDone"] = (e) => {
+    if (this.ui.stats[e.source].blockCurrent === 0) {
+      this.ui.stats[e.source].blockStartTimestamp = Date.now();
+    }
+
+    const newBlockCurrent = this.ui.stats[e.source].blockCurrent + 1;
+
+    if (!(newBlockCurrent % 75 === 0)) {
+      this.ui.stats[e.source] = {
+        ...this.ui.stats[e.source],
+        blockCurrent: newBlockCurrent,
+      };
+      return;
+    }
+
+    const now = Date.now();
+
+    this.ui.stats[e.source] = {
+      ...this.ui.stats[e.source],
+      blockCurrent: newBlockCurrent,
+      blockAvgDurationInst:
+        (now - this.ui.stats[e.source].blockCheckpointTimestamp) / 75,
+      blockAvgDurationTotal:
+        (now - this.ui.stats[e.source].blockStartTimestamp) /
+        this.ui.stats[e.source].blockCurrent,
+      blockCheckpointTimestamp: now,
+    };
+  };
+
+  private backfill_newLogs = () => {
+    // this.handleNewLogs();
+  };
 
   private frontfill_newLogs: Events["frontfill_newLogs"] = (e) => {
     this.handleNewLogs();
@@ -379,7 +452,6 @@ export class Ponder extends EventEmitter<Events> {
       blockTxnCount: e.blockTxnCount,
       matchedLogCount: e.matchedLogCount,
     };
-    render(this.ui);
   };
 
   private indexer_taskStarted = () => {
@@ -403,10 +475,37 @@ export class Ponder extends EventEmitter<Events> {
       ...this.ui,
       handlerError: e.error,
     };
-    render(this.ui);
   };
 
   // --------------------------- HELPERS --------------------------- //
+
+  private updateBackfillEta = () => {
+    for (const source of this.sources) {
+      const stats = this.ui.stats[source.name];
+
+      // Weight 50/50 inst vs total
+      const logAvgDuration =
+        0.0 * stats.logAvgDurationInst + 1 * stats.logAvgDurationTotal;
+      const logTime = (stats.logTotal - stats.logCurrent) * logAvgDuration;
+
+      const blockAvgDuration =
+        0.0 * stats.blockAvgDurationInst + 1 * stats.blockAvgDurationTotal;
+      const blockTime =
+        (stats.blockTotal - stats.blockCurrent) * blockAvgDuration;
+
+      const avgBlockCount =
+        0.0 * stats.logAvgBlockCountInst + 1 * stats.logAvgBlockCountTotal;
+      const estimatedAdditionalBlocks =
+        (stats.logTotal - stats.logCurrent) * avgBlockCount;
+
+      const estimatedAdditionalBlockTime =
+        estimatedAdditionalBlocks * blockAvgDuration;
+
+      const eta = logTime + blockTime + estimatedAdditionalBlockTime;
+
+      this.ui.stats[source.name].eta = eta;
+    }
+  };
 
   // private logBackfillProgress() {
   //   if (this.ui.isProd && this.ui.backfillTaskCurrent % 50 === 0) {
