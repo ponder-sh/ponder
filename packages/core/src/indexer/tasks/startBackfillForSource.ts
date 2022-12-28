@@ -59,7 +59,7 @@ export const startBackfillForSource = async ({
         fromBlock,
         toBlock,
       });
-      ponder.emit("backfillTasksAdded", 1);
+      ponder.emit("backfill_tasksAdded", { taskCount: 1 });
       totalLogTasks++;
       continue;
     }
@@ -73,7 +73,7 @@ export const startBackfillForSource = async ({
 
       fromBlock = toBlock + 1;
       toBlock = Math.min(fromBlock + source.blockLimit, endBlock);
-      ponder.emit("backfillTasksAdded", 1);
+      ponder.emit("backfill_tasksAdded", { taskCount: 1 });
       totalLogTasks++;
     }
   }

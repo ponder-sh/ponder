@@ -22,13 +22,23 @@ export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
 export const startBenchmark = () => process.hrtime();
 export const endBenchmark = (hrt: [number, number]) => {
   const diffHrt = process.hrtime(hrt);
-  const diffMilliseconds = Math.round(diffHrt[0] * 1000 + diffHrt[1] / 1000000);
-  const diffString =
-    diffMilliseconds >= 1000
-      ? `${Math.round((diffMilliseconds / 1000) * 10) / 10}s`
-      : `${diffMilliseconds}ms`;
+  return Math.round(diffHrt[0] * 1000 + diffHrt[1] / 1000000);
+};
 
-  return diffString;
+export const formatEta = (ms: number) => {
+  // If less than 1 second, return ms.
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = Math.floor(ms / 1000);
+
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds - h * 3600) / 60);
+  const s = seconds - h * 3600 - m * 60;
+
+  const hstr = h > 0 ? `${h}h ` : "";
+  const mstr = m > 0 || h > 0 ? `${m}m ` : "";
+  const sstr = s > 0 || m > 0 ? `${s}s` : "";
+
+  return `${hstr}${mstr}${sstr}`;
 };
 
 const latestFileHash: Record<string, string | undefined> = {};

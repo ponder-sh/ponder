@@ -135,6 +135,7 @@ importers:
       prettier: ^2.6.2
       react: '17'
       tsconfig-replace-paths: ^0.0.11
+      typed-emitter: ^2.1.0
       typescript: ^4.8.4
     dependencies:
       '@ethersproject/abi': 5.6.4
@@ -161,6 +162,7 @@ importers:
       '@types/react': 18.0.25
       jest: 29.3.1_@types+node@18.7.8
       tsconfig-replace-paths: 0.0.11
+      typed-emitter: 2.1.0
 
   packages/create-ponder:
     specifiers:
@@ -7334,6 +7336,14 @@ packages:
       queue-microtask: 1.2.3
     dev: true
 
+  /rxjs/7.8.0:
+    resolution: {integrity: sha512-F2+gxDshqmIub1KdvZkaEfGDwLNpPvk9Fs6LD/MyQxNgMds/WH9OdDDXOmxUZpME+iSK3rQCctkL0DYyytUqMg==}
+    requiresBuild: true
+    dependencies:
+      tslib: 2.4.0
+    dev: true
+    optional: true
+
   /sade/1.8.1:
     resolution: {integrity: sha512-xal3CZX1Xlo/k4ApwCFrHVACi9fBqJ7V+mwhBsuf/1IOKbBy098Fex+Wa/5QMubw09pSZ/u8EY8PWgevJsXp1A==}
     engines: {node: '>=6'}
@@ -7958,6 +7968,12 @@ packages:
       media-typer: 0.3.0
       mime-types: 2.1.35
     dev: false
+
+  /typed-emitter/2.1.0:
+    resolution: {integrity: sha512-g/KzbYKbH5C2vPkaXGu8DJlHrGKHLsM25Zg9WuC9pMGfuvT+X25tZQWo5fK1BjBm8+UrVE9LDCvaY0CQk+fXDA==}
+    optionalDependencies:
+      rxjs: 7.8.0
+    dev: true
 
   /typescript/4.7.3:
     resolution: {integrity: sha512-WOkT3XYvrpXx4vMMqlD+8R8R37fZkjyLGlxavMc4iB8lrl8L0DeTcHbYgw/v0N/z9wAFsgBhcsF0ruoySS22mA==}

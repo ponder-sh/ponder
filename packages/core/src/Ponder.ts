@@ -1,4 +1,3 @@
-import EventEmitter from "node:events";
 import { watch } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
@@ -6,10 +5,11 @@ import pico from "picocolors";
 import { PonderCliOptions } from "@/bin/ponder";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
+import { EventEmitter } from "@/common/EventEmitter";
 import { logger, PonderLogger } from "@/common/logger";
 import { buildOptions, PonderOptions } from "@/common/options";
 import { PonderConfig, readPonderConfig } from "@/common/readPonderConfig";
-import { endBenchmark, startBenchmark } from "@/common/utils";
+import { endBenchmark, formatEta, startBenchmark } from "@/common/utils";
 import { isFileChanged } from "@/common/utils";
 import { buildCacheStore, CacheStore } from "@/db/cache/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
@@ -29,7 +29,32 @@ import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
 import { getUiState, HandlersStatus, render, UiState } from "@/ui/app";
 
-export class Ponder extends EventEmitter {
+type Events = {
+  config_error: (arg: { error: string }) => void;
+
+  backfill_networkConnected: (arg: {
+    network: string;
+    blockNumber: number;
+    blockTimestamp: number;
+  }) => void;
+  backfill_newLogs: () => void;
+  backfill_tasksAdded: (arg: { taskCount: number }) => void;
+  backfill_logTaskDone: (arg: { source: string }) => void;
+  backfill_blockTaskDone: (arg: { source: string }) => void;
+
+  frontfill_newLogs: (arg: {
+    network: string;
+    blockNumber: number;
+    blockTimestamp: number;
+    blockTxnCount: number;
+    matchedLogCount: number;
+  }) => void;
+
+  indexer_taskStarted: () => void;
+  indexer_taskError: (arg: { error: Error }) => void;
+};
+
+export class Ponder extends EventEmitter<Events> {
   config: PonderConfig;
 
   sources: EvmSource[];
@@ -62,17 +87,18 @@ export class Ponder extends EventEmitter {
   constructor(cliOptions: PonderCliOptions) {
     super();
 
-    this.on("newNetworkConnected", this.handleNewNetworkConnected);
-    this.on("newBackfillLogs", this.handleNewBackfillLogs);
-    this.on("newFrontfillLogs", this.handleNewFrontfillLogs);
+    this.on("config_error", this.config_error);
 
-    this.on("backfillTasksAdded", this.handleBackfillTasksAdded);
-    this.on("backfillTaskCompleted", this.handleBackfillTaskCompleted);
+    this.on("backfill_networkConnected", this.backfill_networkConnected);
+    this.on("backfill_newLogs", this.backfill_newLogs);
+    this.on("backfill_tasksAdded", this.backfill_tasksAdded);
+    this.on("backfill_logTaskDone", this.backfill_logTaskDone);
+    this.on("backfill_blockTaskDone", this.backfill_blockTaskDone);
 
-    this.on("handlerTaskStarted", this.handleHandlerTaskStarted);
+    this.on("frontfill_newLogs", this.frontfill_newLogs);
 
-    this.on("configError", this.handleConfigError);
-    this.on("handlerTaskError", this.handleHandlerTaskError);
+    this.on("indexer_taskStarted", this.indexer_taskStarted);
+    this.on("indexer_taskError", this.indexer_taskError);
 
     this.options = buildOptions(cliOptions);
 
@@ -107,39 +133,12 @@ export class Ponder extends EventEmitter {
     ];
   }
 
-  async setup() {
-    this.renderInterval = setInterval(() => {
-      this.ui.timestamp = Math.floor(Date.now() / 1000);
-      render(this.ui);
-    }, 1000);
-
-    await Promise.all([
-      this.cacheStore.migrate(),
-      this.entityStore.migrate(this.schema),
-      this.reloadHandlers(),
-    ]);
-
-    // If there is a config error, display the error and exit the process.
-    // Eventually, it might make sense to support hot reloading for ponder.config.js.
-    if (this.ui.configError) {
-      process.exit(1);
-    }
-  }
-
-  kill() {
-    clearInterval(this.renderInterval);
-    this.handlerQueue?.kill();
-    this.killFrontfillQueues?.();
-    this.killBackfillQueues?.();
-    this.killWatchers?.();
-    this.teardownPlugins();
-  }
+  // --------------------------- PUBLIC METHODS --------------------------- //
 
   async start() {
     this.ui.isProd = true;
     await this.setup();
 
-    this.codegen();
     this.setupPlugins();
 
     await this.backfill();
@@ -162,15 +161,44 @@ export class Ponder extends EventEmitter {
     generateHandlerTypes({ ponder: this });
   }
 
+  kill() {
+    clearInterval(this.renderInterval);
+    this.handlerQueue?.kill();
+    this.killFrontfillQueues?.();
+    this.killBackfillQueues?.();
+    this.killWatchers?.();
+    this.teardownPlugins();
+  }
+
   async reloadSchema() {
     const userSchema = readSchema({ ponder: this });
     this.schema = buildPonderSchema(userSchema);
     await this.entityStore.migrate(this.schema);
   }
 
+  // --------------------------- INTERNAL METHODS --------------------------- //
+
+  async setup() {
+    this.renderInterval = setInterval(() => {
+      this.ui.timestamp = Math.floor(Date.now() / 1000);
+      render(this.ui);
+    }, 1000);
+
+    await Promise.all([
+      this.cacheStore.migrate(),
+      this.entityStore.migrate(this.schema),
+      this.reloadHandlers(),
+    ]);
+
+    // If there is a config error, display the error and exit the process.
+    // Eventually, it might make sense to support hot reloading for ponder.config.js.
+    if (this.ui.configError) {
+      process.exit(1);
+    }
+  }
+
   async reloadHandlers() {
     if (this.handlerQueue) {
-      logger.debug("Killing old handlerQueue");
       this.handlerQueue.kill();
       delete this.handlerQueue;
       this.isHandlingLogs = false;
@@ -200,6 +228,30 @@ export class Ponder extends EventEmitter {
     this.handleNewLogs();
   }
 
+  watch() {
+    const watchers = this.watchFiles.map((fileOrDirName) =>
+      watch(fileOrDirName, { recursive: true }, (_, fileName) => {
+        const fullPath =
+          path.basename(fileOrDirName) === fileName
+            ? fileOrDirName
+            : path.join(fileOrDirName, fileName);
+
+        if (isFileChanged(fullPath)) {
+          logger.info("");
+          logger.info(
+            pico.magenta(`Detected change in: `) + pico.bold(`${fileName}`)
+          );
+
+          this.reload();
+        }
+      })
+    );
+
+    this.killWatchers = () => {
+      watchers.forEach((w) => w.close());
+    };
+  }
+
   async backfill() {
     this.ui = {
       ...this.ui,
@@ -221,9 +273,11 @@ export class Ponder extends EventEmitter {
     this.killBackfillQueues = killBackfillQueues;
 
     await drainBackfillQueues();
-    const duration = endBenchmark(startHrt);
+    const duration = formatEta(endBenchmark(startHrt));
 
-    logger.debug(`Backfill completed in ${duration}`);
+    if (this.ui.isProd) {
+      logger.info(`Backfill completed in ${duration}`);
+    }
 
     this.ui = {
       ...this.ui,
@@ -237,7 +291,7 @@ export class Ponder extends EventEmitter {
     this.handleNewLogs();
   }
 
-  async handleNewLogs() {
+  private async handleNewLogs() {
     if (!this.handlerQueue || this.isHandlingLogs) return;
     this.isHandlingLogs = true;
 
@@ -254,7 +308,6 @@ export class Ponder extends EventEmitter {
     this.ui.handlersTotal += logs.length;
     render(this.ui);
 
-    logger.debug(`Adding ${logs.length} to handlerQueue`);
     this.handlerQueue.push(logs);
     await this.handlerQueue.process();
 
@@ -262,154 +315,108 @@ export class Ponder extends EventEmitter {
     this.isHandlingLogs = false;
   }
 
-  private handleBackfillTasksAdded(taskCount: number) {
-    this.ui.backfillTaskTotal += taskCount;
-    this.updateBackfillEta();
-    render(this.ui);
-  }
+  // --------------------------- PLUGINS --------------------------- //
 
-  private handleBackfillTaskCompleted() {
-    this.ui.backfillTaskCurrent += 1;
-    this.updateBackfillEta();
-    render(this.ui);
-  }
-
-  private updateBackfillEta() {
-    const newEta = Math.round(
-      ((Math.floor(Date.now() / 1000) - this.ui.backfillStartTimestamp) /
-        this.ui.backfillTaskCurrent) *
-        this.ui.backfillTaskTotal
-    );
-    if (!Number.isFinite(newEta)) return;
-
-    this.ui.backfillEta =
-      newEta - (this.ui.timestamp - this.ui.backfillStartTimestamp);
-  }
-
-  private handleHandlerTaskStarted() {
-    this.ui.handlersCurrent += 1;
-    this.ui.handlersStatus =
-      this.ui.handlersCurrent === this.ui.handlersTotal
-        ? HandlersStatus.UP_TO_LATEST
-        : HandlersStatus.IN_PROGRESS;
-    render(this.ui);
-  }
-
-  private handleConfigError(error: string) {
-    this.ui = {
-      ...this.ui,
-      configError: error,
-    };
-    render(this.ui);
-  }
-
-  private handleHandlerTaskError(error: Error) {
-    logger.info("");
-    logger.info(
-      pico.red(`Handler error: `) + pico.bold(`${error.name}: ${error.message}`)
-    );
-    this.handlerQueue?.kill();
-
-    this.ui = {
-      ...this.ui,
-      handlerError: error,
-    };
-    render(this.ui);
-  }
-
-  private handleNewNetworkConnected({
-    network,
-    blockNumber,
-    blockTimestamp,
-  }: {
-    network: string;
-    blockNumber: number;
-    blockTimestamp: number;
-  }) {
-    this.ui.networks[network] = {
-      name: network,
-      blockNumber: blockNumber,
-      blockTimestamp: blockTimestamp,
-      blockTxnCount: -1,
-      matchedLogCount: -1,
-    };
-  }
-
-  private handleNewFrontfillLogs({
-    network,
-    blockNumber,
-    blockTimestamp,
-    blockTxnCount,
-    matchedLogCount,
-  }: {
-    network: string;
-    blockNumber: number;
-    blockTimestamp: number;
-    blockTxnCount: number;
-    matchedLogCount: number;
-  }) {
-    this.handleNewLogs();
-    this.ui.networks[network] = {
-      name: network,
-      blockNumber: blockNumber,
-      blockTimestamp: blockTimestamp,
-      blockTxnCount: blockTxnCount,
-      matchedLogCount: matchedLogCount,
-    };
-    render(this.ui);
-  }
-
-  private handleNewBackfillLogs() {
-    this.handleNewLogs();
-  }
-
-  watch() {
-    const watchers = this.watchFiles.map((fileOrDirName) =>
-      watch(fileOrDirName, { recursive: true }, (_, fileName) => {
-        const fullPath =
-          path.basename(fileOrDirName) === fileName
-            ? fileOrDirName
-            : path.join(fileOrDirName, fileName);
-
-        logger.debug("File changed:");
-        logger.debug({ fileOrDirName, fileName, fullPath });
-
-        if (isFileChanged(fullPath)) {
-          logger.info("");
-          logger.info(
-            pico.magenta(`Detected change in: `) + pico.bold(`${fileName}`)
-          );
-
-          this.reload();
-        } else {
-          logger.debug("File content not changed, not reloading");
-        }
-      })
-    );
-
-    this.killWatchers = () => {
-      watchers.forEach((w) => w.close());
-    };
-  }
-
-  async setupPlugins() {
+  private async setupPlugins() {
     for (const plugin of this.plugins) {
       if (!plugin.setup) return;
       await plugin.setup(this);
     }
   }
 
-  async reloadPlugins() {
+  private async reloadPlugins() {
     for (const plugin of this.plugins) {
       if (!plugin.reload) return;
       await plugin.reload(this);
     }
   }
 
-  async teardownPlugins() {
+  private async teardownPlugins() {
     for (const plugin of this.plugins) {
       if (!plugin.teardown) return;
       plugin.teardown(this);
     }
   }
+
+  // --------------------------- EVENT HANDLERS --------------------------- //
+
+  private config_error: Events["config_error"] = (e) => {
+    this.ui = {
+      ...this.ui,
+      configError: e.error,
+    };
+    render(this.ui);
+  };
+
+  private backfill_networkConnected: Events["backfill_networkConnected"] = (
+    e
+  ) => {
+    this.ui.networks[e.network] = {
+      name: e.network,
+      blockNumber: e.blockNumber,
+      blockTimestamp: e.blockTimestamp,
+      blockTxnCount: -1,
+      matchedLogCount: -1,
+    };
+  };
+
+  private backfill_newLogs = () => this.handleNewLogs();
+
+  private backfill_tasksAdded: Events["backfill_tasksAdded"] = (e) => {
+    this.ui.backfillTaskTotal += e.taskCount;
+  };
+
+  private backfill_logTaskDone: Events["backfill_logTaskDone"] = () => {};
+
+  private backfill_blockTaskDone: Events["backfill_blockTaskDone"] = () => {};
+
+  private frontfill_newLogs: Events["frontfill_newLogs"] = (e) => {
+    this.handleNewLogs();
+    this.ui.networks[e.network] = {
+      name: e.network,
+      blockNumber: e.blockNumber,
+      blockTimestamp: e.blockTimestamp,
+      blockTxnCount: e.blockTxnCount,
+      matchedLogCount: e.matchedLogCount,
+    };
+    render(this.ui);
+  };
+
+  private indexer_taskStarted = () => {
+    this.ui.handlersCurrent += 1;
+    this.ui.handlersStatus =
+      this.ui.handlersCurrent === this.ui.handlersTotal
+        ? HandlersStatus.UP_TO_LATEST
+        : HandlersStatus.IN_PROGRESS;
+    render(this.ui);
+  };
+
+  private indexer_taskError: Events["indexer_taskError"] = (e) => {
+    logger.info("");
+    logger.info(
+      pico.red(`Handler error: `) +
+        pico.bold(`${e.error.name}: ${e.error.message}`)
+    );
+    this.handlerQueue?.kill();
+
+    this.ui = {
+      ...this.ui,
+      handlerError: e.error,
+    };
+    render(this.ui);
+  };
+
+  // --------------------------- HELPERS --------------------------- //
+
+  // private logBackfillProgress() {
+  //   if (this.ui.isProd && this.ui.backfillTaskCurrent % 50 === 0) {
+  //     logger.info(
+  //       `${this.ui.backfillTaskCurrent}/${
+  //         this.ui.backfillTaskTotal
+  //       } backfill tasks complete, ~${formatEta(
+  //         1000 // this.ui.backfillEta.eta
+  //       )} remaining`
+  //     );
+  //   }
+  // }
 }

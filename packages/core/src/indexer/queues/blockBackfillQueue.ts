@@ -65,5 +65,5 @@ async function blockBackfillWorker(
   ]);
 
   await onSuccess(blockHash);
-  ponder.emit("backfillTaskCompleted");
+  ponder.emit("backfill_blockTaskDone");
 }

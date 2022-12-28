@@ -106,7 +106,7 @@ async function logBackfillWorker(
           })
         )
       );
-      ponder.emit("newBackfillLogs");
+      ponder.emit("backfill_newLogs");
     }
   };
 
@@ -124,6 +124,6 @@ async function logBackfillWorker(
     });
   });
 
-  ponder.emit("backfillTasksAdded", requiredBlockHashes.length);
-  ponder.emit("backfillTaskCompleted");
+  ponder.emit("backfill_tasksAdded", { taskCount: requiredBlockHashes.length });
+  ponder.emit("backfill_logTaskDone");
 }

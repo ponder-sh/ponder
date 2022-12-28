@@ -8,7 +8,7 @@ import type { Handlers } from "./readHandlers";
 
 export function createNotSoFastQueue<T>(
   worker: (task: T) => Promise<any> | any,
-  errorHandler: (err: unknown) => any
+  errorHandler: (err: Error) => any
 ) {
   let tasks: T[] = [];
 
@@ -22,7 +22,7 @@ export function createNotSoFastQueue<T>(
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
           await worker(tasks.shift()!);
         } catch (err) {
-          errorHandler(err);
+          errorHandler(err as Error);
         }
       }
     },
@@ -83,7 +83,7 @@ export const createHandlerQueue = ({
   };
 
   const handlerWorker = async (log: EventLog) => {
-    ponder.emit("handlerTaskStarted");
+    ponder.emit("indexer_taskStarted");
 
     const source = ponder.sources.find(
       (source) => source.address === log.address
@@ -152,9 +152,9 @@ export const createHandlerQueue = ({
     await handler(event, handlerContext);
   };
 
-  const queue = createNotSoFastQueue(handlerWorker, (err) => {
-    if (err) {
-      ponder.emit("handlerTaskError", err);
+  const queue = createNotSoFastQueue(handlerWorker, (error) => {
+    if (error) {
+      ponder.emit("indexer_taskError", { error });
     }
   });
 
