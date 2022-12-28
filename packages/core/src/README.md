@@ -30,36 +30,35 @@ type BackfillEtaStats = {
 };
 
 const handleLogTaskCompleted = () => {
-  const newLogCurrent = this.backfillStats.logCurrent + 1;
+  const newLogCurrent = this.stats.logCurrent + 1;
 
   if (!(newLogCurrent % 5 === 0)) {
-    this.backfillStats = {
-      ...this.backfillStats,
+    this.stats = {
+      ...this.stats,
       logCurrent: newLogCurrent
     };
     return;
   }
 
   const now = Math.floor(Date.now() / 1000);
-  const newBlockCount = this.backfillStats.blockTotal;
+  const newBlockCount = this.stats.blockTotal;
 
-  this.backfillStats = {
-    ...this.backfillStats,
+  this.stats = {
+    ...this.stats,
     logCurrent: newLogCurrent,
-    logAvgDuration: (now - this.backfillStats.logTaskCheckpointTimestamp) / 5,
+    logAvgDuration: (now - this.stats.logTaskCheckpointTimestamp) / 5,
     logCheckpointTimestamp: now,
-    logAvgBlockCount:
-      (newBlockCount - this.backfillStats.logCheckpointBlockCount) / 5,
+    logAvgBlockCount: (newBlockCount - this.stats.logCheckpointBlockCount) / 5,
     logCheckpointBlockCount: newBlockCount
   };
 };
 
 const handleBlockTaskCompleted = () => {
-  const newBlockCurrent = this.backfillStats.blockCurrent + 1;
+  const newBlockCurrent = this.stats.blockCurrent + 1;
 
   if (!(newBlockCurrent % 5 === 0)) {
-    this.backfillStats = {
-      ...this.backfillStats,
+    this.stats = {
+      ...this.stats,
       blockCurrent: newBlockCurrent
     };
     return;
@@ -67,10 +66,10 @@ const handleBlockTaskCompleted = () => {
 
   const now = Math.floor(Date.now() / 1000);
 
-  this.backfillStats = {
-    ...this.backfillStats,
+  this.stats = {
+    ...this.stats,
     blockCurrent: newBlockCurrent,
-    blockAvgDuration: (now - this.backfillStats.logTaskCheckpointTimestamp) / 5,
+    blockAvgDuration: (now - this.stats.logTaskCheckpointTimestamp) / 5,
     blockCheckpointTimestamp: now
   };
 };

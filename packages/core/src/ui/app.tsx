@@ -1,7 +1,6 @@
 import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
-import { logger } from "@/common/logger";
 import { PonderOptions } from "@/common/options";
 
 import { ProgressBar } from "./ProgressBar";
@@ -18,8 +17,25 @@ export type UiState = {
 
   timestamp: number;
 
+  // See src/README.md. This maps source name to backfill stats.
+  stats: Record<
+    string,
+    {
+      logTotal: number;
+      logCurrent: number;
+      logCheckpointTimestamp: number;
+      logAvgDuration: number;
+      logCheckpointBlockCount: number;
+      logAvgBlockCount: number;
+
+      blockTotal: number;
+      blockCurrent: number;
+      blockCheckpointTimestamp: number;
+      blockAvgDuration: number;
+    }
+  >;
+
   backfillStartTimestamp: number;
-  backfillEta: number;
   backfillTaskCurrent: number;
   backfillTaskTotal: number;
 
@@ -52,8 +68,9 @@ export const getUiState = (options: PonderOptions): UiState => {
 
     timestamp: 0,
 
+    stats: {},
+
     backfillStartTimestamp: 0,
-    backfillEta: 0,
     backfillTaskCurrent: 0,
     backfillTaskTotal: 0,
 
@@ -71,14 +88,11 @@ export const getUiState = (options: PonderOptions): UiState => {
   };
 };
 
-let prevTimestamp = 0;
-
 const App = ({
   isSilent,
   isProd,
   timestamp,
 
-  backfillEta,
   backfillTaskCurrent,
   backfillTaskTotal,
 
@@ -110,8 +124,8 @@ const App = ({
   const backfillPercent = `${Math.round(
     100 * (backfillTaskCurrent / Math.max(backfillTaskTotal, 1))
   )}%`;
-  const backfillEtaText =
-    backfillEta && backfillEta > 0 ? ` | ETA: ${backfillEta}s` : null;
+  const backfillEtaText = "";
+  // backfillEta && backfillEta > 0 ? ` | ETA: ${backfillEta}s` : null;
   const backfillCountText =
     backfillTaskTotal > 0
       ? ` | ${backfillTaskCurrent}/${backfillTaskTotal}`
@@ -132,20 +146,7 @@ const App = ({
       ? ` | ${handlersCurrent}${handlerBottomText} events`
       : null;
 
-  if (isProd) {
-    if (timestamp > prevTimestamp + 5) {
-      logger.debug({
-        handlerError,
-        backfillPercent,
-        backfillCountText,
-        handlersPercent,
-        handlersCountText,
-      });
-      prevTimestamp = timestamp;
-    }
-
-    return null;
-  }
+  if (isProd) return null;
 
   if (configError) {
     return (
