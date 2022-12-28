@@ -465,7 +465,7 @@ export class Ponder extends EventEmitter<Events> {
 
       const eta = Math.max(logTime, blockTime + estimatedAdditionalBlockTime);
 
-      this.ui.stats[source.name].eta = eta;
+      this.ui.stats[source.name].eta = Number.isNaN(eta) ? 0 : eta;
     }
   };
 

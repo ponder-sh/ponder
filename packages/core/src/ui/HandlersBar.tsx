@@ -7,25 +7,10 @@ import { ProgressBar } from "./ProgressBar";
 export const HandlersBar = ({ ui }: { ui: UiState }) => {
   const completionRate = ui.handlersCurrent / Math.max(ui.handlersTotal, 1);
   const completionDecimal = Math.round(completionRate * 1000) / 10;
-  const completionText = Number.isInteger(completionDecimal)
-    ? `${completionDecimal}.0%`
-    : `${completionDecimal}%`;
-
-  // const handlerBottomText =
-  //   !isBackfillComplete &&
-  //   handlersTotal > 0 &&
-  //   handlersTotal === handlersCurrent
-  //     ? ""
-  //     : `/${handlersTotal}`;
-  // const handlersCountText =
-  //   handlersTotal > 0
-  //     ? ` | ${handlersCurrent}${handlerBottomText} events`
-  //     : null;
-
-  // // Only display the ETA text once 50 log tasks have been processed
-  // const backfillEtaText =
-  //   stat.logTotal > 50 && stat.eta > 0 ? ` | ~${formatEta(stat.eta)}` : null;
-  // const backfillCountText = total > 0 ? ` | ${current}/${total}` : null;
+  const completionText =
+    Number.isInteger(completionDecimal) && completionDecimal < 100
+      ? `${completionDecimal}.0%`
+      : `${completionDecimal}%`;
 
   const date = new Date(ui.handlersToTimestamp * 1000);
   const year = date.getFullYear();
@@ -62,26 +47,37 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
     return <Text>(not started)</Text>;
   };
 
+  const countText = () => {
+    if (isUpToDate)
+      return (
+        <Text>
+          {" "}
+          | {ui.handlersCurrent}/{ui.handlersTotal} events
+        </Text>
+      );
+    if (isStarted) return <Text> | {ui.handlersCurrent}/??? events</Text>;
+    return null;
+  };
+
   return (
     <Box flexDirection="column">
       <Box flexDirection="row">
         <Text bold={true}>Handlers </Text>
         <Text>{titleText()}</Text>
       </Box>
-      {!isUpToDate && (
-        <Box flexDirection="row">
-          <ProgressBar
-            current={ui.handlersCurrent}
-            end={Math.max(ui.handlersTotal, 1)}
-          />
-          <Text>
-            {" "}
-            {completionText}
-            {/* {backfillEtaText}
-          {backfillCountText} */}
-          </Text>
-        </Box>
-      )}
+      {/* {!isUpToDate && ( */}
+      <Box flexDirection="row">
+        <ProgressBar
+          current={ui.handlersCurrent}
+          end={Math.max(ui.handlersTotal, 1)}
+        />
+        <Text>
+          {" "}
+          {completionText}
+          {countText()}
+        </Text>
+      </Box>
+      {/* )} */}
 
       <Text> </Text>
     </Box>

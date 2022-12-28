@@ -2,8 +2,8 @@ import { Text } from "ink";
 import React from "react";
 
 export const ProgressBar = ({
-  end = 10,
   current = 5,
+  end = 10,
   width = 36,
   cachedRate = 0,
 }) => {
@@ -21,7 +21,7 @@ export const ProgressBar = ({
 
   return (
     <Text>
-      <Text color="yellow">{"█".repeat(cachedCount)}</Text>
+      <Text>{"█".repeat(cachedCount)}</Text>
       <Text>{"█".repeat(count)}</Text>
       <Text>{"░".repeat(maxCount - count)}</Text>
     </Text>

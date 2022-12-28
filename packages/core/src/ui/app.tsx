@@ -169,6 +169,7 @@ const App = (ui: UiState) => {
           {Object.entries(stats).map(([source, stat]) => (
             <BackfillBar key={source} source={source} stat={stat} />
           ))}
+          <Text> </Text>
         </Box>
       )}
 
@@ -192,9 +193,9 @@ const App = (ui: UiState) => {
                 {Math.max(timestamp - network.blockTimestamp, 0)}s ago)
               </Text>
             )}
-            <Text> </Text>
           </Box>
         ))}
+        <Text> </Text>
       </Box>
 
       {handlersCurrent > 0 && (

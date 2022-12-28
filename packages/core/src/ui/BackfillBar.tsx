@@ -19,25 +19,27 @@ export const BackfillBar = ({
   // Only display the ETA text once 5 log tasks have been processed
   const backfillEtaText =
     stat.logTotal > 5 && stat.eta > 0 ? ` | ~${formatEta(stat.eta)}` : null;
-  const backfillCountText = total > 0 ? ` | ${current}/${total}` : null;
+  // const backfillCountText = total > 0 ? ` | ${current}/${total}` : null;
 
-  const cacheRateDecimal = Math.round(stat.cacheRate * 1000) / 10;
-  const cacheRateText = Number.isInteger(cacheRateDecimal)
-    ? `${cacheRateDecimal}.0%`
-    : `${cacheRateDecimal}%`;
+  // const cacheRateDecimal = Math.round(stat.cacheRate * 1000) / 10;
+  // const cacheRateText = Number.isInteger(cacheRateDecimal)
+  //   ? `${cacheRateDecimal}.0%`
+  //   : `${cacheRateDecimal}%`;
 
   const rate =
     (current / Math.max(total, 1)) * (1 - stat.cacheRate) + stat.cacheRate;
 
   const completionDecimal = Math.round(rate * 1000) / 10;
-  const completionText = Number.isInteger(completionDecimal)
-    ? `${completionDecimal}.0%`
-    : `${completionDecimal}%`;
+  const completionText =
+    Number.isInteger(completionDecimal) && completionDecimal < 100
+      ? `${completionDecimal}.0%`
+      : `${completionDecimal}%`;
 
   return (
     <Box flexDirection="column">
       <Text>
-        {source} ({cacheRateText} cached)
+        {source}
+        {/* ({cacheRateText} cached) */}
       </Text>
       <Box flexDirection="row">
         <ProgressBar
@@ -49,10 +51,10 @@ export const BackfillBar = ({
           {" "}
           {completionText}
           {backfillEtaText}
-          {backfillCountText}
+          {/* {backfillCountText} */}
         </Text>
       </Box>
-      <Text> </Text>
+      {/* <Text> </Text> */}
     </Box>
   );
 };
