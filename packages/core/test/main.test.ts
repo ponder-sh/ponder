@@ -102,14 +102,18 @@ describe("Ponder", () => {
 
     it("registers event listeners", async () => {
       expect(ponder.eventNames()).toMatchObject([
-        "newNetworkConnected",
-        "newBackfillLogs",
-        "newFrontfillLogs",
-        "backfillTasksAdded",
-        "backfillTaskCompleted",
-        "handlerTaskStarted",
-        "configError",
-        "handlerTaskError",
+        "config_error",
+        "backfill_networkConnected",
+        "backfill_sourceStarted",
+        "backfill_logTasksAdded",
+        "backfill_blockTasksAdded",
+        "backfill_logTaskDone",
+        "backfill_blockTaskDone",
+        "backfill_newLogs",
+        "frontfill_newLogs",
+        "indexer_taskStarted",
+        "indexer_taskDone",
+        "indexer_taskError",
       ]);
     });
 
