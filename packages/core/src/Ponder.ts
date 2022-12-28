@@ -380,33 +380,14 @@ export class Ponder extends EventEmitter<Events> {
       this.ui.stats[e.source].logStartTimestamp = Date.now();
     }
 
-    const newLogCurrent = this.ui.stats[e.source].logCurrent + 1;
-
-    if (!(newLogCurrent % 75 === 0)) {
-      this.ui.stats[e.source] = {
-        ...this.ui.stats[e.source],
-        logCurrent: newLogCurrent,
-      };
-      return;
-    }
-
-    const now = Date.now();
-    const newBlockCount = this.ui.stats[e.source].blockTotal;
-
     this.ui.stats[e.source] = {
       ...this.ui.stats[e.source],
-      logCurrent: newLogCurrent,
-      logAvgDurationInst:
-        (now - this.ui.stats[e.source].logCheckpointTimestamp) / 75,
-      logAvgDurationTotal:
-        (now - this.ui.stats[e.source].logStartTimestamp) /
+      logCurrent: this.ui.stats[e.source].logCurrent + 1,
+      logAvgDuration:
+        (Date.now() - this.ui.stats[e.source].logStartTimestamp) /
         this.ui.stats[e.source].logCurrent,
-      logCheckpointTimestamp: now,
-      logAvgBlockCountInst:
-        (newBlockCount - this.ui.stats[e.source].logCheckpointBlockCount) / 75,
-      logAvgBlockCountTotal:
+      logAvgBlockCount:
         this.ui.stats[e.source].blockTotal / this.ui.stats[e.source].logCurrent,
-      logCheckpointBlockCount: newBlockCount,
     };
   };
 
@@ -415,27 +396,12 @@ export class Ponder extends EventEmitter<Events> {
       this.ui.stats[e.source].blockStartTimestamp = Date.now();
     }
 
-    const newBlockCurrent = this.ui.stats[e.source].blockCurrent + 1;
-
-    if (!(newBlockCurrent % 75 === 0)) {
-      this.ui.stats[e.source] = {
-        ...this.ui.stats[e.source],
-        blockCurrent: newBlockCurrent,
-      };
-      return;
-    }
-
-    const now = Date.now();
-
     this.ui.stats[e.source] = {
       ...this.ui.stats[e.source],
-      blockCurrent: newBlockCurrent,
-      blockAvgDurationInst:
-        (now - this.ui.stats[e.source].blockCheckpointTimestamp) / 75,
-      blockAvgDurationTotal:
-        (now - this.ui.stats[e.source].blockStartTimestamp) /
+      blockCurrent: this.ui.stats[e.source].blockCurrent + 1,
+      blockAvgDuration:
+        (Date.now() - this.ui.stats[e.source].blockStartTimestamp) /
         this.ui.stats[e.source].blockCurrent,
-      blockCheckpointTimestamp: now,
     };
   };
 
@@ -483,25 +449,19 @@ export class Ponder extends EventEmitter<Events> {
     for (const source of this.sources) {
       const stats = this.ui.stats[source.name];
 
-      // Weight 50/50 inst vs total
-      const logAvgDuration =
-        0.0 * stats.logAvgDurationInst + 1 * stats.logAvgDurationTotal;
-      const logTime = (stats.logTotal - stats.logCurrent) * logAvgDuration;
+      const logTime =
+        (stats.logTotal - stats.logCurrent) * stats.logAvgDuration;
 
-      const blockAvgDuration =
-        0.0 * stats.blockAvgDurationInst + 1 * stats.blockAvgDurationTotal;
       const blockTime =
-        (stats.blockTotal - stats.blockCurrent) * blockAvgDuration;
+        (stats.blockTotal - stats.blockCurrent) * stats.blockAvgDuration;
 
-      const avgBlockCount =
-        0.0 * stats.logAvgBlockCountInst + 1 * stats.logAvgBlockCountTotal;
       const estimatedAdditionalBlocks =
-        (stats.logTotal - stats.logCurrent) * avgBlockCount;
+        (stats.logTotal - stats.logCurrent) * stats.logAvgBlockCount;
 
       const estimatedAdditionalBlockTime =
-        estimatedAdditionalBlocks * blockAvgDuration;
+        estimatedAdditionalBlocks * stats.blockAvgDuration;
 
-      const eta = logTime + blockTime + estimatedAdditionalBlockTime;
+      const eta = Math.max(logTime, blockTime + estimatedAdditionalBlockTime);
 
       this.ui.stats[source.name].eta = eta;
     }

@@ -28,19 +28,13 @@ export type UiState = {
       logStartTimestamp: number;
       logTotal: number;
       logCurrent: number;
-      logCheckpointTimestamp: number;
-      logAvgDurationInst: number;
-      logAvgDurationTotal: number;
-      logCheckpointBlockCount: number;
-      logAvgBlockCountInst: number;
-      logAvgBlockCountTotal: number;
+      logAvgDuration: number;
+      logAvgBlockCount: number;
 
       blockStartTimestamp: number;
       blockTotal: number;
       blockCurrent: number;
-      blockCheckpointTimestamp: number;
-      blockAvgDurationInst: number;
-      blockAvgDurationTotal: number;
+      blockAvgDuration: number;
 
       eta: number;
     }
@@ -106,18 +100,12 @@ export const hydrateUi = ({
       logStartTimestamp: 0,
       logTotal: 0,
       logCurrent: 0,
-      logCheckpointTimestamp: 0,
-      logAvgDurationInst: 0,
-      logAvgDurationTotal: 0,
-      logCheckpointBlockCount: 0,
-      logAvgBlockCountInst: 0,
-      logAvgBlockCountTotal: 0,
+      logAvgDuration: 0,
+      logAvgBlockCount: 0,
       blockStartTimestamp: 0,
       blockTotal: 0,
       blockCurrent: 0,
-      blockCheckpointTimestamp: 0,
-      blockAvgDurationInst: 0,
-      blockAvgDurationTotal: 0,
+      blockAvgDuration: 0,
       eta: 0,
     };
   });
