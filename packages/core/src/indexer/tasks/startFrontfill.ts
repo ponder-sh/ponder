@@ -45,7 +45,7 @@ export const startFrontfill = async ({ ponder }: { ponder: Ponder }) => {
         }
       }
 
-      ponder.emit("newNetworkConnected", {
+      ponder.emit("backfill_networkConnected", {
         network: network.name,
         blockNumber: latestBlockNumber,
         blockTimestamp: latestBlockTimestamp,

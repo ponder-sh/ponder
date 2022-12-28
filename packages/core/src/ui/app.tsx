@@ -1,16 +1,11 @@
 import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
-import { logger } from "@/common/logger";
 import { PonderOptions } from "@/common/options";
+import { Source } from "@/sources/base";
 
-import { ProgressBar } from "./ProgressBar";
-
-export enum HandlersStatus {
-  NOT_STARTED,
-  IN_PROGRESS,
-  UP_TO_LATEST,
-}
+import { BackfillBar } from "./BackfillBar";
+import { HandlersBar } from "./HandlersBar";
 
 export type UiState = {
   isSilent: boolean;
@@ -18,17 +13,33 @@ export type UiState = {
 
   timestamp: number;
 
-  backfillStartTimestamp: number;
-  backfillEta: number;
-  backfillTaskCurrent: number;
-  backfillTaskTotal: number;
+  // See src/README.md. This maps source name to backfill stats.
+  stats: Record<
+    string,
+    {
+      cacheRate: number;
+
+      logStartTimestamp: number;
+      logTotal: number;
+      logCurrent: number;
+      logAvgDuration: number;
+      logAvgBlockCount: number;
+
+      blockStartTimestamp: number;
+      blockTotal: number;
+      blockCurrent: number;
+      blockAvgDuration: number;
+
+      eta: number;
+    }
+  >;
 
   isBackfillComplete: boolean;
   backfillDuration: string;
 
-  handlersStatus: HandlersStatus;
   handlersCurrent: number;
   handlersTotal: number;
+  handlersToTimestamp: number;
 
   configError: string | null;
   handlerError: Error | null;
@@ -52,17 +63,14 @@ export const getUiState = (options: PonderOptions): UiState => {
 
     timestamp: 0,
 
-    backfillStartTimestamp: 0,
-    backfillEta: 0,
-    backfillTaskCurrent: 0,
-    backfillTaskTotal: 0,
+    stats: {},
 
     isBackfillComplete: false,
     backfillDuration: "",
 
-    handlersStatus: HandlersStatus.NOT_STARTED,
     handlersCurrent: 0,
     handlersTotal: 0,
+    handlersToTimestamp: 0,
 
     configError: null,
     handlerError: null,
@@ -71,81 +79,47 @@ export const getUiState = (options: PonderOptions): UiState => {
   };
 };
 
-let prevTimestamp = 0;
+export const hydrateUi = ({
+  ui,
+  sources,
+}: {
+  ui: UiState;
+  sources: Source[];
+}) => {
+  sources.forEach((source) => {
+    ui.stats[source.name] = {
+      cacheRate: 0,
+      logStartTimestamp: 0,
+      logTotal: 0,
+      logCurrent: 0,
+      logAvgDuration: 0,
+      logAvgBlockCount: 0,
+      blockStartTimestamp: 0,
+      blockTotal: 0,
+      blockCurrent: 0,
+      blockAvgDuration: 0,
+      eta: 0,
+    };
+  });
+};
 
-const App = ({
-  isSilent,
-  isProd,
-  timestamp,
+const App = (ui: UiState) => {
+  const {
+    isSilent,
+    isProd,
+    timestamp,
+    stats,
+    isBackfillComplete,
+    backfillDuration,
+    handlersCurrent,
+    configError,
+    handlerError,
+    networks,
+  } = ui;
 
-  backfillEta,
-  backfillTaskCurrent,
-  backfillTaskTotal,
-
-  isBackfillComplete,
-  backfillDuration,
-
-  handlersStatus,
-  handlersCurrent,
-  handlersTotal,
-
-  configError,
-  handlerError,
-
-  networks,
-}: UiState) => {
   if (isSilent) return null;
 
-  const handlersStatusText = () => {
-    switch (handlersStatus) {
-      case HandlersStatus.NOT_STARTED:
-        return <Text>(not started)</Text>;
-      case HandlersStatus.IN_PROGRESS:
-        return <Text color="yellowBright">(in progress)</Text>;
-      case HandlersStatus.UP_TO_LATEST:
-        return <Text color="greenBright">(up to date)</Text>;
-    }
-  };
-
-  const backfillPercent = `${Math.round(
-    100 * (backfillTaskCurrent / Math.max(backfillTaskTotal, 1))
-  )}%`;
-  const backfillEtaText =
-    backfillEta && backfillEta > 0 ? ` | ETA: ${backfillEta}s` : null;
-  const backfillCountText =
-    backfillTaskTotal > 0
-      ? ` | ${backfillTaskCurrent}/${backfillTaskTotal}`
-      : null;
-
-  const handlersPercent = `${Math.round(
-    100 * (handlersCurrent / Math.max(handlersTotal, 1))
-  )}%`;
-
-  const handlerBottomText =
-    !isBackfillComplete &&
-    handlersTotal > 0 &&
-    handlersTotal === handlersCurrent
-      ? ""
-      : `/${handlersTotal}`;
-  const handlersCountText =
-    handlersTotal > 0
-      ? ` | ${handlersCurrent}${handlerBottomText} events`
-      : null;
-
-  if (isProd) {
-    if (timestamp > prevTimestamp + 5) {
-      logger.debug({
-        handlerError,
-        backfillPercent,
-        backfillCountText,
-        handlersPercent,
-        handlersCountText,
-      });
-      prevTimestamp = timestamp;
-    }
-
-    return null;
-  }
+  if (isProd) return null;
 
   if (configError) {
     return (
@@ -191,39 +165,15 @@ const App = ({
         )}
       </Box>
       {!isBackfillComplete && (
-        <Box flexDirection="row">
-          <ProgressBar
-            current={backfillTaskCurrent}
-            end={Math.max(backfillTaskTotal, 1)}
-          />
-          <Text>
-            {" "}
-            {backfillPercent}
-            {backfillEtaText}
-            {backfillCountText}
-            <Newline />
-          </Text>
+        <Box flexDirection="column">
+          {Object.entries(stats).map(([source, stat]) => (
+            <BackfillBar key={source} source={source} stat={stat} />
+          ))}
+          <Text> </Text>
         </Box>
       )}
 
-      <Box flexDirection="row">
-        <Text bold={true}>Handlers </Text>
-        {handlersStatusText()}
-      </Box>
-      <Box flexDirection="row">
-        <ProgressBar
-          current={handlersCurrent}
-          end={Math.max(handlersTotal, 1)}
-        />
-        <Text>
-          {" "}
-          {handlersPercent}
-          {handlersCountText}
-          {/* {handlersCurrent}/{handlersTotal} events */}
-          {/* Newline below progress bar row */}
-          <Newline />
-        </Text>
-      </Box>
+      <HandlersBar ui={ui} />
 
       <Box flexDirection="column">
         {Object.values(networks).map((network) => (
@@ -236,19 +186,16 @@ const App = ({
                 Block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
                 {network.matchedLogCount} matched logs,{" "}
                 {timestamp - network.blockTimestamp}s ago)
-                {/* Newline below progress bar row */}
-                <Newline />
               </Text>
             ) : (
               <Text>
                 Block {network.blockNumber} (
                 {Math.max(timestamp - network.blockTimestamp, 0)}s ago)
-                {/* Newline below progress bar row */}
-                <Newline />
               </Text>
             )}
           </Box>
         ))}
+        <Text> </Text>
       </Box>
 
       {handlersCurrent > 0 && (

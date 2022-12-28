@@ -1,7 +1,6 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { logger } from "@/common/logger";
 import { ensureDirExists } from "@/common/utils";
 import type { Ponder } from "@/Ponder";
 
@@ -51,6 +50,4 @@ ${buildEventTypes(ponder.sources)}
   const filePath = path.join(ponder.options.GENERATED_DIR_PATH, "handlers.ts");
   ensureDirExists(filePath);
   writeFileSync(filePath, final, "utf8");
-
-  logger.debug(`Generated handlers.ts file`);
 };

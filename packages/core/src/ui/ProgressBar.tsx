@@ -2,17 +2,28 @@ import { Text } from "ink";
 import React from "react";
 
 export const ProgressBar = ({
-  end = 10,
   current = 5,
-  start = 0,
-  width = 40,
+  end = 10,
+  width = 36,
+  cachedRate = 0,
 }) => {
-  const fraction = (current - start) / (end - start);
+  const maxTotalCount = width || process.stdout.columns || 80;
 
-  const maxCount = width || process.stdout.columns || 80;
+  const cachedCount = Math.min(
+    Math.floor(maxTotalCount * cachedRate),
+    maxTotalCount
+  );
+
+  const maxCount = maxTotalCount - cachedCount;
+
+  const fraction = current / end;
   const count = Math.min(Math.floor(maxCount * fraction), maxCount);
-  const chars = "█".repeat(count);
-  const bar = chars + "░".repeat(maxCount - count);
 
-  return <Text>{bar}</Text>;
+  return (
+    <Text>
+      <Text>{"█".repeat(cachedCount)}</Text>
+      <Text>{"█".repeat(count)}</Text>
+      <Text>{"░".repeat(maxCount - count)}</Text>
+    </Text>
+  );
 };

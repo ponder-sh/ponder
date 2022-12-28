@@ -95,7 +95,7 @@ async function blockFrontfillWorker(
     )
   );
 
-  ponder.emit("newFrontfillLogs", {
+  ponder.emit("frontfill_newLogs", {
     network: network.name,
     blockNumber: block.number,
     blockTimestamp: block.timestamp,

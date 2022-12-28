@@ -1,4 +1,3 @@
-import { logger } from "@/common/logger";
 import { p1_excluding_all } from "@/common/utils";
 import type { Ponder } from "@/Ponder";
 import type { Source } from "@/sources/base";
@@ -46,35 +45,19 @@ export const startBackfillForSource = async ({
     cachedIntervals.map((i) => [i.startBlock, i.endBlock])
   );
 
-  logger.debug({
-    requestedInterval: [requestedStartBlock, requestedEndBlock],
-    requiredBlockIntervals: requiredBlockIntervals,
+  const requiredBlockCount = requiredBlockIntervals.reduce((acc, cur) => {
+    return acc + (cur[1] + 1 - cur[0]);
+  }, 0);
+  const cacheRate = Math.max(
+    0,
+    1 - requiredBlockCount / (requestedEndBlock - requestedStartBlock)
+  );
+  ponder.emit("backfill_sourceStarted", {
+    source: source.name,
+    cacheRate: cacheRate,
   });
 
-  // const fetchedCount = requiredBlockIntervals.reduce(
-  //   (t, c) => t + c[1] - c[0],
-  //   0
-  // );
-  // const totalCount = requestedEndBlock - requestedStartBlock;
-  // const cachedCount = totalCount - fetchedCount;
-  // const logRequestCount = fetchedCount / blockLimit;
-
-  // ponder.tableRequestPlan.addRow({
-  //   "source name": source.name,
-  //   "start block": source.startBlock,
-  //   "end block": requestedEndBlock,
-  //   "cache rate": getPrettyPercentage(cachedCount, totalCount),
-  // // Leaving this out for now because they are a bit misleading.
-  // // Reintroduce after implementing contract-level log fetches.
-  // "RPC requests":
-  //   logRequestCount === 0 ? "1" : `~${Math.round(logRequestCount * 2)}`,
-  // });
-  // ponder.backfillSourcesStarted += 1;
-  // if (ponder.backfillSourcesStarted === ponder.sources.length) {
-  //   logger.info(`Backfill plan`);
-  //   logger.info(ponder.tableRequestPlan.render(), "\n");
-  //   ponder.progressBarSync.start(0, 0);
-  // }
+  let totalLogTasks = 0;
 
   for (const blockInterval of requiredBlockIntervals) {
     const [startBlock, endBlock] = blockInterval;
@@ -88,7 +71,11 @@ export const startBackfillForSource = async ({
         fromBlock,
         toBlock,
       });
-      ponder.emit("backfillTasksAdded", 1);
+      ponder.emit("backfill_logTasksAdded", {
+        source: source.name,
+        taskCount: 1,
+      });
+      totalLogTasks++;
       continue;
     }
 
@@ -101,8 +88,18 @@ export const startBackfillForSource = async ({
 
       fromBlock = toBlock + 1;
       toBlock = Math.min(fromBlock + source.blockLimit, endBlock);
-      ponder.emit("backfillTasksAdded", 1);
+      ponder.emit("backfill_logTasksAdded", {
+        source: source.name,
+        taskCount: 1,
+      });
+      totalLogTasks++;
     }
+  }
+
+  if (ponder.ui.isProd) {
+    ponder.logger.info(
+      `${source.name}: Added ${totalLogTasks} log backfill tasks`
+    );
   }
 
   const killQueues = () => {
@@ -111,27 +108,13 @@ export const startBackfillForSource = async ({
   };
 
   const drainQueues = async () => {
-    const logQueueLength = logBackfillQueue.length();
-    logger.debug(
-      `${source.name}: Started ${logQueueLength} log backfill tasks`
-    );
     if (!logBackfillQueue.idle()) {
       await logBackfillQueue.drained();
     }
-    logger.debug(
-      `${source.name}: Finished ${logQueueLength} log backfill tasks`
-    );
 
-    const blockQueueLength = blockBackfillQueue.length();
-    logger.debug(
-      `${source.name}: Started ${blockQueueLength} block backfill tasks`
-    );
     if (!blockBackfillQueue.idle()) {
       await blockBackfillQueue.drained();
     }
-    logger.debug(
-      `${source.name}: Finished ${blockQueueLength} block backfill tasks`
-    );
   };
 
   return { killQueues, drainQueues };
