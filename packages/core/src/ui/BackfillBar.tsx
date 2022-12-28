@@ -16,9 +16,9 @@ export const BackfillBar = ({
   const current = stat.logCurrent + stat.blockCurrent;
   const total = stat.logTotal + stat.blockTotal;
 
-  // Only display the ETA text once 50 log tasks have been processed
+  // Only display the ETA text once 5 log tasks have been processed
   const backfillEtaText =
-    stat.logTotal > 50 && stat.eta > 0 ? ` | ~${formatEta(stat.eta)}` : null;
+    stat.logTotal > 5 && stat.eta > 0 ? ` | ~${formatEta(stat.eta)}` : null;
   const backfillCountText = total > 0 ? ` | ${current}/${total}` : null;
 
   const cacheRateDecimal = Math.round(stat.cacheRate * 1000) / 10;

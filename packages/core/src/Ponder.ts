@@ -28,7 +28,7 @@ import type { PonderSchema } from "@/schema/types";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
 import type { UiState } from "@/ui/app";
-import { getUiState, HandlersStatus, hydrateUi, render } from "@/ui/app";
+import { getUiState, hydrateUi, render } from "@/ui/app";
 
 type Events = {
   config_error: (arg: { error: string }) => void;
@@ -57,6 +57,7 @@ type Events = {
   }) => void;
 
   indexer_taskStarted: () => void;
+  indexer_taskDone: (arg: { timestamp: number }) => void;
   indexer_taskError: (arg: { error: Error }) => void;
 };
 
@@ -107,6 +108,7 @@ export class Ponder extends EventEmitter<Events> {
     this.on("frontfill_newLogs", this.frontfill_newLogs);
 
     this.on("indexer_taskStarted", this.indexer_taskStarted);
+    this.on("indexer_taskDone", this.indexer_taskDone);
     this.on("indexer_taskError", this.indexer_taskError);
 
     this.options = buildOptions(cliOptions);
@@ -277,7 +279,6 @@ export class Ponder extends EventEmitter<Events> {
       blockNumberByNetwork,
     });
     this.killBackfillQueues = killBackfillQueues;
-    this.ui.backfillStartTimestamp = Date.now();
 
     await drainBackfillQueues();
     const duration = formatEta(endBenchmark(startHrt));
@@ -317,6 +318,7 @@ export class Ponder extends EventEmitter<Events> {
     await this.handlerQueue.process();
 
     this.logsProcessedToTimestamp = toTimestamp;
+    this.ui.handlersToTimestamp = toTimestamp;
     this.isHandlingLogs = false;
   }
 
@@ -420,12 +422,12 @@ export class Ponder extends EventEmitter<Events> {
     };
   };
 
-  private indexer_taskStarted = () => {
+  private indexer_taskStarted: Events["indexer_taskStarted"] = () => {
     this.ui.handlersCurrent += 1;
-    this.ui.handlersStatus =
-      this.ui.handlersCurrent === this.ui.handlersTotal
-        ? HandlersStatus.UP_TO_LATEST
-        : HandlersStatus.IN_PROGRESS;
+  };
+
+  private indexer_taskDone: Events["indexer_taskDone"] = (e) => {
+    this.ui.handlersToTimestamp = e.timestamp;
     render(this.ui);
   };
 

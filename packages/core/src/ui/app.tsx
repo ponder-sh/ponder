@@ -5,13 +5,7 @@ import { PonderOptions } from "@/common/options";
 import { Source } from "@/sources/base";
 
 import { BackfillBar } from "./BackfillBar";
-import { ProgressBar } from "./ProgressBar";
-
-export enum HandlersStatus {
-  NOT_STARTED,
-  IN_PROGRESS,
-  UP_TO_LATEST,
-}
+import { HandlersBar } from "./HandlersBar";
 
 export type UiState = {
   isSilent: boolean;
@@ -40,13 +34,12 @@ export type UiState = {
     }
   >;
 
-  backfillStartTimestamp: number;
   isBackfillComplete: boolean;
   backfillDuration: string;
 
-  handlersStatus: HandlersStatus;
   handlersCurrent: number;
   handlersTotal: number;
+  handlersToTimestamp: number;
 
   configError: string | null;
   handlerError: Error | null;
@@ -72,13 +65,12 @@ export const getUiState = (options: PonderOptions): UiState => {
 
     stats: {},
 
-    backfillStartTimestamp: 0,
     isBackfillComplete: false,
     backfillDuration: "",
 
-    handlersStatus: HandlersStatus.NOT_STARTED,
     handlersCurrent: 0,
     handlersTotal: 0,
+    handlersToTimestamp: 0,
 
     configError: null,
     handlerError: null,
@@ -111,47 +103,21 @@ export const hydrateUi = ({
   });
 };
 
-const App = ({
-  isSilent,
-  isProd,
-  timestamp,
-  stats,
-  isBackfillComplete,
-  backfillDuration,
-  handlersStatus,
-  handlersCurrent,
-  handlersTotal,
-  configError,
-  handlerError,
-  networks,
-}: UiState) => {
+const App = (ui: UiState) => {
+  const {
+    isSilent,
+    isProd,
+    timestamp,
+    stats,
+    isBackfillComplete,
+    backfillDuration,
+    handlersCurrent,
+    configError,
+    handlerError,
+    networks,
+  } = ui;
+
   if (isSilent) return null;
-
-  const handlersStatusText = () => {
-    switch (handlersStatus) {
-      case HandlersStatus.NOT_STARTED:
-        return <Text>(not started)</Text>;
-      case HandlersStatus.IN_PROGRESS:
-        return <Text color="yellowBright">(in progress)</Text>;
-      case HandlersStatus.UP_TO_LATEST:
-        return <Text color="greenBright">(up to date)</Text>;
-    }
-  };
-
-  const handlersPercent = `${Math.round(
-    100 * (handlersCurrent / Math.max(handlersTotal, 1))
-  )}%`;
-
-  const handlerBottomText =
-    !isBackfillComplete &&
-    handlersTotal > 0 &&
-    handlersTotal === handlersCurrent
-      ? ""
-      : `/${handlersTotal}`;
-  const handlersCountText =
-    handlersTotal > 0
-      ? ` | ${handlersCurrent}${handlerBottomText} events`
-      : null;
 
   if (isProd) return null;
 
@@ -203,28 +169,10 @@ const App = ({
           {Object.entries(stats).map(([source, stat]) => (
             <BackfillBar key={source} source={source} stat={stat} />
           ))}
-          <Text> </Text>
         </Box>
       )}
 
-      <Box flexDirection="row">
-        <Text bold={true}>Handlers </Text>
-        {handlersStatusText()}
-      </Box>
-      <Box flexDirection="row">
-        <ProgressBar
-          current={handlersCurrent}
-          end={Math.max(handlersTotal, 1)}
-        />
-        <Text>
-          {" "}
-          {handlersPercent}
-          {handlersCountText}
-          {/* {handlersCurrent}/{handlersTotal} events */}
-          {/* Newline below progress bar row */}
-          <Newline />
-        </Text>
-      </Box>
+      <HandlersBar ui={ui} />
 
       <Box flexDirection="column">
         {Object.values(networks).map((network) => (
@@ -237,17 +185,14 @@ const App = ({
                 Block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
                 {network.matchedLogCount} matched logs,{" "}
                 {timestamp - network.blockTimestamp}s ago)
-                {/* Newline below progress bar row */}
-                <Newline />
               </Text>
             ) : (
               <Text>
                 Block {network.blockNumber} (
                 {Math.max(timestamp - network.blockTimestamp, 0)}s ago)
-                {/* Newline below progress bar row */}
-                <Newline />
               </Text>
             )}
+            <Text> </Text>
           </Box>
         ))}
       </Box>

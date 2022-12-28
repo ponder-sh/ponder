@@ -3,6 +3,7 @@ import { Contract } from "ethers";
 import { logger } from "@/common/logger";
 import type { EventLog } from "@/common/types";
 import type { Ponder } from "@/Ponder";
+import { Source } from "@/sources/base";
 
 import type { Handlers } from "./readHandlers";
 
@@ -82,12 +83,17 @@ export const createHandlerQueue = ({
     entities: entityModels,
   };
 
+  const sourceByAddress = ponder.sources.reduce<
+    Record<string, Source | undefined>
+  >((acc, source) => {
+    acc[source.address] = source;
+    return acc;
+  }, {});
+
   const handlerWorker = async (log: EventLog) => {
     ponder.emit("indexer_taskStarted");
 
-    const source = ponder.sources.find(
-      (source) => source.address === log.address
-    );
+    const source = sourceByAddress[log.address];
     if (!source) {
       logger.warn(`Source not found for log with address: ${log.address}`);
       return;
@@ -104,6 +110,14 @@ export const createHandlerQueue = ({
       topics: JSON.parse(log.topics),
     });
 
+    const handler = sourceHandlers[parsedLog.name];
+    if (!handler) {
+      logger.trace(
+        `Handler not found for event: ${source.name}-${parsedLog.name}`
+      );
+      return;
+    }
+
     const params = parsedLog.eventFragment.inputs.reduce<
       Record<string, unknown>
     >((acc, input, index) => {
@@ -114,14 +128,6 @@ export const createHandlerQueue = ({
       acc[input.name] = value;
       return acc;
     }, {});
-
-    const handler = sourceHandlers[parsedLog.name];
-    if (!handler) {
-      logger.trace(
-        `Handler not found for event: ${source.name}-${parsedLog.name}`
-      );
-      return;
-    }
 
     logger.trace(`Handling event: ${source.name}-${parsedLog.name}`);
 
@@ -150,6 +156,8 @@ export const createHandlerQueue = ({
 
     // Running user code here!
     await handler(event, handlerContext);
+
+    ponder.emit("indexer_taskDone", { timestamp: block.timestamp });
   };
 
   const queue = createNotSoFastQueue(handlerWorker, (error) => {
