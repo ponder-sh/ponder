@@ -196,7 +196,10 @@ export class Ponder extends EventEmitter<Events> {
       this.ui.timestamp = Math.floor(Date.now() / 1000);
       render(this.ui);
     }, 17);
-    this.etaInterval = setInterval(this.updateBackfillEta, 1000);
+    this.etaInterval = setInterval(() => {
+      this.updateBackfillEta();
+      if (this.ui.isProd) this.logBackfillProgress();
+    }, 1000);
 
     await Promise.all([
       this.cacheStore.migrate(),
@@ -412,6 +415,11 @@ export class Ponder extends EventEmitter<Events> {
   };
 
   private frontfill_newLogs: Events["frontfill_newLogs"] = (e) => {
+    if (this.ui.isProd && this.ui.isBackfillComplete) {
+      this.logger.info(
+        `${e.network}: block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched)`
+      );
+    }
     this.handleNewLogs();
     this.ui.networks[e.network] = {
       name: e.network,
@@ -469,15 +477,25 @@ export class Ponder extends EventEmitter<Events> {
     }
   };
 
-  // private logBackfillProgress() {
-  //   if (this.ui.isProd && this.ui.backfillTaskCurrent % 50 === 0) {
-  //     logger.info(
-  //       `${this.ui.backfillTaskCurrent}/${
-  //         this.ui.backfillTaskTotal
-  //       } backfill tasks complete, ~${formatEta(
-  //         1000 // this.ui.backfillEta.eta
-  //       )} remaining`
-  //     );
-  //   }
-  // }
+  private logBackfillProgress() {
+    if (!this.ui.isBackfillComplete) {
+      this.sources.forEach((source) => {
+        const stat = this.ui.stats[source.name];
+
+        const current = stat.logCurrent + stat.blockCurrent;
+        const total = stat.logTotal + stat.blockTotal;
+        const isDone = current === total;
+        const etaText =
+          stat.logCurrent > 5 && stat.eta > 0
+            ? `~${formatEta(stat.eta)} remaining`
+            : "Not started";
+
+        const countText = `${current}/${total}`;
+
+        this.logger.info(
+          `${source.name}: ${isDone ? `Done!` : etaText} | ${countText}`
+        );
+      });
+    }
+  }
 }

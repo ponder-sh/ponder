@@ -212,6 +212,6 @@ const App = (ui: UiState) => {
   );
 };
 
-export const render = (props: UiState) => {
-  inkRender(<App {...props} />);
+export const render = (ui: UiState) => {
+  inkRender(<App {...ui} />);
 };
