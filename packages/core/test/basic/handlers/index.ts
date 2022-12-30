@@ -1,14 +1,16 @@
-const handleFileCreated = async () => {
-  console.log("File created");
-};
+const handleArtGobbled = async (event: any, context: any) => {
+  console.log({ event });
 
-const handleFileDeleted = async () => {
-  console.log("File deleted");
+  // await context.entities.GobbledArt.insert(
+  //   `${event.params.nft}-${event.params.id}`,
+  //   {
+  //     user: event.params.user,
+  //   }
+  // );
 };
 
 export default {
-  FileStore: {
-    FileCreated: handleFileCreated,
-    FileDeleted: handleFileDeleted,
+  ArtGobblers: {
+    ArtGobbled: handleArtGobbled,
   },
 };
