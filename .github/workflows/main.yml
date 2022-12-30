@@ -111,7 +111,7 @@ jobs:
             packages/**/node_modules
             packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Build
-        run: pnpm build
+      - name: Generate fixtures
+        run: pnpm fixtures
       - name: Test
         run: pnpm test

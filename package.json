@@ -13,6 +13,7 @@
     "install:examples": "pnpm --filter './examples/**' install",
     "build": "pnpm --filter './packages/**' --parallel build",
     "declarations": "pnpm --parallel declarations",
+    "fixtures": "pnpm --parallel fixtures",
     "test": "pnpm --parallel --no-bail test"
   },
   "devDependencies": {

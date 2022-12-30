@@ -1,10 +1,12 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import type {
   Hash,
   RawBlock,
   RawBlockWithTransactions,
   RawLog,
 } from "../utils";
-import ArtGobblers from "./data/ArtGobblers";
+// @ts-ignore
+import _ArtGobblers from "./data/ArtGobblers";
 
 type Fixture = {
   name: string;
@@ -12,15 +14,16 @@ type Fixture = {
   blocks: RawBlockWithTransactions[];
 };
 
+const ArtGobblers = _ArtGobblers as unknown as Fixture;
+
+const fixtures = {
+  ArtGobblers,
+};
+
 type SendArgs =
   | ["eth_getBlockByNumber", ["latest" | Hash, boolean]]
   | ["eth_getBlockByHash", ["latest" | Hash, boolean]]
   | ["eth_getLogs", [{ address: Hash[]; fromBlock: Hash; toBlock: Hash }]];
-
-const fixtures = {
-  ArtGobblers: ArtGobblers as unknown as Fixture,
-  EthFs: ArtGobblers as unknown as Fixture,
-};
 
 type FixtureOption = keyof typeof fixtures;
 
