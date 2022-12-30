@@ -1,4 +1,4 @@
-import { StaticJsonRpcProvider } from "@ethersproject/providers";
+import { JsonRpcProvider } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
 
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
@@ -7,54 +7,11 @@ import { CachedProvider } from "@/networks/CachedProvider";
 import { Ponder } from "@/Ponder";
 import { getUiState } from "@/ui/app";
 
-import { Hash, mockLog, randomHex } from "./utils";
-import { mockBlock, toHex, toNumber } from "./utils";
-
-type SendArgs =
-  | ["eth_getBlockByNumber", ["latest" | Hash, boolean]]
-  | ["eth_getBlockByHash", ["latest" | Hash, boolean]]
-  | ["eth_getLogs", [{ address: Hash[]; fromBlock: Hash; toBlock: Hash }]];
+import { buildSendFunc } from "./fixtures/buildSendFunc";
 
 beforeAll(() => {
-  jest
-    .spyOn(StaticJsonRpcProvider.prototype, "send")
-    .mockImplementation(async (...args) => {
-      const [method, params] = args as unknown as SendArgs;
-
-      console.log("in send with:", { method, params });
-
-      switch (method) {
-        case "eth_getBlockByNumber": {
-          const [number] = params;
-          const mockNumber = number === "latest" ? toHex(10) : number;
-          return mockBlock({ number: mockNumber });
-        }
-        case "eth_getBlockByHash": {
-          const [hash, includeTxns] = params;
-          const mockHash = hash === "latest" ? randomHex() : hash;
-          return mockBlock({ hash: mockHash });
-        }
-        case "eth_getLogs": {
-          const [{ address, fromBlock, toBlock }] = params;
-          const logAddress = address[0];
-          const middleBlock = toHex(
-            Math.floor(toNumber(toBlock) - toNumber(fromBlock) / 2) +
-              toNumber(toBlock)
-          );
-
-          return [
-            mockLog({ address: logAddress, blockNumber: fromBlock }),
-            mockLog({ address: logAddress, blockNumber: middleBlock }),
-            mockLog({ address: logAddress, blockNumber: toBlock }),
-          ];
-        }
-        default: {
-          throw new Error(
-            `MockedStaticJsonRpcProvider: Unhandled method ${method}`
-          );
-        }
-      }
-    });
+  const sendFunc = buildSendFunc();
+  jest.spyOn(JsonRpcProvider.prototype, "send").mockImplementation(sendFunc);
 });
 
 afterAll(() => {
@@ -68,7 +25,7 @@ describe("Ponder", () => {
     ponder = new Ponder({
       rootDir: "./test/basic",
       configFile: "ponder.config.js",
-      silent: false,
+      silent: true,
     });
   });
 
@@ -92,14 +49,12 @@ describe("Ponder", () => {
       expect(ponder.sources.length).toBe(1);
 
       const source = ponder.sources[0];
-      expect(source.name).toBe("FileStore");
+      expect(source.name).toBe("ArtGobblers");
       expect(source.network.name).toBe("mainnet");
       expect(source.network.provider).toBeInstanceOf(CachedProvider);
-      expect(source.address).toBe(
-        "0x9746fD0A77829E12F8A9DBe70D7a322412325B91".toLowerCase()
-      );
-      expect(source.startBlock).toBe(0);
-      expect(source.blockLimit).toBe(5);
+      expect(source.address).toBe("0x60bb1e2aa1c9acafb4d34f71585d7e959f387769");
+      expect(source.startBlock).toBe(15863321);
+      expect(source.blockLimit).toBe(500);
     });
 
     it("creates a sqlite database", async () => {
@@ -173,7 +128,7 @@ describe("Ponder", () => {
         .all();
       const tableNames = tables.map((t) => t.name);
 
-      expect(tableNames).toContain("File");
+      expect(tableNames).toContain("GobbledArt");
     });
 
     it("creates the handler queue", async () => {
@@ -191,7 +146,23 @@ describe("Ponder", () => {
     it("works", async () => {
       await ponder.backfill();
 
-      expect(1).toBe(2);
+      expect(ponder.ui.isBackfillComplete).toBe(true);
+
+      const logs = (ponder.database.db as Sqlite.Database)
+        .prepare(`SELECT * FROM __ponder__v1__logs`)
+        .all().length;
+
+      const blocks = (ponder.database.db as Sqlite.Database)
+        .prepare(`SELECT * FROM __ponder__v1__blocks`)
+        .all().length;
+
+      const transactions = (ponder.database.db as Sqlite.Database)
+        .prepare(`SELECT * FROM __ponder__v1__transactions`)
+        .all().length;
+
+      console.log({ logs, blocks, transactions });
+
+      expect(1).toBe(1);
     });
   });
 });
