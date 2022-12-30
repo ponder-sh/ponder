@@ -14,12 +14,12 @@ const ponderConfig = {
   ],
   sources: [
     {
-      name: "FileStore",
+      name: "ArtGobblers",
       network: "mainnet",
-      abi: "./abis/FileStore.json",
-      address: "0x9746fD0A77829E12F8A9DBe70D7a322412325B91",
-      startBlock: 0,
-      blockLimit: 5,
+      abi: "./abis/ArtGobblers.json",
+      address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+      startBlock: 15863321,
+      blockLimit: 500,
     },
   ],
 };

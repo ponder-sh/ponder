@@ -1,11 +1,4 @@
-type File @entity {
+type GobbledArt @entity {
   id: ID!
-  name: String!
-  size: Int!
-  contents: String!
-  createdAt: Int!
-  # Metadata from our frontend, not guaranteed to be present
-  type: String
-  encoding: String
-  compression: String
+  user: String!
 }
