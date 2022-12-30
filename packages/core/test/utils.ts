@@ -1,14 +1,9 @@
 export type Hash = `0x${string}`;
 
 export const toHex = (num: number): Hash => `0x${num.toString(16)}`;
-export const toNumber = (hex: Hash) => parseInt(hex.slice(2), 16);
+export const toNumber = (hex: string) => parseInt(hex.slice(2), 16);
 
-export const randomHex = (size = 16): Hash =>
-  `0x${[...Array(size)]
-    .map(() => Math.floor(Math.random() * 16).toString(16))
-    .join("")}`;
-
-type RawBlock = {
+export interface RawBlock {
   baseFeePerGas: Hash;
   difficulty: Hash;
   extraData: Hash;
@@ -30,37 +25,36 @@ type RawBlock = {
   transactions: Hash[];
   transactionsRoot: Hash;
   uncles: Hash[];
-};
+}
 
-const getDefaultBlock = (): RawBlock => ({
-  baseFeePerGas: randomHex(9),
-  difficulty: randomHex(1),
-  extraData: randomHex(30),
-  gasLimit: randomHex(7),
-  gasUsed: randomHex(7),
-  hash: randomHex(64),
-  logsBloom: randomHex(128),
-  miner: randomHex(40),
-  mixHash: randomHex(64),
-  nonce: randomHex(16),
-  number: randomHex(6),
-  parentHash: randomHex(64),
-  receiptsRoot: randomHex(64),
-  sha3Uncles: randomHex(64),
-  size: randomHex(5),
-  stateRoot: randomHex(64),
-  timestamp: randomHex(8),
-  totalDifficulty: randomHex(19),
-  transactions: [],
-  transactionsRoot: randomHex(64),
-  uncles: [],
-});
+export interface RawBlockWithTransactions
+  extends Omit<RawBlock, "transactions"> {
+  transactions: RawTransaction[];
+}
 
-export const mockBlock = (block: Partial<RawBlock> = {}): RawBlock => {
-  return { ...getDefaultBlock(), ...block };
-};
+export interface RawTransaction {
+  blockHash: Hash;
+  blockNumber: Hash;
+  hash: Hash;
+  accessList: [];
+  chainId: Hash;
+  from: Hash;
+  gas: Hash;
+  gasPrice: Hash;
+  input: Hash;
+  maxFeePerGas: Hash;
+  maxPriorityFeePerGas: Hash;
+  nonce: Hash;
+  r: Hash;
+  s: Hash;
+  to: Hash;
+  transactionIndex: Hash;
+  type: Hash;
+  v: Hash;
+  value: Hash;
+}
 
-type RawLog = {
+export interface RawLog {
   address: Hash;
   blockHash: Hash;
   blockNumber: Hash;
@@ -70,20 +64,4 @@ type RawLog = {
   topics: Hash[];
   transactionHash: Hash;
   transactionIndex: Hash;
-};
-
-const getDefaultLog = (): RawLog => ({
-  address: randomHex(40),
-  blockHash: randomHex(64),
-  blockNumber: randomHex(6),
-  data: randomHex(64),
-  logIndex: randomHex(2),
-  removed: false,
-  topics: [],
-  transactionHash: randomHex(64),
-  transactionIndex: randomHex(2),
-});
-
-export const mockLog = (log: Partial<RawLog> = {}): RawLog => {
-  return { ...getDefaultLog(), ...log };
-};
+}

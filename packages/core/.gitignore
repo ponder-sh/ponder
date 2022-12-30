@@ -1,2 +1,4 @@
 dist/
 .ponder/
+.env.local
+test/fixtures/data/

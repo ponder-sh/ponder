@@ -1,0 +1,3 @@
+{
+  "ignorePatterns": ["./test/fixtures/data/**/*.ts"]
+}
