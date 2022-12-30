@@ -113,5 +113,7 @@ jobs:
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Generate fixtures
         run: pnpm fixtures
+        env:
+          RPC_URL_1: ${{ secrets.RPC_URL_1 }}
       - name: Test
         run: pnpm test
