@@ -105,8 +105,6 @@ export const hydrateUi = ({
 
 const App = (ui: UiState) => {
   const {
-    isSilent,
-    isProd,
     timestamp,
     stats,
     isBackfillComplete,
@@ -116,10 +114,6 @@ const App = (ui: UiState) => {
     handlerError,
     networks,
   } = ui;
-
-  if (isSilent) return null;
-
-  if (isProd) return null;
 
   if (configError) {
     return (
@@ -213,5 +207,7 @@ const App = (ui: UiState) => {
 };
 
 export const render = (ui: UiState) => {
+  if (ui.isSilent || ui.isProd) return null;
+
   inkRender(<App {...ui} />);
 };
