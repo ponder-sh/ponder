@@ -9,14 +9,19 @@ export const buildNetworks = ({ ponder }: { ponder: Ponder }) => {
   const networks = ponder.config.networks.map(({ name, rpcUrl, chainId }) => {
     if (chainId === undefined || typeof chainId !== "number") {
       ponder.emit("config_error", {
-        error: `Invalid or missing chain ID for network "${name}" in ponder.config.js`,
+        context: `Parsing ponder.config.js`,
+        error: new Error(
+          `Invalid or missing chain ID for network "${name}" in ponder.config.js`
+        ),
       });
     }
 
-    // This is a hack, we don't want to actually throw an error inside
     if (rpcUrl === undefined || rpcUrl === "") {
       ponder.emit("config_error", {
-        error: `Invalid or missing RPC URL for network "${name}" in ponder.config.js`,
+        context: `Parsing ponder.config.js`,
+        error: new Error(
+          `Invalid or missing RPC URL for network "${name}" in ponder.config.js`
+        ),
       });
     }
 

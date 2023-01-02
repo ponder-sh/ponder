@@ -37,12 +37,10 @@ export type UiState = {
   isBackfillComplete: boolean;
   backfillDuration: string;
 
+  handlerError: { context: string; error?: Error } | null;
   handlersCurrent: number;
   handlersTotal: number;
   handlersToTimestamp: number;
-
-  configError: string | null;
-  handlerError: Error | null;
 
   networks: Record<
     string,
@@ -56,7 +54,7 @@ export type UiState = {
   >;
 };
 
-export const getUiState = (options: PonderOptions): UiState => {
+export const getUiState = (options: Pick<PonderOptions, "SILENT">): UiState => {
   return {
     isSilent: options.SILENT,
     isProd: false,
@@ -68,12 +66,10 @@ export const getUiState = (options: PonderOptions): UiState => {
     isBackfillComplete: false,
     backfillDuration: "",
 
+    handlerError: null,
     handlersCurrent: 0,
     handlersTotal: 0,
     handlersToTimestamp: 0,
-
-    configError: null,
-    handlerError: null,
 
     networks: {},
   };
@@ -112,7 +108,6 @@ const App = (ui: UiState) => {
     isBackfillComplete,
     backfillDuration,
     handlersCurrent,
-    configError,
     handlerError,
     networks,
   } = ui;
@@ -121,27 +116,11 @@ const App = (ui: UiState) => {
 
   if (isProd) return null;
 
-  if (configError) {
-    return (
-      <Box flexDirection="column">
-        <Box flexDirection="row">
-          <Text color="redBright" bold={true}>
-            [Config error]{" "}
-          </Text>
-          <Text>
-            {configError}
-            <Newline />
-          </Text>
-        </Box>
-      </Box>
-    );
-  }
-
   if (handlerError) {
     return (
       <Box flexDirection="column">
         <Text> </Text>
-        <Text>{handlerError.stack}</Text>
+        <Text>{handlerError.error?.stack}</Text>
         <Text> </Text>
         <Text color="cyan">
           Resolve the error and save your changes to reload the server.
@@ -212,6 +191,17 @@ const App = (ui: UiState) => {
   );
 };
 
+const {
+  rerender,
+  unmount: inkUnmount,
+  clear,
+} = inkRender(<App {...getUiState({ SILENT: true })} />);
+
 export const render = (ui: UiState) => {
-  inkRender(<App {...ui} />);
+  rerender(<App {...ui} />);
+};
+
+export const unmount = async () => {
+  clear();
+  inkUnmount();
 };

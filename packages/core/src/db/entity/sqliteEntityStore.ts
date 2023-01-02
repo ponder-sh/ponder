@@ -26,7 +26,10 @@ export class SqliteEntityStore implements EntityStore {
       try {
         return func(...args);
       } catch (err) {
-        this.ponder.emit("indexer_taskError", { error: err as Error });
+        this.ponder.emit("dev_error", {
+          context: "SQLite error",
+          error: err as Error,
+        });
         return undefined as unknown as T;
       }
     };
@@ -57,7 +60,10 @@ export class SqliteEntityStore implements EntityStore {
 
       this.schema = schema;
     } catch (err) {
-      this.ponder.emit("indexer_taskError", { error: err as Error });
+      this.ponder.emit("dev_error", {
+        context: "SQLite error",
+        error: err as Error,
+      });
     }
   }
 
@@ -76,7 +82,10 @@ export class SqliteEntityStore implements EntityStore {
 
       return this.deserialize(entityName, instance);
     } catch (err) {
-      this.ponder.emit("indexer_taskError", { error: err as Error });
+      this.ponder.emit("dev_error", {
+        context: "SQLite error",
+        error: err as Error,
+      });
 
       return null;
     }
@@ -119,7 +128,10 @@ export class SqliteEntityStore implements EntityStore {
 
       return this.deserialize(entityName, insertedEntity);
     } catch (err) {
-      this.ponder.emit("indexer_taskError", { error: err as Error });
+      this.ponder.emit("dev_error", {
+        context: "SQLite error",
+        error: err as Error,
+      });
 
       return {};
     }
@@ -154,7 +166,10 @@ export class SqliteEntityStore implements EntityStore {
 
       return this.deserialize(entityName, updatedEntity);
     } catch (err) {
-      this.ponder.emit("indexer_taskError", { error: err as Error });
+      this.ponder.emit("dev_error", {
+        context: "SQLite error",
+        error: err as Error,
+      });
 
       return {};
     }
@@ -202,7 +217,10 @@ export class SqliteEntityStore implements EntityStore {
 
       return this.deserialize(entityName, upsertedEntity);
     } catch (err) {
-      this.ponder.emit("indexer_taskError", { error: err as Error });
+      this.ponder.emit("dev_error", {
+        context: "SQLite error",
+        error: err as Error,
+      });
 
       return {};
     }
@@ -223,7 +241,10 @@ export class SqliteEntityStore implements EntityStore {
       // `changes` is equal to the number of rows that were updated/inserted/deleted by the query.
       return changes === 1;
     } catch (err) {
-      this.ponder.emit("indexer_taskError", { error: err as Error });
+      this.ponder.emit("dev_error", {
+        context: "SQLite error",
+        error: err as Error,
+      });
 
       return false;
     }
@@ -308,7 +329,10 @@ export class SqliteEntityStore implements EntityStore {
         this.deserialize(entityName, instance)
       );
     } catch (err) {
-      this.ponder.emit("indexer_taskError", { error: err as Error });
+      this.ponder.emit("dev_error", {
+        context: "SQLite error",
+        error: err as Error,
+      });
 
       return [];
     }
@@ -353,7 +377,10 @@ export class SqliteEntityStore implements EntityStore {
 
       return derivedFieldInstances;
     } catch (err) {
-      this.ponder.emit("indexer_taskError", { error: err as Error });
+      this.ponder.emit("dev_error", {
+        context: "SQLite error",
+        error: err as Error,
+      });
 
       return [];
     }
@@ -393,7 +420,10 @@ export class SqliteEntityStore implements EntityStore {
 
       return deserializedInstance as Record<string, unknown>;
     } catch (err) {
-      this.ponder.emit("indexer_taskError", { error: err as Error });
+      this.ponder.emit("dev_error", {
+        context: "SQLite error",
+        error: err as Error,
+      });
 
       return {};
     }

@@ -1,4 +1,5 @@
 import { Contract } from "ethers";
+import pico from "picocolors";
 
 import { logger } from "@/common/logger";
 import type { EventLog } from "@/common/types";
@@ -45,7 +46,10 @@ export const createHandlerQueue = ({
 }: {
   ponder: Ponder;
   handlers: Handlers;
-}): HandlerQueue => {
+}): HandlerQueue | null => {
+  // Can't build handler queue without schema.
+  if (!ponder.schema) return null;
+
   // Build contracts for event handler context.
   const contracts: Record<string, Contract | undefined> = {};
   ponder.sources.forEach((source) => {
@@ -55,10 +59,6 @@ export const createHandlerQueue = ({
       source.network.provider
     );
   });
-
-  if (!ponder.schema) {
-    throw new Error(`Cannot create handler queue before building schema.`);
-  }
 
   // Build entity models for event handler context.
   const entityModels: Record<string, unknown> = {};
@@ -162,7 +162,10 @@ export const createHandlerQueue = ({
 
   const queue = createNotSoFastQueue(handlerWorker, (error) => {
     if (error) {
-      ponder.emit("indexer_taskError", { error });
+      ponder.emit("dev_error", {
+        context: "Handler file error: " + pico.bold(error.message),
+        error,
+      });
     }
   });
 

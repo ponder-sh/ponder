@@ -28,10 +28,11 @@ import type { PonderSchema } from "@/schema/types";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
 import type { UiState } from "@/ui/app";
-import { getUiState, hydrateUi, render } from "@/ui/app";
+import { getUiState, hydrateUi, render, unmount } from "@/ui/app";
 
 type Events = {
-  config_error: (arg: { error: string }) => void;
+  config_error: (arg: { context: string; error?: Error }) => void;
+  dev_error: (arg: { context: string; error?: Error }) => void;
 
   backfill_networkConnected: (arg: {
     network: string;
@@ -58,11 +59,12 @@ type Events = {
 
   indexer_taskStarted: () => void;
   indexer_taskDone: (arg: { timestamp: number }) => void;
-  indexer_taskError: (arg: { error: Error }) => void;
 };
 
 export class Ponder extends EventEmitter<Events> {
   config: PonderConfig;
+  options: PonderOptions;
+  isDev: boolean;
 
   sources: EvmSource[];
   networks: Network[];
@@ -71,7 +73,9 @@ export class Ponder extends EventEmitter<Events> {
   cacheStore: CacheStore;
   entityStore: EntityStore;
 
-  schema: PonderSchema;
+  schema?: PonderSchema;
+
+  // Handlers
   handlerQueue?: HandlerQueue;
   logsProcessedToTimestamp: number;
   isHandlingLogs: boolean;
@@ -85,17 +89,18 @@ export class Ponder extends EventEmitter<Events> {
   // Plugins
   plugins: ResolvedPonderPlugin[];
   logger: PonderLogger;
-  options: PonderOptions;
 
-  // Interface
+  // UI
+  ui: UiState;
   renderInterval?: NodeJS.Timer;
   etaInterval?: NodeJS.Timer;
-  ui: UiState;
 
-  constructor(cliOptions: PonderCliOptions) {
+  constructor(cliOptions: PonderCliOptions & { isDev: boolean }) {
     super();
+    this.isDev = cliOptions.isDev;
 
     this.on("config_error", this.config_error);
+    this.on("dev_error", this.dev_error);
 
     this.on("backfill_networkConnected", this.backfill_networkConnected);
     this.on("backfill_sourceStarted", this.backfill_sourceStarted);
@@ -109,7 +114,6 @@ export class Ponder extends EventEmitter<Events> {
 
     this.on("indexer_taskStarted", this.indexer_taskStarted);
     this.on("indexer_taskDone", this.indexer_taskDone);
-    this.on("indexer_taskError", this.indexer_taskError);
 
     this.options = buildOptions(cliOptions);
 
@@ -131,11 +135,9 @@ export class Ponder extends EventEmitter<Events> {
     const { sources } = buildSources({ ponder: this });
     this.sources = sources;
 
-    const userSchema = readSchema({ ponder: this });
-    this.schema = buildPonderSchema(userSchema);
-
     this.plugins = this.config.plugins || [];
     this.watchFiles = [
+      this.options.PONDER_CONFIG_FILE_PATH,
       this.options.SCHEMA_FILE_PATH,
       this.options.HANDLERS_DIR_PATH,
       ...sources
@@ -174,6 +176,7 @@ export class Ponder extends EventEmitter<Events> {
   }
 
   kill() {
+    unmount();
     clearInterval(this.renderInterval);
     clearInterval(this.etaInterval);
     this.handlerQueue?.kill();
@@ -181,12 +184,6 @@ export class Ponder extends EventEmitter<Events> {
     this.killBackfillQueues?.();
     this.killWatchers?.();
     this.teardownPlugins();
-  }
-
-  async reloadSchema() {
-    const userSchema = readSchema({ ponder: this });
-    this.schema = buildPonderSchema(userSchema);
-    await this.entityStore.migrate(this.schema);
   }
 
   // --------------------------- INTERNAL METHODS --------------------------- //
@@ -203,15 +200,9 @@ export class Ponder extends EventEmitter<Events> {
 
     await Promise.all([
       this.cacheStore.migrate(),
-      this.entityStore.migrate(this.schema),
       this.reloadHandlers(),
+      this.reloadSchema(),
     ]);
-
-    // If there is a config error, display the error and exit the process.
-    // Eventually, it might make sense to support hot reloading for ponder.config.js.
-    if (this.ui.configError) {
-      process.exit(1);
-    }
   }
 
   async reloadHandlers() {
@@ -222,13 +213,23 @@ export class Ponder extends EventEmitter<Events> {
     }
 
     const handlers = await readHandlers({ ponder: this });
+    if (!handlers) return;
 
-    if (handlers) {
-      this.handlerQueue = createHandlerQueue({
-        ponder: this,
-        handlers: handlers,
-      });
-    }
+    const handlerQueue = createHandlerQueue({
+      ponder: this,
+      handlers: handlers,
+    });
+    if (!handlerQueue) return;
+
+    this.handlerQueue = handlerQueue;
+  }
+
+  async reloadSchema() {
+    const userSchema = readSchema({ ponder: this });
+    // It's possible for `readSchema` to emit a dev_error and return null.
+    if (!userSchema) return;
+    this.schema = buildPonderSchema(userSchema);
+    await this.entityStore.migrate(this.schema);
   }
 
   async reload() {
@@ -253,10 +254,20 @@ export class Ponder extends EventEmitter<Events> {
             ? fileOrDirName
             : path.join(fileOrDirName, fileName);
 
+        if (fullPath === this.options.PONDER_CONFIG_FILE_PATH) {
+          this.emit("config_error", {
+            context:
+              "Detected change in ponder.config.js. " +
+              pico.bold("Restart the server."),
+          });
+          return;
+        }
+
         if (isFileChanged(fullPath)) {
-          logger.info("");
           logger.info(
-            pico.magenta(`Detected change in: `) + pico.bold(`${fileName}`)
+            pico.magenta(`Event - `) +
+              "Detected change in " +
+              pico.bold(`${fileName}`)
           );
 
           this.reload();
@@ -350,8 +361,25 @@ export class Ponder extends EventEmitter<Events> {
 
   // --------------------------- EVENT HANDLERS --------------------------- //
 
-  private config_error: Events["config_error"] = (e) => {
-    this.ui = { ...this.ui, configError: e.error };
+  private config_error: Events["config_error"] = async (e) => {
+    // await unmount();
+    logger.error(pico.red(`Error - `) + e.context);
+    if (e.error) logger.error(e.error);
+    this.kill();
+  };
+
+  private dev_error: Events["dev_error"] = async (e) => {
+    this.handlerQueue?.kill();
+    logger.error(pico.red(`Error - `) + e.context);
+
+    // If not the dev server, log the entire error and kill the app.
+    if (!this.isDev) {
+      if (e.error) logger.error(e.error);
+      this.kill();
+      return;
+    }
+
+    this.ui = { ...this.ui, handlerError: e };
   };
 
   private backfill_networkConnected: Events["backfill_networkConnected"] = (
@@ -437,20 +465,6 @@ export class Ponder extends EventEmitter<Events> {
   private indexer_taskDone: Events["indexer_taskDone"] = (e) => {
     this.ui.handlersToTimestamp = e.timestamp;
     render(this.ui);
-  };
-
-  private indexer_taskError: Events["indexer_taskError"] = (e) => {
-    logger.info("");
-    logger.info(
-      pico.red(`Handler error: `) +
-        pico.bold(`${e.error.name}: ${e.error.message}`)
-    );
-    this.handlerQueue?.kill();
-
-    this.ui = {
-      ...this.ui,
-      handlerError: e.error,
-    };
   };
 
   // --------------------------- HELPERS --------------------------- //
