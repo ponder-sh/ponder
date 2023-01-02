@@ -2,18 +2,17 @@
 
 A framework for blockchain app backends
 
+## Documentation
+
+For full documentation and guides, visit [ponder.sh](https://ponder.sh).
+
 ## Features
 
 Ponder is an open-source framework for building frontend-ready APIs that serve blockchain data. It can be used as an alternative to Graph Protocol subgraphs.
 
 - Local development server with hot reloading
-- Uses the familiar Node.js runtime and NPM package ecosystem
+- Familiar Node.js runtime and NPM package ecosystem
 - Works with any Ethereum-based blockchain, and natively supports cross-chain apps
-- Plugin API that exposes hooks into the core indexing engine
-
-## Documentation
-
-For full documentation, visit [ponder.sh](https://ponder.sh).
 
 ## Quickstart
 
@@ -74,5 +73,3 @@ If you're interested in contributing to Ponder, you can reach out via Twitter DM
 ## About
 
 Ponder is MIT-licensed open-source software.
-
-[^1]: Describes the Graph Decentalized Network (the hosted service supports [more chains](https://thegraph.com/docs/en/deploying/deploying-a-subgraph-to-hosted/)).
