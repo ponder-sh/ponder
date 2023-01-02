@@ -148,12 +148,15 @@ const App = (ui: UiState) => {
       <HandlersBar ui={ui} />
 
       <Box flexDirection="column">
+        <Text bold={true}>Frontfill </Text>
         {Object.values(networks).map((network) => (
           <Box flexDirection="row" key={network.name}>
-            <Text color="cyanBright">[{network.name}] </Text>
+            <Text>
+              {network.name.slice(0, 1).toUpperCase() + network.name.slice(1)} @{" "}
+            </Text>
             {network.blockTxnCount !== -1 ? (
               <Text>
-                Block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
+                block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
                 {network.matchedLogCount} matched logs,{" "}
                 {timestamp - network.blockTimestamp}s ago)
               </Text>
@@ -170,9 +173,9 @@ const App = (ui: UiState) => {
 
       {handlersCurrent > 0 && (
         <Box flexDirection="column">
+          <Text bold={true}>GraphQL </Text>
           <Box flexDirection="row">
-            <Text color="magentaBright">[graphql] </Text>
-            <Text>server live at http://localhost:42069/graphql</Text>
+            <Text>Server live at http://localhost:42069/graphql</Text>
           </Box>
         </Box>
       )}
