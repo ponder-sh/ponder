@@ -9,7 +9,12 @@ import { EventEmitter } from "@/common/EventEmitter";
 import { logger, PonderLogger } from "@/common/logger";
 import { buildOptions, PonderOptions } from "@/common/options";
 import { PonderConfig, readPonderConfig } from "@/common/readPonderConfig";
-import { endBenchmark, formatEta, startBenchmark } from "@/common/utils";
+import {
+  endBenchmark,
+  formatEta,
+  formatPercentage,
+  startBenchmark,
+} from "@/common/utils";
 import { isFileChanged } from "@/common/utils";
 import { buildCacheStore, CacheStore } from "@/db/cache/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
@@ -151,22 +156,16 @@ export class Ponder extends EventEmitter<Events> {
   // --------------------------- PUBLIC METHODS --------------------------- //
 
   async start() {
-    this.ui.isProd = true;
     await this.setup();
-
     this.setupPlugins();
-
     await this.backfill();
-    this.handleNewLogs();
   }
 
   async dev() {
     await this.setup();
     this.watch();
-
     this.codegen();
     this.setupPlugins();
-
     this.backfill();
   }
 
@@ -191,11 +190,11 @@ export class Ponder extends EventEmitter<Events> {
   async setup() {
     this.renderInterval = setInterval(() => {
       this.ui.timestamp = Math.floor(Date.now() / 1000);
-      render(this.ui);
+      render(this.isDev, this.ui);
     }, 17);
     this.etaInterval = setInterval(() => {
       this.updateBackfillEta();
-      if (this.ui.isProd) this.logBackfillProgress();
+      this.logBackfillProgress();
     }, 1000);
 
     await Promise.all([
@@ -242,7 +241,6 @@ export class Ponder extends EventEmitter<Events> {
 
     this.codegen();
     this.reloadPlugins();
-
     this.handleNewLogs();
   }
 
@@ -257,7 +255,7 @@ export class Ponder extends EventEmitter<Events> {
         if (fullPath === this.options.PONDER_CONFIG_FILE_PATH) {
           this.emit("config_error", {
             context:
-              "Detected change in ponder.config.js. " +
+              "detected change in ponder.config.js. " +
               pico.bold("Restart the server."),
           });
           return;
@@ -265,8 +263,9 @@ export class Ponder extends EventEmitter<Events> {
 
         if (isFileChanged(fullPath)) {
           logger.info(
-            pico.magenta(`Event - `) +
-              "Detected change in " +
+            pico.magenta(`event    `) +
+              " - " +
+              "detected change in " +
               pico.bold(`${fileName}`)
           );
 
@@ -297,8 +296,10 @@ export class Ponder extends EventEmitter<Events> {
     await drainBackfillQueues();
     const duration = formatEta(endBenchmark(startHrt));
 
-    if (this.ui.isProd) {
-      logger.info(`Backfill completed in ${duration}`);
+    if (!this.isDev) {
+      logger.info(
+        pico.yellow(`backfill `) + " - " + `backfill complete (${duration})`
+      );
     }
 
     this.ui = {
@@ -334,6 +335,12 @@ export class Ponder extends EventEmitter<Events> {
     this.logsProcessedToTimestamp = toTimestamp;
     this.ui.handlersToTimestamp = toTimestamp;
     this.isHandlingLogs = false;
+
+    if (!this.isDev && logs.length > 0) {
+      logger.info(
+        pico.blue(`indexer  `) + " - " + `reindexed ${logs.length} events`
+      );
+    }
   }
 
   // --------------------------- PLUGINS --------------------------- //
@@ -362,15 +369,14 @@ export class Ponder extends EventEmitter<Events> {
   // --------------------------- EVENT HANDLERS --------------------------- //
 
   private config_error: Events["config_error"] = async (e) => {
-    // await unmount();
-    logger.error(pico.red(`Error - `) + e.context);
+    logger.error(pico.red(`error    `) + " - " + e.context);
     if (e.error) logger.error(e.error);
     this.kill();
   };
 
   private dev_error: Events["dev_error"] = async (e) => {
     this.handlerQueue?.kill();
-    logger.error(pico.red(`Error - `) + e.context);
+    logger.error(pico.red(`error    `) + " - " + e.context);
 
     // If not the dev server, log the entire error and kill the app.
     if (!this.isDev) {
@@ -395,7 +401,16 @@ export class Ponder extends EventEmitter<Events> {
   };
 
   private backfill_sourceStarted: Events["backfill_sourceStarted"] = (e) => {
-    // this.ui.stats[e.source].startTimestamp = Date.now();
+    if (!this.isDev) {
+      this.logger.info(
+        pico.yellow(`backfill `) +
+          " - " +
+          `started backfill for source ${pico.bold(
+            e.source
+          )} (${formatPercentage(e.cacheRate)} cached)`
+      );
+    }
+
     this.ui.stats[e.source].cacheRate = e.cacheRate;
   };
 
@@ -443,9 +458,11 @@ export class Ponder extends EventEmitter<Events> {
   };
 
   private frontfill_newLogs: Events["frontfill_newLogs"] = (e) => {
-    if (this.ui.isProd && this.ui.isBackfillComplete) {
+    if (!this.isDev && this.ui.isBackfillComplete) {
       this.logger.info(
-        `${e.network}: block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched)`
+        pico.cyan(`frontfill`) +
+          " - " +
+          `${e.network} block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched events)`
       );
     }
     this.handleNewLogs();
@@ -464,7 +481,7 @@ export class Ponder extends EventEmitter<Events> {
 
   private indexer_taskDone: Events["indexer_taskDone"] = (e) => {
     this.ui.handlersToTimestamp = e.timestamp;
-    render(this.ui);
+    render(this.isDev, this.ui);
   };
 
   // --------------------------- HELPERS --------------------------- //
@@ -492,22 +509,25 @@ export class Ponder extends EventEmitter<Events> {
   };
 
   private logBackfillProgress() {
-    if (!this.ui.isBackfillComplete) {
+    if (!this.isDev && !this.ui.isBackfillComplete) {
       this.sources.forEach((source) => {
         const stat = this.ui.stats[source.name];
 
         const current = stat.logCurrent + stat.blockCurrent;
         const total = stat.logTotal + stat.blockTotal;
         const isDone = current === total;
+        if (isDone) return;
         const etaText =
           stat.logCurrent > 5 && stat.eta > 0
-            ? `~${formatEta(stat.eta)} remaining`
-            : "Not started";
+            ? `~${formatEta(stat.eta)}`
+            : "not started";
 
         const countText = `${current}/${total}`;
 
         this.logger.info(
-          `${source.name}: ${isDone ? `Done!` : etaText} | ${countText}`
+          pico.yellow(`backfill `) +
+            " - " +
+            `${source.name}: ${`(${etaText + " | " + countText})`}`
         );
       });
     }

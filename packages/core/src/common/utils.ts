@@ -41,6 +41,13 @@ export const formatEta = (ms: number) => {
   return `${hstr}${mstr}${sstr}`;
 };
 
+export const formatPercentage = (cacheRate: number) => {
+  const decimal = Math.round(cacheRate * 1000) / 10;
+  return Number.isInteger(decimal) && decimal < 100
+    ? `${decimal}.0%`
+    : `${decimal}%`;
+};
+
 const latestFileHash: Record<string, string | undefined> = {};
 
 export const isFileChanged = (filePath: string) => {

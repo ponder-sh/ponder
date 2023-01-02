@@ -9,11 +9,8 @@ import { HandlersBar } from "./HandlersBar";
 
 export type UiState = {
   isSilent: boolean;
-  isProd: boolean;
-
   timestamp: number;
 
-  // See src/README.md. This maps source name to backfill stats.
   stats: Record<
     string,
     {
@@ -57,7 +54,6 @@ export type UiState = {
 export const getUiState = (options: Pick<PonderOptions, "SILENT">): UiState => {
   return {
     isSilent: options.SILENT,
-    isProd: false,
 
     timestamp: 0,
 
@@ -102,7 +98,6 @@ export const hydrateUi = ({
 const App = (ui: UiState) => {
   const {
     isSilent,
-    isProd,
     timestamp,
     stats,
     isBackfillComplete,
@@ -113,8 +108,6 @@ const App = (ui: UiState) => {
   } = ui;
 
   if (isSilent) return null;
-
-  if (isProd) return null;
 
   if (handlerError) {
     return (
@@ -157,9 +150,7 @@ const App = (ui: UiState) => {
       <Box flexDirection="column">
         {Object.values(networks).map((network) => (
           <Box flexDirection="row" key={network.name}>
-            <Text color="cyanBright" bold={true}>
-              [{network.name}]{" "}
-            </Text>
+            <Text color="cyanBright">[{network.name}] </Text>
             {network.blockTxnCount !== -1 ? (
               <Text>
                 Block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
@@ -168,7 +159,7 @@ const App = (ui: UiState) => {
               </Text>
             ) : (
               <Text>
-                Block {network.blockNumber} (
+                block {network.blockNumber} (
                 {Math.max(timestamp - network.blockTimestamp, 0)}s ago)
               </Text>
             )}
@@ -180,10 +171,8 @@ const App = (ui: UiState) => {
       {handlersCurrent > 0 && (
         <Box flexDirection="column">
           <Box flexDirection="row">
-            <Text color="magentaBright" bold={true}>
-              [graphql]{" "}
-            </Text>
-            <Text>Server live at http://localhost:42069/graphql</Text>
+            <Text color="magentaBright">[graphql] </Text>
+            <Text>server live at http://localhost:42069/graphql</Text>
           </Box>
         </Box>
       )}
@@ -197,11 +186,11 @@ const {
   clear,
 } = inkRender(<App {...getUiState({ SILENT: true })} />);
 
-export const render = (ui: UiState) => {
-  rerender(<App {...ui} />);
+export const render = (isDev: boolean, ui: UiState) => {
+  if (isDev) rerender(<App {...ui} />);
 };
 
-export const unmount = async () => {
+export const unmount = () => {
   clear();
   inkUnmount();
 };

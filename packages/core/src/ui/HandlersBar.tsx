@@ -55,7 +55,14 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
           | {ui.handlersCurrent}/{ui.handlersTotal} events
         </Text>
       );
-    if (isStarted) return <Text> | {ui.handlersCurrent}/??? events</Text>;
+    if (isStarted)
+      return (
+        <Text>
+          {" "}
+          | {ui.handlersCurrent}/
+          {"?".repeat(ui.handlersCurrent.toString().length)} events
+        </Text>
+      );
     return null;
   };
 

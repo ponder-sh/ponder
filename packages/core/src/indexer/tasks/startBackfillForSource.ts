@@ -57,8 +57,6 @@ export const startBackfillForSource = async ({
     cacheRate: cacheRate,
   });
 
-  let totalLogTasks = 0;
-
   for (const blockInterval of requiredBlockIntervals) {
     const [startBlock, endBlock] = blockInterval;
     let fromBlock = startBlock;
@@ -75,7 +73,6 @@ export const startBackfillForSource = async ({
         source: source.name,
         taskCount: 1,
       });
-      totalLogTasks++;
       continue;
     }
 
@@ -92,14 +89,7 @@ export const startBackfillForSource = async ({
         source: source.name,
         taskCount: 1,
       });
-      totalLogTasks++;
     }
-  }
-
-  if (ponder.ui.isProd) {
-    ponder.logger.info(
-      `${source.name}: Added ${totalLogTasks} log backfill tasks`
-    );
   }
 
   const killQueues = () => {
