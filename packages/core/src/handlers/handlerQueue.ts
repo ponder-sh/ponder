@@ -163,7 +163,7 @@ export const createHandlerQueue = ({
   const queue = createNotSoFastQueue(handlerWorker, (error) => {
     if (error) {
       ponder.emit("dev_error", {
-        context: "Handler file error: " + pico.bold(error.message),
+        context: "handler file error: " + pico.bold(error.message),
         error,
       });
     }

@@ -30,7 +30,7 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
 
   if (!existsSync(handlersRootFilePath)) {
     ponder.emit("dev_error", {
-      context: `Reading handler files`,
+      context: `reading handler files`,
       error: new Error(
         `Handlers not found, expected file: ${handlersRootFilePath}`
       ),
@@ -59,7 +59,10 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
     });
     error.stack = stackTraces.join("\n");
 
-    ponder.emit("dev_error", { context: "Building handler files", error });
+    ponder.emit("dev_error", {
+      context: `building handler files`,
+      error,
+    });
 
     return null;
   }

@@ -25,7 +25,7 @@ const readSchema = ({ ponder }: { ponder: Ponder }) => {
     return schema;
   } catch (error) {
     ponder.emit("dev_error", {
-      context: "Parsing schema.graphql",
+      context: "parsing schema.graphql",
       error: error as Error,
     });
     return null;
