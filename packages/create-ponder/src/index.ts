@@ -210,7 +210,7 @@ services:
     buildCommand: ${packageManager} install
     startCommand: ${runCommand} start
     envVars:
-      - key: POSTGRES_URL
+      - key: DATABASE_URL
         fromDatabase:
           name: ponder-db
           property: connectionString

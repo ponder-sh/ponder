@@ -12,14 +12,14 @@ It's very easy to deploy Ponder apps to [Render](https://render.com), a Heroku-l
 
 ### Update `ponder.config.js`
 
-In production, Ponder apps use Postgres. Update your `ponder.config.js` file to use Postgres in production, and SQLite in development. Render will provide the `POSTGRES_URL` environment variable.
+In production, Ponder apps use Postgres. Update your `ponder.config.js` file to use Postgres in production, and SQLite in development. Render will provide the `DATABASE_URL` environment variable.
 
 ```js filename="ponder.config.js"
 module.exports = {
     database: process.env.NODE_ENV === "production"
       ? {
           kind: "postgres",
-          connectionString: process.env.POSTGRES_URL,
+          connectionString: process.env.DATABASE_URL,
         }
       : {
           kind: "sqlite",
@@ -48,7 +48,7 @@ services:
     buildCommand: pnpm install # Or yarn, npm
     startCommand: pnpm start # Or yarn, npm
     envVars:
-      - key: POSTGRES_URL
+      - key: DATABASE_URL
         fromDatabase:
           name: my-ponder-db
           property: connectionString
