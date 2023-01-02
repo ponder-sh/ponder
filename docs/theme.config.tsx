@@ -50,10 +50,10 @@ const config: DocsThemeConfig = {
 
     const defaultSeoProps = {
       description:
-        "Ponder is a framework for building web services that interact blockchain data.",
+        "Ponder is a framework for building blockchain app backends.",
       openGraph: {
         description:
-          "Ponder is a framework for building web services that interact blockchain data.",
+          "Ponder is a framework for building blockchain app backends.",
         title: "Ponder: A Node.js Framework for Ethereum",
         images: [{ url: "https://ponder.sh/og.png" }],
       },

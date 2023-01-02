@@ -10,20 +10,23 @@ import { Callout } from "nextra-theme-docs";
 Ponder is an open-source framework for building frontend-ready APIs that serve blockchain data.
 
 <Callout type="warning">
-  Over time, Ponder will support more use cases like submitting arbitrary
-  network requests, integrations with services like Discord & Stripe, and more.
-  Today, the *only* supported use case is building a GraphQL API using
-  blockchain events.
+  Today, the _only_ supported use case for Ponder is building a GraphQL API from
+  blockchain event logs.
 </Callout>
+
+Over time, Ponder aims to solve for more use cases, like sending arbitrary
+networks requests in response to blockchain events, building non-GraphQL APIs,
+and integrating with services like Discord, Slack, and Sendgrid.
 
 ## Architecture overview
 
 <Callout type="info">
   Ponder's architecture is very similar to Graph Protocol subgraphs. If you're
-  familiar with building subgraphs, you can skip to Getting started.
+  familiar with building subgraphs, you can skip to [Getting
+  started](/getting-started).
 </Callout>
 
-**_TODO_** Diagram: Blockchain events → Event handler functions → Entity database → GraphQL API → Client app
+**_TODO_** Figure 1: Blockchain events → Event handler functions → Entity database → GraphQL API → Client app
 
 ## Simple example
 
@@ -49,17 +52,17 @@ const config = {
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/..."
-    }
+      rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/...",
+    },
   ],
   sources: [
     {
       name: "EthereumNameService",
       network: "mainnet",
       abi: "./abis/EthereumNameService.json",
-      address: "0x283...7f5"
-    }
-  ]
+      address: "0x283...7f5",
+    },
+  ],
 };
 
 module.exports = config;
@@ -98,4 +101,4 @@ export const {
 
 Ponder automatically generates a GraphQL API that serves data from the Entity Store.
 
-**_TODO_** Figure: GraphQL query and result
+**_TODO_** Figure 2: GraphQL query and result

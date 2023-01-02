@@ -1,9 +1,7 @@
 {
   "index": {
-    "title": "Introduction",
-    "display": "hidden"
+    "title": "Introduction"
   },
-  "introduction": "Introduction",
   "getting-started": "Getting started",
   "faq": "FAQ",
   "api-reference": "API reference"

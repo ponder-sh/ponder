@@ -1,19 +1,19 @@
 # Ponder
 
-A framework for blockchain-enabled web services
+A framework for blockchain app backends
 
 ## Features
 
 Ponder is an open-source framework for building frontend-ready APIs that serve blockchain data. It can be used as an alternative to Graph Protocol subgraphs.
 
 - Local development server with hot reloading
-- Built using the familiar Node.js runtime and NPM package ecosystem
+- Uses the familiar Node.js runtime and NPM package ecosystem
 - Works with any Ethereum-based blockchain, and natively supports cross-chain apps
 - Plugin API that exposes hooks into the core indexing engine
 
 ## Documentation
 
-For full documentation, visit [ponder.sh](https://ponder.sh/getting-started).
+For full documentation, visit [ponder.sh](https://ponder.sh).
 
 ## Quickstart
 
@@ -59,7 +59,7 @@ Using this schema, Ponder automatically generates a GraphQL API that serves enti
 
 ### 5) Write event handlers
 
-The files in the `handlers/` folder contain event handler functions. Ponder uses these functions to process blockchain events. These functions are where you should insert and update the entity data that will get served by the GraphQL API. [Visit the docs](https://ponder.sh/getting-started) to learn more about writing event handlers.
+The files in the `handlers/` folder contain event handler functions. Ponder uses these functions to process blockchain events. These functions are where you should insert and update the entity data that will get served by the GraphQL API. [Visit the docs](https://ponder.sh) to learn more about writing event handlers.
 
 ## Contributing
 

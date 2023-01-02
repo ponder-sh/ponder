@@ -4,4 +4,4 @@
 
 ## Documentation
 
-For full documentation, visit [ponder.sh](https://ponder.sh/getting-started).
+For full documentation, visit [ponder.sh](https://ponder.sh).
