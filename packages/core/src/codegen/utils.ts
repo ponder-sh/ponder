@@ -11,7 +11,7 @@ const loadPrettierConfig = async () => {
   if (configFilePath) {
     const foundConfig = await prettier.resolveConfig(configFilePath);
     if (foundConfig) {
-      logger.info(`Found prettier config at: ${configFilePath}`);
+      logger.trace(`found prettier config at: ${configFilePath}`);
       prettierConfig = foundConfig;
     }
   }

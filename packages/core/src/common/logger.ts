@@ -1,3 +1,5 @@
+import pico from "picocolors";
+
 export enum LogLevel {
   // Silent 0
   Error, // 1
@@ -39,4 +41,48 @@ export const logger: PonderLogger = {
   trace: (...args: Parameters<typeof console.log>) => {
     if (LOG_LEVEL > LogLevel.Trace) console.log(...args);
   },
+};
+
+// This function is specifically for message logs.
+
+export enum MessageKind {
+  EVENT = "event",
+  ERROR = "error",
+  BACKFILL = "backfill",
+  FRONTFILL = "frontfill",
+  INDEXER = "indexer",
+}
+
+const DEV_WIDTH = 5;
+const START_WIDTH = 9;
+
+export const logMessage = (
+  kind: MessageKind,
+  message: string,
+  isDev = true
+) => {
+  const padded = kind.padEnd(isDev ? DEV_WIDTH : START_WIDTH, " ");
+
+  switch (kind) {
+    case MessageKind.EVENT: {
+      logger.info(pico.magenta(padded) + " - " + message);
+      break;
+    }
+    case MessageKind.ERROR: {
+      logger.error(pico.red(padded) + " - " + message);
+      break;
+    }
+    case MessageKind.BACKFILL: {
+      logger.info(pico.yellow(padded) + " - " + message);
+      break;
+    }
+    case MessageKind.FRONTFILL: {
+      logger.info(pico.cyan(padded) + " - " + message);
+      break;
+    }
+    case MessageKind.INDEXER: {
+      logger.info(pico.blue(padded) + " - " + message);
+      break;
+    }
+  }
 };

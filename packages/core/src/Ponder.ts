@@ -6,7 +6,7 @@ import { PonderCliOptions } from "@/bin/ponder";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { EventEmitter } from "@/common/EventEmitter";
-import { logger, PonderLogger } from "@/common/logger";
+import { logger, logMessage, MessageKind, PonderLogger } from "@/common/logger";
 import { buildOptions, PonderOptions } from "@/common/options";
 import { PonderConfig, readPonderConfig } from "@/common/readPonderConfig";
 import {
@@ -262,13 +262,11 @@ export class Ponder extends EventEmitter<Events> {
         }
 
         if (isFileChanged(fullPath)) {
-          logger.info(
-            pico.magenta(`event    `) +
-              " - " +
-              "detected change in " +
-              pico.bold(`${fileName}`)
+          logMessage(
+            MessageKind.EVENT,
+            "detected change in " + pico.bold(fileName),
+            this.isDev
           );
-
           this.reload();
         }
       })
@@ -297,8 +295,10 @@ export class Ponder extends EventEmitter<Events> {
     const duration = formatEta(endBenchmark(startHrt));
 
     if (!this.isDev) {
-      logger.info(
-        pico.yellow(`backfill `) + " - " + `backfill complete (${duration})`
+      logMessage(
+        MessageKind.BACKFILL,
+        `backfill complete (${duration})`,
+        this.isDev
       );
     }
 
@@ -337,8 +337,10 @@ export class Ponder extends EventEmitter<Events> {
     this.isHandlingLogs = false;
 
     if (!this.isDev && logs.length > 0) {
-      logger.info(
-        pico.blue(`indexer  `) + " - " + `reindexed ${logs.length} events`
+      logMessage(
+        MessageKind.INDEXER,
+        `reindexed ${logs.length} events`,
+        this.isDev
       );
     }
   }
@@ -369,14 +371,14 @@ export class Ponder extends EventEmitter<Events> {
   // --------------------------- EVENT HANDLERS --------------------------- //
 
   private config_error: Events["config_error"] = async (e) => {
-    logger.error(pico.red(`error    `) + " - " + e.context);
+    logMessage(MessageKind.ERROR, e.context, this.isDev);
     if (e.error) logger.error(e.error);
     this.kill();
   };
 
   private dev_error: Events["dev_error"] = async (e) => {
     this.handlerQueue?.kill();
-    logger.error(pico.red(`error    `) + " - " + e.context);
+    logMessage(MessageKind.ERROR, e.context, this.isDev);
 
     // If not the dev server, log the entire error and kill the app.
     if (!this.isDev) {
@@ -402,12 +404,12 @@ export class Ponder extends EventEmitter<Events> {
 
   private backfill_sourceStarted: Events["backfill_sourceStarted"] = (e) => {
     if (!this.isDev) {
-      this.logger.info(
-        pico.yellow(`backfill `) +
-          " - " +
-          `started backfill for source ${pico.bold(
-            e.source
-          )} (${formatPercentage(e.cacheRate)} cached)`
+      logMessage(
+        MessageKind.BACKFILL,
+        `started backfill for source ${pico.bold(e.source)} (${formatPercentage(
+          e.cacheRate
+        )} cached)`,
+        this.isDev
       );
     }
 
@@ -459,10 +461,10 @@ export class Ponder extends EventEmitter<Events> {
 
   private frontfill_newLogs: Events["frontfill_newLogs"] = (e) => {
     if (!this.isDev && this.ui.isBackfillComplete) {
-      this.logger.info(
-        pico.cyan(`frontfill`) +
-          " - " +
-          `${e.network} block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched events)`
+      logMessage(
+        MessageKind.FRONTFILL,
+        `${e.network} block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched events)`,
+        this.isDev
       );
     }
     this.handleNewLogs();
@@ -524,10 +526,10 @@ export class Ponder extends EventEmitter<Events> {
 
         const countText = `${current}/${total}`;
 
-        this.logger.info(
-          pico.yellow(`backfill `) +
-            " - " +
-            `${source.name}: ${`(${etaText + " | " + countText})`}`
+        logMessage(
+          MessageKind.BACKFILL,
+          `${source.name}: ${`(${etaText + " | " + countText})`}`,
+          this.isDev
         );
       });
     }
