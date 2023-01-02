@@ -18,9 +18,6 @@ export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
     name: "graphql",
     setup: async (ponder) => {
       if (!ponder.schema) {
-        ponder.logger.error(
-          "Cannot setup @ponder/graphql before building schema"
-        );
         return;
       }
 
@@ -38,9 +35,6 @@ export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
     },
     reload: async (ponder) => {
       if (!ponder.schema) {
-        ponder.logger.error(
-          "Cannot setup @ponder/graphql before building schema"
-        );
         return;
       }
 
