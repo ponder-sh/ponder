@@ -48,7 +48,7 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
   // Write contract ABI file.
   const abiRelativePath = `./abis/${contractName}.json`;
   const abiAbsolutePath = path.join(ponderRootDir, abiRelativePath);
-  writeFileSync(abiAbsolutePath, abi);
+  writeFileSync(abiAbsolutePath, prettier.format(abi, { parser: "json" }));
 
   const schemaGraphqlFileContents = `
     type ExampleEntity @entity {

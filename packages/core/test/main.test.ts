@@ -45,6 +45,7 @@ describe("Ponder", () => {
 
   beforeEach(() => {
     ponder = new Ponder({
+      isDev: true,
       rootDir: "./test/basic",
       configFile: "ponder.config.js",
       silent: false,
@@ -96,13 +97,10 @@ describe("Ponder", () => {
       expect(ponder.entityStore).toBeInstanceOf(SqliteEntityStore);
     });
 
-    it("builds the schema", async () => {
-      expect(ponder.schema.entities.length).toBe(1);
-    });
-
     it("registers event listeners", async () => {
       expect(ponder.eventNames()).toMatchObject([
         "config_error",
+        "dev_error",
         "backfill_networkConnected",
         "backfill_sourceStarted",
         "backfill_logTasksAdded",
@@ -113,7 +111,6 @@ describe("Ponder", () => {
         "frontfill_newLogs",
         "indexer_taskStarted",
         "indexer_taskDone",
-        "indexer_taskError",
       ]);
     });
 
@@ -147,6 +144,18 @@ describe("Ponder", () => {
       expect(tableNames).toContain("__ponder__v1__contractCalls");
     });
 
+    it("creates the handler queue", async () => {
+      await ponder.setup();
+
+      expect(ponder.handlerQueue).toBeTruthy();
+    });
+
+    it("builds the schema", async () => {
+      await ponder.setup();
+
+      expect(ponder.schema?.entities.length).toBe(1);
+    });
+
     it("migrates the entity store", async () => {
       await ponder.setup();
 
@@ -156,12 +165,6 @@ describe("Ponder", () => {
       const tableNames = tables.map((t) => t.name);
 
       expect(tableNames).toContain("File");
-    });
-
-    it("creates the handler queue", async () => {
-      await ponder.setup();
-
-      expect(ponder.handlerQueue).toBeTruthy();
     });
   });
 

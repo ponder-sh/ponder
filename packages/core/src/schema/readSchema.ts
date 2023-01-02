@@ -19,9 +19,17 @@ scalar BigInt
 const readSchema = ({ ponder }: { ponder: Ponder }) => {
   const schemaBody = readFileSync(ponder.options.SCHEMA_FILE_PATH);
   const schemaSource = schemaHeader + schemaBody.toString();
-  const schema = buildSchema(schemaSource);
 
-  return schema;
+  try {
+    const schema = buildSchema(schemaSource);
+    return schema;
+  } catch (error) {
+    ponder.emit("dev_error", {
+      context: "parsing schema.graphql",
+      error: error as Error,
+    });
+    return null;
+  }
 };
 
 export { readSchema };

@@ -9,11 +9,8 @@ import { HandlersBar } from "./HandlersBar";
 
 export type UiState = {
   isSilent: boolean;
-  isProd: boolean;
-
   timestamp: number;
 
-  // See src/README.md. This maps source name to backfill stats.
   stats: Record<
     string,
     {
@@ -37,12 +34,10 @@ export type UiState = {
   isBackfillComplete: boolean;
   backfillDuration: string;
 
+  handlerError: { context: string; error?: Error } | null;
   handlersCurrent: number;
   handlersTotal: number;
   handlersToTimestamp: number;
-
-  configError: string | null;
-  handlerError: Error | null;
 
   networks: Record<
     string,
@@ -56,10 +51,9 @@ export type UiState = {
   >;
 };
 
-export const getUiState = (options: PonderOptions): UiState => {
+export const getUiState = (options: Pick<PonderOptions, "SILENT">): UiState => {
   return {
     isSilent: options.SILENT,
-    isProd: false,
 
     timestamp: 0,
 
@@ -68,12 +62,10 @@ export const getUiState = (options: PonderOptions): UiState => {
     isBackfillComplete: false,
     backfillDuration: "",
 
+    handlerError: null,
     handlersCurrent: 0,
     handlersTotal: 0,
     handlersToTimestamp: 0,
-
-    configError: null,
-    handlerError: null,
 
     networks: {},
   };
@@ -106,42 +98,22 @@ export const hydrateUi = ({
 const App = (ui: UiState) => {
   const {
     isSilent,
-    isProd,
     timestamp,
     stats,
     isBackfillComplete,
     backfillDuration,
     handlersCurrent,
-    configError,
     handlerError,
     networks,
   } = ui;
 
   if (isSilent) return null;
 
-  if (isProd) return null;
-
-  if (configError) {
-    return (
-      <Box flexDirection="column">
-        <Box flexDirection="row">
-          <Text color="redBright" bold={true}>
-            [Config error]{" "}
-          </Text>
-          <Text>
-            {configError}
-            <Newline />
-          </Text>
-        </Box>
-      </Box>
-    );
-  }
-
   if (handlerError) {
     return (
       <Box flexDirection="column">
         <Text> </Text>
-        <Text>{handlerError.stack}</Text>
+        <Text>{handlerError.error?.stack}</Text>
         <Text> </Text>
         <Text color="cyan">
           Resolve the error and save your changes to reload the server.
@@ -176,20 +148,21 @@ const App = (ui: UiState) => {
       <HandlersBar ui={ui} />
 
       <Box flexDirection="column">
+        <Text bold={true}>Frontfill </Text>
         {Object.values(networks).map((network) => (
           <Box flexDirection="row" key={network.name}>
-            <Text color="cyanBright" bold={true}>
-              [{network.name}]{" "}
+            <Text>
+              {network.name.slice(0, 1).toUpperCase() + network.name.slice(1)} @{" "}
             </Text>
             {network.blockTxnCount !== -1 ? (
               <Text>
-                Block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
+                block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
                 {network.matchedLogCount} matched logs,{" "}
                 {timestamp - network.blockTimestamp}s ago)
               </Text>
             ) : (
               <Text>
-                Block {network.blockNumber} (
+                block {network.blockNumber} (
                 {Math.max(timestamp - network.blockTimestamp, 0)}s ago)
               </Text>
             )}
@@ -200,10 +173,8 @@ const App = (ui: UiState) => {
 
       {handlersCurrent > 0 && (
         <Box flexDirection="column">
+          <Text bold={true}>GraphQL </Text>
           <Box flexDirection="row">
-            <Text color="magentaBright" bold={true}>
-              [graphql]{" "}
-            </Text>
             <Text>Server live at http://localhost:42069/graphql</Text>
           </Box>
         </Box>
@@ -212,6 +183,17 @@ const App = (ui: UiState) => {
   );
 };
 
-export const render = (ui: UiState) => {
-  inkRender(<App {...ui} />);
+const {
+  rerender,
+  unmount: inkUnmount,
+  clear,
+} = inkRender(<App {...getUiState({ SILENT: true })} />);
+
+export const render = (isDev: boolean, ui: UiState) => {
+  if (isDev) rerender(<App {...ui} />);
+};
+
+export const unmount = () => {
+  clear();
+  inkUnmount();
 };

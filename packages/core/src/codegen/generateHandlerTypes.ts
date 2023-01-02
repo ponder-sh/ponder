@@ -9,6 +9,8 @@ import { buildEventTypes } from "./buildEventTypes";
 import { formatPrettier } from "./utils";
 
 export const generateHandlerTypes = ({ ponder }: { ponder: Ponder }) => {
+  if (!ponder.schema) return;
+
   const contractNames = ponder.sources.map((source) => source.name);
   const entityNames = (ponder.schema.entities || []).map(
     (entity) => entity.name
