@@ -110,10 +110,15 @@ export class SqliteEntityStore implements EntityStore {
       instance.id = id;
 
       const columnStatements = Object.entries(instance).map(
-        ([fieldName, value]) => ({
-          column: `"${fieldName}"`,
-          value: `'${value}'`,
-        })
+        ([fieldName, value]) => {
+          const persistedValue =
+            typeof value === "boolean" ? (value ? 1 : 0) : `'${value}'`;
+
+          return {
+            column: `"${fieldName}"`,
+            value: persistedValue,
+          };
+        }
       );
 
       const insertFragment = `(${columnStatements
@@ -150,10 +155,15 @@ export class SqliteEntityStore implements EntityStore {
       }
 
       const columnStatements = Object.entries(instance).map(
-        ([fieldName, value]) => ({
-          column: `"${fieldName}"`,
-          value: `'${value}'`,
-        })
+        ([fieldName, value]) => {
+          const persistedValue =
+            typeof value === "boolean" ? (value ? 1 : 0) : `'${value}'`;
+
+          return {
+            column: `"${fieldName}"`,
+            value: persistedValue,
+          };
+        }
       );
 
       const updateFragment = columnStatements
@@ -194,10 +204,15 @@ export class SqliteEntityStore implements EntityStore {
       instance.id = id;
 
       const columnStatements = Object.entries(instance).map(
-        ([fieldName, value]) => ({
-          column: `"${fieldName}"`,
-          value: `'${value}'`,
-        })
+        ([fieldName, value]) => {
+          const persistedValue =
+            typeof value === "boolean" ? (value ? 1 : 0) : `'${value}'`;
+
+          return {
+            column: `"${fieldName}"`,
+            value: persistedValue,
+          };
+        }
       );
 
       const insertFragment = `(${columnStatements
@@ -407,15 +422,17 @@ export class SqliteEntityStore implements EntityStore {
         const field = entity.fieldByName[fieldName];
         if (!field) return;
 
-        switch (field.kind) {
-          case FieldKind.LIST: {
-            deserializedInstance[fieldName] = (value as string).split(",");
-            break;
-          }
-          default: {
-            deserializedInstance[fieldName] = value;
-          }
+        if (field.baseGqlType.toString() === "Boolean") {
+          deserializedInstance[fieldName] = value === 1 ? true : false;
+          return;
         }
+
+        if (field.kind === FieldKind.LIST) {
+          deserializedInstance[fieldName] = (value as string).split(",");
+          return;
+        }
+
+        deserializedInstance[fieldName] = value;
       });
 
       return deserializedInstance as Record<string, unknown>;

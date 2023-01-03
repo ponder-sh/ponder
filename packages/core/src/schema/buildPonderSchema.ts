@@ -48,7 +48,7 @@ const gqlScalarTypeByName: Record<string, GraphQLScalarType | undefined> = {
 
 const gqlScalarToSqlType: Record<string, string | undefined> = {
   ID: "text",
-  Boolean: "boolean",
+  Boolean: "integer",
   Int: "integer",
   String: "text",
   // graph-ts scalar types
