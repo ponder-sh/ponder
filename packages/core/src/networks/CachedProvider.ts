@@ -2,33 +2,38 @@ import type { BlockTag, TransactionRequest } from "@ethersproject/providers";
 import { ethers } from "ethers";
 import type { Deferrable } from "ethers/lib/utils";
 
-import type { CacheStore } from "@/db/cache/cacheStore";
+import type { Ponder } from "@/Ponder";
 
-// import { stats } from "../indexer/stats";
-
-// This class extends the ethers provider and caches contract calls in the
-// Ponder CacheStore. It's a WIP.
+// This class extends the ethers provider and
+// caches contract calls in the Ponder CacheStore.
 export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
   chainId: number;
-  cacheStore: CacheStore;
+  ponder: Ponder;
 
   constructor(
-    cacheStore: CacheStore,
+    ponder: Ponder,
     url: string | ethers.utils.ConnectionInfo,
     chainId: number
   ) {
     super(url, chainId);
     this.chainId = chainId;
-    this.cacheStore = cacheStore;
+    this.ponder = ponder;
   }
 
   async call(
     transaction: Deferrable<TransactionRequest>,
     _blockTag?: BlockTag | Promise<BlockTag>
   ): Promise<string> {
-    if (!_blockTag) throw new Error(`Missing blockTag in transaction request`);
-    if (typeof _blockTag !== "number")
-      throw new Error(`blockTag must be a number (a decimal block number)`);
+    let blockTag: number;
+
+    if (_blockTag) {
+      if (typeof _blockTag !== "number") {
+        throw new Error(`blockTag must be a number (a decimal block number)`);
+      }
+      blockTag = _blockTag;
+    } else {
+      blockTag = this.ponder.currentEventBlockTag;
+    }
 
     const address = await transaction.to;
     if (!address) throw new Error(`Missing address in transaction request`);
@@ -36,34 +41,19 @@ export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
     const data = (await transaction.data)?.toString();
     if (!data) throw new Error(`Missing data in transaction request`);
 
-    const contractCallKey = `${this.chainId}-${_blockTag}-${address}-${data}`;
+    const contractCallKey = `${this.chainId}-${blockTag}-${address}-${data}`;
 
-    const cachedContractCall = await this.cacheStore.getContractCall(
+    const cachedContractCall = await this.ponder.cacheStore.getContractCall(
       contractCallKey
     );
 
-    // if (!stats.contractCallStats[`${this.chainId}-${address}`]) {
-    //   stats.contractCallStats[`${this.chainId}-${address}`] = {
-    //     contractCallCacheHitCount: 0,
-    //     contractCallTotalCount: 0,
-    //   };
-    // }
-
-    // stats.contractCallStats[
-    //   `${this.chainId}-${address}`
-    // ].contractCallTotalCount += 1;
-
     if (cachedContractCall) {
-      // stats.contractCallStats[
-      //   `${this.chainId}-${address}`
-      // ].contractCallCacheHitCount += 1;
-
       return JSON.parse(cachedContractCall.result);
     }
 
     const result = await super.call(transaction, _blockTag);
 
-    await this.cacheStore.upsertContractCall({
+    await this.ponder.cacheStore.upsertContractCall({
       key: contractCallKey,
       result: JSON.stringify(result),
     });
