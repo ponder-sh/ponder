@@ -1,8 +1,8 @@
 import type PgPromise from "pg-promise";
 
 import { logger } from "@/common/logger";
-import type { Block, EventLog, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
+import type { Block, EventLog, Transaction } from "@/types";
 
 import { pgp } from "../db";
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";

@@ -1,5 +1,5 @@
 import type { Ponder } from "@/Ponder";
-import type { PonderSchema } from "@/schema/types";
+import type { Schema } from "@/schema/types";
 
 import { PostgresEntityStore } from "./postgresEntityStore";
 import { SqliteEntityStore } from "./sqliteEntityStore";
@@ -18,7 +18,7 @@ type Entity = Record<string, unknown>;
 type MaybePromise<T> = T | Promise<T>;
 
 export interface EntityStore {
-  migrate(schema: PonderSchema): MaybePromise<void>;
+  migrate(schema: Schema): MaybePromise<void>;
 
   getEntity(entityName: string, id: string): MaybePromise<Entity | null>;
 

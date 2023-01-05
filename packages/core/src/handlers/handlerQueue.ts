@@ -2,9 +2,9 @@ import { Contract } from "ethers";
 import pico from "picocolors";
 
 import { logger } from "@/common/logger";
-import type { EventLog } from "@/common/types";
 import type { Ponder } from "@/Ponder";
 import { Source } from "@/sources/base";
+import type { EventLog } from "@/types";
 
 import type { Handlers } from "./readHandlers";
 

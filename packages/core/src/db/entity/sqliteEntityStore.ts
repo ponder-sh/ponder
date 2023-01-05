@@ -1,12 +1,7 @@
 import type Sqlite from "better-sqlite3";
 
 import type { Ponder } from "@/Ponder";
-import {
-  DerivedField,
-  FieldKind,
-  PonderSchema,
-  ScalarField,
-} from "@/schema/types";
+import { DerivedField, FieldKind, ScalarField, Schema } from "@/schema/types";
 
 import { EntityFilter, EntityStore } from "./entityStore";
 import { sqlOperatorsForFilterType } from "./utils";
@@ -14,7 +9,7 @@ import { sqlOperatorsForFilterType } from "./utils";
 export class SqliteEntityStore implements EntityStore {
   db: Sqlite.Database;
   ponder: Ponder;
-  schema?: PonderSchema;
+  schema?: Schema;
 
   constructor({ db, ponder }: { db: Sqlite.Database; ponder: Ponder }) {
     this.db = db;
@@ -35,7 +30,7 @@ export class SqliteEntityStore implements EntityStore {
     };
   }
 
-  migrate(schema: PonderSchema) {
+  migrate(schema: Schema) {
     try {
       schema.entities.forEach((entity) => {
         // Drop the table if it already exists
@@ -43,7 +38,7 @@ export class SqliteEntityStore implements EntityStore {
 
         // Build the create table statement using field migration fragments.
         // TODO: Update this so the generation of the field migration fragments happens here
-        // instead of when the PonderSchema gets built.
+        // instead of when the Schema gets built.
         const columnStatements = entity.fields
           .filter(
             // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)

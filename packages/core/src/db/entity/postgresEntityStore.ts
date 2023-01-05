@@ -1,24 +1,19 @@
 import type PgPromise from "pg-promise";
 
-import {
-  DerivedField,
-  FieldKind,
-  PonderSchema,
-  ScalarField,
-} from "@/schema/types";
+import { DerivedField, FieldKind, ScalarField, Schema } from "@/schema/types";
 
 import type { EntityFilter, EntityStore } from "./entityStore";
 import { sqlOperatorsForFilterType } from "./utils";
 
 export class PostgresEntityStore implements EntityStore {
   db: PgPromise.IDatabase<unknown>;
-  schema?: PonderSchema;
+  schema?: Schema;
 
   constructor({ db }: { db: PgPromise.IDatabase<unknown> }) {
     this.db = db;
   }
 
-  async migrate(schema: PonderSchema) {
+  async migrate(schema: Schema) {
     this.schema = schema;
 
     schema.entities.forEach(async (entity) => {
@@ -27,7 +22,7 @@ export class PostgresEntityStore implements EntityStore {
 
       // Build the create table statement using field migration fragments.
       // TODO: Update this so the generation of the field migration fragments happens here
-      // instead of when the PonderSchema gets built.
+      // instead of when the Schema gets built.
       const columnStatements = entity.fields
         .filter(
           // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)

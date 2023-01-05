@@ -23,9 +23,9 @@ import {
   FieldKind,
   IDField,
   ListField,
-  PonderSchema,
   RelationshipField,
   ScalarField,
+  Schema,
 } from "./types";
 import {
   getCustomScalarTypes,
@@ -57,10 +57,10 @@ const gqlScalarToSqlType: Record<string, string | undefined> = {
   Bytes: "text",
 };
 
-export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
-  const gqlEntityTypes = getEntityTypes(userSchema);
-  const gqlEnumTypes = getEnumTypes(userSchema);
-  const gqlCustomScalarTypes = getCustomScalarTypes(userSchema);
+export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
+  const gqlEntityTypes = getEntityTypes(graphqlSchema);
+  const gqlEnumTypes = getEnumTypes(graphqlSchema);
+  const gqlCustomScalarTypes = getCustomScalarTypes(graphqlSchema);
 
   const entities = gqlEntityTypes.map((entity) => {
     const entityName = entity.name;
@@ -193,7 +193,7 @@ export const buildPonderSchema = (userSchema: GraphQLSchema): PonderSchema => {
     entityByName[entity.name] = entity;
   });
 
-  const schema: PonderSchema = { entities, entityByName };
+  const schema: Schema = { entities, entityByName };
 
   return schema;
 };

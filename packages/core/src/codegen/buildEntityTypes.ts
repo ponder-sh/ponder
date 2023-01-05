@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import { Kind } from "graphql";
 
-import { FieldKind, PonderSchema } from "@/schema/types";
+import { FieldKind, Schema } from "@/schema/types";
 
 const gqlScalarToTsType: Record<string, string | undefined> = {
   ID: "string",
@@ -14,7 +14,7 @@ const gqlScalarToTsType: Record<string, string | undefined> = {
   Bytes: "string",
 };
 
-export const buildEntityTypes = (schema: PonderSchema) => {
+export const buildEntityTypes = (schema: Schema) => {
   const entityModelTypes = schema.entities
     .map((entity) => {
       return `

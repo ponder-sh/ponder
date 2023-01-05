@@ -2,9 +2,9 @@ import { build, formatMessagesSync, Message } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import type { Block, EventLog, Transaction } from "@/common/types";
 import { ensureDirExists } from "@/common/utils";
 import type { Ponder } from "@/Ponder";
+import type { Block, EventLog, Transaction } from "@/types";
 
 export interface HandlerEvent extends EventLog {
   name: string;

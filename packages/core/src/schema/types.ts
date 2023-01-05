@@ -94,7 +94,7 @@ export type Entity = {
   fieldByName: Record<string, Field>;
 };
 
-export type PonderSchema = {
+export type Schema = {
   entities: Entity[];
   entityByName: Record<string, Entity>;
 };

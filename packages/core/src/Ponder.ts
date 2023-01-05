@@ -5,10 +5,8 @@ import pico from "picocolors";
 import { PonderCliOptions } from "@/bin/ponder";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
-import { EventEmitter } from "@/common/EventEmitter";
 import { logger, logMessage, MessageKind, PonderLogger } from "@/common/logger";
 import { buildOptions, PonderOptions } from "@/common/options";
-import { PonderConfig, readPonderConfig } from "@/common/readPonderConfig";
 import {
   endBenchmark,
   formatEta,
@@ -26,77 +24,45 @@ import { startBackfill } from "@/indexer/tasks/startBackfill";
 import { startFrontfill } from "@/indexer/tasks/startFrontfill";
 import type { Network } from "@/networks/base";
 import { buildNetworks } from "@/networks/buildNetworks";
-import type { ResolvedPonderPlugin } from "@/plugin";
-import { buildPonderSchema } from "@/schema/buildPonderSchema";
-import { readSchema } from "@/schema/readSchema";
-import type { PonderSchema } from "@/schema/types";
+import { PonderConfig, readPonderConfig } from "@/readPonderConfig";
+import { buildSchema } from "@/schema/buildSchema";
+import { readGraphqlSchema } from "@/schema/readGraphqlSchema";
+import type { Schema } from "@/schema/types";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
+import { EventEmitter, PonderEvents, ResolvedPonderPlugin } from "@/types";
 import type { UiState } from "@/ui/app";
 import { getUiState, hydrateUi, render, unmount } from "@/ui/app";
 
-type Events = {
-  config_error: (arg: { context: string; error?: Error }) => void;
-  dev_error: (arg: { context: string; error?: Error }) => void;
-
-  backfill_networkConnected: (arg: {
-    network: string;
-    blockNumber: number;
-    blockTimestamp: number;
-  }) => void;
-  backfill_sourceStarted: (arg: { source: string; cacheRate: number }) => void;
-  backfill_logTasksAdded: (arg: { source: string; taskCount: number }) => void;
-  backfill_blockTasksAdded: (arg: {
-    source: string;
-    taskCount: number;
-  }) => void;
-  backfill_logTaskDone: (arg: { source: string }) => void;
-  backfill_blockTaskDone: (arg: { source: string }) => void;
-  backfill_newLogs: () => void;
-
-  frontfill_newLogs: (arg: {
-    network: string;
-    blockNumber: number;
-    blockTimestamp: number;
-    blockTxnCount: number;
-    matchedLogCount: number;
-  }) => void;
-
-  indexer_taskStarted: () => void;
-  indexer_taskDone: (arg: { timestamp: number }) => void;
-};
-
-export class Ponder extends EventEmitter<Events> {
+export class Ponder extends EventEmitter<PonderEvents> {
   config: PonderConfig;
   options: PonderOptions;
   isDev: boolean;
+  logger: PonderLogger = logger;
 
+  // Config-derived services
   sources: EvmSource[];
   networks: Network[];
-
   database: PonderDatabase;
   cacheStore: CacheStore;
   entityStore: EntityStore;
 
-  schema?: PonderSchema;
-
-  // Handlers
+  //
+  schema?: Schema;
   handlerQueue?: HandlerQueue;
-  logsProcessedToTimestamp: number;
-  isHandlingLogs: boolean;
 
-  // Contract call state
-  currentEventBlockTag: number;
+  // Handler state
+  isHandlingLogs = false;
+  logsProcessedToTimestamp = 0;
+  currentEventBlockTag = 0;
 
   // Hot reloading
-  watchFiles: string[];
   killFrontfillQueues?: () => void;
   killBackfillQueues?: () => void;
   killWatchers?: () => void;
 
   // Plugins
-  plugins: ResolvedPonderPlugin[];
-  logger: PonderLogger;
+  plugins: ResolvedPonderPlugin[] = [];
 
   // UI
   ui: UiState;
@@ -125,34 +91,20 @@ export class Ponder extends EventEmitter<Events> {
 
     this.options = buildOptions(cliOptions);
 
-    this.logsProcessedToTimestamp = 0;
-    this.isHandlingLogs = false;
-    this.currentEventBlockTag = 0;
     this.ui = getUiState(this.options);
 
     this.config = readPonderConfig(this.options.PONDER_CONFIG_FILE_PATH);
+    this.plugins = this.config.plugins || [];
 
     this.database = buildDb({ ponder: this });
     this.cacheStore = buildCacheStore({ ponder: this });
     this.entityStore = buildEntityStore({ ponder: this });
-
-    this.logger = logger;
 
     const { networks } = buildNetworks({ ponder: this });
     this.networks = networks;
 
     const { sources } = buildSources({ ponder: this });
     this.sources = sources;
-
-    this.plugins = this.config.plugins || [];
-    this.watchFiles = [
-      this.options.PONDER_CONFIG_FILE_PATH,
-      this.options.SCHEMA_FILE_PATH,
-      this.options.HANDLERS_DIR_PATH,
-      ...sources
-        .map((s) => s.abiFilePath)
-        .filter((p): p is string => typeof p === "string"),
-    ];
 
     hydrateUi({ ui: this.ui, sources });
   }
@@ -228,10 +180,10 @@ export class Ponder extends EventEmitter<Events> {
   }
 
   async reloadSchema() {
-    const userSchema = readSchema({ ponder: this });
-    // It's possible for `readSchema` to emit a dev_error and return null.
-    if (!userSchema) return;
-    this.schema = buildPonderSchema(userSchema);
+    const graphqlSchema = readGraphqlSchema({ ponder: this });
+    // It's possible for `readGraphqlSchema` to emit a dev_error and return null.
+    if (!graphqlSchema) return;
+    this.schema = buildSchema(graphqlSchema);
     await this.entityStore.migrate(this.schema);
   }
 
@@ -249,7 +201,16 @@ export class Ponder extends EventEmitter<Events> {
   }
 
   watch() {
-    const watchers = this.watchFiles.map((fileOrDirName) =>
+    const watchFiles = [
+      this.options.PONDER_CONFIG_FILE_PATH,
+      this.options.SCHEMA_FILE_PATH,
+      this.options.HANDLERS_DIR_PATH,
+      ...this.sources
+        .map((s) => s.abiFilePath)
+        .filter((p): p is string => typeof p === "string"),
+    ];
+
+    const watchers = watchFiles.map((fileOrDirName) =>
       watch(fileOrDirName, { recursive: true }, (_, fileName) => {
         const fullPath =
           path.basename(fileOrDirName) === fileName
@@ -374,13 +335,13 @@ export class Ponder extends EventEmitter<Events> {
 
   // --------------------------- EVENT HANDLERS --------------------------- //
 
-  private config_error: Events["config_error"] = async (e) => {
+  private config_error: PonderEvents["config_error"] = async (e) => {
     logMessage(MessageKind.ERROR, e.context, this.isDev);
     if (e.error) logger.error(e.error);
     this.kill();
   };
 
-  private dev_error: Events["dev_error"] = async (e) => {
+  private dev_error: PonderEvents["dev_error"] = async (e) => {
     this.handlerQueue?.kill();
     logMessage(MessageKind.ERROR, e.context, this.isDev);
 
@@ -394,19 +355,20 @@ export class Ponder extends EventEmitter<Events> {
     this.ui = { ...this.ui, handlerError: e };
   };
 
-  private backfill_networkConnected: Events["backfill_networkConnected"] = (
+  private backfill_networkConnected: PonderEvents["backfill_networkConnected"] =
+    (e) => {
+      this.ui.networks[e.network] = {
+        name: e.network,
+        blockNumber: e.blockNumber,
+        blockTimestamp: e.blockTimestamp,
+        blockTxnCount: -1,
+        matchedLogCount: -1,
+      };
+    };
+
+  private backfill_sourceStarted: PonderEvents["backfill_sourceStarted"] = (
     e
   ) => {
-    this.ui.networks[e.network] = {
-      name: e.network,
-      blockNumber: e.blockNumber,
-      blockTimestamp: e.blockTimestamp,
-      blockTxnCount: -1,
-      matchedLogCount: -1,
-    };
-  };
-
-  private backfill_sourceStarted: Events["backfill_sourceStarted"] = (e) => {
     if (!this.isDev) {
       logMessage(
         MessageKind.BACKFILL,
@@ -420,16 +382,18 @@ export class Ponder extends EventEmitter<Events> {
     this.ui.stats[e.source].cacheRate = e.cacheRate;
   };
 
-  private backfill_logTasksAdded: Events["backfill_logTasksAdded"] = (e) => {
+  private backfill_logTasksAdded: PonderEvents["backfill_logTasksAdded"] = (
+    e
+  ) => {
     this.ui.stats[e.source].logTotal += e.taskCount;
   };
-  private backfill_blockTasksAdded: Events["backfill_blockTasksAdded"] = (
+  private backfill_blockTasksAdded: PonderEvents["backfill_blockTasksAdded"] = (
     e
   ) => {
     this.ui.stats[e.source].blockTotal += e.taskCount;
   };
 
-  private backfill_logTaskDone: Events["backfill_logTaskDone"] = (e) => {
+  private backfill_logTaskDone: PonderEvents["backfill_logTaskDone"] = (e) => {
     if (this.ui.stats[e.source].logCurrent === 0) {
       this.ui.stats[e.source].logStartTimestamp = Date.now();
     }
@@ -445,7 +409,9 @@ export class Ponder extends EventEmitter<Events> {
     };
   };
 
-  private backfill_blockTaskDone: Events["backfill_blockTaskDone"] = (e) => {
+  private backfill_blockTaskDone: PonderEvents["backfill_blockTaskDone"] = (
+    e
+  ) => {
     if (this.ui.stats[e.source].blockCurrent === 0) {
       this.ui.stats[e.source].blockStartTimestamp = Date.now();
     }
@@ -463,7 +429,7 @@ export class Ponder extends EventEmitter<Events> {
     // this.handleNewLogs();
   };
 
-  private frontfill_newLogs: Events["frontfill_newLogs"] = (e) => {
+  private frontfill_newLogs: PonderEvents["frontfill_newLogs"] = (e) => {
     if (!this.isDev && this.ui.isBackfillComplete) {
       logMessage(
         MessageKind.FRONTFILL,
@@ -481,11 +447,11 @@ export class Ponder extends EventEmitter<Events> {
     };
   };
 
-  private indexer_taskStarted: Events["indexer_taskStarted"] = () => {
+  private indexer_taskStarted: PonderEvents["indexer_taskStarted"] = () => {
     this.ui.handlersCurrent += 1;
   };
 
-  private indexer_taskDone: Events["indexer_taskDone"] = (e) => {
+  private indexer_taskDone: PonderEvents["indexer_taskDone"] = (e) => {
     this.ui.handlersToTimestamp = e.timestamp;
     render(this.isDev, this.ui);
   };

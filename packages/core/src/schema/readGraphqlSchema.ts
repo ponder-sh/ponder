@@ -16,7 +16,7 @@ scalar Bytes
 scalar BigInt
 `;
 
-const readSchema = ({ ponder }: { ponder: Ponder }) => {
+const readGraphqlSchema = ({ ponder }: { ponder: Ponder }) => {
   const schemaBody = readFileSync(ponder.options.SCHEMA_FILE_PATH);
   const schemaSource = schemaHeader + schemaBody.toString();
 
@@ -32,4 +32,4 @@ const readSchema = ({ ponder }: { ponder: Ponder }) => {
   }
 };
 
-export { readSchema };
+export { readGraphqlSchema };

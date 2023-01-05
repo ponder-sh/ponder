@@ -1,4 +1,4 @@
-import type { ResolvedPonderPlugin } from "@/plugin";
+import type { ResolvedPonderPlugin } from "@/types";
 
 export type PonderConfig = {
   database:
