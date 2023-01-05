@@ -36,7 +36,10 @@ export type PartialPonderConfig = {
   sources: PonderSource[];
 };
 
-export const run = async (options: CreatePonderOptions) => {
+export const run = async (
+  options: CreatePonderOptions,
+  overrides: { installCommand?: string } = {}
+) => {
   const { ponderRootDir } = options;
 
   // Create required directories.
@@ -232,7 +235,11 @@ databases:
     pico.cyan("[create-ponder] ") + `Installing using ${packageManager}`
   );
 
-  execSync(`${packageManager} install`, {
+  const installCommand = overrides.installCommand
+    ? overrides.installCommand
+    : `${packageManager} install`;
+
+  execSync(installCommand, {
     cwd: ponderRootDir,
     stdio: "inherit",
   });
