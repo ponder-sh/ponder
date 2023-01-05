@@ -27,7 +27,7 @@ export const buildNetworks = ({ ponder }: { ponder: Ponder }) => {
 
     let provider = cachedProvidersByChainId[chainId];
     if (!provider) {
-      provider = new CachedProvider(ponder.cacheStore, rpcUrl, chainId);
+      provider = new CachedProvider(ponder, rpcUrl, chainId);
       cachedProvidersByChainId[chainId] = provider;
     }
 

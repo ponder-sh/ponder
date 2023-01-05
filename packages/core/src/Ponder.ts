@@ -85,6 +85,9 @@ export class Ponder extends EventEmitter<Events> {
   logsProcessedToTimestamp: number;
   isHandlingLogs: boolean;
 
+  // Contract call state
+  currentEventBlockTag: number;
+
   // Hot reloading
   watchFiles: string[];
   killFrontfillQueues?: () => void;
@@ -124,6 +127,7 @@ export class Ponder extends EventEmitter<Events> {
 
     this.logsProcessedToTimestamp = 0;
     this.isHandlingLogs = false;
+    this.currentEventBlockTag = 0;
     this.ui = getUiState(this.options);
 
     this.config = readPonderConfig(this.options.PONDER_CONFIG_FILE_PATH);

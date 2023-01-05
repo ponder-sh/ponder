@@ -1,4 +1,4 @@
-export type { AbitypedEthersContract } from "@/codegen/ethers-abitype";
+export type { ReadOnlyContract } from "@/codegen/ethers-abitype";
 export type { PonderLogger } from "@/common/logger";
 export type { PonderOptions } from "@/common/options";
 export type { PonderConfig } from "@/common/readPonderConfig";

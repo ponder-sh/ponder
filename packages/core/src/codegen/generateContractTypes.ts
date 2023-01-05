@@ -9,14 +9,14 @@ import { formatPrettier } from "./utils";
 export const generateContractTypes = ({ ponder }: { ponder: Ponder }) => {
   ponder.sources.forEach((source) => {
     const raw = `
-      import { AbitypedEthersContract } from "@ponder/core";
+      import { ReadOnlyContract } from "@ponder/core";
 
       const ${source.name}Abi = ${JSON.stringify(
       source.abi
     ).trimEnd()} as const;
 
       export type ${source.name} =
-        AbitypedEthersContract<typeof ${source.name}Abi>;
+        ReadOnlyContract<typeof ${source.name}Abi>;
     `;
     const final = formatPrettier(raw);
 

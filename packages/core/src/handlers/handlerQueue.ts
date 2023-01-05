@@ -154,6 +154,10 @@ export const createHandlerQueue = ({
       transaction,
     };
 
+    // This enables contract calls occurring within the
+    // handler code to use the event block number by default.
+    ponder.currentEventBlockTag = block.number;
+
     // Running user code here!
     await handler(event, handlerContext);
 
