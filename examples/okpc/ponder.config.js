@@ -8,7 +8,7 @@ const ponderConfig = {
   database: {
     // kind: "sqlite",
     kind: "postgres",
-    connectionString: process.env.POSTGRES_URL,
+    connectionString: process.env.DATABASE_URL,
   },
   networks: [
     {
