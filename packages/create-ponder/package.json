@@ -5,10 +5,10 @@
   "license": "MIT",
   "author": "olias.eth",
   "files": [
-    "dist"
+    "dist/src"
   ],
   "bin": {
-    "create-ponder": "./dist/bin/create-ponder"
+    "create-ponder": "dist/src/bin/create-ponder"
   },
   "scripts": {
     "clean": "rm -rf dist",
@@ -16,11 +16,12 @@
     "lint": "eslint src",
     "format": "prettier src --write",
     "replace-paths": "tsconfig-replace-paths --src src",
-    "esbuild": "esbuild `find src \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist && $npm_execpath run replace-paths",
-    "build": "$npm_execpath run clean && $npm_execpath run esbuild && mv dist/bin/create-ponder.js dist/bin/create-ponder",
+    "esbuild": "esbuild `find . \\( -name '*.ts' \\)` --platform=node --format=cjs --outdir=dist && $npm_execpath run replace-paths",
+    "build": "$npm_execpath run clean && $npm_execpath run esbuild && mv dist/src/bin/create-ponder.js dist/src/bin/create-ponder",
     "format-dist": "prettier dist --write --loglevel warn",
     "prerelease": "$npm_execpath run build && $npm_execpath run format-dist",
-    "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(create-ponder): $VERSION\""
+    "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(create-ponder): $VERSION\"",
+    "test": "$npm_execpath build && export $(grep -v '^#' .env.local | xargs) && jest"
   },
   "dependencies": {
     "@ethersproject/abi": "^5.6.4",
@@ -34,10 +35,12 @@
     "yaml": "^2.1.1"
   },
   "devDependencies": {
+    "@types/jest": "^29.2.3",
     "@types/node": "^18.7.8",
     "@types/node-fetch": "2",
     "@types/prettier": "^2.7.1",
     "esbuild": "^0.15.2",
+    "jest": "^29.3.1",
     "tsconfig-replace-paths": "^0.0.11",
     "typescript": "^4.5.5"
   }
