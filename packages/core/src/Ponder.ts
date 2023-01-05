@@ -2,7 +2,7 @@ import { watch } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
 
-import { PonderCliOptions } from "@/bin/ponder";
+import { PonderCliCommand, PonderCliOptions } from "@/bin/ponder";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger, logMessage, MessageKind, PonderLogger } from "@/common/logger";
@@ -35,9 +35,9 @@ import type { UiState } from "@/ui/app";
 import { getUiState, hydrateUi, render, unmount } from "@/ui/app";
 
 export class Ponder extends EventEmitter<PonderEvents> {
-  config: PonderConfig;
+  command: PonderCliCommand;
   options: PonderOptions;
-  isDev: boolean;
+  config: PonderConfig;
   logger: PonderLogger = logger;
 
   // Config-derived services
@@ -69,9 +69,9 @@ export class Ponder extends EventEmitter<PonderEvents> {
   renderInterval?: NodeJS.Timer;
   etaInterval?: NodeJS.Timer;
 
-  constructor(cliOptions: PonderCliOptions & { isDev: boolean }) {
+  constructor(cliOptions: PonderCliOptions & { command: PonderCliCommand }) {
     super();
-    this.isDev = cliOptions.isDev;
+    this.command = cliOptions.command;
 
     this.on("config_error", this.config_error);
     this.on("dev_error", this.dev_error);
@@ -146,7 +146,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   async setup() {
     this.renderInterval = setInterval(() => {
       this.ui.timestamp = Math.floor(Date.now() / 1000);
-      render(this.isDev, this.ui);
+      if (this.command === "dev") render(this.ui);
     }, 17);
     this.etaInterval = setInterval(() => {
       this.updateBackfillEta();
@@ -227,10 +227,9 @@ export class Ponder extends EventEmitter<PonderEvents> {
         }
 
         if (isFileChanged(fullPath)) {
-          logMessage(
+          this.logMessage(
             MessageKind.EVENT,
-            "detected change in " + pico.bold(fileName),
-            this.isDev
+            "detected change in " + pico.bold(fileName)
           );
           this.reload();
         }
@@ -259,12 +258,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
     await drainBackfillQueues();
     const duration = formatEta(endBenchmark(startHrt));
 
-    if (!this.isDev) {
-      logMessage(
-        MessageKind.BACKFILL,
-        `backfill complete (${duration})`,
-        this.isDev
-      );
+    if (this.command === "start") {
+      this.logMessage(MessageKind.BACKFILL, `backfill complete (${duration})`);
     }
 
     this.ui = {
@@ -301,52 +296,26 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.handlersToTimestamp = toTimestamp;
     this.isHandlingLogs = false;
 
-    if (!this.isDev && logs.length > 0) {
-      logMessage(
-        MessageKind.INDEXER,
-        `reindexed ${logs.length} events`,
-        this.isDev
-      );
-    }
-  }
-
-  // --------------------------- PLUGINS --------------------------- //
-
-  private async setupPlugins() {
-    for (const plugin of this.plugins) {
-      if (!plugin.setup) return;
-      await plugin.setup(this);
-    }
-  }
-
-  private async reloadPlugins() {
-    for (const plugin of this.plugins) {
-      if (!plugin.reload) return;
-      await plugin.reload(this);
-    }
-  }
-
-  private async teardownPlugins() {
-    for (const plugin of this.plugins) {
-      if (!plugin.teardown) return;
-      plugin.teardown(this);
+    if (this.command === "start" && logs.length > 0) {
+      this.logMessage(MessageKind.INDEXER, `indexed ${logs.length} events`);
     }
   }
 
   // --------------------------- EVENT HANDLERS --------------------------- //
 
   private config_error: PonderEvents["config_error"] = async (e) => {
-    logMessage(MessageKind.ERROR, e.context, this.isDev);
+    if (this.command === "codegen") return;
+    this.logMessage(MessageKind.ERROR, e.context);
     if (e.error) logger.error(e.error);
     this.kill();
   };
 
   private dev_error: PonderEvents["dev_error"] = async (e) => {
     this.handlerQueue?.kill();
-    logMessage(MessageKind.ERROR, e.context, this.isDev);
+    this.logMessage(MessageKind.ERROR, e.context);
 
     // If not the dev server, log the entire error and kill the app.
-    if (!this.isDev) {
+    if (this.command === "start") {
       if (e.error) logger.error(e.error);
       this.kill();
       return;
@@ -369,13 +338,12 @@ export class Ponder extends EventEmitter<PonderEvents> {
   private backfill_sourceStarted: PonderEvents["backfill_sourceStarted"] = (
     e
   ) => {
-    if (!this.isDev) {
-      logMessage(
+    if (this.command === "start") {
+      this.logMessage(
         MessageKind.BACKFILL,
         `started backfill for source ${pico.bold(e.source)} (${formatPercentage(
           e.cacheRate
-        )} cached)`,
-        this.isDev
+        )} cached)`
       );
     }
 
@@ -430,11 +398,10 @@ export class Ponder extends EventEmitter<PonderEvents> {
   };
 
   private frontfill_newLogs: PonderEvents["frontfill_newLogs"] = (e) => {
-    if (!this.isDev && this.ui.isBackfillComplete) {
-      logMessage(
+    if (this.command === "start" && this.ui.isBackfillComplete) {
+      this.logMessage(
         MessageKind.FRONTFILL,
-        `${e.network} block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched events)`,
-        this.isDev
+        `${e.network} block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched events)`
       );
     }
     this.handleNewLogs();
@@ -453,8 +420,31 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
   private indexer_taskDone: PonderEvents["indexer_taskDone"] = (e) => {
     this.ui.handlersToTimestamp = e.timestamp;
-    render(this.isDev, this.ui);
+    if (this.command === "dev") render(this.ui);
   };
+
+  // --------------------------- PLUGINS --------------------------- //
+
+  private async setupPlugins() {
+    for (const plugin of this.plugins) {
+      if (!plugin.setup) return;
+      await plugin.setup(this);
+    }
+  }
+
+  private async reloadPlugins() {
+    for (const plugin of this.plugins) {
+      if (!plugin.reload) return;
+      await plugin.reload(this);
+    }
+  }
+
+  private async teardownPlugins() {
+    for (const plugin of this.plugins) {
+      if (!plugin.teardown) return;
+      plugin.teardown(this);
+    }
+  }
 
   // --------------------------- HELPERS --------------------------- //
 
@@ -481,7 +471,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   };
 
   private logBackfillProgress() {
-    if (!this.isDev && !this.ui.isBackfillComplete) {
+    if (this.command === "start" && !this.ui.isBackfillComplete) {
       this.sources.forEach((source) => {
         const stat = this.ui.stats[source.name];
 
@@ -496,12 +486,15 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
         const countText = `${current}/${total}`;
 
-        logMessage(
+        this.logMessage(
           MessageKind.BACKFILL,
-          `${source.name}: ${`(${etaText + " | " + countText})`}`,
-          this.isDev
+          `${source.name}: ${`(${etaText + " | " + countText})`}`
         );
       });
     }
   }
+
+  private logMessage = (kind: MessageKind, message: string) => {
+    logMessage(kind, message, this.command === "dev");
+  };
 }

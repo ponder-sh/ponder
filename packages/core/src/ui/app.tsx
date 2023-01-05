@@ -189,8 +189,8 @@ const {
   clear,
 } = inkRender(<App {...getUiState({ SILENT: true })} />);
 
-export const render = (isDev: boolean, ui: UiState) => {
-  if (isDev) rerender(<App {...ui} />);
+export const render = (ui: UiState) => {
+  rerender(<App {...ui} />);
 };
 
 export const unmount = () => {

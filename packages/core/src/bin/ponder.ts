@@ -28,12 +28,14 @@ export type PonderCliOptions = {
   silent: boolean;
 };
 
+export type PonderCliCommand = "dev" | "start" | "codegen";
+
 cli
   .command("dev", "Start the development server")
   .action(async (options: PonderCliOptions) => {
     if (options.help) process.exit(0);
 
-    const ponder = new Ponder({ isDev: true, ...options });
+    const ponder = new Ponder({ ...options, command: "dev" });
     await ponder.dev();
   });
 
@@ -42,7 +44,7 @@ cli
   .action(async (options: PonderCliOptions) => {
     if (options.help) process.exit(0);
 
-    const ponder = new Ponder({ isDev: false, ...options });
+    const ponder = new Ponder({ ...options, command: "start" });
     await ponder.start();
   });
 
@@ -51,7 +53,7 @@ cli
   .action(async (options: PonderCliOptions) => {
     if (options.help) process.exit(0);
 
-    const ponder = new Ponder({ isDev: true, ...options });
+    const ponder = new Ponder({ ...options, command: "codegen" });
     ponder.codegen();
   });
 

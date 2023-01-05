@@ -45,7 +45,7 @@ describe("Ponder", () => {
 
   beforeEach(() => {
     ponder = new Ponder({
-      isDev: true,
+      command: "dev",
       rootDir: "./test/basic",
       configFile: "ponder.config.js",
       silent: false,
