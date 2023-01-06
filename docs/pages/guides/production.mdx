@@ -1,0 +1,61 @@
+---
+description: "A guide for deploying Ponder apps to production"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Deploy to production
+
+## Railway (recommended)
+
+[Railway](https://railway.app) is currently the best place to deploy Ponder apps. Most Ponder apps cost ~$5 per month, and the deployment process is simple.
+
+<div className="steps-container">
+
+### Update `ponder.config.js`
+
+In production, Ponder apps use Postgres. Update your `ponder.config.js` file to use Postgres in production, and SQLite in development. Railway automatically provides the `DATABASE_URL` environment variable.
+
+```js filename="ponder.config.js"
+const ponderConfig = {
+  database:
+    process.env.NODE_ENV === "production"
+      ? {
+          kind: "postgres",
+          connectionString: process.env.DATABASE_URL
+        }
+      : {
+          kind: "sqlite"
+        }
+  // ...
+};
+```
+
+Commit your changes to `ponder.config.js` and push your repo to GitHub.
+
+### Sign up or log in to Railway
+
+### Create a Ponder app service
+
+From the Railway console:
+
+1. Click **New Project**
+2. Click **Deploy from GitHub repo**, then select your repo from the list
+3. Click **Add variables**, then add your project's RPC URL (e.g. `PONDER_RPC_URL_1`) and any other environment variables your project needs
+
+<Callout type="warning">
+  **Monorepo users:** Go to the “Settings” tab for your server and update the
+  “Root Directory” accordingly.
+</Callout>
+
+### Create a Postgres database service
+
+From your project's dashboard, click **New** → **Database** → **Add PostgreSQL**.
+
+After a moment, your Ponder service should redeploy successfully. Check the Build Logs and Deploy Logs tabs to debug any deployment issues.
+
+</div>
+
+## Other cloud providers
+
+Ponder has not been thoroughly tested on cloud providers other than Railway. However, Ponder apps should work in any environment that supports Node.js and can connect to a Postgres database.
