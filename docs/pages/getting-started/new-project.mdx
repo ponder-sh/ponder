@@ -8,11 +8,13 @@ import { Tabs, Tab } from "nextra-theme-docs";
 
 The `create-ponder` CLI tool is the easiest way to get started with Ponder.
 
-### 1) Run the `create-ponder` CLI
+<div className="steps-container">
 
-This command creates a project folder called `ponder` in the current working directory.
+### Run the `create-ponder` CLI tool
 
-#### 1a) Etherscan contract link
+This command creates a project folder called `ponder` in the current working directory. There are two templates for getting started:
+
+#### a) Etherscan contract link
 
 The `--from-etherscan` option bootstraps a Ponder project for a deployed contract. Replace the `...` with a link to a contract page on Etherscan (also accepts Polygonscan, Arbiscan, etc).
 
@@ -35,9 +37,9 @@ npm init ponder@latest -- --from-etherscan ...
 </Tab>
 </Tabs>
 
-#### 1b) Blank slate
+#### b) Blank slate
 
-If you don't have a contract in mind, this command will create a Ponder project for an example NFT contract. Soon, `create-ponder` will support more template options, like Foundry and Hardhat projects.
+If you don't have a contract in mind, this command will create a Ponder project for an dummy NFT contract. Soon, `create-ponder` will support more template options, like Foundry and Hardhat projects.
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
@@ -58,7 +60,7 @@ npm init ponder@latest
 </Tab>
 </Tabs>
 
-### 2) Start the development server
+### Start the development server
 
 The dev server is an important part of the Ponder development workflow. Just like Next.js, the dev server automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
 
@@ -66,34 +68,45 @@ The dev server is an important part of the Ponder development workflow. Just lik
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tab>
 ```bash
-cd ponder && pnpm dev
+cd ponder
+pnpm dev
 ```
 </Tab>
   <Tab>
 ```bash
-cd ponder && yarn dev
+cd ponder
+yarn dev
 ```
 </Tab>
   <Tab>
 ```bash
-cd ponder && npm run dev
+cd ponder
+npm run dev
 ```
 </Tab>
 </Tabs>
 
-### 3) Add contracts & networks to `ponder.config.js`
+### Add an RPC URL
 
-Ponder uses `ponder.config.js` to determine what blockchain data it needs to fetch. This is where you provide contract addresses, paths to ABI files, RPC URLs, start blocks, and more.
+Ponder fetches data using the Ethereum RPC API. To get started, you'll need an RPC URL from a provider like Alchemy or Infura.
 
-### 4) Define your schema
+Open up `.env.local` and paste in RPC URLs for any networks that your project uses:
 
-Ponder uses `schema.graphql` to define the project's schema. Any types marked with the `@entity` directive will become available as entity models in your handler functions.
+```bash filename=".env.local"
+PONDER_RPC_URL_1 = https://eth-mainnet.g.alchemy.com/v2/...
+```
+
+### Define your schema
+
+The `schema.graphql` file defines the entity objects that our GraphQL API will serve. Any types marked with the `@entity` directive will become available as entity models in your handler functions.
 
 Using this schema, Ponder automatically generates a GraphQL API that serves entity data.
 
-### 5) Write event handlers
+### Write event handlers
 
-The files in the `handlers/` folder contain event handler functions. Ponder uses these functions to process blockchain events. These functions are where you should insert and update the entity data that will get served by the GraphQL API. Here's a sample event handler function:
+The files in the `handlers/` directory contain event handlers. Event handlers are JavaScript functions that accept a contract event and insert data into the entity store.
+
+Here's a sample event handler for an ERC721 `Transfer` event.
 
 ```js filename="MyNftContract.ts"
 export async function handleTransfer(event, context) {
@@ -109,3 +122,9 @@ export async function handleTransfer(event, context) {
   // ...
 }
 ```
+
+### Query the GraphQL API
+
+As you write your event handlers and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphl` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
+
+</div>

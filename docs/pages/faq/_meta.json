@@ -1,4 +1,3 @@
 {
-  "production": "Deploying to production",
-  "database": "Database"
+  "database": "How does Ponder store data?"
 }
