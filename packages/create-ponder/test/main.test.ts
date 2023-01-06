@@ -48,7 +48,6 @@ describe("create-ponder", () => {
           "node_modules",
           "package.json",
           "ponder.config.js",
-          "render.yaml",
           "schema.graphql",
           "tsconfig.json",
         ].sort()
