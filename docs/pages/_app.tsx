@@ -1,4 +1,5 @@
 import "nextra-theme-docs/style.css";
+import "../style.css";
 
 import type { AppProps } from "next/app";
 import Script from "next/script";
