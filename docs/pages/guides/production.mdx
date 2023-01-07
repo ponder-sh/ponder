@@ -42,10 +42,13 @@ From the Railway console:
 1. Click **New Project**
 2. Click **Deploy from GitHub repo**, then select your repo from the list
 3. Click **Add variables**, then add your project's RPC URL (e.g. `PONDER_RPC_URL_1`) and any other environment variables your project needs
+4. Open the **Settings** tab, and click **Generate Domain** in **Environment** section
 
 <Callout type="warning">
-  **Monorepo users:** Go to the “Settings” tab for your server and update the
-  “Root Directory” accordingly.
+  _Monorepo users:_ You'll need to update your service's **Start Command**. This
+  can be found under **Settings** → **Deploy** → **Start Command**. Make sure
+  the command runs `ponder start` at the Ponder project root (e.g. `cd
+  packages/ponder && pnpm start`).
 </Callout>
 
 ### Create a Postgres database service
