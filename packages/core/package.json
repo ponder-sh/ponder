@@ -14,7 +14,6 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsc && tsconfig-replace-paths --src . && mv dist/src/bin/ponder.js dist/src/bin/ponder",
-    "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/core): $VERSION\"",
     "test": "jest",
     "typecheck": "tsc --noEmit"
   },
