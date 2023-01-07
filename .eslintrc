@@ -7,7 +7,6 @@
   ],
   "plugins": ["@typescript-eslint", "prettier", "simple-import-sort", "import"],
   "env": {
-    "browser": true,
     "node": true
   },
   "rules": {
@@ -18,5 +17,6 @@
     "import/newline-after-import": "error",
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/no-explicit-any": "off"
-  }
+  },
+  "ignorePatterns": ["dist", "node_modules", "generated", "ethers-abitype"]
 }
