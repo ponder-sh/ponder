@@ -3,7 +3,11 @@ import type PgPromise from "pg-promise";
 import { DerivedField, FieldKind, ScalarField, Schema } from "@/schema/types";
 
 import type { EntityFilter, EntityStore } from "./entityStore";
-import { sqlOperatorsForFilterType } from "./utils";
+import {
+  getColumnStatements,
+  getWhereValue,
+  sqlSymbolsForFilterType,
+} from "./utils";
 
 export class PostgresEntityStore implements EntityStore {
   db: PgPromise.IDatabase<unknown>;
@@ -64,17 +68,7 @@ export class PostgresEntityStore implements EntityStore {
     // @ts-ignore
     instance.id = id;
 
-    const columnStatements = Object.entries(instance).map(
-      ([fieldName, value]) => {
-        const persistedValue =
-          typeof value === "boolean" ? (value ? 1 : 0) : `'${value}'`;
-
-        return {
-          column: `"${fieldName}"`,
-          value: persistedValue,
-        };
-      }
-    );
+    const columnStatements = getColumnStatements(instance);
 
     const insertFragment = `(${columnStatements
       .map((s) => s.column)
@@ -97,17 +91,7 @@ export class PostgresEntityStore implements EntityStore {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const columnStatements = Object.entries(instance).map(
-      ([fieldName, value]) => {
-        const persistedValue =
-          typeof value === "boolean" ? (value ? 1 : 0) : `'${value}'`;
-
-        return {
-          column: `"${fieldName}"`,
-          value: persistedValue,
-        };
-      }
-    );
+    const columnStatements = getColumnStatements(instance);
 
     const updateFragment = columnStatements
       .filter(({ column }) => column !== "id") // Ignore `instance.id` field for update fragment
@@ -135,17 +119,7 @@ export class PostgresEntityStore implements EntityStore {
     // @ts-ignore
     instance.id = id;
 
-    const columnStatements = Object.entries(instance).map(
-      ([fieldName, value]) => {
-        const persistedValue =
-          typeof value === "boolean" ? (value ? 1 : 0) : `'${value}'`;
-
-        return {
-          column: `"${fieldName}"`,
-          value: persistedValue,
-        };
-      }
-    );
+    const columnStatements = getColumnStatements(instance);
 
     const insertFragment = `(${columnStatements
       .map((s) => s.column)
@@ -191,36 +165,23 @@ export class PostgresEntityStore implements EntityStore {
     const fragments = [];
 
     if (where) {
-      const whereFragments: string[] = [];
-
-      for (const [field, value] of Object.entries(where)) {
+      const whereFragments = Object.entries(where).map(([field, value]) => {
         const [fieldName, rawFilterType] = field.split(/_(.*)/s);
-
-        // This is a hack to handle the = operator, which the regex above doesn't handle
+        // This is a hack to handle the "" operator, which the regex above doesn't handle
         const filterType = rawFilterType === undefined ? "" : rawFilterType;
-
-        const sqlOperators = sqlOperatorsForFilterType[filterType];
-        if (!sqlOperators) {
+        const sqlSymbols = sqlSymbolsForFilterType[filterType];
+        if (!sqlSymbols) {
           throw new Error(
             `SQL operators not found for filter type: ${filterType}`
           );
         }
 
-        const { operator, patternPrefix, patternSuffix, isList } = sqlOperators;
+        const whereValue = getWhereValue(value, sqlSymbols);
 
-        let finalValue = value;
+        return `"${fieldName}" ${whereValue}`;
+      });
 
-        if (patternPrefix) finalValue = patternPrefix + finalValue;
-        if (patternSuffix) finalValue = finalValue + patternSuffix;
-
-        if (isList) {
-          finalValue = `(${(finalValue as (string | number)[]).join(",")})`;
-        } else {
-          finalValue = `'${finalValue}'`;
-        }
-
-        whereFragments.push(`"${fieldName}" ${operator} ${finalValue}`);
-      }
+      console.log({ whereFragments });
 
       fragments.push(`WHERE ${whereFragments.join(" AND ")}`);
     }
