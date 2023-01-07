@@ -17,12 +17,13 @@ jobs:
     strategy:
       matrix:
         node-version: [16]
+        pnpm-version: [7]
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v2.2.4
         with:
-          version: 7
-      - name: Set up Node ${{ matrix.node-version }}
+          version: ${{ matrix.pnpm-version }}
+      - name: Set up node ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           cache: "pnpm"
@@ -44,7 +45,7 @@ jobs:
             packages/**/node_modules
             packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install Dependencies
+      - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: pnpm i
 
@@ -55,12 +56,13 @@ jobs:
     strategy:
       matrix:
         node-version: [16]
+        pnpm-version: [7]
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v2.2.4
         with:
-          version: 7
-      - name: Set up Node ${{ matrix.node-version }}
+          version: ${{ matrix.pnpm-version }}
+      - name: Set up node ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           cache: "pnpm"
@@ -75,10 +77,8 @@ jobs:
             packages/**/node_modules
             packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Build core
-        run: pnpm --filter "@ponder/core" prerelease
-      - name: Build dependents
-        run: pnpm --filter \!"@ponder/core" prerelease
+      - name: Build
+        run: pnpm build
       - name: Typecheck
         run: pnpm typecheck
       - name: Lint
@@ -91,12 +91,13 @@ jobs:
     strategy:
       matrix:
         node-version: [16]
+        pnpm-version: [7]
     steps:
       - uses: actions/checkout@v3
       - uses: pnpm/action-setup@v2.2.4
         with:
-          version: 7
-      - name: Set up Node ${{ matrix.node-version }}
+          version: ${{ matrix.pnpm-version }}
+      - name: Set up node ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           cache: "pnpm"
@@ -115,3 +116,5 @@ jobs:
         run: pnpm build
       - name: Test
         run: pnpm test
+        env:
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}

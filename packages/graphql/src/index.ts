@@ -1,9 +1,9 @@
 import type { PonderPlugin } from "@ponder/core";
 
-import { generateSchema } from "./codegen/generateSchema";
-import { generateSchemaTypes } from "./codegen/generateSchemaTypes";
-import { GraphqlServer } from "./server";
-import { buildGqlSchema } from "./server/buildGqlSchema";
+import { generateSchema } from "@/codegen/generateSchema";
+import { generateSchemaTypes } from "@/codegen/generateSchemaTypes";
+import { GraphqlServer } from "@/server";
+import { buildGqlSchema } from "@/server/buildGqlSchema";
 
 export type PonderGraphqlPluginOptions = {
   port?: number;

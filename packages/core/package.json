@@ -7,24 +7,16 @@
   "files": [
     "dist/src"
   ],
-  "main": "./dist/src/index.js",
-  "types": "./dist/src/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "bin": {
-    "ponder": "./dist/src/bin/ponder"
+    "ponder": "dist/src/bin/ponder"
   },
   "scripts": {
-    "clean": "rm -rf dist",
-    "typecheck": "tsc",
-    "lint": "eslint src",
-    "format": "prettier src --write",
-    "replace-paths": "tsconfig-replace-paths --src .",
-    "esbuild": "esbuild `find . \\( -name '*.ts' -o -name '*.tsx' \\)` --platform=node --format=cjs --outdir=dist && $npm_execpath run replace-paths",
-    "build": "$npm_execpath run clean && $npm_execpath run esbuild && mv dist/src/bin/ponder.js dist/src/bin/ponder",
-    "declarations": "(tsc --noEmit false --declaration --emitDeclarationOnly || exit 0) && $npm_execpath run replace-paths",
-    "format-dist": "prettier dist --write --loglevel warn --ignore-path dist/src/codegen/ethers-abitype/*",
-    "prerelease": "$npm_execpath run build && $npm_execpath run declarations && $npm_execpath run format-dist",
+    "build": "rm -rf dist && tsc && tsconfig-replace-paths --src . && mv dist/src/bin/ponder.js dist/src/bin/ponder",
     "release": "$npm_execpath run prerelease && VERSION=$(npm version patch) && npm publish && git add ./package.json && git commit -m \"release(@ponder/core): $VERSION\"",
-    "test": "jest"
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@ethersproject/abi": "^5.6.4",

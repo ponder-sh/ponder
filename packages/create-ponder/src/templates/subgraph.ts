@@ -7,12 +7,12 @@ import type {
 } from "src/index";
 import { parse } from "yaml";
 
-import type { CreatePonderOptions } from "../bin/create-ponder";
+import type { CreatePonderOptions } from "@/bin/create-ponder";
 import {
   getGraphProtocolChainId,
   subgraphYamlFileNames,
-} from "../helpers/getGraphProtocolChainId";
-import { validateGraphProtocolSource } from "../helpers/validateGraphProtocolSource";
+} from "@/helpers/getGraphProtocolChainId";
+import { validateGraphProtocolSource } from "@/helpers/validateGraphProtocolSource";
 
 export const fromSubgraph = (options: CreatePonderOptions) => {
   if (!options.fromSubgraph) {

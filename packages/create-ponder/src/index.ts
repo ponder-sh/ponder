@@ -5,11 +5,11 @@ import path from "node:path";
 import pico from "picocolors";
 import prettier from "prettier";
 
-import type { CreatePonderOptions } from "./bin/create-ponder";
-import { detect } from "./helpers/detectPackageManager";
-import { fromBasic } from "./templates/basic";
-import { fromEtherscan } from "./templates/etherscan";
-import { fromSubgraph } from "./templates/subgraph";
+import type { CreatePonderOptions } from "@/bin/create-ponder";
+import { detect } from "@/helpers/detectPackageManager";
+import { fromBasic } from "@/templates/basic";
+import { fromEtherscan } from "@/templates/etherscan";
+import { fromSubgraph } from "@/templates/subgraph";
 
 export type PonderNetwork = {
   kind?: string;

@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16]
+        pnpm-version: [7]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
+          fetch-depth: 0
+          submodules: true
+
+      - uses: pnpm/action-setup@v2.2.4
+        with:
+          version: ${{ matrix.pnpm-version }}
+      - name: Set up node ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          cache: "pnpm"
+          node-version: ${{ matrix.node-version }}
+      - name: Install dependencies
+        run: pnpm i
+      - name: Create release pull request or publish to npm
+        id: changesets
+        uses: changesets/action@v1.4.1
+        with:
+          title: "chore: version packages"
+          commit: "chore: version packages"
+          version: pnpm changeset:version
+          publish: pnpm changeset:release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
