@@ -74,8 +74,8 @@ export class SqliteEntityStore implements EntityStore {
         );
       }
 
-      const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = @id`;
-      const instance = this.db.prepare(statement).get({ id });
+      const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = ?`;
+      const instance = this.db.prepare(statement).get(id);
 
       if (!instance) return null;
 
@@ -110,15 +110,14 @@ export class SqliteEntityStore implements EntityStore {
 
       const columnStatements = getColumnStatements(instance);
 
+      const values = columnStatements.map((s) => s.value);
       const insertFragment = `(${columnStatements
         .map((s) => s.column)
-        .join(", ")}) VALUES (${columnStatements
-        .map((s) => s.value)
-        .join(", ")})`;
+        .join(", ")}) VALUES (${values.map(() => "?").join(", ")})`;
 
       const statement = `INSERT INTO "${entityName}" ${insertFragment} RETURNING *`;
 
-      const insertedEntity = this.db.prepare(statement).get();
+      const insertedEntity = this.db.prepare(statement).get(...values);
 
       return this.deserialize(entityName, insertedEntity);
     } catch (err) {
@@ -145,13 +144,19 @@ export class SqliteEntityStore implements EntityStore {
 
       const columnStatements = getColumnStatements(instance);
 
-      const updateFragment = columnStatements
-        .filter(({ column }) => column !== "id") // Ignore `instance.id` field for update fragment
-        .map(({ column, value }) => `${column} = ${value}`)
+      const updates = columnStatements
+        // Ignore `instance.id` field for update fragment
+        .filter(({ column }) => column !== "id");
+      const values = updates.map((s) => s.value);
+
+      const updateFragment = updates
+        .map(({ column }) => `${column} = ?`)
         .join(", ");
 
-      const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = @id RETURNING *`;
-      const updatedEntity = this.db.prepare(statement).get({ id });
+      const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
+      values.push(id);
+
+      const updatedEntity = this.db.prepare(statement).get(...values);
 
       return this.deserialize(entityName, updatedEntity);
     } catch (err) {
@@ -184,20 +189,24 @@ export class SqliteEntityStore implements EntityStore {
 
       const columnStatements = getColumnStatements(instance);
 
+      const insertValues = columnStatements.map((s) => s.value);
       const insertFragment = `(${columnStatements
         .map((s) => s.column)
-        .join(", ")}) VALUES (${columnStatements
-        .map((s) => s.value)
-        .join(", ")})`;
+        .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
 
-      const updateFragment = columnStatements
-        .filter(({ column }) => column !== "id") // Ignore `instance.id` field for update fragment
-        .map(({ column, value }) => `${column} = ${value}`)
+      const updates = columnStatements
+        // Ignore `instance.id` field for update fragment
+        .filter(({ column }) => column !== "id");
+      const updateValues = updates.map((s) => s.value);
+      const updateFragment = updates
+        .map(({ column }) => `${column} = ?`)
         .join(", ");
 
       const statement = `INSERT INTO "${entityName}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
 
-      const upsertedEntity = this.db.prepare(statement).get({ id });
+      const upsertedEntity = this.db
+        .prepare(statement)
+        .get(...insertValues, ...updateValues);
 
       return this.deserialize(entityName, upsertedEntity);
     } catch (err) {
@@ -218,9 +227,9 @@ export class SqliteEntityStore implements EntityStore {
         );
       }
 
-      const statement = `DELETE FROM "${entityName}" WHERE "id" = @id`;
+      const statement = `DELETE FROM "${entityName}" WHERE "id" = ?`;
 
-      const { changes } = this.db.prepare(statement).run({ id: id });
+      const { changes } = this.db.prepare(statement).run(id);
 
       // `changes` is equal to the number of rows that were updated/inserted/deleted by the query.
       return changes === 1;

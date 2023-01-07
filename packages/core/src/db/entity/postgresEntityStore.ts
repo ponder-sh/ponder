@@ -45,8 +45,8 @@ export class PostgresEntityStore implements EntityStore {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = $(id)`;
-    const instance = await this.db.oneOrNone(statement, { id });
+    const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = ?`;
+    const instance = await this.db.oneOrNone(statement, [id]);
 
     if (!instance) return null;
 
@@ -70,14 +70,13 @@ export class PostgresEntityStore implements EntityStore {
 
     const columnStatements = getColumnStatements(instance);
 
+    const values = columnStatements.map((s) => s.value);
     const insertFragment = `(${columnStatements
       .map((s) => s.column)
-      .join(", ")}) VALUES (${columnStatements
-      .map((s) => s.value)
-      .join(", ")})`;
+      .join(", ")}) VALUES (${values.map(() => "?").join(", ")})`;
 
     const statement = `INSERT INTO "${entityName}" ${insertFragment} RETURNING *`;
-    const insertedEntity = await this.db.oneOrNone(statement);
+    const insertedEntity = await this.db.oneOrNone(statement, values);
 
     return this.deserialize(entityName, insertedEntity);
   }
@@ -93,13 +92,19 @@ export class PostgresEntityStore implements EntityStore {
 
     const columnStatements = getColumnStatements(instance);
 
-    const updateFragment = columnStatements
-      .filter(({ column }) => column !== "id") // Ignore `instance.id` field for update fragment
-      .map(({ column, value }) => `${column} = ${value}`)
+    const updates = columnStatements
+      // Ignore `instance.id` field for update fragment
+      .filter(({ column }) => column !== "id");
+    const values = updates.map((s) => s.value);
+
+    const updateFragment = updates
+      .map(({ column }) => `${column} = ?`)
       .join(", ");
 
-    const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = $(id) RETURNING *`;
-    const updatedEntity = await this.db.oneOrNone(statement, { id });
+    const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
+    values.push(id);
+
+    const updatedEntity = await this.db.oneOrNone(statement, values);
 
     return this.deserialize(entityName, updatedEntity);
   }
@@ -121,19 +126,24 @@ export class PostgresEntityStore implements EntityStore {
 
     const columnStatements = getColumnStatements(instance);
 
+    const insertValues = columnStatements.map((s) => s.value);
     const insertFragment = `(${columnStatements
       .map((s) => s.column)
-      .join(", ")}) VALUES (${columnStatements
-      .map((s) => s.value)
-      .join(", ")})`;
+      .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
 
-    const updateFragment = columnStatements
-      .filter(({ column }) => column !== "id") // Ignore `instance.id` field for update fragment
-      .map(({ column, value }) => `${column} = ${value}`)
+    const updates = columnStatements
+      // Ignore `instance.id` field for update fragment
+      .filter(({ column }) => column !== "id");
+    const updateValues = updates.map((s) => s.value);
+    const updateFragment = updates
+      .map(({ column }) => `${column} = ?`)
       .join(", ");
 
     const statement = `INSERT INTO "${entityName}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
-    const upsertedEntity = await this.db.oneOrNone(statement, { id });
+    const upsertedEntity = await this.db.oneOrNone(statement, [
+      ...insertValues,
+      ...updateValues,
+    ]);
 
     return this.deserialize(entityName, upsertedEntity);
   }
@@ -143,9 +153,9 @@ export class PostgresEntityStore implements EntityStore {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const statement = `DELETE FROM "${entityName}" WHERE "id" = $(id)`;
+    const statement = `DELETE FROM "${entityName}" WHERE "id" = ?`;
 
-    const { rowCount } = await this.db.result(statement, { id });
+    const { rowCount } = await this.db.result(statement, [id]);
 
     // `rowCount` is equal to the number of rows that were updated/inserted/deleted by the query.
     return rowCount === 1;
