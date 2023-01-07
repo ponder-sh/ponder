@@ -91,7 +91,7 @@ export const getWhereValue = (
 
 // Accepts an instance being passed to `insert`, `update`, or `upsert` and
 // returns a list of column names and values to be persisted.
-export const getColumnStatements = (instance: Record<string, unknown>) => {
+export const getColumnValuePairs = (instance: Record<string, unknown>) => {
   return Object.entries(instance)
     .map(([fieldName, value]) => {
       let persistedValue: number | string | null;
@@ -100,7 +100,7 @@ export const getColumnStatements = (instance: Record<string, unknown>) => {
       } else if (typeof value === "undefined") {
         persistedValue = null;
       } else {
-        persistedValue = `'${value}'`;
+        persistedValue = value as number | string | null;
       }
 
       return {
@@ -108,5 +108,12 @@ export const getColumnStatements = (instance: Record<string, unknown>) => {
         value: persistedValue,
       };
     })
-    .filter(({ value }) => value !== null);
+    .filter(
+      (
+        col
+      ): col is {
+        column: string;
+        value: string | number;
+      } => col.value !== null
+    );
 };

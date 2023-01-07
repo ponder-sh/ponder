@@ -5,7 +5,7 @@ import { DerivedField, FieldKind, ScalarField, Schema } from "@/schema/types";
 
 import { EntityFilter, EntityStore } from "./entityStore";
 import {
-  getColumnStatements,
+  getColumnValuePairs,
   getWhereValue,
   sqlSymbolsForFilterType,
 } from "./utils";
@@ -108,16 +108,16 @@ export class SqliteEntityStore implements EntityStore {
       // @ts-ignore
       instance.id = id;
 
-      const columnStatements = getColumnStatements(instance);
+      const pairs = getColumnValuePairs(instance);
 
-      const values = columnStatements.map((s) => s.value);
-      const insertFragment = `(${columnStatements
+      const insertValues = pairs.map((s) => s.value);
+      const insertFragment = `(${pairs
         .map((s) => s.column)
-        .join(", ")}) VALUES (${values.map(() => "?").join(", ")})`;
+        .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
 
       const statement = `INSERT INTO "${entityName}" ${insertFragment} RETURNING *`;
 
-      const insertedEntity = this.db.prepare(statement).get(...values);
+      const insertedEntity = this.db.prepare(statement).get(...insertValues);
 
       return this.deserialize(entityName, insertedEntity);
     } catch (err) {
@@ -142,21 +142,18 @@ export class SqliteEntityStore implements EntityStore {
         );
       }
 
-      const columnStatements = getColumnStatements(instance);
+      const pairs = getColumnValuePairs(instance);
 
-      const updates = columnStatements
-        // Ignore `instance.id` field for update fragment
-        .filter(({ column }) => column !== "id");
-      const values = updates.map((s) => s.value);
-
-      const updateFragment = updates
+      const updatePairs = pairs.filter(({ column }) => column !== "id");
+      const updateValues = updatePairs.map(({ value }) => value);
+      const updateFragment = updatePairs
         .map(({ column }) => `${column} = ?`)
         .join(", ");
 
       const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
-      values.push(id);
+      updateValues.push(`${id}`);
 
-      const updatedEntity = this.db.prepare(statement).get(...values);
+      const updatedEntity = this.db.prepare(statement).get(...updateValues);
 
       return this.deserialize(entityName, updatedEntity);
     } catch (err) {
@@ -187,18 +184,16 @@ export class SqliteEntityStore implements EntityStore {
       // @ts-ignore
       instance.id = id;
 
-      const columnStatements = getColumnStatements(instance);
+      const pairs = getColumnValuePairs(instance);
 
-      const insertValues = columnStatements.map((s) => s.value);
-      const insertFragment = `(${columnStatements
+      const insertValues = pairs.map((s) => s.value);
+      const insertFragment = `(${pairs
         .map((s) => s.column)
         .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
 
-      const updates = columnStatements
-        // Ignore `instance.id` field for update fragment
-        .filter(({ column }) => column !== "id");
-      const updateValues = updates.map((s) => s.value);
-      const updateFragment = updates
+      const updatePairs = pairs.filter(({ column }) => column !== "id");
+      const updateValues = updatePairs.map(({ value }) => value);
+      const updateFragment = updatePairs
         .map(({ column }) => `${column} = ?`)
         .join(", ");
 

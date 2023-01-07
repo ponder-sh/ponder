@@ -4,7 +4,7 @@ import { DerivedField, FieldKind, ScalarField, Schema } from "@/schema/types";
 
 import type { EntityFilter, EntityStore } from "./entityStore";
 import {
-  getColumnStatements,
+  getColumnValuePairs,
   getWhereValue,
   sqlSymbolsForFilterType,
 } from "./utils";
@@ -68,15 +68,17 @@ export class PostgresEntityStore implements EntityStore {
     // @ts-ignore
     instance.id = id;
 
-    const columnStatements = getColumnStatements(instance);
+    const pairs = getColumnValuePairs(instance);
 
-    const values = columnStatements.map((s) => s.value);
-    const insertFragment = `(${columnStatements
-      .map((s) => s.column)
-      .join(", ")}) VALUES (${values.map(() => "?").join(", ")})`;
+    const insertValues = pairs.map(({ value }) => value);
+    const insertFragment = `(${pairs
+      .map(({ column }) => column)
+      .join(", ")}) VALUES (${insertValues
+      .map((_, idx) => `$${idx + 1}`)
+      .join(", ")})`;
 
     const statement = `INSERT INTO "${entityName}" ${insertFragment} RETURNING *`;
-    const insertedEntity = await this.db.oneOrNone(statement, values);
+    const insertedEntity = await this.db.oneOrNone(statement, insertValues);
 
     return this.deserialize(entityName, insertedEntity);
   }
@@ -90,21 +92,19 @@ export class PostgresEntityStore implements EntityStore {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const columnStatements = getColumnStatements(instance);
+    const pairs = getColumnValuePairs(instance);
 
-    const updates = columnStatements
-      // Ignore `instance.id` field for update fragment
-      .filter(({ column }) => column !== "id");
-    const values = updates.map((s) => s.value);
-
-    const updateFragment = updates
-      .map(({ column }) => `${column} = ?`)
+    const updatePairs = pairs.filter(({ column }) => column !== "id");
+    const updateValues = updatePairs.map(({ value }) => value);
+    const updateFragment = updatePairs
+      .map(({ column }, idx) => `${column} = $${idx + 1}`)
       .join(", ");
 
-    const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
-    values.push(id);
-
-    const updatedEntity = await this.db.oneOrNone(statement, values);
+    const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = $${
+      updatePairs.length + 1
+    } RETURNING *`;
+    updateValues.push(id);
+    const updatedEntity = await this.db.oneOrNone(statement, updateValues);
 
     return this.deserialize(entityName, updatedEntity);
   }
@@ -124,19 +124,19 @@ export class PostgresEntityStore implements EntityStore {
     // @ts-ignore
     instance.id = id;
 
-    const columnStatements = getColumnStatements(instance);
+    const pairs = getColumnValuePairs(instance);
 
-    const insertValues = columnStatements.map((s) => s.value);
-    const insertFragment = `(${columnStatements
-      .map((s) => s.column)
-      .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
+    const insertValues = pairs.map(({ value }) => value);
+    const insertFragment = `(${pairs
+      .map(({ column }) => column)
+      .join(", ")}) VALUES (${insertValues
+      .map((_, idx) => `$${idx + 1}`)
+      .join(", ")})`;
 
-    const updates = columnStatements
-      // Ignore `instance.id` field for update fragment
-      .filter(({ column }) => column !== "id");
-    const updateValues = updates.map((s) => s.value);
-    const updateFragment = updates
-      .map(({ column }) => `${column} = ?`)
+    const updatePairs = pairs.filter(({ column }) => column !== "id");
+    const updateValues = updatePairs.map(({ value }) => value);
+    const updateFragment = updatePairs
+      .map(({ column }, idx) => `${column} = $${idx + 1 + insertValues.length}`)
       .join(", ");
 
     const statement = `INSERT INTO "${entityName}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
@@ -190,8 +190,6 @@ export class PostgresEntityStore implements EntityStore {
 
         return `"${fieldName}" ${whereValue}`;
       });
-
-      console.log({ whereFragments });
 
       fragments.push(`WHERE ${whereFragments.join(" AND ")}`);
     }
