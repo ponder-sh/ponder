@@ -3,7 +3,7 @@ import path from "node:path";
 import prettier from "prettier";
 import type { PartialPonderConfig } from "src/index";
 
-import type { CreatePonderOptions } from "../bin/create-ponder";
+import type { CreatePonderOptions } from "@/bin/create-ponder";
 
 export const fromBasic = (options: CreatePonderOptions) => {
   const { ponderRootDir } = options;
