@@ -75,10 +75,8 @@ jobs:
             packages/**/node_modules
             packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Build core
-        run: pnpm --filter "@ponder/core" prerelease
-      - name: Build dependents
-        run: pnpm --filter \!"@ponder/core" prerelease
+      - name: Build
+        run: pnpm build
       - name: Typecheck
         run: pnpm typecheck
       - name: Lint
