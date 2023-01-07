@@ -3,6 +3,7 @@ import { FieldKind } from "@ponder/core";
 import {
   GraphQLFieldConfig,
   GraphQLFieldResolver,
+  GraphQLID,
   GraphQLInputObjectType,
   GraphQLInputType,
   GraphQLInt,
@@ -27,24 +28,28 @@ type PluralArgs = {
 type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
 const operators = {
-  universal: ["", "not"],
-  singular: ["in", "not_in"],
+  universal: ["", "_not"],
+  singular: ["_in", "_not_in"],
   plural: [
-    "contains",
-    "not_contains",
-    "contains_nocase",
-    "not_contains_nocase",
+    "_contains",
+    "_not_contains",
+    "_contains_nocase",
+    "_not_contains_nocase",
   ],
-  numeric: ["gt", "lt", "gte", "lte"],
+  numeric: ["_gt", "_lt", "_gte", "_lte"],
   string: [
-    "starts_with",
-    "starts_with_nocase",
-    "ends_with",
-    "ends_with_nocase",
-    "not_starts_with",
-    "not_starts_with_nocase",
-    "not_ends_with",
-    "not_ends_with_nocase",
+    "_contains",
+    "_contains_nocase",
+    "_not_contains",
+    "_not_contains_nocase",
+    "_starts_with",
+    "_starts_with_nocase",
+    "_ends_with",
+    "_ends_with_nocase",
+    "_not_starts_with",
+    "_not_starts_with_nocase",
+    "_not_ends_with",
+    "_not_ends_with_nocase",
   ],
 };
 
@@ -54,63 +59,113 @@ const buildPluralField = (
 ): GraphQLFieldConfig<Source, Context> => {
   const filterFields: Record<string, { type: GraphQLInputType }> = {};
 
-  // For each field on the entity, create a bunch of filter fields.
-  entity.fields
-    // For now, don't create filter fields for relationship or derived types.
-    .filter(
-      (field) =>
-        field.kind !== FieldKind.RELATIONSHIP &&
-        field.kind !== FieldKind.DERIVED
-    )
-    .forEach((field) => {
-      operators.universal.forEach((suffix) => {
-        // Small hack to get the correct filter field name.
-        let filterFieldName: string;
-        if (suffix === "") {
-          filterFieldName = `${field.name}`;
-        } else {
-          filterFieldName = `${field.name}_${suffix}`;
-        }
-        filterFields[filterFieldName] = { type: field.baseGqlType };
-      });
+  entity.fields.forEach((field) => {
+    switch (field.kind) {
+      case FieldKind.ID: {
+        // ID fields => universal, singular, numeric
+        operators.universal.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+        });
 
-      if (field.kind !== FieldKind.LIST) {
         operators.singular.forEach((suffix) => {
-          const filterFieldName = `${field.name}_${suffix}`;
-
-          filterFields[filterFieldName] = {
+          filterFields[`${field.name}${suffix}`] = {
             type: new GraphQLList(field.baseGqlType),
           };
         });
-      }
 
-      if (field.kind === FieldKind.LIST) {
-        operators.plural.forEach((suffix) => {
-          const filterFieldName = `${field.name}_${suffix}`;
-          filterFields[filterFieldName] = { type: field.baseGqlType };
-        });
-      }
-
-      if (
-        field.kind === FieldKind.SCALAR &&
-        ["ID", "Int", "Float"].includes(field.baseGqlType.name)
-      ) {
         operators.numeric.forEach((suffix) => {
-          const filterFieldName = `${field.name}_${suffix}`;
-          filterFields[filterFieldName] = { type: field.baseGqlType };
+          filterFields[`${field.name}${suffix}`] = {
+            type: field.baseGqlType,
+          };
         });
+        break;
       }
+      case FieldKind.SCALAR: {
+        // Scalar fields => universal, singular, numeric OR string depending on base type
+        // Note: Booleans => universal and singular only.
+        operators.universal.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+        });
 
-      if (
-        field.kind === FieldKind.SCALAR &&
-        ["String"].includes(field.baseGqlType.name)
-      ) {
-        operators.string.forEach((suffix) => {
-          const filterFieldName = `${field.name}_${suffix}`;
-          filterFields[filterFieldName] = { type: field.baseGqlType };
+        operators.numeric.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = {
+            type: field.baseGqlType,
+          };
         });
+
+        operators.singular.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = {
+            type: new GraphQLList(field.baseGqlType),
+          };
+        });
+
+        if (["String"].includes(field.baseGqlType.name)) {
+          operators.string.forEach((suffix) => {
+            filterFields[`${field.name}${suffix}`] = {
+              type: field.baseGqlType,
+            };
+          });
+        }
+
+        break;
       }
-    });
+      case FieldKind.ENUM: {
+        // Enum fields => universal, singular
+        operators.universal.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+        });
+
+        operators.singular.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = {
+            type: new GraphQLList(field.baseGqlType),
+          };
+        });
+        break;
+      }
+      case FieldKind.LIST: {
+        // List fields => universal, plural
+        operators.universal.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+        });
+
+        operators.plural.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+        });
+        break;
+      }
+      case FieldKind.RELATIONSHIP: {
+        // Relationship fields => universal, numeric, singular, string ALL with ID basetype
+        operators.universal.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = { type: GraphQLID };
+        });
+
+        operators.numeric.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = {
+            type: GraphQLID,
+          };
+        });
+
+        operators.singular.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = {
+            type: new GraphQLList(GraphQLID),
+          };
+        });
+
+        operators.string.forEach((suffix) => {
+          filterFields[`${field.name}${suffix}`] = {
+            type: GraphQLID,
+          };
+        });
+
+        // TODO: Add complex "{fieldName}_" filter field.
+        break;
+      }
+      case FieldKind.DERIVED: {
+        // TODO: Add derived filter fields.
+        break;
+      }
+    }
+  });
 
   const filterType = new GraphQLInputObjectType({
     name: `${entity.name}Filter`,
