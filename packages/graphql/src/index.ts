@@ -12,7 +12,7 @@ export type PonderGraphqlPluginOptions = {
 let server: GraphqlServer | undefined;
 
 export const graphqlPlugin: PonderPlugin<PonderGraphqlPluginOptions> = ({
-  port = 42069,
+  port = parseInt(process.env.PORT ?? "0") || 42069,
 } = {}) => {
   return {
     name: "graphql",
