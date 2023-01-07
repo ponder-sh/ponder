@@ -6,7 +6,15 @@ import { SqliteEntityStore } from "./sqliteEntityStore";
 
 export type EntityFilter = {
   where?: {
-    [key: string]: number | string | number[] | string[];
+    [key: string]:
+      | number
+      | string
+      | number[]
+      | string[]
+      | true
+      | false
+      | undefined
+      | null;
   };
   first?: number;
   skip?: number;
