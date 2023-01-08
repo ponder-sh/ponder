@@ -1,3 +1,4 @@
+import { JsonRpcProvider } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
 
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
@@ -6,38 +7,15 @@ import { CachedProvider } from "@/networks/CachedProvider";
 import { Ponder } from "@/Ponder";
 import { getUiState } from "@/ui/app";
 
-jest.mock("@ethersproject/providers", () => {
-  const originalModule = jest.requireActual("@ethersproject/providers");
-  const StaticJsonRpcProvider = originalModule.StaticJsonRpcProvider;
+import { buildSendFunc } from "./fixtures/buildSendFunc";
 
-  class MockedStaticJsonRpcProvider extends StaticJsonRpcProvider {
-    constructor(url: unknown, chainId: unknown) {
-      super(url, chainId);
-    }
+beforeAll(() => {
+  const sendFunc = buildSendFunc();
+  jest.spyOn(JsonRpcProvider.prototype, "send").mockImplementation(sendFunc);
+});
 
-    async send(method: string, params: Array<unknown>) {
-      switch (method) {
-        case "eth_getBlockByNumber": {
-          if (params[0] === "latest") {
-            return {};
-          } else {
-            return {};
-          }
-        }
-        default: {
-          throw new Error(
-            `MockedStaticJsonRpcProvider: Unhandled method ${method}`
-          );
-        }
-      }
-    }
-  }
-
-  return {
-    __esModule: true,
-    ...originalModule,
-    StaticJsonRpcProvider: MockedStaticJsonRpcProvider,
-  };
+afterAll(() => {
+  jest.restoreAllMocks();
 });
 
 describe("Ponder", () => {
@@ -48,12 +26,12 @@ describe("Ponder", () => {
       command: "dev",
       rootDir: "./test/basic",
       configFile: "ponder.config.js",
-      silent: false,
+      silent: true,
     });
   });
 
-  afterEach(() => {
-    ponder.kill();
+  afterEach(async () => {
+    await ponder.kill();
   });
 
   describe("constructor", () => {
@@ -69,20 +47,15 @@ describe("Ponder", () => {
       expect(network.provider.connection.url).toBe("rpc://test");
     });
 
-    it("creates a source using defaults", async () => {
+    it("creates a source matching config", async () => {
       expect(ponder.sources.length).toBe(1);
-
       const source = ponder.sources[0];
-
-      expect(source.name).toBe("FileStore");
+      expect(source.name).toBe("ArtGobblers");
       expect(source.network.name).toBe("mainnet");
       expect(source.network.provider).toBeInstanceOf(CachedProvider);
-      expect(source.address).toBe(
-        "0x9746fD0A77829E12F8A9DBe70D7a322412325B91".toLowerCase()
-      );
-
-      expect(source.startBlock).toBe(15963553);
-      expect(source.blockLimit).toBe(50);
+      expect(source.address).toBe("0x60bb1e2aa1c9acafb4d34f71585d7e959f387769");
+      expect(source.startBlock).toBe(15863321);
+      expect(source.blockLimit).toBe(500);
     });
 
     it("creates a sqlite database", async () => {
@@ -164,19 +137,35 @@ describe("Ponder", () => {
         .all();
       const tableNames = tables.map((t) => t.name);
 
-      expect(tableNames).toContain("File");
+      expect(tableNames).toContain("GobbledArt");
     });
   });
 
-  // describe("backfill()", () => {
-  //   beforeEach(async () => {
-  //     await ponder.setup();
-  //   });
+  describe("backfill()", () => {
+    beforeEach(async () => {
+      await ponder.setup();
+    });
 
-  //   it("works", async () => {
-  //     await ponder.backfill();
+    it("works", async () => {
+      await ponder.backfill();
 
-  //     expect(1).toBe(2);
-  //   });
-  // });
+      expect(ponder.ui.isBackfillComplete).toBe(true);
+
+      const logs = (ponder.database.db as Sqlite.Database)
+        .prepare(`SELECT * FROM __ponder__v1__logs`)
+        .all();
+
+      const blocks = (ponder.database.db as Sqlite.Database)
+        .prepare(`SELECT * FROM __ponder__v1__blocks`)
+        .all();
+
+      const transactions = (ponder.database.db as Sqlite.Database)
+        .prepare(`SELECT * FROM __ponder__v1__transactions`)
+        .all();
+
+      expect(logs.length).toBe(6);
+      expect(blocks.length).toBe(6);
+      expect(transactions.length).toBe(6);
+    });
+  });
 });
