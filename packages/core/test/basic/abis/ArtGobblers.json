@@ -1,0 +1,989 @@
+[
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_merkleRoot", "type": "bytes32" },
+      { "internalType": "uint256", "name": "_mintStart", "type": "uint256" },
+      { "internalType": "contract Goo", "name": "_goo", "type": "address" },
+      { "internalType": "contract Pages", "name": "_pages", "type": "address" },
+      { "internalType": "address", "name": "_team", "type": "address" },
+      { "internalType": "address", "name": "_community", "type": "address" },
+      {
+        "internalType": "contract RandProvider",
+        "name": "_randProvider",
+        "type": "address"
+      },
+      { "internalType": "string", "name": "_baseUri", "type": "string" },
+      { "internalType": "string", "name": "_unrevealedUri", "type": "string" },
+      {
+        "internalType": "bytes32",
+        "name": "_provenanceHash",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  { "inputs": [], "name": "AlreadyClaimed", "type": "error" },
+  { "inputs": [], "name": "Cannibalism", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "gobblerId", "type": "uint256" }
+    ],
+    "name": "CannotBurnLegendary",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "cost", "type": "uint256" }
+    ],
+    "name": "InsufficientGobblerAmount",
+    "type": "error"
+  },
+  { "inputs": [], "name": "InvalidProof", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "gobblersLeft", "type": "uint256" }
+    ],
+    "name": "LegendaryAuctionNotStarted",
+    "type": "error"
+  },
+  { "inputs": [], "name": "MintStartPending", "type": "error" },
+  { "inputs": [], "name": "NoRemainingLegendaryGobblers", "type": "error" },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "totalRemainingToBeRevealed",
+        "type": "uint256"
+      }
+    ],
+    "name": "NotEnoughRemainingToBeRevealed",
+    "type": "error"
+  },
+  { "inputs": [], "name": "NotRandProvider", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "owner", "type": "address" }
+    ],
+    "name": "OwnerMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "currentPrice", "type": "uint256" }
+    ],
+    "name": "PriceExceededMax",
+    "type": "error"
+  },
+  { "inputs": [], "name": "RequestTooEarly", "type": "error" },
+  { "inputs": [], "name": "ReserveImbalance", "type": "error" },
+  { "inputs": [], "name": "RevealsPending", "type": "error" },
+  { "inputs": [], "name": "SeedPending", "type": "error" },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "caller", "type": "address" }
+    ],
+    "name": "UnauthorizedCaller",
+    "type": "error"
+  },
+  { "inputs": [], "name": "ZeroToBeRevealed", "type": "error" },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "spender",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "Approval",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "operator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "approved",
+        "type": "bool"
+      }
+    ],
+    "name": "ApprovalForAll",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "gobblerId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "nft",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "ArtGobbled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "gobblerId",
+        "type": "uint256"
+      }
+    ],
+    "name": "GobblerClaimed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "gobblerId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      }
+    ],
+    "name": "GobblerPurchased",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "numGobblers",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "lastRevealedId",
+        "type": "uint256"
+      }
+    ],
+    "name": "GobblersRevealed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newGooBalance",
+        "type": "uint256"
+      }
+    ],
+    "name": "GooBalanceUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "gobblerId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256[]",
+        "name": "burnedGobblerIds",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "LegendaryGobblerMinted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "contract RandProvider",
+        "name": "newRandProvider",
+        "type": "address"
+      }
+    ],
+    "name": "RandProviderUpgraded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "randomness",
+        "type": "uint256"
+      }
+    ],
+    "name": "RandomnessFulfilled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "toBeRevealed",
+        "type": "uint256"
+      }
+    ],
+    "name": "RandomnessRequested",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "lastMintedGobblerId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "numGobblersEach",
+        "type": "uint256"
+      }
+    ],
+    "name": "ReservedGobblersMinted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "Transfer",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "BASE_URI",
+    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "FIRST_LEGENDARY_GOBBLER_ID",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "LEGENDARY_AUCTION_INTERVAL",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "LEGENDARY_GOBBLER_INITIAL_START_PRICE",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "LEGENDARY_SUPPLY",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_MINTABLE",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_SUPPLY",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MINTLIST_SUPPLY",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PROVENANCE_HASH",
+    "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "RESERVED_SUPPLY",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "UNREVEALED_URI",
+    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "", "type": "bytes32" },
+      { "internalType": "uint256", "name": "randomness", "type": "uint256" }
+    ],
+    "name": "acceptRandomSeed",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "gooAmount", "type": "uint256" }
+    ],
+    "name": "addGoo",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "spender", "type": "address" },
+      { "internalType": "uint256", "name": "id", "type": "uint256" }
+    ],
+    "name": "approve",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "owner", "type": "address" }
+    ],
+    "name": "balanceOf",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "user", "type": "address" },
+      { "internalType": "uint256", "name": "gooAmount", "type": "uint256" }
+    ],
+    "name": "burnGooForPages",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32[]", "name": "proof", "type": "bytes32[]" }
+    ],
+    "name": "claimGobbler",
+    "outputs": [
+      { "internalType": "uint256", "name": "gobblerId", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "community",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "currentNonLegendaryId",
+    "outputs": [{ "internalType": "uint128", "name": "", "type": "uint128" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "name": "getApproved",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "address", "name": "", "type": "address" },
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "name": "getCopiesOfArtGobbledByGobbler",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "name": "getGobblerData",
+    "outputs": [
+      { "internalType": "address", "name": "owner", "type": "address" },
+      { "internalType": "uint64", "name": "idx", "type": "uint64" },
+      { "internalType": "uint32", "name": "emissionMultiple", "type": "uint32" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "gobblerId", "type": "uint256" }
+    ],
+    "name": "getGobblerEmissionMultiple",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "int256", "name": "sold", "type": "int256" }],
+    "name": "getTargetSaleTime",
+    "outputs": [{ "internalType": "int256", "name": "", "type": "int256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "name": "getUserData",
+    "outputs": [
+      { "internalType": "uint32", "name": "gobblersOwned", "type": "uint32" },
+      {
+        "internalType": "uint32",
+        "name": "emissionMultiple",
+        "type": "uint32"
+      },
+      { "internalType": "uint128", "name": "lastBalance", "type": "uint128" },
+      { "internalType": "uint64", "name": "lastTimestamp", "type": "uint64" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "user", "type": "address" }
+    ],
+    "name": "getUserEmissionMultiple",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "int256", "name": "timeSinceStart", "type": "int256" },
+      { "internalType": "uint256", "name": "sold", "type": "uint256" }
+    ],
+    "name": "getVRGDAPrice",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "gobblerId", "type": "uint256" },
+      { "internalType": "address", "name": "nft", "type": "address" },
+      { "internalType": "uint256", "name": "id", "type": "uint256" },
+      { "internalType": "bool", "name": "isERC1155", "type": "bool" }
+    ],
+    "name": "gobble",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gobblerPrice",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gobblerRevealsData",
+    "outputs": [
+      { "internalType": "uint64", "name": "randomSeed", "type": "uint64" },
+      {
+        "internalType": "uint64",
+        "name": "nextRevealTimestamp",
+        "type": "uint64"
+      },
+      { "internalType": "uint64", "name": "lastRevealedId", "type": "uint64" },
+      { "internalType": "uint56", "name": "toBeRevealed", "type": "uint56" },
+      { "internalType": "bool", "name": "waitingForSeed", "type": "bool" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "goo",
+    "outputs": [
+      { "internalType": "contract Goo", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "user", "type": "address" }
+    ],
+    "name": "gooBalance",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "name": "hasClaimedMintlistGobbler",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "", "type": "address" },
+      { "internalType": "address", "name": "", "type": "address" }
+    ],
+    "name": "isApprovedForAll",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "legendaryGobblerAuctionData",
+    "outputs": [
+      { "internalType": "uint128", "name": "startPrice", "type": "uint128" },
+      { "internalType": "uint128", "name": "numSold", "type": "uint128" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "legendaryGobblerPrice",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "merkleRoot",
+    "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "maxPrice", "type": "uint256" },
+      { "internalType": "bool", "name": "useVirtualBalance", "type": "bool" }
+    ],
+    "name": "mintFromGoo",
+    "outputs": [
+      { "internalType": "uint256", "name": "gobblerId", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256[]", "name": "gobblerIds", "type": "uint256[]" }
+    ],
+    "name": "mintLegendaryGobbler",
+    "outputs": [
+      { "internalType": "uint256", "name": "gobblerId", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "numGobblersEach",
+        "type": "uint256"
+      }
+    ],
+    "name": "mintReservedGobblers",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "lastMintedGobblerId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "mintStart",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "name",
+    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "numMintedForReserves",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "numMintedFromGoo",
+    "outputs": [{ "internalType": "uint128", "name": "", "type": "uint128" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "", "type": "address" },
+      { "internalType": "address", "name": "", "type": "address" },
+      { "internalType": "uint256[]", "name": "", "type": "uint256[]" },
+      { "internalType": "uint256[]", "name": "", "type": "uint256[]" },
+      { "internalType": "bytes", "name": "", "type": "bytes" }
+    ],
+    "name": "onERC1155BatchReceived",
+    "outputs": [{ "internalType": "bytes4", "name": "", "type": "bytes4" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "", "type": "address" },
+      { "internalType": "address", "name": "", "type": "address" },
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "uint256", "name": "", "type": "uint256" },
+      { "internalType": "bytes", "name": "", "type": "bytes" }
+    ],
+    "name": "onERC1155Received",
+    "outputs": [{ "internalType": "bytes4", "name": "", "type": "bytes4" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "id", "type": "uint256" }],
+    "name": "ownerOf",
+    "outputs": [
+      { "internalType": "address", "name": "owner", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pages",
+    "outputs": [
+      { "internalType": "contract Pages", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "randProvider",
+    "outputs": [
+      { "internalType": "contract RandProvider", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "gooAmount", "type": "uint256" }
+    ],
+    "name": "removeGoo",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "requestRandomSeed",
+    "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "numGobblers", "type": "uint256" }
+    ],
+    "name": "revealGobblers",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "from", "type": "address" },
+      { "internalType": "address", "name": "to", "type": "address" },
+      { "internalType": "uint256", "name": "id", "type": "uint256" }
+    ],
+    "name": "safeTransferFrom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "from", "type": "address" },
+      { "internalType": "address", "name": "to", "type": "address" },
+      { "internalType": "uint256", "name": "id", "type": "uint256" },
+      { "internalType": "bytes", "name": "data", "type": "bytes" }
+    ],
+    "name": "safeTransferFrom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "operator", "type": "address" },
+      { "internalType": "bool", "name": "approved", "type": "bool" }
+    ],
+    "name": "setApprovalForAll",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes4", "name": "interfaceId", "type": "bytes4" }
+    ],
+    "name": "supportsInterface",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "symbol",
+    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "targetPrice",
+    "outputs": [{ "internalType": "int256", "name": "", "type": "int256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "team",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "gobblerId", "type": "uint256" }
+    ],
+    "name": "tokenURI",
+    "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "from", "type": "address" },
+      { "internalType": "address", "name": "to", "type": "address" },
+      { "internalType": "uint256", "name": "id", "type": "uint256" }
+    ],
+    "name": "transferFrom",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "newOwner", "type": "address" }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract RandProvider",
+        "name": "newRandProvider",
+        "type": "address"
+      }
+    ],
+    "name": "upgradeRandProvider",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
