@@ -131,9 +131,9 @@ const main = async () => {
           chainId: 1,
           rpcUrl: process.env.PONDER_RPC_URL_1,
           address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-          startBlock: 15863321,
-          endBlock: 15864721, // 1500 blocks
-          blockLimit: 500,
+          startBlock: 16342200,
+          endBlock: 16343200, // 1000 blocks
+          blockLimit: 250,
         },
       ],
     }),

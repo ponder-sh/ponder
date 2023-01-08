@@ -30,8 +30,8 @@ describe("Ponder", () => {
     });
   });
 
-  afterEach(async () => {
-    await ponder.kill();
+  afterEach(() => {
+    ponder.kill();
   });
 
   describe("constructor", () => {
@@ -54,8 +54,8 @@ describe("Ponder", () => {
       expect(source.network.name).toBe("mainnet");
       expect(source.network.provider).toBeInstanceOf(CachedProvider);
       expect(source.address).toBe("0x60bb1e2aa1c9acafb4d34f71585d7e959f387769");
-      expect(source.startBlock).toBe(15863321);
-      expect(source.blockLimit).toBe(500);
+      expect(source.startBlock).toBe(16342200);
+      expect(source.blockLimit).toBe(250);
     });
 
     it("creates a sqlite database", async () => {
@@ -96,15 +96,15 @@ describe("Ponder", () => {
   });
 
   describe("setup()", () => {
-    it("creates the render interval", async () => {
+    beforeEach(async () => {
       await ponder.setup();
+    });
 
+    it("creates the render interval", async () => {
       expect(ponder.renderInterval).toBeDefined();
     });
 
     it("migrates the cache store", async () => {
-      await ponder.setup();
-
       const tables = (ponder.database.db as Sqlite.Database)
         .prepare(`SELECT name FROM sqlite_master WHERE type='table'`)
         .all();
@@ -118,20 +118,14 @@ describe("Ponder", () => {
     });
 
     it("creates the handler queue", async () => {
-      await ponder.setup();
-
       expect(ponder.handlerQueue).toBeTruthy();
     });
 
     it("builds the schema", async () => {
-      await ponder.setup();
-
       expect(ponder.schema?.entities.length).toBe(1);
     });
 
     it("migrates the entity store", async () => {
-      await ponder.setup();
-
       const tables = (ponder.database.db as Sqlite.Database)
         .prepare(`SELECT name FROM sqlite_master WHERE type='table'`)
         .all();
@@ -144,11 +138,10 @@ describe("Ponder", () => {
   describe("backfill()", () => {
     beforeEach(async () => {
       await ponder.setup();
+      await ponder.backfill();
     });
 
-    it("works", async () => {
-      await ponder.backfill();
-
+    it("inserts backfill data into the cache store", async () => {
       expect(ponder.ui.isBackfillComplete).toBe(true);
 
       const logs = (ponder.database.db as Sqlite.Database)
@@ -163,9 +156,19 @@ describe("Ponder", () => {
         .prepare(`SELECT * FROM __ponder__v1__transactions`)
         .all();
 
-      expect(logs.length).toBe(6);
-      expect(blocks.length).toBe(6);
-      expect(transactions.length).toBe(6);
+      expect(logs.length).toBe(25);
+      expect(blocks.length).toBe(23);
+      expect(transactions.length).toBe(23);
+    });
+
+    it("inserts data into the entity store", async () => {
+      await ponder.handlerQueue?.process();
+
+      const gobbledArts = (ponder.database.db as Sqlite.Database)
+        .prepare(`SELECT * FROM GobbledArt`)
+        .all();
+
+      expect(gobbledArts.length).toBe(12);
     });
   });
 });
