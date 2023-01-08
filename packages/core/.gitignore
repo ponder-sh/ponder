@@ -1,4 +1,4 @@
 dist/
 .ponder/
 .env.local
-test/fixtures/data/
+__fixtures__/

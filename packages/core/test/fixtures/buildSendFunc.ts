@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-ignore
-import _ArtGobblers from "./data/ArtGobblers";
+import _ArtGobblers from "./__fixtures__/ArtGobblers";
 import type { Hash, RawBlock, RawBlockWithTransactions, RawLog } from "./utils";
 
 type Fixture = {
