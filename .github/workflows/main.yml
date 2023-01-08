@@ -117,7 +117,7 @@ jobs:
       - name: Generate fixtures
         run: pnpm fixtures
         env:
-          RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
+          PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
       - name: Test
         run: pnpm test
         env:
