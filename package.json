@@ -9,6 +9,7 @@
     "build": "pnpm --filter '@ponder/core' build && pnpm --filter './packages/*' --filter '!@ponder/core' --parallel build",
     "changeset:release": "pnpm build && changeset publish",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
+    "fixtures": "pnpm --parallel fixtures",
     "install:packages": "pnpm --filter './packages/**' install",
     "install:examples": "pnpm --filter './examples/**' install",
     "lint": "eslint . --cache",
