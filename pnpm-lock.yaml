@@ -170,7 +170,7 @@ importers:
     specifiers:
       '@ethersproject/abi': ^5.6.4
       '@ethersproject/providers': ^5.6.8
-      '@ponder/core': latest
+      '@ponder/core': workspace:latest
       '@types/jest': ^29.2.3
       '@types/node': ^18.7.8
       '@types/node-fetch': '2'
@@ -209,7 +209,7 @@ importers:
     specifiers:
       '@graphql-codegen/core': ^2.6.2
       '@graphql-codegen/typescript': ^2.7.3
-      '@ponder/core': latest
+      '@ponder/core': workspace:latest
       '@types/better-sqlite3': ^7.6.0
       '@types/cors': ^2.8.12
       '@types/express': ^4.17.13
