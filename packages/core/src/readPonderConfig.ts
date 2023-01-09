@@ -1,4 +1,5 @@
-import type { ResolvedPonderPlugin } from "@/types";
+import type { Ponder } from "@/Ponder";
+import type { PonderPlugin } from "@/types";
 
 export type PonderConfig = {
   database:
@@ -25,7 +26,7 @@ export type PonderConfig = {
     startBlock?: number;
     blockLimit?: number;
   }[];
-  plugins?: ResolvedPonderPlugin[];
+  plugins?: ((ponder: Ponder) => PonderPlugin)[];
 };
 
 export const readPonderConfig = (configFilePath: string) => {

@@ -30,7 +30,7 @@ import { readGraphqlSchema } from "@/schema/readGraphqlSchema";
 import type { Schema } from "@/schema/types";
 import { buildSources } from "@/sources/buildSources";
 import type { EvmSource } from "@/sources/evm";
-import { EventEmitter, PonderEvents, ResolvedPonderPlugin } from "@/types";
+import { EventEmitter, PonderEvents, PonderPlugin } from "@/types";
 import type { UiState } from "@/ui/app";
 import { getUiState, hydrateUi, render, unmount } from "@/ui/app";
 
@@ -62,7 +62,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   killWatchers?: () => void;
 
   // Plugins
-  plugins: ResolvedPonderPlugin[] = [];
+  plugins: PonderPlugin[] = [];
 
   // UI
   ui: UiState;
@@ -94,7 +94,6 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui = getUiState(this.options);
 
     this.config = readPonderConfig(this.options.PONDER_CONFIG_FILE_PATH);
-    this.plugins = this.config.plugins || [];
 
     this.database = buildDb({ ponder: this });
     this.cacheStore = buildCacheStore({ ponder: this });
@@ -106,6 +105,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
     const { sources } = buildSources({ ponder: this });
     this.sources = sources;
 
+    this.plugins = (this.config.plugins || []).map((plugin) => plugin(this));
+
     hydrateUi({ ui: this.ui, sources });
   }
 
@@ -113,7 +114,6 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
   async start() {
     await this.setup();
-    this.setupPlugins();
     await this.backfill();
   }
 
@@ -121,7 +121,6 @@ export class Ponder extends EventEmitter<PonderEvents> {
     await this.setup();
     this.watch();
     this.codegen();
-    this.setupPlugins();
     this.backfill();
   }
 
@@ -158,6 +157,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
       this.reloadHandlers(),
       this.reloadSchema(),
     ]);
+
+    await this.setupPlugins();
   }
 
   async reloadHandlers() {
@@ -273,7 +274,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.handleNewLogs();
   }
 
-  private async handleNewLogs() {
+  async handleNewLogs() {
     if (!this.handlerQueue || this.isHandlingLogs) return;
     this.isHandlingLogs = true;
 
@@ -425,25 +426,20 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
   // --------------------------- PLUGINS --------------------------- //
 
+  // private buildPlugins(pluginBuilders: PonderPluginBuilder[]) {
+  //   return pluginBuilders.map((plugin) => plugin(this));
+  // }
+
   private async setupPlugins() {
-    for (const plugin of this.plugins) {
-      if (!plugin.setup) return;
-      await plugin.setup(this);
-    }
+    await Promise.all(this.plugins.map(async (p) => await p.setup?.()));
   }
 
   private async reloadPlugins() {
-    for (const plugin of this.plugins) {
-      if (!plugin.reload) return;
-      await plugin.reload(this);
-    }
+    await Promise.all(this.plugins.map(async (p) => await p.reload?.()));
   }
 
   private async teardownPlugins() {
-    for (const plugin of this.plugins) {
-      if (!plugin.teardown) return;
-      plugin.teardown(this);
-    }
+    await Promise.all(this.plugins.map(async (p) => await p.teardown?.()));
   }
 
   // --------------------------- HELPERS --------------------------- //
