@@ -1,5 +1,6 @@
 import { JsonRpcProvider } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
+import request from "supertest";
 
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
@@ -91,7 +92,11 @@ describe("Ponder", () => {
       expect(ponder.logsProcessedToTimestamp).toBe(0);
       expect(ponder.isHandlingLogs).toBe(false);
       expect(ponder.ui).toMatchObject(getUiState(ponder.options));
-      expect(ponder.plugins).toMatchObject([]);
+    });
+
+    it("builds plugins", async () => {
+      expect(ponder.plugins).toHaveLength(1);
+      expect(ponder.plugins[0].name).toBe("graphql");
     });
   });
 
@@ -160,6 +165,14 @@ describe("Ponder", () => {
       expect(blocks.length).toBe(23);
       expect(transactions.length).toBe(23);
     });
+  });
+
+  describe("handlers", () => {
+    beforeEach(async () => {
+      await ponder.setup();
+      await ponder.backfill();
+      await ponder.handlerQueue?.process();
+    });
 
     it("inserts data into the entity store", async () => {
       await ponder.handlerQueue?.process();
@@ -169,6 +182,49 @@ describe("Ponder", () => {
         .all();
 
       expect(gobbledArts.length).toBe(12);
+    });
+  });
+
+  describe.only("graphql", () => {
+    let gql: (query: string) => Promise<any>;
+
+    beforeEach(async () => {
+      await ponder.setup();
+      await ponder.backfill();
+      await ponder.handlerQueue?.process();
+
+      gql = async (query) => {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        const app = request(ponder.plugins[0].server.app);
+        const response = await app
+          .post("/graphql")
+          .send({ query: `query { ${query} }` });
+        expect(response.error).toBeFalsy();
+        return response.body.data;
+      };
+    });
+
+    it("serves gobbled art data", async () => {
+      const { gobbledArts } = await gql(`
+        gobbledArts {
+          id
+          user
+        }
+      `);
+
+      expect(gobbledArts).toHaveLength(12);
+    });
+
+    it("accepts first parameter", async () => {
+      const { gobbledArts } = await gql(`
+        gobbledArts(first: 2) {
+          id
+          user
+        }
+      `);
+
+      expect(gobbledArts).toHaveLength(2);
     });
   });
 });

@@ -1,6 +1,7 @@
-// const { graphqlPlugin } = require("@ponder/graphql");
+const { graphqlPlugin } = require("../../../graphql/dist");
 
 const ponderConfig = {
+  plugins: [graphqlPlugin()],
   database: {
     kind: "sqlite",
     filename: ":memory:",
