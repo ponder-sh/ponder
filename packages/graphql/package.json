@@ -1,6 +1,6 @@
 {
   "name": "@ponder/graphql",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "API builder for blockchain apps",
   "license": "MIT",
   "author": "olias.eth",
