@@ -185,7 +185,7 @@ describe("Ponder", () => {
     });
   });
 
-  describe.only("graphql", () => {
+  describe("graphql", () => {
     let gql: (query: string) => Promise<any>;
 
     beforeEach(async () => {
