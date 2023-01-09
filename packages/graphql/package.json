@@ -16,7 +16,7 @@
   "dependencies": {
     "@graphql-codegen/core": "^2.6.2",
     "@graphql-codegen/typescript": "^2.7.3",
-    "@ponder/core": "workspace:latest",
+    "@ponder/core": "workspace:*",
     "cors": "^2.8.5",
     "express": "^4.18.1",
     "express-graphql": "^0.12.0",
