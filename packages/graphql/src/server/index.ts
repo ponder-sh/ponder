@@ -34,7 +34,7 @@ export class GraphqlServer {
 
     if (!this.server) {
       const port = newPort || this.port;
-      this.app.use("/graphql", (...args) => this.graphqlMiddleware!(...args));
+      this.app.use("/graphql", (...args) => this.graphqlMiddleware?.(...args));
       this.server = this.app.listen(port);
     } else if (newPort && newPort !== this.port) {
       this.port = newPort;
