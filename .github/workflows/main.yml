@@ -43,7 +43,6 @@ jobs:
             docs/node_modules
             examples/**/node_modules
             packages/**/node_modules
-            packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -75,7 +74,6 @@ jobs:
             docs/node_modules
             examples/**/node_modules
             packages/**/node_modules
-            packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Build
         run: pnpm build
@@ -110,10 +108,13 @@ jobs:
             docs/node_modules
             examples/**/node_modules
             packages/**/node_modules
-            packages/**/dist
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Build
         run: pnpm build
+      - name: Generate fixtures
+        run: pnpm fixtures
+        env:
+          PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
       - name: Test
         run: pnpm test
         env:

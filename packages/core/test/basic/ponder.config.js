@@ -1,6 +1,7 @@
-// const { graphqlPlugin } = require("@ponder/graphql");
+const { graphqlPlugin } = require("../../../graphql/dist");
 
 const ponderConfig = {
+  plugins: [graphqlPlugin()],
   database: {
     kind: "sqlite",
     filename: ":memory:",
@@ -14,11 +15,12 @@ const ponderConfig = {
   ],
   sources: [
     {
-      name: "FileStore",
+      name: "ArtGobblers",
       network: "mainnet",
-      abi: "./abis/FileStore.json",
-      address: "0x9746fD0A77829E12F8A9DBe70D7a322412325B91",
-      startBlock: 15963553,
+      abi: "./abis/ArtGobblers.json",
+      address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+      startBlock: 16342200,
+      blockLimit: 250,
     },
   ],
 };

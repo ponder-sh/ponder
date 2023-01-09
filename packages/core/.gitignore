@@ -1,2 +1,5 @@
 dist/
 .ponder/
+generated/
+.env.local
+__fixtures__/

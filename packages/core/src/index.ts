@@ -15,6 +15,6 @@ export type {
   Block,
   EventLog,
   PonderPlugin,
-  ResolvedPonderPlugin,
+  PonderPluginBuilder,
   Transaction,
 } from "@/types";

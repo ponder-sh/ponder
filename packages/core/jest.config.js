@@ -4,5 +4,6 @@ module.exports = async () => {
     verbose: true,
     roots: ["dist"],
     testTimeout: 5_000, // 5 seconds
+    detectOpenHandles: true,
   };
 };
