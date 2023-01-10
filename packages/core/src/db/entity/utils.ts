@@ -74,7 +74,15 @@ export const getWhereValue = (
 
   if (typeof value === "object" && value.length) {
     return `${operator} (${value
-      .map((v) => (typeof v === "boolean" ? (v ? 1 : 0) : `${v}`))
+      .map((v) => {
+        if (typeof v === "boolean") {
+          return v ? 1 : 0;
+        } else if (typeof v === "string") {
+          return `'${v}'`;
+        } else {
+          return `${v}`;
+        }
+      })
       .join(",")})`;
   }
 
@@ -82,6 +90,7 @@ export const getWhereValue = (
     return `${operator} ${value ? 1 : 0}`;
   }
 
+  // At this point we assume the value is a string.
   let finalValue = value;
   if (patternPrefix) finalValue = `${patternPrefix}${finalValue}`;
   if (patternSuffix) finalValue = `${finalValue}${patternSuffix}`;
