@@ -125,15 +125,15 @@ const main = async () => {
 
   await Promise.all([
     generateFixture({
-      name: "ArtGobblers",
+      name: "BaseRegistrarImplementation",
       sources: [
         {
           chainId: 1,
           rpcUrl: process.env.PONDER_RPC_URL_1,
-          address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-          startBlock: 16342200,
-          endBlock: 16343200, // 1000 blocks
-          blockLimit: 250,
+          address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+          startBlock: 16370000,
+          endBlock: 16370200, // 200 blocks
+          blockLimit: 100,
         },
       ],
     }),

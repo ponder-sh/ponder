@@ -1,4 +1,12 @@
-type GobbledArt @entity {
+type EnsNft @entity {
   id: ID!
-  user: String!
+  labelHash: String!
+  owner: Account!
+  transferredAt: Int!
+}
+
+type Account @entity {
+  id: ID!
+  tokens: [EnsNft!]! @derivedFrom(field: "owner")
+  lastActive: Int!
 }
