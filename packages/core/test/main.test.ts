@@ -51,12 +51,12 @@ describe("Ponder", () => {
     it("creates a source matching config", async () => {
       expect(ponder.sources.length).toBe(1);
       const source = ponder.sources[0];
-      expect(source.name).toBe("ArtGobblers");
+      expect(source.name).toBe("BaseRegistrarImplementation");
       expect(source.network.name).toBe("mainnet");
       expect(source.network.provider).toBeInstanceOf(CachedProvider);
-      expect(source.address).toBe("0x60bb1e2aa1c9acafb4d34f71585d7e959f387769");
-      expect(source.startBlock).toBe(16342200);
-      expect(source.blockLimit).toBe(250);
+      expect(source.address).toBe("0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85");
+      expect(source.startBlock).toBe(16370000);
+      expect(source.blockLimit).toBe(100);
     });
 
     it("creates a sqlite database", async () => {
@@ -127,7 +127,7 @@ describe("Ponder", () => {
     });
 
     it("builds the schema", async () => {
-      expect(ponder.schema?.entities.length).toBe(1);
+      expect(ponder.schema?.entities.length).toBe(2);
     });
 
     it("migrates the entity store", async () => {
@@ -136,7 +136,8 @@ describe("Ponder", () => {
         .all();
       const tableNames = tables.map((t) => t.name);
 
-      expect(tableNames).toContain("GobbledArt");
+      expect(tableNames).toContain("EnsNft");
+      expect(tableNames).toContain("Account");
     });
   });
 
@@ -161,9 +162,9 @@ describe("Ponder", () => {
         .prepare(`SELECT * FROM __ponder__v1__transactions`)
         .all();
 
-      expect(logs.length).toBe(25);
-      expect(blocks.length).toBe(23);
-      expect(transactions.length).toBe(23);
+      expect(logs.length).toBe(148);
+      expect(blocks.length).toBe(66);
+      expect(transactions.length).toBe(76);
     });
   });
 
@@ -177,11 +178,11 @@ describe("Ponder", () => {
     it("inserts data into the entity store", async () => {
       await ponder.handlerQueue?.process();
 
-      const gobbledArts = (ponder.database.db as Sqlite.Database)
-        .prepare(`SELECT * FROM GobbledArt`)
+      const ensNfts = (ponder.database.db as Sqlite.Database)
+        .prepare(`SELECT * FROM EnsNft`)
         .all();
 
-      expect(gobbledArts.length).toBe(12);
+      expect(ensNfts.length).toBe(58);
     });
   });
 
@@ -200,31 +201,173 @@ describe("Ponder", () => {
         const response = await app
           .post("/graphql")
           .send({ query: `query { ${query} }` });
-        expect(response.error).toBeFalsy();
+
+        expect(response.body.errors).toBeUndefined();
         return response.body.data;
       };
     });
 
-    it("serves gobbled art data", async () => {
-      const { gobbledArts } = await gql(`
-        gobbledArts {
+    it("serves data", async () => {
+      const { ensNfts, accounts } = await gql(`
+        ensNfts {
           id
-          user
+          labelHash
+          owner {
+            id
+          }
+          transferredAt
+        }
+        accounts {
+          id
+          lastActive
+          tokens {
+            id
+          }
         }
       `);
 
-      expect(gobbledArts).toHaveLength(12);
+      expect(ensNfts).toHaveLength(58);
+      expect(accounts).toHaveLength(68);
     });
 
-    it("accepts first parameter", async () => {
-      const { gobbledArts } = await gql(`
-        gobbledArts(first: 2) {
+    it("limits", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(first: 2) {
           id
-          user
         }
       `);
 
-      expect(gobbledArts).toHaveLength(2);
+      expect(ensNfts).toHaveLength(2);
+    });
+
+    it("skips", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(skip: 5) {
+          id
+        }
+      `);
+
+      expect(ensNfts).toHaveLength(53);
+    });
+
+    it("orders ascending", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(orderBy: "transferredAt", orderDirection: "asc") {
+          id
+          transferredAt
+        }
+      `);
+
+      expect(ensNfts).toBe(
+        ensNfts.sort((a: any, b: any) => a.transferredAt - b.transferredAt)
+      );
+    });
+
+    it("orders descending", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(orderBy: "transferredAt", orderDirection: "desc") {
+          id
+          transferredAt
+        }
+      `);
+
+      expect(ensNfts).toBe(
+        ensNfts.sort((a: any, b: any) => b.transferredAt - a.transferredAt)
+      );
+    });
+
+    it("filters on integer field equals", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { transferredAt: 1673278703 }) {
+          id
+          transferredAt
+        }
+      `);
+
+      expect(ensNfts).toHaveLength(1);
+      expect(ensNfts[0].transferredAt).toBe(1673278703);
+    });
+
+    it("filters on integer field in", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { transferredAt_in: [1673278703, 1673278739] }) {
+          id
+          transferredAt
+        }
+      `);
+
+      expect(ensNfts).toHaveLength(2);
+      expect(ensNfts[0].transferredAt).toBe(1673278703);
+      expect(ensNfts[1].transferredAt).toBe(1673278739);
+    });
+
+    it("filters on string field equals", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { labelHash: "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7" }) {
+          id
+          labelHash
+        }
+      `);
+
+      expect(ensNfts).toHaveLength(1);
+      expect(ensNfts[0].labelHash).toBe(
+        "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7"
+      );
+    });
+
+    it("filters on string field in", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { labelHash_in: ["0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7", "0xa594dce9890a89d2a1399c0870196851ca7a0db19650fb38c682a6599a6b4d9b"] }) {
+          id
+          labelHash
+        }
+      `);
+
+      expect(ensNfts).toHaveLength(2);
+      expect(ensNfts[0].labelHash).toBe(
+        "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7"
+      );
+      expect(ensNfts[1].labelHash).toBe(
+        "0xa594dce9890a89d2a1399c0870196851ca7a0db19650fb38c682a6599a6b4d9b"
+      );
+    });
+
+    it("filters on relationship field equals", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { owner: "0x3b42845cD161fE095e083aF493525271a3CF27cf" }) {
+          id
+          owner {
+            id
+          }
+        }
+      `);
+
+      expect(ensNfts).toHaveLength(2);
+      expect(ensNfts[0].owner.id).toBe(
+        "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+      );
+      expect(ensNfts[1].owner.id).toBe(
+        "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+      );
+    });
+
+    it("filters on relationship field contains", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { owner_contains: "0x3b42845cD161f" }) {
+          id
+          owner {
+            id
+          }
+        }
+      `);
+
+      expect(ensNfts).toHaveLength(2);
+      expect(ensNfts[0].owner.id).toBe(
+        "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+      );
+      expect(ensNfts[1].owner.id).toBe(
+        "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+      );
     });
   });
 });

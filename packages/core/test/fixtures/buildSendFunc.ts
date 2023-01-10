@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-ignore
-import _ArtGobblers from "./__fixtures__/ArtGobblers";
+import _BaseRegistrarImplementation from "./__fixtures__/BaseRegistrarImplementation";
 import type { Hash, RawBlock, RawBlockWithTransactions, RawLog } from "./utils";
 
 type Fixture = {
@@ -9,10 +9,11 @@ type Fixture = {
   blocks: RawBlockWithTransactions[];
 };
 
-const ArtGobblers = _ArtGobblers as unknown as Fixture;
+const BaseRegistrarImplementation =
+  _BaseRegistrarImplementation as unknown as Fixture;
 
 const fixtures = {
-  ArtGobblers,
+  BaseRegistrarImplementation,
 };
 
 type SendArgs =
@@ -22,7 +23,9 @@ type SendArgs =
 
 type FixtureOption = keyof typeof fixtures;
 
-export const buildSendFunc = (option: FixtureOption = "ArtGobblers") => {
+export const buildSendFunc = (
+  option: FixtureOption = "BaseRegistrarImplementation"
+) => {
   const { logs, blocks } = fixtures[option];
 
   return async (...args: any) => {
