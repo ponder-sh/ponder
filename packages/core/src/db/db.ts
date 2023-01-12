@@ -25,25 +25,38 @@ export interface PostgresDb {
 export type PonderDatabase = SqliteDb | PostgresDb;
 
 export const buildDb = ({ ponder }: { ponder: Ponder }): PonderDatabase => {
-  switch (ponder.config.database.kind) {
-    case "sqlite": {
-      const dbFilePath =
-        ponder.config.database.filename ||
-        path.join(ponder.options.PONDER_DIR_PATH, "cache.db");
-      ensureDirExists(dbFilePath);
+  if (!ponder.config.database) {
+    if (process.env.DATABASE_URL) {
+      const db = pgp({
+        connectionString: process.env.DATABASE_URL,
+        keepAlive: true,
+      });
 
+      return { kind: "postgres", db };
+    } else {
+      const dbFilePath = path.join(ponder.options.PONDER_DIR_PATH, "cache.db");
+      ensureDirExists(dbFilePath);
       const db = Sqlite(dbFilePath, { verbose: logger.trace });
       db.pragma("journal_mode = WAL");
 
       return { kind: "sqlite", db };
     }
-    case "postgres": {
-      const db = pgp({
-        connectionString: ponder.config.database.connectionString,
-        keepAlive: true,
-      });
+  }
 
-      return { kind: "postgres", db };
-    }
+  // If a database was provided, use it.
+  if (ponder.config.database.kind === "sqlite") {
+    const dbFilePath = ponder.config.database.filename;
+    ensureDirExists(dbFilePath);
+    const db = Sqlite(dbFilePath, { verbose: logger.trace });
+    db.pragma("journal_mode = WAL");
+
+    return { kind: "sqlite", db };
+  } else {
+    const db = pgp({
+      connectionString: ponder.config.database.connectionString,
+      keepAlive: true,
+    });
+
+    return { kind: "postgres", db };
   }
 };

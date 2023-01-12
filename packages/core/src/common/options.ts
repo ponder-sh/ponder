@@ -9,23 +9,25 @@ export type PonderOptions = {
   GENERATED_DIR_PATH: string;
   PONDER_DIR_PATH: string;
 
+  LOG_TYPE: "dev" | "start" | "codegen";
   SILENT: boolean;
 };
 
-export const buildOptions = (options: PonderCliOptions): PonderOptions => {
-  const configFile = options.configFile;
-  const rootDir = path.resolve(options.rootDir);
-  const silent = options.silent;
-
+export const buildOptions = (
+  options: PonderCliOptions & { logType: "dev" | "start" | "codegen" }
+): PonderOptions => {
   const defaults = {
-    SILENT: silent,
+    LOG_TYPE: options.logType,
+    SILENT: options.silent,
     // File path options
-    PONDER_CONFIG_FILE_PATH: configFile,
+    PONDER_CONFIG_FILE_PATH: options.configFile,
     SCHEMA_FILE_PATH: "schema.graphql",
     HANDLERS_DIR_PATH: "handlers",
     GENERATED_DIR_PATH: "generated",
     PONDER_DIR_PATH: ".ponder",
   };
+
+  const rootDir = path.resolve(options.rootDir);
 
   return {
     ...defaults,

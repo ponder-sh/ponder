@@ -4,6 +4,8 @@
 import { cac } from "cac";
 import dotenv from "dotenv";
 
+import { buildPonderConfig } from "@/buildPonderConfig";
+import { buildOptions } from "@/common/options";
 import { Ponder } from "@/Ponder";
 
 dotenv.config({ path: ".env.local" });
@@ -11,8 +13,8 @@ dotenv.config({ path: ".env.local" });
 const cli = cac("ponder")
   .usage("<command> [options]")
   .help()
-  .option("--config-file [path]", `Path to config file`, {
-    default: "ponder.config.js",
+  .option("--config-file [path]", `Path to ponder config file`, {
+    default: "ponder.ts",
   })
   .option("--root-dir [path]", `Path to project root directory`, {
     default: ".",
@@ -28,32 +30,36 @@ export type PonderCliOptions = {
   silent: boolean;
 };
 
-export type PonderCliCommand = "dev" | "start" | "codegen";
-
 cli
   .command("dev", "Start the development server")
-  .action(async (options: PonderCliOptions) => {
-    if (options.help) process.exit(0);
+  .action(async (cliOptions: PonderCliOptions) => {
+    if (cliOptions.help) process.exit(0);
 
-    const ponder = new Ponder({ ...options, command: "dev" });
+    const options = buildOptions({ ...cliOptions, logType: "dev" });
+    const config = await buildPonderConfig(options);
+    const ponder = new Ponder({ options, config });
     await ponder.dev();
   });
 
 cli
   .command("start", "Start the production server")
-  .action(async (options: PonderCliOptions) => {
-    if (options.help) process.exit(0);
+  .action(async (cliOptions: PonderCliOptions) => {
+    if (cliOptions.help) process.exit(0);
 
-    const ponder = new Ponder({ ...options, command: "start" });
+    const options = buildOptions({ ...cliOptions, logType: "start" });
+    const config = await buildPonderConfig(options);
+    const ponder = new Ponder({ options, config });
     await ponder.start();
   });
 
 cli
   .command("codegen", "Emit type files, then exit")
-  .action(async (options: PonderCliOptions) => {
-    if (options.help) process.exit(0);
+  .action(async (cliOptions: PonderCliOptions) => {
+    if (cliOptions.help) process.exit(0);
 
-    const ponder = new Ponder({ ...options, command: "codegen" });
+    const options = buildOptions({ ...cliOptions, logType: "codegen" });
+    const config = await buildPonderConfig(options);
+    const ponder = new Ponder({ options, config });
     ponder.codegen();
   });
 
