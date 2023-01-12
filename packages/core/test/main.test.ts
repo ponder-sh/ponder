@@ -2,6 +2,8 @@ import { JsonRpcProvider } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
 import request from "supertest";
 
+import { buildPonderConfig } from "@/buildPonderConfig";
+import { buildOptions } from "@/common/options";
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
 import { CachedProvider } from "@/networks/CachedProvider";
@@ -22,13 +24,16 @@ afterAll(() => {
 describe("Ponder", () => {
   let ponder: Ponder;
 
-  beforeEach(() => {
-    ponder = new Ponder({
-      command: "dev",
+  beforeEach(async () => {
+    const options = buildOptions({
       rootDir: "./test/basic",
-      configFile: "ponder.config.js",
+      configFile: "ponder.ts",
+      logType: "start",
       silent: true,
     });
+
+    const config = await buildPonderConfig(options);
+    ponder = new Ponder({ options, config });
   });
 
   afterEach(() => {
@@ -73,7 +78,6 @@ describe("Ponder", () => {
 
     it("registers event listeners", async () => {
       expect(ponder.eventNames()).toMatchObject([
-        "config_error",
         "dev_error",
         "backfill_networkConnected",
         "backfill_sourceStarted",
