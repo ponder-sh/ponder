@@ -34,13 +34,13 @@ The ENS `BaseRegistrar` contract emits a `NameRegistered` event every time a use
 
 ```solidity
 contract BaseRegistrar {
-  event NameRegistered(string name, address owner);
 
-  function registerName(string calldata name, address owner) external {
-    // ...
+    event NameRegistered(string name, address owner);
 
-    emit NameRegistered(name, owner);
-  }
+    function registerName(string calldata name, address owner) external {
+        // ...
+        emit NameRegistered(name, owner);
+    }
 }
 ```
 
@@ -48,7 +48,7 @@ contract BaseRegistrar {
 
 ### Ponder config
 
-Now, let's add `BaseRegistrar` as a Source in our Ponder config file. Ponder's indexing engine will now fetch all the `NameRegistered` events that have been emitted by the contract.
+First we'll add `BaseRegistrar` as an event source in our Ponder config file. Ponder's indexing engine will now fetch all the `NameRegistered` events that have been emitted by the contract.
 
 ```ts filename="ponder.config.js"
 export default {
@@ -71,9 +71,9 @@ export default {
 };
 ```
 
-### Entity schema
+### GraphQL schema
 
-The `schema.graphql` file defines the entity objects that our GraphQL API will serve. Here, we have an `EnsName` entity that stores the ENS name, the owner address, and a timestamp.
+Next we'll add an entity to our schema. The `schema.graphql` file defines the data that our GraphQL API will serve. Let's add an `EnsName` entity that stores the ENS name, the owner address, and a timestamp.
 
 ```graphql filename="schema.graphql"
 type EnsName @entity {
