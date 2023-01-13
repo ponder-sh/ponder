@@ -2,11 +2,11 @@ import { watch } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
 
-import { PonderCliCommand, PonderCliOptions } from "@/bin/ponder";
+import type { ResolvedPonderConfig } from "@/buildPonderConfig";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger, logMessage, MessageKind, PonderLogger } from "@/common/logger";
-import { buildOptions, PonderOptions } from "@/common/options";
+import type { PonderOptions } from "@/common/options";
 import {
   endBenchmark,
   formatEta,
@@ -22,9 +22,8 @@ import { readHandlers } from "@/handlers/readHandlers";
 import { getLogs } from "@/indexer/tasks/getLogs";
 import { startBackfill } from "@/indexer/tasks/startBackfill";
 import { startFrontfill } from "@/indexer/tasks/startFrontfill";
-import type { Network } from "@/networks/base";
+import type { Network } from "@/networks/buildNetworks";
 import { buildNetworks } from "@/networks/buildNetworks";
-import { PonderConfig, readPonderConfig } from "@/readPonderConfig";
 import { buildSchema } from "@/schema/buildSchema";
 import { readGraphqlSchema } from "@/schema/readGraphqlSchema";
 import type { Schema } from "@/schema/types";
@@ -35,9 +34,8 @@ import type { UiState } from "@/ui/app";
 import { getUiState, hydrateUi, render, unmount } from "@/ui/app";
 
 export class Ponder extends EventEmitter<PonderEvents> {
-  command: PonderCliCommand;
   options: PonderOptions;
-  config: PonderConfig;
+  config: ResolvedPonderConfig;
   logger: PonderLogger = logger;
 
   // Config-derived services
@@ -47,7 +45,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   cacheStore: CacheStore;
   entityStore: EntityStore;
 
-  //
+  // Reload-able services
   schema?: Schema;
   handlerQueue?: HandlerQueue;
 
@@ -69,11 +67,17 @@ export class Ponder extends EventEmitter<PonderEvents> {
   renderInterval?: NodeJS.Timer;
   etaInterval?: NodeJS.Timer;
 
-  constructor(cliOptions: PonderCliOptions & { command: PonderCliCommand }) {
+  constructor({
+    options,
+    config,
+  }: {
+    options: PonderOptions;
+    config: ResolvedPonderConfig;
+  }) {
     super();
-    this.command = cliOptions.command;
+    this.options = options;
+    this.config = config;
 
-    this.on("config_error", this.config_error);
     this.on("dev_error", this.dev_error);
 
     this.on("backfill_networkConnected", this.backfill_networkConnected);
@@ -89,25 +93,20 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.on("indexer_taskStarted", this.indexer_taskStarted);
     this.on("indexer_taskDone", this.indexer_taskDone);
 
-    this.options = buildOptions(cliOptions);
-
     this.ui = getUiState(this.options);
-
-    this.config = readPonderConfig(this.options.PONDER_CONFIG_FILE_PATH);
 
     this.database = buildDb({ ponder: this });
     this.cacheStore = buildCacheStore({ ponder: this });
     this.entityStore = buildEntityStore({ ponder: this });
 
-    const { networks } = buildNetworks({ ponder: this });
-    this.networks = networks;
+    this.networks = buildNetworks({ ponder: this });
+    this.sources = buildSources({ ponder: this });
 
-    const { sources } = buildSources({ ponder: this });
-    this.sources = sources;
+    this.plugins = (
+      (this.config.plugins as ((ponder: Ponder) => PonderPlugin)[]) || []
+    ).map((plugin) => plugin(this));
 
-    this.plugins = (this.config.plugins || []).map((plugin) => plugin(this));
-
-    hydrateUi({ ui: this.ui, sources });
+    hydrateUi({ ui: this.ui, sources: this.sources });
   }
 
   // --------------------------- PUBLIC METHODS --------------------------- //
@@ -145,7 +144,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   async setup() {
     this.renderInterval = setInterval(() => {
       this.ui.timestamp = Math.floor(Date.now() / 1000);
-      if (this.command === "dev") render(this.ui);
+      if (this.options.LOG_TYPE === "dev") render(this.ui);
     }, 17);
     this.etaInterval = setInterval(() => {
       this.updateBackfillEta();
@@ -219,11 +218,12 @@ export class Ponder extends EventEmitter<PonderEvents> {
             : path.join(fileOrDirName, fileName);
 
         if (fullPath === this.options.PONDER_CONFIG_FILE_PATH) {
-          this.emit("config_error", {
-            context:
-              "detected change in ponder.config.js. " +
-              pico.bold("Restart the server."),
-          });
+          this.logMessage(
+            MessageKind.ERROR,
+            "detected change in ponder.config.js. " +
+              pico.bold("Restart the server.")
+          );
+          this.kill();
           return;
         }
 
@@ -259,7 +259,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     await drainBackfillQueues();
     const duration = formatEta(endBenchmark(startHrt));
 
-    if (this.command === "start") {
+    if (this.options.LOG_TYPE === "start") {
       this.logMessage(MessageKind.BACKFILL, `backfill complete (${duration})`);
     }
 
@@ -297,26 +297,21 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.handlersToTimestamp = toTimestamp;
     this.isHandlingLogs = false;
 
-    if (this.command === "start" && logs.length > 0) {
+    if (this.options.LOG_TYPE === "start" && logs.length > 0) {
       this.logMessage(MessageKind.INDEXER, `indexed ${logs.length} events`);
     }
   }
 
   // --------------------------- EVENT HANDLERS --------------------------- //
 
-  private config_error: PonderEvents["config_error"] = async (e) => {
-    if (this.command === "codegen") return;
-    this.logMessage(MessageKind.ERROR, e.context);
-    if (e.error) logger.error(e.error);
-    this.kill();
-  };
-
   private dev_error: PonderEvents["dev_error"] = async (e) => {
+    if (this.options.LOG_TYPE === "codegen") return;
+
     this.handlerQueue?.kill();
     this.logMessage(MessageKind.ERROR, e.context);
 
     // If not the dev server, log the entire error and kill the app.
-    if (this.command === "start") {
+    if (this.options.LOG_TYPE === "start") {
       if (e.error) logger.error(e.error);
       this.kill();
       return;
@@ -339,7 +334,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   private backfill_sourceStarted: PonderEvents["backfill_sourceStarted"] = (
     e
   ) => {
-    if (this.command === "start") {
+    if (this.options.LOG_TYPE === "start") {
       this.logMessage(
         MessageKind.BACKFILL,
         `started backfill for source ${pico.bold(e.source)} (${formatPercentage(
@@ -399,7 +394,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   };
 
   private frontfill_newLogs: PonderEvents["frontfill_newLogs"] = (e) => {
-    if (this.command === "start" && this.ui.isBackfillComplete) {
+    if (this.options.LOG_TYPE === "start" && this.ui.isBackfillComplete) {
       this.logMessage(
         MessageKind.FRONTFILL,
         `${e.network} block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched events)`
@@ -421,7 +416,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
   private indexer_taskDone: PonderEvents["indexer_taskDone"] = (e) => {
     this.ui.handlersToTimestamp = e.timestamp;
-    if (this.command === "dev") render(this.ui);
+    if (this.options.LOG_TYPE === "dev") render(this.ui);
   };
 
   // --------------------------- PLUGINS --------------------------- //
@@ -467,7 +462,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   };
 
   private logBackfillProgress() {
-    if (this.command === "start" && !this.ui.isBackfillComplete) {
+    if (this.options.LOG_TYPE === "start" && !this.ui.isBackfillComplete) {
       this.sources.forEach((source) => {
         const stat = this.ui.stats[source.name];
 
@@ -491,6 +486,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }
 
   private logMessage = (kind: MessageKind, message: string) => {
-    logMessage(kind, message, this.command === "dev");
+    if (!this.options.SILENT) {
+      logMessage(kind, message, this.options.LOG_TYPE === "dev");
+    }
   };
 }

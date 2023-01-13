@@ -137,6 +137,7 @@ importers:
       tsconfig-replace-paths: ^0.0.11
       typed-emitter: ^2.1.0
       typescript: ^4.8.4
+      zod: ^3.20.2
     dependencies:
       '@ethersproject/abi': 5.6.4
       '@ethersproject/bytes': 5.7.0
@@ -155,6 +156,7 @@ importers:
       prettier: 2.6.2
       react: 17.0.2
       typescript: 4.8.4
+      zod: 3.20.2
     devDependencies:
       '@types/better-sqlite3': 7.6.0
       '@types/jest': 29.2.3
@@ -9258,6 +9260,10 @@ packages:
     engines: {node: '>=8'}
     dependencies:
       '@types/yoga-layout': 1.9.2
+    dev: false
+
+  /zod/3.20.2:
+    resolution: {integrity: sha512-1MzNQdAvO+54H+EaK5YpyEy0T+Ejo/7YLHS93G3RnYWh5gaotGHwGeN/ZO687qEDU2y4CdStQYXVHIgrUl5UVQ==}
     dev: false
 
   /zwitch/2.0.4:

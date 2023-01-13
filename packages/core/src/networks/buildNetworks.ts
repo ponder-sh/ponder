@@ -1,45 +1,49 @@
+import {
+  AlchemyProvider,
+  StaticJsonRpcProvider,
+} from "@ethersproject/providers";
+
 import { CachedProvider } from "@/networks/CachedProvider";
 import type { Ponder } from "@/Ponder";
 
-import type { EvmNetwork } from "./evm";
+export type EvmNetwork = {
+  name: string;
+  chainId: number;
+  provider: StaticJsonRpcProvider;
+};
 
-const cachedProvidersByChainId: Record<number, CachedProvider | undefined> = {};
+export type Network = EvmNetwork;
+
+const cachedProvidersByChainId: Record<
+  number,
+  StaticJsonRpcProvider | undefined
+> = {};
 
 export const buildNetworks = ({ ponder }: { ponder: Ponder }) => {
   const networks = ponder.config.networks.map(({ name, rpcUrl, chainId }) => {
-    if (chainId === undefined || typeof chainId !== "number") {
-      ponder.emit("config_error", {
-        context: `parsing ponder.config.js`,
-        error: new Error(
-          `Invalid or missing chain ID for network "${name}" in ponder.config.js`
-        ),
-      });
-    }
-
-    if (rpcUrl === undefined || rpcUrl === "") {
-      ponder.emit("config_error", {
-        context: `parsing ponder.config.js`,
-        error: new Error(
-          `Invalid or missing RPC URL for network "${name}" in ponder.config.js`
-        ),
-      });
-    }
-
     let provider = cachedProvidersByChainId[chainId];
     if (!provider) {
-      provider = new CachedProvider(ponder, rpcUrl, chainId);
+      if (rpcUrl) {
+        provider = new CachedProvider(ponder, rpcUrl, chainId);
+      } else {
+        // The default provider will not actually work in a meaningful way.
+        provider = new AlchemyProvider(chainId);
+        ponder.emit("dev_error", {
+          context: `building networks`,
+          error: new Error(`RPC URL not found for network "${name}"`),
+        });
+      }
       cachedProvidersByChainId[chainId] = provider;
     }
 
     const network: EvmNetwork = {
       name: name,
       chainId: chainId,
-      rpcUrl: rpcUrl,
       provider: provider,
     };
 
     return network;
   });
 
-  return { networks };
+  return networks;
 };

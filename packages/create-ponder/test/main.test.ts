@@ -1,4 +1,3 @@
-import type { PonderConfig } from "@ponder/core";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -9,8 +8,6 @@ const rootDir = path.join(tmpDir, "create-ponder-tests");
 
 describe("create-ponder", () => {
   describe("from etherscan", () => {
-    let ponderConfig: PonderConfig;
-
     beforeAll(async () => {
       await run(
         {
@@ -23,12 +20,6 @@ describe("create-ponder", () => {
             'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
         }
       );
-
-      ponderConfig = require(path.join(
-        process.cwd(),
-        rootDir,
-        "ponder.config.js"
-      ));
     });
 
     afterAll(() => {
@@ -47,7 +38,7 @@ describe("create-ponder", () => {
           "handlers",
           "node_modules",
           "package.json",
-          "ponder.config.js",
+          "ponder.ts",
           "schema.graphql",
           "tsconfig.json",
         ].sort()
@@ -55,10 +46,8 @@ describe("create-ponder", () => {
     });
 
     it("downloads abi", async () => {
-      const source = ponderConfig.sources[0];
-
       const abiString = fs.readFileSync(
-        path.join(rootDir, `abis/${source.name}.json`),
+        path.join(rootDir, `abis/FileStore.json`),
         { encoding: "utf8" }
       );
       const abi = JSON.parse(abiString);

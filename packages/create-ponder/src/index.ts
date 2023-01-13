@@ -112,28 +112,23 @@ export const run = async (
     prettier.format(handlerIndexFileContents, { parser: "typescript" })
   );
 
-  // Write the ponder.config.js file.
-  const finalPonderConfig = `const { graphqlPlugin } = require("@ponder/graphql");
+  // Write the ponder.ts file.
+  const finalPonderConfig = `
+    import type { PonderConfig } from "@ponder/core";
+    import { graphqlPlugin } from "@ponder/graphql";
 
-/**
- * @type {import('@ponder/core').PonderConfig}
- */
-const ponderConfig = {
-  plugins: [graphqlPlugin()],
-  database: {
-    kind: "sqlite",
-  },
-  networks: ${JSON.stringify(ponderConfig.networks).replaceAll(
-    /"process.env.PONDER_RPC_URL_(.*?)"/g,
-    "process.env.PONDER_RPC_URL_$1"
-  )},
-  sources: ${JSON.stringify(ponderConfig.sources)},
-};
-
-module.exports = ponderConfig;`;
+    export const config: PonderConfig = {
+      plugins: [graphqlPlugin()],
+      networks: ${JSON.stringify(ponderConfig.networks).replaceAll(
+        /"process.env.PONDER_RPC_URL_(.*?)"/g,
+        "process.env.PONDER_RPC_URL_$1"
+      )},
+      sources: ${JSON.stringify(ponderConfig.sources)},
+    };
+  `;
 
   writeFileSync(
-    path.join(ponderRootDir, "ponder.config.js"),
+    path.join(ponderRootDir, "ponder.ts"),
     prettier.format(finalPonderConfig, { parser: "babel" })
   );
 

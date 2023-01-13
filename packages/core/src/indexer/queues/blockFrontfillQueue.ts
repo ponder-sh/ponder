@@ -3,7 +3,7 @@ import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import { parseBlock, parseLog, parseTransaction } from "@/db/cache/utils";
-import type { Network } from "@/networks/base";
+import type { Network } from "@/networks/buildNetworks";
 import type { Ponder } from "@/Ponder";
 
 export type BlockFrontfillTask = {
