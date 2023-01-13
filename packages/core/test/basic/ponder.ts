@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import { graphqlPlugin } from "../../../graphql/dist";
 
 export const config = () => {
