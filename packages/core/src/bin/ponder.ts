@@ -8,9 +8,12 @@ import { buildPonderConfig } from "@/buildPonderConfig";
 import { buildOptions } from "@/common/options";
 import { Ponder } from "@/Ponder";
 
+import packageJson from "../../package.json";
+
 dotenv.config({ path: ".env.local" });
 
 const cli = cac("ponder")
+  .version(packageJson.version)
   .usage("<command> [options]")
   .help()
   .option("--config-file [path]", `Path to ponder config file`, {
