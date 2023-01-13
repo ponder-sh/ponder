@@ -1,10 +1,6 @@
 import type { PonderConfig } from "@ponder/core";
 import { graphqlPlugin } from "@ponder/graphql";
 
-if (!process.env.PONDER_RPC_URL_1) {
-  throw new Error(`Missing env var: PONDER_RPC_URL_1`);
-}
-
 export const config: PonderConfig = {
   networks: [
     {
