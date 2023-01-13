@@ -1,27 +1,49 @@
+import {
+  AlchemyProvider,
+  StaticJsonRpcProvider,
+} from "@ethersproject/providers";
+
 import { CachedProvider } from "@/networks/CachedProvider";
 import type { Ponder } from "@/Ponder";
 
-import type { EvmNetwork } from "./evm";
+export type EvmNetwork = {
+  name: string;
+  chainId: number;
+  provider: StaticJsonRpcProvider;
+};
 
-const cachedProvidersByChainId: Record<number, CachedProvider | undefined> = {};
+export type Network = EvmNetwork;
+
+const cachedProvidersByChainId: Record<
+  number,
+  StaticJsonRpcProvider | undefined
+> = {};
 
 export const buildNetworks = ({ ponder }: { ponder: Ponder }) => {
   const networks = ponder.config.networks.map(({ name, rpcUrl, chainId }) => {
     let provider = cachedProvidersByChainId[chainId];
     if (!provider) {
-      provider = new CachedProvider(ponder, rpcUrl, chainId);
+      if (rpcUrl) {
+        provider = new CachedProvider(ponder, rpcUrl, chainId);
+      } else {
+        // The default provider will not actually work in a meaningful way.
+        provider = new AlchemyProvider(chainId);
+        ponder.emit("dev_error", {
+          context: `building networks`,
+          error: new Error(`RPC URL not found for network "${name}"`),
+        });
+      }
       cachedProvidersByChainId[chainId] = provider;
     }
 
     const network: EvmNetwork = {
       name: name,
       chainId: chainId,
-      rpcUrl: rpcUrl,
       provider: provider,
     };
 
     return network;
   });
 
-  return { networks };
+  return networks;
 };

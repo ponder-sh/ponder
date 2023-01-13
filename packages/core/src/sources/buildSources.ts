@@ -52,5 +52,5 @@ export const buildSources = ({ ponder }: { ponder: Ponder }) => {
     });
   });
 
-  return { sources };
+  return sources;
 };

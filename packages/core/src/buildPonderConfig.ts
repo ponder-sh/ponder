@@ -18,9 +18,7 @@ const ponderConfigSchema = z.object({
       kind: z.optional(z.string()),
       name: z.string(),
       chainId: z.number(),
-      rpcUrl: z.string({
-        required_error: "RPC URL is required",
-      }),
+      rpcUrl: z.optional(z.string()),
     })
   ),
   sources: z.array(

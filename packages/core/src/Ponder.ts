@@ -22,7 +22,7 @@ import { readHandlers } from "@/handlers/readHandlers";
 import { getLogs } from "@/indexer/tasks/getLogs";
 import { startBackfill } from "@/indexer/tasks/startBackfill";
 import { startFrontfill } from "@/indexer/tasks/startFrontfill";
-import type { Network } from "@/networks/base";
+import type { Network } from "@/networks/buildNetworks";
 import { buildNetworks } from "@/networks/buildNetworks";
 import { buildSchema } from "@/schema/buildSchema";
 import { readGraphqlSchema } from "@/schema/readGraphqlSchema";
@@ -99,17 +99,14 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.cacheStore = buildCacheStore({ ponder: this });
     this.entityStore = buildEntityStore({ ponder: this });
 
-    const { networks } = buildNetworks({ ponder: this });
-    this.networks = networks;
-
-    const { sources } = buildSources({ ponder: this });
-    this.sources = sources;
+    this.networks = buildNetworks({ ponder: this });
+    this.sources = buildSources({ ponder: this });
 
     this.plugins = (
       (this.config.plugins as ((ponder: Ponder) => PonderPlugin)[]) || []
     ).map((plugin) => plugin(this));
 
-    hydrateUi({ ui: this.ui, sources });
+    hydrateUi({ ui: this.ui, sources: this.sources });
   }
 
   // --------------------------- PUBLIC METHODS --------------------------- //
@@ -308,6 +305,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
   // --------------------------- EVENT HANDLERS --------------------------- //
 
   private dev_error: PonderEvents["dev_error"] = async (e) => {
+    if (this.options.LOG_TYPE === "codegen") return;
+
     this.handlerQueue?.kill();
     this.logMessage(MessageKind.ERROR, e.context);
 
