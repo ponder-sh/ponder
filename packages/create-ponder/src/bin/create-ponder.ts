@@ -4,7 +4,9 @@
 import { cac } from "cac";
 import path from "node:path";
 
-import packageJson from "../../package.json";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import packageJson from "../../../package.json";
 
 const cli = cac(packageJson.name)
   .version(packageJson.version)
