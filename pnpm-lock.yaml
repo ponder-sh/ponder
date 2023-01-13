@@ -79,36 +79,6 @@ importers:
     devDependencies:
       ethers: 5.6.9
 
-  examples/okpc:
-    specifiers:
-      '@ethersproject/abi': ^5.0.0
-      '@ethersproject/providers': ^5.0.0
-      '@ponder/core': workspace:latest
-      '@ponder/graphql': workspace:latest
-      ethers: ^5.6.9
-    dependencies:
-      '@ponder/core': link:../../packages/core
-      '@ponder/graphql': link:../../packages/graphql
-    devDependencies:
-      '@ethersproject/abi': 5.6.4
-      '@ethersproject/providers': 5.6.8
-      ethers: 5.6.9
-
-  examples/weth:
-    specifiers:
-      '@ethersproject/abi': ^5.0.0
-      '@ethersproject/providers': ^5.0.0
-      '@ponder/core': workspace:latest
-      '@ponder/graphql': workspace:latest
-      ethers: ^5.6.9
-    dependencies:
-      '@ponder/core': link:../../packages/core
-      '@ponder/graphql': link:../../packages/graphql
-    devDependencies:
-      '@ethersproject/abi': 5.6.4
-      '@ethersproject/providers': 5.6.8
-      ethers: 5.6.9
-
   packages/core:
     specifiers:
       '@ethersproject/abi': ^5.6.4
