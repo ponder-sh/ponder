@@ -1,23 +1,13 @@
-const { graphqlPlugin } = require("@ponder/graphql");
+import type { PonderConfig } from "@ponder/core";
+import { graphqlPlugin } from "@ponder/graphql";
 
-const isProduction = process.env.NODE_ENV === "production";
+if (!process.env.PONDER_RPC_URL_1) {
+  throw new Error(`Missing env var: PONDER_RPC_URL_1`);
+}
 
-/**
- * @type {import('@ponder/core').PonderConfig}
- */
-const ponderConfig = {
-  plugins: [graphqlPlugin()],
-  database: isProduction
-    ? {
-        kind: "postgres",
-        connectionString: process.env.DATABASE_URL,
-      }
-    : {
-        kind: "sqlite",
-      },
+export const config: PonderConfig = {
   networks: [
     {
-      kind: "evm",
       name: "mainnet",
       chainId: 1,
       rpcUrl: process.env.PONDER_RPC_URL_1,
@@ -25,7 +15,6 @@ const ponderConfig = {
   ],
   sources: [
     {
-      kind: "evm",
       name: "FileStore",
       network: "mainnet",
       abi: "./abis/FileStore.json",
@@ -33,7 +22,6 @@ const ponderConfig = {
       startBlock: 15963553,
     },
     {
-      kind: "evm",
       name: "FileStoreFrontend",
       network: "mainnet",
       address: "0xBc66C61BCF49Cc3fe4E321aeCEa307F61EC57C0b",
@@ -41,6 +29,5 @@ const ponderConfig = {
       startBlock: 15963553,
     },
   ],
+  plugins: [graphqlPlugin()],
 };
-
-module.exports = ponderConfig;

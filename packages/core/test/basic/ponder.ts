@@ -1,6 +1,6 @@
 import { graphqlPlugin } from "../../../graphql/dist";
 
-export default () => {
+export const config = () => {
   return {
     plugins: [graphqlPlugin()],
     database: {
