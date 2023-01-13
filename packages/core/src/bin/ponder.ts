@@ -8,7 +8,9 @@ import { buildPonderConfig } from "@/buildPonderConfig";
 import { buildOptions } from "@/common/options";
 import { Ponder } from "@/Ponder";
 
-import packageJson from "../../package.json";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import packageJson from "../../../package.json";
 
 dotenv.config({ path: ".env.local" });
 
