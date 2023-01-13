@@ -34,10 +34,19 @@ const ponderConfigSchema = z.object({
       blockLimit: z.optional(z.number()),
     })
   ),
-  plugins: z.optional(z.array(z.function())),
+  plugins: z.optional(z.array(z.any())),
 });
 
-export type PonderConfig = z.infer<typeof ponderConfigSchema>;
+export type ResolvedPonderConfig = z.infer<typeof ponderConfigSchema>;
+
+const ponderConfigBuilderSchema = z.union([
+  ponderConfigSchema,
+  z.promise(ponderConfigSchema),
+  z.function().returns(ponderConfigSchema),
+  z.function().returns(z.promise(ponderConfigSchema)),
+]);
+
+export type PonderConfig = z.infer<typeof ponderConfigBuilderSchema>;
 
 export const buildPonderConfig = async (options: PonderOptions) => {
   if (!existsSync(options.PONDER_CONFIG_FILE_PATH)) {
@@ -66,18 +75,45 @@ export const buildPonderConfig = async (options: PonderOptions) => {
       logLevel: "silent",
     });
 
-    let { default: rawConfig } = require(buildFile);
+    const { default: rawDefault, config: rawConfig } = require(buildFile);
     rmSync(buildFile, { force: true });
 
+    if (!rawConfig) {
+      if (rawDefault) {
+        throw new Error(
+          `Ponder config not found. ${path.basename(
+            options.PONDER_CONFIG_FILE_PATH
+          )} must export a variable named "config" (Cannot be a default export)`
+        );
+      }
+      throw new Error(
+        `Ponder config not found. ${path.basename(
+          options.PONDER_CONFIG_FILE_PATH
+        )} must export a variable named "config"`
+      );
+    }
+
+    let resolvedConfig: ResolvedPonderConfig;
+
     if (typeof rawConfig === "function") {
-      rawConfig = await rawConfig();
+      resolvedConfig = await rawConfig();
+    } else {
+      resolvedConfig = await rawConfig;
     }
 
     // TODO: Improve displaying errors zod schema errors, especially for common
     // issues like a missing RPC URL.
-    const config = ponderConfigSchema.parse(rawConfig);
-
-    return config;
+    const result = ponderConfigSchema.safeParse(resolvedConfig);
+    if (!result.success) {
+      throw new Error(
+        `Invalid ponder config: ${JSON.stringify(
+          result.error.flatten().fieldErrors,
+          null,
+          2
+        )}`
+      );
+    }
+    return result.data;
   } catch (err) {
     rmSync(buildFile, { force: true });
     throw err;

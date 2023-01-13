@@ -24,7 +24,6 @@ export class EventEmitter<T extends EventMap> extends (NodeEventEmitter as {
 })<T> {}
 
 export type PonderEvents = {
-  config_error: (arg: { context: string; error?: Error }) => void;
   dev_error: (arg: { context: string; error?: Error }) => void;
 
   backfill_networkConnected: (arg: {

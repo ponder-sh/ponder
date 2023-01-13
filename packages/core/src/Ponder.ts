@@ -2,7 +2,7 @@ import { watch } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
 
-import type { PonderConfig } from "@/buildPonderConfig";
+import type { ResolvedPonderConfig } from "@/buildPonderConfig";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
 import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger, logMessage, MessageKind, PonderLogger } from "@/common/logger";
@@ -35,7 +35,7 @@ import { getUiState, hydrateUi, render, unmount } from "@/ui/app";
 
 export class Ponder extends EventEmitter<PonderEvents> {
   options: PonderOptions;
-  config: PonderConfig;
+  config: ResolvedPonderConfig;
   logger: PonderLogger = logger;
 
   // Config-derived services
@@ -72,7 +72,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     config,
   }: {
     options: PonderOptions;
-    config: PonderConfig;
+    config: ResolvedPonderConfig;
   }) {
     super();
     this.options = options;
