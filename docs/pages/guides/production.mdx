@@ -12,28 +12,9 @@ import { Callout } from "nextra-theme-docs";
 
 <div className="steps-container">
 
-### Update `ponder.config.js`
-
-In production, Ponder apps use Postgres. Update your `ponder.config.js` file to use Postgres in production, and SQLite in development. Railway automatically provides the `DATABASE_URL` environment variable.
-
-```js filename="ponder.config.js"
-const ponderConfig = {
-  database:
-    process.env.NODE_ENV === "production"
-      ? {
-          kind: "postgres",
-          connectionString: process.env.DATABASE_URL
-        }
-      : {
-          kind: "sqlite"
-        }
-  // ...
-};
-```
-
-Commit your changes to `ponder.config.js` and push your repo to GitHub.
-
 ### Sign up or log in to Railway
+
+Connect your GitHub account, and make sure that your Ponder app has been pushed to remote.
 
 ### Create a Ponder app service
 

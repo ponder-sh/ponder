@@ -8,13 +8,13 @@ import { Callout } from "nextra-theme-docs";
 
 Event handler functions receive two arguments: `event` and `context`.
 
-The `context` object exposes the entities defined in `schema.graphql` and the contracts defined in `ponder.config.js`.
+The `context` object exposes the entities defined in `schema.graphql` and the contracts defined in `ponder.ts`.
 
 ```ts filename="Context.d.ts"
 interface Context {
   // Keyed by entity type names from schema.graphql
   entities: Record<string, EntityModel>;
-  // Keyed by contract names from ponder.config.js
+  // Keyed by source names from ponder.ts
   contracts: Record<string, ethers.Contract>;
 }
 ```
@@ -35,7 +35,7 @@ interface EntityModel {
 
 ## Contracts
 
-`context.contracts` contains `ethers.Contract` objects for each contract defined in your `ponder.config.js`. You can use these to read data directly from the smart contract using RPC calls.
+`context.contracts` contains `ethers.Contract` objects for each source defined in your `ponder.ts`. You can use these to read data directly from the smart contract using RPC calls.
 
 <Callout type="warning">
   Reading directly from contracts is slow and expensive. If you're designing

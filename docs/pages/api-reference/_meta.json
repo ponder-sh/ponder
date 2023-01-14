@@ -1,6 +1,6 @@
 {
-  "create-ponder": "create-ponder CLI",
-  "ponder-config": "ponder.config.js",
+  "create-ponder": "Create Ponder",
+  "ponder-config": "ponder.ts",
   "schema-graphql": "schema.graphql",
   "event": "event",
   "context": "context"

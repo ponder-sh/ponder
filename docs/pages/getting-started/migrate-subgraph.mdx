@@ -28,7 +28,7 @@ yarn create ponder --from-subgraph ...
 </Tab>
   <Tab>
 ```bash
-npm init ponder@latest -- --from-subgraph ...
+npm create ponder@latest -- --from-subgraph ...
 ```
 </Tab>
 </Tabs>
@@ -91,35 +91,35 @@ You can import NPM packages, debug with `console.log`, and use normal JavaScript
 
 In a Graph Protocol subgraph mapping file, entity models and contract factories are imported:
 
-```ts filename="mapping.ts"
+```ts filename="mapping.ts (Graph Protocol)"
 import { Token, Wallet } from "../generated/schema";
-import { MyNftContract } from "../generated/MyNftContract/MyNftContract";
+import { SomeNftContract } from "../generated/SomeNftContract/SomeNftContract";
 
 export function handleTransfer(event) {
   // Get an entity object
   const token = Token.load(event.params.id);
 
   // Bind and call a contract
-  const tokenUri = MyNftContract.bind("0x137...01a2").tokenUri(token.id);
+  const tokenUri = SomeNftContract.bind("0x137...01a2").tokenUri(token.id);
 
   // ...
 }
 ```
 
-With Ponder, those same entity models and contracts are injected as properties of `context`.
+With Ponder, entity models and contracts are injected as properties of `context`.
 
-Contracts injected this way are ready-to-go using the address and network specified in `ponder.config.js`. (You don't need to call `Contract.bind(address)`. The contracts are normal `ethers.Contract` objects that are already connected to a provider.
+Contracts injected this way are ready-to-go using the address and network specified in `ponder.ts`. (You don't need to call `Contract.bind(address)`. The contracts are normal `ethers.Contract` objects that are already connected to a provider.
 
-```ts filename="MyNftContract.ts"
+```ts filename="SomeNftContract.ts"
 export async function handleTransfer(event, context) {
   const { Token } = context.entities;
-  const { MyNftContract } = context.contracts;
+  const { SomeNftContract } = context.contracts;
 
   // Get an entity object
   const token = await Token.get(event.params.id);
 
   // Call a contract read function
-  const tokenUri = await MyNftContract.tokenUri(token.id);
+  const tokenUri = await SomeNftContract.tokenUri(token.id);
 
   // ...
 }

@@ -50,7 +50,7 @@ contract BaseRegistrar {
 
 First we'll add `BaseRegistrar` as an event source in our Ponder config file. Ponder's indexing engine will now fetch all the `NameRegistered` events that have been emitted by the contract.
 
-```ts filename="ponder.config.js"
+```ts filename="ponder.ts"
 export default {
   networks: [
     {

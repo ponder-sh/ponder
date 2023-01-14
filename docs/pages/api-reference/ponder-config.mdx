@@ -1,48 +1,118 @@
 ---
-description: "API reference for the ponder.config.js file"
+description: "API reference for the ponder.ts file"
 ---
 
 import { Callout } from "nextra-theme-docs";
 import { Tabs, Tab } from "nextra-theme-docs";
 
-# `ponder.config.js`
+# `ponder.ts`
 
-`ponder.config.js` contains smart contract addresses, paths to ABIs, RPC URLs, database configuration, and plugin configuration.
+The `ponder.ts` config file contains smart contract addresses, paths to ABIs, RPC URLs, database config, and plugin config.
+
+Some things to know:
+
+- `ponder.ts` must provide a **named export called `config`**, not a default export.
+- By default, `ponder {dev/start/codegen}` looks for `ponder.ts` in the current working directory, but you can specify a different path with the `--config-file` option to `ponder dev` or `ponder start`.
+- The `config` variable exported by `ponder.ts` can be an object, a function, or a function returning a Promise (you can do async stuff to determine your config).
+
+## Fields
+
+### Networks
+
+Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundry's local Anvil node. Each network has a `name`, `chainId`, and `rpcUrl`.
 
 <Callout type="warning">
-  `ponder.config.js` is not parsed by TypeScript or ESBuild, so avoid using
-  newer JavaScript features not available in your target Node.js version.
+  The `rpcUrl` field is optional, but you will need to provide an RPC URL from a
+  provider like Alchemy or Infura in order to use Ponder effectively in
+  development or production.
 </Callout>
 
-Ponder loads the `ponder.config.js` file on startup, and expects `module.exports` with this TypeScript type:
+| field       |         type          |                                                                                                   |
+| :---------- | :-------------------: | :------------------------------------------------------------------------------------------------ |
+| **name**    |       `string`        | A unique name for the blockchain. **Must be unique across all networks.**                         |
+| **chainId** |       `number`        | The chain ID for the network. [Chainlist](https://chainlist.org) is a good resource on chain IDs. |
+| **rpcUrl**  | `string \| undefined` | An RPC URL for the network.                                                                       |
 
-```ts filename="PonderConfig.d.ts"
-type PonderConfig = {
-  networks: {
-    name: string;
-    chainId: number;
-    rpcUrl: string;
-  }[];
+### Sources
 
-  sources: {
-    name: string;
-    network: string; // References networks.name field above
-    abi: string;
-    address: string;
-    startBlock?: number; // Default: 0
-    blockLimit?: number; // Max block range for eth_getLogs calls. Default: 50
-  }[];
+Sources are smart contracts deployed to a network. Ponder will fetch all the event logs emitted by each source defined here.
 
-  database:
-    | {
-        kind: "sqlite";
-        filename?: string; // Default: ./.ponder/cache.db
-      }
-    | {
-        kind: "postgres";
-        connectionString: string;
-      };
+| field          |         type          |                                                                                                                                                                  |
+| :------------- | :-------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **name**       |       `string`        | A unique name for the smart contract. **Must be unique across all sources.**                                                                                     |
+| **network**    |       `string`        | The name of the network this contract is deployed to. **References the `networks.name` field.**                                                                  |
+| **abi**        |   `string \| any[]`   | The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html). Can be a path to a JSON file, the ABI as a string, or the ABI as a JavaScript Array. |
+| **address**    |       `string`        | The contract address.                                                                                                                                            |
+| **startBlock** | `number \| undefined` | The block number to start handling events for this contract. Usually the contract deployment block number. **Default: 0**                                        |
+| **blockLimit** | `number \| undefined` | The maximum block range that Ponder will use when calling `eth_getLogs`.                                                                                         |
 
-  plugins?: ResolvedPonderPlugin[]; // Reference plugin documentation for details
+### Database
+
+Ponder uses a SQL database to cache blockchain data and store entity data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder needs a PostgreSQL database. If no `database` is specified in `ponder.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
+
+See [Deploy to production](/guides/production) for more details.
+
+| field                |           type           |                                                                    |
+| :------------------- | :----------------------: | :----------------------------------------------------------------- |
+| **kind**             | `"sqlite" \| "postgres"` | Database connector to be used.                                     |
+| **filename**         |         `string`         | Only required if `kind: "sqlite"`. **Default: `.ponder/cache.db`** |
+| **connectionString** |         `string`         | Only required if `kind: "postgres"`.                               |
+
+### Plugins
+
+Ponder has a work-in-progress plugin system. Currently, the `graphql` plugin provided by `@ponder/graphql` is the only official plugin, and it is required for all Ponder apps.
+
+## Examples
+
+### Basic example
+
+```ts filename="ponder.ts"
+import type { PonderConfig } from "@ponder/core";
+import { graphqlPlugin } from "@ponder/graphql";
+
+export const config: PonderConfig = {
+  networks: [
+    {
+      name: "mainnet",
+      chainId: 1,
+      rpcUrl: process.env.PONDER_RPC_URL_1,
+    },
+  ],
+  sources: [
+    {
+      name: "ArtGobblers",
+      network: "mainnet",
+      abi: "./abis/ArtGobblers.json",
+      address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+      startBlock: 15863321,
+    },
+  ],
+  plugins: [graphqlPlugin()],
+};
+```
+
+### Async function
+
+```ts filename="ponder.ts"
+import type { PonderConfig } from "@ponder/core";
+import { graphqlPlugin } from "@ponder/graphql";
+
+export const config: PonderConfig = async () => {
+  const startBlock = await fetch("http://...");
+
+  return {
+    networks: [
+      /* ... */
+    ],
+    sources: [
+      {
+        name: "ArtGobblers",
+        network: "mainnet",
+        abi: "./abis/ArtGobblers.json",
+        address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+        startBlock: startBlock,
+      },
+    ],
+  };
 };
 ```
