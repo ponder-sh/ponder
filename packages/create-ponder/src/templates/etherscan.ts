@@ -24,7 +24,7 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
     throw new Error(`Unrecognized etherscan hostname: ${url.hostname}`);
   }
 
-  const apiUrl = `https://api.${url.hostname}/api`;
+  const { name, chainId, apiUrl } = network;
   const contractAddress = url.pathname.slice(1).split("/")[1];
 
   const txHash = await getContractCreationTxn(contractAddress, apiUrl, apiKey);
@@ -72,15 +72,15 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
     },
     networks: [
       {
-        name: network.name,
-        chainId: network.chainId,
-        rpcUrl: `process.env.PONDER_RPC_URL_${network.chainId}`,
+        name: name,
+        chainId: chainId,
+        rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
       },
     ],
     sources: [
       {
         name: contractName,
-        network: network.name,
+        network: name,
         abi: abiRelativePath,
         address: contractAddress,
         startBlock: blockNumber,
