@@ -6,6 +6,7 @@ import type { Ponder } from "@/Ponder";
 import { Source } from "@/sources/base";
 import type { EventLog } from "@/types";
 
+import { decodeLog } from "./decodeLog";
 import type { Handlers } from "./readHandlers";
 
 export function createNotSoFastQueue<T>(
@@ -105,31 +106,22 @@ export const createHandlerQueue = ({
       return;
     }
 
-    const parsedLog = source.abiInterface.parseLog({
-      data: log.data,
-      topics: JSON.parse(log.topics),
-    });
-
-    const handler = sourceHandlers[parsedLog.name];
-    if (!handler) {
-      logger.trace(
-        `Handler not found for event: ${source.name}-${parsedLog.name}`
+    const decodedLog = decodeLog({ log, abiInterface: source.abiInterface });
+    if (!decodedLog) {
+      logger.warn(
+        `Event log not found in ABI, data: ${log.data} topics: ${log.topics}`
       );
       return;
     }
+    const { eventName, params } = decodedLog;
 
-    const params = parsedLog.eventFragment.inputs.reduce<
-      Record<string, unknown>
-    >((acc, input, index) => {
-      let value = parsedLog.args[index];
-      if (typeof value === "object" && value._isIndexed) {
-        value = value.hash;
-      }
-      acc[input.name] = value;
-      return acc;
-    }, {});
+    const handler = sourceHandlers[eventName];
+    if (!handler) {
+      logger.trace(`Handler not found for event: ${source.name}-${eventName}`);
+      return;
+    }
 
-    logger.trace(`Handling event: ${source.name}-${parsedLog.name}`);
+    logger.trace(`Handling event: ${source.name}-${eventName}`);
 
     // Get block & transaction from the cache store and attach to the event.
     const block = await ponder.cacheStore.getBlock(log.blockHash);
@@ -148,7 +140,7 @@ export const createHandlerQueue = ({
 
     const event = {
       ...log,
-      name: parsedLog.name,
+      name: eventName,
       params: params,
       block,
       transaction,
