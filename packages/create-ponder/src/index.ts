@@ -155,6 +155,7 @@ export const run = async (
         "@ponder/graphql": "latest"
       },
       "devDependencies": {
+        "@types/node": "^18.11.18",
         "ethers": "^5.6.9"
       },
       "engines": {
