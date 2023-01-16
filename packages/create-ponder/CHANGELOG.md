@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.14
+
+### Patch Changes
+
+- [`6d613c4`](https://github.com/0xOlias/ponder/commit/6d613c4ad5d88e0e358499125115e4b90a32a58a) Thanks [@0xOlias](https://github.com/0xOlias)! - Fix node types
+
 ## 0.0.13
 
 ### Patch Changes
