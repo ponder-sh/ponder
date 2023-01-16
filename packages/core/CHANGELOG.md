@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.24
+
+### Patch Changes
+
+- [#63](https://github.com/0xOlias/ponder/pull/63) [`46c72f0`](https://github.com/0xOlias/ponder/commit/46c72f0f66364098eb2ea2c328259c46f78735d4) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed bug where handler functions would fail if an event was fetched but not present in the ABI. This means partial ABIs are now supported.
+
 ## 0.0.23
 
 ### Patch Changes
