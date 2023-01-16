@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.13
+
+### Patch Changes
+
+- [#65](https://github.com/0xOlias/ponder/pull/65) [`6141376`](https://github.com/0xOlias/ponder/commit/61413763a2660eb240bd50e8d4e0044906fafa98) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed `--from-etherscan` option for testnets
+
 ## 0.0.12
 
 ### Patch Changes
