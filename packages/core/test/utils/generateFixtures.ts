@@ -99,7 +99,7 @@ const generateFixture = async (config: FixtureConfig) => {
       blockCount: blocks.length,
     });
 
-    const filename = `./test/fixtures/__fixtures__/${name}.ts`;
+    const filename = `./test/__fixtures__/${name}.ts`;
     const contents =
       "export default " +
       format(

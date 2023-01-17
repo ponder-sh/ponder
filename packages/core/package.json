@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsc && tsconfig-replace-paths --src . && mv dist/src/bin/ponder.js dist/src/bin/ponder",
-    "fixtures": "$npm_execpath build && export $(grep -v '^#' .env.local | xargs) && node dist/test/fixtures/generateFixtures.js && $npm_execpath build",
+    "fixtures": "$npm_execpath build && export $(grep -v '^#' .env.local | xargs) && node dist/test/utils/generateFixtures.js && $npm_execpath build",
     "test": "jest",
     "typecheck": "tsc --noEmit"
   },

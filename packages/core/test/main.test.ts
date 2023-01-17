@@ -2,15 +2,20 @@ import { JsonRpcProvider } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
 import request from "supertest";
 
-import { buildPonderConfig } from "@/buildPonderConfig";
-import { buildOptions } from "@/common/options";
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
 import { CachedProvider } from "@/networks/CachedProvider";
 import { Ponder } from "@/Ponder";
 import { getUiState } from "@/ui/app";
 
-import { buildSendFunc } from "./fixtures/buildSendFunc";
+import { buildSendFunc } from "./utils/buildSendFunc";
+import { createPonderInstance } from "./utils/createPonderInstance";
+import {
+  BaseRegistrarImplementation,
+  BaseRegistrarImplementationHandlers,
+  BaseRegistrarImplementationSchema,
+  mainnet,
+} from "./utils/sources";
 
 beforeAll(() => {
   const sendFunc = buildSendFunc();
@@ -25,15 +30,12 @@ describe("Ponder", () => {
   let ponder: Ponder;
 
   beforeEach(async () => {
-    const options = buildOptions({
-      rootDir: "./test/basic",
-      configFile: "ponder.ts",
-      logType: "start",
-      silent: true,
+    ponder = await createPonderInstance({
+      networks: [mainnet],
+      sources: [BaseRegistrarImplementation],
+      schema: BaseRegistrarImplementationSchema,
+      handlers: BaseRegistrarImplementationHandlers,
     });
-
-    const config = await buildPonderConfig(options);
-    ponder = new Ponder({ options, config });
   });
 
   afterEach(() => {
@@ -50,7 +52,6 @@ describe("Ponder", () => {
 
       expect(network.provider).toBeInstanceOf(CachedProvider);
       expect(network.provider.network.chainId).toBe(1);
-      expect(network.provider.connection.url).toBe("rpc://test");
     });
 
     it("creates a source matching config", async () => {
