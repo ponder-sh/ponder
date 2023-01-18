@@ -48,7 +48,10 @@ export const buildSources = ({ ponder }: { ponder: Ponder }) => {
       abiInterface: abiInterface,
 
       startBlock: source.startBlock,
+      endBlock: source.endBlock,
       blockLimit: source.blockLimit,
+
+      isIndexed: source.isIndexed,
     });
   });
 

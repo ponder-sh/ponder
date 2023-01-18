@@ -14,7 +14,10 @@ type EvmSourceOptions = {
   abiInterface: ethers.utils.Interface;
 
   startBlock?: number;
+  endBlock?: number;
   blockLimit?: number;
+
+  isIndexed?: boolean;
 };
 
 export class EvmSource implements BaseSource {
@@ -28,7 +31,10 @@ export class EvmSource implements BaseSource {
   abiInterface: ethers.utils.Interface;
 
   startBlock: number;
+  endBlock?: number;
   blockLimit: number;
+
+  isIndexed: boolean;
 
   constructor(options: EvmSourceOptions) {
     this.name = options.name;
@@ -40,6 +46,9 @@ export class EvmSource implements BaseSource {
     this.abiInterface = options.abiInterface;
 
     this.startBlock = options.startBlock || 0;
+    this.endBlock = options.endBlock;
     this.blockLimit = options.blockLimit || 50;
+
+    this.isIndexed = options.isIndexed !== undefined ? options.isIndexed : true;
   }
 }
