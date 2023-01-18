@@ -204,7 +204,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     const watchFiles = [
       this.options.PONDER_CONFIG_FILE_PATH,
       this.options.SCHEMA_FILE_PATH,
-      this.options.HANDLERS_DIR_PATH,
+      this.options.SRC_DIR_PATH,
       ...this.sources
         .map((s) => s.abiFilePath)
         .filter((p): p is string => typeof p === "string"),

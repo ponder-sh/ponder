@@ -139,9 +139,9 @@ export const createHandlerQueue = ({
     }
 
     const event = {
-      ...log,
       name: eventName,
       params: params,
+      log: log,
       block,
       transaction,
     };
@@ -151,7 +151,7 @@ export const createHandlerQueue = ({
     ponder.currentEventBlockTag = block.number;
 
     // Running user code here!
-    await handler(event, handlerContext);
+    await handler({ event, context: handlerContext });
 
     ponder.emit("indexer_taskDone", { timestamp: block.timestamp });
   };
