@@ -47,20 +47,17 @@ export const logger: PonderLogger = {
 export enum MessageKind {
   EVENT = "event",
   ERROR = "error",
+  WARNING = "warning",
   BACKFILL = "backfill",
   FRONTFILL = "frontfill",
   INDEXER = "indexer",
 }
 
-const DEV_WIDTH = 5;
-const START_WIDTH = 9;
+let maxWidth = 0;
 
-export const logMessage = (
-  kind: MessageKind,
-  message: string,
-  isDev = true
-) => {
-  const padded = kind.padEnd(isDev ? DEV_WIDTH : START_WIDTH, " ");
+export const logMessage = (kind: MessageKind, message: string) => {
+  maxWidth = Math.max(maxWidth, kind.length);
+  const padded = kind.padEnd(maxWidth, " ");
 
   switch (kind) {
     case MessageKind.EVENT: {
@@ -69,6 +66,10 @@ export const logMessage = (
     }
     case MessageKind.ERROR: {
       logger.error(pico.red(padded) + " - " + message);
+      break;
+    }
+    case MessageKind.WARNING: {
+      logger.error(pico.yellow(padded) + " - " + message);
       break;
     }
     case MessageKind.BACKFILL: {

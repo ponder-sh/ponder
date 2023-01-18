@@ -37,10 +37,13 @@ export type PonderEvents = {
     source: string;
     taskCount: number;
   }) => void;
+  backfill_logTaskFailed: (arg: { source: string; error: Error }) => void;
+  backfill_blockTaskFailed: (arg: { source: string; error: Error }) => void;
   backfill_logTaskDone: (arg: { source: string }) => void;
   backfill_blockTaskDone: (arg: { source: string }) => void;
   backfill_newLogs: () => void;
 
+  frontfill_taskFailed: (arg: { network: string; error: Error }) => void;
   frontfill_newLogs: (arg: {
     network: string;
     blockNumber: number;

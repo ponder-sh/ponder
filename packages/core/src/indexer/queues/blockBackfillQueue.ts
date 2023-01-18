@@ -1,6 +1,5 @@
 import fastq from "fastq";
 
-import { logger } from "@/common/logger";
 import { parseBlock, parseTransaction } from "@/db/cache/utils";
 import type { Ponder } from "@/Ponder";
 import type { Source } from "@/sources/base";
@@ -31,8 +30,10 @@ export const createBlockBackfillQueue = ({
 
   queue.error((err, task) => {
     if (err) {
-      logger.debug("Error in block backfill worker, retrying...:");
-      logger.debug({ task, err });
+      ponder.emit("backfill_blockTaskFailed", {
+        source: source.name,
+        error: err,
+      });
       queue.unshift(task);
     }
   });
