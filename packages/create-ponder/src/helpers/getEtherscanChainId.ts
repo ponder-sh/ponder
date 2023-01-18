@@ -10,7 +10,7 @@ const networkByEtherscanHostname: Record<
   "ropsten.etherscan.io": {
     name: "ropsten",
     chainId: 3,
-    apiUrl: "https://api-ropsten.etherscan.io//api",
+    apiUrl: "https://api-ropsten.etherscan.io/api",
   },
   "rinkeby.etherscan.io": {
     name: "rinkeby",
