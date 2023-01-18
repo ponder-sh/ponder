@@ -1,7 +1,6 @@
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
-import { logger } from "@/common/logger";
 import { parseBlock, parseLog } from "@/db/cache/utils";
 import type { Ponder } from "@/Ponder";
 import type { Source } from "@/sources/base";
@@ -36,8 +35,10 @@ export const createLogBackfillQueue = ({
 
   queue.error((err, task) => {
     if (err) {
-      logger.debug("Error in log backfill worker, retrying...:");
-      logger.debug({ task, err });
+      ponder.emit("backfill_logTaskFailed", {
+        source: source.name,
+        error: err,
+      });
       queue.unshift(task);
     }
   });

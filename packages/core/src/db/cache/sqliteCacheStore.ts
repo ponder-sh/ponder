@@ -2,7 +2,7 @@ import type Sqlite from "better-sqlite3";
 
 import { logger } from "@/common/logger";
 import { merge_intervals } from "@/common/utils";
-import type { Block, EventLog, Transaction } from "@/types";
+import type { Block, Log, Transaction } from "@/types";
 
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
 
@@ -221,7 +221,7 @@ export class SqliteCacheStore implements CacheStore {
     }
   };
 
-  insertLogs = async (logs: EventLog[]) => {
+  insertLogs = async (logs: Log[]) => {
     const insertLog = this.db.prepare(
       `
       INSERT INTO "${logsTableName}" (
@@ -252,7 +252,7 @@ export class SqliteCacheStore implements CacheStore {
       `
     );
 
-    const insertLogsTxn = this.db.transaction((logs: EventLog[]) => {
+    const insertLogsTxn = this.db.transaction((logs: Log[]) => {
       logs.forEach((log) => insertLog.run(log));
     });
 
@@ -391,7 +391,7 @@ export class SqliteCacheStore implements CacheStore {
           toBlockTimestamp,
         });
 
-      return <EventLog[]>logs;
+      return <Log[]>logs;
     } catch (err) {
       logger.warn({ err });
       return [];

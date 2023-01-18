@@ -1,4 +1,4 @@
-import type { Block, EventLog, Transaction } from "@/types";
+import type { Block, Log, Transaction } from "@/types";
 
 export const hexStringToDecimal = (value: string | number) => {
   return typeof value === "string"
@@ -127,7 +127,7 @@ export const parseTransaction = (txn: any): Transaction => ({
   seem to export types that correspond to the return type of the raw RPC methods.
 */
 
-export const parseLog = (log: any): EventLog => ({
+export const parseLog = (log: any): Log => ({
   logId: `${log.blockHash}-${log.logIndex}`,
   logSortKey:
     hexStringToDecimal(log.blockNumber) * 100000 +

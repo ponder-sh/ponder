@@ -7,7 +7,7 @@ const tmpDir = "../../tmp";
 
 describe("create-ponder", () => {
   describe("from etherscan", () => {
-    describe("mainnet", () => {
+    describe("mainnet (ethfs)", () => {
       const rootDir = path.join(tmpDir, "create-ponder-tests-mainnet");
 
       beforeAll(async () => {
@@ -37,7 +37,7 @@ describe("create-ponder", () => {
             ".ponder",
             "abis",
             "generated",
-            "handlers",
+            "src",
             "node_modules",
             "package.json",
             "ponder.ts",
@@ -59,16 +59,22 @@ describe("create-ponder", () => {
 
       it("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
-        expect(generated.sort()).toEqual(["handlers.ts", "contracts"].sort());
-
+        expect(generated.sort()).toEqual(
+          ["index.ts", "app.ts", "contracts"].sort()
+        );
         const contracts = fs.readdirSync(
           path.join(rootDir, "generated/contracts")
         );
         expect(contracts.sort()).toEqual(["FileStore.ts"].sort());
       });
+
+      it("creates src files", async () => {
+        const src = fs.readdirSync(path.join(rootDir, "src"));
+        expect(src.sort()).toEqual(["FileStore.ts"].sort());
+      });
     });
 
-    describe("goerli", () => {
+    describe("goerli (collector)", () => {
       const rootDir = path.join(tmpDir, "create-ponder-tests-goerli");
 
       beforeAll(async () => {
@@ -98,7 +104,7 @@ describe("create-ponder", () => {
             ".ponder",
             "abis",
             "generated",
-            "handlers",
+            "src",
             "node_modules",
             "package.json",
             "ponder.ts",
@@ -120,12 +126,18 @@ describe("create-ponder", () => {
 
       it("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
-        expect(generated.sort()).toEqual(["handlers.ts", "contracts"].sort());
-
+        expect(generated.sort()).toEqual(
+          ["index.ts", "app.ts", "contracts"].sort()
+        );
         const contracts = fs.readdirSync(
           path.join(rootDir, "generated/contracts")
         );
         expect(contracts.sort()).toEqual(["Collector.ts"].sort());
+      });
+
+      it("creates src files", async () => {
+        const src = fs.readdirSync(path.join(rootDir, "src"));
+        expect(src.sort()).toEqual(["Collector.ts"].sort());
       });
     });
   });

@@ -1,7 +1,6 @@
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
-import { logger } from "@/common/logger";
 import { parseBlock, parseLog, parseTransaction } from "@/db/cache/utils";
 import type { Network } from "@/networks/buildNetworks";
 import type { Ponder } from "@/Ponder";
@@ -32,8 +31,10 @@ export const createBlockFrontfillQueue = ({
 
   queue.error((err, task) => {
     if (err) {
-      logger.debug("error in live block worker, retrying...:");
-      logger.debug({ task, err });
+      ponder.emit("frontfill_taskFailed", {
+        network: network.name,
+        error: err,
+      });
       queue.unshift(task);
     }
   });

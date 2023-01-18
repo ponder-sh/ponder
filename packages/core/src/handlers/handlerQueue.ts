@@ -4,7 +4,7 @@ import pico from "picocolors";
 import { logger } from "@/common/logger";
 import type { Ponder } from "@/Ponder";
 import { Source } from "@/sources/base";
-import type { EventLog } from "@/types";
+import type { Log } from "@/types";
 
 import { decodeLog } from "./decodeLog";
 import type { Handlers } from "./readHandlers";
@@ -91,7 +91,7 @@ export const createHandlerQueue = ({
     return acc;
   }, {});
 
-  const handlerWorker = async (log: EventLog) => {
+  const handlerWorker = async (log: Log) => {
     ponder.emit("indexer_taskStarted");
 
     const source = sourceByAddress[log.address];
@@ -139,9 +139,9 @@ export const createHandlerQueue = ({
     }
 
     const event = {
-      ...log,
       name: eventName,
       params: params,
+      log: log,
       block,
       transaction,
     };
@@ -151,7 +151,7 @@ export const createHandlerQueue = ({
     ponder.currentEventBlockTag = block.number;
 
     // Running user code here!
-    await handler(event, handlerContext);
+    await handler({ event, context: handlerContext });
 
     ponder.emit("indexer_taskDone", { timestamp: block.timestamp });
   };

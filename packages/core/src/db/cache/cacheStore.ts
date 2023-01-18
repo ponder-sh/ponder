@@ -1,5 +1,5 @@
 import type { Ponder } from "@/Ponder";
-import type { Block, EventLog, Transaction } from "@/types";
+import type { Block, Log, Transaction } from "@/types";
 
 import { PostgresCacheStore } from "./postgresCacheStore";
 import { SqliteCacheStore } from "./sqliteCacheStore";
@@ -23,7 +23,7 @@ export interface CacheStore {
 
   insertCachedInterval(interval: CachedInterval): Promise<void>;
 
-  insertLogs(log: EventLog[]): Promise<void>;
+  insertLogs(log: Log[]): Promise<void>;
 
   insertBlock(block: Block): Promise<void>;
 
@@ -33,7 +33,7 @@ export interface CacheStore {
     contractAddress: string,
     fromBlockTimestamp: number,
     toBlockTimestamp: number
-  ): Promise<EventLog[]>;
+  ): Promise<Log[]>;
 
   getBlock(hash: string): Promise<Block | null>;
 

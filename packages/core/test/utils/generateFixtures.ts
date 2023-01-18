@@ -125,6 +125,19 @@ const main = async () => {
 
   await Promise.all([
     generateFixture({
+      name: "Source",
+      sources: [
+        {
+          chainId: 1,
+          rpcUrl: process.env.PONDER_RPC_URL_1,
+          address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+          startBlock: 10,
+          endBlock: 50, // 40 blocks, doesn't matter
+          blockLimit: 10,
+        },
+      ],
+    }),
+    generateFixture({
       name: "BaseRegistrarImplementation",
       sources: [
         {

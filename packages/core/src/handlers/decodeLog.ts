@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 
-import { EventLog } from "@/types";
+import { Log } from "@/types";
 
 // Attempt to get the event name and params for a log using an ABI.
 // If the event is not found in the ABI, return null.
@@ -8,7 +8,7 @@ export const decodeLog = ({
   log,
   abiInterface,
 }: {
-  log: EventLog;
+  log: Log;
   abiInterface: ethers.utils.Interface;
 }) => {
   try {

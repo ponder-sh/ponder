@@ -17,10 +17,11 @@ export class PostgresEntityStore implements EntityStore {
     this.db = db;
   }
 
-  async migrate(schema: Schema) {
+  async migrate(schema?: Schema) {
+    if (!schema) return;
     this.schema = schema;
 
-    schema.entities.forEach(async (entity) => {
+    this.schema.entities.forEach(async (entity) => {
       // Drop the table if it already exists
       await this.db.none(`DROP TABLE IF EXISTS "${entity.name}"`);
 

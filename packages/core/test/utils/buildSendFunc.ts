@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-ignore
 import _BaseRegistrarImplementation from "../__fixtures__/BaseRegistrarImplementation";
+// @ts-ignore
+import _Source from "../__fixtures__/Source";
 
 export type Hash = `0x${string}`;
 
@@ -73,11 +75,10 @@ type Fixture = {
   blocks: RawBlockWithTransactions[];
 };
 
-const BaseRegistrarImplementation =
-  _BaseRegistrarImplementation as unknown as Fixture;
-
 const fixtures = {
-  BaseRegistrarImplementation,
+  BaseRegistrarImplementation:
+    _BaseRegistrarImplementation as unknown as Fixture,
+  Source: _Source as unknown as Fixture,
 };
 
 type SendArgs =
@@ -87,9 +88,7 @@ type SendArgs =
 
 type FixtureOption = keyof typeof fixtures;
 
-export const buildSendFunc = (
-  option: FixtureOption = "BaseRegistrarImplementation"
-) => {
+export const buildSendFunc = (option: FixtureOption) => {
   const { logs, blocks } = fixtures[option];
 
   return async (...args: any) => {

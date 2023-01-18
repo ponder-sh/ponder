@@ -44,7 +44,7 @@ export const run = async (
 
   // Create required directories.
   mkdirSync(path.join(ponderRootDir, "abis"), { recursive: true });
-  mkdirSync(path.join(ponderRootDir, "handlers"), { recursive: true });
+  mkdirSync(path.join(ponderRootDir, "src"), { recursive: true });
 
   let ponderConfig: PartialPonderConfig;
   if (options.fromSubgraph) {
@@ -65,52 +65,26 @@ export const run = async (
     const abiInterface = new ethers.utils.Interface(abi);
     const eventNames = Object.keys(abiInterface.events);
 
-    const handlers = eventNames.map((eventName) => {
-      const eventBaseName = eventName.split("(")[0];
-
-      const handlerFunctionType = `${eventBaseName}Handler`;
-      const handlerFunctionName = `handle${eventBaseName}`;
-
-      return {
-        handlerFunctionType,
-        handlerFunction: `const ${handlerFunctionName}: ${handlerFunctionType} = async (event, context) => { return }\n`,
-        handlerExport: `${eventBaseName}: ${handlerFunctionName}`,
-      };
-    });
+    const eventNamesToWrite = eventNames.slice(3);
 
     const handlerFileContents = `
-      import { ${handlers.map((h) => h.handlerFunctionType).join(",")} }
-        from '../generated/handlers'
+      import { ponder } from '../generated'
 
-      ${handlers.map((h) => h.handlerFunction).join("\n")}
-      
-      export const ${source.name} = {
-        ${handlers.map((h) => h.handlerExport).join(",")}
-      }
+      ${eventNamesToWrite
+        .map(
+          (eventName) => `
+          ponder.on("${source.name}:${eventName}", async ({ event, context }) => {
+            console.log(event.params)
+          })`
+        )
+        .join("\n")}
     `;
 
     writeFileSync(
-      path.join(ponderRootDir, `./handlers/${source.name}.ts`),
+      path.join(ponderRootDir, `./src/${source.name}.ts`),
       prettier.format(handlerFileContents, { parser: "typescript" })
     );
   });
-
-  // Write the handler index.ts file.
-  const handlerIndexFileContents = `
-    ${ponderConfig.sources
-      .map((source) => `import { ${source.name} } from "./${source.name}"`)
-      .join("\n")}
-      
-    export default {
-      ${ponderConfig.sources
-        .map((source) => `${source.name}: ${source.name}`)
-        .join(",")}
-    }
-  `;
-  writeFileSync(
-    path.join(ponderRootDir, `./handlers/index.ts`),
-    prettier.format(handlerIndexFileContents, { parser: "typescript" })
-  );
 
   // Write the ponder.ts file.
   const finalPonderConfig = `
@@ -199,7 +173,7 @@ export const run = async (
 
   // Install packages.
   console.log(
-    pico.cyan("[create-ponder] ") + `Installing using ${packageManager}`
+    pico.cyan("[create-ponder] ") + `Installing with ${packageManager}`
   );
 
   const installCommand = overrides.installCommand

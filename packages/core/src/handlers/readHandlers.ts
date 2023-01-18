@@ -1,54 +1,84 @@
 import { build, formatMessagesSync, Message } from "esbuild";
+import glob from "glob";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import { ensureDirExists } from "@/common/utils";
 import type { Ponder } from "@/Ponder";
-import type { Block, EventLog, Transaction } from "@/types";
+import type { Block, Log, Transaction } from "@/types";
 
-export interface HandlerEvent extends EventLog {
+export interface HandlerEvent {
   name: string;
+  params: Record<string, any>;
+  log: Log;
   block: Block;
   transaction: Transaction;
 }
 
-export type Handler = (
-  event: HandlerEvent,
-  context: unknown
-) => Promise<void> | void;
+export type Handler = ({
+  event,
+  context,
+}: {
+  event: HandlerEvent;
+  context: unknown;
+}) => Promise<void> | void;
 export type SourceHandlers = Record<string, Handler | undefined>;
 export type Handlers = Record<string, SourceHandlers | undefined>;
 
-export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
-  const buildFile = path.join(ponder.options.PONDER_DIR_PATH, "handlers.js");
-  ensureDirExists(buildFile);
+// @ponder/core creates an instance of this class called `ponder`
+export class PonderApp<HandlersType = Record<string, any>> {
+  private handlers: Record<string, Record<string, any>> = {};
+  private errors: Error[] = [];
 
-  const handlersRootFilePath = path.join(
-    ponder.options.HANDLERS_DIR_PATH,
+  on<HandlerName extends Extract<keyof HandlersType, string>>(
+    name: HandlerName,
+    handler: HandlersType[HandlerName]
+  ) {
+    const [sourceName, eventName] = name.split(":");
+
+    if (!sourceName || !eventName) {
+      this.errors.push(new Error(`Invalid event name: ${name}`));
+      return;
+    }
+
+    if (!this.handlers[sourceName]) this.handlers[sourceName] = {};
+
+    if (this.handlers[sourceName][eventName]) {
+      this.errors.push(
+        new Error(`Cannot add multiple handlers for event: ${name}`)
+      );
+      return;
+    }
+
+    this.handlers[sourceName][eventName] = handler;
+  }
+}
+
+export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
+  const entryAppFilename = path.join(
+    ponder.options.GENERATED_DIR_PATH,
     "index.ts"
   );
-
-  if (!existsSync(handlersRootFilePath)) {
-    ponder.emit("dev_error", {
-      context: `reading handler files`,
-      error: new Error(
-        `Handlers not found, expected file: ${handlersRootFilePath}`
-      ),
-    });
-    return null;
+  if (!existsSync(entryAppFilename)) {
+    throw new Error(
+      `generated/index.ts file not found, expected: ${entryAppFilename}`
+    );
   }
 
-  // Delete the build file before attempted to write it. This fixes a bug where a file
-  // inside handlers/ gets renamed, the build fails, but the stale `handlers.js` file remains.
-  rmSync(buildFile, { force: true });
+  const entryGlob = ponder.options.SRC_DIR_PATH + "/**/*.ts";
+  const entryFilenames = [...glob.sync(entryGlob), entryAppFilename];
+
+  const buildDir = path.join(ponder.options.PONDER_DIR_PATH, "out");
+  rmSync(buildDir, { recursive: true, force: true });
 
   try {
     await build({
-      entryPoints: [handlersRootFilePath],
-      outfile: buildFile,
+      entryPoints: entryFilenames,
+      outdir: buildDir,
       platform: "node",
-      bundle: true,
+      bundle: false,
+      format: "cjs",
       logLevel: "silent",
+      sourcemap: "linked",
     });
   } catch (err) {
     const error = err as Error & { errors: Message[]; warnings: Message[] };
@@ -63,19 +93,82 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
       context: `building handler files`,
       error,
     });
-
     return null;
   }
 
-  // Load and then remove the module from the require cache, because we are loading
-  // it several times in the same process and need the latest version each time.
-  // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { default: rawHandlers } = require(buildFile);
-  delete require.cache[require.resolve(buildFile)];
+  const outGlob = buildDir + "/**/*.js";
+  const outFilenames = glob.sync(outGlob);
 
-  // TODO: Validate handlers ?!?!?!
-  const handlers = rawHandlers as Handlers;
+  // Remove all out modules from the require cache, because we are loading
+  // them several times in the same process and need the latest version each time.
+  // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
+  outFilenames.forEach((file) => delete require.cache[require.resolve(file)]);
+
+  const outAppFilename = path.join(buildDir, "generated/index.js");
+
+  // Require all the user-defined files first.
+  const outUserFilenames = outFilenames.filter(
+    (name) => name !== outAppFilename
+  );
+
+  const requireErrors = outUserFilenames
+    .map((file) => {
+      try {
+        require(file);
+      } catch (err) {
+        return err as Error;
+      }
+    })
+    .filter((err): err is Error => err !== undefined);
+
+  if (requireErrors.length > 0) {
+    ponder.emit("dev_error", {
+      context: `building event handlers`,
+      error: requireErrors[0],
+    });
+    return null;
+  }
+
+  // Then require the `_app.ts` file to grab the `app` instance.
+  let result: any;
+  try {
+    result = require(outAppFilename);
+  } catch (err) {
+    ponder.emit("dev_error", {
+      context: `building event handlers`,
+      error: err as Error,
+    });
+    return null;
+  }
+
+  const app = result.ponder;
+
+  if (!app) {
+    ponder.emit("dev_error", {
+      context: `registering event handlers`,
+      error: new Error(`ponder not exported from generated/index.ts`),
+    });
+    return null;
+  }
+  if (!(app instanceof PonderApp)) {
+    ponder.emit("dev_error", {
+      context: `registering event handlers`,
+      error: new Error(
+        `ponder exported from generated/index.ts is not instanceof PonderApp`
+      ),
+    });
+    return null;
+  }
+  if (app["errors"].length > 0) {
+    const error = app["errors"][0];
+    ponder.emit("dev_error", {
+      context: `registering event handlers`,
+      error,
+    });
+    return null;
+  }
+
+  const handlers = app["handlers"] as Handlers;
 
   return handlers;
 };

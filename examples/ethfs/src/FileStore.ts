@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 
-import { FileCreatedHandler, FileDeletedHandler } from "../generated/handlers";
+import { ponder } from "../generated";
 
 const parseJson = (encodedJson: string, defaultValue: any = null) => {
   try {
@@ -10,7 +10,7 @@ const parseJson = (encodedJson: string, defaultValue: any = null) => {
   }
 };
 
-const handleFileCreated: FileCreatedHandler = async (event, context) => {
+ponder.on("FileStore:FileCreated", async ({ event, context }) => {
   const { filename, size, metadata: rawMetadata } = event.params;
 
   const metadata = parseJson(ethers.utils.toUtf8String(rawMetadata));
@@ -30,13 +30,8 @@ const handleFileCreated: FileCreatedHandler = async (event, context) => {
     compression: metadata?.compression,
     encoding: metadata?.encoding,
   });
-};
+});
 
-const handleFileDeleted: FileDeletedHandler = async (event, context) => {
+ponder.on("FileStore:FileDeleted", async ({ event, context }) => {
   await context.entities.File.delete(event.params.filename);
-};
-
-export const FileStore = {
-  FileCreated: handleFileCreated,
-  FileDeleted: handleFileDeleted,
-};
+});

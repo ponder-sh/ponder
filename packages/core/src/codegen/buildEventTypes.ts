@@ -1,62 +1,40 @@
-import type { EventFragment, ParamType } from "@ethersproject/abi";
-import { Contract } from "ethers";
+import type { ParamType } from "@ethersproject/abi";
 
 import { logger } from "@/common/logger";
 import type { Source } from "@/sources/base";
 
 export const buildEventTypes = (sources: Source[]) => {
-  const handlerTypes = sources
+  const allHandlers = sources
     .map((source) => {
-      const contract = new Contract(source.address, source.abiInterface);
+      return Object.entries(source.abiInterface.events)
+        .map(([signature, event]) => {
+          const eventName = signature.slice(0, signature.indexOf("("));
+          const paramsType = generateParamsType(event.inputs);
 
-      const eventHandlers = Object.entries(contract.interface.events).map(
-        ([eventSignature, event]) =>
-          buildEventHandlerType(eventSignature, event)
-      );
-
-      const eventHandlersTypeString = eventHandlers
-        .map((handler) => handler.typeString)
+          return `["${source.name}:${eventName}"]: ({
+            event, context
+            }: {
+              event: {
+                name: "${eventName}";
+                params: ${paramsType};
+                log: Log;
+                block: Block;
+                transaction: Transaction;
+              };
+              context: Context;
+            }) => Promise<any> | any;`;
+        })
         .join("");
-
-      const contractHandlersTypeString = `
-      export type ${source.name}Handlers = { ${eventHandlers
-        .map(({ name }) => `${name}?: ${name}Handler`)
-        .join(",")}}
-      `;
-
-      const final = eventHandlersTypeString + contractHandlersTypeString;
-
-      return final;
     })
-    .join("\n");
+    .join("");
 
-  return handlerTypes;
-};
-
-// HELPERS
-
-const buildEventHandlerType = (
-  eventSignature: string,
-  event: EventFragment
-) => {
-  const eventName = eventSignature.slice(0, eventSignature.indexOf("("));
-
-  const paramsType = generateParamsType(event.inputs);
-
-  const eventHandlerTypes = `
-  export interface ${eventName}Event extends EventLog {
-    name: "${eventName}";
-    params: ${paramsType};
-    block: Block;
-    transaction: Transaction;
-  }
-  export type ${eventName}Handler = (event: ${eventName}Event, context: Context) => void;
+  const final = `
+    export type AppType = {
+      ${allHandlers}
+    }
   `;
 
-  return {
-    name: eventName,
-    typeString: eventHandlerTypes,
-  };
+  return final;
 };
 
 const valueTypeMap: { [baseType: string]: string | undefined } = {

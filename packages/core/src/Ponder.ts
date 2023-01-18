@@ -3,8 +3,9 @@ import path from "node:path";
 import pico from "picocolors";
 
 import type { ResolvedPonderConfig } from "@/buildPonderConfig";
+import { generateApp } from "@/codegen/generateApp";
+import { generateAppType } from "@/codegen/generateAppType";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
-import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger, logMessage, MessageKind, PonderLogger } from "@/common/logger";
 import type { PonderOptions } from "@/common/options";
 import {
@@ -84,10 +85,13 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.on("backfill_sourceStarted", this.backfill_sourceStarted);
     this.on("backfill_logTasksAdded", this.backfill_logTasksAdded);
     this.on("backfill_blockTasksAdded", this.backfill_blockTasksAdded);
+    this.on("backfill_logTaskFailed", this.backfill_logTaskFailed);
+    this.on("backfill_blockTaskFailed", this.backfill_blockTaskFailed);
     this.on("backfill_logTaskDone", this.backfill_logTaskDone);
     this.on("backfill_blockTaskDone", this.backfill_blockTaskDone);
     this.on("backfill_newLogs", this.backfill_newLogs);
 
+    this.on("frontfill_taskFailed", this.frontfill_taskFailed);
     this.on("frontfill_newLogs", this.frontfill_newLogs);
 
     this.on("indexer_taskStarted", this.indexer_taskStarted);
@@ -119,16 +123,17 @@ export class Ponder extends EventEmitter<PonderEvents> {
   async dev() {
     await this.setup();
     this.watch();
-    this.codegen();
-    this.backfill();
+    await this.backfill();
   }
 
   codegen() {
+    this.loadSchema();
+    generateApp({ ponder: this });
+    generateAppType({ ponder: this });
     generateContractTypes({ ponder: this });
-    generateHandlerTypes({ ponder: this });
   }
 
-  kill() {
+  async kill() {
     unmount();
     clearInterval(this.renderInterval);
     clearInterval(this.etaInterval);
@@ -136,7 +141,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.killFrontfillQueues?.();
     this.killBackfillQueues?.();
     this.killWatchers?.();
-    this.teardownPlugins();
+    await this.teardownPlugins();
   }
 
   // --------------------------- INTERNAL METHODS --------------------------- //
@@ -151,10 +156,13 @@ export class Ponder extends EventEmitter<PonderEvents> {
       this.logBackfillProgress();
     }, 1000);
 
+    // Codegen must happen before reloadHandlers because handlers depend on `generated/index.ts`.
+    this.codegen();
+
     await Promise.all([
       this.cacheStore.migrate(),
       this.reloadHandlers(),
-      this.reloadSchema(),
+      this.resetEntityStore(),
     ]);
 
     await this.setupPlugins();
@@ -179,11 +187,14 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.handlerQueue = handlerQueue;
   }
 
-  async reloadSchema() {
+  loadSchema() {
     const graphqlSchema = readGraphqlSchema({ ponder: this });
     // It's possible for `readGraphqlSchema` to emit a dev_error and return null.
     if (!graphqlSchema) return;
     this.schema = buildSchema(graphqlSchema);
+  }
+
+  async resetEntityStore() {
     await this.entityStore.migrate(this.schema);
   }
 
@@ -193,9 +204,10 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.handlersCurrent = 0;
     this.ui.handlerError = null;
 
-    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
-
     this.codegen();
+
+    await Promise.all([this.resetEntityStore(), this.reloadHandlers()]);
+
     this.reloadPlugins();
     this.handleNewLogs();
   }
@@ -204,7 +216,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     const watchFiles = [
       this.options.PONDER_CONFIG_FILE_PATH,
       this.options.SCHEMA_FILE_PATH,
-      this.options.HANDLERS_DIR_PATH,
+      this.options.SRC_DIR_PATH,
       ...this.sources
         .map((s) => s.abiFilePath)
         .filter((p): p is string => typeof p === "string"),
@@ -220,8 +232,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
         if (fullPath === this.options.PONDER_CONFIG_FILE_PATH) {
           this.logMessage(
             MessageKind.ERROR,
-            "detected change in ponder.config.js. " +
-              pico.bold("Restart the server.")
+            "detected change in ponder.ts. " + pico.bold("Restart the server.")
           );
           this.kill();
           return;
@@ -313,7 +324,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     // If not the dev server, log the entire error and kill the app.
     if (this.options.LOG_TYPE === "start") {
       if (e.error) logger.error(e.error);
-      this.kill();
+      await this.kill();
       return;
     }
 
@@ -357,6 +368,23 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.stats[e.source].blockTotal += e.taskCount;
   };
 
+  private backfill_logTaskFailed: PonderEvents["backfill_logTaskFailed"] = (
+    e
+  ) => {
+    logMessage(
+      MessageKind.WARNING,
+      `log backfill task failed with error: ${e.error.message}`
+    );
+  };
+  private backfill_blockTaskFailed: PonderEvents["backfill_blockTaskFailed"] = (
+    e
+  ) => {
+    logMessage(
+      MessageKind.WARNING,
+      `block backfill task failed with error: ${e.error.message}`
+    );
+  };
+
   private backfill_logTaskDone: PonderEvents["backfill_logTaskDone"] = (e) => {
     if (this.ui.stats[e.source].logCurrent === 0) {
       this.ui.stats[e.source].logStartTimestamp = Date.now();
@@ -391,6 +419,13 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
   private backfill_newLogs = () => {
     // this.handleNewLogs();
+  };
+
+  private frontfill_taskFailed: PonderEvents["frontfill_taskFailed"] = (e) => {
+    logMessage(
+      MessageKind.WARNING,
+      `block frontfill task failed with error: ${e.error.message}`
+    );
   };
 
   private frontfill_newLogs: PonderEvents["frontfill_newLogs"] = (e) => {
@@ -487,7 +522,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
   private logMessage = (kind: MessageKind, message: string) => {
     if (!this.options.SILENT) {
-      logMessage(kind, message, this.options.LOG_TYPE === "dev");
+      logMessage(kind, message);
     }
   };
 }

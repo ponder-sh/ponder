@@ -2,7 +2,7 @@ import type PgPromise from "pg-promise";
 
 import { logger } from "@/common/logger";
 import { merge_intervals } from "@/common/utils";
-import type { Block, EventLog, Transaction } from "@/types";
+import type { Block, Log, Transaction } from "@/types";
 
 import { pgp } from "../db";
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
@@ -259,7 +259,7 @@ export class PostgresCacheStore implements CacheStore {
     });
   };
 
-  insertLogs = async (logs: EventLog[]) => {
+  insertLogs = async (logs: Log[]) => {
     if (logs.length === 0) return;
 
     const query =
@@ -337,7 +337,7 @@ export class PostgresCacheStore implements CacheStore {
     fromBlockTimestamp: number,
     toBlockTimestamp: number
   ) => {
-    const logs = await this.db.manyOrNone<EventLog>(
+    const logs = await this.db.manyOrNone<Log>(
       `
       SELECT * FROM "${logsTableName}"
       WHERE "address" = $(address)
