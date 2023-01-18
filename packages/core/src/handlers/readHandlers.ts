@@ -54,15 +54,20 @@ export class PonderApp<HandlersType = Record<string, any>> {
 }
 
 export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
-  const entryAppFilename = path.join(ponder.options.SRC_DIR_PATH, "_app.ts");
+  const entryAppFilename = path.join(
+    ponder.options.GENERATED_DIR_PATH,
+    "index.ts"
+  );
   if (!existsSync(entryAppFilename)) {
-    throw new Error(`_app.ts file not found, expected: ${entryAppFilename}`);
+    throw new Error(
+      `generated/index.ts file not found, expected: ${entryAppFilename}`
+    );
   }
 
   const entryGlob = ponder.options.SRC_DIR_PATH + "/**/*.ts";
-  const entryFilenames = glob.sync(entryGlob);
+  const entryFilenames = [...glob.sync(entryGlob), entryAppFilename];
 
-  const buildDir = path.join(ponder.options.PONDER_DIR_PATH, "build");
+  const buildDir = path.join(ponder.options.PONDER_DIR_PATH, "out");
   rmSync(buildDir, { recursive: true, force: true });
 
   try {
@@ -99,11 +104,20 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
   // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
   outFilenames.forEach((file) => delete require.cache[require.resolve(file)]);
 
-  const outAppFilename = path.join(buildDir, "_app.js");
+  const outAppFilename = path.join(buildDir, "generated/index.js");
 
   // Require all the user-defined files first.
-  const userFilenames = outFilenames.filter((name) => name !== outAppFilename);
-  const requireErrors = userFilenames
+  const outUserFilenames = outFilenames.filter(
+    (name) => name !== outAppFilename
+  );
+
+  console.log({
+    outFilenames,
+    outAppFilename,
+    outUserFilenames,
+  });
+
+  const requireErrors = outUserFilenames
     .map((file) => {
       try {
         require(file);
@@ -133,19 +147,21 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
     return null;
   }
 
-  const app = result.app;
+  const app = result.ponder;
 
   if (!app) {
     ponder.emit("dev_error", {
       context: `registering event handlers`,
-      error: new Error(`app not exported from _app.ts`),
+      error: new Error(`ponder not exported from generated/index.ts`),
     });
     return null;
   }
   if (!(app instanceof PonderApp)) {
     ponder.emit("dev_error", {
       context: `registering event handlers`,
-      error: new Error(`app exported from _app.ts not instanceof PonderApp`),
+      error: new Error(
+        `ponder exported from generated/index.ts is not instanceof PonderApp`
+      ),
     });
     return null;
   }

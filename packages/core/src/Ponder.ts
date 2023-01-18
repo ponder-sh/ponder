@@ -3,8 +3,9 @@ import path from "node:path";
 import pico from "picocolors";
 
 import type { ResolvedPonderConfig } from "@/buildPonderConfig";
+import { generateApp } from "@/codegen/generateApp";
+import { generateAppType } from "@/codegen/generateAppType";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
-import { generateHandlerTypes } from "@/codegen/generateHandlerTypes";
 import { logger, logMessage, MessageKind, PonderLogger } from "@/common/logger";
 import type { PonderOptions } from "@/common/options";
 import {
@@ -124,8 +125,9 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }
 
   codegen() {
+    generateApp({ ponder: this });
+    generateAppType({ ponder: this });
     generateContractTypes({ ponder: this });
-    generateHandlerTypes({ ponder: this });
   }
 
   kill() {

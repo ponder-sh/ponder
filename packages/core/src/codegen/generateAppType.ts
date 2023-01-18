@@ -8,7 +8,7 @@ import { buildEntityTypes } from "./buildEntityTypes";
 import { buildEventTypes } from "./buildEventTypes";
 import { formatPrettier } from "./utils";
 
-export const generateHandlerTypes = ({ ponder }: { ponder: Ponder }) => {
+export const generateAppType = ({ ponder }: { ponder: Ponder }) => {
   const contractNames = ponder.sources.map((source) => source.name);
   const entities = ponder.schema?.entities || [];
 
@@ -42,11 +42,11 @@ export const generateHandlerTypes = ({ ponder }: { ponder: Ponder }) => {
     type Hash = string;
 
     ${buildEventTypes(ponder.sources)}
-`;
+  `;
 
   const final = formatPrettier(raw);
 
-  const filePath = path.join(ponder.options.GENERATED_DIR_PATH, "index.ts");
+  const filePath = path.join(ponder.options.GENERATED_DIR_PATH, "app.ts");
   ensureDirExists(filePath);
   writeFileSync(filePath, final, "utf8");
 };
