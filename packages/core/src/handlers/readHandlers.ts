@@ -111,12 +111,6 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
     (name) => name !== outAppFilename
   );
 
-  console.log({
-    outFilenames,
-    outAppFilename,
-    outUserFilenames,
-  });
-
   const requireErrors = outUserFilenames
     .map((file) => {
       try {
