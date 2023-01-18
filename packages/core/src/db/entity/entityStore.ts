@@ -26,7 +26,7 @@ type Entity = Record<string, unknown>;
 type MaybePromise<T> = T | Promise<T>;
 
 export interface EntityStore {
-  migrate(schema: Schema): MaybePromise<void>;
+  migrate(schema?: Schema): MaybePromise<void>;
 
   getEntity(entityName: string, id: string): MaybePromise<Entity | null>;
 

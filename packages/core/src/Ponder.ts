@@ -125,6 +125,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }
 
   codegen() {
+    this.loadSchema();
     generateApp({ ponder: this });
     generateAppType({ ponder: this });
     generateContractTypes({ ponder: this });
@@ -153,10 +154,11 @@ export class Ponder extends EventEmitter<PonderEvents> {
       this.logBackfillProgress();
     }, 1000);
 
+    this.loadSchema();
     await Promise.all([
       this.cacheStore.migrate(),
       this.reloadHandlers(),
-      this.reloadSchema(),
+      this.resetEntityStore(),
     ]);
 
     await this.setupPlugins();
@@ -181,11 +183,14 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.handlerQueue = handlerQueue;
   }
 
-  async reloadSchema() {
+  loadSchema() {
     const graphqlSchema = readGraphqlSchema({ ponder: this });
     // It's possible for `readGraphqlSchema` to emit a dev_error and return null.
     if (!graphqlSchema) return;
     this.schema = buildSchema(graphqlSchema);
+  }
+
+  async resetEntityStore() {
     await this.entityStore.migrate(this.schema);
   }
 
@@ -195,7 +200,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.handlersCurrent = 0;
     this.ui.handlerError = null;
 
-    await Promise.all([this.reloadSchema(), this.reloadHandlers()]);
+    this.loadSchema();
+    await Promise.all([this.resetEntityStore(), this.reloadHandlers()]);
 
     this.codegen();
     this.reloadPlugins();
@@ -222,8 +228,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
         if (fullPath === this.options.PONDER_CONFIG_FILE_PATH) {
           this.logMessage(
             MessageKind.ERROR,
-            "detected change in ponder.config.js. " +
-              pico.bold("Restart the server.")
+            "detected change in ponder.ts. " + pico.bold("Restart the server.")
           );
           this.kill();
           return;

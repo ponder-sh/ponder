@@ -34,9 +34,12 @@ export class SqliteEntityStore implements EntityStore {
     };
   }
 
-  migrate(schema: Schema) {
+  migrate(schema?: Schema) {
+    if (!schema) return;
+    this.schema = schema;
+
     try {
-      schema.entities.forEach((entity) => {
+      this.schema.entities.forEach((entity) => {
         // Drop the table if it already exists
         this.db.prepare(`DROP TABLE IF EXISTS "${entity.name}"`).run();
 
