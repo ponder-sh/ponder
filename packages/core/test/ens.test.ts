@@ -1,5 +1,6 @@
 import { JsonRpcProvider } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
+import { rmSync } from "node:fs";
 import request from "supertest";
 
 import { buildPonderConfig } from "@/buildPonderConfig";
@@ -22,6 +23,9 @@ describe("Ponder", () => {
   let ponder: Ponder;
 
   beforeEach(async () => {
+    rmSync("./test/projects/ens/.ponder", { recursive: true, force: true });
+    rmSync("./test/projects/ens/generated", { recursive: true, force: true });
+
     const options = buildOptions({
       rootDir: "./test/projects/ens",
       configFile: "ponder.ts",

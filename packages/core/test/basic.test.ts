@@ -1,5 +1,6 @@
 import { JsonRpcProvider } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
+import { rmSync } from "node:fs";
 
 import { buildPonderConfig } from "@/buildPonderConfig";
 import { buildOptions } from "@/common/options";
@@ -24,6 +25,9 @@ describe("Ponder", () => {
   let ponder: Ponder;
 
   beforeEach(async () => {
+    rmSync("./test/projects/basic/.ponder", { recursive: true, force: true });
+    rmSync("./test/projects/basic/generated", { recursive: true, force: true });
+
     const options = buildOptions({
       rootDir: "./test/projects/basic",
       configFile: "ponder.ts",
@@ -125,13 +129,13 @@ describe("Ponder", () => {
       await ponder.backfill();
     });
 
-    it("inserts backfill data into the cache store", async () => {
+    it("inserts data into the cache store", async () => {
       expect(ponder.ui.isBackfillComplete).toBe(true);
 
-      const blocks = (ponder.database.db as Sqlite.Database)
-        .prepare(`SELECT * FROM __ponder__v1__blocks`)
+      const cachedIntervals = (ponder.database.db as Sqlite.Database)
+        .prepare(`SELECT * FROM __ponder__v1__cachedIntervals`)
         .all();
-      expect(blocks.length).toBeGreaterThan(0);
+      expect(cachedIntervals.length).toBeGreaterThan(0);
     });
   });
 
