@@ -107,7 +107,10 @@ async function logBackfillWorker(
           })
         )
       );
-      ponder.emit("backfill_newLogs");
+      // If there were logs in this batch, send an event to process them.
+      if (logs.length > 0) {
+        ponder.emit("backfill_newLogs");
+      }
     }
   };
 

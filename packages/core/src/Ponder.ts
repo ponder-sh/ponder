@@ -463,7 +463,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   };
 
   private backfill_newLogs = () => {
-    // this.handleNewLogs();
+    this.handleNewLogs();
   };
 
   private frontfill_taskFailed: PonderEvents["frontfill_taskFailed"] = (e) => {
