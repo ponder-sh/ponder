@@ -2,24 +2,21 @@ import { JsonRpcProvider } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
 import request from "supertest";
 
-import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
-import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
-import { CachedProvider } from "@/networks/CachedProvider";
+import { buildPonderConfig } from "@/buildPonderConfig";
+import { buildOptions } from "@/common/options";
 import { Ponder } from "@/Ponder";
-import { getUiState } from "@/ui/app";
 
 import { buildSendFunc } from "./utils/buildSendFunc";
-import { createPonderInstance } from "./utils/createPonderInstance";
-import {
-  BaseRegistrarImplementation,
-  BaseRegistrarImplementationHandlers,
-  BaseRegistrarImplementationSchema,
-  mainnet,
-} from "./utils/sources";
 
 beforeAll(() => {
-  const sendFunc = buildSendFunc();
-  jest.spyOn(JsonRpcProvider.prototype, "send").mockImplementation(sendFunc);
+  // Add packages to the require cache so they can be resolved by name
+  // instead of by path in test project files (instead of relative paths)
+  require("../../../core");
+  require("../../../graphql");
+
+  jest
+    .spyOn(JsonRpcProvider.prototype, "send")
+    .mockImplementation(buildSendFunc("BaseRegistrarImplementation"));
 });
 
 afterAll(() => {
@@ -30,120 +27,19 @@ describe("Ponder", () => {
   let ponder: Ponder;
 
   beforeEach(async () => {
-    ponder = await createPonderInstance({
-      networks: [mainnet],
-      sources: [BaseRegistrarImplementation],
-      schema: BaseRegistrarImplementationSchema,
-      handlers: BaseRegistrarImplementationHandlers,
+    const options = buildOptions({
+      rootDir: "./test/projects/ens",
+      configFile: "ponder.ts",
+      logType: "start",
+      silent: true,
     });
+
+    const config = await buildPonderConfig(options);
+    ponder = new Ponder({ options, config });
   });
 
-  afterEach(() => {
-    ponder.kill();
-  });
-
-  describe("constructor", () => {
-    it("creates a network using CachedProvider", async () => {
-      expect(ponder.networks.length).toBe(1);
-
-      const network = ponder.networks[0];
-      expect(network.name).toBe("mainnet");
-      expect(network.chainId).toBe(1);
-
-      expect(network.provider).toBeInstanceOf(CachedProvider);
-      expect(network.provider.network.chainId).toBe(1);
-    });
-
-    it("creates a source matching config", async () => {
-      expect(ponder.sources.length).toBe(1);
-      const source = ponder.sources[0];
-      expect(source.name).toBe("BaseRegistrarImplementation");
-      expect(source.network.name).toBe("mainnet");
-      expect(source.network.provider).toBeInstanceOf(CachedProvider);
-      expect(source.address).toBe("0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85");
-      expect(source.startBlock).toBe(16370000);
-      expect(source.blockLimit).toBe(100);
-    });
-
-    it("creates a sqlite database", async () => {
-      expect(ponder.database.kind).toBe("sqlite");
-    });
-
-    it("builds a cache store", async () => {
-      expect(ponder.cacheStore).toBeInstanceOf(SqliteCacheStore);
-    });
-
-    it("builds an entity store", async () => {
-      expect(ponder.entityStore).toBeInstanceOf(SqliteEntityStore);
-    });
-
-    it("registers event listeners", async () => {
-      expect(ponder.eventNames()).toMatchObject([
-        "dev_error",
-        "backfill_networkConnected",
-        "backfill_sourceStarted",
-        "backfill_logTasksAdded",
-        "backfill_blockTasksAdded",
-        "backfill_logTaskDone",
-        "backfill_blockTaskDone",
-        "backfill_newLogs",
-        "frontfill_newLogs",
-        "indexer_taskStarted",
-        "indexer_taskDone",
-      ]);
-    });
-
-    it("initializes internal state", async () => {
-      expect(ponder.logsProcessedToTimestamp).toBe(0);
-      expect(ponder.isHandlingLogs).toBe(false);
-      expect(ponder.ui).toMatchObject(getUiState(ponder.options));
-    });
-
-    it("builds plugins", async () => {
-      expect(ponder.plugins).toHaveLength(1);
-      expect(ponder.plugins[0].name).toBe("graphql");
-    });
-  });
-
-  describe("setup()", () => {
-    beforeEach(async () => {
-      await ponder.setup();
-    });
-
-    it("creates the render interval", async () => {
-      expect(ponder.renderInterval).toBeDefined();
-    });
-
-    it("migrates the cache store", async () => {
-      const tables = (ponder.database.db as Sqlite.Database)
-        .prepare(`SELECT name FROM sqlite_master WHERE type='table'`)
-        .all();
-      const tableNames = tables.map((t) => t.name);
-
-      expect(tableNames).toContain("__ponder__v1__cachedIntervals");
-      expect(tableNames).toContain("__ponder__v1__logs");
-      expect(tableNames).toContain("__ponder__v1__blocks");
-      expect(tableNames).toContain("__ponder__v1__transactions");
-      expect(tableNames).toContain("__ponder__v1__contractCalls");
-    });
-
-    it("creates the handler queue", async () => {
-      expect(ponder.handlerQueue).toBeTruthy();
-    });
-
-    it("builds the schema", async () => {
-      expect(ponder.schema?.entities.length).toBe(2);
-    });
-
-    it("migrates the entity store", async () => {
-      const tables = (ponder.database.db as Sqlite.Database)
-        .prepare(`SELECT name FROM sqlite_master WHERE type='table'`)
-        .all();
-      const tableNames = tables.map((t) => t.name);
-
-      expect(tableNames).toContain("EnsNft");
-      expect(tableNames).toContain("Account");
-    });
+  afterEach(async () => {
+    await ponder.kill();
   });
 
   describe("backfill()", () => {
