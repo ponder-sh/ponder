@@ -4,12 +4,12 @@ import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
 import type { Ponder } from "@/Ponder";
-import type { Block, EventLog, Transaction } from "@/types";
+import type { Block, Log, Transaction } from "@/types";
 
 export interface HandlerEvent {
   name: string;
   params: Record<string, any>;
-  log: EventLog;
+  log: Log;
   block: Block;
   transaction: Transaction;
 }

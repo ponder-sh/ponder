@@ -96,7 +96,7 @@ export interface Transaction {
   chainId: number;
 }
 
-export interface EventLog {
+export interface Log {
   logId: string; // `${log.blockHash}-${log.logIndex}`
   logSortKey: number;
 

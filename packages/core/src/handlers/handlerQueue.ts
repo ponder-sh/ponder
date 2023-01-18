@@ -4,7 +4,7 @@ import pico from "picocolors";
 import { logger } from "@/common/logger";
 import type { Ponder } from "@/Ponder";
 import { Source } from "@/sources/base";
-import type { EventLog } from "@/types";
+import type { Log } from "@/types";
 
 import { decodeLog } from "./decodeLog";
 import type { Handlers } from "./readHandlers";
@@ -91,7 +91,7 @@ export const createHandlerQueue = ({
     return acc;
   }, {});
 
-  const handlerWorker = async (log: EventLog) => {
+  const handlerWorker = async (log: Log) => {
     ponder.emit("indexer_taskStarted");
 
     const source = sourceByAddress[log.address];

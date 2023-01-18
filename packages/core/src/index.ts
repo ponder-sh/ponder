@@ -14,7 +14,7 @@ export type {
 export { FieldKind } from "@/schema/types";
 export type {
   Block,
-  EventLog as Log,
+  Log as Log,
   PonderPlugin,
   PonderPluginBuilder,
   Transaction,
