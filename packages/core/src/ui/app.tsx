@@ -78,21 +78,23 @@ export const hydrateUi = ({
   ui: UiState;
   sources: Source[];
 }) => {
-  sources.forEach((source) => {
-    ui.stats[source.name] = {
-      cacheRate: 0,
-      logStartTimestamp: 0,
-      logTotal: 0,
-      logCurrent: 0,
-      logAvgDuration: 0,
-      logAvgBlockCount: 0,
-      blockStartTimestamp: 0,
-      blockTotal: 0,
-      blockCurrent: 0,
-      blockAvgDuration: 0,
-      eta: 0,
-    };
-  });
+  sources
+    .filter((source) => source.isIndexed)
+    .forEach((source) => {
+      ui.stats[source.name] = {
+        cacheRate: 0,
+        logStartTimestamp: 0,
+        logTotal: 0,
+        logCurrent: 0,
+        logAvgDuration: 0,
+        logAvgBlockCount: 0,
+        blockStartTimestamp: 0,
+        blockTotal: 0,
+        blockCurrent: 0,
+        blockAvgDuration: 0,
+        eta: 0,
+      };
+    });
 };
 
 const App = (ui: UiState) => {

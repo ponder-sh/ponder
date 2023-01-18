@@ -8,12 +8,14 @@ import { createLogBackfillQueue } from "../queues/logBackfillQueue";
 export const startBackfillForSource = async ({
   ponder,
   source,
-  latestBlockNumber,
 }: {
   ponder: Ponder;
   source: Source;
-  latestBlockNumber: number;
 }) => {
+  if (!source.endBlock) {
+    throw new Error(`Source does not have an end block: ${source.name}`);
+  }
+
   // Create queues.
   const blockBackfillQueue = createBlockBackfillQueue({
     ponder,
@@ -26,12 +28,9 @@ export const startBackfillForSource = async ({
     blockBackfillQueue,
   });
 
-  const requestedStartBlock = source.startBlock;
-  const requestedEndBlock = latestBlockNumber;
-
-  if (requestedStartBlock > latestBlockNumber) {
+  if (source.startBlock > source.endBlock) {
     throw new Error(
-      `Start block number (${requestedStartBlock}) is greater than latest block number (${latestBlockNumber}).
+      `Start block number (${source.startBlock}) is greater than latest block number (${source.endBlock}).
        Are you sure the RPC endpoint is for the correct network?
       `
     );
@@ -41,7 +40,7 @@ export const startBackfillForSource = async ({
     source.address
   );
   const requiredBlockIntervals = p1_excluding_all(
-    [requestedStartBlock, requestedEndBlock],
+    [source.startBlock, source.endBlock],
     cachedIntervals.map((i) => [i.startBlock, i.endBlock])
   );
 
@@ -50,7 +49,7 @@ export const startBackfillForSource = async ({
   }, 0);
   const cacheRate = Math.max(
     0,
-    1 - requiredBlockCount / (requestedEndBlock - requestedStartBlock)
+    1 - requiredBlockCount / (source.endBlock - source.startBlock)
   );
   ponder.emit("backfill_sourceStarted", {
     source: source.name,
