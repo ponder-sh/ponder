@@ -9,11 +9,6 @@ import { Ponder } from "@/Ponder";
 import { buildSendFunc } from "./utils/buildSendFunc";
 
 beforeAll(() => {
-  // Add packages to the require cache so they can be resolved by name
-  // instead of by path in test project files (instead of relative paths)
-  require("../../../core");
-  require("../../../graphql");
-
   jest
     .spyOn(JsonRpcProvider.prototype, "send")
     .mockImplementation(buildSendFunc("BaseRegistrarImplementation"));
@@ -39,7 +34,7 @@ describe("Ponder", () => {
   });
 
   afterEach(async () => {
-    await ponder.kill();
+    await ponder?.kill();
   });
 
   describe("backfill()", () => {
