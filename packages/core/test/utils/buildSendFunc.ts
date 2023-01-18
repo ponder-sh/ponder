@@ -1,4 +1,7 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-ignore
 import _BaseRegistrarImplementation from "../__fixtures__/BaseRegistrarImplementation";
+// @ts-ignore
 import _Source from "../__fixtures__/Source";
 
 export type Hash = `0x${string}`;
