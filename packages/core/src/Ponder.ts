@@ -123,8 +123,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   async dev() {
     await this.setup();
     this.watch();
-    this.codegen();
-    this.backfill();
+    await this.backfill();
   }
 
   codegen() {
@@ -134,7 +133,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     generateContractTypes({ ponder: this });
   }
 
-  kill() {
+  async kill() {
     unmount();
     clearInterval(this.renderInterval);
     clearInterval(this.etaInterval);
@@ -142,7 +141,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.killFrontfillQueues?.();
     this.killBackfillQueues?.();
     this.killWatchers?.();
-    this.teardownPlugins();
+    await this.teardownPlugins();
   }
 
   // --------------------------- INTERNAL METHODS --------------------------- //
@@ -157,7 +156,9 @@ export class Ponder extends EventEmitter<PonderEvents> {
       this.logBackfillProgress();
     }, 1000);
 
-    this.loadSchema();
+    // Codegen must happen before reloadHandlers because handlers depend on `generated/index.ts`.
+    this.codegen();
+
     await Promise.all([
       this.cacheStore.migrate(),
       this.reloadHandlers(),
@@ -203,10 +204,10 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.handlersCurrent = 0;
     this.ui.handlerError = null;
 
-    this.loadSchema();
+    this.codegen();
+
     await Promise.all([this.resetEntityStore(), this.reloadHandlers()]);
 
-    this.codegen();
     this.reloadPlugins();
     this.handleNewLogs();
   }
@@ -323,7 +324,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     // If not the dev server, log the entire error and kill the app.
     if (this.options.LOG_TYPE === "start") {
       if (e.error) logger.error(e.error);
-      this.kill();
+      await this.kill();
       return;
     }
 
