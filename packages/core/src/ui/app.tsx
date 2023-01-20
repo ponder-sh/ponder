@@ -149,29 +149,32 @@ const App = (ui: UiState) => {
 
       <HandlersBar ui={ui} />
 
-      <Box flexDirection="column">
-        <Text bold={true}>Frontfill </Text>
-        {Object.values(networks).map((network) => (
-          <Box flexDirection="row" key={network.name}>
-            <Text>
-              {network.name.slice(0, 1).toUpperCase() + network.name.slice(1)} @{" "}
-            </Text>
-            {network.blockTxnCount !== -1 ? (
+      {Object.values(networks).length > 0 && (
+        <Box flexDirection="column">
+          <Text bold={true}>Frontfill </Text>
+          {Object.values(networks).map((network) => (
+            <Box flexDirection="row" key={network.name}>
               <Text>
-                block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
-                {network.matchedLogCount} matched logs,{" "}
-                {timestamp - network.blockTimestamp}s ago)
+                {network.name.slice(0, 1).toUpperCase() + network.name.slice(1)}{" "}
+                @{" "}
               </Text>
-            ) : (
-              <Text>
-                block {network.blockNumber} (
-                {Math.max(timestamp - network.blockTimestamp, 0)}s ago)
-              </Text>
-            )}
-          </Box>
-        ))}
-        <Text> </Text>
-      </Box>
+              {network.blockTxnCount !== -1 ? (
+                <Text>
+                  block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
+                  {network.matchedLogCount} matched logs,{" "}
+                  {timestamp - network.blockTimestamp}s ago)
+                </Text>
+              ) : (
+                <Text>
+                  block {network.blockNumber} (
+                  {Math.max(timestamp - network.blockTimestamp, 0)}s ago)
+                </Text>
+              )}
+            </Box>
+          ))}
+          <Text> </Text>
+        </Box>
+      )}
 
       {handlersCurrent > 0 && (
         <Box flexDirection="column">

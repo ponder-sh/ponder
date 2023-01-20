@@ -24,7 +24,7 @@ import { getLatestBlockForNetwork } from "@/indexer/tasks/getLatestBlockForNetwo
 import { getLogs } from "@/indexer/tasks/getLogs";
 import { startBackfill } from "@/indexer/tasks/startBackfill";
 import { startFrontfill } from "@/indexer/tasks/startFrontfill";
-import type { EvmNetwork, Network } from "@/networks/buildNetworks";
+import type { Network } from "@/networks/buildNetworks";
 import { buildNetworks } from "@/networks/buildNetworks";
 import { buildSchema } from "@/schema/buildSchema";
 import { readGraphqlSchema } from "@/schema/readGraphqlSchema";
@@ -53,7 +53,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
   // Indexer state
   frontfillNetworks: {
-    network: EvmNetwork;
+    network: Network;
     latestBlockNumber: number;
   }[] = [];
 
@@ -272,7 +272,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
       (source) => source.endBlock === undefined && source.isIndexed
     );
 
-    const frontfillNetworkSet = new Set<EvmNetwork>();
+    const frontfillNetworkSet = new Set<Network>();
     frontfillSources.forEach((source) =>
       frontfillNetworkSet.add(source.network)
     );
@@ -351,22 +351,28 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
     this.ui.handlersTotal += logs.length;
     this.logsAddedToTimestamp = toTimestamp;
-    // this.ui.handlersToTimestamp = toTimestamp;
+    this.ui.handlersToTimestamp = toTimestamp;
     this.isAddingLogs = false;
 
     if (this.options.LOG_TYPE === "start" && logs.length > 0) {
-      this.logMessage(MessageKind.INDEXER, `indexed ${logs.length} events`);
+      this.logMessage(MessageKind.INDEXER, `adding ${logs.length} events`);
     }
   }
 
   async processLogs() {
     if (!this.handlerQueue) return;
 
+    const logCount = this.handlerQueue.length();
+
     this.handlerQueue.resume();
     if (!this.handlerQueue.idle()) {
       await this.handlerQueue.drained();
     }
     this.handlerQueue.pause();
+
+    if (this.options.LOG_TYPE === "start" && logCount > 0) {
+      this.logMessage(MessageKind.INDEXER, `processed ${logCount} events`);
+    }
   }
 
   // --------------------------- EVENT HANDLERS --------------------------- //
