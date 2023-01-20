@@ -4,8 +4,8 @@
 import { cac } from "cac";
 import dotenv from "dotenv";
 
-import { buildPonderConfig } from "@/buildPonderConfig";
 import { buildOptions } from "@/common/options";
+import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { Ponder } from "@/Ponder";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -19,7 +19,7 @@ const cli = cac("ponder")
   .usage("<command> [options]")
   .help()
   .option("--config-file [path]", `Path to ponder config file`, {
-    default: "ponder.ts",
+    default: "ponder.config.ts",
   })
   .option("--root-dir [path]", `Path to project root directory`, {
     default: ".",

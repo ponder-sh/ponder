@@ -1,17 +1,17 @@
 import type { ParamType } from "@ethersproject/abi";
 
 import { logger } from "@/common/logger";
-import type { Source } from "@/sources/base";
+import type { Contract } from "@/config/contracts";
 
-export const buildEventTypes = (sources: Source[]) => {
-  const allHandlers = sources
-    .map((source) => {
-      return Object.entries(source.abiInterface.events)
+export const buildEventTypes = (contracts: Contract[]) => {
+  const allHandlers = contracts
+    .map((contract) => {
+      return Object.entries(contract.abiInterface.events)
         .map(([signature, event]) => {
           const eventName = signature.slice(0, signature.indexOf("("));
           const paramsType = generateParamsType(event.inputs);
 
-          return `["${source.name}:${eventName}"]: ({
+          return `["${contract.name}:${eventName}"]: ({
             event, context
             }: {
               event: {

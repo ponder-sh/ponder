@@ -1,15 +1,15 @@
 import type { Ponder } from "@/Ponder";
 
-import { startBackfillForSource } from "./startBackfillForSource";
+import { startBackfillForContract } from "./startBackfillForContract";
 
 export const startBackfill = async ({ ponder }: { ponder: Ponder }) => {
   const queueFuncs = await Promise.all(
-    ponder.sources
-      .filter((source) => source.isIndexed)
-      .map(async (source) => {
-        const { killQueues, drainQueues } = await startBackfillForSource({
+    ponder.contracts
+      .filter((contract) => contract.isIndexed)
+      .map(async (contract) => {
+        const { killQueues, drainQueues } = await startBackfillForContract({
           ponder,
-          source,
+          contract,
         });
 
         return { killQueues, drainQueues };

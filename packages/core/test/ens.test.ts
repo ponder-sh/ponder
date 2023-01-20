@@ -3,8 +3,8 @@ import type Sqlite from "better-sqlite3";
 import { rmSync } from "node:fs";
 import request from "supertest";
 
-import { buildPonderConfig } from "@/buildPonderConfig";
 import { buildOptions } from "@/common/options";
+import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { Ponder } from "@/Ponder";
 
 import { buildSendFunc } from "./utils/buildSendFunc";
@@ -13,7 +13,7 @@ import { getFreePort } from "./utils/getFreePort";
 beforeAll(() => {
   jest
     .spyOn(JsonRpcProvider.prototype, "send")
-    .mockImplementation(buildSendFunc("BaseRegistrarImplementation"));
+    .mockImplementation(buildSendFunc("ENS"));
 });
 
 afterAll(() => {
@@ -30,7 +30,7 @@ describe("Ponder", () => {
 
     const options = buildOptions({
       rootDir: "./test/projects/ens",
-      configFile: "ponder.ts",
+      configFile: "ponder.config.ts",
       logType: "start",
       silent: true,
     });

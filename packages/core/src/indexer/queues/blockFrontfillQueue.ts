@@ -1,8 +1,8 @@
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
+import type { Network } from "@/config/networks";
 import { parseBlock, parseLog, parseTransaction } from "@/db/cache/utils";
-import type { Network } from "@/networks/buildNetworks";
 import type { Ponder } from "@/Ponder";
 
 export type BlockFrontfillTask = {

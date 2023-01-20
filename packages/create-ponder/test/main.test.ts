@@ -40,7 +40,7 @@ describe("create-ponder", () => {
             "src",
             "node_modules",
             "package.json",
-            "ponder.ts",
+            "ponder.config.ts",
             "schema.graphql",
             "tsconfig.json",
           ].sort()
@@ -107,7 +107,7 @@ describe("create-ponder", () => {
             "src",
             "node_modules",
             "package.json",
-            "ponder.ts",
+            "ponder.config.ts",
             "schema.graphql",
             "tsconfig.json",
           ].sort()

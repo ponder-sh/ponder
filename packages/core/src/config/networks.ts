@@ -3,7 +3,7 @@ import {
   StaticJsonRpcProvider,
 } from "@ethersproject/providers";
 
-import { CachedProvider } from "@/networks/CachedProvider";
+import { CachedProvider } from "@/indexer/CachedProvider";
 import type { Ponder } from "@/Ponder";
 
 export type EvmNetwork = {

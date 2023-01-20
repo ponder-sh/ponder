@@ -1,19 +1,19 @@
 ---
-description: "API reference for the ponder.ts file"
+description: "API reference for the ponder.config.ts file"
 ---
 
 import { Callout } from "nextra-theme-docs";
 import { Tabs, Tab } from "nextra-theme-docs";
 
-# `ponder.ts`
+# `ponder.config.ts`
 
-The `ponder.ts` config file contains smart contract addresses, paths to ABIs, RPC URLs, database config, and plugin config.
+The `ponder.config.ts` config file contains smart contract addresses, paths to ABIs, RPC URLs, database config, and plugin config.
 
 Some things to know:
 
-- `ponder.ts` must provide a **named export called `config`**, not a default export.
-- By default, `ponder {dev/start/codegen}` looks for `ponder.ts` in the current working directory, but you can specify a different path with the `--config-file` option to `ponder dev` or `ponder start`.
-- The `config` variable exported by `ponder.ts` can be an object, a function, or a function returning a Promise (you can do async stuff to determine your config).
+- `ponder.config.ts` must provide a **named export called `config`**, not a default export.
+- By default, `ponder {dev/start/codegen}` looks for `ponder.config.ts` in the current working directory, but you can specify a different path with the `--config-file` option to `ponder dev` or `ponder start`.
+- The `config` variable exported by `ponder.config.ts` can be an object, a function, or a function returning a Promise (you can do async stuff to determine your config).
 
 ## Fields
 
@@ -33,22 +33,24 @@ Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundr
 | **chainId** |       `number`        | The chain ID for the network. [Chainlist](https://chainlist.org) is a good resource on chain IDs. |
 | **rpcUrl**  | `string \| undefined` | An RPC URL for the network.                                                                       |
 
-### Sources
+### Contracts
 
-Sources are smart contracts deployed to a network. Ponder will fetch all the event logs emitted by each source defined here.
+Contracts are smart contracts deployed to a network. Ponder will fetch all the event logs emitted by each contract defined here.
 
-| field          |         type          |                                                                                                                                                                  |
-| :------------- | :-------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **name**       |       `string`        | A unique name for the smart contract. **Must be unique across all sources.**                                                                                     |
-| **network**    |       `string`        | The name of the network this contract is deployed to. **References the `networks.name` field.**                                                                  |
-| **abi**        |   `string \| any[]`   | The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html). Can be a path to a JSON file, the ABI as a string, or the ABI as a JavaScript Array. |
-| **address**    |       `string`        | The contract address.                                                                                                                                            |
-| **startBlock** | `number \| undefined` | The block number to start handling events for this contract. Usually the contract deployment block number. **Default: 0**                                        |
-| **blockLimit** | `number \| undefined` | The maximum block range that Ponder will use when calling `eth_getLogs`.                                                                                         |
+| field          |          type          |                                                                                                                                                                                                                                                                                   |
+| :------------- | :--------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **name**       |        `string`        | A unique name for the smart contract. **Must be unique across all contracts in `ponder.config.ts`.**                                                                                                                                                                              |
+| **network**    |        `string`        | The name of the network this contract is deployed to. **References the `networks.name` field.**                                                                                                                                                                                   |
+| **abi**        |   `string \| any[]`    | The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html). Can be a path to a JSON file, the ABI as a string, or the ABI as a JavaScript Array.                                                                                                                  |
+| **address**    |        `string`        | The contract address.                                                                                                                                                                                                                                                             |
+| **startBlock** | `number \| undefined`  | The block number to start handling events for this contract. Usually the contract deployment block number. **Default: `0`**                                                                                                                                                       |
+| **endBlock**   | `number \| undefined`  | **Default: `undefined`**. The optional block number to stop handling events for this contract. If this field is specified, Ponder will not listen to "live" events for this contract. This field can be used alongside `startBlock` to only process events for a range of blocks. |
+| **blockLimit** | `number \| undefined`  | **Default: `50`**. The maximum block range that Ponder will use when calling `eth_getLogs`.                                                                                                                                                                                       |
+| **isIndexed**  | `boolean \| undefined` | **Default: `true`**. Specifies if Ponder should process events for this contract. If `false`, Ponder will not fetch events for this contract, but this contract will still be available on the event handler `context.contracts`.                                                 |
 
 ### Database
 
-Ponder uses a SQL database to cache blockchain data and store entity data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder needs a PostgreSQL database. If no `database` is specified in `ponder.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
+Ponder uses a SQL database to cache blockchain data and store entity data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder needs a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
 
 See [Deploy to production](/guides/production) for more details.
 
@@ -66,7 +68,7 @@ Ponder has a work-in-progress plugin system. Currently, the `graphql` plugin pro
 
 ### Basic example
 
-```ts filename="ponder.ts"
+```ts filename="ponder.config.ts"
 import type { PonderConfig } from "@ponder/core";
 import { graphqlPlugin } from "@ponder/graphql";
 
@@ -75,25 +77,25 @@ export const config: PonderConfig = {
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: process.env.PONDER_RPC_URL_1,
-    },
+      rpcUrl: process.env.PONDER_RPC_URL_1
+    }
   ],
-  sources: [
+  contracts: [
     {
       name: "ArtGobblers",
       network: "mainnet",
       abi: "./abis/ArtGobblers.json",
       address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-      startBlock: 15863321,
-    },
+      startBlock: 15863321
+    }
   ],
-  plugins: [graphqlPlugin()],
+  plugins: [graphqlPlugin()]
 };
 ```
 
 ### Async function
 
-```ts filename="ponder.ts"
+```ts filename="ponder.config.ts"
 import type { PonderConfig } from "@ponder/core";
 import { graphqlPlugin } from "@ponder/graphql";
 
@@ -104,15 +106,15 @@ export const config: PonderConfig = async () => {
     networks: [
       /* ... */
     ],
-    sources: [
+    contracts: [
       {
         name: "ArtGobblers",
         network: "mainnet",
         abi: "./abis/ArtGobblers.json",
         address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: startBlock,
-      },
-    ],
+        startBlock: startBlock
+      }
+    ]
   };
 };
 ```

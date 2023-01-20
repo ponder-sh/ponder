@@ -1,9 +1,9 @@
 import { BigNumber } from "ethers";
 import fastq from "fastq";
 
+import type { Contract } from "@/config/contracts";
 import { parseBlock, parseLog } from "@/db/cache/utils";
 import type { Ponder } from "@/Ponder";
-import type { Source } from "@/sources/base";
 
 import type { BlockBackfillQueue } from "./blockBackfillQueue";
 
@@ -15,7 +15,7 @@ export type LogBackfillTask = {
 
 export type LogBackfillWorkerContext = {
   ponder: Ponder;
-  source: Source;
+  contract: Contract;
   blockBackfillQueue: BlockBackfillQueue;
 };
 
@@ -23,12 +23,12 @@ export type LogBackfillQueue = fastq.queueAsPromised<LogBackfillTask>;
 
 export const createLogBackfillQueue = ({
   ponder,
-  source,
+  contract,
   blockBackfillQueue,
 }: LogBackfillWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<LogBackfillWorkerContext, LogBackfillTask>(
-    { ponder, source, blockBackfillQueue },
+    { ponder, contract, blockBackfillQueue },
     logBackfillWorker,
     10 // TODO: Make this configurable
   );
@@ -36,7 +36,7 @@ export const createLogBackfillQueue = ({
   queue.error((err, task) => {
     if (err) {
       ponder.emit("backfill_logTaskFailed", {
-        source: source.name,
+        contract: contract.name,
         error: err,
       });
       queue.unshift(task);
@@ -50,8 +50,8 @@ async function logBackfillWorker(
   this: LogBackfillWorkerContext,
   { contractAddresses, fromBlock, toBlock }: LogBackfillTask
 ) {
-  const { ponder, source, blockBackfillQueue } = this;
-  const { provider } = source.network;
+  const { ponder, contract, blockBackfillQueue } = this;
+  const { provider } = contract.network;
 
   const [rawLogs, rawToBlock] = await Promise.all([
     provider.send("eth_getLogs", [
@@ -129,8 +129,8 @@ async function logBackfillWorker(
   });
 
   ponder.emit("backfill_blockTasksAdded", {
-    source: source.name,
+    contract: contract.name,
     taskCount: requiredBlockHashes.length,
   });
-  ponder.emit("backfill_logTaskDone", { source: source.name });
+  ponder.emit("backfill_logTaskDone", { contract: contract.name });
 }

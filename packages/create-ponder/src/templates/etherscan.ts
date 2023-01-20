@@ -77,7 +77,7 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
         rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
       },
     ],
-    sources: [
+    contracts: [
       {
         name: contractName,
         network: name,

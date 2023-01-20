@@ -2,7 +2,7 @@ import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
 import { PonderOptions } from "@/common/options";
-import { Source } from "@/sources/base";
+import { Contract } from "@/config/contracts";
 
 import { BackfillBar } from "./BackfillBar";
 import { HandlersBar } from "./HandlersBar";
@@ -73,15 +73,15 @@ export const getUiState = (options: Pick<PonderOptions, "SILENT">): UiState => {
 
 export const hydrateUi = ({
   ui,
-  sources,
+  contracts,
 }: {
   ui: UiState;
-  sources: Source[];
+  contracts: Contract[];
 }) => {
-  sources
-    .filter((source) => source.isIndexed)
-    .forEach((source) => {
-      ui.stats[source.name] = {
+  contracts
+    .filter((contract) => contract.isIndexed)
+    .forEach((contract) => {
+      ui.stats[contract.name] = {
         cacheRate: 0,
         logStartTimestamp: 0,
         logTotal: 0,
@@ -140,8 +140,8 @@ const App = (ui: UiState) => {
       </Box>
       {!isBackfillComplete && (
         <Box flexDirection="column">
-          {Object.entries(stats).map(([source, stat]) => (
-            <BackfillBar key={source} source={source} stat={stat} />
+          {Object.entries(stats).map(([contract, stat]) => (
+            <BackfillBar key={contract} contract={contract} stat={stat} />
           ))}
           <Text> </Text>
         </Box>

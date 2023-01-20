@@ -7,22 +7,22 @@ import type { Ponder } from "@/Ponder";
 import { formatPrettier } from "./utils";
 
 export const generateContractTypes = ({ ponder }: { ponder: Ponder }) => {
-  ponder.sources.forEach((source) => {
+  ponder.contracts.forEach((contract) => {
     const raw = `
       import { ReadOnlyContract } from "@ponder/core";
 
-      const ${source.name}Abi = ${JSON.stringify(
-      source.abi
+      const ${contract.name}Abi = ${JSON.stringify(
+      contract.abi
     ).trimEnd()} as const;
 
-      export type ${source.name} =
-        ReadOnlyContract<typeof ${source.name}Abi>;
+      export type ${contract.name} =
+        ReadOnlyContract<typeof ${contract.name}Abi>;
     `;
     const final = formatPrettier(raw);
 
     const filePath = path.join(
       ponder.options.GENERATED_DIR_PATH,
-      `contracts/${source.name}.ts`
+      `contracts/${contract.name}.ts`
     );
 
     ensureDirExists(filePath);

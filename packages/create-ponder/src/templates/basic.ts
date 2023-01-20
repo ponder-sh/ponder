@@ -46,7 +46,7 @@ export const fromBasic = (options: CreatePonderOptions) => {
         rpcUrl: `process.env.PONDER_RPC_URL_1`,
       },
     ],
-    sources: [
+    contracts: [
       {
         name: "ExampleContract",
         network: "mainnet",

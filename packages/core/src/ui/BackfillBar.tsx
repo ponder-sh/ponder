@@ -7,10 +7,10 @@ import { UiState } from "./app";
 import { ProgressBar } from "./ProgressBar";
 
 export const BackfillBar = ({
-  source,
+  contract,
   stat,
 }: {
-  source: string;
+  contract: string;
   stat: UiState["stats"][0];
 }) => {
   const current = stat.logCurrent + stat.blockCurrent;
@@ -38,7 +38,7 @@ export const BackfillBar = ({
   return (
     <Box flexDirection="column">
       <Text>
-        {source}
+        {contract}
         {/* ({cacheRateText} cached) */}
       </Text>
       <Box flexDirection="row">

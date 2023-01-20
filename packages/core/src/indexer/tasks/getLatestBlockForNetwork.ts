@@ -1,4 +1,4 @@
-import type { EvmNetwork } from "@/networks/buildNetworks";
+import type { EvmNetwork } from "@/config/networks";
 import type { Ponder } from "@/Ponder";
 
 export const getLatestBlockForNetwork = async ({

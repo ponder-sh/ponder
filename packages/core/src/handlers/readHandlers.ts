@@ -21,8 +21,8 @@ export type Handler = ({
   event: HandlerEvent;
   context: unknown;
 }) => Promise<void> | void;
-export type SourceHandlers = Record<string, Handler | undefined>;
-export type Handlers = Record<string, SourceHandlers | undefined>;
+export type ContractHandlers = Record<string, Handler | undefined>;
+export type Handlers = Record<string, ContractHandlers | undefined>;
 
 // @ponder/core creates an instance of this class called `ponder`
 export class PonderApp<HandlersType = Record<string, any>> {
@@ -33,23 +33,23 @@ export class PonderApp<HandlersType = Record<string, any>> {
     name: HandlerName,
     handler: HandlersType[HandlerName]
   ) {
-    const [sourceName, eventName] = name.split(":");
+    const [contractName, eventName] = name.split(":");
 
-    if (!sourceName || !eventName) {
+    if (!contractName || !eventName) {
       this.errors.push(new Error(`Invalid event name: ${name}`));
       return;
     }
 
-    if (!this.handlers[sourceName]) this.handlers[sourceName] = {};
+    if (!this.handlers[contractName]) this.handlers[contractName] = {};
 
-    if (this.handlers[sourceName][eventName]) {
+    if (this.handlers[contractName][eventName]) {
       this.errors.push(
         new Error(`Cannot add multiple handlers for event: ${name}`)
       );
       return;
     }
 
-    this.handlers[sourceName][eventName] = handler;
+    this.handlers[contractName][eventName] = handler;
   }
 }
 
