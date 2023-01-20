@@ -58,8 +58,9 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }[] = [];
 
   // Handler state
-  isHandlingLogs = false;
-  logsProcessedToTimestamp = 0;
+  isAddingLogs = false;
+  isProcessingLogs = false;
+  logsAddedToTimestamp = 0;
   currentEventBlockTag = 0;
 
   // Hot reloading
@@ -183,7 +184,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     if (this.handlerQueue) {
       this.handlerQueue.kill();
       delete this.handlerQueue;
-      this.isHandlingLogs = false;
+      this.isAddingLogs = false;
     }
 
     const handlers = await readHandlers({ ponder: this });
@@ -210,7 +211,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }
 
   async reload() {
-    this.logsProcessedToTimestamp = 0;
+    this.logsAddedToTimestamp = 0;
     this.ui.handlersTotal = 0;
     this.ui.handlersCurrent = 0;
     this.ui.handlerError = null;
@@ -220,7 +221,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     await Promise.all([this.resetEntityStore(), this.reloadHandlers()]);
 
     this.reloadPlugins();
-    this.handleNewLogs();
+    this.emit("backfill_newLogs");
   }
 
   watch() {
@@ -325,37 +326,47 @@ export class Ponder extends EventEmitter<PonderEvents> {
       backfillDuration: duration,
     };
 
-    // If there were no backfill logs, handleNewLogs won't get triggered until the next
-    // set of frontfill logs. So, trigger it manually here.
-    this.handleNewLogs();
+    // If there were no backfill logs, trigger this event manually once here to
+    // process cached logs.
+    this.emit("backfill_newLogs");
   }
 
-  async handleNewLogs() {
-    if (!this.handlerQueue || this.isHandlingLogs) return;
-    this.isHandlingLogs = true;
+  async addNewLogs() {
+    if (!this.handlerQueue || this.isAddingLogs) return;
+    this.isAddingLogs = true;
 
     const { hasNewLogs, toTimestamp, logs } = await getLogs({
       ponder: this,
-      fromTimestamp: this.logsProcessedToTimestamp,
+      fromTimestamp: this.logsAddedToTimestamp,
     });
 
     if (!hasNewLogs) {
-      this.isHandlingLogs = false;
+      this.isAddingLogs = false;
       return;
     }
 
+    for (const log of logs) {
+      this.handlerQueue.push(log);
+    }
+
     this.ui.handlersTotal += logs.length;
-
-    this.handlerQueue.push(logs);
-    await this.handlerQueue.process();
-
-    this.logsProcessedToTimestamp = toTimestamp;
-    this.ui.handlersToTimestamp = toTimestamp;
-    this.isHandlingLogs = false;
+    this.logsAddedToTimestamp = toTimestamp;
+    // this.ui.handlersToTimestamp = toTimestamp;
+    this.isAddingLogs = false;
 
     if (this.options.LOG_TYPE === "start" && logs.length > 0) {
       this.logMessage(MessageKind.INDEXER, `indexed ${logs.length} events`);
     }
+  }
+
+  async processLogs() {
+    if (!this.handlerQueue) return;
+
+    this.handlerQueue.resume();
+    if (!this.handlerQueue.idle()) {
+      await this.handlerQueue.drained();
+    }
+    this.handlerQueue.pause();
   }
 
   // --------------------------- EVENT HANDLERS --------------------------- //
@@ -462,8 +473,9 @@ export class Ponder extends EventEmitter<PonderEvents> {
     };
   };
 
-  private backfill_newLogs = () => {
-    this.handleNewLogs();
+  private backfill_newLogs = async () => {
+    await this.addNewLogs();
+    await this.processLogs();
   };
 
   private frontfill_taskFailed: PonderEvents["frontfill_taskFailed"] = (e) => {
@@ -473,14 +485,13 @@ export class Ponder extends EventEmitter<PonderEvents> {
     );
   };
 
-  private frontfill_newLogs: PonderEvents["frontfill_newLogs"] = (e) => {
+  private frontfill_newLogs: PonderEvents["frontfill_newLogs"] = async (e) => {
     if (this.options.LOG_TYPE === "start" && this.ui.isBackfillComplete) {
       this.logMessage(
         MessageKind.FRONTFILL,
         `${e.network} block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched events)`
       );
     }
-    this.handleNewLogs();
     this.ui.networks[e.network] = {
       name: e.network,
       blockNumber: e.blockNumber,
@@ -488,6 +499,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
       blockTxnCount: e.blockTxnCount,
       matchedLogCount: e.matchedLogCount,
     };
+    await this.addNewLogs();
+    await this.processLogs();
   };
 
   private indexer_taskStarted: PonderEvents["indexer_taskStarted"] = () => {
