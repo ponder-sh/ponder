@@ -24,8 +24,8 @@ import { getLatestBlockForNetwork } from "@/indexer/tasks/getLatestBlockForNetwo
 import { getLogs } from "@/indexer/tasks/getLogs";
 import { startBackfill } from "@/indexer/tasks/startBackfill";
 import { startFrontfill } from "@/indexer/tasks/startFrontfill";
-import type { Network } from "@/networks/buildNetworks";
-import { buildNetworks } from "@/networks/buildNetworks";
+import type { Network } from "@/config/buildNetworks";
+import { buildNetworks } from "@/config/buildNetworks";
 import { buildSchema } from "@/schema/buildSchema";
 import { readGraphqlSchema } from "@/schema/readGraphqlSchema";
 import type { Schema } from "@/schema/types";

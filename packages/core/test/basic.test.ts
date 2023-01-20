@@ -6,7 +6,7 @@ import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { buildOptions } from "@/common/options";
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
-import { CachedProvider } from "@/networks/CachedProvider";
+import { CachedProvider } from "@/indexer/CachedProvider";
 import { Ponder } from "@/Ponder";
 
 import { buildSendFunc } from "./utils/buildSendFunc";

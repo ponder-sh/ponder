@@ -1,6 +1,6 @@
 import type { ethers } from "ethers";
 
-import type { Network } from "@/networks/buildNetworks";
+import type { Network } from "@/config/buildNetworks";
 
 import { BaseSource, SourceKind } from "./base";
 
