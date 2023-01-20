@@ -2,8 +2,8 @@ import { copyFileSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type {
   PartialPonderConfig,
+  PonderContract,
   PonderNetwork,
-  PonderSource,
 } from "src/index";
 import { parse } from "yaml";
 
@@ -23,7 +23,7 @@ export const fromSubgraph = (options: CreatePonderOptions) => {
   const subgraphRootDir = path.resolve(options.fromSubgraph);
 
   const ponderNetworks: PonderNetwork[] = [];
-  let ponderSources: PonderSource[] = [];
+  let ponderContracts: PonderContract[] = [];
 
   // If the `--from-subgraph` option was passed, parse subgraph files
   const subgraphRootDirPath = path.resolve(subgraphRootDir);
@@ -60,7 +60,7 @@ export const fromSubgraph = (options: CreatePonderOptions) => {
   copyFileSync(subgraphSchemaFilePath, ponderSchemaFilePath);
 
   // Build the ponder sources. Also copy over the ABI files for each source.
-  ponderSources = (subgraphYaml.dataSources as unknown[])
+  ponderContracts = (subgraphYaml.dataSources as unknown[])
     .map(validateGraphProtocolSource)
     .map((source) => {
       const abiPath = source.mapping.abis.find(
@@ -96,7 +96,7 @@ export const fromSubgraph = (options: CreatePonderOptions) => {
 
       copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
 
-      return <PonderSource>{
+      return <PonderContract>{
         name: source.name,
         network: network,
         address: source.source.address,
@@ -112,7 +112,7 @@ export const fromSubgraph = (options: CreatePonderOptions) => {
       kind: "sqlite",
     },
     networks: ponderNetworks,
-    sources: ponderSources,
+    contracts: ponderContracts,
   };
 
   return ponderConfig;

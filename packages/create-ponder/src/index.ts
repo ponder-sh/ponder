@@ -18,7 +18,7 @@ export type PonderNetwork = {
   rpcUrl: string;
 };
 
-export type PonderSource = {
+export type PonderContract = {
   kind?: "evm";
   name: string;
   network: string;
@@ -33,7 +33,7 @@ export type PartialPonderConfig = {
     kind: string;
   };
   networks: PonderNetwork[];
-  sources: PonderSource[];
+  contracts: PonderContract[];
 };
 
 export const run = async (
@@ -58,8 +58,8 @@ export const run = async (
   }
 
   // Write the handler ts files.
-  ponderConfig.sources.forEach((source) => {
-    const abi = readFileSync(path.join(ponderRootDir, source.abi), {
+  ponderConfig.contracts.forEach((contract) => {
+    const abi = readFileSync(path.join(ponderRootDir, contract.abi), {
       encoding: "utf-8",
     });
     const abiInterface = new ethers.utils.Interface(abi);
@@ -73,7 +73,7 @@ export const run = async (
       ${eventNamesToWrite
         .map(
           (eventName) => `
-          ponder.on("${source.name}:${eventName}", async ({ event, context }) => {
+          ponder.on("${contract.name}:${eventName}", async ({ event, context }) => {
             console.log(event.params)
           })`
         )
@@ -81,7 +81,7 @@ export const run = async (
     `;
 
     writeFileSync(
-      path.join(ponderRootDir, `./src/${source.name}.ts`),
+      path.join(ponderRootDir, `./src/${contract.name}.ts`),
       prettier.format(handlerFileContents, { parser: "typescript" })
     );
   });
@@ -97,7 +97,7 @@ export const run = async (
         /"process.env.PONDER_RPC_URL_(.*?)"/g,
         "process.env.PONDER_RPC_URL_$1"
       )},
-      sources: ${JSON.stringify(ponderConfig.sources)},
+      contracts: ${JSON.stringify(ponderConfig.contracts)},
     };
   `;
 
