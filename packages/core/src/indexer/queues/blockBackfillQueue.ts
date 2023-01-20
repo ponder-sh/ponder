@@ -1,8 +1,8 @@
 import fastq from "fastq";
 
+import type { Contract } from "@/config/contracts";
 import { parseBlock, parseTransaction } from "@/db/cache/utils";
 import type { Ponder } from "@/Ponder";
-import type { Source } from "@/sources/base";
 
 export type BlockBackfillTask = {
   blockHash: string;
@@ -12,18 +12,18 @@ export type BlockBackfillTask = {
 
 export type BlockBackfillWorkerContext = {
   ponder: Ponder;
-  source: Source;
+  contract: Contract;
 };
 
 export type BlockBackfillQueue = fastq.queueAsPromised<BlockBackfillTask>;
 
 export const createBlockBackfillQueue = ({
   ponder,
-  source,
+  contract,
 }: BlockBackfillWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<BlockBackfillWorkerContext, BlockBackfillTask>(
-    { ponder, source },
+    { ponder, contract },
     blockBackfillWorker,
     10 // TODO: Make this configurable
   );
@@ -31,7 +31,7 @@ export const createBlockBackfillQueue = ({
   queue.error((err, task) => {
     if (err) {
       ponder.emit("backfill_blockTaskFailed", {
-        source: source.name,
+        contract: contract.name,
         error: err,
       });
       queue.unshift(task);
@@ -45,8 +45,8 @@ async function blockBackfillWorker(
   this: BlockBackfillWorkerContext,
   { blockHash, requiredTxnHashes, onSuccess }: BlockBackfillTask
 ) {
-  const { ponder, source } = this;
-  const { provider } = source.network;
+  const { ponder, contract } = this;
+  const { provider } = contract.network;
 
   const rawBlock = await provider.send("eth_getBlockByHash", [blockHash, true]);
 
@@ -66,5 +66,5 @@ async function blockBackfillWorker(
   ]);
 
   await onSuccess(blockHash);
-  ponder.emit("backfill_blockTaskDone", { source: source.name });
+  ponder.emit("backfill_blockTaskDone", { contract: contract.name });
 }

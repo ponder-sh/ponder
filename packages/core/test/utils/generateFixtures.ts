@@ -6,7 +6,7 @@ import { format } from "prettier";
 
 type FixtureConfig = {
   name: string;
-  sources: {
+  contracts: {
     chainId: number;
     rpcUrl: string;
     address: string;
@@ -39,11 +39,11 @@ const getBlockRanges = (start: number, end: number, limit: number) => {
 };
 
 const generateFixture = async (config: FixtureConfig) => {
-  const { name, sources } = config;
+  const { name, contracts } = config;
 
-  for (const source of sources) {
+  for (const contract of contracts) {
     const { chainId, rpcUrl, address, startBlock, endBlock, blockLimit } =
-      source;
+      contract;
 
     const provider = new StaticJsonRpcProvider(rpcUrl, chainId);
 
@@ -125,8 +125,8 @@ const main = async () => {
 
   await Promise.all([
     generateFixture({
-      name: "Source",
-      sources: [
+      name: "Contract",
+      contracts: [
         {
           chainId: 1,
           rpcUrl: process.env.PONDER_RPC_URL_1,
@@ -139,7 +139,7 @@ const main = async () => {
     }),
     generateFixture({
       name: "BaseRegistrarImplementation",
-      sources: [
+      contracts: [
         {
           chainId: 1,
           rpcUrl: process.env.PONDER_RPC_URL_1,

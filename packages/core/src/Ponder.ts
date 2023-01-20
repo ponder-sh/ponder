@@ -2,7 +2,6 @@ import { watch } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
 
-import type { ResolvedPonderConfig } from "@/config/buildPonderConfig";
 import { generateApp } from "@/codegen/generateApp";
 import { generateAppType } from "@/codegen/generateAppType";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
@@ -15,6 +14,10 @@ import {
   startBenchmark,
 } from "@/common/utils";
 import { isFileChanged } from "@/common/utils";
+import type { ResolvedPonderConfig } from "@/config/buildPonderConfig";
+import { buildContracts, Contract } from "@/config/contracts";
+import type { Network } from "@/config/networks";
+import { buildNetworks } from "@/config/networks";
 import { buildCacheStore, CacheStore } from "@/db/cache/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
 import { buildEntityStore, EntityStore } from "@/db/entity/entityStore";
@@ -24,13 +27,9 @@ import { getLatestBlockForNetwork } from "@/indexer/tasks/getLatestBlockForNetwo
 import { getLogs } from "@/indexer/tasks/getLogs";
 import { startBackfill } from "@/indexer/tasks/startBackfill";
 import { startFrontfill } from "@/indexer/tasks/startFrontfill";
-import type { Network } from "@/config/buildNetworks";
-import { buildNetworks } from "@/config/buildNetworks";
 import { buildSchema } from "@/schema/buildSchema";
 import { readGraphqlSchema } from "@/schema/readGraphqlSchema";
 import type { Schema } from "@/schema/types";
-import { buildSources } from "@/sources/buildSources";
-import type { EvmSource } from "@/sources/evm";
 import { EventEmitter, PonderEvents, PonderPlugin } from "@/types";
 import type { UiState } from "@/ui/app";
 import { getUiState, hydrateUi, render, unmount } from "@/ui/app";
@@ -41,7 +40,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   logger: PonderLogger = logger;
 
   // Config-derived services
-  sources: EvmSource[];
+  contracts: Contract[];
   networks: Network[];
   database: PonderDatabase;
   cacheStore: CacheStore;
@@ -90,7 +89,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.on("dev_error", this.dev_error);
 
     this.on("backfill_networkConnected", this.backfill_networkConnected);
-    this.on("backfill_sourceStarted", this.backfill_sourceStarted);
+    this.on("backfill_contractStarted", this.backfill_contractStarted);
     this.on("backfill_logTasksAdded", this.backfill_logTasksAdded);
     this.on("backfill_blockTasksAdded", this.backfill_blockTasksAdded);
     this.on("backfill_logTaskFailed", this.backfill_logTaskFailed);
@@ -112,13 +111,13 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.entityStore = buildEntityStore({ ponder: this });
 
     this.networks = buildNetworks({ ponder: this });
-    this.sources = buildSources({ ponder: this });
+    this.contracts = buildContracts({ ponder: this });
 
     this.plugins = (
       (this.config.plugins as ((ponder: Ponder) => PonderPlugin)[]) || []
     ).map((plugin) => plugin(this));
 
-    hydrateUi({ ui: this.ui, sources: this.sources });
+    hydrateUi({ ui: this.ui, contracts: this.contracts });
   }
 
   // --------------------------- PUBLIC METHODS --------------------------- //
@@ -229,8 +228,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
       this.options.PONDER_CONFIG_FILE_PATH,
       this.options.SCHEMA_FILE_PATH,
       this.options.SRC_DIR_PATH,
-      ...this.sources
-        .map((s) => s.abiFilePath)
+      ...this.contracts
+        .map((c) => c.abiFilePath)
         .filter((p): p is string => typeof p === "string"),
     ];
 
@@ -269,13 +268,13 @@ export class Ponder extends EventEmitter<PonderEvents> {
   // --------------------------- INDEXER --------------------------- //
 
   async getLatestBlockNumbers() {
-    const frontfillSources = this.sources.filter(
-      (source) => source.endBlock === undefined && source.isIndexed
+    const frontfillContracts = this.contracts.filter(
+      (contract) => contract.endBlock === undefined && contract.isIndexed
     );
 
     const frontfillNetworkSet = new Set<Network>();
-    frontfillSources.forEach((source) =>
-      frontfillNetworkSet.add(source.network)
+    frontfillContracts.forEach((contract) =>
+      frontfillNetworkSet.add(contract.network)
     );
 
     await Promise.all(
@@ -288,14 +287,16 @@ export class Ponder extends EventEmitter<PonderEvents> {
       })
     );
 
-    frontfillSources.forEach((source) => {
+    frontfillContracts.forEach((contract) => {
       const frontfillNetwork = this.frontfillNetworks.find(
-        (n) => n.network.name === source.network.name
+        (n) => n.network.name === contract.network.name
       );
       if (!frontfillNetwork) {
-        throw new Error(`Frontfill network not found: ${source.network.name}`);
+        throw new Error(
+          `Frontfill network not found: ${contract.network.name}`
+        );
       }
-      source.endBlock = frontfillNetwork.latestBlockNumber;
+      contract.endBlock = frontfillNetwork.latestBlockNumber;
     });
   }
 
@@ -405,30 +406,30 @@ export class Ponder extends EventEmitter<PonderEvents> {
       };
     };
 
-  private backfill_sourceStarted: PonderEvents["backfill_sourceStarted"] = (
+  private backfill_contractStarted: PonderEvents["backfill_contractStarted"] = (
     e
   ) => {
     if (this.options.LOG_TYPE === "start") {
       this.logMessage(
         MessageKind.BACKFILL,
-        `started backfill for source ${pico.bold(e.source)} (${formatPercentage(
-          e.cacheRate
-        )} cached)`
+        `started backfill for contract ${pico.bold(
+          e.contract
+        )} (${formatPercentage(e.cacheRate)} cached)`
       );
     }
 
-    this.ui.stats[e.source].cacheRate = e.cacheRate;
+    this.ui.stats[e.contract].cacheRate = e.cacheRate;
   };
 
   private backfill_logTasksAdded: PonderEvents["backfill_logTasksAdded"] = (
     e
   ) => {
-    this.ui.stats[e.source].logTotal += e.taskCount;
+    this.ui.stats[e.contract].logTotal += e.taskCount;
   };
   private backfill_blockTasksAdded: PonderEvents["backfill_blockTasksAdded"] = (
     e
   ) => {
-    this.ui.stats[e.source].blockTotal += e.taskCount;
+    this.ui.stats[e.contract].blockTotal += e.taskCount;
   };
 
   private backfill_logTaskFailed: PonderEvents["backfill_logTaskFailed"] = (
@@ -449,34 +450,35 @@ export class Ponder extends EventEmitter<PonderEvents> {
   };
 
   private backfill_logTaskDone: PonderEvents["backfill_logTaskDone"] = (e) => {
-    if (this.ui.stats[e.source].logCurrent === 0) {
-      this.ui.stats[e.source].logStartTimestamp = Date.now();
+    if (this.ui.stats[e.contract].logCurrent === 0) {
+      this.ui.stats[e.contract].logStartTimestamp = Date.now();
     }
 
-    this.ui.stats[e.source] = {
-      ...this.ui.stats[e.source],
-      logCurrent: this.ui.stats[e.source].logCurrent + 1,
+    this.ui.stats[e.contract] = {
+      ...this.ui.stats[e.contract],
+      logCurrent: this.ui.stats[e.contract].logCurrent + 1,
       logAvgDuration:
-        (Date.now() - this.ui.stats[e.source].logStartTimestamp) /
-        this.ui.stats[e.source].logCurrent,
+        (Date.now() - this.ui.stats[e.contract].logStartTimestamp) /
+        this.ui.stats[e.contract].logCurrent,
       logAvgBlockCount:
-        this.ui.stats[e.source].blockTotal / this.ui.stats[e.source].logCurrent,
+        this.ui.stats[e.contract].blockTotal /
+        this.ui.stats[e.contract].logCurrent,
     };
   };
 
   private backfill_blockTaskDone: PonderEvents["backfill_blockTaskDone"] = (
     e
   ) => {
-    if (this.ui.stats[e.source].blockCurrent === 0) {
-      this.ui.stats[e.source].blockStartTimestamp = Date.now();
+    if (this.ui.stats[e.contract].blockCurrent === 0) {
+      this.ui.stats[e.contract].blockStartTimestamp = Date.now();
     }
 
-    this.ui.stats[e.source] = {
-      ...this.ui.stats[e.source],
-      blockCurrent: this.ui.stats[e.source].blockCurrent + 1,
+    this.ui.stats[e.contract] = {
+      ...this.ui.stats[e.contract],
+      blockCurrent: this.ui.stats[e.contract].blockCurrent + 1,
       blockAvgDuration:
-        (Date.now() - this.ui.stats[e.source].blockStartTimestamp) /
-        this.ui.stats[e.source].blockCurrent,
+        (Date.now() - this.ui.stats[e.contract].blockStartTimestamp) /
+        this.ui.stats[e.contract].blockCurrent,
     };
   };
 
@@ -540,10 +542,10 @@ export class Ponder extends EventEmitter<PonderEvents> {
   // --------------------------- HELPERS --------------------------- //
 
   private updateBackfillEta = () => {
-    this.sources
-      .filter((source) => source.isIndexed)
-      .forEach((source) => {
-        const stats = this.ui.stats[source.name];
+    this.contracts
+      .filter((contract) => contract.isIndexed)
+      .forEach((contract) => {
+        const stats = this.ui.stats[contract.name];
 
         const logTime =
           (stats.logTotal - stats.logCurrent) * stats.logAvgDuration;
@@ -559,16 +561,16 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
         const eta = Math.max(logTime, blockTime + estimatedAdditionalBlockTime);
 
-        this.ui.stats[source.name].eta = Number.isNaN(eta) ? 0 : eta;
+        this.ui.stats[contract.name].eta = Number.isNaN(eta) ? 0 : eta;
       });
   };
 
   private logBackfillProgress() {
     if (this.options.LOG_TYPE === "start" && !this.ui.isBackfillComplete) {
-      this.sources
-        .filter((source) => source.isIndexed)
-        .forEach((source) => {
-          const stat = this.ui.stats[source.name];
+      this.contracts
+        .filter((contract) => contract.isIndexed)
+        .forEach((contract) => {
+          const stat = this.ui.stats[contract.name];
 
           const current = stat.logCurrent + stat.blockCurrent;
           const total = stat.logTotal + stat.blockTotal;
@@ -583,7 +585,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
           this.logMessage(
             MessageKind.BACKFILL,
-            `${source.name}: ${`(${etaText + " | " + countText})`}`
+            `${contract.name}: ${`(${etaText + " | " + countText})`}`
           );
         });
     }

@@ -21,7 +21,7 @@ const ponderConfigSchema = z.object({
       rpcUrl: z.optional(z.string()),
     })
   ),
-  sources: z.array(
+  contracts: z.array(
     z.object({
       kind: z.optional(z.string()),
       name: z.string(),

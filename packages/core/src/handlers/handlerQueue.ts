@@ -1,10 +1,10 @@
-import { Contract } from "ethers";
+import { Contract as EthersContract } from "ethers";
 import fastq from "fastq";
 import pico from "picocolors";
 
 import { logger } from "@/common/logger";
+import { Contract } from "@/config/contracts";
 import type { Ponder } from "@/Ponder";
-import { Source } from "@/sources/base";
 import type { Log } from "@/types";
 
 import { decodeLog } from "./decodeLog";
@@ -25,12 +25,12 @@ export const createHandlerQueue = ({
   if (!ponder.schema) return null;
 
   // Build contracts for event handler context.
-  const contracts: Record<string, Contract | undefined> = {};
-  ponder.sources.forEach((source) => {
-    contracts[source.name] = new Contract(
-      source.address,
-      source.abiInterface,
-      source.network.provider
+  const contracts: Record<string, EthersContract | undefined> = {};
+  ponder.contracts.forEach((contract) => {
+    contracts[contract.name] = new EthersContract(
+      contract.address,
+      contract.abiInterface,
+      contract.network.provider
     );
   });
 
@@ -57,29 +57,29 @@ export const createHandlerQueue = ({
     entities: entityModels,
   };
 
-  const sourceByAddress = ponder.sources.reduce<
-    Record<string, Source | undefined>
-  >((acc, source) => {
-    acc[source.address] = source;
+  const contractByAddress = ponder.contracts.reduce<
+    Record<string, Contract | undefined>
+  >((acc, contract) => {
+    acc[contract.address] = contract;
     return acc;
   }, {});
 
   const handlerWorker = async (log: Log) => {
     ponder.emit("indexer_taskStarted");
 
-    const source = sourceByAddress[log.address];
-    if (!source) {
-      logger.warn(`Source not found for log with address: ${log.address}`);
+    const contract = contractByAddress[log.address];
+    if (!contract) {
+      logger.warn(`Contract not found for log with address: ${log.address}`);
       return;
     }
 
-    const sourceHandlers = handlers[source.name];
-    if (!sourceHandlers) {
-      logger.warn(`Handlers not found for source: ${source.name}`);
+    const contractHandlers = handlers[contract.name];
+    if (!contractHandlers) {
+      logger.warn(`Handlers not found for contract: ${contract.name}`);
       return;
     }
 
-    const decodedLog = decodeLog({ log, abiInterface: source.abiInterface });
+    const decodedLog = decodeLog({ log, abiInterface: contract.abiInterface });
     if (!decodedLog) {
       logger.warn(
         `Event log not found in ABI, data: ${log.data} topics: ${log.topics}`
@@ -88,13 +88,15 @@ export const createHandlerQueue = ({
     }
     const { eventName, params } = decodedLog;
 
-    const handler = sourceHandlers[eventName];
+    const handler = contractHandlers[eventName];
     if (!handler) {
-      logger.trace(`Handler not found for event: ${source.name}-${eventName}`);
+      logger.trace(
+        `Handler not found for event: ${contract.name}-${eventName}`
+      );
       return;
     }
 
-    logger.trace(`Handling event: ${source.name}-${eventName}`);
+    logger.trace(`Handling event: ${contract.name}-${eventName}`);
 
     // Get block & transaction from the cache store and attach to the event.
     const block = await ponder.cacheStore.getBlock(log.blockHash);

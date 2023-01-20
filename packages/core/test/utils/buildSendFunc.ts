@@ -2,7 +2,7 @@
 // @ts-ignore
 import _BaseRegistrarImplementation from "../__fixtures__/BaseRegistrarImplementation";
 // @ts-ignore
-import _Source from "../__fixtures__/Source";
+import _Contract from "../__fixtures__/Contract";
 
 export type Hash = `0x${string}`;
 
@@ -78,7 +78,7 @@ type Fixture = {
 const fixtures = {
   BaseRegistrarImplementation:
     _BaseRegistrarImplementation as unknown as Fixture,
-  Source: _Source as unknown as Fixture,
+  Contract: _Contract as unknown as Fixture,
 };
 
 type SendArgs =

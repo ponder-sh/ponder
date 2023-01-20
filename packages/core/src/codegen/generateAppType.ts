@@ -9,7 +9,7 @@ import { buildEventTypes } from "./buildEventTypes";
 import { formatPrettier } from "./utils";
 
 export const generateAppType = ({ ponder }: { ponder: Ponder }) => {
-  const contractNames = ponder.sources.map((source) => source.name);
+  const contractNames = ponder.contracts.map((contract) => contract.name);
   const entities = ponder.schema?.entities || [];
 
   const raw = `
@@ -41,7 +41,7 @@ export const generateAppType = ({ ponder }: { ponder: Ponder }) => {
 
     type Hash = string;
 
-    ${buildEventTypes(ponder.sources)}
+    ${buildEventTypes(ponder.contracts)}
   `;
 
   const final = formatPrettier(raw);

@@ -3,8 +3,8 @@ import type Sqlite from "better-sqlite3";
 import { rmSync } from "node:fs";
 import request from "supertest";
 
-import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { buildOptions } from "@/common/options";
+import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { Ponder } from "@/Ponder";
 
 import { buildSendFunc } from "./utils/buildSendFunc";

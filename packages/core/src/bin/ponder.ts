@@ -4,8 +4,8 @@
 import { cac } from "cac";
 import dotenv from "dotenv";
 
-import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { buildOptions } from "@/common/options";
+import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { Ponder } from "@/Ponder";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment

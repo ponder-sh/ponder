@@ -6,7 +6,7 @@ import BaseRegistrarImplementationAbi from "./BaseRegistrarImplementation.abi.js
 
 export const config = {
   networks: [{ name: "mainnet", chainId: 1, rpcUrl: "rpc://url" }],
-  sources: [
+  contracts: [
     {
       name: "BaseRegistrarImplementation",
       network: "mainnet",

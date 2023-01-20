@@ -2,8 +2,8 @@ import { JsonRpcProvider } from "@ethersproject/providers";
 import type Sqlite from "better-sqlite3";
 import { rmSync } from "node:fs";
 
-import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { buildOptions } from "@/common/options";
+import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
 import { CachedProvider } from "@/indexer/CachedProvider";
@@ -15,7 +15,7 @@ import { getFreePort } from "./utils/getFreePort";
 beforeAll(() => {
   jest
     .spyOn(JsonRpcProvider.prototype, "send")
-    .mockImplementation(buildSendFunc("Source"));
+    .mockImplementation(buildSendFunc("Contract"));
 });
 
 afterAll(() => {
@@ -57,14 +57,16 @@ describe("Ponder", () => {
       expect(network.provider.network.chainId).toBe(1);
     });
 
-    it("creates a source matching config", async () => {
-      expect(ponder.sources.length).toBe(1);
-      const source = ponder.sources[0];
-      expect(source.name).toBe("Source");
-      expect(source.network.name).toBe("mainnet");
-      expect(source.network.provider).toBeInstanceOf(CachedProvider);
-      expect(source.address).toBe("0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85");
-      expect(source.startBlock).toBe(10);
+    it("creates a contract matching config", async () => {
+      expect(ponder.contracts.length).toBe(1);
+      const contract = ponder.contracts[0];
+      expect(contract.name).toBe("Contract");
+      expect(contract.network.name).toBe("mainnet");
+      expect(contract.network.provider).toBeInstanceOf(CachedProvider);
+      expect(contract.address).toBe(
+        "0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85"
+      );
+      expect(contract.startBlock).toBe(10);
     });
 
     it("creates a sqlite database", async () => {
@@ -131,9 +133,9 @@ describe("Ponder", () => {
       await ponder.getLatestBlockNumbers();
     });
 
-    it("adds an endBlock to every indexed source", async () => {
+    it("adds an endBlock to every indexed contract", async () => {
       expect(
-        ponder.sources.filter((s) => s.isIndexed).map((s) => s.endBlock)
+        ponder.contracts.filter((s) => s.isIndexed).map((s) => s.endBlock)
       ).not.toContain(undefined);
     });
   });

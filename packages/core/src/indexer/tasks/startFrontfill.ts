@@ -6,9 +6,9 @@ export const startFrontfill = ({ ponder }: { ponder: Ponder }) => {
   const killQueueFuncs = ponder.frontfillNetworks.map((frontfillNetwork) => {
     const { network, latestBlockNumber } = frontfillNetwork;
 
-    const contractAddresses = ponder.sources
-      .filter((s) => s.network.name === network.name)
-      .map((source) => source.address);
+    const contractAddresses = ponder.contracts
+      .filter((contract) => contract.network.name === network.name)
+      .map((contract) => contract.address);
 
     const liveBlockRequestQueue = createBlockFrontfillQueue({
       ponder,

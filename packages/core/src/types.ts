@@ -31,16 +31,22 @@ export type PonderEvents = {
     blockNumber: number;
     blockTimestamp: number;
   }) => void;
-  backfill_sourceStarted: (arg: { source: string; cacheRate: number }) => void;
-  backfill_logTasksAdded: (arg: { source: string; taskCount: number }) => void;
-  backfill_blockTasksAdded: (arg: {
-    source: string;
+  backfill_contractStarted: (arg: {
+    contract: string;
+    cacheRate: number;
+  }) => void;
+  backfill_logTasksAdded: (arg: {
+    contract: string;
     taskCount: number;
   }) => void;
-  backfill_logTaskFailed: (arg: { source: string; error: Error }) => void;
-  backfill_blockTaskFailed: (arg: { source: string; error: Error }) => void;
-  backfill_logTaskDone: (arg: { source: string }) => void;
-  backfill_blockTaskDone: (arg: { source: string }) => void;
+  backfill_blockTasksAdded: (arg: {
+    contract: string;
+    taskCount: number;
+  }) => void;
+  backfill_logTaskFailed: (arg: { contract: string; error: Error }) => void;
+  backfill_blockTaskFailed: (arg: { contract: string; error: Error }) => void;
+  backfill_logTaskDone: (arg: { contract: string }) => void;
+  backfill_blockTaskDone: (arg: { contract: string }) => void;
   backfill_newLogs: () => void;
 
   frontfill_taskFailed: (arg: { network: string; error: Error }) => void;
