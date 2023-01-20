@@ -9,7 +9,7 @@ export const config: PonderConfig = {
       rpcUrl: process.env.PONDER_RPC_URL_1,
     },
   ],
-  sources: [
+  contracts: [
     {
       name: "ArtGobblers",
       network: "mainnet",
