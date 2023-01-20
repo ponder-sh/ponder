@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-ignore
-import _BaseRegistrarImplementation from "../__fixtures__/BaseRegistrarImplementation";
+import _Empty from "../__fixtures__/Empty";
 // @ts-ignore
-import _Contract from "../__fixtures__/Contract";
+import _ENS from "../__fixtures__/ENS";
 
 export type Hash = `0x${string}`;
 
@@ -76,9 +76,8 @@ type Fixture = {
 };
 
 const fixtures = {
-  BaseRegistrarImplementation:
-    _BaseRegistrarImplementation as unknown as Fixture,
-  Contract: _Contract as unknown as Fixture,
+  Empty: _Empty as unknown as Fixture,
+  ENS: _ENS as unknown as Fixture,
 };
 
 type SendArgs =

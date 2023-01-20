@@ -13,7 +13,7 @@ import { getFreePort } from "./utils/getFreePort";
 beforeAll(() => {
   jest
     .spyOn(JsonRpcProvider.prototype, "send")
-    .mockImplementation(buildSendFunc("BaseRegistrarImplementation"));
+    .mockImplementation(buildSendFunc("ENS"));
 });
 
 afterAll(() => {

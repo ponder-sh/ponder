@@ -15,7 +15,7 @@ import { getFreePort } from "./utils/getFreePort";
 beforeAll(() => {
   jest
     .spyOn(JsonRpcProvider.prototype, "send")
-    .mockImplementation(buildSendFunc("Contract"));
+    .mockImplementation(buildSendFunc("Empty"));
 });
 
 afterAll(() => {
@@ -60,7 +60,7 @@ describe("Ponder", () => {
     it("creates a contract matching config", async () => {
       expect(ponder.contracts.length).toBe(1);
       const contract = ponder.contracts[0];
-      expect(contract.name).toBe("Contract");
+      expect(contract.name).toBe("Empty");
       expect(contract.network.name).toBe("mainnet");
       expect(contract.network.provider).toBeInstanceOf(CachedProvider);
       expect(contract.address).toBe(

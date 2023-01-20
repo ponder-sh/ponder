@@ -125,7 +125,7 @@ const main = async () => {
 
   await Promise.all([
     generateFixture({
-      name: "Contract",
+      name: "Empty",
       contracts: [
         {
           chainId: 1,
@@ -138,7 +138,7 @@ const main = async () => {
       ],
     }),
     generateFixture({
-      name: "BaseRegistrarImplementation",
+      name: "ENS",
       contracts: [
         {
           chainId: 1,
