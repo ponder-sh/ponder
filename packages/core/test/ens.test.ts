@@ -30,7 +30,7 @@ describe("Ponder", () => {
 
     const options = buildOptions({
       rootDir: "./test/projects/ens",
-      configFile: "ponder.ts",
+      configFile: "ponder.config.ts",
       logType: "start",
       silent: true,
     });

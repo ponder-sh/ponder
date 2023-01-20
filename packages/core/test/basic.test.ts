@@ -32,7 +32,7 @@ describe("Ponder", () => {
 
     const options = buildOptions({
       rootDir: "./test/projects/basic",
-      configFile: "ponder.ts",
+      configFile: "ponder.config.ts",
       logType: "start",
       silent: true,
     });

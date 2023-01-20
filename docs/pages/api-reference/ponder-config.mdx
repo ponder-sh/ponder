@@ -1,19 +1,19 @@
 ---
-description: "API reference for the ponder.ts file"
+description: "API reference for the ponder.config.ts file"
 ---
 
 import { Callout } from "nextra-theme-docs";
 import { Tabs, Tab } from "nextra-theme-docs";
 
-# `ponder.ts`
+# `ponder.config.ts`
 
-The `ponder.ts` config file contains smart contract addresses, paths to ABIs, RPC URLs, database config, and plugin config.
+The `ponder.config.ts` config file contains smart contract addresses, paths to ABIs, RPC URLs, database config, and plugin config.
 
 Some things to know:
 
-- `ponder.ts` must provide a **named export called `config`**, not a default export.
-- By default, `ponder {dev/start/codegen}` looks for `ponder.ts` in the current working directory, but you can specify a different path with the `--config-file` option to `ponder dev` or `ponder start`.
-- The `config` variable exported by `ponder.ts` can be an object, a function, or a function returning a Promise (you can do async stuff to determine your config).
+- `ponder.config.ts` must provide a **named export called `config`**, not a default export.
+- By default, `ponder {dev/start/codegen}` looks for `ponder.config.ts` in the current working directory, but you can specify a different path with the `--config-file` option to `ponder dev` or `ponder start`.
+- The `config` variable exported by `ponder.config.ts` can be an object, a function, or a function returning a Promise (you can do async stuff to determine your config).
 
 ## Fields
 
@@ -48,7 +48,7 @@ Sources are smart contracts deployed to a network. Ponder will fetch all the eve
 
 ### Database
 
-Ponder uses a SQL database to cache blockchain data and store entity data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder needs a PostgreSQL database. If no `database` is specified in `ponder.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
+Ponder uses a SQL database to cache blockchain data and store entity data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder needs a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
 
 See [Deploy to production](/guides/production) for more details.
 
@@ -66,7 +66,7 @@ Ponder has a work-in-progress plugin system. Currently, the `graphql` plugin pro
 
 ### Basic example
 
-```ts filename="ponder.ts"
+```ts filename="ponder.config.ts"
 import type { PonderConfig } from "@ponder/core";
 import { graphqlPlugin } from "@ponder/graphql";
 
@@ -75,8 +75,8 @@ export const config: PonderConfig = {
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: process.env.PONDER_RPC_URL_1,
-    },
+      rpcUrl: process.env.PONDER_RPC_URL_1
+    }
   ],
   sources: [
     {
@@ -84,16 +84,16 @@ export const config: PonderConfig = {
       network: "mainnet",
       abi: "./abis/ArtGobblers.json",
       address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-      startBlock: 15863321,
-    },
+      startBlock: 15863321
+    }
   ],
-  plugins: [graphqlPlugin()],
+  plugins: [graphqlPlugin()]
 };
 ```
 
 ### Async function
 
-```ts filename="ponder.ts"
+```ts filename="ponder.config.ts"
 import type { PonderConfig } from "@ponder/core";
 import { graphqlPlugin } from "@ponder/graphql";
 
@@ -110,9 +110,9 @@ export const config: PonderConfig = async () => {
         network: "mainnet",
         abi: "./abis/ArtGobblers.json",
         address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: startBlock,
-      },
-    ],
+        startBlock: startBlock
+      }
+    ]
   };
 };
 ```

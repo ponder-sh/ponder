@@ -19,7 +19,7 @@ const cli = cac("ponder")
   .usage("<command> [options]")
   .help()
   .option("--config-file [path]", `Path to ponder config file`, {
-    default: "ponder.ts",
+    default: "ponder.config.ts",
   })
   .option("--root-dir [path]", `Path to project root directory`, {
     default: ".",

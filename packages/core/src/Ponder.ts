@@ -244,7 +244,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
         if (fullPath === this.options.PONDER_CONFIG_FILE_PATH) {
           this.logMessage(
             MessageKind.ERROR,
-            "detected change in ponder.ts. " + pico.bold("Restart the server.")
+            "detected change in ponder.config.ts. " +
+              pico.bold("Restart the server.")
           );
           this.kill();
           return;

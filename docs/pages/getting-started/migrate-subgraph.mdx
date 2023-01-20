@@ -108,7 +108,7 @@ export function handleTransfer(event) {
 
 With Ponder, entity models and contracts are injected as properties of `context`.
 
-Contracts injected this way are ready-to-go using the address and network specified in `ponder.ts`. (You don't need to call `Contract.bind(address)`. The contracts are normal `ethers.Contract` objects that are already connected to a provider.
+Contracts injected this way are ready-to-go using the address and network specified in `ponder.config.ts`. (You don't need to call `Contract.bind(address)`. The contracts are normal `ethers.Contract` objects that are already connected to a provider.
 
 ```ts filename="SomeNftContract.ts"
 export async function handleTransfer(event, context) {
