@@ -4,7 +4,7 @@
 import { cac } from "cac";
 import dotenv from "dotenv";
 
-import { buildPonderConfig } from "@/buildPonderConfig";
+import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { buildOptions } from "@/common/options";
 import { Ponder } from "@/Ponder";
 

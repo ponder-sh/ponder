@@ -1,4 +1,7 @@
-export type { PonderConfig, ResolvedPonderConfig } from "@/buildPonderConfig";
+export type {
+  PonderConfig,
+  ResolvedPonderConfig,
+} from "@/config/buildPonderConfig";
 export type { ReadOnlyContract } from "@/codegen/ethers-abitype";
 export type { PonderLogger } from "@/common/logger";
 export type { PonderOptions } from "@/common/options";

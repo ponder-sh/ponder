@@ -2,7 +2,7 @@ import { watch } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
 
-import type { ResolvedPonderConfig } from "@/buildPonderConfig";
+import type { ResolvedPonderConfig } from "@/config/buildPonderConfig";
 import { generateApp } from "@/codegen/generateApp";
 import { generateAppType } from "@/codegen/generateAppType";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
