@@ -29,7 +29,9 @@ const ponderConfigSchema = z.object({
       abi: z.union([z.string(), z.array(z.any()), z.object({})]),
       address: z.string(),
       startBlock: z.optional(z.number()),
+      endBlock: z.optional(z.number()),
       blockLimit: z.optional(z.number()),
+      isIndexed: z.optional(z.boolean()),
     })
   ),
   plugins: z.optional(z.array(z.any())),

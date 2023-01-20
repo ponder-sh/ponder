@@ -20,6 +20,7 @@ import { buildDb, PonderDatabase } from "@/db/db";
 import { buildEntityStore, EntityStore } from "@/db/entity/entityStore";
 import { createHandlerQueue, HandlerQueue } from "@/handlers/handlerQueue";
 import { readHandlers } from "@/handlers/readHandlers";
+import { getLatestBlockForNetwork } from "@/indexer/tasks/getLatestBlockForNetwork";
 import { getLogs } from "@/indexer/tasks/getLogs";
 import { startBackfill } from "@/indexer/tasks/startBackfill";
 import { startFrontfill } from "@/indexer/tasks/startFrontfill";
@@ -50,9 +51,16 @@ export class Ponder extends EventEmitter<PonderEvents> {
   schema?: Schema;
   handlerQueue?: HandlerQueue;
 
+  // Indexer state
+  frontfillNetworks: {
+    network: Network;
+    latestBlockNumber: number;
+  }[] = [];
+
   // Handler state
-  isHandlingLogs = false;
-  logsProcessedToTimestamp = 0;
+  isAddingLogs = false;
+  isProcessingLogs = false;
+  logsAddedToTimestamp = 0;
   currentEventBlockTag = 0;
 
   // Hot reloading
@@ -117,11 +125,15 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
   async start() {
     await this.setup();
+    await this.getLatestBlockNumbers();
+    this.frontfill();
     await this.backfill();
   }
 
   async dev() {
     await this.setup();
+    await this.getLatestBlockNumbers();
+    this.frontfill();
     this.watch();
     await this.backfill();
   }
@@ -144,7 +156,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     await this.teardownPlugins();
   }
 
-  // --------------------------- INTERNAL METHODS --------------------------- //
+  // --------------------------- SETUP & RELOADING --------------------------- //
 
   async setup() {
     this.renderInterval = setInterval(() => {
@@ -172,7 +184,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     if (this.handlerQueue) {
       this.handlerQueue.kill();
       delete this.handlerQueue;
-      this.isHandlingLogs = false;
+      this.isAddingLogs = false;
     }
 
     const handlers = await readHandlers({ ponder: this });
@@ -199,7 +211,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }
 
   async reload() {
-    this.logsProcessedToTimestamp = 0;
+    this.logsAddedToTimestamp = 0;
     this.ui.handlersTotal = 0;
     this.ui.handlersCurrent = 0;
     this.ui.handlerError = null;
@@ -209,7 +221,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     await Promise.all([this.resetEntityStore(), this.reloadHandlers()]);
 
     this.reloadPlugins();
-    this.handleNewLogs();
+    this.emit("backfill_newLogs");
   }
 
   watch() {
@@ -253,17 +265,51 @@ export class Ponder extends EventEmitter<PonderEvents> {
     };
   }
 
-  async backfill() {
-    const startHrt = startBenchmark();
+  // --------------------------- INDEXER --------------------------- //
 
-    const { blockNumberByNetwork, killFrontfillQueues } = await startFrontfill({
+  async getLatestBlockNumbers() {
+    const frontfillSources = this.sources.filter(
+      (source) => source.endBlock === undefined && source.isIndexed
+    );
+
+    const frontfillNetworkSet = new Set<Network>();
+    frontfillSources.forEach((source) =>
+      frontfillNetworkSet.add(source.network)
+    );
+
+    await Promise.all(
+      Array.from(frontfillNetworkSet).map(async (network) => {
+        const latestBlockNumber = await getLatestBlockForNetwork({
+          network,
+          ponder: this,
+        });
+        this.frontfillNetworks.push({ network, latestBlockNumber });
+      })
+    );
+
+    frontfillSources.forEach((source) => {
+      const frontfillNetwork = this.frontfillNetworks.find(
+        (n) => n.network.name === source.network.name
+      );
+      if (!frontfillNetwork) {
+        throw new Error(`Frontfill network not found: ${source.network.name}`);
+      }
+      source.endBlock = frontfillNetwork.latestBlockNumber;
+    });
+  }
+
+  frontfill() {
+    const { killFrontfillQueues } = startFrontfill({
       ponder: this,
     });
     this.killFrontfillQueues = killFrontfillQueues;
+  }
+
+  async backfill() {
+    const startHrt = startBenchmark();
 
     const { killBackfillQueues, drainBackfillQueues } = await startBackfill({
       ponder: this,
-      blockNumberByNetwork,
     });
     this.killBackfillQueues = killBackfillQueues;
 
@@ -280,36 +326,52 @@ export class Ponder extends EventEmitter<PonderEvents> {
       backfillDuration: duration,
     };
 
-    // If there were no backfill logs, handleNewLogs won't get triggered until the next
-    // set of frontfill logs. So, trigger it manually here.
-    this.handleNewLogs();
+    // If there were no backfill logs, trigger this event manually once here to
+    // process cached logs.
+    this.emit("backfill_newLogs");
   }
 
-  async handleNewLogs() {
-    if (!this.handlerQueue || this.isHandlingLogs) return;
-    this.isHandlingLogs = true;
+  async addNewLogs() {
+    if (!this.handlerQueue || this.isAddingLogs) return;
+    this.isAddingLogs = true;
 
     const { hasNewLogs, toTimestamp, logs } = await getLogs({
       ponder: this,
-      fromTimestamp: this.logsProcessedToTimestamp,
+      fromTimestamp: this.logsAddedToTimestamp,
     });
 
     if (!hasNewLogs) {
-      this.isHandlingLogs = false;
+      this.isAddingLogs = false;
       return;
     }
 
+    for (const log of logs) {
+      this.handlerQueue.push(log);
+    }
+
     this.ui.handlersTotal += logs.length;
-
-    this.handlerQueue.push(logs);
-    await this.handlerQueue.process();
-
-    this.logsProcessedToTimestamp = toTimestamp;
+    this.logsAddedToTimestamp = toTimestamp;
     this.ui.handlersToTimestamp = toTimestamp;
-    this.isHandlingLogs = false;
+    this.isAddingLogs = false;
 
     if (this.options.LOG_TYPE === "start" && logs.length > 0) {
-      this.logMessage(MessageKind.INDEXER, `indexed ${logs.length} events`);
+      this.logMessage(MessageKind.INDEXER, `adding ${logs.length} events`);
+    }
+  }
+
+  async processLogs() {
+    if (!this.handlerQueue) return;
+
+    const logCount = this.handlerQueue.length();
+
+    this.handlerQueue.resume();
+    if (!this.handlerQueue.idle()) {
+      await this.handlerQueue.drained();
+    }
+    this.handlerQueue.pause();
+
+    if (this.options.LOG_TYPE === "start" && logCount > 0) {
+      this.logMessage(MessageKind.INDEXER, `processed ${logCount} events`);
     }
   }
 
@@ -417,8 +479,9 @@ export class Ponder extends EventEmitter<PonderEvents> {
     };
   };
 
-  private backfill_newLogs = () => {
-    // this.handleNewLogs();
+  private backfill_newLogs = async () => {
+    await this.addNewLogs();
+    await this.processLogs();
   };
 
   private frontfill_taskFailed: PonderEvents["frontfill_taskFailed"] = (e) => {
@@ -428,14 +491,13 @@ export class Ponder extends EventEmitter<PonderEvents> {
     );
   };
 
-  private frontfill_newLogs: PonderEvents["frontfill_newLogs"] = (e) => {
+  private frontfill_newLogs: PonderEvents["frontfill_newLogs"] = async (e) => {
     if (this.options.LOG_TYPE === "start" && this.ui.isBackfillComplete) {
       this.logMessage(
         MessageKind.FRONTFILL,
         `${e.network} block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched events)`
       );
     }
-    this.handleNewLogs();
     this.ui.networks[e.network] = {
       name: e.network,
       blockNumber: e.blockNumber,
@@ -443,6 +505,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
       blockTxnCount: e.blockTxnCount,
       matchedLogCount: e.matchedLogCount,
     };
+    await this.addNewLogs();
+    await this.processLogs();
   };
 
   private indexer_taskStarted: PonderEvents["indexer_taskStarted"] = () => {
@@ -475,48 +539,52 @@ export class Ponder extends EventEmitter<PonderEvents> {
   // --------------------------- HELPERS --------------------------- //
 
   private updateBackfillEta = () => {
-    for (const source of this.sources) {
-      const stats = this.ui.stats[source.name];
+    this.sources
+      .filter((source) => source.isIndexed)
+      .forEach((source) => {
+        const stats = this.ui.stats[source.name];
 
-      const logTime =
-        (stats.logTotal - stats.logCurrent) * stats.logAvgDuration;
+        const logTime =
+          (stats.logTotal - stats.logCurrent) * stats.logAvgDuration;
 
-      const blockTime =
-        (stats.blockTotal - stats.blockCurrent) * stats.blockAvgDuration;
+        const blockTime =
+          (stats.blockTotal - stats.blockCurrent) * stats.blockAvgDuration;
 
-      const estimatedAdditionalBlocks =
-        (stats.logTotal - stats.logCurrent) * stats.logAvgBlockCount;
+        const estimatedAdditionalBlocks =
+          (stats.logTotal - stats.logCurrent) * stats.logAvgBlockCount;
 
-      const estimatedAdditionalBlockTime =
-        estimatedAdditionalBlocks * stats.blockAvgDuration;
+        const estimatedAdditionalBlockTime =
+          estimatedAdditionalBlocks * stats.blockAvgDuration;
 
-      const eta = Math.max(logTime, blockTime + estimatedAdditionalBlockTime);
+        const eta = Math.max(logTime, blockTime + estimatedAdditionalBlockTime);
 
-      this.ui.stats[source.name].eta = Number.isNaN(eta) ? 0 : eta;
-    }
+        this.ui.stats[source.name].eta = Number.isNaN(eta) ? 0 : eta;
+      });
   };
 
   private logBackfillProgress() {
     if (this.options.LOG_TYPE === "start" && !this.ui.isBackfillComplete) {
-      this.sources.forEach((source) => {
-        const stat = this.ui.stats[source.name];
+      this.sources
+        .filter((source) => source.isIndexed)
+        .forEach((source) => {
+          const stat = this.ui.stats[source.name];
 
-        const current = stat.logCurrent + stat.blockCurrent;
-        const total = stat.logTotal + stat.blockTotal;
-        const isDone = current === total;
-        if (isDone) return;
-        const etaText =
-          stat.logCurrent > 5 && stat.eta > 0
-            ? `~${formatEta(stat.eta)}`
-            : "not started";
+          const current = stat.logCurrent + stat.blockCurrent;
+          const total = stat.logTotal + stat.blockTotal;
+          const isDone = current === total;
+          if (isDone) return;
+          const etaText =
+            stat.logCurrent > 5 && stat.eta > 0
+              ? `~${formatEta(stat.eta)}`
+              : "not started";
 
-        const countText = `${current}/${total}`;
+          const countText = `${current}/${total}`;
 
-        this.logMessage(
-          MessageKind.BACKFILL,
-          `${source.name}: ${`(${etaText + " | " + countText})`}`
-        );
-      });
+          this.logMessage(
+            MessageKind.BACKFILL,
+            `${source.name}: ${`(${etaText + " | " + countText})`}`
+          );
+        });
     }
   }
 

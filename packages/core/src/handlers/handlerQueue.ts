@@ -1,4 +1,5 @@
 import { Contract } from "ethers";
+import fastq from "fastq";
 import pico from "picocolors";
 
 import { logger } from "@/common/logger";
@@ -9,37 +10,9 @@ import type { Log } from "@/types";
 import { decodeLog } from "./decodeLog";
 import type { Handlers } from "./readHandlers";
 
-export function createNotSoFastQueue<T>(
-  worker: (task: T) => Promise<any> | any,
-  errorHandler: (err: Error) => any
-) {
-  let tasks: T[] = [];
+export type HandlerTask = Log;
 
-  return {
-    push: async (newTasks: T[]) => {
-      tasks = tasks.concat(newTasks);
-    },
-    process: async () => {
-      while (tasks.length > 0) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          await worker(tasks.shift()!);
-        } catch (err) {
-          errorHandler(err as Error);
-        }
-      }
-    },
-    kill: () => {
-      tasks = [];
-    },
-  };
-}
-
-export type HandlerQueue<T = any> = {
-  push: (newTasks: T[]) => Promise<void>;
-  process: () => Promise<void>;
-  kill: () => void;
-};
+export type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
 
 export const createHandlerQueue = ({
   ponder,
@@ -47,7 +20,7 @@ export const createHandlerQueue = ({
 }: {
   ponder: Ponder;
   handlers: Handlers;
-}): HandlerQueue | null => {
+}) => {
   // Can't build handler queue without schema.
   if (!ponder.schema) return null;
 
@@ -156,14 +129,22 @@ export const createHandlerQueue = ({
     ponder.emit("indexer_taskDone", { timestamp: block.timestamp });
   };
 
-  const queue = createNotSoFastQueue(handlerWorker, (error) => {
-    if (error) {
-      ponder.emit("dev_error", {
-        context: "handler file error: " + pico.bold(error.message),
-        error,
-      });
+  const queue = fastq.promise<unknown, HandlerTask>({}, handlerWorker, 1);
+
+  queue.error(
+    (
+      error /* TODO use the task arg to provide context to the user about the error. */
+    ) => {
+      if (error) {
+        ponder.emit("dev_error", {
+          context: "handler file error: " + pico.bold(error.message),
+          error,
+        });
+      }
     }
-  });
+  );
+
+  queue.pause();
 
   return queue;
 };

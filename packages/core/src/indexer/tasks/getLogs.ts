@@ -7,12 +7,13 @@ export const getLogs = async ({
   ponder: Ponder;
   fromTimestamp: number;
 }) => {
-  // Whenever the live block handler queue emits the "newBlock" event,
-  // check the cached metadata for all sources. If the minimum cached block across
+  const sources = ponder.sources.filter((source) => source.isIndexed);
+
+  // Check the cached metadata for all sources. If the minimum cached block across
   // all sources is greater than the lastHandledLogTimestamp, fetch the newly available
   // logs and add them to the queue.
   const cachedToTimestamps = await Promise.all(
-    ponder.sources.map(async (source) => {
+    sources.map(async (source) => {
       const cachedIntervals = await ponder.cacheStore.getCachedIntervals(
         source.address
       );
@@ -46,7 +47,7 @@ export const getLogs = async ({
   // NOTE: cacheStore.getLogs is exclusive to the left and inclusive to the right.
   // This is fine because this.latestProcessedTimestamp starts at zero.
   const rawLogs = await Promise.all(
-    ponder.sources.map((source) =>
+    sources.map((source) =>
       ponder.cacheStore.getLogs(source.address, fromTimestamp, toTimestamp)
     )
   );
