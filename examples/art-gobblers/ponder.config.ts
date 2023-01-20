@@ -4,7 +4,6 @@ import { graphqlPlugin } from "@ponder/graphql";
 export const config: PonderConfig = {
   networks: [
     {
-      kind: "evm",
       name: "mainnet",
       chainId: 1,
       rpcUrl: process.env.PONDER_RPC_URL_1,
@@ -12,7 +11,6 @@ export const config: PonderConfig = {
   ],
   sources: [
     {
-      kind: "evm",
       name: "ArtGobblers",
       network: "mainnet",
       abi: "./abis/ArtGobblers.json",
