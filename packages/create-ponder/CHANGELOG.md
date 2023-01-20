@@ -1,5 +1,38 @@
 # create-ponder
 
+## 0.0.15
+
+### Patch Changes
+
+- [#69](https://github.com/0xOlias/ponder/pull/69) [`1d6b777`](https://github.com/0xOlias/ponder/commit/1d6b77778d4004946ca4aafcdbac1aff1f6453a0) Thanks [@0xOlias](https://github.com/0xOlias)! - **BREAKING** Changed the way Ponder expects handlers to be registered.
+
+  1. Source files must be located in `src/` instead of `handlers/`
+  2. Handlers are registered using an `EventEmitter`-like pattern (see below)
+  3. Any `*.ts` file inside `src/` can register event handlers this way. Small projects might only need one file in `src` (e.g. `src/app.ts` or `src/{SourceName}.ts`)
+
+  ```ts
+  import { ponder } from "../generated";
+
+  ponder.on("SourceName:EventName", async ({ event, context }) => {
+    // same handler function body as before!
+  });
+
+  ponder.on("SourceName:EventName2", async ({ event, context }) => {
+    // ...
+  });
+
+  ponder.on("AnotherSourceName:EventName", async ({ event, context }) => {
+    // ...
+  });
+  ```
+
+  Updated `create-ponder` to use this pattern for newly generated projects
+
+- [#72](https://github.com/0xOlias/ponder/pull/72) [`df3ec60`](https://github.com/0xOlias/ponder/commit/df3ec601852556be788335c016c99710c4277487) Thanks [@0xOlias](https://github.com/0xOlias)! - **BREAKING** Changes ponder config naming.
+
+  1. The ponder config file was changed (back) to `ponder.config.ts`.
+  2. The `sources` field in `ponder.config.ts` was changes to `contracts`.
+
 ## 0.0.14
 
 ### Patch Changes
