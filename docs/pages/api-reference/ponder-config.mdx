@@ -33,18 +33,20 @@ Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundr
 | **chainId** |       `number`        | The chain ID for the network. [Chainlist](https://chainlist.org) is a good resource on chain IDs. |
 | **rpcUrl**  | `string \| undefined` | An RPC URL for the network.                                                                       |
 
-### Sources
+### Contracts
 
-Sources are smart contracts deployed to a network. Ponder will fetch all the event logs emitted by each source defined here.
+Contracts are smart contracts deployed to a network. Ponder will fetch all the event logs emitted by each contract defined here.
 
-| field          |         type          |                                                                                                                                                                  |
-| :------------- | :-------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **name**       |       `string`        | A unique name for the smart contract. **Must be unique across all sources.**                                                                                     |
-| **network**    |       `string`        | The name of the network this contract is deployed to. **References the `networks.name` field.**                                                                  |
-| **abi**        |   `string \| any[]`   | The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html). Can be a path to a JSON file, the ABI as a string, or the ABI as a JavaScript Array. |
-| **address**    |       `string`        | The contract address.                                                                                                                                            |
-| **startBlock** | `number \| undefined` | The block number to start handling events for this contract. Usually the contract deployment block number. **Default: 0**                                        |
-| **blockLimit** | `number \| undefined` | The maximum block range that Ponder will use when calling `eth_getLogs`.                                                                                         |
+| field          |          type          |                                                                                                                                                                                                                                                                                   |
+| :------------- | :--------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **name**       |        `string`        | A unique name for the smart contract. **Must be unique across all contracts in `ponder.config.ts`.**                                                                                                                                                                              |
+| **network**    |        `string`        | The name of the network this contract is deployed to. **References the `networks.name` field.**                                                                                                                                                                                   |
+| **abi**        |   `string \| any[]`    | The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html). Can be a path to a JSON file, the ABI as a string, or the ABI as a JavaScript Array.                                                                                                                  |
+| **address**    |        `string`        | The contract address.                                                                                                                                                                                                                                                             |
+| **startBlock** | `number \| undefined`  | The block number to start handling events for this contract. Usually the contract deployment block number. **Default: `0`**                                                                                                                                                       |
+| **endBlock**   | `number \| undefined`  | **Default: `undefined`**. The optional block number to stop handling events for this contract. If this field is specified, Ponder will not listen to "live" events for this contract. This field can be used alongside `startBlock` to only process events for a range of blocks. |
+| **blockLimit** | `number \| undefined`  | **Default: `50`**. The maximum block range that Ponder will use when calling `eth_getLogs`.                                                                                                                                                                                       |
+| **isIndexed**  | `boolean \| undefined` | **Default: `true`**. Specifies if Ponder should process events for this contract. If `false`, Ponder will not fetch events for this contract, but this contract will still be available on the event handler `context.contracts`.                                                 |
 
 ### Database
 
@@ -78,7 +80,7 @@ export const config: PonderConfig = {
       rpcUrl: process.env.PONDER_RPC_URL_1
     }
   ],
-  sources: [
+  contracts: [
     {
       name: "ArtGobblers",
       network: "mainnet",
@@ -104,7 +106,7 @@ export const config: PonderConfig = async () => {
     networks: [
       /* ... */
     ],
-    sources: [
+    contracts: [
       {
         name: "ArtGobblers",
         network: "mainnet",
