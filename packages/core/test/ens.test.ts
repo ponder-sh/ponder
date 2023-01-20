@@ -8,6 +8,7 @@ import { buildOptions } from "@/common/options";
 import { Ponder } from "@/Ponder";
 
 import { buildSendFunc } from "./utils/buildSendFunc";
+import { getFreePort } from "./utils/getFreePort";
 
 beforeAll(() => {
   jest
@@ -25,6 +26,7 @@ describe("Ponder", () => {
   beforeEach(async () => {
     rmSync("./test/projects/ens/.ponder", { recursive: true, force: true });
     rmSync("./test/projects/ens/generated", { recursive: true, force: true });
+    process.env.PORT = (await getFreePort()).toString();
 
     const options = buildOptions({
       rootDir: "./test/projects/ens",
@@ -44,6 +46,7 @@ describe("Ponder", () => {
   describe("backfill()", () => {
     beforeEach(async () => {
       await ponder.setup();
+      await ponder.getLatestBlockNumbers();
       await ponder.backfill();
     });
 
@@ -68,16 +71,15 @@ describe("Ponder", () => {
     });
   });
 
-  describe("handlers", () => {
+  describe("processLogs()", () => {
     beforeEach(async () => {
       await ponder.setup();
+      await ponder.getLatestBlockNumbers();
       await ponder.backfill();
-      await ponder.handlerQueue?.process();
+      await ponder.processLogs();
     });
 
     it("inserts data into the entity store", async () => {
-      await ponder.handlerQueue?.process();
-
       const ensNfts = (ponder.database.db as Sqlite.Database)
         .prepare(`SELECT * FROM EnsNft`)
         .all();
@@ -91,8 +93,9 @@ describe("Ponder", () => {
 
     beforeEach(async () => {
       await ponder.setup();
+      await ponder.getLatestBlockNumbers();
       await ponder.backfill();
-      await ponder.handlerQueue?.process();
+      await ponder.processLogs();
 
       gql = async (query) => {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment

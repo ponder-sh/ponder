@@ -10,6 +10,7 @@ import { CachedProvider } from "@/networks/CachedProvider";
 import { Ponder } from "@/Ponder";
 
 import { buildSendFunc } from "./utils/buildSendFunc";
+import { getFreePort } from "./utils/getFreePort";
 
 beforeAll(() => {
   jest
@@ -27,6 +28,7 @@ describe("Ponder", () => {
   beforeEach(async () => {
     rmSync("./test/projects/basic/.ponder", { recursive: true, force: true });
     rmSync("./test/projects/basic/generated", { recursive: true, force: true });
+    process.env.PORT = (await getFreePort()).toString();
 
     const options = buildOptions({
       rootDir: "./test/projects/basic",
@@ -123,9 +125,23 @@ describe("Ponder", () => {
     });
   });
 
+  describe("getLatestBlockNumbers()", () => {
+    beforeEach(async () => {
+      await ponder.setup();
+      await ponder.getLatestBlockNumbers();
+    });
+
+    it("adds an endBlock to every indexed source", async () => {
+      expect(
+        ponder.sources.filter((s) => s.isIndexed).map((s) => s.endBlock)
+      ).not.toContain(undefined);
+    });
+  });
+
   describe("backfill()", () => {
     beforeEach(async () => {
       await ponder.setup();
+      await ponder.getLatestBlockNumbers();
       await ponder.backfill();
     });
 
@@ -139,15 +155,16 @@ describe("Ponder", () => {
     });
   });
 
-  describe("handlers", () => {
+  describe("processLogs()", () => {
     beforeEach(async () => {
       await ponder.setup();
+      await ponder.getLatestBlockNumbers();
       await ponder.backfill();
-      await ponder.handlerQueue?.process();
+      await ponder.processLogs();
     });
 
-    it("finishes processing handlers", async () => {
-      expect(ponder.isHandlingLogs).toBe(false);
+    it("finishes processing logs", async () => {
+      expect(ponder.isProcessingLogs).toBe(false);
     });
   });
 });
