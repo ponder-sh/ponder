@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.26
+
+### Patch Changes
+
+- [`a0a7132`](https://github.com/0xOlias/ponder/commit/a0a713271dbcc6ce2f63f34595b85d63f474f30b) Thanks [@0xOlias](https://github.com/0xOlias)! - Fix leading zeroes in hex values in rpc request params
+
 ## 0.0.25
 
 ### Patch Changes
