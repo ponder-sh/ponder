@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.27
+
+### Patch Changes
+
+- [#79](https://github.com/0xOlias/ponder/pull/79) [`6222818`](https://github.com/0xOlias/ponder/commit/622281822df281246c305b0e165fffc5dfd93fe5) Thanks [@0xOlias](https://github.com/0xOlias)! - Fix file watching on linux
+
 ## 0.0.26
 
 ### Patch Changes
