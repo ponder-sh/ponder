@@ -46,9 +46,9 @@ pnpm dev
 yarn dev
 ```
 
-### 3) Add contracts & networks to `ponder.config.js`
+### 3) Add contracts & networks to `ponder.config.ts`
 
-Ponder uses `ponder.config.js` to determine what blockchain data it needs to fetch. This is where you provide contract addresses, paths to ABI files, RPC URLs, start blocks, and more.
+Ponder uses `ponder.config.ts` to determine what blockchain data it needs to fetch. This is where you provide contract addresses, paths to ABI files, RPC URLs, start blocks, and more.
 
 ### 4) Define your schema
 
