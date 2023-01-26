@@ -25,6 +25,7 @@
     "abitype": "^0.1.7",
     "better-sqlite3": "^7.6.2",
     "cac": "^6.7.14",
+    "chokidar": "^3.5.3",
     "dotenv": "^16.0.1",
     "esbuild": "^0.15.2",
     "ethers": "^5.6.9",
