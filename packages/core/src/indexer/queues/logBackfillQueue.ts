@@ -1,4 +1,4 @@
-import { BigNumber } from "ethers";
+import { utils } from "ethers";
 import fastq from "fastq";
 
 import type { Contract } from "@/config/contracts";
@@ -57,14 +57,11 @@ async function logBackfillWorker(
     provider.send("eth_getLogs", [
       {
         address: contractAddresses,
-        fromBlock: BigNumber.from(fromBlock).toHexString(),
-        toBlock: BigNumber.from(toBlock).toHexString(),
+        fromBlock: utils.hexValue(fromBlock),
+        toBlock: utils.hexValue(toBlock),
       },
     ]),
-    provider.send("eth_getBlockByNumber", [
-      BigNumber.from(toBlock).toHexString(),
-      false,
-    ]),
+    provider.send("eth_getBlockByNumber", [utils.hexValue(toBlock), false]),
   ]);
 
   // The timestamp of the toBlock is required to properly update the cached intervals below.
