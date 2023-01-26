@@ -1,4 +1,4 @@
-import { BigNumber } from "ethers";
+import { BigNumber, utils } from "ethers";
 import fastq from "fastq";
 
 import type { Network } from "@/config/networks";
@@ -56,12 +56,12 @@ async function blockFrontfillWorker(
     provider.send("eth_getLogs", [
       {
         address: contractAddresses,
-        fromBlock: BigNumber.from(blockNumber).toHexString(),
-        toBlock: BigNumber.from(blockNumber).toHexString(),
+        fromBlock: utils.hexValue(BigNumber.from(blockNumber)),
+        toBlock: utils.hexValue(BigNumber.from(blockNumber)),
       },
     ]),
     provider.send("eth_getBlockByNumber", [
-      BigNumber.from(blockNumber).toHexString(),
+      utils.hexValue(BigNumber.from(blockNumber)),
       true,
     ]),
   ]);
