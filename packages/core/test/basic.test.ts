@@ -125,6 +125,10 @@ describe("Ponder", () => {
 
       expect(tableNames).toContain("Entity");
     });
+
+    it("does not watch files", async () => {
+      expect(ponder.killWatchers).toBeFalsy();
+    });
   });
 
   describe("getLatestBlockNumbers()", () => {
@@ -137,6 +141,17 @@ describe("Ponder", () => {
       expect(
         ponder.contracts.filter((s) => s.isIndexed).map((s) => s.endBlock)
       ).not.toContain(undefined);
+    });
+  });
+
+  describe("watch()", () => {
+    beforeEach(async () => {
+      await ponder.setup();
+      ponder.watch();
+    });
+
+    it("registers the killWatchers callback", async () => {
+      expect(ponder.killWatchers).toBeTruthy();
     });
   });
 
