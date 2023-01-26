@@ -13,22 +13,23 @@ The `event` object contains the event params, the transaction that produced the 
 The event being processed. This is the object passed as the first argument to every event handler function.
 
 ```ts filename="Event.d.ts"
-interface ExampleEvent extends EventLog {
+interface ExampleEvent {
   name: string;
   params: {
     /* ExampleEvent-specific parameters */
   };
+  log: Log;
   block: Block;
   transaction: Transaction;
 }
 ```
 
-## `EventLog`
+## `Log`
 
 Generic information about the event log itself.
 
-```ts filename="EventLog.d.ts"
-interface EventLog {
+```ts filename="Log.d.ts"
+interface Log {
   logId: string; // `${log.blockHash}-${log.logIndex}`
   logSortKey: number;
 

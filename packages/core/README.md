@@ -62,7 +62,7 @@ The files in the `handlers/` folder contain event handler functions. Ponder uses
 
 ## Contributing
 
-If you're interested in contributing to Ponder, you can reach out via Twitter DM or open a GitHub discussion thread.
+If you're interested in contributing to Ponder, you can reach out via Twitter DM or open a GitHub issue.
 
 ## Packages
 

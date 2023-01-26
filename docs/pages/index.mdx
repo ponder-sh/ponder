@@ -92,7 +92,9 @@ Here's an event handler to process the `NameRegistered` event. It inserts an `En
 
 {/* prettier-ignore */}
 ```ts filename="EthereumNameService.ts"
-async function handleNameRegistered(event, context) {
+import { ponder } from "../generated";
+
+ponder.on("BaseRegistrar:NameRegistered", async (event, context) => {
   const { EnsName } = context.entities
 
   await EnsName.insert(`${owner}-${name}`, {
@@ -100,7 +102,7 @@ async function handleNameRegistered(event, context) {
     owner: event.params.owner,
     registeredAt: event.block.timestamp,
   })
-}
+})
 ```
 
 ### GraphQL API

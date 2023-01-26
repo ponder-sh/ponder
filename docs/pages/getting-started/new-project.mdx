@@ -109,7 +109,9 @@ The files in the `handlers/` directory contain event handlers. Event handlers ar
 Here's a sample event handler for an ERC721 `Transfer` event.
 
 ```js filename="MyNftContract.ts"
-export async function handleTransfer(event, context) {
+import { ponder } from "../generated";
+
+ponder.on("MyNftContract:Transfer", async (event, context) => {
   const { Token } = context.entities;
   const { MyNftContract } = context.contracts;
 
@@ -120,7 +122,7 @@ export async function handleTransfer(event, context) {
   const tokenUri = await MyNftContract.tokenUri(token.id);
 
   // ...
-}
+});
 ```
 
 ### Query the GraphQL API
