@@ -1,4 +1,4 @@
-import { watch } from "node:fs";
+import chokidar from "chokidar";
 import path from "node:path";
 import pico from "picocolors";
 
@@ -11,9 +11,9 @@ import {
   endBenchmark,
   formatEta,
   formatPercentage,
+  isFileChanged,
   startBenchmark,
 } from "@/common/utils";
-import { isFileChanged } from "@/common/utils";
 import type { ResolvedPonderConfig } from "@/config/buildPonderConfig";
 import { buildContracts, Contract } from "@/config/contracts";
 import type { Network } from "@/config/networks";
@@ -65,7 +65,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   // Hot reloading
   killFrontfillQueues?: () => void;
   killBackfillQueues?: () => void;
-  killWatchers?: () => void;
+  killWatchers?: () => Promise<void>;
 
   // Plugins
   plugins: PonderPlugin[] = [];
@@ -151,8 +151,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.handlerQueue?.kill();
     this.killFrontfillQueues?.();
     this.killBackfillQueues?.();
-    this.killWatchers?.();
     await this.teardownPlugins();
+    await this.killWatchers?.();
   }
 
   // --------------------------- SETUP & RELOADING --------------------------- //
@@ -233,36 +233,32 @@ export class Ponder extends EventEmitter<PonderEvents> {
         .filter((p): p is string => typeof p === "string"),
     ];
 
-    const watchers = watchFiles.map((fileOrDirName) =>
-      watch(fileOrDirName, { recursive: true }, (_, fileName) => {
-        const fullPath =
-          path.basename(fileOrDirName) === fileName
-            ? fileOrDirName
-            : path.join(fileOrDirName, fileName);
-
-        if (fullPath === this.options.PONDER_CONFIG_FILE_PATH) {
-          this.logMessage(
-            MessageKind.ERROR,
-            "detected change in ponder.config.ts. " +
-              pico.bold("Restart the server.")
-          );
-          this.kill();
-          return;
-        }
-
-        if (isFileChanged(fullPath)) {
-          this.logMessage(
-            MessageKind.EVENT,
-            "detected change in " + pico.bold(fileName)
-          );
-          this.reload();
-        }
-      })
-    );
-
-    this.killWatchers = () => {
-      watchers.forEach((w) => w.close());
+    const watcher = chokidar.watch(watchFiles);
+    this.killWatchers = async () => {
+      await watcher.close();
     };
+
+    watcher.on("change", async (filePath) => {
+      if (filePath === this.options.PONDER_CONFIG_FILE_PATH) {
+        this.logMessage(
+          MessageKind.ERROR,
+          "detected change in ponder.config.ts. " +
+            pico.bold("Restart the server.")
+        );
+        this.kill();
+        return;
+      }
+
+      if (isFileChanged(filePath)) {
+        const fileName = path.basename(filePath);
+
+        this.logMessage(
+          MessageKind.EVENT,
+          "detected change in " + pico.bold(fileName)
+        );
+        this.reload();
+      }
+    });
   }
 
   // --------------------------- INDEXER --------------------------- //
