@@ -63,9 +63,10 @@ export const run = async (
       encoding: "utf-8",
     });
     const abiInterface = new ethers.utils.Interface(abi);
-    const eventNames = Object.keys(abiInterface.events);
-
-    const eventNamesToWrite = eventNames.slice(3);
+    const eventNames = Object.keys(abiInterface.events).map((signature) =>
+      signature.slice(0, signature.indexOf("("))
+    );
+    const eventNamesToWrite = eventNames.slice(0, 2);
 
     const handlerFileContents = `
       import { ponder } from '../generated'
