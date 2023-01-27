@@ -44,7 +44,9 @@ export const parseBlock = (block: any): Block => ({
 
   gasLimit: block.gasLimit, // BigNumber
   gasUsed: block.gasUsed, // BigNumber
-  baseFeePerGas: block.baseFeePerGas, // BigNumber
+  // TODO: Update the approach here to avoid RPC response object inconsistencies
+  // getting swallowed by SQLite, see https://github.com/0xOlias/ponder/issues/82
+  baseFeePerGas: block.baseFeePerGas ?? "0x0", // BigNumber
 
   miner: block.miner,
   extraData: block.extraData,
