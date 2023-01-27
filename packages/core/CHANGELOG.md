@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.28
+
+### Patch Changes
+
+- [`b33e538`](https://github.com/0xOlias/ponder/commit/b33e538b518a4fc0b8615ed684acb9bcafaca616) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed RPC response parsing for Optimism
+
 ## 0.0.27
 
 ### Patch Changes
