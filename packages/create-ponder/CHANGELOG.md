@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.16
+
+### Patch Changes
+
+- [#85](https://github.com/0xOlias/ponder/pull/85) [`ce8d773`](https://github.com/0xOlias/ponder/commit/ce8d773e5a6fff665cdea2f3936d7b0e9df6c128) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed handler file gen to use event names instead of signatures
+
 ## 0.0.15
 
 ### Patch Changes
