@@ -111,7 +111,7 @@ Here's a sample event handler for an ERC721 `Transfer` event.
 ```js filename="MyNftContract.ts"
 import { ponder } from "../generated";
 
-ponder.on("MyNftContract:Transfer", async (event, context) => {
+ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
   const { Token } = context.entities;
   const { MyNftContract } = context.contracts;
 

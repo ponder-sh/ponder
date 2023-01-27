@@ -94,7 +94,7 @@ Here's an event handler to process the `NameRegistered` event. It inserts an `En
 ```ts filename="EthereumNameService.ts"
 import { ponder } from "../generated";
 
-ponder.on("BaseRegistrar:NameRegistered", async (event, context) => {
+ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
   const { EnsName } = context.entities
 
   await EnsName.insert(`${owner}-${name}`, {

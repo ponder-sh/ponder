@@ -113,7 +113,7 @@ Contracts injected this way are ready-to-go using the address and network specif
 ```ts filename="SomeNftContract.ts"
 import { ponder } from "../generated";
 
-ponder.on("SomeNftContract:Transfer", async (event, context) => {
+ponder.on("SomeNftContract:Transfer", async ({ event, context }) => {
   const { Token } = context.entities;
   const { SomeNftContract } = context.contracts;
 
