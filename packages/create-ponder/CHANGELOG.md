@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.17
+
+### Patch Changes
+
+- [#89](https://github.com/0xOlias/ponder/pull/89) [`e3ba756`](https://github.com/0xOlias/ponder/commit/e3ba756eed30aa7c4427d2ff6b22b5f07152bcc3) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed bug where array types could not be persisted
+
 ## 0.0.16
 
 ### Patch Changes
