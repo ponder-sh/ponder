@@ -3,6 +3,8 @@ type EnsNft @entity {
   labelHash: String!
   owner: Account!
   transferredAt: Int!
+  stringArray: [String!]!
+  intArray: [Int!]!
 }
 
 type Account @entity {

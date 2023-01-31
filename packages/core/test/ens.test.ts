@@ -133,6 +133,28 @@ describe("Ponder", () => {
       expect(accounts).toHaveLength(68);
     });
 
+    it("returns string array types", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts {
+          id
+          stringArray
+        }
+      `);
+
+      expect(ensNfts[0].stringArray).toEqual(["123", "abc"]);
+    });
+
+    it("returns int array types", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts {
+          id
+          intArray
+        }
+      `);
+
+      expect(ensNfts[0].intArray).toEqual([123, 456]);
+    });
+
     it("limits", async () => {
       const { ensNfts } = await gql(`
         ensNfts(first: 2) {
