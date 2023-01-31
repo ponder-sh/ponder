@@ -7,6 +7,8 @@ ponder.on(
       owner: event.params.to,
       labelHash: event.params.tokenId.toHexString(),
       transferredAt: event.block.timestamp,
+      stringArray: ["123", "abc"],
+      intArray: [123, 456],
     });
 
     await context.entities.Account.upsert(event.params.from, {

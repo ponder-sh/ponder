@@ -108,6 +108,8 @@ export const getColumnValuePairs = (instance: Record<string, unknown>) => {
         persistedValue = value ? 1 : 0;
       } else if (typeof value === "undefined") {
         persistedValue = null;
+      } else if (Array.isArray(value)) {
+        persistedValue = JSON.stringify(value);
       } else {
         persistedValue = value as number | string | null;
       }
