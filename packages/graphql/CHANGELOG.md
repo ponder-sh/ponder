@@ -1,5 +1,12 @@
 # @ponder/graphql
 
+## 0.0.22
+
+### Patch Changes
+
+- Updated dependencies [[`e3ba756`](https://github.com/0xOlias/ponder/commit/e3ba756eed30aa7c4427d2ff6b22b5f07152bcc3)]:
+  - @ponder/core@0.0.29
+
 ## 0.0.21
 
 ### Patch Changes
