@@ -281,7 +281,7 @@ export class PostgresEntityStore implements EntityStore {
       }
 
       if (field.kind === FieldKind.LIST) {
-        deserializedInstance[fieldName] = (value as string).split(",");
+        deserializedInstance[fieldName] = JSON.parse(value as string);
         return;
       }
 
