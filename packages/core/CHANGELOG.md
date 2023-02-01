@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.30
+
+### Patch Changes
+
+- [#91](https://github.com/0xOlias/ponder/pull/91) [`555888f`](https://github.com/0xOlias/ponder/commit/555888f1f9a5ba91ca1f1da8529aab3c7f52b87b) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed inserting and deleting individual entities when using postgres
+
 ## 0.0.29
 
 ### Patch Changes
