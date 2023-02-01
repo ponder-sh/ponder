@@ -46,7 +46,7 @@ export class PostgresEntityStore implements EntityStore {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = ?`;
+    const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = $1`;
     const instance = await this.db.oneOrNone(statement, [id]);
 
     if (!instance) return null;
@@ -154,7 +154,7 @@ export class PostgresEntityStore implements EntityStore {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const statement = `DELETE FROM "${entityName}" WHERE "id" = ?`;
+    const statement = `DELETE FROM "${entityName}" WHERE "id" = $1`;
 
     const { rowCount } = await this.db.result(statement, [id]);
 
@@ -281,7 +281,7 @@ export class PostgresEntityStore implements EntityStore {
       }
 
       if (field.kind === FieldKind.LIST) {
-        deserializedInstance[fieldName] = (value as string).split(",");
+        deserializedInstance[fieldName] = JSON.parse(value as string);
         return;
       }
 
