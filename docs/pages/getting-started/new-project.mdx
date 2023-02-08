@@ -21,40 +21,40 @@ The `--from-etherscan` option bootstraps a Ponder project for a deployed contrac
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tab>
-```bash
-pnpm create ponder --from-etherscan ...
+```
+pnpm create ponder --from-etherscan <link>
 ```
 </Tab>
   <Tab>
-```bash
-yarn create ponder --from-etherscan ...
+```
+yarn create ponder --from-etherscan <link>
 ```
 </Tab>
   <Tab>
-```bash
-npm create ponder@latest -- --from-etherscan ...
+```
+npm create ponder@latest -- --from-etherscan <link>
 ```
 </Tab>
 </Tabs>
 
 #### b) Blank slate
 
-If you don't have a contract in mind, this command will create a Ponder project for an dummy NFT contract. Soon, `create-ponder` will support more template options, like Foundry and Hardhat projects.
+If you don't have a contract in mind, this command will create a Ponder project for a sample NFT contract. Soon, `create-ponder` will support more template options, like Foundry and Hardhat projects.
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tab>
-```bash
+```
 pnpm create ponder
 ```
 </Tab>
   <Tab>
-```bash
+```
 yarn create ponder
 ```
 </Tab>
   <Tab>
-```bash
+```
 npm create ponder@latest
 ```
 </Tab>
@@ -62,24 +62,24 @@ npm create ponder@latest
 
 ### Start the development server
 
-The dev server is an important part of the Ponder development workflow. Just like Next.js, the dev server automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
+The dev server is central to the Ponder development workflow. Just like Next.js, the dev server automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tab>
-```bash
+```
 cd ponder
 pnpm dev
 ```
 </Tab>
   <Tab>
-```bash
+```
 cd ponder
 yarn dev
 ```
 </Tab>
   <Tab>
-```bash
+```
 cd ponder
 npm run dev
 ```
@@ -92,8 +92,9 @@ Ponder fetches data using the Ethereum RPC API. To get started, you'll need an R
 
 Open up `.env.local` and paste in RPC URLs for any networks that your project uses:
 
-```bash filename=".env.local"
-PONDER_RPC_URL_1 = https://eth-mainnet.g.alchemy.com/v2/...
+{/* prettier-ignore */}
+```js filename=".env.local"
+PONDER_RPC_URL_1 = "https://eth-mainnet.g.alchemy.com/v2/..."
 ```
 
 ### Define your schema
@@ -104,11 +105,11 @@ Using this schema, Ponder automatically generates a GraphQL API that serves enti
 
 ### Write event handlers
 
-The files in the `handlers/` directory contain event handlers. Event handlers are JavaScript functions that accept a contract event and insert data into the entity store.
+The files in the `src/` directory contain event handlers. Event handlers are JavaScript functions that accept a contract event and insert data into the entity store.
 
 Here's a sample event handler for an ERC721 `Transfer` event.
 
-```js filename="MyNftContract.ts"
+```ts filename="src/MyNftContract.ts"
 import { ponder } from "../generated";
 
 ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
@@ -127,6 +128,6 @@ ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
 
 ### Query the GraphQL API
 
-As you write your event handlers and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphl` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
+As you write your event handlers and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
 
 </div>

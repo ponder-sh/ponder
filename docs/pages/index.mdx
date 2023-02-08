@@ -93,7 +93,7 @@ Event handlers are JavaScript functions that accept a contract event and insert 
 Here's an event handler to process the `NameRegistered` event. It inserts an `EnsName` entity into the store using the event parameters and the block timestamp.
 
 {/* prettier-ignore */}
-```ts filename="EthereumNameService.ts"
+```ts filename="src/EthereumNameService.ts"
 import { ponder } from "../generated";
 
 ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {

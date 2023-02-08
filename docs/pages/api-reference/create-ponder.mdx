@@ -11,17 +11,17 @@ This command line interface (CLI) bootstraps a TypeScript project directory with
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tab>
-```bash
+```
 pnpm create ponder {...options}
 ```
 </Tab>
   <Tab>
-```bash
+```
 yarn create ponder {...options}
 ```
 </Tab>
   <Tab>
-```bash
+```
 npm create ponder@latest {...options}
 ```
 </Tab>
@@ -29,9 +29,9 @@ npm create ponder@latest {...options}
 
 ## Options
 
-| option                      | description                                                              |
-| :-------------------------- | :----------------------------------------------------------------------- |
-| `--from-subgraph [path]`    | Bootstrap the project from a Graph Protocol subgraph repository          |
-| `--from-etherscan [url]`    | Bootstrap the project from an Etherscan contract.                        |
-| `--etherscan-api-key [key]` | An Etherscan API key to avoid rate limits with `--from-etherscan`.       |
-| `--dir [path]`              | Create the Ponder project in the specified directory. Default: `ponder`. |
+| option                      | description                                                     |
+| :-------------------------- | :-------------------------------------------------------------- |
+| `--from-subgraph <path>`    | `[string]` path to a Graph Protocol subgraph repository         |
+| `--from-etherscan <url>`    | `[string]` link to a contract page on Etherscan                 |
+| `--etherscan-api-key <key>` | `[string]` Etherscan API key to use with `--from-etherscan`     |
+| `--dir <path>`              | `[string]` path to use for the project root (default: `ponder`) |

@@ -12,7 +12,7 @@ The `event` object contains the event params, the transaction that produced the 
 
 The event being processed. This is the object passed as the first argument to every event handler function.
 
-```ts filename="Event.d.ts"
+```ts
 interface ExampleEvent {
   name: string;
   params: {
@@ -28,7 +28,7 @@ interface ExampleEvent {
 
 Generic information about the event log itself.
 
-```ts filename="Log.d.ts"
+```ts
 interface Log {
   logId: string; // `${log.blockHash}-${log.logIndex}`
   logSortKey: number;
@@ -52,7 +52,7 @@ interface Log {
 
 The block containing the transaction that emitted the event log.
 
-```ts filename="Block.d.ts"
+```ts
 interface Block {
   hash: string;
   number: number;
@@ -79,7 +79,7 @@ interface Block {
 
 The transaction that emitted the event log.
 
-```ts filename="Transaction.d.ts"
+```ts
 interface Transaction {
   hash: string;
   nonce: number;

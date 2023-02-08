@@ -17,18 +17,18 @@ This command creates a project folder called `ponder` in the current working dir
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tab>
-```bash
-pnpm create ponder --from-subgraph ...
+```
+pnpm create ponder --from-subgraph <path>
 ```
 </Tab>
   <Tab>
-```bash
-yarn create ponder --from-subgraph ...
+```
+yarn create ponder --from-subgraph <path>
 ```
 </Tab>
   <Tab>
-```bash
-npm create ponder@latest -- --from-subgraph ...
+```
+npm create ponder@latest -- --from-subgraph <path>
 ```
 </Tab>
 </Tabs>
@@ -40,19 +40,19 @@ The dev server is an important part of the Ponder development workflow. Just lik
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tab>
-```bash
+```
 cd ponder
 pnpm dev
 ```
 </Tab>
   <Tab>
-```bash
+```
 cd ponder
 yarn dev
 ```
 </Tab>
   <Tab>
-```bash
+```
 cd ponder
 npm run dev
 ```
@@ -65,13 +65,14 @@ Ponder fetches data using the Ethereum RPC API. To get started, you'll need an R
 
 Open up `.env.local` and paste in your RPC URL:
 
-```bash filename=".env.local"
-PONDER_RPC_URL_1 = https://eth-mainnet.g.alchemy.com/v2/...
+{/* prettier-ignore */}
+```js filename=".env.local"
+PONDER_RPC_URL_1 = "https://eth-mainnet.g.alchemy.com/v2/..."
 ```
 
 ### Write event handler functions
 
-Open an event handler file in the `handlers/` directory. Ponder event handler functions are very similar to subgraph mapping functions, with some key differences. You will need to refactor your code, but because the local dev server has hot reloading, you'll get instant feedback on your changes.
+Open an event handler file in the `src/` directory. Ponder event handler functions are very similar to subgraph mapping functions, with some key differences. You will need to refactor your code, but because the local dev server has hot reloading, you'll get instant feedback on your changes.
 
 See [tips for migrating mapping functions](/getting-started/migrate-subgraph#tips-for-migrating-mapping-functions) for more details.
 
@@ -110,7 +111,7 @@ With Ponder, entity models and contracts are injected as properties of `context`
 
 Contracts injected this way are ready-to-go using the address and network specified in `ponder.config.ts`. (You don't need to call `Contract.bind(address)`. The contracts are normal `ethers.Contract` objects that are already connected to a provider.
 
-```ts filename="SomeNftContract.ts"
+```ts filename="src/SomeNftContract.ts"
 import { ponder } from "../generated";
 
 ponder.on("SomeNftContract:Transfer", async ({ event, context }) => {
