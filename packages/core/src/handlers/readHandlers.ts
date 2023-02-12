@@ -78,7 +78,7 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
       bundle: false,
       format: "cjs",
       logLevel: "silent",
-      sourcemap: "linked",
+      sourcemap: "inline",
     });
   } catch (err) {
     const error = err as Error & { errors: Message[]; warnings: Message[] };

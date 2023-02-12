@@ -1,6 +1,5 @@
 import { Contract as EthersContract } from "ethers";
 import fastq from "fastq";
-import pico from "picocolors";
 
 import { logger } from "@/common/logger";
 import { Contract } from "@/config/contracts";
@@ -8,6 +7,7 @@ import type { Ponder } from "@/Ponder";
 import type { Log } from "@/types";
 
 import { decodeLog } from "./decodeLog";
+import { getStackTraceAndCodeFrame } from "./getStackTrace";
 import type { Handlers } from "./readHandlers";
 
 export type HandlerTask = Log;
@@ -133,18 +133,20 @@ export const createHandlerQueue = ({
 
   const queue = fastq.promise<unknown, HandlerTask>({}, handlerWorker, 1);
 
-  queue.error(
-    (
-      error /* TODO use the task arg to provide context to the user about the error. */
-    ) => {
-      if (error) {
-        ponder.emit("dev_error", {
-          context: "handler file error: " + pico.bold(error.message),
-          error,
-        });
+  /* TODO use the task arg to provide context to the user about the error. */
+  queue.error(async (error) => {
+    if (error) {
+      const result = await getStackTraceAndCodeFrame(error);
+      if (result) {
+        error.stack = `${result.stackTrace}\n` + result.codeFrame;
       }
+
+      ponder.emit("dev_error", {
+        context: "handler file error",
+        error,
+      });
     }
-  );
+  });
 
   queue.pause();
 

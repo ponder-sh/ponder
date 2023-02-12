@@ -213,7 +213,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.logsAddedToTimestamp = 0;
     this.ui.handlersTotal = 0;
     this.ui.handlersCurrent = 0;
-    this.ui.handlerError = null;
+    this.ui.handlerError = false;
 
     this.codegen();
 
@@ -379,16 +379,15 @@ export class Ponder extends EventEmitter<PonderEvents> {
     if (this.options.LOG_TYPE === "codegen") return;
 
     this.handlerQueue?.kill();
-    this.logMessage(MessageKind.ERROR, e.context);
+    this.logMessage(MessageKind.ERROR, e.context + `\n` + e.error?.stack);
 
-    // If not the dev server, log the entire error and kill the app.
+    // If prod, kill the app.
     if (this.options.LOG_TYPE === "start") {
-      if (e.error) logger.error(e.error);
       await this.kill();
       return;
     }
 
-    this.ui = { ...this.ui, handlerError: e };
+    this.ui = { ...this.ui, handlerError: true };
   };
 
   private backfill_networkConnected: PonderEvents["backfill_networkConnected"] =

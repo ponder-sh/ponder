@@ -81,9 +81,11 @@ importers:
 
   packages/core:
     specifiers:
+      '@babel/code-frame': ^7.18.6
       '@ethersproject/abi': ^5.6.4
       '@ethersproject/bytes': ^5.7.0
       '@ethersproject/providers': ^5.6.8
+      '@types/babel__code-frame': ^7.0.3
       '@types/better-sqlite3': ^7.6.0
       '@types/glob': ^8.0.0
       '@types/jest': ^29.2.3
@@ -94,6 +96,7 @@ importers:
       better-sqlite3: ^7.6.2
       cac: ^6.7.14
       chokidar: ^3.5.3
+      data-uri-to-buffer: 3.0.1
       dotenv: ^16.0.1
       esbuild: ^0.15.2
       ethers: ^5.6.9
@@ -106,12 +109,15 @@ importers:
       picocolors: ^1.0.0
       prettier: ^2.6.2
       react: '17'
+      source-map: ^0.7.4
+      stacktrace-parser: ^0.1.10
       supertest: ^6.3.3
       tsconfig-replace-paths: ^0.0.11
       typed-emitter: ^2.1.0
       typescript: ^4.8.4
       zod: ^3.20.2
     dependencies:
+      '@babel/code-frame': 7.18.6
       '@ethersproject/abi': 5.6.4
       '@ethersproject/bytes': 5.7.0
       '@ethersproject/providers': 5.6.8
@@ -119,6 +125,7 @@ importers:
       better-sqlite3: 7.6.2
       cac: 6.7.14
       chokidar: 3.5.3
+      data-uri-to-buffer: 3.0.1
       dotenv: 16.0.1
       esbuild: 0.15.4
       ethers: 5.6.9
@@ -130,9 +137,12 @@ importers:
       picocolors: 1.0.0
       prettier: 2.6.2
       react: 17.0.2
+      source-map: 0.7.4
+      stacktrace-parser: 0.1.10
       typescript: 4.8.4
       zod: 3.20.2
     devDependencies:
+      '@types/babel__code-frame': 7.0.3
       '@types/better-sqlite3': 7.6.0
       '@types/glob': 8.0.0
       '@types/jest': 29.2.3
@@ -2233,6 +2243,10 @@ packages:
       '@types/estree': 1.0.0
     dev: false
 
+  /@types/babel__code-frame/7.0.3:
+    resolution: {integrity: sha512-2TN6oiwtNjOezilFVl77zwdNPwQWaDBBCCWWxyo1ctiO3vAtd7H/aB/CBJdw9+kqq3+latD0SXoedIuHySSZWw==}
+    dev: true
+
   /@types/babel__core/7.1.20:
     resolution: {integrity: sha512-PVb6Bg2QuscZ30FvOU7z4guG6c926D9YRvOxEaelzndpMsvP+YM74Q/dAFASpg2l6+XLalxSGxcq/lrgYWZtyQ==}
     dependencies:
@@ -3568,6 +3582,11 @@ packages:
   /damerau-levenshtein/1.0.8:
     resolution: {integrity: sha512-sdQSFB7+llfUcQHUQO3+B8ERRj0Oa4w9POWMI/puGtuf7gFywGmkaLCElnudfTiKZV+NvHqL0ifzdrI8Ro7ESA==}
     dev: true
+
+  /data-uri-to-buffer/3.0.1:
+    resolution: {integrity: sha512-WboRycPNsVw3B3TL559F7kuBUM4d8CgMEvk6xEJlOp7OBPjt6G7z8WMWlD2rOFZLk6OYfFIUGsCOWzcQH9K2og==}
+    engines: {node: '>= 6'}
+    dev: false
 
   /dataloader/1.4.0:
     resolution: {integrity: sha512-68s5jYdlvasItOJnCuI2Q9s4q98g0pCyL3HrcKJu8KNugUl8ahgmZYg38ysLTgQjjXX3H8CJLkAvWrclWfcalw==}
@@ -8387,6 +8406,13 @@ packages:
     dependencies:
       escape-string-regexp: 2.0.0
 
+  /stacktrace-parser/0.1.10:
+    resolution: {integrity: sha512-KJP1OCML99+8fhOHxwwzyWrlUuVX5GQ0ZpJTd1DFXhdkrvg1szxfHhawXUZ3g9TkXORQd4/WG68jMlQZ2p8wlg==}
+    engines: {node: '>=6'}
+    dependencies:
+      type-fest: 0.7.1
+    dev: false
+
   /statuses/1.5.0:
     resolution: {integrity: sha512-OpZ3zP+jT1PI7I8nemJX4AKmAX070ZkYPVWV/AaKTJl+tXCTGyVdC1a4SL8RUQYEwk/f34ZX8UTykN68FwrqAA==}
     engines: {node: '>= 0.6'}
@@ -8825,6 +8851,11 @@ packages:
     resolution: {integrity: sha512-q+MB8nYR1KDLrgr4G5yemftpMC7/QLqVndBmEEdqzmNj5dcFOO4Oo8qlwZE3ULT3+Zim1F8Kq4cBnikNhlCMlg==}
     engines: {node: '>=8'}
     dev: true
+
+  /type-fest/0.7.1:
+    resolution: {integrity: sha512-Ne2YiiGN8bmrmJJEuTWTLJR32nh/JdL1+PSicowtNb0WFpn59GK8/lfD61bVtzguz7b3PBt74nxpv/Pw5po5Rg==}
+    engines: {node: '>=8'}
+    dev: false
 
   /type-fest/0.8.1:
     resolution: {integrity: sha512-4dbzIzqvjtgiM5rw1k5rEHtBANKmdudhGyBEajN01fEyhaAIhsoKNy6y7+IN93IfpFtwY9iqi7kD+xwKhQsNJA==}
