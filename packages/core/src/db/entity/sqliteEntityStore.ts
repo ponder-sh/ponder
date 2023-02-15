@@ -1,5 +1,6 @@
 import type Sqlite from "better-sqlite3";
 
+import { getStackTraceAndCodeFrame } from "@/handlers/getStackTrace";
 import type { Ponder } from "@/Ponder";
 import { DerivedField, FieldKind, ScalarField, Schema } from "@/schema/types";
 
@@ -20,19 +21,33 @@ export class SqliteEntityStore implements EntityStore {
     this.ponder = ponder;
   }
 
-  errorWrapper<T extends (...args: any) => any>(func: T) {
-    return (...args: any) => {
+  errorWrapper = <T extends Array<any>, U>(fn: (...args: T) => U) => {
+    return (...args: T): U => {
       try {
-        return func(...args);
+        if (!this.schema) {
+          throw new Error(
+            `EntityStore has not been initialized with a schema yet`
+          );
+        }
+
+        return fn(...args);
       } catch (err) {
+        const error = err as Error;
+
+        const result = getStackTraceAndCodeFrame(error, this.ponder);
+        if (result) {
+          error.stack = `${result.stackTrace}\n` + result.codeFrame;
+        }
+
         this.ponder.emit("dev_error", {
-          context: "SQLite error",
-          error: err as Error,
+          context: `SQLite error: ${error.message}`,
+          error,
         });
-        return undefined as unknown as T;
+
+        return undefined as unknown as U;
       }
     };
-  }
+  };
 
   migrate(schema?: Schema) {
     if (!schema) return;
@@ -69,42 +84,17 @@ export class SqliteEntityStore implements EntityStore {
     }
   }
 
-  getEntity(entityName: string, id: string) {
-    try {
-      if (!this.schema) {
-        throw new Error(
-          `EntityStore has not been initialized with a schema yet`
-        );
-      }
+  getEntity = this.errorWrapper((entityName: string, id: string) => {
+    const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = ?`;
+    const instance = this.db.prepare(statement).get(id);
 
-      const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = ?`;
-      const instance = this.db.prepare(statement).get(id);
+    if (!instance) return null;
 
-      if (!instance) return null;
+    return this.deserialize(entityName, instance);
+  });
 
-      return this.deserialize(entityName, instance);
-    } catch (err) {
-      this.ponder.emit("dev_error", {
-        context: "SQLite error",
-        error: err as Error,
-      });
-
-      return null;
-    }
-  }
-
-  insertEntity(
-    entityName: string,
-    id: string,
-    instance: Record<string, unknown>
-  ) {
-    try {
-      if (!this.schema) {
-        throw new Error(
-          `EntityStore has not been initialized with a schema yet`
-        );
-      }
-
+  insertEntity = this.errorWrapper(
+    (entityName: string, id: string, instance: Record<string, unknown>) => {
       // If `instance.id` is defined, replace it with the id passed as a parameter.
       // Should also log a warning here.
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -123,28 +113,11 @@ export class SqliteEntityStore implements EntityStore {
       const insertedEntity = this.db.prepare(statement).get(...insertValues);
 
       return this.deserialize(entityName, insertedEntity);
-    } catch (err) {
-      this.ponder.emit("dev_error", {
-        context: "SQLite error",
-        error: err as Error,
-      });
-
-      return {};
     }
-  }
+  );
 
-  updateEntity(
-    entityName: string,
-    id: string,
-    instance: Record<string, unknown>
-  ) {
-    try {
-      if (!this.schema) {
-        throw new Error(
-          `EntityStore has not been initialized with a schema yet`
-        );
-      }
-
+  updateEntity = this.errorWrapper(
+    (entityName: string, id: string, instance: Record<string, unknown>) => {
       const pairs = getColumnValuePairs(instance);
 
       const updatePairs = pairs.filter(({ column }) => column !== "id");
@@ -159,28 +132,11 @@ export class SqliteEntityStore implements EntityStore {
       const updatedEntity = this.db.prepare(statement).get(...updateValues);
 
       return this.deserialize(entityName, updatedEntity);
-    } catch (err) {
-      this.ponder.emit("dev_error", {
-        context: "SQLite error",
-        error: err as Error,
-      });
-
-      return {};
     }
-  }
+  );
 
-  upsertEntity(
-    entityName: string,
-    id: string,
-    instance: Record<string, unknown>
-  ) {
-    try {
-      if (!this.schema) {
-        throw new Error(
-          `EntityStore has not been initialized with a schema yet`
-        );
-      }
-
+  upsertEntity = this.errorWrapper(
+    (entityName: string, id: string, instance: Record<string, unknown>) => {
       // If `instance.id` is defined, replace it with the id passed as a parameter.
       // Should also log a warning here.
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -207,48 +163,20 @@ export class SqliteEntityStore implements EntityStore {
         .get(...insertValues, ...updateValues);
 
       return this.deserialize(entityName, upsertedEntity);
-    } catch (err) {
-      this.ponder.emit("dev_error", {
-        context: "SQLite error",
-        error: err as Error,
-      });
-
-      return {};
     }
-  }
+  );
 
-  deleteEntity(entityName: string, id: string) {
-    try {
-      if (!this.schema) {
-        throw new Error(
-          `EntityStore has not been initialized with a schema yet`
-        );
-      }
+  deleteEntity = this.errorWrapper((entityName: string, id: string) => {
+    const statement = `DELETE FROM "${entityName}" WHERE "id" = ?`;
 
-      const statement = `DELETE FROM "${entityName}" WHERE "id" = ?`;
+    const { changes } = this.db.prepare(statement).run(id);
 
-      const { changes } = this.db.prepare(statement).run(id);
+    // `changes` is equal to the number of rows that were updated/inserted/deleted by the query.
+    return changes === 1;
+  });
 
-      // `changes` is equal to the number of rows that were updated/inserted/deleted by the query.
-      return changes === 1;
-    } catch (err) {
-      this.ponder.emit("dev_error", {
-        context: "SQLite error",
-        error: err as Error,
-      });
-
-      return false;
-    }
-  }
-
-  getEntities(entityName: string, filter?: EntityFilter) {
-    try {
-      if (!this.schema) {
-        throw new Error(
-          `EntityStore has not been initialized with a schema yet`
-        );
-      }
-
+  getEntities = this.errorWrapper(
+    (entityName: string, filter?: EntityFilter) => {
       const where = filter?.where;
       const first = filter?.first;
       const skip = filter?.skip;
@@ -304,29 +232,12 @@ export class SqliteEntityStore implements EntityStore {
       return instances.map((instance) =>
         this.deserialize(entityName, instance)
       );
-    } catch (err) {
-      this.ponder.emit("dev_error", {
-        context: "SQLite error",
-        error: err as Error,
-      });
-
-      return [];
     }
-  }
+  );
 
-  getEntityDerivedField(
-    entityName: string,
-    id: string,
-    derivedFieldName: string
-  ) {
-    try {
-      if (!this.schema) {
-        throw new Error(
-          `EntityStore has not been initialized with a schema yet`
-        );
-      }
-
-      const entity = this.schema.entityByName[entityName];
+  getEntityDerivedField = this.errorWrapper(
+    (entityName: string, id: string, derivedFieldName: string) => {
+      const entity = this.schema?.entityByName[entityName];
       if (!entity) {
         throw new Error(`Entity not found in schema: ${entityName}`);
       }
@@ -352,25 +263,12 @@ export class SqliteEntityStore implements EntityStore {
       );
 
       return derivedFieldInstances;
-    } catch (err) {
-      this.ponder.emit("dev_error", {
-        context: "SQLite error",
-        error: err as Error,
-      });
-
-      return [];
     }
-  }
+  );
 
-  deserialize(entityName: string, instance: Record<string, unknown>) {
-    try {
-      if (!this.schema) {
-        throw new Error(
-          `EntityStore has not been initialized with a schema yet`
-        );
-      }
-
-      const entity = this.schema.entityByName[entityName];
+  deserialize = this.errorWrapper(
+    (entityName: string, instance: Record<string, unknown>) => {
+      const entity = this.schema?.entityByName[entityName];
       if (!entity) {
         throw new Error(`Entity not found in schema: ${entityName}`);
       }
@@ -397,13 +295,6 @@ export class SqliteEntityStore implements EntityStore {
       });
 
       return deserializedInstance as Record<string, unknown>;
-    } catch (err) {
-      this.ponder.emit("dev_error", {
-        context: "SQLite error",
-        error: err as Error,
-      });
-
-      return {};
     }
-  }
+  );
 }
