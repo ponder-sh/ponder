@@ -50,7 +50,10 @@ export const buildCacheStore = ({ ponder }: { ponder: Ponder }) => {
       return new SqliteCacheStore({ db: ponder.database.db });
     }
     case "postgres": {
-      return new PostgresCacheStore({ db: ponder.database.db });
+      return new PostgresCacheStore({
+        db: ponder.database.db,
+        pgp: ponder.database.pgp,
+      });
     }
   }
 };

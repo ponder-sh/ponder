@@ -4,7 +4,6 @@ import { logger } from "@/common/logger";
 import { merge_intervals } from "@/common/utils";
 import type { Block, Log, Transaction } from "@/types";
 
-import { pgp } from "../db";
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
 
 const POSTGRES_TABLE_PREFIX = "__ponder__v1__";
@@ -17,12 +16,20 @@ const contractCallsTableName = `${POSTGRES_TABLE_PREFIX}contractCalls`;
 
 export class PostgresCacheStore implements CacheStore {
   db: PgPromise.IDatabase<unknown>;
+  pgp: PgPromise.IMain;
 
   logsColumnSet: PgPromise.ColumnSet;
   transactionsColumnSet: PgPromise.ColumnSet;
 
-  constructor({ db }: { db: PgPromise.IDatabase<unknown> }) {
+  constructor({
+    db,
+    pgp,
+  }: {
+    db: PgPromise.IDatabase<unknown>;
+    pgp: PgPromise.IMain;
+  }) {
     this.db = db;
+    this.pgp = pgp;
 
     this.logsColumnSet = new pgp.helpers.ColumnSet(
       [
@@ -263,7 +270,7 @@ export class PostgresCacheStore implements CacheStore {
     if (logs.length === 0) return;
 
     const query =
-      pgp.helpers.insert(logs, this.logsColumnSet) +
+      this.pgp.helpers.insert(logs, this.logsColumnSet) +
       `ON CONFLICT("logId") DO NOTHING`;
 
     await this.db.none(query);
@@ -326,7 +333,7 @@ export class PostgresCacheStore implements CacheStore {
     if (transactions.length === 0) return;
 
     const query =
-      pgp.helpers.insert(transactions, this.transactionsColumnSet) +
+      this.pgp.helpers.insert(transactions, this.transactionsColumnSet) +
       `ON CONFLICT("hash") DO NOTHING`;
 
     await this.db.none(query);

@@ -11,10 +11,19 @@ import {
 
 export class PostgresEntityStore implements EntityStore {
   db: PgPromise.IDatabase<unknown>;
+  pgp: PgPromise.IMain;
+
   schema?: Schema;
 
-  constructor({ db }: { db: PgPromise.IDatabase<unknown> }) {
+  constructor({
+    db,
+    pgp,
+  }: {
+    db: PgPromise.IDatabase<unknown>;
+    pgp: PgPromise.IMain;
+  }) {
     this.db = db;
+    this.pgp = pgp;
   }
 
   async migrate(schema?: Schema) {

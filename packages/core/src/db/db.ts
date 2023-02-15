@@ -4,13 +4,8 @@ import PgPromise from "pg-promise";
 
 import { logger } from "@/common/logger";
 import { ensureDirExists } from "@/common/utils";
+import { ResolvedPonderConfig } from "@/config/buildPonderConfig";
 import type { Ponder } from "@/Ponder";
-
-export const pgp = PgPromise({
-  query: (e) => {
-    logger.trace({ query: e.query });
-  },
-});
 
 export interface SqliteDb {
   kind: "sqlite";
@@ -20,43 +15,67 @@ export interface SqliteDb {
 export interface PostgresDb {
   kind: "postgres";
   db: PgPromise.IDatabase<unknown>;
+  pgp: PgPromise.IMain;
 }
 
 export type PonderDatabase = SqliteDb | PostgresDb;
 
 export const buildDb = ({ ponder }: { ponder: Ponder }): PonderDatabase => {
-  if (!ponder.config.database) {
-    if (process.env.DATABASE_URL) {
-      const db = pgp({
-        connectionString: process.env.DATABASE_URL,
-        keepAlive: true,
-      });
+  let dbConfig: NonNullable<ResolvedPonderConfig["database"]>;
 
-      return { kind: "postgres", db };
+  if (ponder.config.database) {
+    if (ponder.config.database.kind === "postgres") {
+      dbConfig = {
+        kind: "postgres",
+        connectionString: ponder.config.database.connectionString,
+      };
     } else {
-      const dbFilePath = path.join(ponder.options.PONDER_DIR_PATH, "cache.db");
-      ensureDirExists(dbFilePath);
-      const db = Sqlite(dbFilePath, { verbose: logger.trace });
-      db.pragma("journal_mode = WAL");
-
-      return { kind: "sqlite", db };
+      dbConfig = {
+        kind: "sqlite",
+        filename: ponder.config.database.filename,
+      };
+    }
+  } else {
+    if (process.env.DATABASE_URL) {
+      dbConfig = {
+        kind: "postgres",
+        connectionString: process.env.DATABASE_URL,
+      };
+    } else {
+      const filePath = path.join(ponder.options.PONDER_DIR_PATH, "cache.db");
+      ensureDirExists(filePath);
+      dbConfig = {
+        kind: "sqlite",
+        filename: filePath,
+      };
     }
   }
 
-  // If a database was provided, use it.
-  if (ponder.config.database.kind === "sqlite") {
-    const dbFilePath = ponder.config.database.filename;
-    ensureDirExists(dbFilePath);
-    const db = Sqlite(dbFilePath, { verbose: logger.trace });
+  if (dbConfig.kind === "sqlite") {
+    const db = Sqlite(dbConfig.filename, { verbose: logger.trace });
     db.pragma("journal_mode = WAL");
 
     return { kind: "sqlite", db };
   } else {
+    const pgp = PgPromise({
+      query: (e) => {
+        logger.trace({ query: e.query });
+      },
+      error: (e) => {
+        const error = e.error ? e.error : e;
+        const query = e.query;
+
+        console.log({ error, query });
+
+        throw new Error(error);
+      },
+    });
+
     const db = pgp({
-      connectionString: ponder.config.database.connectionString,
+      connectionString: process.env.DATABASE_URL,
       keepAlive: true,
     });
 
-    return { kind: "postgres", db };
+    return { kind: "postgres", db, pgp };
   }
 };
