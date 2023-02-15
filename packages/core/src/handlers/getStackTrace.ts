@@ -1,62 +1,68 @@
 import { codeFrameColumns } from "@babel/code-frame";
+import {
+  DecodedSourceMap,
+  originalPositionFor,
+  sourceContentFor,
+  TraceMap,
+} from "@jridgewell/trace-mapping";
 import type { MimeBuffer } from "data-uri-to-buffer";
 import dataUriToBuffer from "data-uri-to-buffer";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { RawSourceMap } from "source-map";
-import { SourceMapConsumer } from "source-map";
 import { parse as parseStackTrace } from "stacktrace-parser";
 
-export const getStackTraceAndCodeFrame = async (error: Error) => {
+import type { Ponder } from "@/Ponder";
+
+export const getStackTraceAndCodeFrame = (error: Error, ponder: Ponder) => {
   if (!error.stack) return null;
+
+  const buildDir = path.join(ponder.options.PONDER_DIR_PATH, "out");
 
   const stackTrace = parseStackTrace(error.stack);
 
   let codeFrame: string | null = null;
 
-  const sourceMappedStackTrace = await Promise.all(
-    stackTrace.map(async (frame, index) => {
-      if (!frame.file || !frame.lineNumber) return frame;
+  const sourceMappedStackTrace = stackTrace.map((frame) => {
+    if (!frame.file || !frame.lineNumber) return frame;
 
-      const sourceMappedStackFrame = await getSourceMappedStackFrame(
-        frame.file,
-        frame.lineNumber,
-        frame.column
-      );
+    const sourceMappedStackFrame = getSourceMappedStackFrame(
+      frame.file,
+      frame.lineNumber,
+      frame.column
+    );
 
-      if (!sourceMappedStackFrame) return frame;
+    if (!sourceMappedStackFrame) return frame;
 
-      const {
-        sourceFile,
-        sourceLineNumber,
-        sourceColumnNumber,
+    const { sourceFile, sourceLineNumber, sourceColumnNumber, sourceContent } =
+      sourceMappedStackFrame;
+
+    // If this is the first frame within the build directory, generate the code frame.
+    if (
+      frame.file.includes(buildDir) &&
+      codeFrame == null &&
+      sourceContent !== null
+    ) {
+      codeFrame = codeFrameColumns(
         sourceContent,
-      } = sourceMappedStackFrame;
-
-      // If this is the root frame, generate the code frame.
-      if (index === 0 && sourceContent !== null) {
-        codeFrame = codeFrameColumns(
-          sourceContent,
-          {
-            start: {
-              line: sourceLineNumber,
-              column: sourceColumnNumber ?? undefined,
-            },
+        {
+          start: {
+            line: sourceLineNumber,
+            column: sourceColumnNumber ?? undefined,
           },
-          {
-            highlightCode: true,
-          }
-        );
-      }
+        },
+        {
+          highlightCode: true,
+        }
+      );
+    }
 
-      return {
-        ...frame,
-        file: sourceFile,
-        lineNumber: sourceLineNumber,
-        column: sourceColumnNumber,
-      };
-    })
-  );
+    return {
+      ...frame,
+      file: sourceFile,
+      lineNumber: sourceLineNumber,
+      column: sourceColumnNumber,
+    };
+  });
 
   const formattedStackTrace = sourceMappedStackTrace
     .map(
@@ -70,7 +76,7 @@ export const getStackTraceAndCodeFrame = async (error: Error) => {
   return { stackTrace: formattedStackTrace, codeFrame };
 };
 
-async function getSourceMappedStackFrame(
+function getSourceMappedStackFrame(
   file: string,
   lineNumber: number,
   columnNumber: number | null
@@ -85,7 +91,7 @@ async function getSourceMappedStackFrame(
   const sourceMap = getRawSourceMap(fileContents);
   if (!sourceMap) return null;
 
-  const result = await getSourcePositionAndContent(
+  const result = getSourcePositionAndContent(
     sourceMap,
     lineNumber,
     columnNumber
@@ -125,7 +131,7 @@ function getSourceMapUrl(fileContents: string): string | null {
   return match[1].toString();
 }
 
-function getRawSourceMap(fileContents: string): RawSourceMap | null {
+function getRawSourceMap(fileContents: string): DecodedSourceMap | null {
   const sourceUrl = getSourceMapUrl(fileContents);
   if (!sourceUrl?.startsWith("data:")) {
     return null;
@@ -152,31 +158,26 @@ function getRawSourceMap(fileContents: string): RawSourceMap | null {
   }
 }
 
-async function getSourcePositionAndContent(
-  rawSourceMap: RawSourceMap,
+function getSourcePositionAndContent(
+  rawSourceMap: DecodedSourceMap,
   lineNumber: number,
   columnNumber: number | null
 ) {
-  const consumer = await new SourceMapConsumer(rawSourceMap);
+  const tracer = new TraceMap(rawSourceMap);
 
-  try {
-    const sourcePosition = consumer.originalPositionFor({
-      line: lineNumber,
-      column: columnNumber ?? 0,
-    });
+  const sourcePosition = originalPositionFor(tracer, {
+    line: lineNumber,
+    column: columnNumber ?? 0,
+  });
 
-    if (!sourcePosition.source) {
-      return null;
-    }
-
-    const sourceContent =
-      consumer.sourceContentFor(sourcePosition.source) ?? null;
-
-    return {
-      sourcePosition,
-      sourceContent,
-    };
-  } finally {
-    consumer.destroy();
+  if (!sourcePosition.source) {
+    return null;
   }
+
+  const sourceContent = sourceContentFor(tracer, sourcePosition.source) ?? null;
+
+  return {
+    sourcePosition,
+    sourceContent,
+  };
 }

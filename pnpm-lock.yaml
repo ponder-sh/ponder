@@ -85,6 +85,7 @@ importers:
       '@ethersproject/abi': ^5.6.4
       '@ethersproject/bytes': ^5.7.0
       '@ethersproject/providers': ^5.6.8
+      '@jridgewell/trace-mapping': ^0.3.17
       '@types/babel__code-frame': ^7.0.3
       '@types/better-sqlite3': ^7.6.0
       '@types/glob': ^8.0.0
@@ -109,7 +110,6 @@ importers:
       picocolors: ^1.0.0
       prettier: ^2.6.2
       react: '17'
-      source-map: ^0.7.4
       stacktrace-parser: ^0.1.10
       supertest: ^6.3.3
       tsconfig-replace-paths: ^0.0.11
@@ -121,6 +121,7 @@ importers:
       '@ethersproject/abi': 5.6.4
       '@ethersproject/bytes': 5.7.0
       '@ethersproject/providers': 5.6.8
+      '@jridgewell/trace-mapping': 0.3.17
       abitype: 0.1.7_typescript@4.8.4
       better-sqlite3: 7.6.2
       cac: 6.7.14
@@ -137,7 +138,6 @@ importers:
       picocolors: 1.0.0
       prettier: 2.6.2
       react: 17.0.2
-      source-map: 0.7.4
       stacktrace-parser: 0.1.10
       typescript: 4.8.4
       zod: 3.20.2
@@ -233,7 +233,7 @@ packages:
     engines: {node: '>=6.0.0'}
     dependencies:
       '@jridgewell/gen-mapping': 0.1.1
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
 
   /@ardatan/relay-compiler/12.0.0_graphql@15.8.0:
     resolution: {integrity: sha512-9anThAaj1dQr6IGmzBMcfzOQKTa5artjuPmw8NYK/fiGEMjADbSguBY2FMDykt+QhilR3wc9VA/3yVju7JHg7Q==}
@@ -1728,7 +1728,7 @@ packages:
       '@jest/test-result': 29.3.1
       '@jest/transform': 29.3.1
       '@jest/types': 29.3.1
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
       '@types/node': 18.7.8
       chalk: 4.1.2
       collect-v8-coverage: 1.0.1
@@ -1762,7 +1762,7 @@ packages:
     resolution: {integrity: sha512-1NX9/7zzI0nqa6+kgpSdKPK+WU1p+SJk3TloWZf5MzPbxri9UEeXX5bWZAPCzbQcyuAzubcdUHA7hcNznmRqWQ==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
       callsites: 3.1.0
       graceful-fs: 4.2.10
     dev: true
@@ -1793,7 +1793,7 @@ packages:
     dependencies:
       '@babel/core': 7.18.10
       '@jest/types': 29.3.1
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
       babel-plugin-istanbul: 6.1.1
       chalk: 4.1.2
       convert-source-map: 2.0.0
@@ -1835,7 +1835,7 @@ packages:
     dependencies:
       '@jridgewell/set-array': 1.1.2
       '@jridgewell/sourcemap-codec': 1.4.14
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
 
   /@jridgewell/resolve-uri/3.1.0:
     resolution: {integrity: sha512-F2msla3tad+Mfht5cJq7LSXcdudKTWCVYUgw6pLFOOHSTtZlj6SWNYAp+AhuqLmWdBO2X5hPrLcu8cVP8fy28w==}
@@ -1848,8 +1848,8 @@ packages:
   /@jridgewell/sourcemap-codec/1.4.14:
     resolution: {integrity: sha512-XPSJHWmi394fuUuzDnGz1wiKqWfo1yXecHQMRf2l6hztTO+nPru658AyDngaBe7isIxEkRsPR3FZh+s7iVa4Uw==}
 
-  /@jridgewell/trace-mapping/0.3.15:
-    resolution: {integrity: sha512-oWZNOULl+UbhsgB51uuZzglikfIKSUBO/M9W2OfEjn7cmqoAiCgmv9lyACTUacZwBz0ITnJ2NqjU8Tx0DHL88g==}
+  /@jridgewell/trace-mapping/0.3.17:
+    resolution: {integrity: sha512-MCNzAp77qzKca9+W/+I0+sEpaUnZoeasnghNeVc41VZCEKaCH73Vq3BZZ/SzWIgrqE4H4ceI+p+b6C0mHf9T4g==}
     dependencies:
       '@jridgewell/resolve-uri': 3.1.0
       '@jridgewell/sourcemap-codec': 1.4.14
@@ -9091,7 +9091,7 @@ packages:
     resolution: {integrity: sha512-74Y4LqY74kLE6IFyIjPtkSTWzUZmj8tdHT9Ii/26dvQ6K9Dl2NbEfj0XgU2sHCtKgt5VupqhlO/5aWuqS+IY1w==}
     engines: {node: '>=10.12.0'}
     dependencies:
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
       '@types/istanbul-lib-coverage': 2.0.4
       convert-source-map: 1.8.0
     dev: true

@@ -134,15 +134,15 @@ export const createHandlerQueue = ({
   const queue = fastq.promise<unknown, HandlerTask>({}, handlerWorker, 1);
 
   /* TODO use the task arg to provide context to the user about the error. */
-  queue.error(async (error) => {
+  queue.error((error) => {
     if (error) {
-      const result = await getStackTraceAndCodeFrame(error);
+      const result = getStackTraceAndCodeFrame(error, ponder);
       if (result) {
         error.stack = `${result.stackTrace}\n` + result.codeFrame;
       }
 
       ponder.emit("dev_error", {
-        context: "handler file error",
+        context: `Handler file error: ${error.message}`,
         error,
       });
     }
