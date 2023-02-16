@@ -1,10 +1,10 @@
 import { JsonRpcProvider } from "@ethersproject/providers";
-import type Sqlite from "better-sqlite3";
 import { rmSync } from "node:fs";
 import request from "supertest";
 
 import { buildOptions } from "@/common/options";
 import { buildPonderConfig } from "@/config/buildPonderConfig";
+import { SqliteDb } from "@/db/db";
 import { Ponder } from "@/Ponder";
 
 import { buildSendFunc } from "./utils/buildSendFunc";
@@ -53,15 +53,15 @@ describe("Ponder", () => {
     it("inserts backfill data into the cache store", async () => {
       expect(ponder.ui.isBackfillComplete).toBe(true);
 
-      const logs = (ponder.database.db as Sqlite.Database)
+      const logs = (ponder.database as SqliteDb).db
         .prepare(`SELECT * FROM __ponder__v1__logs`)
         .all();
 
-      const blocks = (ponder.database.db as Sqlite.Database)
+      const blocks = (ponder.database as SqliteDb).db
         .prepare(`SELECT * FROM __ponder__v1__blocks`)
         .all();
 
-      const transactions = (ponder.database.db as Sqlite.Database)
+      const transactions = (ponder.database as SqliteDb).db
         .prepare(`SELECT * FROM __ponder__v1__transactions`)
         .all();
 
@@ -80,7 +80,7 @@ describe("Ponder", () => {
     });
 
     it("inserts data into the entity store", async () => {
-      const ensNfts = (ponder.database.db as Sqlite.Database)
+      const ensNfts = (ponder.database as SqliteDb).db
         .prepare(`SELECT * FROM EnsNft`)
         .all();
 

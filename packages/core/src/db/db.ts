@@ -1,11 +1,29 @@
 import Sqlite from "better-sqlite3";
 import path from "node:path";
-import PgPromise from "pg-promise";
+import { Pool } from "pg";
 
 import { logger } from "@/common/logger";
 import { ensureDirExists } from "@/common/utils";
 import { ResolvedPonderConfig } from "@/config/buildPonderConfig";
 import type { Ponder } from "@/Ponder";
+
+// Patch Pool.query to get more informative stack traces. I have no idea why this works.
+// https://stackoverflow.com/a/70601114
+const originalPoolQuery = Pool.prototype.query;
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+Pool.prototype.query = async function query(...args) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    return await originalPoolQuery.apply(this, args);
+  } catch (e) {
+    // All magic is here. new Error will generate new stack, but message will copyid from e
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    throw new Error(e);
+  }
+};
 
 export interface SqliteDb {
   kind: "sqlite";
@@ -14,8 +32,7 @@ export interface SqliteDb {
 
 export interface PostgresDb {
   kind: "postgres";
-  db: PgPromise.IDatabase<unknown>;
-  pgp: PgPromise.IMain;
+  pool: Pool;
 }
 
 export type PonderDatabase = SqliteDb | PostgresDb;
@@ -57,25 +74,18 @@ export const buildDb = ({ ponder }: { ponder: Ponder }): PonderDatabase => {
 
     return { kind: "sqlite", db };
   } else {
-    const pgp = PgPromise({
-      query: (e) => {
-        logger.trace({ query: e.query });
-      },
-      error: (e) => {
-        const error = e.error ? e.error : e;
-        const query = e.query;
-
-        console.log({ error, query });
-
-        throw new Error(error);
-      },
+    const rawPool = new Pool({
+      connectionString: dbConfig.connectionString,
     });
 
-    const db = pgp({
-      connectionString: process.env.DATABASE_URL,
-      keepAlive: true,
-    });
+    // const pool = {
+    //   connect: () => rawPool.connect(),
+    //   query: (text: string, params: any[]) => {
+    //     logger.trace({ query: text, params });
+    //     return rawPool.query(text, params);
+    //   },
+    // };
 
-    return { kind: "postgres", db, pgp };
+    return { kind: "postgres", pool: rawPool };
   }
 };

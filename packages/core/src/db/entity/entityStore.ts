@@ -68,10 +68,7 @@ export const buildEntityStore = ({ ponder }: { ponder: Ponder }) => {
       return new SqliteEntityStore({ db: ponder.database.db, ponder });
     }
     case "postgres": {
-      return new PostgresEntityStore({
-        db: ponder.database.db,
-        pgp: ponder.database.pgp,
-      });
+      return new PostgresEntityStore({ pool: ponder.database.pool, ponder });
     }
   }
 };

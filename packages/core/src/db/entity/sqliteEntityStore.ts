@@ -266,35 +266,33 @@ export class SqliteEntityStore implements EntityStore {
     }
   );
 
-  deserialize = this.errorWrapper(
-    (entityName: string, instance: Record<string, unknown>) => {
-      const entity = this.schema?.entityByName[entityName];
-      if (!entity) {
-        throw new Error(`Entity not found in schema: ${entityName}`);
+  deserialize = (entityName: string, instance: Record<string, unknown>) => {
+    const entity = this.schema?.entityByName[entityName];
+    if (!entity) {
+      throw new Error(`Entity not found in schema: ${entityName}`);
+    }
+
+    const deserializedInstance = { ...instance };
+
+    // For each property on the instance, look for a field defined on the entity
+    // with the same name and apply any required deserialization transforms.
+    Object.entries(instance).forEach(([fieldName, value]) => {
+      const field = entity.fieldByName[fieldName];
+      if (!field) return;
+
+      if (field.baseGqlType.toString() === "Boolean") {
+        deserializedInstance[fieldName] = value === 1 ? true : false;
+        return;
       }
 
-      const deserializedInstance = { ...instance };
+      if (field.kind === FieldKind.LIST) {
+        deserializedInstance[fieldName] = JSON.parse(value as string);
+        return;
+      }
 
-      // For each property on the instance, look for a field defined on the entity
-      // with the same name and apply any required deserialization transforms.
-      Object.entries(instance).forEach(([fieldName, value]) => {
-        const field = entity.fieldByName[fieldName];
-        if (!field) return;
+      deserializedInstance[fieldName] = value;
+    });
 
-        if (field.baseGqlType.toString() === "Boolean") {
-          deserializedInstance[fieldName] = value === 1 ? true : false;
-          return;
-        }
-
-        if (field.kind === FieldKind.LIST) {
-          deserializedInstance[fieldName] = JSON.parse(value as string);
-          return;
-        }
-
-        deserializedInstance[fieldName] = value;
-      });
-
-      return deserializedInstance as Record<string, unknown>;
-    }
-  );
+    return deserializedInstance as Record<string, unknown>;
+  };
 }
