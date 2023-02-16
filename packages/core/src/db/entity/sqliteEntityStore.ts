@@ -23,13 +23,13 @@ export class SqliteEntityStore implements EntityStore {
 
   errorWrapper = <T extends Array<any>, U>(fn: (...args: T) => U) => {
     return (...args: T): U => {
-      try {
-        if (!this.schema) {
-          throw new Error(
-            `EntityStore has not been initialized with a schema yet`
-          );
-        }
+      if (!this.schema) {
+        throw new Error(
+          `EntityStore has not been initialized with a schema yet`
+        );
+      }
 
+      try {
         return fn(...args);
       } catch (err) {
         const error = err as Error;

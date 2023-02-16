@@ -142,7 +142,7 @@ export const createHandlerQueue = ({
       }
 
       ponder.emit("dev_error", {
-        context: `Handler file error: ${error.message}`,
+        context: error.message,
         error,
       });
     }
