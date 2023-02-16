@@ -14,7 +14,9 @@ export const decodeLog = ({
   try {
     const parsedLog = abiInterface.parseLog({
       data: log.data,
-      topics: JSON.parse(log.topics),
+      topics: [log.topic0, log.topic1, log.topic2, log.topic3].filter(
+        (element): element is string => element !== undefined
+      ),
     });
 
     const eventName = parsedLog.name;

@@ -82,7 +82,12 @@ export const createHandlerQueue = ({
     const decodedLog = decodeLog({ log, abiInterface: contract.abiInterface });
     if (!decodedLog) {
       logger.warn(
-        `Event log not found in ABI, data: ${log.data} topics: ${log.topics}`
+        `Event log not found in ABI, data: ${log.data} topics: ${[
+          log.topic0,
+          log.topic1,
+          log.topic2,
+          log.topic3,
+        ]}`
       );
       return;
     }

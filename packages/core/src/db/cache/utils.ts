@@ -129,22 +129,29 @@ export const parseTransaction = (txn: any): Transaction => ({
   seem to export types that correspond to the return type of the raw RPC methods.
 */
 
-export const parseLog = (log: any): Log => ({
-  logId: `${log.blockHash}-${log.logIndex}`,
-  logSortKey:
-    hexStringToDecimal(log.blockNumber) * 100000 +
-    hexStringToDecimal(log.logIndex),
+export const parseLog = (log: any): Log => {
+  const topics = log.topics as (string | undefined)[];
 
-  address: log.address,
-  data: log.data,
-  topics: JSON.stringify(log.topics),
+  return {
+    logId: `${log.blockHash}-${log.logIndex}`,
+    logSortKey:
+      hexStringToDecimal(log.blockNumber) * 100000 +
+      hexStringToDecimal(log.logIndex),
 
-  blockHash: log.blockHash,
-  blockNumber: hexStringToDecimal(log.blockNumber),
-  logIndex: hexStringToDecimal(log.logIndex),
+    address: log.address,
+    data: log.data,
+    topic0: topics[0],
+    topic1: topics[1],
+    topic2: topics[2],
+    topic3: topics[3],
 
-  transactionHash: log.transactionHash,
-  transactionIndex: hexStringToDecimal(log.transactionIndex),
+    blockHash: log.blockHash,
+    blockNumber: hexStringToDecimal(log.blockNumber),
+    logIndex: hexStringToDecimal(log.logIndex),
 
-  removed: log.removed === true ? 1 : 0,
-});
+    transactionHash: log.transactionHash,
+    transactionIndex: hexStringToDecimal(log.transactionIndex),
+
+    removed: log.removed === true ? 1 : 0,
+  };
+};

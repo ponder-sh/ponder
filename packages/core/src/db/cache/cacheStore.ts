@@ -23,7 +23,7 @@ export interface CacheStore {
 
   insertCachedInterval(interval: CachedInterval): Promise<void>;
 
-  insertLogs(log: Log[]): Promise<void>;
+  insertLogs(logs: Log[]): Promise<void>;
 
   insertBlock(block: Block): Promise<void>;
 

@@ -6,7 +6,7 @@ import type { Block, Log, Transaction } from "@/types";
 
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
 
-const POSTGRES_TABLE_PREFIX = "__ponder__v1__";
+const POSTGRES_TABLE_PREFIX = "__ponder__v2__";
 
 const cachedIntervalsTableName = `${POSTGRES_TABLE_PREFIX}cachedIntervals`;
 const logsTableName = `${POSTGRES_TABLE_PREFIX}logs`;
@@ -60,7 +60,10 @@ export class PostgresCacheStore implements CacheStore {
           "logSortKey" BIGINT NOT NULL,
           "address" TEXT NOT NULL,
           "data" TEXT NOT NULL,
-          "topics" TEXT NOT NULL,
+          "topic0" TEXT,
+          "topic1" TEXT,
+          "topic2" TEXT,
+          "topic3" TEXT,
           "blockHash" TEXT NOT NULL,
           "blockNumber" INTEGER NOT NULL,
           "blockTimestamp" INTEGER,
@@ -73,6 +76,10 @@ export class PostgresCacheStore implements CacheStore {
       await client.query(`
         CREATE INDEX IF NOT EXISTS "${logsTableName}BlockTimestamp"
         ON "${logsTableName}" ("blockTimestamp")
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS "${logsTableName}Topic0"
+        ON "${logsTableName}" ("topic0")
       `);
 
       await client.query(`
@@ -234,7 +241,10 @@ export class PostgresCacheStore implements CacheStore {
         log.logSortKey,
         log.address,
         log.data,
-        log.topics,
+        log.topic0,
+        log.topic1,
+        log.topic2,
+        log.topic3,
         log.blockHash,
         log.blockNumber,
         log.logIndex,
@@ -250,14 +260,17 @@ export class PostgresCacheStore implements CacheStore {
         "logSortKey",
         "address",
         "data",
-        "topics",
+        "topic0",
+        "topic1",
+        "topic2",
+        "topic3",
         "blockHash",
         "blockNumber",
         "logIndex",
         "transactionHash",
         "transactionIndex",
         "removed"
-      ) VALUES ${buildInsertParams(11, logs.length)}
+      ) VALUES ${buildInsertParams(14, logs.length)}
       ON CONFLICT("logId") DO NOTHING
     `;
 
