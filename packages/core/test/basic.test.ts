@@ -1,10 +1,10 @@
 import { JsonRpcProvider } from "@ethersproject/providers";
-import type Sqlite from "better-sqlite3";
 import { rmSync } from "node:fs";
 
 import { buildOptions } from "@/common/options";
 import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { SqliteCacheStore } from "@/db/cache/sqliteCacheStore";
+import { SqliteDb } from "@/db/db";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
 import { CachedProvider } from "@/indexer/CachedProvider";
 import { Ponder } from "@/Ponder";
@@ -97,7 +97,7 @@ describe("Ponder", () => {
     });
 
     it("migrates the cache store", async () => {
-      const tables = (ponder.database.db as Sqlite.Database)
+      const tables = (ponder.database as SqliteDb).db
         .prepare(`SELECT name FROM sqlite_master WHERE type='table'`)
         .all();
       const tableNames = tables.map((t) => t.name);
@@ -118,7 +118,7 @@ describe("Ponder", () => {
     });
 
     it("migrates the entity store", async () => {
-      const tables = (ponder.database.db as Sqlite.Database)
+      const tables = (ponder.database as SqliteDb).db
         .prepare(`SELECT name FROM sqlite_master WHERE type='table'`)
         .all();
       const tableNames = tables.map((t) => t.name);
@@ -165,7 +165,7 @@ describe("Ponder", () => {
     it("inserts data into the cache store", async () => {
       expect(ponder.ui.isBackfillComplete).toBe(true);
 
-      const cachedIntervals = (ponder.database.db as Sqlite.Database)
+      const cachedIntervals = (ponder.database as SqliteDb).db
         .prepare(`SELECT * FROM __ponder__v1__cachedIntervals`)
         .all();
       expect(cachedIntervals.length).toBeGreaterThan(0);

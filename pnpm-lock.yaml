@@ -81,19 +81,24 @@ importers:
 
   packages/core:
     specifiers:
+      '@babel/code-frame': ^7.18.6
       '@ethersproject/abi': ^5.6.4
       '@ethersproject/bytes': ^5.7.0
       '@ethersproject/providers': ^5.6.8
+      '@jridgewell/trace-mapping': ^0.3.17
+      '@types/babel__code-frame': ^7.0.3
       '@types/better-sqlite3': ^7.6.0
       '@types/glob': ^8.0.0
       '@types/jest': ^29.2.3
       '@types/node': ^18.7.8
+      '@types/pg': ^8.6.6
       '@types/react': ^18.0.25
       '@types/supertest': ^2.0.12
       abitype: ^0.1.7
       better-sqlite3: ^7.6.2
       cac: ^6.7.14
       chokidar: ^3.5.3
+      data-uri-to-buffer: 3.0.1
       dotenv: ^16.0.1
       esbuild: ^0.15.2
       ethers: ^5.6.9
@@ -102,23 +107,27 @@ importers:
       graphql: ^15.3.0
       ink: ^3.2.0
       jest: ^29.3.1
-      pg-promise: ^10.12.1
+      pg: ^8.9.0
       picocolors: ^1.0.0
       prettier: ^2.6.2
       react: '17'
+      stacktrace-parser: ^0.1.10
       supertest: ^6.3.3
       tsconfig-replace-paths: ^0.0.11
       typed-emitter: ^2.1.0
       typescript: ^4.8.4
       zod: ^3.20.2
     dependencies:
+      '@babel/code-frame': 7.18.6
       '@ethersproject/abi': 5.6.4
       '@ethersproject/bytes': 5.7.0
       '@ethersproject/providers': 5.6.8
+      '@jridgewell/trace-mapping': 0.3.17
       abitype: 0.1.7_typescript@4.8.4
       better-sqlite3: 7.6.2
       cac: 6.7.14
       chokidar: 3.5.3
+      data-uri-to-buffer: 3.0.1
       dotenv: 16.0.1
       esbuild: 0.15.4
       ethers: 5.6.9
@@ -126,17 +135,20 @@ importers:
       glob: 8.1.0
       graphql: 15.8.0
       ink: 3.2.0_qnxonbsml5syl42mqdnwkqq4yu
-      pg-promise: 10.12.1
+      pg: 8.9.0
       picocolors: 1.0.0
       prettier: 2.6.2
       react: 17.0.2
+      stacktrace-parser: 0.1.10
       typescript: 4.8.4
       zod: 3.20.2
     devDependencies:
+      '@types/babel__code-frame': 7.0.3
       '@types/better-sqlite3': 7.6.0
       '@types/glob': 8.0.0
       '@types/jest': 29.2.3
       '@types/node': 18.7.8
+      '@types/pg': 8.6.6
       '@types/react': 18.0.25
       '@types/supertest': 2.0.12
       jest: 29.3.1_@types+node@18.7.8
@@ -223,7 +235,7 @@ packages:
     engines: {node: '>=6.0.0'}
     dependencies:
       '@jridgewell/gen-mapping': 0.1.1
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
 
   /@ardatan/relay-compiler/12.0.0_graphql@15.8.0:
     resolution: {integrity: sha512-9anThAaj1dQr6IGmzBMcfzOQKTa5artjuPmw8NYK/fiGEMjADbSguBY2FMDykt+QhilR3wc9VA/3yVju7JHg7Q==}
@@ -1718,7 +1730,7 @@ packages:
       '@jest/test-result': 29.3.1
       '@jest/transform': 29.3.1
       '@jest/types': 29.3.1
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
       '@types/node': 18.7.8
       chalk: 4.1.2
       collect-v8-coverage: 1.0.1
@@ -1752,7 +1764,7 @@ packages:
     resolution: {integrity: sha512-1NX9/7zzI0nqa6+kgpSdKPK+WU1p+SJk3TloWZf5MzPbxri9UEeXX5bWZAPCzbQcyuAzubcdUHA7hcNznmRqWQ==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
       callsites: 3.1.0
       graceful-fs: 4.2.10
     dev: true
@@ -1783,7 +1795,7 @@ packages:
     dependencies:
       '@babel/core': 7.18.10
       '@jest/types': 29.3.1
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
       babel-plugin-istanbul: 6.1.1
       chalk: 4.1.2
       convert-source-map: 2.0.0
@@ -1825,7 +1837,7 @@ packages:
     dependencies:
       '@jridgewell/set-array': 1.1.2
       '@jridgewell/sourcemap-codec': 1.4.14
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
 
   /@jridgewell/resolve-uri/3.1.0:
     resolution: {integrity: sha512-F2msla3tad+Mfht5cJq7LSXcdudKTWCVYUgw6pLFOOHSTtZlj6SWNYAp+AhuqLmWdBO2X5hPrLcu8cVP8fy28w==}
@@ -1838,8 +1850,8 @@ packages:
   /@jridgewell/sourcemap-codec/1.4.14:
     resolution: {integrity: sha512-XPSJHWmi394fuUuzDnGz1wiKqWfo1yXecHQMRf2l6hztTO+nPru658AyDngaBe7isIxEkRsPR3FZh+s7iVa4Uw==}
 
-  /@jridgewell/trace-mapping/0.3.15:
-    resolution: {integrity: sha512-oWZNOULl+UbhsgB51uuZzglikfIKSUBO/M9W2OfEjn7cmqoAiCgmv9lyACTUacZwBz0ITnJ2NqjU8Tx0DHL88g==}
+  /@jridgewell/trace-mapping/0.3.17:
+    resolution: {integrity: sha512-MCNzAp77qzKca9+W/+I0+sEpaUnZoeasnghNeVc41VZCEKaCH73Vq3BZZ/SzWIgrqE4H4ceI+p+b6C0mHf9T4g==}
     dependencies:
       '@jridgewell/resolve-uri': 3.1.0
       '@jridgewell/sourcemap-codec': 1.4.14
@@ -2233,6 +2245,10 @@ packages:
       '@types/estree': 1.0.0
     dev: false
 
+  /@types/babel__code-frame/7.0.3:
+    resolution: {integrity: sha512-2TN6oiwtNjOezilFVl77zwdNPwQWaDBBCCWWxyo1ctiO3vAtd7H/aB/CBJdw9+kqq3+latD0SXoedIuHySSZWw==}
+    dev: true
+
   /@types/babel__core/7.1.20:
     resolution: {integrity: sha512-PVb6Bg2QuscZ30FvOU7z4guG6c926D9YRvOxEaelzndpMsvP+YM74Q/dAFASpg2l6+XLalxSGxcq/lrgYWZtyQ==}
     dependencies:
@@ -2427,6 +2443,14 @@ packages:
 
   /@types/normalize-package-data/2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
+    dev: true
+
+  /@types/pg/8.6.6:
+    resolution: {integrity: sha512-O2xNmXebtwVekJDD+02udOncjVcMZQuTEQEMpKJ0ZRf5E7/9JJX3izhKUcUifBkyKpljyUM6BTgy2trmviKlpw==}
+    dependencies:
+      '@types/node': 18.7.8
+      pg-protocol: 1.6.0
+      pg-types: 2.2.0
     dev: true
 
   /@types/prettier/2.7.1:
@@ -2878,6 +2902,7 @@ packages:
   /assert-options/0.7.0:
     resolution: {integrity: sha512-7q9uNH/Dh8gFgpIIb9ja8PJEWA5AQy3xnBC8jtKs8K/gNVCr1K6kIvlm59HUyYgvM7oEDoLzGgPcGd9FqhtXEQ==}
     engines: {node: '>=8.0.0'}
+    dev: true
 
   /ast-types-flow/0.0.7:
     resolution: {integrity: sha512-eBvWn1lvIApYMhzQMsu9ciLfkBY499mFZlNqG+/9WR7PVlroQw0vG30cOQQbaKz3sCEc44TAOu2ykzqXSNnwag==}
@@ -3568,6 +3593,11 @@ packages:
   /damerau-levenshtein/1.0.8:
     resolution: {integrity: sha512-sdQSFB7+llfUcQHUQO3+B8ERRj0Oa4w9POWMI/puGtuf7gFywGmkaLCElnudfTiKZV+NvHqL0ifzdrI8Ro7ESA==}
     dev: true
+
+  /data-uri-to-buffer/3.0.1:
+    resolution: {integrity: sha512-WboRycPNsVw3B3TL559F7kuBUM4d8CgMEvk6xEJlOp7OBPjt6G7z8WMWlD2rOFZLk6OYfFIUGsCOWzcQH9K2og==}
+    engines: {node: '>= 6'}
+    dev: false
 
   /dataloader/1.4.0:
     resolution: {integrity: sha512-68s5jYdlvasItOJnCuI2Q9s4q98g0pCyL3HrcKJu8KNugUl8ahgmZYg38ysLTgQjjXX3H8CJLkAvWrclWfcalw==}
@@ -7522,6 +7552,7 @@ packages:
   /pg-minify/1.6.2:
     resolution: {integrity: sha512-1KdmFGGTP6jplJoI8MfvRlfvMiyBivMRP7/ffh4a11RUFJ7kC2J0ZHlipoKiH/1hz+DVgceon9U2qbaHpPeyPg==}
     engines: {node: '>=8.0'}
+    dev: true
 
   /pg-pool/3.5.2_pg@8.8.0:
     resolution: {integrity: sha512-His3Fh17Z4eg7oANLob6ZvH8xIVen3phEZh2QuyrIl4dQSDVEabNducv6ysROKpDNPSD+12tONZVWfSgMvDD9w==}
@@ -7529,6 +7560,15 @@ packages:
       pg: '>=8.0'
     dependencies:
       pg: 8.8.0
+    dev: true
+
+  /pg-pool/3.5.2_pg@8.9.0:
+    resolution: {integrity: sha512-His3Fh17Z4eg7oANLob6ZvH8xIVen3phEZh2QuyrIl4dQSDVEabNducv6ysROKpDNPSD+12tONZVWfSgMvDD9w==}
+    peerDependencies:
+      pg: '>=8.0'
+    dependencies:
+      pg: 8.9.0
+    dev: false
 
   /pg-promise/10.12.1:
     resolution: {integrity: sha512-SiJkBUDGq7PNfJFJbWferodsSH+vLrhte0Q0kVgQbwlNYeKmp9Hhkr+357+5DWEuBGOHhSu1UQffSSf5HVqRtA==}
@@ -7540,9 +7580,10 @@ packages:
       spex: 3.2.0
     transitivePeerDependencies:
       - pg-native
+    dev: true
 
-  /pg-protocol/1.5.0:
-    resolution: {integrity: sha512-muRttij7H8TqRNu/DxrAJQITO4Ac7RmX3Klyr/9mJEOBeIpgnF8f9jAfRz5d3XwQZl5qBjF9gLsUtMPJE0vezQ==}
+  /pg-protocol/1.6.0:
+    resolution: {integrity: sha512-M+PDm637OY5WM307051+bsDia5Xej6d9IR4GwJse1qA1DIhiKlksvrneZOYQq42OM+spubpcNYEo2FcKQrDk+Q==}
 
   /pg-types/2.2.0:
     resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
@@ -7567,9 +7608,28 @@ packages:
       packet-reader: 1.0.0
       pg-connection-string: 2.5.0
       pg-pool: 3.5.2_pg@8.8.0
-      pg-protocol: 1.5.0
+      pg-protocol: 1.6.0
       pg-types: 2.2.0
       pgpass: 1.0.5
+    dev: true
+
+  /pg/8.9.0:
+    resolution: {integrity: sha512-ZJM+qkEbtOHRuXjmvBtOgNOXOtLSbxiMiUVMgE4rV6Zwocy03RicCVvDXgx8l4Biwo8/qORUnEqn2fdQzV7KCg==}
+    engines: {node: '>= 8.0.0'}
+    peerDependencies:
+      pg-native: '>=3.0.1'
+    peerDependenciesMeta:
+      pg-native:
+        optional: true
+    dependencies:
+      buffer-writer: 2.0.0
+      packet-reader: 1.0.0
+      pg-connection-string: 2.5.0
+      pg-pool: 3.5.2_pg@8.9.0
+      pg-protocol: 1.6.0
+      pg-types: 2.2.0
+      pgpass: 1.0.5
+    dev: false
 
   /pgpass/1.0.5:
     resolution: {integrity: sha512-FdW9r/jQZhSeohs1Z3sI1yxFQNFvMcnmfuj4WBMUTxOrAyLMaTcE1aAMBiTlbMNaXvBCQuVi0R7hd8udDSP7ug==}
@@ -8367,6 +8427,7 @@ packages:
   /spex/3.2.0:
     resolution: {integrity: sha512-9srjJM7NaymrpwMHvSmpDeIK5GoRMX/Tq0E8aOlDPS54dDnDUIp30DrP9SphMPEETDLzEM9+4qo+KipmbtPecg==}
     engines: {node: '>=4.5'}
+    dev: true
 
   /split2/4.1.0:
     resolution: {integrity: sha512-VBiJxFkxiXRlUIeyMQi8s4hgvKCSjtknJv/LVYbrgALPwf5zSKmEwV9Lst25AkvMDnvxODugjdl6KZgwKM1WYQ==}
@@ -8386,6 +8447,13 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       escape-string-regexp: 2.0.0
+
+  /stacktrace-parser/0.1.10:
+    resolution: {integrity: sha512-KJP1OCML99+8fhOHxwwzyWrlUuVX5GQ0ZpJTd1DFXhdkrvg1szxfHhawXUZ3g9TkXORQd4/WG68jMlQZ2p8wlg==}
+    engines: {node: '>=6'}
+    dependencies:
+      type-fest: 0.7.1
+    dev: false
 
   /statuses/1.5.0:
     resolution: {integrity: sha512-OpZ3zP+jT1PI7I8nemJX4AKmAX070ZkYPVWV/AaKTJl+tXCTGyVdC1a4SL8RUQYEwk/f34ZX8UTykN68FwrqAA==}
@@ -8826,6 +8894,11 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
+  /type-fest/0.7.1:
+    resolution: {integrity: sha512-Ne2YiiGN8bmrmJJEuTWTLJR32nh/JdL1+PSicowtNb0WFpn59GK8/lfD61bVtzguz7b3PBt74nxpv/Pw5po5Rg==}
+    engines: {node: '>=8'}
+    dev: false
+
   /type-fest/0.8.1:
     resolution: {integrity: sha512-4dbzIzqvjtgiM5rw1k5rEHtBANKmdudhGyBEajN01fEyhaAIhsoKNy6y7+IN93IfpFtwY9iqi7kD+xwKhQsNJA==}
     engines: {node: '>=8'}
@@ -9060,7 +9133,7 @@ packages:
     resolution: {integrity: sha512-74Y4LqY74kLE6IFyIjPtkSTWzUZmj8tdHT9Ii/26dvQ6K9Dl2NbEfj0XgU2sHCtKgt5VupqhlO/5aWuqS+IY1w==}
     engines: {node: '>=10.12.0'}
     dependencies:
-      '@jridgewell/trace-mapping': 0.3.15
+      '@jridgewell/trace-mapping': 0.3.17
       '@types/istanbul-lib-coverage': 2.0.4
       convert-source-map: 1.8.0
     dev: true

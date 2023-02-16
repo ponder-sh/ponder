@@ -1,10 +1,9 @@
-import type PgPromise from "pg-promise";
+import type { Pool } from "pg";
 
 import { logger } from "@/common/logger";
 import { merge_intervals } from "@/common/utils";
 import type { Block, Log, Transaction } from "@/types";
 
-import { pgp } from "../db";
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
 
 const POSTGRES_TABLE_PREFIX = "__ponder__v1__";
@@ -15,57 +14,33 @@ const blocksTableName = `${POSTGRES_TABLE_PREFIX}blocks`;
 const transactionsTableName = `${POSTGRES_TABLE_PREFIX}transactions`;
 const contractCallsTableName = `${POSTGRES_TABLE_PREFIX}contractCalls`;
 
+const buildInsertParams = (propertyCount: number, itemCount: number) =>
+  [...Array(itemCount).keys()]
+    .map(
+      (itemIndex) =>
+        `(${[...Array(propertyCount).keys()]
+          .map(
+            (propertyIndex) =>
+              `$${itemIndex * propertyCount + (propertyIndex + 1)}`
+          )
+          .join(",")})`
+    )
+    .join(",");
+
 export class PostgresCacheStore implements CacheStore {
-  db: PgPromise.IDatabase<unknown>;
+  pool: Pool;
 
-  logsColumnSet: PgPromise.ColumnSet;
-  transactionsColumnSet: PgPromise.ColumnSet;
-
-  constructor({ db }: { db: PgPromise.IDatabase<unknown> }) {
-    this.db = db;
-
-    this.logsColumnSet = new pgp.helpers.ColumnSet(
-      [
-        "logId",
-        "logSortKey",
-        "address",
-        "data",
-        "topics",
-        "blockHash",
-        "blockNumber",
-        "logIndex",
-        "transactionHash",
-        "transactionIndex",
-        "removed",
-      ],
-      { table: logsTableName }
-    );
-
-    this.transactionsColumnSet = new pgp.helpers.ColumnSet(
-      [
-        "hash",
-        "nonce",
-        "from",
-        "to",
-        "value",
-        "input",
-        "gas",
-        "gasPrice",
-        "maxFeePerGas",
-        "maxPriorityFeePerGas",
-        "blockHash",
-        "blockNumber",
-        "transactionIndex",
-        "chainId",
-      ],
-      { table: transactionsTableName }
-    );
+  constructor({ pool }: { pool: Pool }) {
+    this.pool = pool;
   }
 
   migrate = async () => {
-    await this.db.task("migrate", async (t) => {
-      await t.none(
-        `
+    const client = await this.pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      await client.query(`
         CREATE TABLE IF NOT EXISTS "${cachedIntervalsTableName}" (
           "id" SERIAL PRIMARY KEY,
           "contractAddress" TEXT NOT NULL,
@@ -73,18 +48,13 @@ export class PostgresCacheStore implements CacheStore {
           "endBlock" INTEGER NOT NULL,
           "endBlockTimestamp" INTEGER NOT NULL
         )
-        `
-      );
-
-      await t.none(
-        `
+      `);
+      await client.query(`
         CREATE INDEX IF NOT EXISTS "${cachedIntervalsTableName}ContractAddress"
         ON "${cachedIntervalsTableName}" ("contractAddress")
-        `
-      );
+      `);
 
-      await t.none(
-        `
+      await client.query(`
         CREATE TABLE IF NOT EXISTS "${logsTableName}" (
           "logId" TEXT PRIMARY KEY,
           "logSortKey" BIGINT NOT NULL,
@@ -99,18 +69,13 @@ export class PostgresCacheStore implements CacheStore {
           "transactionIndex" INTEGER NOT NULL,
           "removed" INTEGER NOT NULL
         )
-        `
-      );
-
-      await t.none(
-        `
+      `);
+      await client.query(`
         CREATE INDEX IF NOT EXISTS "${logsTableName}BlockTimestamp"
         ON "${logsTableName}" ("blockTimestamp")
-        `
-      );
+      `);
 
-      await t.none(
-        `
+      await client.query(`
         CREATE TABLE IF NOT EXISTS "${blocksTableName}" (
           "hash" TEXT PRIMARY KEY,
           "number" INTEGER NOT NULL,
@@ -128,11 +93,9 @@ export class PostgresCacheStore implements CacheStore {
           "logsBloom" TEXT NOT NULL,
           "totalDifficulty" TEXT NOT NULL
         )
-        `
-      );
+      `);
 
-      await t.none(
-        `
+      await client.query(`
         CREATE TABLE IF NOT EXISTS "${transactionsTableName}" (
           "hash" TEXT PRIMARY KEY,
           "nonce" INTEGER NOT NULL,
@@ -149,62 +112,68 @@ export class PostgresCacheStore implements CacheStore {
           "transactionIndex" INTEGER NOT NULL,
           "chainId" INTEGER
         )
-        `
-      );
+      `);
 
-      await t.none(
-        `
+      await client.query(`
         CREATE TABLE IF NOT EXISTS "${contractCallsTableName}" (
           "key" TEXT PRIMARY KEY,
           "result" TEXT NOT NULL
         )
-        `
-      );
-    });
+      `);
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   };
 
   getCachedIntervals = async (contractAddress: string) => {
-    return await this.db.manyOrNone<CachedInterval>(
+    const result = await this.pool.query<CachedInterval>(
       `
-      SELECT * FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = $(contractAddress)
+      SELECT * FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = $1
       `,
-      {
-        contractAddress: contractAddress,
-      }
+      [contractAddress]
     );
+
+    return result.rows;
   };
 
   insertCachedInterval = async (newInterval: CachedInterval) => {
-    await this.db.tx(async (t) => {
-      const { contractAddress } = newInterval;
+    const { contractAddress } = newInterval;
+    const client = await this.pool.connect();
 
-      const existingIntervals = await t.manyOrNone<CachedInterval>(
+    try {
+      await client.query("BEGIN");
+
+      const { rows: existingIntervals } = await client.query<CachedInterval>(
         `
-        DELETE FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = $(contractAddress) RETURNING *
+        DELETE FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = $1 RETURNING *
         `,
-        {
-          contractAddress: newInterval.contractAddress,
-        }
+        [contractAddress]
       );
 
       // Handle the special case where there were no existing intervals.
       if (existingIntervals.length === 0) {
-        await t.none(
+        await client.query(
           `
           INSERT INTO "${cachedIntervalsTableName}" (
             "contractAddress",
             "startBlock",
             "endBlock",
             "endBlockTimestamp"
-          ) VALUES (
-            $(contractAddress),
-            $(startBlock),
-            $(endBlock),
-            $(endBlockTimestamp)
-          )
+          ) VALUES ($1, $2, $3, $4)
           `,
-          newInterval
+          [
+            contractAddress,
+            newInterval.startBlock,
+            newInterval.endBlock,
+            newInterval.endBlockTimestamp,
+          ]
         );
+        await client.query("COMMIT");
         return;
       }
 
@@ -233,45 +202,87 @@ export class PostgresCacheStore implements CacheStore {
           }
           const { endBlockTimestamp } = endBlockInterval;
 
-          await t.none(
+          await client.query(
             `
             INSERT INTO "${cachedIntervalsTableName}" (
               "contractAddress",
               "startBlock",
               "endBlock",
               "endBlockTimestamp"
-            ) VALUES (
-              $(contractAddress),
-              $(startBlock),
-              $(endBlock),
-              $(endBlockTimestamp)
-            )
+            ) VALUES ($1, $2, $3, $4)
             `,
-            {
-              contractAddress,
-              startBlock,
-              endBlock,
-              endBlockTimestamp,
-            }
+            [contractAddress, startBlock, endBlock, endBlockTimestamp]
           );
         })
       );
-    });
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   };
 
   insertLogs = async (logs: Log[]) => {
     if (logs.length === 0) return;
 
-    const query =
-      pgp.helpers.insert(logs, this.logsColumnSet) +
-      `ON CONFLICT("logId") DO NOTHING`;
+    const params = logs
+      .map((log) => [
+        log.logId,
+        log.logSortKey,
+        log.address,
+        log.data,
+        log.topics,
+        log.blockHash,
+        log.blockNumber,
+        log.logIndex,
+        log.transactionHash,
+        log.transactionIndex,
+        log.removed,
+      ])
+      .flat();
 
-    await this.db.none(query);
+    const query = `
+      INSERT INTO "${logsTableName}" (
+        "logId",
+        "logSortKey",
+        "address",
+        "data",
+        "topics",
+        "blockHash",
+        "blockNumber",
+        "logIndex",
+        "transactionHash",
+        "transactionIndex",
+        "removed"
+      ) VALUES ${buildInsertParams(11, logs.length)}
+      ON CONFLICT("logId") DO NOTHING
+    `;
+
+    await this.pool.query(query, params);
   };
 
   insertBlock = async (block: Block) => {
-    await this.db.none(
-      `
+    const blockParams = [
+      block.hash,
+      block.number,
+      block.timestamp,
+      block.gasLimit,
+      block.gasUsed,
+      block.baseFeePerGas,
+      block.miner,
+      block.extraData,
+      block.size,
+      block.parentHash,
+      block.stateRoot,
+      block.transactionsRoot,
+      block.receiptsRoot,
+      block.logsBloom,
+      block.totalDifficulty,
+    ];
+    const blockQuery = `
       INSERT INTO "${blocksTableName}" (
         "hash",
         "number",
@@ -288,48 +299,76 @@ export class PostgresCacheStore implements CacheStore {
         "receiptsRoot",
         "logsBloom",
         "totalDifficulty"
-      ) VALUES (
-        $(hash),
-        $(number),
-        $(timestamp),
-        $(gasLimit),
-        $(gasUsed),
-        $(baseFeePerGas),
-        $(miner),
-        $(extraData),
-        $(size),
-        $(parentHash),
-        $(stateRoot),
-        $(transactionsRoot),
-        $(receiptsRoot),
-        $(logsBloom),
-        $(totalDifficulty)
-      ) ON CONFLICT("hash") DO NOTHING
-      `,
-      { ...block, id: block.hash }
-    );
+      ) VALUES ${buildInsertParams(15, 1)}
+      ON CONFLICT("hash") DO NOTHING
+    `;
 
-    await this.db.none(
-      `
+    const logQuery = `
       UPDATE "${logsTableName}"
-      SET "blockTimestamp" = $(blockTimestamp)
-      WHERE "blockHash" = $(blockHash)
-      `,
-      {
-        blockHash: block.hash,
-        blockTimestamp: block.timestamp,
-      }
-    );
+      SET "blockTimestamp" = $1
+      WHERE "blockHash" = $2
+    `;
+    const logParams = [block.timestamp, block.hash];
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      await client.query(blockQuery, blockParams);
+      await client.query(logQuery, logParams);
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   };
 
   insertTransactions = async (transactions: Transaction[]) => {
     if (transactions.length === 0) return;
 
-    const query =
-      pgp.helpers.insert(transactions, this.transactionsColumnSet) +
-      `ON CONFLICT("hash") DO NOTHING`;
+    const params = transactions
+      .map((transaction) => [
+        transaction.hash,
+        transaction.nonce,
+        transaction.from,
+        transaction.to,
+        transaction.value,
+        transaction.input,
+        transaction.gas,
+        transaction.gasPrice,
+        transaction.maxFeePerGas,
+        transaction.maxPriorityFeePerGas,
+        transaction.blockHash,
+        transaction.blockNumber,
+        transaction.transactionIndex,
+        transaction.chainId,
+      ])
+      .flat();
 
-    await this.db.none(query);
+    const query = `
+      INSERT INTO "${transactionsTableName}" (
+        "hash",
+        "nonce",
+        "from",
+        "to",
+        "value",
+        "input",
+        "gas",
+        "gasPrice",
+        "maxFeePerGas",
+        "maxPriorityFeePerGas",
+        "blockHash",
+        "blockNumber",
+        "transactionIndex",
+        "chainId"
+      ) VALUES ${buildInsertParams(14, transactions.length)}
+      ON CONFLICT("hash") DO NOTHING
+    `;
+
+    await this.pool.query(query, params);
   };
 
   getLogs = async (
@@ -337,70 +376,66 @@ export class PostgresCacheStore implements CacheStore {
     fromBlockTimestamp: number,
     toBlockTimestamp: number
   ) => {
-    const logs = await this.db.manyOrNone<Log>(
+    const { rows } = await this.pool.query<Log>(
       `
       SELECT * FROM "${logsTableName}"
-      WHERE "address" = $(address)
-      AND "blockTimestamp" > $(fromBlockTimestamp)
-      AND "blockTimestamp" <= $(toBlockTimestamp)
+      WHERE "address" = $1
+      AND "blockTimestamp" > $2
+      AND "blockTimestamp" <= $3
       `,
-      {
-        address,
-        fromBlockTimestamp,
-        toBlockTimestamp,
-      }
+      [address, fromBlockTimestamp, toBlockTimestamp]
     );
 
     // For some reason, the log.logSortKey field comes as a string even though
     // the column type is a bigint.
-    return logs.map((log) => ({
+    return rows.map((log) => ({
       ...log,
       logSortKey: parseInt(log.logSortKey as unknown as string),
     }));
   };
 
   getBlock = async (hash: string) => {
-    return await this.db.oneOrNone<Block>(
+    const { rows, rowCount } = await this.pool.query<Block>(
       `
-      SELECT * FROM "${blocksTableName}" WHERE "hash" = $(hash)
+      SELECT * FROM "${blocksTableName}" WHERE "hash" = $1
       `,
-      {
-        hash: hash,
-      }
+      [hash]
     );
+
+    if (rowCount == 0) return null;
+    return rows[0];
   };
 
   getTransaction = async (hash: string) => {
-    return await this.db.oneOrNone<Transaction>(
+    const { rows, rowCount } = await this.pool.query<Transaction>(
       `
-      SELECT * FROM "${transactionsTableName}" WHERE "hash" = $(hash)
+      SELECT * FROM "${transactionsTableName}" WHERE "hash" = $1
       `,
-      {
-        hash: hash,
-      }
+      [hash]
     );
+
+    if (rowCount == 0) return null;
+    return rows[0];
   };
 
   upsertContractCall = async (contractCall: ContractCall) => {
-    await this.db.none(
+    await this.pool.query(
       `
       INSERT INTO "${contractCallsTableName}" ("key", "result")
-      VALUES ($(key), $(result))
+      VALUES ($1, $2)
       ON CONFLICT("key") DO NOTHING
       `,
-      {
-        key: contractCall.key,
-        result: contractCall.result,
-      }
+      [contractCall.key, contractCall.result]
     );
   };
 
   getContractCall = async (contractCallKey: string) => {
-    return await this.db.oneOrNone<ContractCall>(
-      `SELECT * FROM "${contractCallsTableName}" WHERE "key" = $(key)`,
-      {
-        key: contractCallKey,
-      }
+    const { rows, rowCount } = await this.pool.query<ContractCall>(
+      `SELECT * FROM "${contractCallsTableName}" WHERE "key" = $1`,
+      [contractCallKey]
     );
+
+    if (rowCount == 0) return null;
+    return rows[0];
   };
 }

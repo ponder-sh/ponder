@@ -59,6 +59,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   // Handler state
   isAddingLogs = false;
   isProcessingLogs = false;
+  isDevError = false;
   logsAddedToTimestamp = 0;
   currentEventBlockTag = 0;
 
@@ -180,6 +181,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }
 
   async reloadHandlers() {
+    this.isDevError = false;
     if (this.handlerQueue) {
       this.handlerQueue.kill();
       delete this.handlerQueue;
@@ -213,7 +215,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.logsAddedToTimestamp = 0;
     this.ui.handlersTotal = 0;
     this.ui.handlersCurrent = 0;
-    this.ui.handlerError = null;
+    this.ui.handlerError = false;
 
     this.codegen();
 
@@ -330,7 +332,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }
 
   async addNewLogs() {
-    if (!this.handlerQueue || this.isAddingLogs) return;
+    if (!this.handlerQueue || this.isAddingLogs || this.isDevError) return;
     this.isAddingLogs = true;
 
     const { hasNewLogs, toTimestamp, logs } = await getLogs({
@@ -378,17 +380,17 @@ export class Ponder extends EventEmitter<PonderEvents> {
   private dev_error: PonderEvents["dev_error"] = async (e) => {
     if (this.options.LOG_TYPE === "codegen") return;
 
+    this.isDevError = true;
     this.handlerQueue?.kill();
-    this.logMessage(MessageKind.ERROR, e.context);
+    this.logMessage(MessageKind.ERROR, e.context + `\n` + e.error?.stack);
 
-    // If not the dev server, log the entire error and kill the app.
+    // If prod, kill the app.
     if (this.options.LOG_TYPE === "start") {
-      if (e.error) logger.error(e.error);
       await this.kill();
       return;
     }
 
-    this.ui = { ...this.ui, handlerError: e };
+    this.ui = { ...this.ui, handlerError: true };
   };
 
   private backfill_networkConnected: PonderEvents["backfill_networkConnected"] =

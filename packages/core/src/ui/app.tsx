@@ -34,7 +34,7 @@ export type UiState = {
   isBackfillComplete: boolean;
   backfillDuration: string;
 
-  handlerError: { context: string; error?: Error } | null;
+  handlerError: boolean;
   handlersCurrent: number;
   handlersTotal: number;
   handlersToTimestamp: number;
@@ -62,7 +62,7 @@ export const getUiState = (options: Pick<PonderOptions, "SILENT">): UiState => {
     isBackfillComplete: false,
     backfillDuration: "",
 
-    handlerError: null,
+    handlerError: false,
     handlersCurrent: 0,
     handlersTotal: 0,
     handlersToTimestamp: 0,
@@ -114,8 +114,6 @@ const App = (ui: UiState) => {
   if (handlerError) {
     return (
       <Box flexDirection="column">
-        <Text> </Text>
-        <Text>{handlerError.error?.stack}</Text>
         <Text> </Text>
         <Text color="cyan">
           Resolve the error and save your changes to reload the server.
