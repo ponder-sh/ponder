@@ -2,4 +2,4 @@
 "create-ponder": patch
 ---
 
-Removed plugins from generated code"
+Removed plugins from generated code
