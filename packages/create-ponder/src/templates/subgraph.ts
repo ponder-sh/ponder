@@ -107,10 +107,6 @@ export const fromSubgraph = (options: CreatePonderOptions) => {
 
   // Build the partial ponder config.
   const ponderConfig: PartialPonderConfig = {
-    plugins: ["graphqlPlugin()"],
-    database: {
-      kind: "sqlite",
-    },
     networks: ponderNetworks,
     contracts: ponderContracts,
   };
