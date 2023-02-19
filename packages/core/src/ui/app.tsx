@@ -37,6 +37,7 @@ export type UiState = {
   handlerError: boolean;
   handlersCurrent: number;
   handlersTotal: number;
+  handlersHandledTotal: number;
   handlersToTimestamp: number;
 
   networks: Record<
@@ -65,6 +66,7 @@ export const getUiState = (options: Pick<PonderOptions, "SILENT">): UiState => {
     handlerError: false,
     handlersCurrent: 0,
     handlersTotal: 0,
+    handlersHandledTotal: 0,
     handlersToTimestamp: 0,
 
     networks: {},

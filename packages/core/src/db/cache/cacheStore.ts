@@ -23,7 +23,7 @@ export interface CacheStore {
 
   insertCachedInterval(interval: CachedInterval): Promise<void>;
 
-  insertLogs(log: Log[]): Promise<void>;
+  insertLogs(logs: Log[]): Promise<void>;
 
   insertBlock(block: Block): Promise<void>;
 
@@ -32,7 +32,8 @@ export interface CacheStore {
   getLogs(
     contractAddress: string,
     fromBlockTimestamp: number,
-    toBlockTimestamp: number
+    toBlockTimestamp: number,
+    eventSigHashes?: string[]
   ): Promise<Log[]>;
 
   getBlock(hash: string): Promise<Block | null>;

@@ -54,15 +54,15 @@ describe("Ponder", () => {
       expect(ponder.ui.isBackfillComplete).toBe(true);
 
       const logs = (ponder.database as SqliteDb).db
-        .prepare(`SELECT * FROM __ponder__v1__logs`)
+        .prepare(`SELECT * FROM __ponder__v2__logs`)
         .all();
 
       const blocks = (ponder.database as SqliteDb).db
-        .prepare(`SELECT * FROM __ponder__v1__blocks`)
+        .prepare(`SELECT * FROM __ponder__v2__blocks`)
         .all();
 
       const transactions = (ponder.database as SqliteDb).db
-        .prepare(`SELECT * FROM __ponder__v1__transactions`)
+        .prepare(`SELECT * FROM __ponder__v2__transactions`)
         .all();
 
       expect(logs.length).toBe(148);

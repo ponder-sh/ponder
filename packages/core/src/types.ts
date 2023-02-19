@@ -111,7 +111,10 @@ export interface Log {
 
   address: string;
   data: string;
-  topics: string; // JSON.stringify-ed array of topic strings
+  topic0?: string;
+  topic1?: string;
+  topic2?: string;
+  topic3?: string;
 
   blockHash: string;
   blockNumber: number;

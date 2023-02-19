@@ -102,11 +102,11 @@ describe("Ponder", () => {
         .all();
       const tableNames = tables.map((t) => t.name);
 
-      expect(tableNames).toContain("__ponder__v1__cachedIntervals");
-      expect(tableNames).toContain("__ponder__v1__logs");
-      expect(tableNames).toContain("__ponder__v1__blocks");
-      expect(tableNames).toContain("__ponder__v1__transactions");
-      expect(tableNames).toContain("__ponder__v1__contractCalls");
+      expect(tableNames).toContain("__ponder__v2__cachedIntervals");
+      expect(tableNames).toContain("__ponder__v2__logs");
+      expect(tableNames).toContain("__ponder__v2__blocks");
+      expect(tableNames).toContain("__ponder__v2__transactions");
+      expect(tableNames).toContain("__ponder__v2__contractCalls");
     });
 
     it("creates the handler queue", async () => {
@@ -166,7 +166,7 @@ describe("Ponder", () => {
       expect(ponder.ui.isBackfillComplete).toBe(true);
 
       const cachedIntervals = (ponder.database as SqliteDb).db
-        .prepare(`SELECT * FROM __ponder__v1__cachedIntervals`)
+        .prepare(`SELECT * FROM __ponder__v2__cachedIntervals`)
         .all();
       expect(cachedIntervals.length).toBeGreaterThan(0);
     });

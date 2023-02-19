@@ -22,7 +22,7 @@ import { buildCacheStore, CacheStore } from "@/db/cache/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
 import { buildEntityStore, EntityStore } from "@/db/entity/entityStore";
 import { createHandlerQueue, HandlerQueue } from "@/handlers/handlerQueue";
-import { readHandlers } from "@/handlers/readHandlers";
+import { Handlers, readHandlers } from "@/handlers/readHandlers";
 import { getLatestBlockForNetwork } from "@/indexer/tasks/getLatestBlockForNetwork";
 import { getLogs } from "@/indexer/tasks/getLogs";
 import { startBackfill } from "@/indexer/tasks/startBackfill";
@@ -57,6 +57,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }[] = [];
 
   // Handler state
+  handlers: Handlers | null = null;
   isAddingLogs = false;
   isProcessingLogs = false;
   isDevError = false;
@@ -198,6 +199,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     if (!handlerQueue) return;
 
     this.handlerQueue = handlerQueue;
+    this.handlers = handlers;
   }
 
   loadSchema() {
@@ -214,6 +216,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   async reload() {
     this.logsAddedToTimestamp = 0;
     this.ui.handlersTotal = 0;
+    this.ui.handlersHandledTotal = 0;
     this.ui.handlersCurrent = 0;
     this.ui.handlerError = false;
 
@@ -335,7 +338,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     if (!this.handlerQueue || this.isAddingLogs || this.isDevError) return;
     this.isAddingLogs = true;
 
-    const { hasNewLogs, toTimestamp, logs } = await getLogs({
+    const { hasNewLogs, toTimestamp, logs, totalLogCount } = await getLogs({
       ponder: this,
       fromTimestamp: this.logsAddedToTimestamp,
     });
@@ -349,7 +352,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
       this.handlerQueue.push(log);
     }
 
-    this.ui.handlersTotal += logs.length;
+    this.ui.handlersTotal += totalLogCount ?? 0;
+    this.ui.handlersHandledTotal += logs.length;
     this.logsAddedToTimestamp = toTimestamp;
     this.ui.handlersToTimestamp = toTimestamp;
     this.isAddingLogs = false;

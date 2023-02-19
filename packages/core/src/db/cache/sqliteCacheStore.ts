@@ -6,7 +6,7 @@ import type { Block, Log, Transaction } from "@/types";
 
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
 
-const SQLITE_TABLE_PREFIX = "__ponder__v1__";
+const SQLITE_TABLE_PREFIX = "__ponder__v2__";
 
 const cachedIntervalsTableName = `${SQLITE_TABLE_PREFIX}cachedIntervals`;
 const logsTableName = `${SQLITE_TABLE_PREFIX}logs`;
@@ -52,7 +52,10 @@ export class SqliteCacheStore implements CacheStore {
           "logSortKey" INTEGER NOT NULL,
           "address" TEXT NOT NULL,
           "data" TEXT NOT NULL,
-          "topics" TEXT NOT NULL,
+          "topic0" TEXT,
+          "topic1" TEXT,
+          "topic2" TEXT,
+          "topic3" TEXT,
           "blockHash" TEXT NOT NULL,
           "blockNumber" INTEGER NOT NULL,
           "blockTimestamp" INTEGER,
@@ -69,6 +72,14 @@ export class SqliteCacheStore implements CacheStore {
         `
         CREATE INDEX IF NOT EXISTS "${logsTableName}BlockTimestamp"
         ON "${logsTableName}" ("blockTimestamp")
+        `
+      )
+      .run();
+    this.db
+      .prepare(
+        `
+        CREATE INDEX IF NOT EXISTS "${logsTableName}Topic0"
+        ON "${logsTableName}" ("topic0")
         `
       )
       .run();
@@ -229,7 +240,10 @@ export class SqliteCacheStore implements CacheStore {
         "logSortKey",
         "address",
         "data",
-        "topics",
+        "topic0",
+        "topic1",
+        "topic2",
+        "topic3",
         "blockHash",
         "blockNumber",
         "logIndex",
@@ -241,7 +255,10 @@ export class SqliteCacheStore implements CacheStore {
         @logSortKey,
         @address,
         @data,
-        @topics,
+        @topic0,
+        @topic1,
+        @topic2,
+        @topic3,
         @blockHash,
         @blockNumber,
         @logIndex,
@@ -373,9 +390,19 @@ export class SqliteCacheStore implements CacheStore {
   getLogs = async (
     address: string,
     fromBlockTimestamp: number,
-    toBlockTimestamp: number
+    toBlockTimestamp: number,
+    eventSigHashes?: string[]
   ) => {
     try {
+      let topicStatement = "";
+      let topicParams: string[] = [];
+      if (eventSigHashes !== undefined) {
+        topicStatement = `AND "topic0" IN (${[
+          ...Array(eventSigHashes.length).keys(),
+        ].map(() => `?`)})`;
+        topicParams = eventSigHashes;
+      }
+
       const logs = this.db
         .prepare(
           `
@@ -383,9 +410,10 @@ export class SqliteCacheStore implements CacheStore {
           WHERE "address" = @address
           AND "blockTimestamp" > @fromBlockTimestamp
           AND "blockTimestamp" <= @toBlockTimestamp
+          ${topicStatement}
           `
         )
-        .all({
+        .all(...topicParams, {
           address,
           fromBlockTimestamp,
           toBlockTimestamp,
