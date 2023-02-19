@@ -390,9 +390,19 @@ export class SqliteCacheStore implements CacheStore {
   getLogs = async (
     address: string,
     fromBlockTimestamp: number,
-    toBlockTimestamp: number
+    toBlockTimestamp: number,
+    eventSigHashes?: string[]
   ) => {
     try {
+      let topicStatement = "";
+      let topicParams: string[] = [];
+      if (eventSigHashes !== undefined) {
+        topicStatement = `AND "topic0" IN (${[
+          ...Array(eventSigHashes.length).keys(),
+        ].map(() => `?`)})`;
+        topicParams = eventSigHashes;
+      }
+
       const logs = this.db
         .prepare(
           `
@@ -400,9 +410,10 @@ export class SqliteCacheStore implements CacheStore {
           WHERE "address" = @address
           AND "blockTimestamp" > @fromBlockTimestamp
           AND "blockTimestamp" <= @toBlockTimestamp
+          ${topicStatement}
           `
         )
-        .all({
+        .all(...topicParams, {
           address,
           fromBlockTimestamp,
           toBlockTimestamp,

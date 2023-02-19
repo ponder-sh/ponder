@@ -387,16 +387,27 @@ export class PostgresCacheStore implements CacheStore {
   getLogs = async (
     address: string,
     fromBlockTimestamp: number,
-    toBlockTimestamp: number
+    toBlockTimestamp: number,
+    eventSigHashes?: string[]
   ) => {
+    let topicStatement = "";
+    let topicParams: string[] = [];
+    if (eventSigHashes !== undefined) {
+      topicStatement = `AND "topic0" IN (${[
+        ...Array(eventSigHashes.length).keys(),
+      ].map((index) => `$${index + 4}`)})`;
+      topicParams = eventSigHashes;
+    }
+
     const { rows } = await this.pool.query<Log>(
       `
       SELECT * FROM "${logsTableName}"
       WHERE "address" = $1
       AND "blockTimestamp" > $2
       AND "blockTimestamp" <= $3
+      ${topicStatement}
       `,
-      [address, fromBlockTimestamp, toBlockTimestamp]
+      [address, fromBlockTimestamp, toBlockTimestamp, ...topicParams]
     );
 
     // For some reason, the log.logSortKey field comes as a string even though

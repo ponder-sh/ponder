@@ -32,7 +32,8 @@ export interface CacheStore {
   getLogs(
     contractAddress: string,
     fromBlockTimestamp: number,
-    toBlockTimestamp: number
+    toBlockTimestamp: number,
+    eventSigHashes?: string[]
   ): Promise<Log[]>;
 
   getBlock(hash: string): Promise<Block | null>;
