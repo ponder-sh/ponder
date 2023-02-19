@@ -12,11 +12,13 @@ export const decodeLog = ({
   abiInterface: ethers.utils.Interface;
 }) => {
   try {
+    const topics = [log.topic0, log.topic1, log.topic2, log.topic3].filter(
+      (element): element is string => !!element
+    );
+
     const parsedLog = abiInterface.parseLog({
       data: log.data,
-      topics: [log.topic0, log.topic1, log.topic2, log.topic3].filter(
-        (element): element is string => element !== undefined
-      ),
+      topics: topics,
     });
 
     const eventName = parsedLog.name;

@@ -5,7 +5,8 @@ import { UiState } from "./app";
 import { ProgressBar } from "./ProgressBar";
 
 export const HandlersBar = ({ ui }: { ui: UiState }) => {
-  const completionRate = ui.handlersCurrent / Math.max(ui.handlersTotal, 1);
+  const completionRate =
+    ui.handlersCurrent / Math.max(ui.handlersHandledTotal, 1);
   const completionDecimal = Math.round(completionRate * 1000) / 10;
   const completionText =
     Number.isInteger(completionDecimal) && completionDecimal < 100
@@ -33,7 +34,7 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
   const dateText = `${month} ${day}, ${year}`;
 
   const isUpToDate =
-    ui.isBackfillComplete && ui.handlersCurrent === ui.handlersTotal;
+    ui.isBackfillComplete && ui.handlersCurrent === ui.handlersHandledTotal;
   const isStarted = ui.handlersToTimestamp > 0;
 
   const titleText = () => {
@@ -52,7 +53,8 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
       return (
         <Text>
           {" "}
-          | {ui.handlersCurrent}/{ui.handlersTotal} events
+          | {ui.handlersCurrent}/{ui.handlersHandledTotal} events (
+          {ui.handlersTotal} total)
         </Text>
       );
     if (isStarted)
@@ -60,7 +62,8 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
         <Text>
           {" "}
           | {ui.handlersCurrent}/
-          {"?".repeat(ui.handlersCurrent.toString().length)} events
+          {"?".repeat(ui.handlersCurrent.toString().length)} events (
+          {ui.handlersTotal} total)
         </Text>
       );
     return null;
@@ -76,7 +79,7 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
       <Box flexDirection="row">
         <ProgressBar
           current={ui.handlersCurrent}
-          end={Math.max(ui.handlersTotal, 1)}
+          end={Math.max(ui.handlersHandledTotal, 1)}
         />
         <Text>
           {" "}
