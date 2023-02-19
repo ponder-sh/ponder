@@ -10,6 +10,7 @@ import { HandlersBar } from "./HandlersBar";
 export type UiState = {
   isSilent: boolean;
   timestamp: number;
+  port: number;
 
   stats: Record<
     string,
@@ -52,11 +53,11 @@ export type UiState = {
   >;
 };
 
-export const getUiState = (options: Pick<PonderOptions, "SILENT">): UiState => {
+export const getUiState = (options: Partial<PonderOptions>): UiState => {
   return {
-    isSilent: options.SILENT,
-
+    isSilent: options.SILENT ?? false,
     timestamp: 0,
+    port: options.PORT ?? 0,
 
     stats: {},
 
@@ -103,6 +104,7 @@ const App = (ui: UiState) => {
   const {
     isSilent,
     timestamp,
+    port,
     stats,
     isBackfillComplete,
     backfillDuration,
@@ -180,7 +182,7 @@ const App = (ui: UiState) => {
         <Box flexDirection="column">
           <Text bold={true}>GraphQL </Text>
           <Box flexDirection="row">
-            <Text>Server live at http://localhost:42069/graphql</Text>
+            <Text>Server live at http://localhost:{port}/graphql</Text>
           </Box>
         </Box>
       )}
