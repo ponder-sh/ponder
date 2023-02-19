@@ -7,7 +7,7 @@ import { Tabs, Tab } from "nextra-theme-docs";
 
 # `ponder.config.ts`
 
-The `ponder.config.ts` config file contains smart contract addresses, paths to ABIs, RPC URLs, database config, and plugin config.
+The `ponder.config.ts` config file contains smart contract addresses, paths to ABIs, RPC URLs, and database config.
 
 Some things to know:
 
@@ -60,17 +60,12 @@ See [Deploy to production](/guides/production) for more details.
 | **filename**         |  `string \| undefined`   | **Default: `.ponder/cache.db`**. Path to a SQLite database file. Only used if `kind: "sqlite"`.                |
 | **connectionString** |  `string \| undefined`   | **Default: `process.env.DATABASE_URL`**. Postgres database connection string. Only used if `kind: "postgres"`. |
 
-### Plugins
-
-Ponder has a work-in-progress plugin system. Currently, the `graphql` plugin provided by `@ponder/graphql` is the only official plugin, and it is required for all Ponder apps.
-
 ## Examples
 
 ### Basic example
 
 ```ts filename="ponder.config.ts"
 import type { PonderConfig } from "@ponder/core";
-import { graphqlPlugin } from "@ponder/graphql";
 
 export const config: PonderConfig = {
   networks: [
@@ -89,7 +84,6 @@ export const config: PonderConfig = {
       startBlock: 15863321,
     },
   ],
-  plugins: [graphqlPlugin()],
 };
 ```
 
@@ -97,7 +91,6 @@ export const config: PonderConfig = {
 
 ```ts filename="ponder.config.ts"
 import type { PonderConfig } from "@ponder/core";
-import { graphqlPlugin } from "@ponder/graphql";
 
 export const config: PonderConfig = async () => {
   const startBlock = await fetch("http://...");
