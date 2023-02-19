@@ -30,7 +30,8 @@ import { startFrontfill } from "@/indexer/tasks/startFrontfill";
 import { buildSchema } from "@/schema/buildSchema";
 import { readGraphqlSchema } from "@/schema/readGraphqlSchema";
 import type { Schema } from "@/schema/types";
-import { EventEmitter, PonderEvents, PonderPlugin } from "@/types";
+import { Server } from "@/server/Server";
+import { EventEmitter, PonderEvents } from "@/types";
 import type { UiState } from "@/ui/app";
 import { getUiState, hydrateUi, render, unmount } from "@/ui/app";
 
@@ -45,6 +46,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   database: PonderDatabase;
   cacheStore: CacheStore;
   entityStore: EntityStore;
+  server: Server;
 
   // Reload-able services
   schema?: Schema;
@@ -68,9 +70,6 @@ export class Ponder extends EventEmitter<PonderEvents> {
   killFrontfillQueues?: () => void;
   killBackfillQueues?: () => void;
   killWatchers?: () => Promise<void>;
-
-  // Plugins
-  plugins: PonderPlugin[] = [];
 
   // UI
   ui: UiState;
@@ -115,9 +114,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.networks = buildNetworks({ ponder: this });
     this.contracts = buildContracts({ ponder: this });
 
-    this.plugins = (
-      (this.config.plugins as ((ponder: Ponder) => PonderPlugin)[]) || []
-    ).map((plugin) => plugin(this));
+    this.server = new Server({ ponder: this });
 
     hydrateUi({ ui: this.ui, contracts: this.contracts });
   }
@@ -153,7 +150,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.handlerQueue?.kill();
     this.killFrontfillQueues?.();
     this.killBackfillQueues?.();
-    await this.teardownPlugins();
+    await this.server.teardown();
     await this.killWatchers?.();
   }
 
@@ -177,8 +174,6 @@ export class Ponder extends EventEmitter<PonderEvents> {
       this.reloadHandlers(),
       this.resetEntityStore(),
     ]);
-
-    await this.setupPlugins();
   }
 
   async reloadHandlers() {
@@ -207,6 +202,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     // It's possible for `readGraphqlSchema` to emit a dev_error and return null.
     if (!graphqlSchema) return;
     this.schema = buildSchema(graphqlSchema);
+    this.server.reload();
   }
 
   async resetEntityStore() {
@@ -220,11 +216,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.handlersCurrent = 0;
     this.ui.handlerError = false;
 
-    this.codegen();
-
+    this.codegen(); // codegen calls this.loadSchema()
     await Promise.all([this.resetEntityStore(), this.reloadHandlers()]);
-
-    this.reloadPlugins();
     this.emit("backfill_newLogs");
   }
 
@@ -522,24 +515,6 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.handlersToTimestamp = e.timestamp;
     if (this.options.LOG_TYPE === "dev") render(this.ui);
   };
-
-  // --------------------------- PLUGINS --------------------------- //
-
-  // private buildPlugins(pluginBuilders: PonderPluginBuilder[]) {
-  //   return pluginBuilders.map((plugin) => plugin(this));
-  // }
-
-  private async setupPlugins() {
-    await Promise.all(this.plugins.map(async (p) => await p.setup?.()));
-  }
-
-  private async reloadPlugins() {
-    await Promise.all(this.plugins.map(async (p) => await p.reload?.()));
-  }
-
-  private async teardownPlugins() {
-    await Promise.all(this.plugins.map(async (p) => await p.teardown?.()));
-  }
 
   // --------------------------- HELPERS --------------------------- //
 

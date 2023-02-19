@@ -1,7 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-ignore
-import { graphqlPlugin } from "@ponder/graphql";
-
 import EmptyAbi from "./Empty.abi.json";
 
 export const config = {
@@ -15,5 +11,4 @@ export const config = {
       startBlock: 10,
     },
   ],
-  plugins: [graphqlPlugin()],
 };
