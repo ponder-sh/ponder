@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.33
+
+### Patch Changes
+
+- [`4d98b5d`](https://github.com/0xOlias/ponder/commit/4d98b5d9c710c5c2f872521016cf1b3e2151f299) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed bug where postgres would throw an error if no handlers were registered
+
 ## 0.0.32
 
 ### Patch Changes
@@ -165,8 +171,8 @@
       {
         name: "mainnet",
         chainId: 1,
-        rpcUrl: process.env.PONDER_RPC_URL_1
-      }
+        rpcUrl: process.env.PONDER_RPC_URL_1,
+      },
     ],
     sources: [
       {
@@ -174,10 +180,10 @@
         network: "mainnet",
         abi: "./abis/ArtGobblers.json",
         address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: 15863321
-      }
+        startBlock: 15863321,
+      },
     ],
-    plugins: [graphqlPlugin()]
+    plugins: [graphqlPlugin()],
   };
   ```
 
@@ -195,7 +201,7 @@
       ],
       sources: [
         /* ... */
-      ]
+      ],
     };
   };
   ```
