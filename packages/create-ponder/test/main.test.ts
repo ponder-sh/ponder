@@ -60,7 +60,7 @@ describe("create-ponder", () => {
       it("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
         expect(generated.sort()).toEqual(
-          ["index.ts", "app.ts", "contracts"].sort()
+          ["index.ts", "app.ts", "contracts", "schema.graphql"].sort()
         );
         const contracts = fs.readdirSync(
           path.join(rootDir, "generated/contracts")
@@ -127,7 +127,7 @@ describe("create-ponder", () => {
       it("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
         expect(generated.sort()).toEqual(
-          ["index.ts", "app.ts", "contracts"].sort()
+          ["index.ts", "app.ts", "contracts", "schema.graphql"].sort()
         );
         const contracts = fs.readdirSync(
           path.join(rootDir, "generated/contracts")
