@@ -5,6 +5,7 @@ import { PonderCliOptions } from "@/bin/ponder";
 export type PonderOptions = {
   PONDER_CONFIG_FILE_PATH: string;
   SCHEMA_FILE_PATH: string;
+  PORT: number;
 
   SRC_DIR_PATH: string;
   HANDLERS_DIR_PATH: string;
@@ -19,15 +20,17 @@ export const buildOptions = (
   options: PonderCliOptions & { logType: "dev" | "start" | "codegen" }
 ): PonderOptions => {
   const defaults = {
-    LOG_TYPE: options.logType,
-    SILENT: options.silent,
-    // File path options
     PONDER_CONFIG_FILE_PATH: options.configFile,
     SCHEMA_FILE_PATH: "schema.graphql",
+    PORT: Number(process.env.PORT) || 42069,
+
     SRC_DIR_PATH: "src",
     HANDLERS_DIR_PATH: "handlers",
     GENERATED_DIR_PATH: "generated",
     PONDER_DIR_PATH: ".ponder",
+
+    LOG_TYPE: options.logType,
+    SILENT: options.silent,
   };
 
   const rootDir = path.resolve(options.rootDir);

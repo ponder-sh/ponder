@@ -34,7 +34,6 @@ const ponderConfigSchema = z.object({
       isIndexed: z.optional(z.boolean()),
     })
   ),
-  plugins: z.optional(z.array(z.any())),
 });
 
 export type ResolvedPonderConfig = z.infer<typeof ponderConfigSchema>;

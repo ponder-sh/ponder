@@ -8,6 +8,7 @@ import { SqliteDb } from "@/db/db";
 import { SqliteEntityStore } from "@/db/entity/sqliteEntityStore";
 import { CachedProvider } from "@/indexer/CachedProvider";
 import { Ponder } from "@/Ponder";
+import { Server } from "@/server/Server";
 
 import { buildSendFunc } from "./utils/buildSendFunc";
 import { getFreePort } from "./utils/getFreePort";
@@ -81,9 +82,8 @@ describe("Ponder", () => {
       expect(ponder.entityStore).toBeInstanceOf(SqliteEntityStore);
     });
 
-    it("builds plugins", async () => {
-      expect(ponder.plugins).toHaveLength(1);
-      expect(ponder.plugins[0].name).toBe("graphql");
+    it("builds server", async () => {
+      expect(ponder.server).toBeInstanceOf(Server);
     });
   });
 

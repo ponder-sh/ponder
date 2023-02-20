@@ -12,14 +12,12 @@ import { fromEtherscan } from "@/templates/etherscan";
 import { fromSubgraph } from "@/templates/subgraph";
 
 export type PonderNetwork = {
-  kind?: string;
   name: string;
   chainId: number;
   rpcUrl: string;
 };
 
 export type PonderContract = {
-  kind?: "evm";
   name: string;
   network: string;
   abi: string;
@@ -28,8 +26,7 @@ export type PonderContract = {
 };
 
 export type PartialPonderConfig = {
-  plugins: string[];
-  database: {
+  database?: {
     kind: string;
   };
   networks: PonderNetwork[];
@@ -90,10 +87,8 @@ export const run = async (
   // Write the ponder.config.ts file.
   const finalPonderConfig = `
     import type { PonderConfig } from "@ponder/core";
-    import { graphqlPlugin } from "@ponder/graphql";
 
     export const config: PonderConfig = {
-      plugins: [graphqlPlugin()],
       networks: ${JSON.stringify(ponderConfig.networks).replaceAll(
         /"process.env.PONDER_RPC_URL_(.*?)"/g,
         "process.env.PONDER_RPC_URL_$1"

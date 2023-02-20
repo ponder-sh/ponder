@@ -1,7 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-ignore
-import { graphqlPlugin } from "@ponder/graphql";
-
 import BaseRegistrarImplementationAbi from "./BaseRegistrarImplementation.abi.json";
 
 export const config = {
@@ -16,5 +12,4 @@ export const config = {
       blockLimit: 100,
     },
   ],
-  plugins: [graphqlPlugin()],
 };

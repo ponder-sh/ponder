@@ -1,22 +1,6 @@
 import NodeEventEmitter from "node:events";
 import TypedEmitter, { EventMap } from "typed-emitter";
 
-import type { Ponder } from "@/Ponder";
-
-// --------------------------- PLUGIN TYPES --------------------------- //
-
-export interface PonderPlugin {
-  name: string;
-
-  setup?: () => Promise<void>;
-  reload?: () => Promise<void>;
-  teardown?: () => Promise<void>;
-}
-
-export type PonderPluginBuilder<PluginOptions = Record<string, unknown>> = (
-  options?: PluginOptions
-) => (ponder: Ponder) => PonderPlugin;
-
 // --------------------------- EVENT EMITTER TYPES --------------------------- //
 
 export class EventEmitter<T extends EventMap> extends (NodeEventEmitter as {

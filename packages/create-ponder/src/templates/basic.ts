@@ -35,10 +35,6 @@ export const fromBasic = (options: CreatePonderOptions) => {
 
   // Build the partial ponder config.
   const ponderConfig: PartialPonderConfig = {
-    plugins: ["graphqlPlugin()"],
-    database: {
-      kind: "sqlite",
-    },
     networks: [
       {
         name: "mainnet",

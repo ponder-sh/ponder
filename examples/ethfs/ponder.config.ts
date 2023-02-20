@@ -1,5 +1,4 @@
 import type { PonderConfig } from "@ponder/core";
-import { graphqlPlugin } from "@ponder/graphql";
 
 export const config: PonderConfig = {
   networks: [
@@ -26,5 +25,4 @@ export const config: PonderConfig = {
       isIndexed: false,
     },
   ],
-  plugins: [graphqlPlugin()],
 };

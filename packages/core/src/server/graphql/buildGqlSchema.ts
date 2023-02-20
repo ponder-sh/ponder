@@ -1,5 +1,7 @@
-import type { EntityStore, PonderSchema } from "@ponder/core";
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
+
+import { EntityStore } from "@/db/entity/entityStore";
+import { Schema } from "@/schema/types";
 
 import { buildEntityType } from "./buildEntityType";
 import { buildPluralField } from "./buildPluralField";
@@ -8,7 +10,7 @@ import { buildSingularField } from "./buildSingularField";
 export type Source = { request: unknown };
 export type Context = { store: EntityStore };
 
-const buildGqlSchema = (schema: PonderSchema): GraphQLSchema => {
+const buildGqlSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Source, Context>> = {};
 
   const entityTypes: Record<string, GraphQLObjectType<Source, Context>> = {};

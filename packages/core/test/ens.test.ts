@@ -98,9 +98,7 @@ describe("Ponder", () => {
       await ponder.processLogs();
 
       gql = async (query) => {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        const app = request(ponder.plugins[0].server.app);
+        const app = request(ponder.server.app);
         const response = await app
           .post("/graphql")
           .send({ query: `query { ${query} }` });

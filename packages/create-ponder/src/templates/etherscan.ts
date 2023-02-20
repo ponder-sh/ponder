@@ -66,10 +66,6 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
 
   // Build and return the partial ponder config.
   const ponderConfig: PartialPonderConfig = {
-    plugins: ["graphqlPlugin()"],
-    database: {
-      kind: "sqlite",
-    },
     networks: [
       {
         name: name,
