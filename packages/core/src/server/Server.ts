@@ -3,6 +3,7 @@ import express from "express";
 import { graphqlHTTP } from "express-graphql";
 import type http from "node:http";
 
+import { MessageKind } from "@/common/logger";
 import type { Ponder } from "@/Ponder";
 
 export class Server {
@@ -18,6 +19,29 @@ export class Server {
     this.app = express();
     this.app.use(cors());
     this.server = this.app.listen(ponder.options.PORT);
+
+    // By default, the server will respond as unhealthy until the backfill logs have
+    // been processed OR 4.5 minutes have passed since the app was created. This
+    // enables zero-downtime deployments on PaaS platforms like Railway and Render.
+    // Also see https://github.com/0xOlias/ponder/issues/24
+    this.app.get("/health", (_, res) => {
+      if (this.ponder.isLogProcessingComplete) {
+        return res.status(200).send();
+      }
+
+      const backfillTimeout = 270;
+      const elapsed =
+        Math.floor(Date.now() / 1000) - this.ponder.setupTimestamp;
+      if (elapsed > backfillTimeout) {
+        this.ponder.logMessage(
+          MessageKind.WARNING,
+          `Backfill & log processing time has exceeded ${backfillTimeout} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`
+        );
+        return res.status(200).send();
+      }
+
+      return res.status(503).send();
+    });
   }
 
   reload() {

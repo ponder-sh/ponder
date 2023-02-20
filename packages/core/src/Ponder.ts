@@ -42,6 +42,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   options: PonderOptions;
   config: ResolvedPonderConfig;
   logger: PonderLogger = logger;
+  setupTimestamp = Math.floor(Date.now() / 1000);
 
   // Config-derived services
   contracts: Contract[];
@@ -57,6 +58,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   handlerQueue?: HandlerQueue;
 
   // Indexer state
+  isBackfillComplete = false;
   frontfillNetworks: {
     network: Network;
     latestBlockNumber: number;
@@ -67,6 +69,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   isAddingLogs = false;
   isProcessingLogs = false;
   isDevError = false;
+  isLogProcessingComplete = false;
   logsAddedToTimestamp = 0;
   currentEventBlockTag = 0;
 
@@ -326,9 +329,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
     await drainBackfillQueues();
     const duration = formatEta(endBenchmark(startHrt));
 
-    if (this.options.LOG_TYPE === "start") {
-      this.logMessage(MessageKind.BACKFILL, `backfill complete (${duration})`);
-    }
+    this.isBackfillComplete = true;
+    this.logMessage(MessageKind.BACKFILL, `backfill complete (${duration})`);
 
     this.ui = {
       ...this.ui,
@@ -383,6 +385,25 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
     if (this.options.LOG_TYPE === "start" && logCount > 0) {
       this.logMessage(MessageKind.INDEXER, `processed ${logCount} events`);
+    }
+
+    // If, after this batch of logs, logsAddedToTimestamp is greater than the latest
+    // frontfill network timestamp AND the backfill is complete, log processing is complete.
+    const latestBackfillTimestamp = Math.max(
+      ...this.frontfillNetworks.map(
+        ({ latestBlockNumber }) => latestBlockNumber
+      )
+    );
+    if (
+      !this.isLogProcessingComplete &&
+      this.logsAddedToTimestamp >= latestBackfillTimestamp &&
+      this.isBackfillComplete
+    ) {
+      this.logMessage(
+        MessageKind.INDEXER,
+        "backfill event processing complete"
+      );
+      this.isLogProcessingComplete = true;
     }
   }
 
@@ -582,7 +603,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     }
   }
 
-  private logMessage = (kind: MessageKind, message: string) => {
+  logMessage = (kind: MessageKind, message: string) => {
     if (!this.options.SILENT) {
       logMessage(kind, message);
     }
