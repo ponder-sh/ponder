@@ -1,10 +1,12 @@
 import chokidar from "chokidar";
+import type { GraphQLSchema } from "graphql";
 import path from "node:path";
 import pico from "picocolors";
 
 import { generateApp } from "@/codegen/generateApp";
 import { generateAppType } from "@/codegen/generateAppType";
 import { generateContractTypes } from "@/codegen/generateContractTypes";
+import { generateSchema } from "@/codegen/generateSchema";
 import { logger, logMessage, MessageKind, PonderLogger } from "@/common/logger";
 import type { PonderOptions } from "@/common/options";
 import {
@@ -30,6 +32,7 @@ import { startFrontfill } from "@/indexer/tasks/startFrontfill";
 import { buildSchema } from "@/schema/buildSchema";
 import { readGraphqlSchema } from "@/schema/readGraphqlSchema";
 import type { Schema } from "@/schema/types";
+import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
 import { Server } from "@/server/Server";
 import { EventEmitter, PonderEvents } from "@/types";
 import type { UiState } from "@/ui/app";
@@ -50,6 +53,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
 
   // Reload-able services
   schema?: Schema;
+  graphqlSchema?: GraphQLSchema;
   handlerQueue?: HandlerQueue;
 
   // Indexer state
@@ -136,11 +140,10 @@ export class Ponder extends EventEmitter<PonderEvents> {
     await this.backfill();
   }
 
-  codegen() {
+  async codegen() {
     this.loadSchema();
-    generateApp({ ponder: this });
-    generateAppType({ ponder: this });
-    generateContractTypes({ ponder: this });
+    this.runCodegen();
+    await this.kill();
   }
 
   async kill() {
@@ -167,13 +170,20 @@ export class Ponder extends EventEmitter<PonderEvents> {
     }, 1000);
 
     // Codegen must happen before reloadHandlers because handlers depend on `generated/index.ts`.
-    this.codegen();
+    this.runCodegen();
 
     await Promise.all([
       this.cacheStore.migrate(),
       this.reloadHandlers(),
       this.resetEntityStore(),
     ]);
+  }
+
+  runCodegen() {
+    generateApp({ ponder: this });
+    generateAppType({ ponder: this });
+    generateContractTypes({ ponder: this });
+    generateSchema({ ponder: this });
   }
 
   async reloadHandlers() {
@@ -202,6 +212,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
     // It's possible for `readGraphqlSchema` to emit a dev_error and return null.
     if (!graphqlSchema) return;
     this.schema = buildSchema(graphqlSchema);
+    this.graphqlSchema = buildGqlSchema(this.schema);
+
     this.server.reload();
   }
 
@@ -216,8 +228,11 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.handlersCurrent = 0;
     this.ui.handlerError = false;
 
-    this.codegen(); // codegen calls this.loadSchema()
+    this.loadSchema();
     await Promise.all([this.resetEntityStore(), this.reloadHandlers()]);
+
+    this.runCodegen();
+
     this.emit("backfill_newLogs");
   }
 

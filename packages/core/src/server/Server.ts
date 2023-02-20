@@ -5,8 +5,6 @@ import type http from "node:http";
 
 import type { Ponder } from "@/Ponder";
 
-import { buildGqlSchema } from "./graphql/buildGqlSchema";
-
 export class Server {
   ponder: Ponder;
 
@@ -23,12 +21,11 @@ export class Server {
   }
 
   reload() {
-    if (!this.ponder.schema) return;
-    const graphqlSchema = buildGqlSchema(this.ponder.schema);
+    if (!this.ponder.graphqlSchema) return;
 
     // This uses a small hack to update the GraphQL server on the fly.
     this.graphqlMiddleware = graphqlHTTP({
-      schema: graphqlSchema,
+      schema: this.ponder.graphqlSchema,
       context: {
         store: this.ponder.entityStore,
       },
@@ -48,66 +45,3 @@ export class Server {
     });
   }
 }
-
-// export type PonderGraphqlPluginOptions = {
-//   port?: number;
-// };
-
-// export const graphqlPlugin: PonderPluginBuilder<PonderGraphqlPluginOptions> = (
-//   options = {}
-// ) => {
-//   return (ponder: Ponder) => new PonderGraphqlPlugin(ponder, options);
-// };
-
-// class PonderGraphqlPlugin implements PonderPlugin {
-//   ponder: Ponder;
-//   name = "graphql";
-
-//   port: number;
-//   server?: GraphqlServer;
-
-//   constructor(ponder: Ponder, options: PonderGraphqlPluginOptions) {
-//     this.ponder = ponder;
-
-//     if (process.env.PORT) {
-//       this.port = parseInt(process.env.PORT);
-//     } else if (options.port) {
-//       this.port = options.port;
-//     } else {
-//       this.port = 42069;
-//     }
-//   }
-
-//   setup = async () => {
-//     if (!this.ponder.schema) {
-//       return;
-//     }
-
-//     const gqlSchema = buildGqlSchema(this.ponder.schema);
-
-//     // Build Express GraphQL server
-//     this.server = new GraphqlServer(
-//       this.port,
-//       this.ponder.entityStore,
-//       this.ponder.logger
-//     );
-//     this.server.start(gqlSchema, this.port);
-
-//     await generateSchemaTypes(gqlSchema, this.ponder);
-//     generateSchema(gqlSchema, this.ponder);
-//   };
-
-//   reload = async () => {
-//     if (!this.ponder.schema) {
-//       return;
-//     }
-
-//     const gqlSchema = buildGqlSchema(this.ponder.schema);
-
-//     this.server?.start(gqlSchema, this.port);
-//   };
-
-//   teardown = async () => {
-//     this.server?.teardown();
-//   };
-// }
