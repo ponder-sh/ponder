@@ -37,7 +37,7 @@
   ```
 
   ```diff
-  // ponder.ts
+  // ponder.config.ts
 
   import type { PonderConfig } from "@ponder/core";
   - import { graphqlPlugin } from "@ponder/graphql";
