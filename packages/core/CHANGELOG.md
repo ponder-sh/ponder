@@ -8,6 +8,61 @@
 
   Moved HTTP server from `@ponder/graphql` to `@ponder/core`
 
+  **BREAKING**. Ponder apps no longer depend on `@ponder/graphql` and do not need to include the `plugins` key in `ponder.config.ts`.
+
+  For now, this also means that the only way to configure the server port is through the $PORT environment variable.
+
+  ```diff
+  // package.json
+
+  {
+    "private": true,
+    "scripts": {
+      "dev": "ponder dev",
+      "start": "ponder start",
+      "codegen": "ponder codegen"
+    },
+    "dependencies": {
+      "@ponder/core": "^0.0.32",
+  -   "@ponder/graphql": "latest"
+    },
+    "devDependencies": {
+      "@types/node": "^18.11.18",
+      "ethers": "^5.6.9"
+    },
+    "engines": {
+      "node": ">=16.0.0 <19.0.0"
+    }
+  }
+  ```
+
+  ```diff
+  // ponder.ts
+
+  import type { PonderConfig } from "@ponder/core";
+  - import { graphqlPlugin } from "@ponder/graphql";
+
+  export const config: PonderConfig = {
+    networks: [
+      {
+        name: "mainnet",
+        chainId: 1,
+        rpcUrl: process.env.PONDER_RPC_URL_1
+      }
+    ],
+    sources: [
+      {
+        name: "ArtGobblers",
+        network: "mainnet",
+        abi: "./abis/ArtGobblers.json",
+        address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+        startBlock: 15863321
+      }
+    ],
+  - plugins: [graphqlPlugin({ port: 8080 })]
+  };
+  ```
+
 ## 0.0.31
 
 ### Patch Changes
@@ -110,8 +165,8 @@
       {
         name: "mainnet",
         chainId: 1,
-        rpcUrl: process.env.PONDER_RPC_URL_1,
-      },
+        rpcUrl: process.env.PONDER_RPC_URL_1
+      }
     ],
     sources: [
       {
@@ -119,10 +174,10 @@
         network: "mainnet",
         abi: "./abis/ArtGobblers.json",
         address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: 15863321,
-      },
+        startBlock: 15863321
+      }
     ],
-    plugins: [graphqlPlugin()],
+    plugins: [graphqlPlugin()]
   };
   ```
 
@@ -140,7 +195,7 @@
       ],
       sources: [
         /* ... */
-      ],
+      ]
     };
   };
   ```
