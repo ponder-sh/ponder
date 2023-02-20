@@ -121,8 +121,7 @@ export const run = async (
         "codegen": "ponder codegen"
       },
       "dependencies": {
-        "@ponder/core": "latest",
-        "@ponder/graphql": "latest"
+        "@ponder/core": "latest"
       },
       "devDependencies": {
         "@types/node": "^18.11.18",

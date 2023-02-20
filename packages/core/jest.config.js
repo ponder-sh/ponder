@@ -7,7 +7,6 @@ module.exports = async () => {
     detectOpenHandles: true,
     moduleNameMapper: {
       "@ponder/core": "<rootDir>",
-      "@ponder/graphql": "<rootDir>/../graphql",
     },
   };
 };

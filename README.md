@@ -67,7 +67,6 @@ If you're interested in contributing to Ponder, you can reach out via Twitter DM
 ## Packages
 
 - `@ponder/core`
-- `@ponder/graphql`
 - `create-ponder`
 
 ## About
