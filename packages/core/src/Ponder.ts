@@ -169,7 +169,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
       this.logBackfillProgress();
     }, 1000);
 
-    // Codegen must happen before reloadHandlers because handlers depend on `generated/index.ts`.
+    this.loadSchema();
     this.runCodegen();
 
     await Promise.all([
@@ -229,9 +229,8 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.handlerError = false;
 
     this.loadSchema();
-    await Promise.all([this.resetEntityStore(), this.reloadHandlers()]);
-
     this.runCodegen();
+    await Promise.all([this.resetEntityStore(), this.reloadHandlers()]);
 
     this.emit("backfill_newLogs");
   }
