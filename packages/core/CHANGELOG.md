@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.34
+
+### Patch Changes
+
+- [#104](https://github.com/0xOlias/ponder/pull/104) [`d36fcd8`](https://github.com/0xOlias/ponder/commit/d36fcd882745a0769f1723306ae913fedc278973) Thanks [@0xOlias](https://github.com/0xOlias)! - Added a health check path at `/health` to enable zero-downtime deployments
+
 ## 0.0.33
 
 ### Patch Changes
