@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.18
+
+### Patch Changes
+
+- [#101](https://github.com/0xOlias/ponder/pull/101) [`08d5157`](https://github.com/0xOlias/ponder/commit/08d515796b8a737a9f5c4210aefcc89e879a8a7e) Thanks [@0xOlias](https://github.com/0xOlias)! - Removed plugins from generated code
+
 ## 0.0.17
 
 ### Patch Changes
