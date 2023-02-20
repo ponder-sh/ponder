@@ -393,9 +393,15 @@ export class PostgresCacheStore implements CacheStore {
     let topicStatement = "";
     let topicParams: string[] = [];
     if (eventSigHashes !== undefined) {
-      topicStatement = `AND "topic0" IN (${[
-        ...Array(eventSigHashes.length).keys(),
-      ].map((index) => `$${index + 4}`)})`;
+      if (eventSigHashes.length === 0) {
+        // Postgres raises an error for `AND "col" IN ()`, this is a workaround.
+        // https://stackoverflow.com/questions/63905200/postgresql-in-empty-array-syntax
+        topicStatement = `AND "topic0" = ANY (ARRAY[]::text[])`;
+      } else {
+        topicStatement = `AND "topic0" IN (${[
+          ...Array(eventSigHashes.length).keys(),
+        ].map((index) => `$${index + 4}`)})`;
+      }
       topicParams = eventSigHashes;
     }
 
