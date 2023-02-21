@@ -214,8 +214,17 @@ export class Ponder extends EventEmitter<PonderEvents> {
     const graphqlSchema = readGraphqlSchema({ ponder: this });
     // It's possible for `readGraphqlSchema` to emit a dev_error and return null.
     if (!graphqlSchema) return;
-    this.schema = buildSchema(graphqlSchema);
-    this.graphqlSchema = buildGqlSchema(this.schema);
+
+    try {
+      this.schema = buildSchema(graphqlSchema);
+      this.graphqlSchema = buildGqlSchema(this.schema);
+    } catch (err) {
+      this.emit("dev_error", {
+        context: "parsing schema",
+        error: err as Error,
+      });
+      return;
+    }
 
     this.server.reload();
   }

@@ -128,6 +128,12 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
       }
 
       if (entityBaseType) {
+        if (isList) {
+          throw new Error(
+            `Invalid field: "${entityName}.${fieldName}". Lists of entities must use the @derivedFrom directive.`
+          );
+        }
+
         const baseType = entityBaseType;
         return getRelationshipField(
           fieldName,
