@@ -78,8 +78,13 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
     const fields = gqlFields.map((field) => {
       const originalFieldType = field.type;
 
-      const { fieldName, fieldTypeName, isNotNull, isList } =
-        unwrapFieldDefinition(field);
+      const {
+        fieldName,
+        fieldTypeName,
+        isNotNull,
+        isList,
+        isListElementNotNull,
+      } = unwrapFieldDefinition(field);
 
       // Try to find a GQL type that matches the base type of this field.
       const builtInScalarBaseType = gqlScalarTypeByName[fieldTypeName];
@@ -139,7 +144,8 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
             fieldName,
             baseType,
             originalFieldType,
-            isNotNull
+            isNotNull,
+            isListElementNotNull
           );
         } else {
           return getScalarField(
@@ -159,7 +165,8 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
             fieldName,
             baseType,
             originalFieldType,
-            isNotNull
+            isNotNull,
+            isListElementNotNull
           );
         } else {
           return getEnumField(
@@ -282,7 +289,8 @@ const getListField = (
   fieldName: string,
   baseType: GraphQLEnumType | GraphQLScalarType,
   originalFieldType: TypeNode,
-  isNotNull: boolean
+  isNotNull: boolean,
+  isListElementNotNull: boolean
 ) => {
   let migrateUpStatement = `"${fieldName}" TEXT`;
   if (isNotNull) {
@@ -297,6 +305,7 @@ const getListField = (
     notNull: isNotNull,
     migrateUpStatement,
     sqlType: "text", // JSON
+    isListElementNotNull,
   };
 };
 
