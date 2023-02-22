@@ -29,13 +29,14 @@ export class Server {
         return res.status(200).send();
       }
 
-      const backfillTimeout = 270;
+      const max = this.ponder.options.MAX_HEALTHCHECK_DURATION;
       const elapsed =
         Math.floor(Date.now() / 1000) - this.ponder.setupTimestamp;
-      if (elapsed > backfillTimeout) {
+
+      if (elapsed > max) {
         this.ponder.logMessage(
           MessageKind.WARNING,
-          `Backfill & log processing time has exceeded ${backfillTimeout} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`
+          `Backfill & log processing time has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`
         );
         return res.status(200).send();
       }

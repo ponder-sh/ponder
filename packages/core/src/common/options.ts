@@ -14,6 +14,7 @@ export type PonderOptions = {
 
   LOG_TYPE: "dev" | "start" | "codegen";
   SILENT: boolean;
+  MAX_HEALTHCHECK_DURATION: number;
 };
 
 export const buildOptions = (
@@ -31,6 +32,7 @@ export const buildOptions = (
 
     LOG_TYPE: options.logType,
     SILENT: options.silent,
+    MAX_HEALTHCHECK_DURATION: 240,
   };
 
   const rootDir = path.resolve(options.rootDir);
