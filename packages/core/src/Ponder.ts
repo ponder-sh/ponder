@@ -157,6 +157,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.killFrontfillQueues?.();
     this.killBackfillQueues?.();
     await this.server.teardown();
+    await this.entityStore.teardown();
     await this.killWatchers?.();
   }
 
@@ -224,7 +225,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }
 
   async resetEntityStore() {
-    await this.entityStore.migrate(this.schema);
+    await this.entityStore.load(this.schema);
   }
 
   async reload() {

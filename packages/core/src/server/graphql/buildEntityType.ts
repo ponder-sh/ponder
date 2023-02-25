@@ -68,7 +68,7 @@ export const buildEntityType = (
               const entityId = parent.id;
 
               return await store.getEntityDerivedField(
-                entity.name,
+                entity.id,
                 entityId,
                 field.name
               );

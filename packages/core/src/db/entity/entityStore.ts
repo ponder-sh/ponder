@@ -26,37 +26,35 @@ type Entity = Record<string, unknown>;
 type MaybePromise<T> = T | Promise<T>;
 
 export interface EntityStore {
-  migrate(schema?: Schema): MaybePromise<void>;
+  load(schema?: Schema): MaybePromise<void>;
+  teardown(): MaybePromise<void>;
 
-  getEntity(entityName: string, id: string): MaybePromise<Entity | null>;
+  getEntity(entityId: string, id: string): MaybePromise<Entity | null>;
 
   insertEntity(
-    entityName: string,
+    entityId: string,
     id: string,
     instance: Entity
   ): MaybePromise<Entity>;
 
   upsertEntity(
-    entityName: string,
+    entityId: string,
     id: string,
     instance: Entity
   ): MaybePromise<Entity>;
 
   updateEntity(
-    entityName: string,
+    entityId: string,
     id: string,
     instance: Partial<Entity>
   ): MaybePromise<Entity>;
 
-  deleteEntity(entityName: string, id: string): MaybePromise<boolean>;
+  deleteEntity(entityId: string, id: string): MaybePromise<boolean>;
 
-  getEntities(
-    entityName: string,
-    filter?: EntityFilter
-  ): MaybePromise<Entity[]>;
+  getEntities(entityId: string, filter?: EntityFilter): MaybePromise<Entity[]>;
 
   getEntityDerivedField(
-    entityName: string,
+    entityId: string,
     id: string,
     derivedFieldName: string
   ): MaybePromise<unknown[]>;

@@ -88,6 +88,7 @@ export type Field =
   | DerivedField;
 
 export type Entity = {
+  id: string;
   name: string;
   gqlType: GraphQLObjectType;
   isImmutable: boolean;
@@ -96,6 +97,6 @@ export type Entity = {
 };
 
 export type Schema = {
+  instanceId: string;
   entities: Entity[];
-  entityByName: Record<string, Entity>;
 };

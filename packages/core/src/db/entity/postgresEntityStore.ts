@@ -35,44 +35,55 @@ export class PostgresEntityStore implements EntityStore {
     };
   };
 
-  async migrate(schema?: Schema) {
-    if (!schema) return;
-    this.schema = schema;
+  async teardown() {
+    if (!this.schema) return;
 
-    this.schema.entities.forEach(async (entity) => {
-      // Drop the table if it already exists
-      await this.pool.query(`DROP TABLE IF EXISTS "${entity.name}"`);
-
-      // Build the create table statement using field migration fragments.
-      // TODO: Update this so the generation of the field migration fragments happens here
-      // instead of when the Schema gets built.
-      const columnStatements = entity.fields
-        .filter(
-          // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
-          (field): field is ScalarField => field.kind !== FieldKind.DERIVED
-        )
-        .map((field) => field.migrateUpStatement);
-
-      await this.pool.query(
-        `CREATE TABLE "${entity.name}" (${columnStatements.join(", ")})`
-      );
-    });
+    await Promise.all(
+      this.schema.entities.map(async (entity) => {
+        await this.pool.query(`DROP TABLE IF EXISTS "${entity.id}"`);
+      })
+    );
   }
 
-  getEntity = this.errorWrapper(async (entityName: string, id: string) => {
-    const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = $1`;
+  async load(newSchema?: Schema) {
+    if (!newSchema) return;
+
+    // If there is an existing schema, this is a hot reload and the existing entity tables should be dropped.
+    if (this.schema) {
+      await this.teardown();
+    }
+
+    this.schema = newSchema;
+
+    await Promise.all(
+      this.schema.entities.map(async (entity) => {
+        // Build the create table statement using field migration fragments.
+        // TODO: Update this so the generation of the field migration fragments happens here
+        // instead of when the Schema gets built.
+        const columnStatements = entity.fields
+          .filter(
+            // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
+            (field): field is ScalarField => field.kind !== FieldKind.DERIVED
+          )
+          .map((field) => field.migrateUpStatement);
+
+        await this.pool.query(
+          `CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`
+        );
+      })
+    );
+  }
+
+  getEntity = this.errorWrapper(async (entityId: string, id: string) => {
+    const statement = `SELECT "${entityId}".* FROM "${entityId}" WHERE "${entityId}"."id" = $1`;
     const { rows, rowCount } = await this.pool.query(statement, [id]);
 
     if (rowCount === 0) return null;
-    return this.deserialize(entityName, rows[0]);
+    return this.deserialize(entityId, rows[0]);
   });
 
   insertEntity = this.errorWrapper(
-    async (
-      entityName: string,
-      id: string,
-      instance: Record<string, unknown>
-    ) => {
+    async (entityId: string, id: string, instance: Record<string, unknown>) => {
       // If `instance.id` is defined, replace it with the id passed as a parameter.
       // Should also log a warning here.
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -88,19 +99,15 @@ export class PostgresEntityStore implements EntityStore {
         .map((_, idx) => `$${idx + 1}`)
         .join(", ")})`;
 
-      const statement = `INSERT INTO "${entityName}" ${insertFragment} RETURNING *`;
+      const statement = `INSERT INTO "${entityId}" ${insertFragment} RETURNING *`;
       const { rows } = await this.pool.query(statement, insertValues);
 
-      return this.deserialize(entityName, rows[0]);
+      return this.deserialize(entityId, rows[0]);
     }
   );
 
   updateEntity = this.errorWrapper(
-    async (
-      entityName: string,
-      id: string,
-      instance: Record<string, unknown>
-    ) => {
+    async (entityId: string, id: string, instance: Record<string, unknown>) => {
       const pairs = getColumnValuePairs(instance);
 
       const updatePairs = pairs.filter(({ column }) => column !== "id");
@@ -109,22 +116,18 @@ export class PostgresEntityStore implements EntityStore {
         .map(({ column }, idx) => `${column} = $${idx + 1}`)
         .join(", ");
 
-      const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = $${
+      const statement = `UPDATE "${entityId}" SET ${updateFragment} WHERE "id" = $${
         updatePairs.length + 1
       } RETURNING *`;
       updateValues.push(id);
       const { rows } = await this.pool.query(statement, updateValues);
 
-      return this.deserialize(entityName, rows[0]);
+      return this.deserialize(entityId, rows[0]);
     }
   );
 
   upsertEntity = this.errorWrapper(
-    async (
-      entityName: string,
-      id: string,
-      instance: Record<string, unknown>
-    ) => {
+    async (entityId: string, id: string, instance: Record<string, unknown>) => {
       // If `instance.id` is defined, replace it with the id passed as a parameter.
       // Should also log a warning here.
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -148,25 +151,25 @@ export class PostgresEntityStore implements EntityStore {
         )
         .join(", ");
 
-      const statement = `INSERT INTO "${entityName}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
+      const statement = `INSERT INTO "${entityId}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
       const { rows } = await this.pool.query(statement, [
         ...insertValues,
         ...updateValues,
       ]);
 
-      return this.deserialize(entityName, rows[0]);
+      return this.deserialize(entityId, rows[0]);
     }
   );
 
-  deleteEntity = this.errorWrapper(async (entityName: string, id: string) => {
-    const statement = `DELETE FROM "${entityName}" WHERE "id" = $1`;
+  deleteEntity = this.errorWrapper(async (entityId: string, id: string) => {
+    const statement = `DELETE FROM "${entityId}" WHERE "id" = $1`;
     const { rowCount } = await this.pool.query(statement, [id]);
 
     return rowCount === 1;
   });
 
   getEntities = this.errorWrapper(
-    async (entityName: string, filter?: EntityFilter) => {
+    async (entityId: string, filter?: EntityFilter) => {
       const where = filter?.where;
       const first = filter?.first;
       const skip = filter?.skip;
@@ -214,18 +217,18 @@ export class PostgresEntityStore implements EntityStore {
         fragments.push(`OFFSET ${skip}`);
       }
 
-      const statement = `SELECT * FROM "${entityName}" ${fragments.join(" ")}`;
+      const statement = `SELECT * FROM "${entityId}" ${fragments.join(" ")}`;
       const { rows } = await this.pool.query(statement);
 
-      return rows.map((instance) => this.deserialize(entityName, instance));
+      return rows.map((instance) => this.deserialize(entityId, instance));
     }
   );
 
   getEntityDerivedField = this.errorWrapper(
-    async (entityName: string, id: string, derivedFieldName: string) => {
-      const entity = this.schema?.entityByName[entityName];
+    async (entityId: string, instanceId: string, derivedFieldName: string) => {
+      const entity = this.schema?.entities.find((e) => e.id === entityId);
       if (!entity) {
-        throw new Error(`Entity not found in schema: ${entityName}`);
+        throw new Error(`Entity not found in schema for ID: ${entityId}`);
       }
 
       const derivedField = entity.fields.find(
@@ -235,15 +238,24 @@ export class PostgresEntityStore implements EntityStore {
 
       if (!derivedField) {
         throw new Error(
-          `Derived field not found: ${entityName}.${derivedFieldName}`
+          `Derived field not found: ${entity.name}.${derivedFieldName}`
+        );
+      }
+
+      const derivedFromEntity = this.schema?.entities.find(
+        (e) => e.name === derivedField.derivedFromEntityName
+      );
+      if (!derivedFromEntity) {
+        throw new Error(
+          `Entity not found in schema for name: ${derivedField.derivedFromEntityName}`
         );
       }
 
       const derivedFieldInstances = await this.getEntities(
-        derivedField.derivedFromEntityName,
+        derivedFromEntity.id,
         {
           where: {
-            [derivedField.derivedFromFieldName]: id,
+            [derivedField.derivedFromFieldName]: instanceId,
           },
         }
       );
@@ -252,14 +264,14 @@ export class PostgresEntityStore implements EntityStore {
     }
   );
 
-  deserialize = (entityName: string, instance: Record<string, unknown>) => {
+  deserialize = (entityId: string, instance: Record<string, unknown>) => {
     if (!this.schema) {
       throw new Error(`EntityStore has not been initialized with a schema yet`);
     }
 
-    const entity = this.schema.entityByName[entityName];
+    const entity = this.schema?.entities.find((e) => e.id === entityId);
     if (!entity) {
-      throw new Error(`Entity not found in schema: ${entityName}`);
+      throw new Error(`Entity not found in schema for ID: ${entityId}`);
     }
 
     const deserializedInstance = { ...instance };
