@@ -16,20 +16,10 @@ scalar Bytes
 scalar BigInt
 `;
 
-const readGraphqlSchema = ({ ponder }: { ponder: Ponder }) => {
+export const readGraphqlSchema = ({ ponder }: { ponder: Ponder }) => {
   const schemaBody = readFileSync(ponder.options.SCHEMA_FILE_PATH);
   const schemaSource = schemaHeader + schemaBody.toString();
 
-  try {
-    const schema = buildSchema(schemaSource);
-    return schema;
-  } catch (error) {
-    ponder.emit("dev_error", {
-      context: "parsing schema.graphql",
-      error: error as Error,
-    });
-    return null;
-  }
+  const schema = buildSchema(schemaSource);
+  return schema;
 };
-
-export { readGraphqlSchema };
