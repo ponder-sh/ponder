@@ -55,6 +55,7 @@ export type ListField = {
   notNull: boolean;
   migrateUpStatement: string;
   sqlType: "text";
+  isListElementNotNull: boolean;
 };
 
 export type RelationshipField = {

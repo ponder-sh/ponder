@@ -87,7 +87,9 @@ export const buildEntityType = (
           }
           case FieldKind.LIST: {
             const listType = new GraphQLList(
-              new GraphQLNonNull(field.baseGqlType as GraphQLOutputType)
+              field.isListElementNotNull
+                ? new GraphQLNonNull(field.baseGqlType as GraphQLOutputType)
+                : field.baseGqlType
             );
             fieldConfigMap[field.name] = {
               type: field.notNull ? new GraphQLNonNull(listType) : listType,

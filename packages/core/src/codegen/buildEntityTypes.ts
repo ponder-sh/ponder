@@ -73,6 +73,10 @@ export const buildEntityTypes = (entities: Entity[]) => {
               );
             }
 
+            if (!field.isListElementNotNull) {
+              tsBaseType = `(${tsBaseType} | null)`;
+            }
+
             return `${field.name}${field.notNull ? "" : "?"}: ${tsBaseType}[];`;
           }
           case FieldKind.RELATIONSHIP: {

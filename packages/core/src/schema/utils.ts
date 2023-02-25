@@ -12,32 +12,40 @@ import {
 export const unwrapFieldDefinition = (field: FieldDefinitionNode) => {
   const fieldName = field.name.value;
   let fieldType = field.type;
-  let nestedNonNullCount = 0;
-  let nestedListCount = 0;
+  let isNotNull = false;
+  let isList = false;
+  let isListElementNotNull = false;
 
-  while (fieldType.kind !== Kind.NAMED_TYPE) {
-    // If a field is non-nullable, it's TypeNode will be wrapped with a NON_NULL_TYPE TypeNode.
+  // First check if the field is non-null and unwrap it.
+  if (fieldType.kind === Kind.NON_NULL_TYPE) {
+    isNotNull = true;
+    fieldType = fieldType.type;
+  }
+
+  // Then check if the field is a list and unwrap it.
+  if (fieldType.kind === Kind.LIST_TYPE) {
+    isList = true;
+    fieldType = fieldType.type;
+
+    // Now check if the list element type is non-null
     if (fieldType.kind === Kind.NON_NULL_TYPE) {
-      nestedNonNullCount += 1;
-      fieldType = fieldType.type;
-    }
-
-    // If a field is a list, it's TypeNode will be wrapped with a LIST_TYPE TypeNode.
-    if (fieldType.kind === Kind.LIST_TYPE) {
-      nestedListCount += 1;
+      isListElementNotNull = true;
       fieldType = fieldType.type;
     }
   }
 
-  if (nestedListCount > 1) {
-    throw new Error(`Nested lists are not currently supported.`);
+  if (fieldType.kind === Kind.LIST_TYPE) {
+    throw new Error(
+      `Invalid field "${fieldName}": nested lists are not supported`
+    );
   }
 
   return {
     fieldName,
     fieldTypeName: fieldType.name.value,
-    isNotNull: nestedNonNullCount > 0,
-    isList: nestedListCount > 0,
+    isNotNull,
+    isList,
+    isListElementNotNull,
   };
 };
 

@@ -190,7 +190,6 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }
 
   async reloadHandlers() {
-    this.isDevError = false;
     if (this.handlerQueue) {
       this.handlerQueue.kill();
       delete this.handlerQueue;
@@ -211,13 +210,17 @@ export class Ponder extends EventEmitter<PonderEvents> {
   }
 
   loadSchema() {
-    const graphqlSchema = readGraphqlSchema({ ponder: this });
-    // It's possible for `readGraphqlSchema` to emit a dev_error and return null.
-    if (!graphqlSchema) return;
-    this.schema = buildSchema(graphqlSchema);
-    this.graphqlSchema = buildGqlSchema(this.schema);
-
-    this.server.reload();
+    try {
+      const userGraphqlSchema = readGraphqlSchema({ ponder: this });
+      this.schema = buildSchema(userGraphqlSchema);
+      this.graphqlSchema = buildGqlSchema(this.schema);
+      this.server.reload();
+    } catch (err) {
+      this.emit("dev_error", {
+        context: "parsing schema",
+        error: err as Error,
+      });
+    }
   }
 
   async resetEntityStore() {
@@ -230,6 +233,7 @@ export class Ponder extends EventEmitter<PonderEvents> {
     this.ui.handlersHandledTotal = 0;
     this.ui.handlersCurrent = 0;
     this.ui.handlerError = false;
+    this.isDevError = false;
 
     this.loadSchema();
     this.runCodegen();
