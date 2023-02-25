@@ -74,7 +74,7 @@ export const buildEntityTypes = (entities: Entity[]) => {
             }
 
             if (!field.isListElementNotNull) {
-              tsBaseType = `(${tsBaseType} | undefined)`;
+              tsBaseType = `(${tsBaseType} | null)`;
             }
 
             return `${field.name}${field.notNull ? "" : "?"}: ${tsBaseType}[];`;
