@@ -40,7 +40,7 @@ describe("Ponder", () => {
   });
 
   afterEach(async () => {
-    await ponder?.kill();
+    await ponder.kill();
   });
 
   describe("backfill()", () => {
@@ -81,7 +81,7 @@ describe("Ponder", () => {
 
     it("inserts data into the entity store", async () => {
       const ensNfts = (ponder.database as SqliteDb).db
-        .prepare(`SELECT * FROM EnsNft`)
+        .prepare(`SELECT * FROM "EnsNft_${ponder.schema?.instanceId}"`)
         .all();
 
       expect(ensNfts.length).toBe(58);
