@@ -153,9 +153,13 @@ export class Ponder extends EventEmitter<PonderEvents> {
     unmount();
     clearInterval(this.renderInterval);
     clearInterval(this.etaInterval);
-    this.handlerQueue?.kill();
+
     this.killFrontfillQueues?.();
     this.killBackfillQueues?.();
+
+    this.handlerQueue?.kill();
+    delete this.handlerQueue;
+
     await this.server.teardown();
     await this.entityStore.teardown();
     await this.killWatchers?.();

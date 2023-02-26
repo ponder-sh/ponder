@@ -5,6 +5,7 @@ import { cac } from "cac";
 import dotenv from "dotenv";
 
 import { buildOptions } from "@/common/options";
+import { registerKilledProcessListener } from "@/common/utils";
 import { buildPonderConfig } from "@/config/buildPonderConfig";
 import { Ponder } from "@/Ponder";
 
@@ -43,6 +44,7 @@ cli
     const options = buildOptions({ ...cliOptions, logType: "dev" });
     const config = await buildPonderConfig(options);
     const ponder = new Ponder({ options, config });
+    registerKilledProcessListener(() => ponder.kill());
     await ponder.dev();
   });
 
@@ -54,6 +56,7 @@ cli
     const options = buildOptions({ ...cliOptions, logType: "start" });
     const config = await buildPonderConfig(options);
     const ponder = new Ponder({ options, config });
+    registerKilledProcessListener(() => ponder.kill());
     await ponder.start();
   });
 
@@ -65,6 +68,7 @@ cli
     const options = buildOptions({ ...cliOptions, logType: "codegen" });
     const config = await buildPonderConfig(options);
     const ponder = new Ponder({ options, config });
+    registerKilledProcessListener(() => ponder.kill());
     ponder.codegen();
   });
 
