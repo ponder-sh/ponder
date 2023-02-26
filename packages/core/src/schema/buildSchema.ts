@@ -143,7 +143,8 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
           fieldName,
           baseType,
           originalFieldType,
-          isNotNull
+          isNotNull,
+          instanceId
         );
       }
 
@@ -322,7 +323,8 @@ const getRelationshipField = (
   fieldName: string,
   baseType: GraphQLObjectType,
   originalFieldType: TypeNode,
-  isNotNull: boolean
+  isNotNull: boolean,
+  instanceId: string
 ) => {
   let migrateUpStatement = `"${fieldName}" TEXT`;
   if (isNotNull) {
@@ -343,7 +345,7 @@ const getRelationshipField = (
     notNull: isNotNull,
     migrateUpStatement,
     sqlType: "text", // foreign key
-    relatedEntityName: baseType.name,
+    relatedEntityId: `${baseType.name}_${instanceId}`,
   };
 };
 

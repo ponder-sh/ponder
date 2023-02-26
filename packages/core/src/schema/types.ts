@@ -66,7 +66,7 @@ export type RelationshipField = {
   notNull: boolean;
   migrateUpStatement: string;
   sqlType: string;
-  relatedEntityName: string;
+  relatedEntityId: string;
 };
 
 export type DerivedField = {
