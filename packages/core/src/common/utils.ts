@@ -19,6 +19,21 @@ export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
   }, {});
 };
 
+export const registerKilledProcessListener = (fn: () => Promise<unknown>) => {
+  let calledCount = 0;
+
+  const listener = async () => {
+    calledCount++;
+    if (calledCount > 1) return;
+    await fn();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", listener); // CTRL+C
+  process.on("SIGQUIT", listener); // Keyboard quit
+  process.on("SIGTERM", listener); // `kill` command
+};
+
 export const startBenchmark = () => process.hrtime();
 export const endBenchmark = (hrt: [number, number]) => {
   const diffHrt = process.hrtime(hrt);

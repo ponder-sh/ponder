@@ -123,7 +123,7 @@ describe("Ponder", () => {
         .all();
       const tableNames = tables.map((t) => t.name);
 
-      expect(tableNames).toContain("Entity");
+      expect(tableNames).toContain(`Entity_${ponder.schema?.instanceId}`);
     });
 
     it("does not watch files", async () => {

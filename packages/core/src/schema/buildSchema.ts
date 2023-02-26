@@ -14,6 +14,7 @@ import {
   StringValueNode,
   TypeNode,
 } from "graphql";
+import { randomUUID } from "node:crypto";
 
 import {
   DerivedField,
@@ -61,6 +62,9 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
   const gqlEntityTypes = getEntityTypes(graphqlSchema);
   const gqlEnumTypes = getEnumTypes(graphqlSchema);
   const gqlCustomScalarTypes = getCustomScalarTypes(graphqlSchema);
+
+  // The `id` field is used as a table name prefix in the EntityStore to avoid entity table name collisions.
+  const instanceId = randomUUID();
 
   const entities = gqlEntityTypes.map((entity) => {
     const entityName = entity.name;
@@ -139,7 +143,8 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
           fieldName,
           baseType,
           originalFieldType,
-          isNotNull
+          isNotNull,
+          instanceId
         );
       }
 
@@ -193,6 +198,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
     });
 
     return <Entity>{
+      id: `${entityName}_${instanceId}`,
       name: entityName,
       gqlType: entity,
       isImmutable: entityIsImmutable,
@@ -201,12 +207,10 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
     };
   });
 
-  const entityByName: Record<string, Entity> = {};
-  entities.forEach((entity) => {
-    entityByName[entity.name] = entity;
-  });
-
-  const schema: Schema = { entities, entityByName };
+  const schema: Schema = {
+    instanceId,
+    entities,
+  };
 
   return schema;
 };
@@ -319,7 +323,8 @@ const getRelationshipField = (
   fieldName: string,
   baseType: GraphQLObjectType,
   originalFieldType: TypeNode,
-  isNotNull: boolean
+  isNotNull: boolean,
+  instanceId: string
 ) => {
   let migrateUpStatement = `"${fieldName}" TEXT`;
   if (isNotNull) {
@@ -340,7 +345,7 @@ const getRelationshipField = (
     notNull: isNotNull,
     migrateUpStatement,
     sqlType: "text", // foreign key
-    relatedEntityName: baseType.name,
+    relatedEntityId: `${baseType.name}_${instanceId}`,
   };
 };
 

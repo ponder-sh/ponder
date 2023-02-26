@@ -23,12 +23,6 @@ export class SqliteEntityStore implements EntityStore {
 
   errorWrapper = <T extends Array<any>, U>(fn: (...args: T) => U) => {
     return (...args: T): U => {
-      if (!this.schema) {
-        throw new Error(
-          `EntityStore has not been initialized with a schema yet`
-        );
-      }
-
       try {
         return fn(...args);
       } catch (err) {
@@ -49,52 +43,52 @@ export class SqliteEntityStore implements EntityStore {
     };
   };
 
-  migrate(schema?: Schema) {
-    if (!schema) return;
-    this.schema = schema;
+  teardown = this.errorWrapper(() => {
+    if (!this.schema) return;
 
-    try {
-      this.schema.entities.forEach((entity) => {
-        // Drop the table if it already exists
-        this.db.prepare(`DROP TABLE IF EXISTS "${entity.name}"`).run();
+    this.schema.entities.forEach((entity) => {
+      this.db.prepare(`DROP TABLE IF EXISTS "${entity.id}"`).run();
+    });
+  });
 
-        // Build the create table statement using field migration fragments.
-        // TODO: Update this so the generation of the field migration fragments happens here
-        // instead of when the Schema gets built.
-        const columnStatements = entity.fields
-          .filter(
-            // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
-            (field): field is ScalarField => field.kind !== FieldKind.DERIVED
-          )
-          .map((field) => field.migrateUpStatement);
+  load = this.errorWrapper((newSchema?: Schema) => {
+    if (!newSchema) return;
 
-        this.db
-          .prepare(
-            `CREATE TABLE "${entity.name}" (${columnStatements.join(", ")})`
-          )
-          .run();
-      });
-
-      this.schema = schema;
-    } catch (err) {
-      this.ponder.emit("dev_error", {
-        context: "SQLite error",
-        error: err as Error,
-      });
+    // If there is an existing schema, this is a hot reload and the existing entity tables should be dropped.
+    if (this.schema) {
+      this.teardown();
     }
-  }
 
-  getEntity = this.errorWrapper((entityName: string, id: string) => {
-    const statement = `SELECT "${entityName}".* FROM "${entityName}" WHERE "${entityName}"."id" = ?`;
+    this.schema = newSchema;
+
+    this.schema.entities.forEach((entity) => {
+      // Build the create table statement using field migration fragments.
+      // TODO: Update this so the generation of the field migration fragments happens here
+      // instead of when the Schema gets built.
+      const columnStatements = entity.fields
+        .filter(
+          // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
+          (field): field is ScalarField => field.kind !== FieldKind.DERIVED
+        )
+        .map((field) => field.migrateUpStatement);
+
+      this.db
+        .prepare(`CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`)
+        .run();
+    });
+  });
+
+  getEntity = this.errorWrapper((entityId: string, id: string) => {
+    const statement = `SELECT "${entityId}".* FROM "${entityId}" WHERE "${entityId}"."id" = ?`;
     const instance = this.db.prepare(statement).get(id);
 
     if (!instance) return null;
 
-    return this.deserialize(entityName, instance);
+    return this.deserialize(entityId, instance);
   });
 
   insertEntity = this.errorWrapper(
-    (entityName: string, id: string, instance: Record<string, unknown>) => {
+    (entityId: string, id: string, instance: Record<string, unknown>) => {
       // If `instance.id` is defined, replace it with the id passed as a parameter.
       // Should also log a warning here.
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -108,16 +102,16 @@ export class SqliteEntityStore implements EntityStore {
         .map((s) => s.column)
         .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
 
-      const statement = `INSERT INTO "${entityName}" ${insertFragment} RETURNING *`;
+      const statement = `INSERT INTO "${entityId}" ${insertFragment} RETURNING *`;
 
       const insertedEntity = this.db.prepare(statement).get(...insertValues);
 
-      return this.deserialize(entityName, insertedEntity);
+      return this.deserialize(entityId, insertedEntity);
     }
   );
 
   updateEntity = this.errorWrapper(
-    (entityName: string, id: string, instance: Record<string, unknown>) => {
+    (entityId: string, id: string, instance: Record<string, unknown>) => {
       const pairs = getColumnValuePairs(instance);
 
       const updatePairs = pairs.filter(({ column }) => column !== "id");
@@ -126,17 +120,17 @@ export class SqliteEntityStore implements EntityStore {
         .map(({ column }) => `${column} = ?`)
         .join(", ");
 
-      const statement = `UPDATE "${entityName}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
+      const statement = `UPDATE "${entityId}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
       updateValues.push(`${id}`);
 
       const updatedEntity = this.db.prepare(statement).get(...updateValues);
 
-      return this.deserialize(entityName, updatedEntity);
+      return this.deserialize(entityId, updatedEntity);
     }
   );
 
   upsertEntity = this.errorWrapper(
-    (entityName: string, id: string, instance: Record<string, unknown>) => {
+    (entityId: string, id: string, instance: Record<string, unknown>) => {
       // If `instance.id` is defined, replace it with the id passed as a parameter.
       // Should also log a warning here.
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -156,18 +150,18 @@ export class SqliteEntityStore implements EntityStore {
         .map(({ column }) => `${column} = ?`)
         .join(", ");
 
-      const statement = `INSERT INTO "${entityName}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
+      const statement = `INSERT INTO "${entityId}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
 
       const upsertedEntity = this.db
         .prepare(statement)
         .get(...insertValues, ...updateValues);
 
-      return this.deserialize(entityName, upsertedEntity);
+      return this.deserialize(entityId, upsertedEntity);
     }
   );
 
-  deleteEntity = this.errorWrapper((entityName: string, id: string) => {
-    const statement = `DELETE FROM "${entityName}" WHERE "id" = ?`;
+  deleteEntity = this.errorWrapper((entityId: string, id: string) => {
+    const statement = `DELETE FROM "${entityId}" WHERE "id" = ?`;
 
     const { changes } = this.db.prepare(statement).run(id);
 
@@ -175,71 +169,67 @@ export class SqliteEntityStore implements EntityStore {
     return changes === 1;
   });
 
-  getEntities = this.errorWrapper(
-    (entityName: string, filter?: EntityFilter) => {
-      const where = filter?.where;
-      const first = filter?.first;
-      const skip = filter?.skip;
-      const orderBy = filter?.orderBy;
-      const orderDirection = filter?.orderDirection;
+  getEntities = this.errorWrapper((entityId: string, filter?: EntityFilter) => {
+    const where = filter?.where;
+    const first = filter?.first;
+    const skip = filter?.skip;
+    const orderBy = filter?.orderBy;
+    const orderDirection = filter?.orderDirection;
 
-      const fragments = [];
+    const fragments = [];
 
-      if (where) {
-        const whereFragments = Object.entries(where).map(([field, value]) => {
-          const [fieldName, rawFilterType] = field.split(/_(.*)/s);
+    if (where) {
+      const whereFragments = Object.entries(where).map(([field, value]) => {
+        const [fieldName, rawFilterType] = field.split(/_(.*)/s);
 
-          // This is a hack to handle the "" operator, which the regex above doesn't handle
-          const filterType = rawFilterType === undefined ? "" : rawFilterType;
-          const sqlSymbols = sqlSymbolsForFilterType[filterType];
-          if (!sqlSymbols) {
-            throw new Error(
-              `SQL operators not found for filter type: ${filterType}`
-            );
-          }
-
-          const whereValue = getWhereValue(value, sqlSymbols);
-
-          return `"${fieldName}" ${whereValue}`;
-        });
-
-        fragments.push(`WHERE ${whereFragments.join(" AND ")}`);
-      }
-
-      if (orderBy) {
-        fragments.push(`ORDER BY "${orderBy}"`);
-      }
-
-      if (orderDirection) {
-        fragments.push(`${orderDirection}`);
-      }
-
-      if (first) {
-        fragments.push(`LIMIT ${first}`);
-      }
-
-      if (skip) {
-        if (!first) {
-          fragments.push(`LIMIT -1`); // Must add a no-op limit for SQLite to handle offset
+        // This is a hack to handle the "" operator, which the regex above doesn't handle
+        const filterType = rawFilterType === undefined ? "" : rawFilterType;
+        const sqlSymbols = sqlSymbolsForFilterType[filterType];
+        if (!sqlSymbols) {
+          throw new Error(
+            `SQL operators not found for filter type: ${filterType}`
+          );
         }
-        fragments.push(`OFFSET ${skip}`);
-      }
 
-      const statement = `SELECT * FROM "${entityName}" ${fragments.join(" ")}`;
+        const whereValue = getWhereValue(value, sqlSymbols);
 
-      const instances = this.db.prepare(statement).all();
+        return `"${fieldName}" ${whereValue}`;
+      });
 
-      return instances.map((instance) =>
-        this.deserialize(entityName, instance)
-      );
+      fragments.push(`WHERE ${whereFragments.join(" AND ")}`);
     }
-  );
+
+    if (orderBy) {
+      fragments.push(`ORDER BY "${orderBy}"`);
+    }
+
+    if (orderDirection) {
+      fragments.push(`${orderDirection}`);
+    }
+
+    if (first) {
+      fragments.push(`LIMIT ${first}`);
+    }
+
+    if (skip) {
+      if (!first) {
+        fragments.push(`LIMIT -1`); // Must add a no-op limit for SQLite to handle offset
+      }
+      fragments.push(`OFFSET ${skip}`);
+    }
+
+    const statement = `SELECT * FROM "${entityId}" ${fragments.join(" ")}`;
+
+    const instances = this.db.prepare(statement).all();
+
+    return instances.map((instance) => this.deserialize(entityId, instance));
+  });
 
   getEntityDerivedField = this.errorWrapper(
-    (entityName: string, id: string, derivedFieldName: string) => {
-      const entity = this.schema?.entityByName[entityName];
+    (entityId: string, instanceId: string, derivedFieldName: string) => {
+      const entity = this.schema?.entities.find((e) => e.id === entityId);
       if (!entity) {
-        throw new Error(`Entity not found in schema: ${entityName}`);
+        throw new Error(`Entity not found in schema for ID: ${entityId}`);
       }
 
       const derivedField = entity.fields.find(
@@ -249,27 +239,33 @@ export class SqliteEntityStore implements EntityStore {
 
       if (!derivedField) {
         throw new Error(
-          `Derived field not found: ${entityName}.${derivedFieldName}`
+          `Derived field not found: ${entity.name}.${derivedFieldName}`
         );
       }
 
-      const derivedFieldInstances = this.getEntities(
-        derivedField.derivedFromEntityName,
-        {
-          where: {
-            [`${derivedField.derivedFromFieldName}`]: id,
-          },
-        }
+      const derivedFromEntity = this.schema?.entities.find(
+        (e) => e.name === derivedField.derivedFromEntityName
       );
+      if (!derivedFromEntity) {
+        throw new Error(
+          `Entity not found in schema for name: ${derivedField.derivedFromEntityName}`
+        );
+      }
+
+      const derivedFieldInstances = this.getEntities(derivedFromEntity.id, {
+        where: {
+          [`${derivedField.derivedFromFieldName}`]: instanceId,
+        },
+      });
 
       return derivedFieldInstances;
     }
   );
 
-  deserialize = (entityName: string, instance: Record<string, unknown>) => {
-    const entity = this.schema?.entityByName[entityName];
+  deserialize = (entityId: string, instance: Record<string, unknown>) => {
+    const entity = this.schema?.entities.find((e) => e.id === entityId);
     if (!entity) {
-      throw new Error(`Entity not found in schema: ${entityName}`);
+      throw new Error(`Entity not found in schema for ID: ${entityId}`);
     }
 
     const deserializedInstance = { ...instance };

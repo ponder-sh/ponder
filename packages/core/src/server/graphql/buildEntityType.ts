@@ -37,11 +37,11 @@ export const buildEntityType = (
               // Then, the GraphQL server serves the resolved object here instead of the ID.
               // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-ignore
-              const relatedEntityId = parent[field.name];
+              const relatedInstanceId = parent[field.name];
 
               return await store.getEntity(
-                field.baseGqlType.name,
-                relatedEntityId
+                field.relatedEntityId,
+                relatedInstanceId
               );
             };
 
@@ -68,7 +68,7 @@ export const buildEntityType = (
               const entityId = parent.id;
 
               return await store.getEntityDerivedField(
-                entity.name,
+                entity.id,
                 entityId,
                 field.name
               );

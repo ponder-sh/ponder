@@ -37,19 +37,18 @@ export const createHandlerQueue = ({
   // Build entity models for event handler context.
   const entityModels: Record<string, unknown> = {};
   ponder.schema.entities.forEach((entity) => {
-    const entityName = entity.name;
-    const entityModel = {
-      get: (id: string) => ponder.entityStore.getEntity(entityName, id),
-      delete: (id: string) => ponder.entityStore.deleteEntity(entityName, id),
-      insert: (id: string, obj: Record<string, unknown>) =>
-        ponder.entityStore.insertEntity(entityName, id, obj),
-      update: (id: string, obj: Record<string, unknown>) =>
-        ponder.entityStore.updateEntity(entityName, id, obj),
-      upsert: (id: string, obj: Record<string, unknown>) =>
-        ponder.entityStore.upsertEntity(entityName, id, obj),
-    };
+    const { id: entityId, name: entityName } = entity;
 
-    entityModels[entityName] = entityModel;
+    entityModels[entityName] = {
+      get: (id: string) => ponder.entityStore.getEntity(entityId, id),
+      delete: (id: string) => ponder.entityStore.deleteEntity(entityId, id),
+      insert: (id: string, obj: Record<string, unknown>) =>
+        ponder.entityStore.insertEntity(entityId, id, obj),
+      update: (id: string, obj: Record<string, unknown>) =>
+        ponder.entityStore.updateEntity(entityId, id, obj),
+      upsert: (id: string, obj: Record<string, unknown>) =>
+        ponder.entityStore.upsertEntity(entityId, id, obj),
+    };
   });
 
   const handlerContext = {
