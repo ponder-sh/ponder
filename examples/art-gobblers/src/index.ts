@@ -9,6 +9,6 @@ ponder.on("ArtGobblers:ArtGobbled", async ({ event, context }) => {
   );
 });
 
-ponder.on("ArtGobblers:GobblerPurchased", ({ event, context }) => {
-  console.log("Gobbled purchased!");
-});
+// ponder.on("ArtGobblers:GobblerPurchased", ({ event, context }) => {
+// console.log("Gobbled purchased!");
+// });
