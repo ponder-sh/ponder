@@ -15,7 +15,7 @@ export type GraphSource = {
     entities: string[]; // Corresponds to entities by name defined in schema.graphql
     abis: {
       name: string;
-      file: string;
+      file: any;
     }[];
     eventHandlers?: {
       event: string;

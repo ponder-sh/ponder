@@ -9,7 +9,8 @@ import type { CreatePonderOptions } from "@/bin/create-ponder";
 import { detect } from "@/helpers/detectPackageManager";
 import { fromBasic } from "@/templates/basic";
 import { fromEtherscan } from "@/templates/etherscan";
-import { fromSubgraph } from "@/templates/subgraph";
+// import { fromSubgraph } from "@/templates/subgraph";
+import { fromSubgraph } from "@/templates/hosted-service";
 
 export type PonderNetwork = {
   name: string;
@@ -46,7 +47,7 @@ export const run = async (
   let ponderConfig: PartialPonderConfig;
   if (options.fromSubgraph) {
     console.log(pico.cyan("[create-ponder] ") + `Bootstrapping from subgraph`);
-    ponderConfig = fromSubgraph(options);
+    ponderConfig = await fromSubgraph(options);
   } else if (options.fromEtherscan) {
     console.log(pico.cyan("[create-ponder] ") + `Bootstrapping from Etherscan`);
     ponderConfig = await fromEtherscan(options);

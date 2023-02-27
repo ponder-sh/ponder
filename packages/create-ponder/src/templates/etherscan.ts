@@ -7,8 +7,7 @@ import type { PartialPonderConfig } from "src/index";
 
 import type { CreatePonderOptions } from "@/bin/create-ponder";
 import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId";
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+import { wait } from "@/helpers/wait";
 
 export const fromEtherscan = async (options: CreatePonderOptions) => {
   const { ponderRootDir } = options;
@@ -31,13 +30,13 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
 
   if (!apiKey) {
     console.log("(1/2) Waiting 5 seconds for Etherscan API rate limit");
-    await delay(5000);
+    await wait(5000);
   }
   const blockNumber = await getTxBlockNumber(txHash, apiUrl, apiKey);
 
   if (!apiKey) {
     console.log("(2/2) Waiting 5 seconds for Etherscan API rate limit");
-    await delay(5000);
+    await wait(5000);
   }
   const { abi, contractName } = await getContractAbiAndName(
     contractAddress,
