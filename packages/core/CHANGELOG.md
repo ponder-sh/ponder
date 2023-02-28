@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.36
+
+### Patch Changes
+
+- [#110](https://github.com/0xOlias/ponder/pull/110) [`754f8dd`](https://github.com/0xOlias/ponder/commit/754f8dd019039dfe306a2b3796621089de5d39c7) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated schema definition to allow `Bytes` and `String` types for entity `id` fields
+
 ## 0.0.35
 
 ### Patch Changes
