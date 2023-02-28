@@ -225,8 +225,14 @@ const getIdField = (
     throw new Error(`${entityName}.id field must be non-null`);
   }
 
-  if (baseType.name !== "ID") {
-    throw new Error(`${entityName}.id field must have type ID`);
+  if (
+    baseType.name !== "ID" &&
+    baseType.name !== "String" &&
+    baseType.name !== "Bytes"
+  ) {
+    throw new Error(
+      `${entityName}.id field must have type ID, String, or Bytes`
+    );
   }
 
   return <IDField>{
