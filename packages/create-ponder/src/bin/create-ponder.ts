@@ -36,11 +36,13 @@ const createPonder = async () => {
     process.exit(0);
   }
 
+  const { fromEtherscan, fromSubgraphId, fromSubgraphRepo } = options;
+
   // Validate CLI options.
   if (
-    (options.fromSubgraphId && options.fromSubgraphRepo) ||
-    (options.fromSubgraphId && options.fromEtherscan) ||
-    (options.fromSubgraphRepo && options.fromEtherscan)
+    (fromSubgraphId && fromSubgraphRepo) ||
+    (fromSubgraphId && fromEtherscan) ||
+    (fromSubgraphRepo && fromEtherscan)
   ) {
     throw new Error(
       `Cannot specify more than one "--from" option:\n  --from-subgraph\n  --from-etherscan-id\n  --from-etherscan-repo`
@@ -54,13 +56,20 @@ const createPonder = async () => {
     initial: "my-app",
   });
 
+  // Get template from options if provided.
   let template: Template | undefined = undefined;
+  if (fromEtherscan) {
+    template = { kind: TemplateKind.ETHERSCAN, link: fromEtherscan };
+  }
+  if (fromSubgraphId) {
+    template = { kind: TemplateKind.SUBGRAPH_ID, id: fromSubgraphId };
+  }
+  if (fromSubgraphRepo) {
+    template = { kind: TemplateKind.SUBGRAPH_REPO, path: fromSubgraphRepo };
+  }
 
-  if (
-    !options.fromSubgraphId &&
-    !options.fromSubgraphRepo &&
-    !options.fromEtherscan
-  ) {
+  // Get template from prompts if not provided.
+  if (!fromSubgraphId && !fromSubgraphRepo && !fromEtherscan) {
     const { template: templateKind } = await prompts({
       type: "select",
       name: "template",
