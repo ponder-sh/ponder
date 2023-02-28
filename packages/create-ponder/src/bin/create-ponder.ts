@@ -17,7 +17,7 @@ const createPonder = async () => {
     .help()
     .option("--dir [path]", "Path to directory for generated project")
     .option("--from-subgraph-id [id]", "Subgraph deployment ID")
-    .option("--from-subgraph-path [path]", "Path to subgraph repository")
+    .option("--from-subgraph-repo [path]", "Path to subgraph repository")
     .option("--from-etherscan [url]", "Link to etherscan contract page")
     .option("--etherscan-api-key [key]", "Etherscan API key");
 
@@ -27,7 +27,7 @@ const createPonder = async () => {
     help?: boolean;
     dir?: string;
     fromSubgraphId?: string;
-    fromSubgraphPath?: string;
+    fromSubgraphRepo?: string;
     fromEtherscan?: string;
     etherscanApiKey?: string;
   };
@@ -38,12 +38,12 @@ const createPonder = async () => {
 
   // Validate CLI options.
   if (
-    (options.fromSubgraphId && options.fromSubgraphPath) ||
+    (options.fromSubgraphId && options.fromSubgraphRepo) ||
     (options.fromSubgraphId && options.fromEtherscan) ||
-    (options.fromSubgraphPath && options.fromEtherscan)
+    (options.fromSubgraphRepo && options.fromEtherscan)
   ) {
     throw new Error(
-      `Cannot specify more than one "--from" option:\n  --from-subgraph\n  --from-etherscan-id\n  --from-etherscan-path`
+      `Cannot specify more than one "--from" option:\n  --from-subgraph\n  --from-etherscan-id\n  --from-etherscan-repo`
     );
   }
 
@@ -58,7 +58,7 @@ const createPonder = async () => {
 
   if (
     !options.fromSubgraphId &&
-    !options.fromSubgraphPath &&
+    !options.fromSubgraphRepo &&
     !options.fromEtherscan
   ) {
     const { template: templateKind } = await prompts({
