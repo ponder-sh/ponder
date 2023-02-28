@@ -5,11 +5,13 @@ import path from "node:path";
 import pico from "picocolors";
 import prettier from "prettier";
 
-import type { CreatePonderOptions } from "@/bin/create-ponder";
+import { CreatePonderOptions, TemplateKind } from "@/common";
 import { detect } from "@/helpers/detectPackageManager";
+import { tryGitInit } from "@/helpers/git";
 import { fromBasic } from "@/templates/basic";
 import { fromEtherscan } from "@/templates/etherscan";
-import { fromSubgraph } from "@/templates/subgraph";
+import { fromSubgraphId } from "@/templates/subgraphId";
+import { fromSubgraphRepo } from "@/templates/subgraphRepo";
 
 export type PonderNetwork = {
   name: string;
@@ -37,26 +39,54 @@ export const run = async (
   options: CreatePonderOptions,
   overrides: { installCommand?: string } = {}
 ) => {
-  const { ponderRootDir } = options;
+  const { rootDir } = options;
 
   // Create required directories.
-  mkdirSync(path.join(ponderRootDir, "abis"), { recursive: true });
-  mkdirSync(path.join(ponderRootDir, "src"), { recursive: true });
+  mkdirSync(path.join(rootDir, "abis"), { recursive: true });
+  mkdirSync(path.join(rootDir, "src"), { recursive: true });
 
   let ponderConfig: PartialPonderConfig;
-  if (options.fromSubgraph) {
-    console.log(pico.cyan("[create-ponder] ") + `Bootstrapping from subgraph`);
-    ponderConfig = fromSubgraph(options);
-  } else if (options.fromEtherscan) {
-    console.log(pico.cyan("[create-ponder] ") + `Bootstrapping from Etherscan`);
-    ponderConfig = await fromEtherscan(options);
-  } else {
-    ponderConfig = fromBasic(options);
+
+  console.log(
+    `\nCreating a new Ponder app in ${pico.bold(pico.green(rootDir))}.`
+  );
+
+  switch (options.template?.kind) {
+    case TemplateKind.ETHERSCAN: {
+      console.log(`\nUsing ${pico.cyan("Etherscan contract link")} template.`);
+      ponderConfig = await fromEtherscan({
+        rootDir,
+        etherscanLink: options.template.link,
+        etherscanApiKey: options.etherscanApiKey,
+      });
+      break;
+    }
+    case TemplateKind.SUBGRAPH_ID: {
+      console.log(`\nUsing ${pico.cyan("Subgraph ID")} template.`);
+      ponderConfig = await fromSubgraphId({
+        rootDir,
+        subgraphId: options.template.id,
+      });
+      break;
+    }
+    case TemplateKind.SUBGRAPH_REPO: {
+      console.log(`\nUsing ${pico.cyan("Subgraph repository")} template.`);
+
+      ponderConfig = fromSubgraphRepo({
+        rootDir,
+        subgraphPath: options.template.path,
+      });
+      break;
+    }
+    default: {
+      ponderConfig = fromBasic({ rootDir });
+      break;
+    }
   }
 
   // Write the handler ts files.
   ponderConfig.contracts.forEach((contract) => {
-    const abi = readFileSync(path.join(ponderRootDir, contract.abi), {
+    const abi = readFileSync(path.join(rootDir, contract.abi), {
       encoding: "utf-8",
     });
     const abiInterface = new ethers.utils.Interface(abi);
@@ -79,7 +109,7 @@ export const run = async (
     `;
 
     writeFileSync(
-      path.join(ponderRootDir, `./src/${contract.name}.ts`),
+      path.join(rootDir, `./src/${contract.name}.ts`),
       prettier.format(handlerFileContents, { parser: "typescript" })
     );
   });
@@ -98,7 +128,7 @@ export const run = async (
   `;
 
   writeFileSync(
-    path.join(ponderRootDir, "ponder.config.ts"),
+    path.join(rootDir, "ponder.config.ts"),
     prettier.format(finalPonderConfig, { parser: "babel" })
   );
 
@@ -109,7 +139,7 @@ export const run = async (
   const envLocal = `${uniqueChainIds.map(
     (chainId) => `PONDER_RPC_URL_${chainId}=""\n`
   )}`;
-  writeFileSync(path.join(ponderRootDir, ".env.local"), envLocal);
+  writeFileSync(path.join(rootDir, ".env.local"), envLocal);
 
   // Write the package.json file.
   const packageJson = `
@@ -133,7 +163,7 @@ export const run = async (
     }
   `;
   writeFileSync(
-    path.join(ponderRootDir, "package.json"),
+    path.join(rootDir, "package.json"),
     prettier.format(packageJson, { parser: "json" })
   );
 
@@ -152,13 +182,13 @@ export const run = async (
     }
   `;
   writeFileSync(
-    path.join(ponderRootDir, "tsconfig.json"),
+    path.join(rootDir, "tsconfig.json"),
     prettier.format(tsConfig, { parser: "json" })
   );
 
   // Write the .gitignore file.
   writeFileSync(
-    path.join(ponderRootDir, ".gitignore"),
+    path.join(rootDir, ".gitignore"),
     `node_modules/\n.DS_Store\n\n.env.local\n.ponder/\ngenerated/`
   );
 
@@ -167,30 +197,30 @@ export const run = async (
     packageManager === "npm" ? `${packageManager} run` : packageManager;
 
   // Install packages.
-  console.log(
-    pico.cyan("[create-ponder] ") + `Installing with ${packageManager}`
-  );
+  console.log(pico.bold(`\nInstalling with ${packageManager}.`));
 
   const installCommand = overrides.installCommand
     ? overrides.installCommand
     : `${packageManager} install`;
 
   execSync(installCommand, {
-    cwd: ponderRootDir,
+    cwd: rootDir,
     stdio: "inherit",
   });
+
+  // Intialize git repository
+  process.chdir(rootDir);
+  tryGitInit(rootDir);
+  console.log(`\nInitialized a git repository.`);
 
   // Run codegen.
-  console.log(pico.cyan("[create-ponder] ") + `Generating types`);
-
   execSync(`${runCommand} --silent codegen --silent`, {
-    cwd: ponderRootDir,
+    cwd: rootDir,
     stdio: "inherit",
   });
+  console.log(`\nGenerated types.`);
 
   console.log(
-    pico.cyan("[create-ponder] ") +
-      pico.green("Done! ") +
-      `To get started run ${pico.yellow(`${runCommand} dev`)}`
+    pico.green("\nSuccess! ") + `Created ${options.projectName} at ${rootDir}`
   );
 };

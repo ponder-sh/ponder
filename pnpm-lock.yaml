@@ -171,6 +171,7 @@ importers:
       '@types/node': ^18.7.8
       '@types/node-fetch': '2'
       '@types/prettier': ^2.7.1
+      '@types/prompts': ^2.4.2
       cac: ^6.7.14
       ethers: ^5.6.9
       execa: '5'
@@ -178,6 +179,8 @@ importers:
       node-fetch: ^2.6.7
       picocolors: ^1.0.0
       prettier: ^2.6.2
+      prompts: ^2.4.2
+      rimraf: ^4.1.2
       tsconfig-replace-paths: ^0.0.11
       typescript: ^4.5.5
       yaml: ^2.1.1
@@ -190,6 +193,8 @@ importers:
       node-fetch: 2.6.7
       picocolors: 1.0.0
       prettier: 2.6.2
+      prompts: 2.4.2
+      rimraf: 4.1.2
       yaml: 2.1.1
     devDependencies:
       '@ponder/core': link:../core
@@ -197,6 +202,7 @@ importers:
       '@types/node': 18.7.8
       '@types/node-fetch': 2.6.2
       '@types/prettier': 2.7.1
+      '@types/prompts': 2.4.2
       jest: 29.3.1_@types+node@18.7.8
       tsconfig-replace-paths: 0.0.11
       typescript: 4.8.4
@@ -1971,6 +1977,13 @@ packages:
 
   /@types/prettier/2.7.1:
     resolution: {integrity: sha512-ri0UmynRRvZiiUJdiz38MmIblKK+oH30MztdBVR95dv/Ubw6neWSb8u1XpRb72L4qsZOhz+L+z9JD40SJmfWow==}
+    dev: true
+
+  /@types/prompts/2.4.2:
+    resolution: {integrity: sha512-TwNx7qsjvRIUv/BCx583tqF5IINEVjCNqg9ofKHRlSoUHE62WBHrem4B1HGXcIrG511v29d1kJ9a/t2Esz7MIg==}
+    dependencies:
+      '@types/node': 18.7.8
+      kleur: 3.0.3
     dev: true
 
   /@types/prop-types/15.7.5:
@@ -5536,7 +5549,6 @@ packages:
   /kleur/3.0.3:
     resolution: {integrity: sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==}
     engines: {node: '>=6'}
-    dev: true
 
   /kleur/4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
@@ -6966,7 +6978,6 @@ packages:
     dependencies:
       kleur: 3.0.3
       sisteransi: 1.0.5
-    dev: true
 
   /prop-types/15.8.1:
     resolution: {integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==}
@@ -7322,6 +7333,12 @@ packages:
       glob: 7.2.3
     dev: true
 
+  /rimraf/4.1.2:
+    resolution: {integrity: sha512-BlIbgFryTbw3Dz6hyoWFhKk+unCcHMSkZGrTFVAx2WmttdBSonsdtRlwiuTbDqTKr+UlXIUqJVS4QT5tUzGENQ==}
+    engines: {node: '>=14'}
+    hasBin: true
+    dev: false
+
   /run-parallel/1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
     dependencies:
@@ -7514,7 +7531,6 @@ packages:
 
   /sisteransi/1.0.5:
     resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
-    dev: true
 
   /slash/3.0.0:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
