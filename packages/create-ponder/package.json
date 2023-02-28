@@ -8,10 +8,10 @@
     "dist/src"
   ],
   "bin": {
-    "create-ponder": "dist/src/bin/create-ponder"
+    "create-ponder": "dist/src/bin/create-ponder.js"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc && tsconfig-replace-paths --src . && mv dist/src/bin/create-ponder.js dist/src/bin/create-ponder",
+    "build": "rm -rf dist && tsc && tsconfig-replace-paths --src .",
     "test": "$npm_execpath build && export $(grep -v '^#' .env.local | xargs) && jest",
     "typecheck": "tsc --noEmit"
   },

@@ -48,14 +48,12 @@ export const run = async (
   let ponderConfig: PartialPonderConfig;
 
   console.log(
-    `Creating a new Ponder app in ${pico.bold(pico.green(rootDir))}.`
+    `\nCreating a new Ponder app in ${pico.bold(pico.green(rootDir))}.`
   );
 
   switch (options.template?.kind) {
     case TemplateKind.ETHERSCAN: {
-      console.log(
-        `\nUsing template: ${pico.green("Etherscan contract link")}.`
-      );
+      console.log(`\nUsing ${pico.cyan("Etherscan contract link")} template.`);
       ponderConfig = await fromEtherscan({
         rootDir,
         etherscanLink: options.template.link,
@@ -64,7 +62,7 @@ export const run = async (
       break;
     }
     case TemplateKind.SUBGRAPH_ID: {
-      console.log(`\nUsing template: ${pico.green("Subgraph ID")}.`);
+      console.log(`\nUsing ${pico.cyan("Subgraph ID")} template.`);
       ponderConfig = await fromSubgraphId({
         rootDir,
         subgraphId: options.template.id,
@@ -72,7 +70,7 @@ export const run = async (
       break;
     }
     case TemplateKind.SUBGRAPH_REPO: {
-      console.log(`\nUsing template: ${pico.cyan("Subgraph repository")}.`);
+      console.log(`\nUsing ${pico.cyan("Subgraph repository")} template.`);
 
       ponderConfig = fromSubgraphRepo({
         rootDir,
