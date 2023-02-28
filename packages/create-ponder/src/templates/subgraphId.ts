@@ -1,4 +1,4 @@
-import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import fetch from "node-fetch";
 import prettier from "prettier";
@@ -9,13 +9,8 @@ import type {
 } from "src/index";
 import { parse } from "yaml";
 
-import type { CreatePonderOptions } from "@/bin/create-ponder";
-import {
-  getGraphProtocolChainId,
-  subgraphYamlFileNames,
-} from "@/helpers/getGraphProtocolChainId";
+import { getGraphProtocolChainId } from "@/helpers/getGraphProtocolChainId";
 import { validateGraphProtocolSource } from "@/helpers/validateGraphProtocolSource";
-import { wait } from "@/helpers/wait";
 
 const fetchIpfsFile = async (cid: string) => {
   const url = `https://ipfs.network.thegraph.com/api/v0/cat?arg=${cid}`;
@@ -24,26 +19,24 @@ const fetchIpfsFile = async (cid: string) => {
   return contentRaw;
 };
 
-export const fromSubgraph = async (options: CreatePonderOptions) => {
-  if (!options.fromSubgraph) {
-    throw new Error(`Internal error: fromSubgraph undefined`);
-  }
-
-  const { ponderRootDir } = options;
-  const subgraphId = path.resolve(options.fromSubgraph);
-  const manifestCid = "Qmd4tEQqAgLUV5SVBp2D92436N2PL8tD4svUz2XYcucKfM";
-
+export const fromSubgraphId = async ({
+  rootDir,
+  subgraphId,
+}: {
+  rootDir: string;
+  subgraphId: string;
+}) => {
   const ponderNetworks: PonderNetwork[] = [];
   let ponderContracts: PonderContract[] = [];
 
   // Fetch the manifest file.
-  const manifestRaw = await fetchIpfsFile(manifestCid);
+  const manifestRaw = await fetchIpfsFile(subgraphId);
   const manifest = parse(manifestRaw);
 
   // Fetch and write the schema.graphql file.
   const schemaCid = manifest.schema.file["/"].slice(6);
   const schemaRaw = await fetchIpfsFile(schemaCid);
-  const ponderSchemaFilePath = path.join(ponderRootDir, "schema.graphql");
+  const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
   writeFileSync(
     ponderSchemaFilePath,
     prettier.format(schemaRaw, { parser: "graphql" })
@@ -63,7 +56,7 @@ export const fromSubgraph = async (options: CreatePonderOptions) => {
   await Promise.all(
     abiFiles.map(async (abi) => {
       const abiContent = await fetchIpfsFile(abi.file["/"].slice(6));
-      const abiPath = path.join(ponderRootDir, `./abis/${abi.name}.json`);
+      const abiPath = path.join(rootDir, `./abis/${abi.name}.json`);
       writeFileSync(abiPath, prettier.format(abiContent, { parser: "json" }));
     })
   );

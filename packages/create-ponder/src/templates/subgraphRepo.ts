@@ -1,26 +1,26 @@
 import { copyFileSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type {
-  PartialPonderConfig,
-  PonderContract,
-  PonderNetwork,
-} from "src/index";
 import { parse } from "yaml";
 
-import type { CreatePonderOptions } from "@/bin/create-ponder";
 import {
   getGraphProtocolChainId,
   subgraphYamlFileNames,
 } from "@/helpers/getGraphProtocolChainId";
 import { validateGraphProtocolSource } from "@/helpers/validateGraphProtocolSource";
+import type {
+  PartialPonderConfig,
+  PonderContract,
+  PonderNetwork,
+} from "@/index";
 
-export const fromSubgraph = (options: CreatePonderOptions) => {
-  if (!options.fromSubgraph) {
-    throw new Error(`Internal error: fromSubgraph undefined`);
-  }
-
-  const { ponderRootDir } = options;
-  const subgraphRootDir = path.resolve(options.fromSubgraph);
+export const fromSubgraphRepo = ({
+  rootDir,
+  subgraphPath,
+}: {
+  rootDir: string;
+  subgraphPath: string;
+}) => {
+  const subgraphRootDir = path.resolve(subgraphPath);
 
   const ponderNetworks: PonderNetwork[] = [];
   let ponderContracts: PonderContract[] = [];
@@ -56,7 +56,7 @@ export const fromSubgraph = (options: CreatePonderOptions) => {
     subgraphRootDirPath,
     subgraphYaml.schema.file
   );
-  const ponderSchemaFilePath = path.join(ponderRootDir, "schema.graphql");
+  const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
   copyFileSync(subgraphSchemaFilePath, ponderSchemaFilePath);
 
   // Build the ponder sources. Also copy over the ABI files for each source.
@@ -89,10 +89,7 @@ export const fromSubgraph = (options: CreatePonderOptions) => {
       const abiFileName = path.basename(abiPath);
 
       const ponderAbiRelativePath = `./abis/${abiFileName}`;
-      const ponderAbiAbsolutePath = path.join(
-        ponderRootDir,
-        ponderAbiRelativePath
-      );
+      const ponderAbiAbsolutePath = path.join(rootDir, ponderAbiRelativePath);
 
       copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
 

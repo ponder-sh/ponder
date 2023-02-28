@@ -1,17 +1,14 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
-import type { PartialPonderConfig } from "src/index";
 
-import type { CreatePonderOptions } from "@/bin/create-ponder";
+import type { PartialPonderConfig } from "@/index";
 
-export const fromBasic = (options: CreatePonderOptions) => {
-  const { ponderRootDir } = options;
-
+export const fromBasic = ({ rootDir }: { rootDir: string }) => {
   const abiFileContents = `[]`;
 
   const abiRelativePath = "./abis/ExampleContract.json";
-  const abiAbsolutePath = path.join(ponderRootDir, abiRelativePath);
+  const abiAbsolutePath = path.join(rootDir, abiRelativePath);
   writeFileSync(abiAbsolutePath, abiFileContents);
 
   const schemaGraphqlFileContents = `
@@ -27,7 +24,7 @@ export const fromBasic = (options: CreatePonderOptions) => {
   `;
 
   // Generate the schema.graphql file.
-  const ponderSchemaFilePath = path.join(ponderRootDir, "schema.graphql");
+  const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
   writeFileSync(
     ponderSchemaFilePath,
     prettier.format(schemaGraphqlFileContents, { parser: "graphql" })

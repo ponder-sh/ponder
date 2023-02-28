@@ -5,19 +5,21 @@ import fetch from "node-fetch";
 import prettier from "prettier";
 import type { PartialPonderConfig } from "src/index";
 
-import type { CreatePonderOptions } from "@/bin/create-ponder";
 import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId";
 import { wait } from "@/helpers/wait";
 
-export const fromEtherscan = async (options: CreatePonderOptions) => {
-  const { ponderRootDir } = options;
+export const fromEtherscan = async ({
+  rootDir,
+  etherscanLink,
+  etherscanApiKey,
+}: {
+  rootDir: string;
+  etherscanLink: string;
+  etherscanApiKey?: string;
+}) => {
+  const apiKey = etherscanApiKey || process.env.ETHERSCAN_API_KEY;
 
-  if (!options.fromEtherscan) {
-    throw new Error(`Internal error: fromEtherscan undefined`);
-  }
-  const apiKey = options.etherscanApiKey || process.env.ETHERSCAN_API_KEY;
-
-  const url = new URL(options.fromEtherscan);
+  const url = new URL(etherscanLink);
   const network = getNetworkByEtherscanHostname(url.hostname);
   if (!network) {
     throw new Error(`Unrecognized etherscan hostname: ${url.hostname}`);
@@ -29,7 +31,7 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
   const txHash = await getContractCreationTxn(contractAddress, apiUrl, apiKey);
 
   if (!apiKey) {
-    console.log("(1/2) Waiting 5 seconds for Etherscan API rate limit");
+    console.log("\n(1/2) Waiting 5 seconds for Etherscan API rate limit");
     await wait(5000);
   }
   const blockNumber = await getTxBlockNumber(txHash, apiUrl, apiKey);
@@ -46,7 +48,7 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
 
   // Write contract ABI file.
   const abiRelativePath = `./abis/${contractName}.json`;
-  const abiAbsolutePath = path.join(ponderRootDir, abiRelativePath);
+  const abiAbsolutePath = path.join(rootDir, abiRelativePath);
   writeFileSync(abiAbsolutePath, prettier.format(abi, { parser: "json" }));
 
   const schemaGraphqlFileContents = `
@@ -57,7 +59,7 @@ export const fromEtherscan = async (options: CreatePonderOptions) => {
   `;
 
   // Generate the schema.graphql file.
-  const ponderSchemaFilePath = path.join(ponderRootDir, "schema.graphql");
+  const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
   writeFileSync(
     ponderSchemaFilePath,
     prettier.format(schemaGraphqlFileContents, { parser: "graphql" })
