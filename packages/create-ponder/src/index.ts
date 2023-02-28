@@ -209,6 +209,7 @@ export const run = async (
   });
 
   // Intialize git repository
+  process.chdir(rootDir);
   tryGitInit(rootDir);
   console.log(`\nInitialized a git repository.`);
 
