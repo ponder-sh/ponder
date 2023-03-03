@@ -31,7 +31,7 @@ export const createBlockBackfillQueue = ({
 
   queue.error((err, task) => {
     if (err) {
-      backfillService.emit("backfill_blockTaskFailed", {
+      backfillService.emit("blockTaskFailed", {
         contract: contract.name,
         error: err,
       });
@@ -67,5 +67,5 @@ async function blockBackfillWorker(
   ]);
 
   await onSuccess(blockHash);
-  backfillService.emit("backfill_blockTaskDone", { contract: contract.name });
+  backfillService.emit("blockTaskCompleted", { contract: contract.name });
 }

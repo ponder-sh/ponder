@@ -4,6 +4,6 @@ export type {
   PonderConfig,
   ResolvedPonderConfig,
 } from "@/config/buildPonderConfig";
-export { PonderApp } from "@/handlers/readHandlers";
 export { Ponder } from "@/Ponder";
+export { PonderApp } from "@/reload/readHandlers";
 export type { Block, Log, Transaction } from "@/types";

@@ -1,6 +1,5 @@
 import type { Pool } from "pg";
 
-import { logger } from "@/common/logger";
 import { merge_intervals } from "@/common/utils";
 import type { Block, Log, Transaction } from "@/types";
 
@@ -201,10 +200,6 @@ export class PostgresCacheStore implements CacheStore {
             (oldInterval) => oldInterval.endBlock === endBlock
           );
           if (!endBlockInterval) {
-            logger.error("Old interval with endBlock not found:", {
-              existingIntervals,
-              endBlock,
-            });
             throw new Error(`Old interval with endBlock not found`);
           }
           const { endBlockTimestamp } = endBlockInterval;

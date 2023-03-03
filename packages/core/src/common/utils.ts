@@ -20,11 +20,11 @@ export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
 };
 
 export const registerKilledProcessListener = (fn: () => Promise<unknown>) => {
-  let calledCount = 0;
+  let isKillListenerInProgress = false;
 
   const listener = async () => {
-    calledCount++;
-    if (calledCount > 1) return;
+    if (isKillListenerInProgress) return;
+    isKillListenerInProgress = true;
     await fn();
     process.exit(0);
   };

@@ -1,18 +1,17 @@
 import { EventEmitter } from "@/common/EventEmitter";
-import { HandlerQueue } from "./handlerQueue";
 import { Handlers } from "@/reload/readHandlers";
 import { Contract as EthersContract, utils } from "ethers";
 import fastq from "fastq";
 import { Contract } from "@/config/contracts";
 import { Schema } from "@/schema/types";
 import { getStackTraceAndCodeFrame } from "./getStackTrace";
-import { Resources } from "@/Ponder2";
+import { Resources } from "@/Ponder";
 import { decodeLog } from "./decodeLog";
 import type { Log } from "@/types";
 
 type EventHandlerServiceEvents = {
-  indexer_taskStarted: () => void;
-  indexer_taskDone: (arg: { timestamp: number }) => void;
+  taskStarted: () => void;
+  taskCompleted: (arg: { timestamp: number }) => void;
 
   eventsAdded: (arg: {
     handledCount: number;
@@ -22,6 +21,9 @@ type EventHandlerServiceEvents = {
   }) => void;
   eventsProcessed: (arg: { count: number; toTimestamp: number }) => void;
 };
+
+type HandlerTask = Log;
+type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
 
 export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents> {
   resources: Resources;
@@ -183,8 +185,8 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
       return acc;
     }, {});
 
-    const handlerWorker = async (log: Log) => {
-      this.emit("indexer_taskStarted");
+    const handlerWorker = async (log: HandlerTask) => {
+      this.emit("taskStarted");
 
       const contract = contractByAddress[log.address];
       if (!contract) {
@@ -261,7 +263,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
       // Running user code here!
       await handler({ event, context: handlerContext });
 
-      this.emit("indexer_taskDone", { timestamp: block.timestamp });
+      this.emit("taskCompleted", { timestamp: block.timestamp });
     };
 
     const queue = fastq.promise<unknown, Log>({}, handlerWorker, 1);

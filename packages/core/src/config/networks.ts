@@ -4,8 +4,8 @@ import {
 } from "@ethersproject/providers";
 
 import { ResolvedPonderConfig } from "@/config/buildPonderConfig";
+import { CachedProvider } from "@/config/CachedProvider";
 import { CacheStore } from "@/db/cache/cacheStore";
-import { CachedProvider } from "@/indexer/CachedProvider";
 
 export type EvmNetwork = {
   name: string;

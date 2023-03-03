@@ -19,29 +19,29 @@ export enum MessageKind {
 }
 
 export class LoggerService {
-  error(...args: Parameters<typeof console.log>) {
+  error = (...args: Parameters<typeof console.log>) => {
     if (this.getLogLevel() > LogLevel.Error) console.log(...args);
-  }
-  info(...args: Parameters<typeof console.log>) {
+  };
+  info = (...args: Parameters<typeof console.log>) => {
     if (this.getLogLevel() > LogLevel.Info) console.log(...args);
-  }
-  warn(...args: Parameters<typeof console.log>) {
+  };
+  warn = (...args: Parameters<typeof console.log>) => {
     if (this.getLogLevel() > LogLevel.Warn) console.log(...args);
-  }
-  debug(...args: Parameters<typeof console.log>) {
+  };
+  debug = (...args: Parameters<typeof console.log>) => {
     if (this.getLogLevel() > LogLevel.Debug) console.log(...args);
-  }
-  trace(...args: Parameters<typeof console.log>) {
+  };
+  trace = (...args: Parameters<typeof console.log>) => {
     if (this.getLogLevel() > LogLevel.Trace) console.log(...args);
-  }
+  };
 
-  private getLogLevel() {
+  private getLogLevel = () => {
     // This is a hack for now because the options/config/etc approach is still
     // a bit awkward. The only way to configure LOG_LEVEL is through the PONDER_LOG_LEVEL env var.
     return process.env.PONDER_LOG_LEVEL != undefined
       ? Number(process.env.PONDER_LOG_LEVEL)
       : 2;
-  }
+  };
 
   private maxWidth = 0;
   // This function is specifically for message logs.

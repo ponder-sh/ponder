@@ -1,6 +1,6 @@
 import { EventEmitter } from "@/common/EventEmitter";
 import { Network } from "@/config/networks";
-import { Resources } from "@/Ponder2";
+import { Resources } from "@/Ponder";
 
 import { createBlockFrontfillQueue } from "./blockFrontfillQueue";
 

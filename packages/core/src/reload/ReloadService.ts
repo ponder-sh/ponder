@@ -7,7 +7,7 @@ import pico from "picocolors";
 
 import { EventEmitter } from "@/common/EventEmitter";
 import { MessageKind } from "@/common/LoggerService";
-import { Resources } from "@/Ponder2";
+import { Resources } from "@/Ponder";
 import { buildSchema } from "@/schema/buildSchema";
 import { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
@@ -41,7 +41,9 @@ export class ReloadService extends EventEmitter<ReloadServiceEvents> {
     ];
 
     const watcher = chokidar.watch(watchFiles);
-    this.kill = watcher.close;
+    this.kill = async () => {
+      await watcher.close();
+    };
 
     watcher.on("change", async (filePath) => {
       if (filePath === this.resources.options.PONDER_CONFIG_FILE_PATH) {

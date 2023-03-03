@@ -1,6 +1,5 @@
 import type Sqlite from "better-sqlite3";
 
-import { logger } from "@/common/logger";
 import { merge_intervals } from "@/common/utils";
 import type { Block, Log, Transaction } from "@/types";
 
@@ -207,10 +206,6 @@ export class SqliteCacheStore implements CacheStore {
             (oldInterval) => oldInterval.endBlock === endBlock
           );
           if (!endBlockInterval) {
-            logger.error("Old interval with endBlock not found:", {
-              existingIntervals,
-              endBlock,
-            });
             throw new Error(`Old interval with endBlock not found`);
           }
           const { endBlockTimestamp } = endBlockInterval;
@@ -225,11 +220,7 @@ export class SqliteCacheStore implements CacheStore {
       }
     );
 
-    try {
-      insertIntervalTxn(interval);
-    } catch (err) {
-      logger.warn({ err });
-    }
+    insertIntervalTxn(interval);
   };
 
   insertLogs = async (logs: Log[]) => {
@@ -273,18 +264,13 @@ export class SqliteCacheStore implements CacheStore {
       logs.forEach((log) => insertLog.run(log));
     });
 
-    try {
-      insertLogsTxn(logs);
-    } catch (err) {
-      logger.warn({ err });
-    }
+    insertLogsTxn(logs);
   };
 
   insertBlock = async (block: Block) => {
-    try {
-      this.db
-        .prepare(
-          `
+    this.db
+      .prepare(
+        `
           INSERT INTO "${blocksTableName}" (
             "hash",
             "number",
@@ -318,25 +304,22 @@ export class SqliteCacheStore implements CacheStore {
             @logsBloom,
             @totalDifficulty
           ) ON CONFLICT("hash") DO NOTHING
-          `
-        )
-        .run({ ...block, id: block.hash });
+        `
+      )
+      .run({ ...block, id: block.hash });
 
-      this.db
-        .prepare(
-          `
+    this.db
+      .prepare(
+        `
           UPDATE "${logsTableName}"
           SET "blockTimestamp" = @blockTimestamp
           WHERE "blockHash" = @blockHash
           `
-        )
-        .run({
-          blockHash: block.hash,
-          blockTimestamp: block.timestamp,
-        });
-    } catch (err) {
-      logger.warn({ err });
-    }
+      )
+      .run({
+        blockHash: block.hash,
+        blockTimestamp: block.timestamp,
+      });
   };
 
   insertTransactions = async (transactions: Transaction[]) => {
@@ -380,11 +363,7 @@ export class SqliteCacheStore implements CacheStore {
       txns.forEach((txn) => insertTransaction.run(txn));
     });
 
-    try {
-      insertTransactionsTxn(transactions);
-    } catch (err) {
-      logger.warn({ err });
-    }
+    insertTransactionsTxn(transactions);
   };
 
   getLogs = async (
@@ -393,37 +372,32 @@ export class SqliteCacheStore implements CacheStore {
     toBlockTimestamp: number,
     eventSigHashes?: string[]
   ) => {
-    try {
-      let topicStatement = "";
-      let topicParams: string[] = [];
-      if (eventSigHashes !== undefined) {
-        topicStatement = `AND "topic0" IN (${[
-          ...Array(eventSigHashes.length).keys(),
-        ].map(() => `?`)})`;
-        topicParams = eventSigHashes;
-      }
+    let topicStatement = "";
+    let topicParams: string[] = [];
+    if (eventSigHashes !== undefined) {
+      topicStatement = `AND "topic0" IN (${[
+        ...Array(eventSigHashes.length).keys(),
+      ].map(() => `?`)})`;
+      topicParams = eventSigHashes;
+    }
 
-      const logs = this.db
-        .prepare(
-          `
+    const logs = this.db
+      .prepare(
+        `
           SELECT * FROM "${logsTableName}"
           WHERE "address" = @address
           AND "blockTimestamp" > @fromBlockTimestamp
           AND "blockTimestamp" <= @toBlockTimestamp
           ${topicStatement}
           `
-        )
-        .all(...topicParams, {
-          address,
-          fromBlockTimestamp,
-          toBlockTimestamp,
-        });
+      )
+      .all(...topicParams, {
+        address,
+        fromBlockTimestamp,
+        toBlockTimestamp,
+      });
 
-      return <Log[]>logs;
-    } catch (err) {
-      logger.warn({ err });
-      return [];
-    }
+    return <Log[]>logs;
   };
 
   getBlock = async (hash: string) => {
@@ -459,24 +433,20 @@ export class SqliteCacheStore implements CacheStore {
   };
 
   upsertContractCall = async (contractCall: ContractCall) => {
-    try {
-      this.db
-        .prepare(
-          `
+    this.db
+      .prepare(
+        `
           INSERT INTO "${contractCallsTableName}" ("key", "result")
           VALUES (@key, @result)
           ON CONFLICT("key") DO UPDATE SET
           "result"=excluded."result"
           RETURNING *
           `
-        )
-        .run({
-          key: contractCall.key,
-          result: contractCall.result,
-        });
-    } catch (err) {
-      logger.warn({ err });
-    }
+      )
+      .run({
+        key: contractCall.key,
+        result: contractCall.result,
+      });
   };
 
   getContractCall = async (contractCallKey: string) => {

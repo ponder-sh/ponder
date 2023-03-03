@@ -1,29 +1,26 @@
 import { EventEmitter } from "@/common/EventEmitter";
-import { p1_excluding_all } from "@/common/utils";
+import { endBenchmark, p1_excluding_all, startBenchmark } from "@/common/utils";
 import { Contract } from "@/config/contracts";
-import { Resources } from "@/Ponder2";
+import { Resources } from "@/Ponder";
 
 import { createBlockBackfillQueue } from "./blockBackfillQueue";
 import { createLogBackfillQueue } from "./logBackfillQueue";
 
 type BackfillServiceEvents = {
-  backfill_contractStarted: (arg: {
-    contract: string;
-    cacheRate: number;
-  }) => void;
-  backfill_logTasksAdded: (arg: {
-    contract: string;
-    taskCount: number;
-  }) => void;
-  backfill_blockTasksAdded: (arg: {
-    contract: string;
-    taskCount: number;
-  }) => void;
-  backfill_logTaskFailed: (arg: { contract: string; error: Error }) => void;
-  backfill_blockTaskFailed: (arg: { contract: string; error: Error }) => void;
-  backfill_logTaskDone: (arg: { contract: string }) => void;
-  backfill_blockTaskDone: (arg: { contract: string }) => void;
-  backfill_newLogs: () => void;
+  contractStarted: (arg: { contract: string; cacheRate: number }) => void;
+
+  logTasksAdded: (arg: { contract: string; count: number }) => void;
+  blockTasksAdded: (arg: { contract: string; count: number }) => void;
+
+  logTaskFailed: (arg: { contract: string; error: Error }) => void;
+  blockTaskFailed: (arg: { contract: string; error: Error }) => void;
+
+  logTaskCompleted: (arg: { contract: string }) => void;
+  blockTaskCompleted: (arg: { contract: string }) => void;
+
+  newEventsAdded: (arg: { count: number }) => void;
+
+  backfillCompleted: (arg: { duration: number }) => void;
 };
 
 export class BackfillService extends EventEmitter<BackfillServiceEvents> {
@@ -38,6 +35,8 @@ export class BackfillService extends EventEmitter<BackfillServiceEvents> {
   }
 
   async startBackfill() {
+    const backfillStartedAt = startBenchmark();
+
     await Promise.all(
       this.resources.contracts
         .filter((contract) => contract.isIndexed)
@@ -45,14 +44,15 @@ export class BackfillService extends EventEmitter<BackfillServiceEvents> {
           await this.startBackfillForContract({ contract });
         })
     );
+
+    await Promise.all(this.queueDrainFunctions.map(async (f) => await f()));
+
+    const backfillDuration = endBenchmark(backfillStartedAt);
+    this.emit("backfillCompleted", { duration: backfillDuration });
   }
 
   killQueues() {
     this.queueKillFunctions.forEach((f) => f());
-  }
-
-  async drainQueues() {
-    await Promise.all(this.queueDrainFunctions.map(async (f) => await f()));
   }
 
   private async startBackfillForContract({ contract }: { contract: Contract }) {
@@ -95,7 +95,7 @@ export class BackfillService extends EventEmitter<BackfillServiceEvents> {
       0,
       1 - requiredBlockCount / (contract.endBlock - contract.startBlock)
     );
-    this.emit("backfill_contractStarted", {
+    this.emit("contractStarted", {
       contract: contract.name,
       cacheRate: cacheRate,
     });
@@ -112,9 +112,9 @@ export class BackfillService extends EventEmitter<BackfillServiceEvents> {
           fromBlock,
           toBlock,
         });
-        this.emit("backfill_logTasksAdded", {
+        this.emit("logTasksAdded", {
           contract: contract.name,
-          taskCount: 1,
+          count: 1,
         });
         continue;
       }
@@ -128,9 +128,9 @@ export class BackfillService extends EventEmitter<BackfillServiceEvents> {
 
         fromBlock = toBlock + 1;
         toBlock = Math.min(fromBlock + contract.blockLimit, endBlock);
-        this.emit("backfill_logTasksAdded", {
+        this.emit("logTasksAdded", {
           contract: contract.name,
-          taskCount: 1,
+          count: 1,
         });
       }
     }

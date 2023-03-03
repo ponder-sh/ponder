@@ -35,7 +35,7 @@ export const createLogBackfillQueue = ({
 
   queue.error((err, task) => {
     if (err) {
-      backfillService.emit("backfill_logTaskFailed", {
+      backfillService.emit("logTaskFailed", {
         contract: contract.name,
         error: err,
       });
@@ -105,8 +105,9 @@ async function logBackfillWorker(
         )
       );
       // If there were logs in this batch, send an event to process them.
-      if (logs.length > 0) {
-        backfillService.emit("backfill_newLogs");
+      const logCount = logs.length;
+      if (logCount > 0) {
+        backfillService.emit("newEventsAdded", { count: logCount });
       }
     }
   };
@@ -125,9 +126,9 @@ async function logBackfillWorker(
     });
   });
 
-  backfillService.emit("backfill_blockTasksAdded", {
+  backfillService.emit("blockTasksAdded", {
     contract: contract.name,
-    taskCount: requiredBlockHashes.length,
+    count: requiredBlockHashes.length,
   });
-  backfillService.emit("backfill_logTaskDone", { contract: contract.name });
+  backfillService.emit("logTaskCompleted", { contract: contract.name });
 }
