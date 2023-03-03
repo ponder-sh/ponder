@@ -53,9 +53,10 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     handlers?: Handlers;
     schema?: Schema;
   }) {
-    const handlers = newHandlers || this.handlers;
-    const schema = newSchema || this.schema;
-    if (!handlers || !schema) return;
+    if (newHandlers) this.handlers = newHandlers;
+    if (newSchema) this.schema = newSchema;
+
+    if (!this.handlers || !this.schema) return;
 
     if (this.queue) {
       this.queue.kill();
@@ -64,8 +65,8 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     }
 
     const queue = this.createEventQueue({
-      handlers,
-      schema,
+      handlers: this.handlers,
+      schema: this.schema,
     });
 
     this.queue = queue;
@@ -110,8 +111,8 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     }
     this.queue.pause();
 
-    // Mark the new timestamp that events have been handled to.
     this.eventsHandledToTimestamp = toTimestamp;
+    this.isProcessingEvents = false;
 
     this.emit("eventsProcessed", {
       count: logs.length,

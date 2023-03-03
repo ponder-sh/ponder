@@ -10,16 +10,18 @@ export class UiService {
   ui: UiState;
   renderInterval: NodeJS.Timer;
   etaInterval: NodeJS.Timer;
+  render: () => void;
 
   constructor({ resources }: { resources: Resources }) {
     this.resources = resources;
 
     this.ui = getUiState(this.resources.options);
     hydrateUi({ ui: this.ui, contracts: this.resources.contracts });
+    this.render = () => render(this.ui);
 
     this.renderInterval = setInterval(() => {
       this.ui.timestamp = Math.floor(Date.now() / 1000);
-      if (this.resources.options.LOG_TYPE === "dev") render(this.ui);
+      if (this.resources.options.LOG_TYPE === "dev") this.render();
     }, 17);
 
     this.etaInterval = setInterval(() => {

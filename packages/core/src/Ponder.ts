@@ -111,6 +111,8 @@ export class Ponder {
     this.resources.errors.on("handlerError", async () => {
       await this.kill();
     });
+
+    this.registerUiHandlers();
   }
 
   async setup() {
@@ -256,7 +258,17 @@ export class Ponder {
     });
     this.eventHandlerService.on("taskCompleted", ({ timestamp }) => {
       this.uiService.ui.handlersToTimestamp = timestamp;
-      // if (this.resources.options.LOG_TYPE === "dev") render(this.ui);
+      if (this.resources.options.LOG_TYPE === "dev") {
+        this.uiService.render();
+      }
+    });
+
+    this.eventHandlerService.on("eventsAdded", (e) => {
+      this.uiService.ui.handlersTotal += e.totalCount;
+      this.uiService.ui.handlersHandledTotal += e.handledCount;
+    });
+    this.eventHandlerService.on("eventsProcessed", (e) => {
+      this.uiService.ui.handlersToTimestamp = e.toTimestamp;
     });
   }
 }
