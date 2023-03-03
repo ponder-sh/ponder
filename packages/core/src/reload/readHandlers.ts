@@ -3,7 +3,7 @@ import glob from "glob";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import type { Ponder } from "@/Ponder";
+import { PonderOptions } from "@/common/options";
 import type { Block, Log, Transaction } from "@/types";
 
 export interface HandlerEvent {
@@ -53,21 +53,18 @@ export class PonderApp<HandlersType = Record<string, any>> {
   }
 }
 
-export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
-  const entryAppFilename = path.join(
-    ponder.options.GENERATED_DIR_PATH,
-    "index.ts"
-  );
+export const readHandlers = async ({ options }: { options: PonderOptions }) => {
+  const entryAppFilename = path.join(options.GENERATED_DIR_PATH, "index.ts");
   if (!existsSync(entryAppFilename)) {
     throw new Error(
       `generated/index.ts file not found, expected: ${entryAppFilename}`
     );
   }
 
-  const entryGlob = ponder.options.SRC_DIR_PATH + "/**/*.ts";
+  const entryGlob = options.SRC_DIR_PATH + "/**/*.ts";
   const entryFilenames = [...glob.sync(entryGlob), entryAppFilename];
 
-  const buildDir = path.join(ponder.options.PONDER_DIR_PATH, "out");
+  const buildDir = path.join(options.PONDER_DIR_PATH, "out");
   rmSync(buildDir, { recursive: true, force: true });
 
   try {
@@ -89,11 +86,7 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
     });
     error.stack = stackTraces.join("\n");
 
-    ponder.emit("dev_error", {
-      context: `building handler files`,
-      error,
-    });
-    return null;
+    throw error;
   }
 
   const outGlob = buildDir + "/**/*.js";
@@ -122,50 +115,23 @@ export const readHandlers = async ({ ponder }: { ponder: Ponder }) => {
     .filter((err): err is Error => err !== undefined);
 
   if (requireErrors.length > 0) {
-    ponder.emit("dev_error", {
-      context: `building event handlers`,
-      error: requireErrors[0],
-    });
-    return null;
+    throw requireErrors[0];
   }
 
   // Then require the `_app.ts` file to grab the `app` instance.
-  let result: any;
-  try {
-    result = require(outAppFilename);
-  } catch (err) {
-    ponder.emit("dev_error", {
-      context: `building event handlers`,
-      error: err as Error,
-    });
-    return null;
-  }
+  const result = require(outAppFilename);
 
   const app = result.ponder;
 
   if (!app) {
-    ponder.emit("dev_error", {
-      context: `registering event handlers`,
-      error: new Error(`ponder not exported from generated/index.ts`),
-    });
-    return null;
+    throw new Error(`ponder not exported from generated/index.ts`);
   }
   if (!(app instanceof PonderApp)) {
-    ponder.emit("dev_error", {
-      context: `registering event handlers`,
-      error: new Error(
-        `ponder exported from generated/index.ts is not instanceof PonderApp`
-      ),
-    });
-    return null;
+    throw new Error(`ponder not exported from generated/index.ts`);
   }
   if (app["errors"].length > 0) {
     const error = app["errors"][0];
-    ponder.emit("dev_error", {
-      context: `registering event handlers`,
-      error,
-    });
-    return null;
+    throw error;
   }
 
   const handlers = app["handlers"] as Handlers;

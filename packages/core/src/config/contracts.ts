@@ -3,7 +3,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import type { Network } from "@/config/networks";
-import type { Ponder } from "@/Ponder";
+
+import { PonderOptions } from "..";
+import { ResolvedPonderConfig } from "./buildPonderConfig";
 
 export type ContractOptions = {
   name: string;
@@ -55,8 +57,16 @@ const buildContract = (options: ContractOptions): Contract => {
   };
 };
 
-export const buildContracts = ({ ponder }: { ponder: Ponder }) => {
-  const contracts = ponder.config.contracts.map((contract) => {
+export const buildContracts = ({
+  config,
+  options,
+  networks,
+}: {
+  config: ResolvedPonderConfig;
+  options: PonderOptions;
+  networks: Network[];
+}) => {
+  const contracts = config.contracts.map((contract) => {
     let abiFilePath: string | undefined;
     let abiObject: any;
 
@@ -65,7 +75,7 @@ export const buildContracts = ({ ponder }: { ponder: Ponder }) => {
       abiFilePath = path.isAbsolute(contract.abi)
         ? contract.abi
         : path.join(
-            path.dirname(ponder.options.PONDER_CONFIG_FILE_PATH),
+            path.dirname(options.PONDER_CONFIG_FILE_PATH),
             contract.abi
           );
 
@@ -80,7 +90,7 @@ export const buildContracts = ({ ponder }: { ponder: Ponder }) => {
     const abi = abiObject?.abi ? abiObject.abi : abiObject;
     const abiInterface = new ethers.utils.Interface(abi);
 
-    const network = ponder.networks.find((n) => n.name === contract.network);
+    const network = networks.find((n) => n.name === contract.network);
     if (!network) {
       throw new Error(
         `Network [${contract.network}] not found for contract: ${contract.name}`

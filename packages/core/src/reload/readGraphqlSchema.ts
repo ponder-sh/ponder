@@ -1,7 +1,7 @@
 import { buildSchema } from "graphql";
 import { readFileSync } from "node:fs";
 
-import type { Ponder } from "@/Ponder";
+import { PonderOptions } from "@/common/options";
 
 const schemaHeader = `
 "Directs the executor to process this type as a Ponder entity."
@@ -16,8 +16,8 @@ scalar Bytes
 scalar BigInt
 `;
 
-export const readGraphqlSchema = ({ ponder }: { ponder: Ponder }) => {
-  const schemaBody = readFileSync(ponder.options.SCHEMA_FILE_PATH);
+export const readGraphqlSchema = ({ options }: { options: PonderOptions }) => {
+  const schemaBody = readFileSync(options.SCHEMA_FILE_PATH);
   const schemaSource = schemaHeader + schemaBody.toString();
 
   const schema = buildSchema(schemaSource);

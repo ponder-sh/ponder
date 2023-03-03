@@ -2,10 +2,10 @@ import Sqlite from "better-sqlite3";
 import path from "node:path";
 import { Pool } from "pg";
 
-import { logger } from "@/common/logger";
+import { LoggerService } from "@/common/LoggerService";
+import { PonderOptions } from "@/common/options";
 import { ensureDirExists } from "@/common/utils";
 import { ResolvedPonderConfig } from "@/config/buildPonderConfig";
-import type { Ponder } from "@/Ponder";
 
 // Patch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114
@@ -37,19 +37,27 @@ export interface PostgresDb {
 
 export type PonderDatabase = SqliteDb | PostgresDb;
 
-export const buildDb = ({ ponder }: { ponder: Ponder }): PonderDatabase => {
+export const buildDb = ({
+  options,
+  config,
+  logger,
+}: {
+  options: PonderOptions;
+  config: ResolvedPonderConfig;
+  logger: LoggerService;
+}): PonderDatabase => {
   let dbConfig: NonNullable<ResolvedPonderConfig["database"]>;
 
-  if (ponder.config.database) {
-    if (ponder.config.database.kind === "postgres") {
+  if (config.database) {
+    if (config.database.kind === "postgres") {
       dbConfig = {
         kind: "postgres",
-        connectionString: ponder.config.database.connectionString,
+        connectionString: config.database.connectionString,
       };
     } else {
       dbConfig = {
         kind: "sqlite",
-        filename: ponder.config.database.filename,
+        filename: config.database.filename,
       };
     }
   } else {
@@ -59,7 +67,7 @@ export const buildDb = ({ ponder }: { ponder: Ponder }): PonderDatabase => {
         connectionString: process.env.DATABASE_URL,
       };
     } else {
-      const filePath = path.join(ponder.options.PONDER_DIR_PATH, "cache.db");
+      const filePath = path.join(options.PONDER_DIR_PATH, "cache.db");
       ensureDirExists(filePath);
       dbConfig = {
         kind: "sqlite",
@@ -77,14 +85,6 @@ export const buildDb = ({ ponder }: { ponder: Ponder }): PonderDatabase => {
     const rawPool = new Pool({
       connectionString: dbConfig.connectionString,
     });
-
-    // const pool = {
-    //   connect: () => rawPool.connect(),
-    //   query: (text: string, params: any[]) => {
-    //     logger.trace({ query: text, params });
-    //     return rawPool.query(text, params);
-    //   },
-    // };
 
     return { kind: "postgres", pool: rawPool };
   }

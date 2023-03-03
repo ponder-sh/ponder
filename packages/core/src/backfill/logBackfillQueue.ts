@@ -3,8 +3,8 @@ import fastq from "fastq";
 
 import type { Contract } from "@/config/contracts";
 import { parseBlock, parseLog } from "@/db/cache/utils";
-import type { Ponder } from "@/Ponder";
 
+import { BackfillService } from "./BackfillService";
 import type { BlockBackfillQueue } from "./blockBackfillQueue";
 
 export type LogBackfillTask = {
@@ -14,7 +14,7 @@ export type LogBackfillTask = {
 };
 
 export type LogBackfillWorkerContext = {
-  ponder: Ponder;
+  backfillService: BackfillService;
   contract: Contract;
   blockBackfillQueue: BlockBackfillQueue;
 };
@@ -22,20 +22,20 @@ export type LogBackfillWorkerContext = {
 export type LogBackfillQueue = fastq.queueAsPromised<LogBackfillTask>;
 
 export const createLogBackfillQueue = ({
-  ponder,
+  backfillService,
   contract,
   blockBackfillQueue,
 }: LogBackfillWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<LogBackfillWorkerContext, LogBackfillTask>(
-    { ponder, contract, blockBackfillQueue },
+    { backfillService, contract, blockBackfillQueue },
     logBackfillWorker,
     10 // TODO: Make this configurable
   );
 
   queue.error((err, task) => {
     if (err) {
-      ponder.emit("backfill_logTaskFailed", {
+      backfillService.emit("backfill_logTaskFailed", {
         contract: contract.name,
         error: err,
       });
@@ -50,7 +50,7 @@ async function logBackfillWorker(
   this: LogBackfillWorkerContext,
   { contractAddresses, fromBlock, toBlock }: LogBackfillTask
 ) {
-  const { ponder, contract, blockBackfillQueue } = this;
+  const { backfillService, contract, blockBackfillQueue } = this;
   const { provider } = contract.network;
 
   const [rawLogs, rawToBlock] = await Promise.all([
@@ -69,7 +69,7 @@ async function logBackfillWorker(
 
   const logs = (rawLogs as unknown[]).map(parseLog);
 
-  await ponder.cacheStore.insertLogs(logs);
+  await backfillService.resources.cacheStore.insertLogs(logs);
 
   const txnHashesForBlockHash = logs.reduce((acc, log) => {
     if (acc[log.blockHash]) {
@@ -96,7 +96,7 @@ async function logBackfillWorker(
     if (requiredBlockHashSet.size === 0) {
       await Promise.all(
         contractAddresses.map((contractAddress) =>
-          ponder.cacheStore.insertCachedInterval({
+          backfillService.resources.cacheStore.insertCachedInterval({
             contractAddress,
             startBlock: fromBlock,
             endBlock: toBlock,
@@ -106,7 +106,7 @@ async function logBackfillWorker(
       );
       // If there were logs in this batch, send an event to process them.
       if (logs.length > 0) {
-        ponder.emit("backfill_newLogs");
+        backfillService.emit("backfill_newLogs");
       }
     }
   };
@@ -125,9 +125,9 @@ async function logBackfillWorker(
     });
   });
 
-  ponder.emit("backfill_blockTasksAdded", {
+  backfillService.emit("backfill_blockTasksAdded", {
     contract: contract.name,
     taskCount: requiredBlockHashes.length,
   });
-  ponder.emit("backfill_logTaskDone", { contract: contract.name });
+  backfillService.emit("backfill_logTaskDone", { contract: contract.name });
 }

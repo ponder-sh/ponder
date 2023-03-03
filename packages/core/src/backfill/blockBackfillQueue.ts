@@ -2,7 +2,8 @@ import fastq from "fastq";
 
 import type { Contract } from "@/config/contracts";
 import { parseBlock, parseTransaction } from "@/db/cache/utils";
-import type { Ponder } from "@/Ponder";
+
+import { BackfillService } from "./BackfillService";
 
 export type BlockBackfillTask = {
   blockHash: string;
@@ -11,26 +12,26 @@ export type BlockBackfillTask = {
 };
 
 export type BlockBackfillWorkerContext = {
-  ponder: Ponder;
+  backfillService: BackfillService;
   contract: Contract;
 };
 
 export type BlockBackfillQueue = fastq.queueAsPromised<BlockBackfillTask>;
 
 export const createBlockBackfillQueue = ({
-  ponder,
+  backfillService,
   contract,
 }: BlockBackfillWorkerContext) => {
   // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<BlockBackfillWorkerContext, BlockBackfillTask>(
-    { ponder, contract },
+    { backfillService, contract },
     blockBackfillWorker,
     10 // TODO: Make this configurable
   );
 
   queue.error((err, task) => {
     if (err) {
-      ponder.emit("backfill_blockTaskFailed", {
+      backfillService.emit("backfill_blockTaskFailed", {
         contract: contract.name,
         error: err,
       });
@@ -45,7 +46,7 @@ async function blockBackfillWorker(
   this: BlockBackfillWorkerContext,
   { blockHash, requiredTxnHashes, onSuccess }: BlockBackfillTask
 ) {
-  const { ponder, contract } = this;
+  const { backfillService, contract } = this;
   const { provider } = contract.network;
 
   const rawBlock = await provider.send("eth_getBlockByHash", [blockHash, true]);
@@ -61,10 +62,10 @@ async function blockBackfillWorker(
     .map(parseTransaction);
 
   await Promise.all([
-    ponder.cacheStore.insertBlock(block),
-    ponder.cacheStore.insertTransactions(transactions),
+    backfillService.resources.cacheStore.insertBlock(block),
+    backfillService.resources.cacheStore.insertTransactions(transactions),
   ]);
 
   await onSuccess(blockHash);
-  ponder.emit("backfill_blockTaskDone", { contract: contract.name });
+  backfillService.emit("backfill_blockTaskDone", { contract: contract.name });
 }

@@ -3,14 +3,15 @@ import fastq from "fastq";
 
 import type { Network } from "@/config/networks";
 import { parseBlock, parseLog, parseTransaction } from "@/db/cache/utils";
-import type { Ponder } from "@/Ponder";
+
+import { FrontfillService } from "./FrontfillService";
 
 export type BlockFrontfillTask = {
   blockNumber: number;
 };
 
 export type BlockFrontfillWorkerContext = {
-  ponder: Ponder;
+  frontfillService: FrontfillService;
   network: Network;
   contractAddresses: string[];
 };
@@ -18,20 +19,20 @@ export type BlockFrontfillWorkerContext = {
 export type BlockFrontfillQueue = fastq.queueAsPromised<BlockFrontfillTask>;
 
 export const createBlockFrontfillQueue = ({
-  ponder,
+  frontfillService,
   network,
   contractAddresses,
 }: BlockFrontfillWorkerContext) => {
   // Queue for fetching live blocks, transactions, and.
   const queue = fastq.promise<BlockFrontfillWorkerContext, BlockFrontfillTask>(
-    { ponder, network, contractAddresses },
+    { frontfillService, network, contractAddresses },
     blockFrontfillWorker,
     1
   );
 
   queue.error((err, task) => {
     if (err) {
-      ponder.emit("frontfill_taskFailed", {
+      frontfillService.emit("taskFailed", {
         network: network.name,
         error: err,
       });
@@ -49,7 +50,7 @@ async function blockFrontfillWorker(
   this: BlockFrontfillWorkerContext,
   { blockNumber }: BlockFrontfillTask
 ) {
-  const { ponder, network, contractAddresses } = this;
+  const { frontfillService, network, contractAddresses } = this;
   const { provider } = network;
 
   const [rawLogs, rawBlock] = await Promise.all([
@@ -75,16 +76,16 @@ async function blockFrontfillWorker(
     .map(parseTransaction);
 
   await Promise.all([
-    ponder.cacheStore.insertLogs(logs),
-    ponder.cacheStore.insertTransactions(transactions),
+    frontfillService.resources.cacheStore.insertLogs(logs),
+    frontfillService.resources.cacheStore.insertTransactions(transactions),
   ]);
 
   // Must insert the block AFTER the logs to make sure log.blockTimestamp gets updated.
-  await ponder.cacheStore.insertBlock(block);
+  await frontfillService.resources.cacheStore.insertBlock(block);
 
   await Promise.all(
     contractAddresses.map((contractAddress) =>
-      ponder.cacheStore.insertCachedInterval({
+      frontfillService.resources.cacheStore.insertCachedInterval({
         contractAddress,
         startBlock: block.number,
         endBlock: block.number,
@@ -93,7 +94,7 @@ async function blockFrontfillWorker(
     )
   );
 
-  ponder.emit("frontfill_newLogs", {
+  frontfillService.emit("newEventsAdded", {
     network: network.name,
     blockNumber: block.number,
     blockTimestamp: block.timestamp,

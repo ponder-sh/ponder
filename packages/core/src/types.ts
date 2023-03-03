@@ -1,11 +1,4 @@
-import NodeEventEmitter from "node:events";
-import TypedEmitter, { EventMap } from "typed-emitter";
-
-// --------------------------- EVENT EMITTER TYPES --------------------------- //
-
-export class EventEmitter<T extends EventMap> extends (NodeEventEmitter as {
-  new <T extends EventMap>(): TypedEmitter<T>;
-})<T> {}
+// -------------------------------- EVENT TYPES -------------------------------- //
 
 export type PonderEvents = {
   dev_error: (arg: { context: string; error?: Error }) => void;

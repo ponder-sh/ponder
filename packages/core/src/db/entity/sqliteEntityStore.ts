@@ -1,7 +1,5 @@
 import type Sqlite from "better-sqlite3";
 
-import { getStackTraceAndCodeFrame } from "@/handlers/getStackTrace";
-import type { Ponder } from "@/Ponder";
 import { DerivedField, FieldKind, ScalarField, Schema } from "@/schema/types";
 
 import { EntityFilter, EntityStore } from "./entityStore";
@@ -13,45 +11,21 @@ import {
 
 export class SqliteEntityStore implements EntityStore {
   db: Sqlite.Database;
-  ponder: Ponder;
   schema?: Schema;
 
-  constructor({ db, ponder }: { db: Sqlite.Database; ponder: Ponder }) {
+  constructor({ db }: { db: Sqlite.Database }) {
     this.db = db;
-    this.ponder = ponder;
   }
 
-  errorWrapper = <T extends Array<any>, U>(fn: (...args: T) => U) => {
-    return (...args: T): U => {
-      try {
-        return fn(...args);
-      } catch (err) {
-        const error = err as Error;
-
-        const result = getStackTraceAndCodeFrame(error, this.ponder);
-        if (result) {
-          error.stack = `${result.stackTrace}\n` + result.codeFrame;
-        }
-
-        this.ponder.emit("dev_error", {
-          context: `SQLite error: ${error.message}`,
-          error,
-        });
-
-        return undefined as unknown as U;
-      }
-    };
-  };
-
-  teardown = this.errorWrapper(() => {
+  teardown = () => {
     if (!this.schema) return;
 
     this.schema.entities.forEach((entity) => {
       this.db.prepare(`DROP TABLE IF EXISTS "${entity.id}"`).run();
     });
-  });
+  };
 
-  load = this.errorWrapper((newSchema?: Schema) => {
+  load = (newSchema?: Schema) => {
     if (!newSchema) return;
 
     // If there is an existing schema, this is a hot reload and the existing entity tables should be dropped.
@@ -76,100 +50,106 @@ export class SqliteEntityStore implements EntityStore {
         .prepare(`CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`)
         .run();
     });
-  });
+  };
 
-  getEntity = this.errorWrapper((entityId: string, id: string) => {
+  getEntity = (entityId: string, id: string) => {
     const statement = `SELECT "${entityId}".* FROM "${entityId}" WHERE "${entityId}"."id" = ?`;
     const instance = this.db.prepare(statement).get(id);
 
     if (!instance) return null;
 
     return this.deserialize(entityId, instance);
-  });
+  };
 
-  insertEntity = this.errorWrapper(
-    (entityId: string, id: string, instance: Record<string, unknown>) => {
-      // If `instance.id` is defined, replace it with the id passed as a parameter.
-      // Should also log a warning here.
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      instance.id = id;
+  insertEntity = (
+    entityId: string,
+    id: string,
+    instance: Record<string, unknown>
+  ) => {
+    // If `instance.id` is defined, replace it with the id passed as a parameter.
+    // Should also log a warning here.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    instance.id = id;
 
-      const pairs = getColumnValuePairs(instance);
+    const pairs = getColumnValuePairs(instance);
 
-      const insertValues = pairs.map((s) => s.value);
-      const insertFragment = `(${pairs
-        .map((s) => s.column)
-        .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
+    const insertValues = pairs.map((s) => s.value);
+    const insertFragment = `(${pairs
+      .map((s) => s.column)
+      .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
 
-      const statement = `INSERT INTO "${entityId}" ${insertFragment} RETURNING *`;
+    const statement = `INSERT INTO "${entityId}" ${insertFragment} RETURNING *`;
 
-      const insertedEntity = this.db.prepare(statement).get(...insertValues);
+    const insertedEntity = this.db.prepare(statement).get(...insertValues);
 
-      return this.deserialize(entityId, insertedEntity);
-    }
-  );
+    return this.deserialize(entityId, insertedEntity);
+  };
 
-  updateEntity = this.errorWrapper(
-    (entityId: string, id: string, instance: Record<string, unknown>) => {
-      const pairs = getColumnValuePairs(instance);
+  updateEntity = (
+    entityId: string,
+    id: string,
+    instance: Record<string, unknown>
+  ) => {
+    const pairs = getColumnValuePairs(instance);
 
-      const updatePairs = pairs.filter(({ column }) => column !== "id");
-      const updateValues = updatePairs.map(({ value }) => value);
-      const updateFragment = updatePairs
-        .map(({ column }) => `${column} = ?`)
-        .join(", ");
+    const updatePairs = pairs.filter(({ column }) => column !== "id");
+    const updateValues = updatePairs.map(({ value }) => value);
+    const updateFragment = updatePairs
+      .map(({ column }) => `${column} = ?`)
+      .join(", ");
 
-      const statement = `UPDATE "${entityId}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
-      updateValues.push(`${id}`);
+    const statement = `UPDATE "${entityId}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
+    updateValues.push(`${id}`);
 
-      const updatedEntity = this.db.prepare(statement).get(...updateValues);
+    const updatedEntity = this.db.prepare(statement).get(...updateValues);
 
-      return this.deserialize(entityId, updatedEntity);
-    }
-  );
+    return this.deserialize(entityId, updatedEntity);
+  };
 
-  upsertEntity = this.errorWrapper(
-    (entityId: string, id: string, instance: Record<string, unknown>) => {
-      // If `instance.id` is defined, replace it with the id passed as a parameter.
-      // Should also log a warning here.
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      instance.id = id;
+  upsertEntity = (
+    entityId: string,
+    id: string,
+    instance: Record<string, unknown>
+  ) => {
+    // If `instance.id` is defined, replace it with the id passed as a parameter.
+    // Should also log a warning here.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    instance.id = id;
 
-      const pairs = getColumnValuePairs(instance);
+    const pairs = getColumnValuePairs(instance);
 
-      const insertValues = pairs.map((s) => s.value);
-      const insertFragment = `(${pairs
-        .map((s) => s.column)
-        .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
+    const insertValues = pairs.map((s) => s.value);
+    const insertFragment = `(${pairs
+      .map((s) => s.column)
+      .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
 
-      const updatePairs = pairs.filter(({ column }) => column !== "id");
-      const updateValues = updatePairs.map(({ value }) => value);
-      const updateFragment = updatePairs
-        .map(({ column }) => `${column} = ?`)
-        .join(", ");
+    const updatePairs = pairs.filter(({ column }) => column !== "id");
+    const updateValues = updatePairs.map(({ value }) => value);
+    const updateFragment = updatePairs
+      .map(({ column }) => `${column} = ?`)
+      .join(", ");
 
-      const statement = `INSERT INTO "${entityId}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
+    const statement = `INSERT INTO "${entityId}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
 
-      const upsertedEntity = this.db
-        .prepare(statement)
-        .get(...insertValues, ...updateValues);
+    const upsertedEntity = this.db
+      .prepare(statement)
+      .get(...insertValues, ...updateValues);
 
-      return this.deserialize(entityId, upsertedEntity);
-    }
-  );
+    return this.deserialize(entityId, upsertedEntity);
+  };
 
-  deleteEntity = this.errorWrapper((entityId: string, id: string) => {
+  deleteEntity = (entityId: string, id: string) => {
     const statement = `DELETE FROM "${entityId}" WHERE "id" = ?`;
 
     const { changes } = this.db.prepare(statement).run(id);
 
     // `changes` is equal to the number of rows that were updated/inserted/deleted by the query.
     return changes === 1;
-  });
+  };
 
-  getEntities = this.errorWrapper((entityId: string, filter?: EntityFilter) => {
+  getEntities = (entityId: string, filter?: EntityFilter) => {
     const where = filter?.where;
     const first = filter?.first;
     const skip = filter?.skip;
@@ -223,44 +203,46 @@ export class SqliteEntityStore implements EntityStore {
     const instances = this.db.prepare(statement).all();
 
     return instances.map((instance) => this.deserialize(entityId, instance));
-  });
+  };
 
-  getEntityDerivedField = this.errorWrapper(
-    (entityId: string, instanceId: string, derivedFieldName: string) => {
-      const entity = this.schema?.entities.find((e) => e.id === entityId);
-      if (!entity) {
-        throw new Error(`Entity not found in schema for ID: ${entityId}`);
-      }
-
-      const derivedField = entity.fields.find(
-        (field): field is DerivedField =>
-          field.kind === FieldKind.DERIVED && field.name === derivedFieldName
-      );
-
-      if (!derivedField) {
-        throw new Error(
-          `Derived field not found: ${entity.name}.${derivedFieldName}`
-        );
-      }
-
-      const derivedFromEntity = this.schema?.entities.find(
-        (e) => e.name === derivedField.derivedFromEntityName
-      );
-      if (!derivedFromEntity) {
-        throw new Error(
-          `Entity not found in schema for name: ${derivedField.derivedFromEntityName}`
-        );
-      }
-
-      const derivedFieldInstances = this.getEntities(derivedFromEntity.id, {
-        where: {
-          [`${derivedField.derivedFromFieldName}`]: instanceId,
-        },
-      });
-
-      return derivedFieldInstances;
+  getEntityDerivedField = (
+    entityId: string,
+    instanceId: string,
+    derivedFieldName: string
+  ) => {
+    const entity = this.schema?.entities.find((e) => e.id === entityId);
+    if (!entity) {
+      throw new Error(`Entity not found in schema for ID: ${entityId}`);
     }
-  );
+
+    const derivedField = entity.fields.find(
+      (field): field is DerivedField =>
+        field.kind === FieldKind.DERIVED && field.name === derivedFieldName
+    );
+
+    if (!derivedField) {
+      throw new Error(
+        `Derived field not found: ${entity.name}.${derivedFieldName}`
+      );
+    }
+
+    const derivedFromEntity = this.schema?.entities.find(
+      (e) => e.name === derivedField.derivedFromEntityName
+    );
+    if (!derivedFromEntity) {
+      throw new Error(
+        `Entity not found in schema for name: ${derivedField.derivedFromEntityName}`
+      );
+    }
+
+    const derivedFieldInstances = this.getEntities(derivedFromEntity.id, {
+      where: {
+        [`${derivedField.derivedFromFieldName}`]: instanceId,
+      },
+    });
+
+    return derivedFieldInstances;
+  };
 
   deserialize = (entityId: string, instance: Record<string, unknown>) => {
     const entity = this.schema?.entities.find((e) => e.id === entityId);

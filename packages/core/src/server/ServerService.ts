@@ -1,24 +1,25 @@
 import cors from "cors";
 import express from "express";
 import { graphqlHTTP } from "express-graphql";
+import type { GraphQLSchema } from "graphql";
 import type http from "node:http";
 
 import { MessageKind } from "@/common/logger";
-import type { Ponder } from "@/Ponder";
+import { Resources } from "@/Ponder2";
 
-export class Server {
-  ponder: Ponder;
+export class ServerService {
+  resources: Resources;
 
   app: express.Express;
   server: http.Server;
   graphqlMiddleware?: express.Handler;
 
-  constructor({ ponder }: { ponder: Ponder }) {
-    this.ponder = ponder;
+  constructor({ resources }: { resources: Resources }) {
+    this.resources = resources;
 
     this.app = express();
     this.app.use(cors());
-    this.server = this.app.listen(ponder.options.PORT);
+    this.server = this.app.listen(this.resources.options.PORT);
 
     this.app.get("/", (req, res) => res.redirect(302, "/graphql"));
 
@@ -27,16 +28,16 @@ export class Server {
     // enables zero-downtime deployments on PaaS platforms like Railway and Render.
     // Also see https://github.com/0xOlias/ponder/issues/24
     this.app.get("/health", (_, res) => {
-      if (this.ponder.isLogProcessingComplete) {
-        return res.status(200).send();
-      }
+      // TODO: figure out where to get this from.
+      // if (this.ponder.isLogProcessingComplete) {
+      return res.status(200).send();
+      // }
 
-      const max = this.ponder.options.MAX_HEALTHCHECK_DURATION;
-      const elapsed =
-        Math.floor(Date.now() / 1000) - this.ponder.setupTimestamp;
+      const max = this.resources.options.MAX_HEALTHCHECK_DURATION;
+      const elapsed = Math.floor(process.uptime());
 
       if (elapsed > max) {
-        this.ponder.logMessage(
+        this.resources.logger.logMessage(
           MessageKind.WARNING,
           `Backfill & log processing time has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`
         );
@@ -47,14 +48,12 @@ export class Server {
     });
   }
 
-  reload() {
-    if (!this.ponder.graphqlSchema) return;
-
+  reload({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
     // This uses a small hack to update the GraphQL server on the fly.
     this.graphqlMiddleware = graphqlHTTP({
-      schema: this.ponder.graphqlSchema,
+      schema: graphqlSchema,
       context: {
-        store: this.ponder.entityStore,
+        store: this.resources.entityStore,
       },
       graphiql: true,
     });

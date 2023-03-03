@@ -1,6 +1,6 @@
-import type { Ponder } from "@/Ponder";
 import type { Schema } from "@/schema/types";
 
+import { PonderDatabase } from "../db";
 import { PostgresEntityStore } from "./postgresEntityStore";
 import { SqliteEntityStore } from "./sqliteEntityStore";
 
@@ -60,13 +60,17 @@ export interface EntityStore {
   ): MaybePromise<unknown[]>;
 }
 
-export const buildEntityStore = ({ ponder }: { ponder: Ponder }) => {
-  switch (ponder.database.kind) {
+export const buildEntityStore = ({
+  database,
+}: {
+  database: PonderDatabase;
+}) => {
+  switch (database.kind) {
     case "sqlite": {
-      return new SqliteEntityStore({ db: ponder.database.db, ponder });
+      return new SqliteEntityStore({ db: database.db });
     }
     case "postgres": {
-      return new PostgresEntityStore({ pool: ponder.database.pool, ponder });
+      return new PostgresEntityStore({ pool: database.pool });
     }
   }
 };

@@ -3,31 +3,39 @@ import fastq from "fastq";
 
 import { logger } from "@/common/logger";
 import { Contract } from "@/config/contracts";
-import type { Ponder } from "@/Ponder";
+import { CacheStore } from "@/db/cache/cacheStore";
+import { EntityStore } from "@/db/entity/entityStore";
+import { Schema } from "@/schema/types";
 import type { Log } from "@/types";
 
 import { decodeLog } from "./decodeLog";
+import { EventHandlerService } from "./EventHandlerService";
 import { getStackTraceAndCodeFrame } from "./getStackTrace";
-import type { Handlers } from "./readHandlers";
+import type { Handlers } from "../reload/readHandlers";
 
 export type HandlerTask = Log;
 
 export type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
 
 export const createHandlerQueue = ({
-  ponder,
+  eventHandlerService,
   handlers,
+  contracts,
+  cacheStore,
+  entityStore,
+  schema,
 }: {
-  ponder: Ponder;
+  eventHandlerService: EventHandlerService;
   handlers: Handlers;
+  contracts: Contract[];
+  cacheStore: CacheStore;
+  entityStore: EntityStore;
+  schema: Schema;
 }) => {
-  // Can't build handler queue without schema.
-  if (!ponder.schema) return null;
-
   // Build contracts for event handler context.
-  const contracts: Record<string, EthersContract | undefined> = {};
-  ponder.contracts.forEach((contract) => {
-    contracts[contract.name] = new EthersContract(
+  const injectedContracts: Record<string, EthersContract | undefined> = {};
+  contracts.forEach((contract) => {
+    injectedContracts[contract.name] = new EthersContract(
       contract.address,
       contract.abiInterface,
       contract.network.provider
@@ -36,27 +44,27 @@ export const createHandlerQueue = ({
 
   // Build entity models for event handler context.
   const entityModels: Record<string, unknown> = {};
-  ponder.schema.entities.forEach((entity) => {
+  schema.entities.forEach((entity) => {
     const { id: entityId, name: entityName } = entity;
 
     entityModels[entityName] = {
-      get: (id: string) => ponder.entityStore.getEntity(entityId, id),
-      delete: (id: string) => ponder.entityStore.deleteEntity(entityId, id),
+      get: (id: string) => entityStore.getEntity(entityId, id),
+      delete: (id: string) => entityStore.deleteEntity(entityId, id),
       insert: (id: string, obj: Record<string, unknown>) =>
-        ponder.entityStore.insertEntity(entityId, id, obj),
+        entityStore.insertEntity(entityId, id, obj),
       update: (id: string, obj: Record<string, unknown>) =>
-        ponder.entityStore.updateEntity(entityId, id, obj),
+        entityStore.updateEntity(entityId, id, obj),
       upsert: (id: string, obj: Record<string, unknown>) =>
-        ponder.entityStore.upsertEntity(entityId, id, obj),
+        entityStore.upsertEntity(entityId, id, obj),
     };
   });
 
   const handlerContext = {
-    contracts: contracts,
+    contracts: injectedContracts,
     entities: entityModels,
   };
 
-  const contractByAddress = ponder.contracts.reduce<
+  const contractByAddress = contracts.reduce<
     Record<string, Contract | undefined>
   >((acc, contract) => {
     acc[contract.address] = contract;
@@ -64,7 +72,7 @@ export const createHandlerQueue = ({
   }, {});
 
   const handlerWorker = async (log: Log) => {
-    ponder.emit("indexer_taskStarted");
+    eventHandlerService.emit("indexer_taskStarted");
 
     const contract = contractByAddress[log.address];
     if (!contract) {
@@ -103,14 +111,12 @@ export const createHandlerQueue = ({
     logger.trace(`Handling event: ${contract.name}-${eventName}`);
 
     // Get block & transaction from the cache store and attach to the event.
-    const block = await ponder.cacheStore.getBlock(log.blockHash);
+    const block = await cacheStore.getBlock(log.blockHash);
     if (!block) {
       throw new Error(`Block with hash not found: ${log.blockHash}`);
     }
 
-    const transaction = await ponder.cacheStore.getTransaction(
-      log.transactionHash
-    );
+    const transaction = await cacheStore.getTransaction(log.transactionHash);
     if (!transaction) {
       throw new Error(
         `Transaction with hash not found: ${log.transactionHash}`
@@ -132,7 +138,9 @@ export const createHandlerQueue = ({
     // Running user code here!
     await handler({ event, context: handlerContext });
 
-    ponder.emit("indexer_taskDone", { timestamp: block.timestamp });
+    eventHandlerService.emit("indexer_taskDone", {
+      timestamp: block.timestamp,
+    });
   };
 
   const queue = fastq.promise<unknown, HandlerTask>({}, handlerWorker, 1);
@@ -140,12 +148,12 @@ export const createHandlerQueue = ({
   /* TODO use the task arg to provide context to the user about the error. */
   queue.error((error) => {
     if (error) {
-      const result = getStackTraceAndCodeFrame(error, ponder);
+      const result = getStackTraceAndCodeFrame(error, options);
       if (result) {
         error.stack = `${result.stackTrace}\n` + result.codeFrame;
       }
 
-      ponder.emit("dev_error", {
+      eventHandlerService.emit("dev_error", {
         context: error.message,
         error,
       });

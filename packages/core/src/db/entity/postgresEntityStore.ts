@@ -1,6 +1,5 @@
 import type { Pool } from "pg";
 
-import type { Ponder } from "@/Ponder";
 import { DerivedField, FieldKind, ScalarField, Schema } from "@/schema/types";
 
 import type { EntityFilter, EntityStore } from "./entityStore";
@@ -12,13 +11,11 @@ import {
 
 export class PostgresEntityStore implements EntityStore {
   pool: Pool;
-  ponder: Ponder;
 
   schema?: Schema;
 
-  constructor({ pool, ponder }: { pool: Pool; ponder: Ponder }) {
+  constructor({ pool }: { pool: Pool }) {
     this.pool = pool;
-    this.ponder = ponder;
   }
 
   errorWrapper = <T extends Array<any>, U>(fn: (...args: T) => U) => {

@@ -2,29 +2,29 @@ import type { BlockTag, TransactionRequest } from "@ethersproject/providers";
 import { ethers } from "ethers";
 import type { Deferrable } from "ethers/lib/utils";
 
-import type { Ponder } from "@/Ponder";
+import { CacheStore } from "@/db/cache/cacheStore";
 
 // This class extends the ethers provider and
 // caches contract calls in the Ponder CacheStore.
 export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
   chainId: number;
-  ponder: Ponder;
+  cacheStore: CacheStore;
 
   constructor(
-    ponder: Ponder,
+    cacheStore: CacheStore,
     url: string | ethers.utils.ConnectionInfo,
     chainId: number
   ) {
     super(url, chainId);
     this.chainId = chainId;
-    this.ponder = ponder;
+    this.cacheStore = cacheStore;
   }
 
   async call(
     transaction: Deferrable<TransactionRequest>,
     _blockTag?: BlockTag | Promise<BlockTag>
   ): Promise<string> {
-    let blockTag: number;
+    let blockTag: number | undefined;
 
     if (_blockTag) {
       if (typeof _blockTag !== "number") {
@@ -32,7 +32,9 @@ export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
       }
       blockTag = _blockTag;
     } else {
-      blockTag = this.ponder.currentEventBlockTag;
+      // TODO: figure out where this state lives :/
+      // blockTag = this.ponder.currentEventBlockTag;
+      blockTag = undefined;
     }
 
     const address = await transaction.to;
@@ -43,7 +45,7 @@ export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
 
     const contractCallKey = `${this.chainId}-${blockTag}-${address}-${data}`;
 
-    const cachedContractCall = await this.ponder.cacheStore.getContractCall(
+    const cachedContractCall = await this.cacheStore.getContractCall(
       contractCallKey
     );
 
@@ -53,7 +55,7 @@ export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
 
     const result = await super.call(transaction, _blockTag);
 
-    await this.ponder.cacheStore.upsertContractCall({
+    await this.cacheStore.upsertContractCall({
       key: contractCallKey,
       result: JSON.stringify(result),
     });

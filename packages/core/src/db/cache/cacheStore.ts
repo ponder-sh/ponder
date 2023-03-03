@@ -1,6 +1,6 @@
-import type { Ponder } from "@/Ponder";
 import type { Block, Log, Transaction } from "@/types";
 
+import { PonderDatabase } from "../db";
 import { PostgresCacheStore } from "./postgresCacheStore";
 import { SqliteCacheStore } from "./sqliteCacheStore";
 
@@ -45,13 +45,13 @@ export interface CacheStore {
   getContractCall(contractCallKey: string): Promise<ContractCall | null>;
 }
 
-export const buildCacheStore = ({ ponder }: { ponder: Ponder }) => {
-  switch (ponder.database.kind) {
+export const buildCacheStore = ({ database }: { database: PonderDatabase }) => {
+  switch (database.kind) {
     case "sqlite": {
-      return new SqliteCacheStore({ db: ponder.database.db });
+      return new SqliteCacheStore({ db: database.db });
     }
     case "postgres": {
-      return new PostgresCacheStore({ pool: ponder.database.pool });
+      return new PostgresCacheStore({ pool: database.pool });
     }
   }
 };
