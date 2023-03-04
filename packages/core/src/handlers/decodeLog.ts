@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 
-import { Log } from "@/types";
+import { Log } from "@/database/types";
 
 // Attempt to get the event name and params for a log using an ABI.
 // If the event is not found in the ABI, return null.

@@ -1,7 +1,5 @@
 import prettier from "prettier";
 
-import { logger } from "@/common/logger";
-
 let prettierConfig: prettier.Options = { parser: "typescript" };
 
 const loadPrettierConfig = async () => {
@@ -11,7 +9,6 @@ const loadPrettierConfig = async () => {
   if (configFilePath) {
     const foundConfig = await prettier.resolveConfig(configFilePath);
     if (foundConfig) {
-      logger.trace(`found prettier config at: ${configFilePath}`);
       prettierConfig = foundConfig;
     }
   }
@@ -26,6 +23,3 @@ export const formatPrettier = (
 ) => {
   return prettier.format(source, { ...prettierConfig, ...configOverrides });
 };
-
-// These methods are used in the cached interval calculations
-// From https://stackoverflow.com/a/33857786/12841788

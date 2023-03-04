@@ -1,6 +1,5 @@
 import type { ParamType } from "@ethersproject/abi";
 
-import { logger } from "@/common/logger";
 import type { Contract } from "@/config/contracts";
 
 export const buildEventTypes = (contracts: Contract[]) => {
@@ -79,7 +78,6 @@ const generateParamsType = (params: ParamType[]): string => {
         return `${param.name}: ${valueType}; `;
       }
 
-      logger.warn("unhandled param:", { param });
       return `${param.name}: unknown; `;
     })
     .join("");

@@ -2,9 +2,9 @@ import { JsonRpcProvider } from "@ethersproject/providers";
 import { rmSync } from "node:fs";
 import request from "supertest";
 
-import { buildOptions } from "@/common/options";
-import { buildPonderConfig } from "@/config/buildPonderConfig";
-import { SqliteDb } from "@/db/db";
+import { buildOptions } from "@/config/options";
+import { buildPonderConfig } from "@/config/ponderConfig";
+import { SqliteDb } from "@/database/db";
 import { Ponder } from "@/Ponder";
 
 import { buildSendFunc } from "./utils/buildSendFunc";
@@ -43,25 +43,23 @@ describe("Ponder", () => {
     await ponder.kill();
   });
 
-  describe("backfill()", () => {
+  describe("backfill", () => {
     beforeEach(async () => {
       await ponder.setup();
-      await ponder.getLatestBlockNumbers();
-      await ponder.backfill();
+      await ponder.frontfillService.getLatestBlockNumbers();
+      await ponder.backfillService.backfill();
     });
 
     it("inserts backfill data into the cache store", async () => {
-      expect(ponder.ui.isBackfillComplete).toBe(true);
-
-      const logs = (ponder.database as SqliteDb).db
+      const logs = (ponder.resources.database as SqliteDb).db
         .prepare(`SELECT * FROM __ponder__v2__logs`)
         .all();
 
-      const blocks = (ponder.database as SqliteDb).db
+      const blocks = (ponder.resources.database as SqliteDb).db
         .prepare(`SELECT * FROM __ponder__v2__blocks`)
         .all();
 
-      const transactions = (ponder.database as SqliteDb).db
+      const transactions = (ponder.resources.database as SqliteDb).db
         .prepare(`SELECT * FROM __ponder__v2__transactions`)
         .all();
 
@@ -71,19 +69,24 @@ describe("Ponder", () => {
     });
   });
 
-  describe("processLogs()", () => {
+  describe("event processing", () => {
     beforeEach(async () => {
       await ponder.setup();
-      await ponder.getLatestBlockNumbers();
-      await ponder.backfill();
-      await ponder.processLogs();
+      await ponder.frontfillService.getLatestBlockNumbers();
+      await ponder.backfillService.backfill();
+      await ponder.eventHandlerService.processEvents();
     });
 
     it("inserts data into the entity store", async () => {
-      const ensNfts = (ponder.database as SqliteDb).db
-        .prepare(`SELECT * FROM "EnsNft_${ponder.schema?.instanceId}"`)
-        .all();
+      const entity = ponder.resources.entityStore.schema?.entities.find(
+        (e) => e.name === "EnsNft"
+      );
+      expect(entity).toBeDefined();
 
+      const ensNfts = await ponder.resources.entityStore.getEntities(
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        entity!.id
+      );
       expect(ensNfts.length).toBe(58);
     });
   });
@@ -93,12 +96,12 @@ describe("Ponder", () => {
 
     beforeEach(async () => {
       await ponder.setup();
-      await ponder.getLatestBlockNumbers();
-      await ponder.backfill();
-      await ponder.processLogs();
+      await ponder.frontfillService.getLatestBlockNumbers();
+      await ponder.backfillService.backfill();
+      await ponder.eventHandlerService.processEvents();
 
       gql = async (query) => {
-        const app = request(ponder.server.app);
+        const app = request(ponder.serverService.app);
         const response = await app
           .post("/graphql")
           .send({ query: `query { ${query} }` });

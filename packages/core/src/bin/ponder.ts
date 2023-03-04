@@ -4,9 +4,9 @@
 import { cac } from "cac";
 import dotenv from "dotenv";
 
-import { buildOptions } from "@/common/options";
 import { registerKilledProcessListener } from "@/common/utils";
-import { buildPonderConfig } from "@/config/buildPonderConfig";
+import { buildOptions } from "@/config/options";
+import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -69,7 +69,7 @@ cli
     const config = await buildPonderConfig(options);
     const ponder = new Ponder({ options, config });
     registerKilledProcessListener(() => ponder.kill());
-    ponder.codegen();
+    await ponder.codegen();
   });
 
 cli.parse();

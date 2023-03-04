@@ -11,12 +11,15 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseStackTrace } from "stacktrace-parser";
 
-import type { Ponder } from "@/Ponder";
+import { PonderOptions } from "@/config/options";
 
-export const getStackTraceAndCodeFrame = (error: Error, ponder: Ponder) => {
+export const getStackTraceAndCodeFrame = (
+  error: Error,
+  options: PonderOptions
+) => {
   if (!error.stack) return null;
 
-  const buildDir = path.join(ponder.options.PONDER_DIR_PATH, "out");
+  const buildDir = path.join(options.PONDER_DIR_PATH, "out");
 
   const stackTrace = parseStackTrace(error.stack);
 

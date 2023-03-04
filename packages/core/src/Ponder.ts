@@ -1,87 +1,43 @@
-import chokidar from "chokidar";
-import type { GraphQLSchema } from "graphql";
-import path from "node:path";
 import pico from "picocolors";
 
-import { generateApp } from "@/codegen/generateApp";
-import { generateAppType } from "@/codegen/generateAppType";
-import { generateContractTypes } from "@/codegen/generateContractTypes";
-import { generateSchema } from "@/codegen/generateSchema";
-import { logger, logMessage, MessageKind, PonderLogger } from "@/common/logger";
-import type { PonderOptions } from "@/common/options";
-import {
-  endBenchmark,
-  formatEta,
-  formatPercentage,
-  isFileChanged,
-  startBenchmark,
-} from "@/common/utils";
-import type { ResolvedPonderConfig } from "@/config/buildPonderConfig";
-import { buildContracts, Contract } from "@/config/contracts";
-import type { Network } from "@/config/networks";
-import { buildNetworks } from "@/config/networks";
-import { buildCacheStore, CacheStore } from "@/db/cache/cacheStore";
-import { buildDb, PonderDatabase } from "@/db/db";
-import { buildEntityStore, EntityStore } from "@/db/entity/entityStore";
-import { createHandlerQueue, HandlerQueue } from "@/handlers/handlerQueue";
-import { Handlers, readHandlers } from "@/handlers/readHandlers";
-import { getLatestBlockForNetwork } from "@/indexer/tasks/getLatestBlockForNetwork";
-import { getLogs } from "@/indexer/tasks/getLogs";
-import { startBackfill } from "@/indexer/tasks/startBackfill";
-import { startFrontfill } from "@/indexer/tasks/startFrontfill";
-import { buildSchema } from "@/schema/buildSchema";
-import { readGraphqlSchema } from "@/schema/readGraphqlSchema";
-import type { Schema } from "@/schema/types";
-import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
-import { Server } from "@/server/Server";
-import { EventEmitter, PonderEvents } from "@/types";
-import type { UiState } from "@/ui/app";
-import { getUiState, hydrateUi, render, unmount } from "@/ui/app";
+import { BackfillService } from "@/backfill/BackfillService";
+import { CodegenService } from "@/codegen/CodegenService";
+import { ErrorService } from "@/common/ErrorService";
+import { LoggerService, MessageKind } from "@/common/LoggerService";
+import { formatEta, formatPercentage } from "@/common/utils";
+import { buildContracts, Contract, Network } from "@/config/contracts";
+import { PonderOptions } from "@/config/options";
+import { ResolvedPonderConfig } from "@/config/ponderConfig";
+import { buildCacheStore, CacheStore } from "@/database/cache/cacheStore";
+import { buildDb, PonderDatabase } from "@/database/db";
+import { buildEntityStore, EntityStore } from "@/database/entity/entityStore";
+import { FrontfillService } from "@/frontfill/FrontfillService";
+import { EventHandlerService } from "@/handlers/EventHandlerService";
+import { ReloadService } from "@/reload/ReloadService";
+import { ServerService } from "@/server/ServerService";
+import { UiService } from "@/ui/UiService";
 
-export class Ponder extends EventEmitter<PonderEvents> {
+export type Resources = {
   options: PonderOptions;
   config: ResolvedPonderConfig;
-  logger: PonderLogger = logger;
-  setupTimestamp = Math.floor(Date.now() / 1000);
-
-  // Config-derived services
-  contracts: Contract[];
-  networks: Network[];
   database: PonderDatabase;
   cacheStore: CacheStore;
   entityStore: EntityStore;
-  server: Server;
+  contracts: Contract[];
+  logger: LoggerService;
+  errors: ErrorService;
+};
 
-  // Reload-able services
-  schema?: Schema;
-  graphqlSchema?: GraphQLSchema;
-  handlerQueue?: HandlerQueue;
+export class Ponder {
+  resources: Resources;
 
-  // Indexer state
-  isBackfillComplete = false;
-  frontfillNetworks: {
-    network: Network;
-    latestBlockNumber: number;
-  }[] = [];
-
-  // Handler state
-  handlers: Handlers | null = null;
-  isAddingLogs = false;
-  isProcessingLogs = false;
-  isDevError = false;
-  isLogProcessingComplete = false;
-  logsAddedToTimestamp = 0;
-  currentEventBlockTag = 0;
-
-  // Hot reloading
-  killFrontfillQueues?: () => void;
-  killBackfillQueues?: () => void;
-  killWatchers?: () => Promise<void>;
-
-  // UI
-  ui: UiState;
-  renderInterval?: NodeJS.Timer;
-  etaInterval?: NodeJS.Timer;
+  frontfillService: FrontfillService;
+  backfillService: BackfillService;
+  serverService: ServerService;
+  reloadService: ReloadService;
+  eventHandlerService: EventHandlerService;
+  codegenService: CodegenService;
+  uiService: UiService;
 
   constructor({
     options,
@@ -90,531 +46,330 @@ export class Ponder extends EventEmitter<PonderEvents> {
     options: PonderOptions;
     config: ResolvedPonderConfig;
   }) {
-    super();
-    this.options = options;
-    this.config = config;
+    const logger = new LoggerService({ options });
+    const errors = new ErrorService();
+    const database = buildDb({ options, config, logger });
+    const cacheStore = buildCacheStore({ database });
+    const entityStore = buildEntityStore({ database });
+    const contracts = buildContracts({ options, config });
 
-    this.on("dev_error", this.dev_error);
+    const resources: Resources = {
+      options,
+      config,
+      database,
+      cacheStore,
+      entityStore,
+      contracts,
+      logger,
+      errors,
+    };
+    this.resources = resources;
 
-    this.on("backfill_networkConnected", this.backfill_networkConnected);
-    this.on("backfill_contractStarted", this.backfill_contractStarted);
-    this.on("backfill_logTasksAdded", this.backfill_logTasksAdded);
-    this.on("backfill_blockTasksAdded", this.backfill_blockTasksAdded);
-    this.on("backfill_logTaskFailed", this.backfill_logTaskFailed);
-    this.on("backfill_blockTaskFailed", this.backfill_blockTaskFailed);
-    this.on("backfill_logTaskDone", this.backfill_logTaskDone);
-    this.on("backfill_blockTaskDone", this.backfill_blockTaskDone);
-    this.on("backfill_newLogs", this.backfill_newLogs);
-
-    this.on("frontfill_taskFailed", this.frontfill_taskFailed);
-    this.on("frontfill_newLogs", this.frontfill_newLogs);
-
-    this.on("indexer_taskStarted", this.indexer_taskStarted);
-    this.on("indexer_taskDone", this.indexer_taskDone);
-
-    this.ui = getUiState(this.options);
-
-    this.database = buildDb({ ponder: this });
-    this.cacheStore = buildCacheStore({ ponder: this });
-    this.entityStore = buildEntityStore({ ponder: this });
-
-    this.networks = buildNetworks({ ponder: this });
-    this.contracts = buildContracts({ ponder: this });
-
-    this.server = new Server({ ponder: this });
-
-    hydrateUi({ ui: this.ui, contracts: this.contracts });
+    this.frontfillService = new FrontfillService({ resources });
+    this.backfillService = new BackfillService({ resources });
+    this.serverService = new ServerService({ resources });
+    this.reloadService = new ReloadService({ resources });
+    this.eventHandlerService = new EventHandlerService({ resources });
+    this.codegenService = new CodegenService({ resources });
+    this.uiService = new UiService({ resources });
   }
 
-  // --------------------------- PUBLIC METHODS --------------------------- //
+  async setup() {
+    this.registerDevAndStartHandlers();
+    this.registerUiHandlers();
 
-  async start() {
-    await this.setup();
-    await this.getLatestBlockNumbers();
-    this.frontfill();
-    await this.backfill();
+    // If any of the provided networks do not have a valid RPC url,
+    // kill the app here. This happens here rather than in the constructor because
+    // `ponder codegen` should still be able to if an RPC url is missing. In fact,
+    // that is part of the happy path for `create-ponder`.
+    const networksMissingRpcUrl: Network[] = [];
+    this.resources.contracts.forEach((contract) => {
+      if (!contract.network.rpcUrl) {
+        networksMissingRpcUrl.push(contract.network);
+      }
+    });
+    if (networksMissingRpcUrl.length > 0) {
+      return new Error(
+        `missing RPC URL for networks (${networksMissingRpcUrl.map(
+          (n) => `"${n.name}"`
+        )}). Did you forget to add an RPC URL in .env.local?`
+      );
+    }
+
+    // These files depend only on ponder.config.ts, so can generate once on setup.
+    // Note that loadHandlers depends on the index.ts file being present.
+    this.codegenService.generateAppFile();
+    this.codegenService.generateContractTypeFiles();
+
+    // Note that this must occur before loadSchema and loadHandlers.
+    await this.resources.cacheStore.migrate();
+
+    // Manually trigger loading schema and handlers. Subsequent loads
+    // are triggered by changes to project files (handled in ReloadService).
+    this.reloadService.loadSchema();
+    await this.reloadService.loadHandlers();
   }
 
   async dev() {
-    await this.setup();
-    await this.getLatestBlockNumbers();
-    this.frontfill();
-    this.watch();
-    await this.backfill();
-  }
-
-  async codegen() {
-    this.loadSchema();
-    this.runCodegen();
-    await this.kill();
-  }
-
-  async kill() {
-    unmount();
-    clearInterval(this.renderInterval);
-    clearInterval(this.etaInterval);
-
-    this.killFrontfillQueues?.();
-    this.killBackfillQueues?.();
-
-    this.handlerQueue?.kill();
-    delete this.handlerQueue;
-
-    await this.server.teardown();
-    await this.entityStore.teardown();
-    await this.killWatchers?.();
-  }
-
-  // --------------------------- SETUP & RELOADING --------------------------- //
-
-  async setup() {
-    this.renderInterval = setInterval(() => {
-      this.ui.timestamp = Math.floor(Date.now() / 1000);
-      if (this.options.LOG_TYPE === "dev") render(this.ui);
-    }, 17);
-    this.etaInterval = setInterval(() => {
-      this.updateBackfillEta();
-      this.logBackfillProgress();
-    }, 1000);
-
-    this.loadSchema();
-    this.runCodegen();
-
-    await Promise.all([
-      this.cacheStore.migrate(),
-      this.reloadHandlers(),
-      this.resetEntityStore(),
-    ]);
-  }
-
-  runCodegen() {
-    generateApp({ ponder: this });
-    generateAppType({ ponder: this });
-    generateContractTypes({ ponder: this });
-    generateSchema({ ponder: this });
-  }
-
-  async reloadHandlers() {
-    if (this.handlerQueue) {
-      this.handlerQueue.kill();
-      delete this.handlerQueue;
-      this.isAddingLogs = false;
-    }
-
-    const handlers = await readHandlers({ ponder: this });
-    if (!handlers) return;
-
-    const handlerQueue = createHandlerQueue({
-      ponder: this,
-      handlers: handlers,
-    });
-    if (!handlerQueue) return;
-
-    this.handlerQueue = handlerQueue;
-    this.handlers = handlers;
-  }
-
-  loadSchema() {
-    try {
-      const userGraphqlSchema = readGraphqlSchema({ ponder: this });
-      this.schema = buildSchema(userGraphqlSchema);
-      this.graphqlSchema = buildGqlSchema(this.schema);
-      this.server.reload();
-    } catch (err) {
-      this.emit("dev_error", {
-        context: "parsing schema",
-        error: err as Error,
-      });
-    }
-  }
-
-  async resetEntityStore() {
-    await this.entityStore.load(this.schema);
-  }
-
-  async reload() {
-    this.logsAddedToTimestamp = 0;
-    this.ui.handlersTotal = 0;
-    this.ui.handlersHandledTotal = 0;
-    this.ui.handlersCurrent = 0;
-    this.ui.handlerError = false;
-    this.isDevError = false;
-
-    this.loadSchema();
-    this.runCodegen();
-    await Promise.all([this.resetEntityStore(), this.reloadHandlers()]);
-
-    this.emit("backfill_newLogs");
-  }
-
-  watch() {
-    const watchFiles = [
-      this.options.PONDER_CONFIG_FILE_PATH,
-      this.options.SCHEMA_FILE_PATH,
-      this.options.SRC_DIR_PATH,
-      ...this.contracts
-        .map((c) => c.abiFilePath)
-        .filter((p): p is string => typeof p === "string"),
-    ];
-
-    const watcher = chokidar.watch(watchFiles);
-    this.killWatchers = async () => {
-      await watcher.close();
-    };
-
-    watcher.on("change", async (filePath) => {
-      if (filePath === this.options.PONDER_CONFIG_FILE_PATH) {
-        this.logMessage(
-          MessageKind.ERROR,
-          "detected change in ponder.config.ts. " +
-            pico.bold("Restart the server.")
-        );
-        this.kill();
-        return;
-      }
-
-      if (isFileChanged(filePath)) {
-        const fileName = path.basename(filePath);
-
-        this.logMessage(
-          MessageKind.EVENT,
-          "detected change in " + pico.bold(fileName)
-        );
-        this.reload();
-      }
-    });
-  }
-
-  // --------------------------- INDEXER --------------------------- //
-
-  async getLatestBlockNumbers() {
-    const frontfillContracts = this.contracts.filter(
-      (contract) => contract.endBlock === undefined && contract.isIndexed
-    );
-
-    const frontfillNetworkSet = new Set<Network>();
-    frontfillContracts.forEach((contract) =>
-      frontfillNetworkSet.add(contract.network)
-    );
-
-    await Promise.all(
-      Array.from(frontfillNetworkSet).map(async (network) => {
-        const latestBlockNumber = await getLatestBlockForNetwork({
-          network,
-          ponder: this,
-        });
-        this.frontfillNetworks.push({ network, latestBlockNumber });
-      })
-    );
-
-    frontfillContracts.forEach((contract) => {
-      const frontfillNetwork = this.frontfillNetworks.find(
-        (n) => n.network.name === contract.network.name
-      );
-      if (!frontfillNetwork) {
-        throw new Error(
-          `Frontfill network not found: ${contract.network.name}`
-        );
-      }
-      contract.endBlock = frontfillNetwork.latestBlockNumber;
-    });
-  }
-
-  frontfill() {
-    const { killFrontfillQueues } = startFrontfill({
-      ponder: this,
-    });
-    this.killFrontfillQueues = killFrontfillQueues;
-  }
-
-  async backfill() {
-    const startHrt = startBenchmark();
-
-    const { killBackfillQueues, drainBackfillQueues } = await startBackfill({
-      ponder: this,
-    });
-    this.killBackfillQueues = killBackfillQueues;
-
-    await drainBackfillQueues();
-    const duration = formatEta(endBenchmark(startHrt));
-
-    this.isBackfillComplete = true;
-    this.logMessage(MessageKind.BACKFILL, `backfill complete (${duration})`);
-
-    this.ui = {
-      ...this.ui,
-      isBackfillComplete: true,
-      backfillDuration: duration,
-    };
-
-    // If there were no backfill logs, trigger this event manually once here to
-    // process cached logs.
-    this.emit("backfill_newLogs");
-  }
-
-  async addNewLogs() {
-    if (!this.handlerQueue || this.isAddingLogs || this.isDevError) return;
-    this.isAddingLogs = true;
-
-    const { hasNewLogs, toTimestamp, logs, totalLogCount } = await getLogs({
-      ponder: this,
-      fromTimestamp: this.logsAddedToTimestamp,
-    });
-
-    if (!hasNewLogs) {
-      this.isAddingLogs = false;
-      return;
-    }
-
-    for (const log of logs) {
-      this.handlerQueue.push(log);
-    }
-
-    this.ui.handlersTotal += totalLogCount ?? 0;
-    this.ui.handlersHandledTotal += logs.length;
-    this.logsAddedToTimestamp = toTimestamp;
-    this.ui.handlersToTimestamp = toTimestamp;
-    this.isAddingLogs = false;
-
-    if (this.options.LOG_TYPE === "start" && logs.length > 0) {
-      this.logMessage(MessageKind.INDEXER, `adding ${logs.length} events`);
-    }
-  }
-
-  async processLogs() {
-    if (!this.handlerQueue) return;
-
-    const logCount = this.handlerQueue.length();
-
-    this.handlerQueue.resume();
-    if (!this.handlerQueue.idle()) {
-      await this.handlerQueue.drained();
-    }
-    this.handlerQueue.pause();
-
-    if (this.options.LOG_TYPE === "start" && logCount > 0) {
-      this.logMessage(MessageKind.INDEXER, `processed ${logCount} events`);
-    }
-
-    // If, after this batch of logs, logsAddedToTimestamp is greater than the latest
-    // frontfill network timestamp AND the backfill is complete, log processing is complete.
-    const latestBackfillTimestamp = Math.max(
-      ...this.frontfillNetworks.map(
-        ({ latestBlockNumber }) => latestBlockNumber
-      )
-    );
-    if (
-      !this.isLogProcessingComplete &&
-      this.logsAddedToTimestamp >= latestBackfillTimestamp &&
-      this.isBackfillComplete
-    ) {
-      this.logMessage(
-        MessageKind.INDEXER,
-        "backfill event processing complete"
-      );
-      this.isLogProcessingComplete = true;
-    }
-  }
-
-  // --------------------------- EVENT HANDLERS --------------------------- //
-
-  private dev_error: PonderEvents["dev_error"] = async (e) => {
-    if (this.options.LOG_TYPE === "codegen") return;
-
-    this.isDevError = true;
-    this.handlerQueue?.kill();
-    this.logMessage(MessageKind.ERROR, e.context + `\n` + e.error?.stack);
-
-    // If prod, kill the app.
-    if (this.options.LOG_TYPE === "start") {
+    const setupError = await this.setup();
+    if (setupError) {
+      this.resources.logger.logMessage(MessageKind.ERROR, setupError.message);
       await this.kill();
       return;
     }
 
-    this.ui = { ...this.ui, handlerError: true };
-  };
+    await this.frontfillService.getLatestBlockNumbers();
+    this.frontfillService.startFrontfill();
+    this.reloadService.watch();
+    await this.backfillService.backfill();
+  }
 
-  private backfill_networkConnected: PonderEvents["backfill_networkConnected"] =
-    (e) => {
-      this.ui.networks[e.network] = {
+  async start() {
+    const setupError = await this.setup();
+    if (setupError) {
+      this.resources.logger.logMessage(MessageKind.ERROR, setupError.message);
+      await this.kill();
+      return;
+    }
+
+    // When ran with `ponder start`, handler errors should kill the process.
+    this.resources.errors.on("handlerError", async () => {
+      await this.kill();
+    });
+
+    await this.frontfillService.getLatestBlockNumbers();
+    this.frontfillService.startFrontfill();
+    await this.backfillService.backfill();
+  }
+
+  async codegen() {
+    this.codegenService.generateAppFile();
+    this.codegenService.generateContractTypeFiles();
+
+    const result = this.reloadService.loadSchema();
+    if (result) {
+      const { schema, graphqlSchema } = result;
+      this.codegenService.generateAppTypeFile({ schema });
+      this.codegenService.generateSchemaFile({ graphqlSchema });
+    }
+
+    await this.kill();
+  }
+
+  async kill() {
+    await this.reloadService.kill?.();
+    this.uiService.kill();
+    this.frontfillService.killQueues();
+    this.backfillService.killQueues();
+    this.eventHandlerService.killQueue();
+    await this.serverService.teardown();
+    await this.resources.entityStore.teardown();
+  }
+
+  private registerDevAndStartHandlers() {
+    this.reloadService.on("ponderConfigChanged", async () => {
+      await this.kill();
+    });
+
+    this.reloadService.on("newSchema", async ({ schema, graphqlSchema }) => {
+      this.codegenService.generateAppTypeFile({ schema });
+      this.codegenService.generateSchemaFile({ graphqlSchema });
+
+      this.serverService.reload({ graphqlSchema });
+
+      await this.resources.entityStore.load(schema);
+      this.eventHandlerService.resetEventQueue({ schema });
+      await this.eventHandlerService.processEvents();
+    });
+
+    this.reloadService.on("newHandlers", async ({ handlers }) => {
+      await this.resources.entityStore.load();
+      this.eventHandlerService.resetEventQueue({ handlers });
+      await this.eventHandlerService.processEvents();
+    });
+
+    this.frontfillService.on("newEventsAdded", async () => {
+      await this.eventHandlerService.processEvents();
+    });
+
+    this.backfillService.on("newEventsAdded", async () => {
+      await this.eventHandlerService.processEvents();
+    });
+
+    this.backfillService.on("backfillCompleted", async () => {
+      this.resources.logger.logMessage(
+        MessageKind.BACKFILL,
+        "backfill complete"
+      );
+      await this.eventHandlerService.processEvents();
+    });
+
+    this.resources.errors.on("handlerError", async ({ context, error }) => {
+      this.eventHandlerService.killQueue();
+      this.resources.logger.logMessage(
+        MessageKind.ERROR,
+        context + `\n` + error.stack
+      );
+    });
+
+    this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
+      if (this.serverService.isBackfillEventProcessingComplete) return;
+
+      // If a batch of events are processed and the new toTimestamp is greater than
+      // the backfill cutoff timestamp, backfill event processing is complete, and the
+      // server should begin responding as healthy.
+      if (toTimestamp >= this.frontfillService.backfillCutoffTimestamp) {
+        this.serverService.isBackfillEventProcessingComplete = true;
+        this.resources.logger.logMessage(
+          MessageKind.INDEXER,
+          "backfill event processing complete (server now responding as healthy)"
+        );
+        // TODO: figure out how to remove this listener from within itself?
+      }
+    });
+  }
+
+  private registerUiHandlers() {
+    this.frontfillService.on("networkConnected", (e) => {
+      this.uiService.ui.networks[e.network] = {
         name: e.network,
         blockNumber: e.blockNumber,
         blockTimestamp: e.blockTimestamp,
         blockTxnCount: -1,
         matchedLogCount: -1,
       };
-    };
+    });
 
-  private backfill_contractStarted: PonderEvents["backfill_contractStarted"] = (
-    e
-  ) => {
-    if (this.options.LOG_TYPE === "start") {
-      this.logMessage(
+    this.backfillService.on("contractStarted", ({ contract, cacheRate }) => {
+      this.resources.logger.logMessage(
         MessageKind.BACKFILL,
         `started backfill for contract ${pico.bold(
-          e.contract
-        )} (${formatPercentage(e.cacheRate)} cached)`
+          contract
+        )} (${formatPercentage(cacheRate)} cached)`
       );
-    }
 
-    this.ui.stats[e.contract].cacheRate = e.cacheRate;
-  };
+      this.uiService.ui.stats[contract].cacheRate = cacheRate;
+    });
 
-  private backfill_logTasksAdded: PonderEvents["backfill_logTasksAdded"] = (
-    e
-  ) => {
-    this.ui.stats[e.contract].logTotal += e.taskCount;
-  };
-  private backfill_blockTasksAdded: PonderEvents["backfill_blockTasksAdded"] = (
-    e
-  ) => {
-    this.ui.stats[e.contract].blockTotal += e.taskCount;
-  };
+    this.backfillService.on("logTasksAdded", ({ contract, count }) => {
+      this.uiService.ui.stats[contract].logTotal += count;
+    });
+    this.backfillService.on("blockTasksAdded", ({ contract, count }) => {
+      this.uiService.ui.stats[contract].blockTotal += count;
+    });
 
-  private backfill_logTaskFailed: PonderEvents["backfill_logTaskFailed"] = (
-    e
-  ) => {
-    logMessage(
-      MessageKind.WARNING,
-      `log backfill task failed with error: ${e.error.message}`
-    );
-  };
-  private backfill_blockTaskFailed: PonderEvents["backfill_blockTaskFailed"] = (
-    e
-  ) => {
-    logMessage(
-      MessageKind.WARNING,
-      `block backfill task failed with error: ${e.error.message}`
-    );
-  };
-
-  private backfill_logTaskDone: PonderEvents["backfill_logTaskDone"] = (e) => {
-    if (this.ui.stats[e.contract].logCurrent === 0) {
-      this.ui.stats[e.contract].logStartTimestamp = Date.now();
-    }
-
-    this.ui.stats[e.contract] = {
-      ...this.ui.stats[e.contract],
-      logCurrent: this.ui.stats[e.contract].logCurrent + 1,
-      logAvgDuration:
-        (Date.now() - this.ui.stats[e.contract].logStartTimestamp) /
-        this.ui.stats[e.contract].logCurrent,
-      logAvgBlockCount:
-        this.ui.stats[e.contract].blockTotal /
-        this.ui.stats[e.contract].logCurrent,
-    };
-  };
-
-  private backfill_blockTaskDone: PonderEvents["backfill_blockTaskDone"] = (
-    e
-  ) => {
-    if (this.ui.stats[e.contract].blockCurrent === 0) {
-      this.ui.stats[e.contract].blockStartTimestamp = Date.now();
-    }
-
-    this.ui.stats[e.contract] = {
-      ...this.ui.stats[e.contract],
-      blockCurrent: this.ui.stats[e.contract].blockCurrent + 1,
-      blockAvgDuration:
-        (Date.now() - this.ui.stats[e.contract].blockStartTimestamp) /
-        this.ui.stats[e.contract].blockCurrent,
-    };
-  };
-
-  private backfill_newLogs = async () => {
-    await this.addNewLogs();
-    await this.processLogs();
-  };
-
-  private frontfill_taskFailed: PonderEvents["frontfill_taskFailed"] = (e) => {
-    logMessage(
-      MessageKind.WARNING,
-      `block frontfill task failed with error: ${e.error.message}`
-    );
-  };
-
-  private frontfill_newLogs: PonderEvents["frontfill_newLogs"] = async (e) => {
-    if (this.options.LOG_TYPE === "start" && this.ui.isBackfillComplete) {
-      this.logMessage(
-        MessageKind.FRONTFILL,
-        `${e.network} block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched events)`
+    this.backfillService.on("logTaskFailed", ({ error }) => {
+      this.resources.logger.logMessage(
+        MessageKind.WARNING,
+        `log backfill task failed with error: ${error.message}`
       );
-    }
-    this.ui.networks[e.network] = {
-      name: e.network,
-      blockNumber: e.blockNumber,
-      blockTimestamp: e.blockTimestamp,
-      blockTxnCount: e.blockTxnCount,
-      matchedLogCount: e.matchedLogCount,
-    };
-    await this.addNewLogs();
-    await this.processLogs();
-  };
+    });
+    this.backfillService.on("blockTaskFailed", ({ error }) => {
+      this.resources.logger.logMessage(
+        MessageKind.WARNING,
+        `block backfill task failed with error: ${error.message}`
+      );
+    });
 
-  private indexer_taskStarted: PonderEvents["indexer_taskStarted"] = () => {
-    this.ui.handlersCurrent += 1;
-  };
+    this.backfillService.on("logTaskCompleted", ({ contract }) => {
+      if (this.uiService.ui.stats[contract].logCurrent === 0) {
+        this.uiService.ui.stats[contract].logStartTimestamp = Date.now();
+      }
 
-  private indexer_taskDone: PonderEvents["indexer_taskDone"] = (e) => {
-    this.ui.handlersToTimestamp = e.timestamp;
-    if (this.options.LOG_TYPE === "dev") render(this.ui);
-  };
+      this.uiService.ui.stats[contract] = {
+        ...this.uiService.ui.stats[contract],
+        logCurrent: this.uiService.ui.stats[contract].logCurrent + 1,
+        logAvgDuration:
+          (Date.now() - this.uiService.ui.stats[contract].logStartTimestamp) /
+          this.uiService.ui.stats[contract].logCurrent,
+        logAvgBlockCount:
+          this.uiService.ui.stats[contract].blockTotal /
+          this.uiService.ui.stats[contract].logCurrent,
+      };
+    });
+    this.backfillService.on("blockTaskCompleted", ({ contract }) => {
+      if (this.uiService.ui.stats[contract].blockCurrent === 0) {
+        this.uiService.ui.stats[contract].blockStartTimestamp = Date.now();
+      }
 
-  // --------------------------- HELPERS --------------------------- //
+      this.uiService.ui.stats[contract] = {
+        ...this.uiService.ui.stats[contract],
+        blockCurrent: this.uiService.ui.stats[contract].blockCurrent + 1,
+        blockAvgDuration:
+          (Date.now() - this.uiService.ui.stats[contract].blockStartTimestamp) /
+          this.uiService.ui.stats[contract].blockCurrent,
+      };
+    });
+    this.backfillService.on("backfillCompleted", ({ duration }) => {
+      this.uiService.ui.isBackfillComplete = true;
+      this.uiService.ui.backfillDuration = formatEta(duration);
+    });
 
-  private updateBackfillEta = () => {
-    this.contracts
-      .filter((contract) => contract.isIndexed)
-      .forEach((contract) => {
-        const stats = this.ui.stats[contract.name];
-
-        const logTime =
-          (stats.logTotal - stats.logCurrent) * stats.logAvgDuration;
-
-        const blockTime =
-          (stats.blockTotal - stats.blockCurrent) * stats.blockAvgDuration;
-
-        const estimatedAdditionalBlocks =
-          (stats.logTotal - stats.logCurrent) * stats.logAvgBlockCount;
-
-        const estimatedAdditionalBlockTime =
-          estimatedAdditionalBlocks * stats.blockAvgDuration;
-
-        const eta = Math.max(logTime, blockTime + estimatedAdditionalBlockTime);
-
-        this.ui.stats[contract.name].eta = Number.isNaN(eta) ? 0 : eta;
-      });
-  };
-
-  private logBackfillProgress() {
-    if (this.options.LOG_TYPE === "start" && !this.ui.isBackfillComplete) {
-      this.contracts
-        .filter((contract) => contract.isIndexed)
-        .forEach((contract) => {
-          const stat = this.ui.stats[contract.name];
-
-          const current = stat.logCurrent + stat.blockCurrent;
-          const total = stat.logTotal + stat.blockTotal;
-          const isDone = current === total;
-          if (isDone) return;
-          const etaText =
-            stat.logCurrent > 5 && stat.eta > 0
-              ? `~${formatEta(stat.eta)}`
-              : "not started";
-
-          const countText = `${current}/${total}`;
-
-          this.logMessage(
-            MessageKind.BACKFILL,
-            `${contract.name}: ${`(${etaText + " | " + countText})`}`
+    this.frontfillService.on(
+      "newEventsAdded",
+      ({
+        network,
+        blockNumber,
+        blockTimestamp,
+        blockTxnCount,
+        matchedLogCount,
+      }) => {
+        if (matchedLogCount > 0) {
+          this.resources.logger.logMessage(
+            MessageKind.FRONTFILL,
+            `${network} block ${blockNumber} (${blockTxnCount} txns, ${matchedLogCount} matched events)`
           );
-        });
-    }
-  }
+        }
 
-  logMessage = (kind: MessageKind, message: string) => {
-    if (!this.options.SILENT) {
-      logMessage(kind, message);
-    }
-  };
+        this.uiService.ui.networks[network] = {
+          name: network,
+          blockNumber: blockNumber,
+          blockTimestamp: blockTimestamp,
+          blockTxnCount: blockTxnCount,
+          matchedLogCount: matchedLogCount,
+        };
+      }
+    );
+
+    this.frontfillService.on("taskFailed", ({ error }) => {
+      this.resources.logger.logMessage(
+        MessageKind.WARNING,
+        `block frontfill task failed with error: ${error.message}`
+      );
+    });
+
+    this.eventHandlerService.on("taskStarted", () => {
+      this.uiService.ui.handlersCurrent += 1;
+    });
+    this.eventHandlerService.on("taskCompleted", ({ timestamp }) => {
+      this.uiService.ui.handlersToTimestamp = timestamp;
+      if (this.resources.options.LOG_TYPE === "dev") {
+        this.uiService.render();
+      }
+    });
+
+    this.eventHandlerService.on(
+      "eventsAdded",
+      ({ totalCount, handledCount }) => {
+        this.uiService.ui.handlersTotal += totalCount;
+        this.uiService.ui.handlersHandledTotal += handledCount;
+      }
+    );
+    this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
+      this.uiService.ui.handlersToTimestamp = toTimestamp;
+    });
+    this.eventHandlerService.on("eventQueueReset", () => {
+      this.uiService.ui.handlersCurrent = 0;
+      this.uiService.ui.handlersTotal = 0;
+      this.uiService.ui.handlersHandledTotal = 0;
+      this.uiService.ui.handlersToTimestamp = 0;
+    });
+
+    this.resources.errors.on("handlerError", () => {
+      this.uiService.ui.handlerError = true;
+    });
+    this.resources.errors.on("handlerErrorCleared", () => {
+      this.uiService.ui.handlerError = false;
+    });
+  }
 }
