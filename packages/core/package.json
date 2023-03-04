@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsc && tsconfig-replace-paths --src .",
-    "fixtures": "$npm_execpath build && source .env.local && node dist/test/utils/generateFixtures.js && $npm_execpath build",
+    "fixtures": "$npm_execpath build && export $(grep -v '^#' .env.local | xargs) && node dist/test/utils/generateFixtures.js && $npm_execpath build",
     "test": "jest",
     "typecheck": "tsc --noEmit"
   },
