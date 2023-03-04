@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.37
+
+### Patch Changes
+
+- [#114](https://github.com/0xOlias/ponder/pull/114) [`857f099`](https://github.com/0xOlias/ponder/commit/857f0997263e9c816bc6ad2695d9a03bcf269672) Thanks [@0xOlias](https://github.com/0xOlias)! - Refactored @ponder/core internals and updated `ponder dev` logs
+
 ## 0.0.19
 
 ### Patch Changes
