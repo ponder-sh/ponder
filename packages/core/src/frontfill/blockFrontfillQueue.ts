@@ -1,7 +1,7 @@
 import { utils } from "ethers";
 import fastq from "fastq";
 
-import type { Network } from "@/config/networks";
+import { Network } from "@/config/contracts";
 import { parseBlock, parseLog, parseTransaction } from "@/db/cache/utils";
 
 import { FrontfillService } from "./FrontfillService";

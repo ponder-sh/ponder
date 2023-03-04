@@ -1,5 +1,5 @@
 import { EventEmitter } from "@/common/EventEmitter";
-import { Network } from "@/config/networks";
+import { Network } from "@/config/contracts";
 import { Resources } from "@/Ponder";
 
 import { createBlockFrontfillQueue } from "./blockFrontfillQueue";

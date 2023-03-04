@@ -4,20 +4,30 @@ import type { Deferrable } from "ethers/lib/utils";
 
 import { CacheStore } from "@/db/cache/cacheStore";
 
+import { EventHandlerService } from "./EventHandlerService";
+
 // This class extends the ethers provider and
 // caches contract calls in the Ponder CacheStore.
 export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
   chainId: number;
   cacheStore: CacheStore;
+  eventHandlerService: EventHandlerService;
 
-  constructor(
-    cacheStore: CacheStore,
-    url: string | ethers.utils.ConnectionInfo,
-    chainId: number
-  ) {
+  constructor({
+    eventHandlerService,
+    cacheStore,
+    url,
+    chainId,
+  }: {
+    eventHandlerService: EventHandlerService;
+    cacheStore: CacheStore;
+    url: string | ethers.utils.ConnectionInfo;
+    chainId: number;
+  }) {
     super(url, chainId);
     this.chainId = chainId;
     this.cacheStore = cacheStore;
+    this.eventHandlerService = eventHandlerService;
   }
 
   async call(
@@ -28,13 +38,11 @@ export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
 
     if (_blockTag) {
       if (typeof _blockTag !== "number") {
-        throw new Error(`blockTag must be a number (a decimal block number)`);
+        throw new Error(`blockTag must be a number (an integer block number)`);
       }
       blockTag = _blockTag;
     } else {
-      // TODO: figure out where this state lives :/
-      // blockTag = this.ponder.currentEventBlockTag;
-      blockTag = undefined;
+      blockTag = this.eventHandlerService.currentLogEventBlockNumber;
     }
 
     const address = await transaction.to;
@@ -53,7 +61,7 @@ export class CachedProvider extends ethers.providers.StaticJsonRpcProvider {
       return JSON.parse(cachedContractCall.result);
     }
 
-    const result = await super.call(transaction, _blockTag);
+    const result = await super.call(transaction, blockTag);
 
     await this.cacheStore.upsertContractCall({
       key: contractCallKey,

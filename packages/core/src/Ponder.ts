@@ -7,8 +7,7 @@ import { LoggerService, MessageKind } from "@/common/LoggerService";
 import { PonderOptions } from "@/common/options";
 import { formatEta, formatPercentage } from "@/common/utils";
 import { ResolvedPonderConfig } from "@/config/buildPonderConfig";
-import { buildContracts, Contract } from "@/config/contracts";
-import { buildNetworks } from "@/config/networks";
+import { buildContracts, Contract, Network } from "@/config/contracts";
 import { buildCacheStore, CacheStore } from "@/db/cache/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
 import { buildEntityStore, EntityStore } from "@/db/entity/entityStore";
@@ -52,13 +51,7 @@ export class Ponder {
     const database = buildDb({ options, config, logger });
     const cacheStore = buildCacheStore({ database });
     const entityStore = buildEntityStore({ database });
-
-    const networks = buildNetworks({ config, cacheStore });
-    const contracts = buildContracts({
-      options,
-      config,
-      networks,
-    });
+    const contracts = buildContracts({ options, config });
 
     const resources: Resources = {
       options,
@@ -82,6 +75,24 @@ export class Ponder {
   }
 
   async setup() {
+    // If any of the provided networks do not have a valid RPC url,
+    // kill the app here. This happens here rather than in the constructor because
+    // `ponder codegen` should still be able to if an RPC url is missing. In fact,
+    // that is part of the happy path for `create-ponder`.
+    const networksMissingRpcUrl: Network[] = [];
+    this.resources.contracts.forEach((contract) => {
+      if (!contract.network.rpcUrl) {
+        networksMissingRpcUrl.push(contract.network);
+      }
+    });
+    if (networksMissingRpcUrl.length > 0) {
+      return new Error(
+        `missing RPC URL for networks (${networksMissingRpcUrl.map(
+          (n) => `"${n.name}"`
+        )}). Did you forget to add an RPC URL in .env.local?`
+      );
+    }
+
     // Manually trigger loading schema and handlers. Subsequent loads
     // are triggered by changes to project files (handled in ReloadService).
     this.reloadService.loadSchema();
@@ -98,7 +109,13 @@ export class Ponder {
     this.registerDevAndStartHandlers();
     this.registerUiHandlers();
 
-    await this.setup();
+    const setupError = await this.setup();
+    if (setupError) {
+      this.resources.logger.logMessage(MessageKind.ERROR, setupError.message);
+      await this.kill();
+      return;
+    }
+
     await this.frontfillService.getLatestBlockNumbers();
     this.frontfillService.startFrontfill();
     this.reloadService.watch();
@@ -109,12 +126,18 @@ export class Ponder {
     this.registerDevAndStartHandlers();
     this.registerUiHandlers();
 
+    const setupError = await this.setup();
+    if (setupError) {
+      this.resources.logger.logMessage(MessageKind.ERROR, setupError.message);
+      await this.kill();
+      return;
+    }
+
     // When ran with `ponder start`, handler errors should kill the process.
     this.resources.errors.on("handlerError", async () => {
       await this.kill();
     });
 
-    await this.setup();
     await this.frontfillService.getLatestBlockNumbers();
     this.frontfillService.startFrontfill();
     await this.backfillService.startBackfill();

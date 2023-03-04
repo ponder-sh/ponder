@@ -2,12 +2,12 @@ import { EventEmitter } from "@/common/EventEmitter";
 import { Handlers } from "@/reload/readHandlers";
 import { Contract as EthersContract, utils } from "ethers";
 import fastq from "fastq";
-import { Contract } from "@/config/contracts";
 import { Schema } from "@/schema/types";
 import { getStackTraceAndCodeFrame } from "./getStackTrace";
 import { Resources } from "@/Ponder";
 import { decodeLog } from "./decodeLog";
 import type { Log } from "@/types";
+import { CachedProvider } from "@/eventHandler/CachedProvider";
 
 type EventHandlerServiceEvents = {
   taskStarted: () => void;
@@ -33,13 +33,37 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
   private schema?: Schema;
   private queue?: HandlerQueue;
 
+  private injectedContracts: Record<string, EthersContract | undefined> = {};
+
   private isProcessingEvents = false;
-  private currentLogEventBlockNumber = 0;
   private eventsHandledToTimestamp = 0;
+
+  currentLogEventBlockNumber = 0;
 
   constructor({ resources }: { resources: Resources }) {
     super();
     this.resources = resources;
+
+    // Build the injected contract objects. They are not dynamic.
+    const cachedProviders: Record<number, CachedProvider | undefined> = {};
+    this.resources.contracts.forEach((contract) => {
+      let cachedProvider = cachedProviders[contract.network.chainId];
+      if (!cachedProvider) {
+        cachedProvider = new CachedProvider({
+          eventHandlerService: this,
+          cacheStore: this.resources.cacheStore,
+          url: contract.network.rpcUrl!,
+          chainId: contract.network.chainId,
+        });
+        cachedProviders[contract.network.chainId] = cachedProvider;
+      }
+
+      this.injectedContracts[contract.name] = new EthersContract(
+        contract.address,
+        contract.abiInterface,
+        cachedProvider
+      );
+    });
   }
 
   killQueue() {
@@ -150,16 +174,6 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     handlers: Handlers;
     schema: Schema;
   }) {
-    // Build contracts for event handler context.
-    const injectedContracts: Record<string, EthersContract | undefined> = {};
-    this.resources.contracts.forEach((contract) => {
-      injectedContracts[contract.name] = new EthersContract(
-        contract.address,
-        contract.abiInterface,
-        contract.network.provider
-      );
-    });
-
     // Build entity models for event handler context.
     const entityModels: Record<string, unknown> = {};
     schema.entities.forEach((entity) => {
@@ -179,21 +193,16 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     });
 
     const handlerContext = {
-      contracts: injectedContracts,
+      contracts: this.injectedContracts,
       entities: entityModels,
     };
-
-    const contractByAddress = this.resources.contracts.reduce<
-      Record<string, Contract | undefined>
-    >((acc, contract) => {
-      acc[contract.address] = contract;
-      return acc;
-    }, {});
 
     const handlerWorker = async (log: HandlerTask) => {
       this.emit("taskStarted");
 
-      const contract = contractByAddress[log.address];
+      const contract = this.resources.contracts.find(
+        (contract) => contract.address === log.address
+      );
       if (!contract) {
         this.resources.logger.warn(
           `Contract not found for log with address: ${log.address}`

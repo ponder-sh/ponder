@@ -1,35 +1,25 @@
+import { StaticJsonRpcProvider } from "@ethersproject/providers";
 import { ethers } from "ethers";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import type { Network } from "@/config/networks";
+import { PonderOptions } from "@/common/options";
+import { ResolvedPonderConfig } from "@/config/buildPonderConfig";
 
-import { PonderOptions } from "..";
-import { ResolvedPonderConfig } from "./buildPonderConfig";
-
-export type ContractOptions = {
+export type Network = {
   name: string;
-  network: Network;
-  address: string;
-
-  abiFilePath?: string;
-  abi: any[];
-  abiInterface: ethers.utils.Interface;
-
-  startBlock?: number;
-  endBlock?: number;
-  blockLimit?: number;
-
-  isIndexed?: boolean;
+  chainId: number;
+  rpcUrl?: string;
+  provider: StaticJsonRpcProvider;
 };
 
 export type Contract = {
   name: string;
-  network: Network;
   address: string;
+  network: Network;
 
+  abi: any; // This is the ABI as an object.
   abiFilePath?: string;
-  abi: any[];
   abiInterface: ethers.utils.Interface;
 
   startBlock: number;
@@ -39,37 +29,20 @@ export type Contract = {
   isIndexed: boolean;
 };
 
-const buildContract = (options: ContractOptions): Contract => {
-  return {
-    name: options.name,
-    network: options.network,
-    address: options.address.toLowerCase(),
+const providers: Record<number, StaticJsonRpcProvider | undefined> = {};
 
-    abiFilePath: options.abiFilePath,
-    abi: options.abi,
-    abiInterface: options.abiInterface,
-
-    startBlock: options.startBlock || 0,
-    endBlock: options.endBlock,
-    blockLimit: options.blockLimit || 50,
-
-    isIndexed: options.isIndexed !== undefined ? options.isIndexed : true,
-  };
-};
-
-export const buildContracts = ({
+export function buildContracts({
   config,
   options,
-  networks,
 }: {
   config: ResolvedPonderConfig;
   options: PonderOptions;
-  networks: Network[];
-}) => {
-  const contracts = config.contracts.map((contract) => {
+}): Contract[] {
+  return config.contracts.map((contract) => {
     let abiFilePath: string | undefined;
     let abiObject: any;
 
+    // Get the contract ABI.
     if (typeof contract.abi === "string") {
       // If it's a string, assume it's a file path.
       abiFilePath = path.isAbsolute(contract.abi)
@@ -90,29 +63,40 @@ export const buildContracts = ({
     const abi = abiObject?.abi ? abiObject.abi : abiObject;
     const abiInterface = new ethers.utils.Interface(abi);
 
-    const network = networks.find((n) => n.name === contract.network);
+    // Get the contract network/provider.
+    const network = config.networks.find((n) => n.name === contract.network);
     if (!network) {
       throw new Error(
         `Network [${contract.network}] not found for contract: ${contract.name}`
       );
     }
 
-    return buildContract({
-      name: contract.name,
-      network: network,
-      address: contract.address,
+    let provider = providers[network.chainId];
+    if (!provider) {
+      provider = new StaticJsonRpcProvider(network.rpcUrl, network.chainId);
+      providers[network.chainId] = provider;
+    }
 
+    return {
+      name: contract.name,
+      address: contract.address.toLowerCase(),
+
+      network: {
+        name: network.name,
+        chainId: network.chainId,
+        rpcUrl: network.rpcUrl,
+        provider,
+      },
+
+      abi,
       abiFilePath: abiFilePath,
-      abi: abi,
       abiInterface: abiInterface,
 
-      startBlock: contract.startBlock,
+      startBlock: contract.startBlock || 0,
       endBlock: contract.endBlock,
-      blockLimit: contract.blockLimit,
+      blockLimit: contract.blockLimit || 50,
 
-      isIndexed: contract.isIndexed,
-    });
+      isIndexed: contract.isIndexed !== undefined ? contract.isIndexed : true,
+    };
   });
-
-  return contracts;
-};
+}
