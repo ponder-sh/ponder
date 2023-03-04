@@ -43,11 +43,11 @@ describe("Ponder", () => {
     await ponder.kill();
   });
 
-  describe("backfill()", () => {
+  describe("backfill", () => {
     beforeEach(async () => {
       await ponder.setup();
       await ponder.frontfillService.getLatestBlockNumbers();
-      await ponder.backfillService.startBackfill();
+      await ponder.backfillService.backfill();
     });
 
     it("inserts backfill data into the cache store", async () => {
@@ -69,24 +69,26 @@ describe("Ponder", () => {
     });
   });
 
-  describe("processLogs()", () => {
+  describe("event processing", () => {
     beforeEach(async () => {
       await ponder.setup();
       await ponder.frontfillService.getLatestBlockNumbers();
-      await ponder.backfillService.startBackfill();
+      await ponder.backfillService.backfill();
       await ponder.eventHandlerService.processEvents();
     });
 
-    // TODO: expose instanceId
-    // it("inserts data into the entity store", async () => {
-    //   const ensNfts = (ponder.resources.database as SqliteDb).db
-    //     .prepare(
-    //       `SELECT * FROM "EnsNft_${ponder.resources.entityStore.instanceId}"`
-    //     )
-    //     .all();
+    it("inserts data into the entity store", async () => {
+      const entity = ponder.resources.entityStore.schema?.entities.find(
+        (e) => e.name === "EnsNft"
+      );
+      expect(entity).toBeDefined();
 
-    //   expect(ensNfts.length).toBe(58);
-    // });
+      const ensNfts = await ponder.resources.entityStore.getEntities(
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        entity!.id
+      );
+      expect(ensNfts.length).toBe(58);
+    });
   });
 
   describe("graphql", () => {
@@ -95,7 +97,7 @@ describe("Ponder", () => {
     beforeEach(async () => {
       await ponder.setup();
       await ponder.frontfillService.getLatestBlockNumbers();
-      await ponder.backfillService.startBackfill();
+      await ponder.backfillService.backfill();
       await ponder.eventHandlerService.processEvents();
 
       gql = async (query) => {
