@@ -34,7 +34,7 @@ export class BackfillService extends EventEmitter<BackfillServiceEvents> {
     this.resources = resources;
   }
 
-  async startBackfill() {
+  async backfill() {
     const backfillStartedAt = startBenchmark();
 
     await Promise.all(

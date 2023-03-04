@@ -46,7 +46,7 @@ export class Ponder {
     options: PonderOptions;
     config: ResolvedPonderConfig;
   }) {
-    const logger = new LoggerService();
+    const logger = new LoggerService({ options });
     const errors = new ErrorService();
     const database = buildDb({ options, config, logger });
     const cacheStore = buildCacheStore({ database });
@@ -75,6 +75,9 @@ export class Ponder {
   }
 
   async setup() {
+    this.registerDevAndStartHandlers();
+    this.registerUiHandlers();
+
     // If any of the provided networks do not have a valid RPC url,
     // kill the app here. This happens here rather than in the constructor because
     // `ponder codegen` should still be able to if an RPC url is missing. In fact,
@@ -108,9 +111,6 @@ export class Ponder {
   }
 
   async dev() {
-    this.registerDevAndStartHandlers();
-    this.registerUiHandlers();
-
     const setupError = await this.setup();
     if (setupError) {
       this.resources.logger.logMessage(MessageKind.ERROR, setupError.message);
@@ -121,13 +121,10 @@ export class Ponder {
     await this.frontfillService.getLatestBlockNumbers();
     this.frontfillService.startFrontfill();
     this.reloadService.watch();
-    await this.backfillService.startBackfill();
+    await this.backfillService.backfill();
   }
 
   async start() {
-    this.registerDevAndStartHandlers();
-    this.registerUiHandlers();
-
     const setupError = await this.setup();
     if (setupError) {
       this.resources.logger.logMessage(MessageKind.ERROR, setupError.message);
@@ -142,7 +139,7 @@ export class Ponder {
 
     await this.frontfillService.getLatestBlockNumbers();
     this.frontfillService.startFrontfill();
-    await this.backfillService.startBackfill();
+    await this.backfillService.backfill();
   }
 
   async codegen() {

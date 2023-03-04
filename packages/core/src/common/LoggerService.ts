@@ -1,5 +1,7 @@
 import pico from "picocolors";
 
+import { PonderOptions } from "./options";
+
 export enum LogLevel {
   // Silent 0
   Error, // 1
@@ -19,20 +21,31 @@ export enum MessageKind {
 }
 
 export class LoggerService {
+  isSilent: boolean;
+
+  constructor({ options }: { options: PonderOptions }) {
+    this.isSilent = options.SILENT;
+  }
+
   error = (...args: Parameters<typeof console.log>) => {
-    if (this.getLogLevel() > LogLevel.Error) console.log(...args);
+    if (!this.isSilent && this.getLogLevel() > LogLevel.Error)
+      console.log(...args);
   };
   info = (...args: Parameters<typeof console.log>) => {
-    if (this.getLogLevel() > LogLevel.Info) console.log(...args);
+    if (!this.isSilent && this.getLogLevel() > LogLevel.Info)
+      console.log(...args);
   };
   warn = (...args: Parameters<typeof console.log>) => {
-    if (this.getLogLevel() > LogLevel.Warn) console.log(...args);
+    if (!this.isSilent && this.getLogLevel() > LogLevel.Warn)
+      console.log(...args);
   };
   debug = (...args: Parameters<typeof console.log>) => {
-    if (this.getLogLevel() > LogLevel.Debug) console.log(...args);
+    if (!this.isSilent && this.getLogLevel() > LogLevel.Debug)
+      console.log(...args);
   };
   trace = (...args: Parameters<typeof console.log>) => {
-    if (this.getLogLevel() > LogLevel.Trace) console.log(...args);
+    if (!this.isSilent && this.getLogLevel() > LogLevel.Trace)
+      console.log(...args);
   };
 
   private getLogLevel = () => {

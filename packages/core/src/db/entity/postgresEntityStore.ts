@@ -11,7 +11,6 @@ import {
 
 export class PostgresEntityStore implements EntityStore {
   pool: Pool;
-
   schema?: Schema;
 
   constructor({ pool }: { pool: Pool }) {

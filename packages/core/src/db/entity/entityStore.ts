@@ -26,6 +26,8 @@ type Entity = Record<string, unknown>;
 type MaybePromise<T> = T | Promise<T>;
 
 export interface EntityStore {
+  schema?: Schema;
+
   load(schema?: Schema): MaybePromise<void>;
   teardown(): MaybePromise<void>;
 
