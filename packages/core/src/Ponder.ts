@@ -11,7 +11,7 @@ import { buildContracts, Contract, Network } from "@/config/contracts";
 import { buildCacheStore, CacheStore } from "@/db/cache/cacheStore";
 import { buildDb, PonderDatabase } from "@/db/db";
 import { buildEntityStore, EntityStore } from "@/db/entity/entityStore";
-import { EventHandlerService } from "@/eventHandler/EventHandlerService";
+import { EventHandlerService } from "@/handlers/EventHandlerService";
 import { FrontfillService } from "@/frontfill/FrontfillService";
 import { ReloadService } from "@/reload/ReloadService";
 import { ServerService } from "@/server/ServerService";

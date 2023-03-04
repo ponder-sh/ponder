@@ -7,7 +7,7 @@ import { getStackTraceAndCodeFrame } from "./getStackTrace";
 import { Resources } from "@/Ponder";
 import { decodeLog } from "./decodeLog";
 import type { Log } from "@/types";
-import { CachedProvider } from "@/eventHandler/CachedProvider";
+import { CachedProvider } from "@/handlers/CachedProvider";
 
 type EventHandlerServiceEvents = {
   taskStarted: () => void;
