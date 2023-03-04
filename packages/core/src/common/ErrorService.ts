@@ -1,16 +1,16 @@
 import { EventEmitter } from "@/common/EventEmitter";
 
 type ErrorServiceEvents = {
-  handlerError: (arg: { error: Error }) => void;
+  handlerError: (arg: { context: string; error: Error }) => void;
   handlerErrorCleared: () => void;
 };
 
 export class ErrorService extends EventEmitter<ErrorServiceEvents> {
   isHandlerError = false;
 
-  submitHandlerError(error: Error) {
+  submitHandlerError({ context, error }: { context: string; error: Error }) {
     this.isHandlerError = true;
-    this.emit("handlerError", { error });
+    this.emit("handlerError", { context, error });
   }
 
   clearHandlerError() {

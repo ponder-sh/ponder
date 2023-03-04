@@ -5,6 +5,7 @@ import { CodegenService } from "@/codegen/CodegenService";
 import { ErrorService } from "@/common/ErrorService";
 import { LoggerService, MessageKind } from "@/common/LoggerService";
 import { PonderOptions } from "@/common/options";
+import { formatEta, formatPercentage } from "@/common/utils";
 import { ResolvedPonderConfig } from "@/config/buildPonderConfig";
 import { buildContracts, Contract } from "@/config/contracts";
 import { buildNetworks } from "@/config/networks";
@@ -16,8 +17,6 @@ import { FrontfillService } from "@/frontfill/FrontfillService";
 import { ReloadService } from "@/reload/ReloadService";
 import { ServerService } from "@/server/ServerService";
 import { UiService } from "@/ui/UiService";
-
-import { formatPercentage } from "./common/utils";
 
 export type Resources = {
   options: PonderOptions;
@@ -89,18 +88,16 @@ export class Ponder {
       this.codegenService.generateAppTypeFile({ schema });
       this.codegenService.generateSchemaFile({ graphqlSchema });
 
+      this.serverService.reload({ graphqlSchema });
+
       await this.resources.entityStore.load(schema);
       this.eventHandlerService.resetEventQueue({ schema });
-      // process handlers?
-
-      this.serverService.reload({ graphqlSchema });
+      await this.eventHandlerService.processNewEvents();
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
+      await this.resources.entityStore.load();
       this.eventHandlerService.resetEventQueue({ handlers });
-    });
-
-    this.backfillService.on("newEventsAdded", async () => {
       await this.eventHandlerService.processNewEvents();
     });
 
@@ -108,9 +105,36 @@ export class Ponder {
       await this.eventHandlerService.processNewEvents();
     });
 
-    this.resources.errors.on("handlerError", async () => {
-      await this.kill();
+    this.backfillService.on("newEventsAdded", async () => {
+      await this.eventHandlerService.processNewEvents();
     });
+
+    this.backfillService.on("backfillCompleted", async () => {
+      await this.eventHandlerService.processNewEvents();
+    });
+
+    this.resources.errors.on("handlerError", async ({ context, error }) => {
+      if (this.resources.options.LOG_TYPE === "codegen") return;
+
+      this.eventHandlerService.killQueue();
+
+      this.resources.logger.logMessage(
+        MessageKind.ERROR,
+        context + `\n` + error.stack
+      );
+
+      // If prod, kill the app.
+      if (this.resources.options.LOG_TYPE === "start") {
+        await this.kill();
+        return;
+      }
+    });
+
+    // this.resources.errors.on("handlerErrorCleared", async () => {
+    //   await this.resources.entityStore.load();
+    //   this.eventHandlerService.resetEventQueue();
+    //   await this.eventHandlerService.processNewEvents();
+    // });
 
     this.registerUiHandlers();
   }
@@ -226,6 +250,10 @@ export class Ponder {
           this.uiService.ui.stats[contract].blockCurrent,
       };
     });
+    this.backfillService.on("backfillCompleted", ({ duration }) => {
+      this.uiService.ui.isBackfillComplete = true;
+      this.uiService.ui.backfillDuration = formatEta(duration);
+    });
 
     this.frontfillService.on("newEventsAdded", (e) => {
       if (
@@ -270,6 +298,19 @@ export class Ponder {
     this.eventHandlerService.on("eventsProcessed", (e) => {
       this.uiService.ui.handlersToTimestamp = e.toTimestamp;
     });
+    this.eventHandlerService.on("eventQueueReset", () => {
+      this.uiService.ui.handlersCurrent = 0;
+      this.uiService.ui.handlersTotal = 0;
+      this.uiService.ui.handlersHandledTotal = 0;
+      this.uiService.ui.handlersToTimestamp = 0;
+    });
+
+    // this.resources.errors.on("handlerError", async () => {
+    //   this.uiService.ui.handlerError = true;
+    // });
+    // this.resources.errors.on("handlerErrorCleared", async () => {
+    //   this.uiService.ui.handlerError = false;
+    // });
   }
 }
 

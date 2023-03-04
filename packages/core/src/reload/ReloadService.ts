@@ -64,8 +64,13 @@ export class ReloadService extends EventEmitter<ReloadServiceEvents> {
           "detected change in " + pico.bold(fileName)
         );
 
-        this.loadSchema();
-        this.loadHandlers();
+        this.resources.errors.clearHandlerError();
+
+        if (filePath === this.resources.options.SCHEMA_FILE_PATH) {
+          this.loadSchema();
+        } else {
+          await this.loadHandlers();
+        }
       }
     });
   }
@@ -75,7 +80,10 @@ export class ReloadService extends EventEmitter<ReloadServiceEvents> {
       const handlers = await readHandlers({ options: this.resources.options });
       this.emit("newHandlers", { handlers });
     } catch (error) {
-      this.resources.errors.submitHandlerError(error as Error);
+      this.resources.errors.submitHandlerError({
+        context: "building event handlers",
+        error: error as Error,
+      });
     }
   }
 
@@ -88,7 +96,10 @@ export class ReloadService extends EventEmitter<ReloadServiceEvents> {
       const graphqlSchema = buildGqlSchema(schema);
       this.emit("newSchema", { schema, graphqlSchema });
     } catch (error) {
-      this.resources.errors.submitHandlerError(error as Error);
+      this.resources.errors.submitHandlerError({
+        context: "building schema",
+        error: error as Error,
+      });
     }
   }
 

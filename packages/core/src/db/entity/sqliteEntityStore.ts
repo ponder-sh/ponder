@@ -26,14 +26,16 @@ export class SqliteEntityStore implements EntityStore {
   };
 
   load = (newSchema?: Schema) => {
-    if (!newSchema) return;
-
     // If there is an existing schema, this is a hot reload and the existing entity tables should be dropped.
     if (this.schema) {
       this.teardown();
     }
 
-    this.schema = newSchema;
+    // If a new schema was provided, set it.
+    if (newSchema) {
+      this.schema = newSchema;
+    }
+    if (!this.schema) return;
 
     this.schema.entities.forEach((entity) => {
       // Build the create table statement using field migration fragments.

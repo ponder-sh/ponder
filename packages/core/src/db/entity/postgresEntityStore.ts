@@ -43,14 +43,16 @@ export class PostgresEntityStore implements EntityStore {
   }
 
   async load(newSchema?: Schema) {
-    if (!newSchema) return;
-
     // If there is an existing schema, this is a hot reload and the existing entity tables should be dropped.
     if (this.schema) {
       await this.teardown();
     }
 
-    this.schema = newSchema;
+    // If a new schema was provided, set it.
+    if (newSchema) {
+      this.schema = newSchema;
+    }
+    if (!this.schema) return;
 
     await Promise.all(
       this.schema.entities.map(async (entity) => {

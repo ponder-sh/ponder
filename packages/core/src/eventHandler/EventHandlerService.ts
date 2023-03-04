@@ -20,6 +20,7 @@ type EventHandlerServiceEvents = {
     toTimestamp: number;
   }) => void;
   eventsProcessed: (arg: { count: number; toTimestamp: number }) => void;
+  eventQueueReset: () => void;
 };
 
 type HandlerTask = Log;
@@ -46,13 +47,13 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     delete this.queue;
   }
 
-  async resetEventQueue({
+  resetEventQueue({
     handlers: newHandlers,
     schema: newSchema,
   }: {
     handlers?: Handlers;
     schema?: Schema;
-  }) {
+  } = {}) {
     if (newHandlers) this.handlers = newHandlers;
     if (newSchema) this.schema = newSchema;
 
@@ -61,7 +62,6 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     if (this.queue) {
       this.queue.kill();
       delete this.queue;
-      this.isProcessingEvents = false;
     }
 
     const queue = this.createEventQueue({
@@ -70,6 +70,10 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     });
 
     this.queue = queue;
+    this.isProcessingEvents = false;
+    this.eventsHandledToTimestamp = 0;
+
+    this.emit("eventQueueReset");
   }
 
   async processNewEvents() {
@@ -277,7 +281,10 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
           error.stack = `${result.stackTrace}\n` + result.codeFrame;
         }
 
-        this.resources.errors.submitHandlerError(error);
+        this.resources.errors.submitHandlerError({
+          context: "running event handlers",
+          error: error,
+        });
       }
     });
 
