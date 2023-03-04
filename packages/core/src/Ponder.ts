@@ -93,16 +93,18 @@ export class Ponder {
       );
     }
 
+    // These files depend only on ponder.config.ts, so can generate once on setup.
+    // Note that loadHandlers depends on the index.ts file being present.
+    this.codegenService.generateAppFile();
+    this.codegenService.generateContractTypeFiles();
+
+    // Note that this must occur before loadSchema and loadHandlers.
+    await this.resources.cacheStore.migrate();
+
     // Manually trigger loading schema and handlers. Subsequent loads
     // are triggered by changes to project files (handled in ReloadService).
     this.reloadService.loadSchema();
     await this.reloadService.loadHandlers();
-
-    // These files depend only on ponder.config.ts, so can generate once on setup.
-    this.codegenService.generateAppFile();
-    this.codegenService.generateContractTypeFiles();
-
-    await this.resources.cacheStore.migrate();
   }
 
   async dev() {
@@ -211,6 +213,22 @@ export class Ponder {
         MessageKind.ERROR,
         context + `\n` + error.stack
       );
+    });
+
+    this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
+      if (this.serverService.isBackfillEventProcessingComplete) return;
+
+      // If a batch of events are processed and the new toTimestamp is greater than
+      // the backfill cutoff timestamp, backfill event processing is complete, and the
+      // server should begin responding as healthy.
+      if (toTimestamp >= this.frontfillService.backfillCutoffTimestamp) {
+        this.serverService.isBackfillEventProcessingComplete = true;
+        this.resources.logger.logMessage(
+          MessageKind.INDEXER,
+          "backfill event processing complete (server now responding as healthy)"
+        );
+        // TODO: figure out how to remove this listener from within itself?
+      }
     });
   }
 
@@ -339,30 +357,5 @@ export class Ponder {
       this.uiService.ui.handlersHandledTotal = 0;
       this.uiService.ui.handlersToTimestamp = 0;
     });
-
-    // this.resources.errors.on("handlerError", async () => {
-    //   this.uiService.ui.handlerError = true;
-    // });
-    // this.resources.errors.on("handlerErrorCleared", async () => {
-    //   this.uiService.ui.handlerError = false;
-    // });
   }
 }
-
-// // --------------------------- EVENT HANDLERS --------------------------- //
-
-// private dev_error: PonderEvents["dev_error"] = async (e) => {
-//   if (this.options.LOG_TYPE === "codegen") return;
-
-//   this.isDevError = true;
-//   this.handlerQueue?.kill();
-//   this.logMessage(MessageKind.ERROR, e.context + `\n` + e.error?.stack);
-
-//   // If prod, kill the app.
-//   if (this.options.LOG_TYPE === "start") {
-//     await this.kill();
-//     return;
-//   }
-
-//   this.uiService.ui = { ...this.ui, handlerError: true };
-// };

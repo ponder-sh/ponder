@@ -12,7 +12,9 @@ export class ServerService {
 
   app: express.Express;
   server: http.Server;
-  graphqlMiddleware?: express.Handler;
+  private graphqlMiddleware?: express.Handler;
+
+  isBackfillEventProcessingComplete = false;
 
   constructor({ resources }: { resources: Resources }) {
     this.resources = resources;
@@ -23,15 +25,14 @@ export class ServerService {
 
     this.app.get("/", (req, res) => res.redirect(302, "/graphql"));
 
-    // By default, the server will respond as unhealthy until the backfill logs have
+    // By default, the server will respond as unhealthy until the backfill events have
     // been processed OR 4.5 minutes have passed since the app was created. This
     // enables zero-downtime deployments on PaaS platforms like Railway and Render.
     // Also see https://github.com/0xOlias/ponder/issues/24
     this.app.get("/health", (_, res) => {
-      // TODO: figure out where to get this from.
-      // if (this.ponder.isLogProcessingComplete) {
-      return res.status(200).send();
-      // }
+      if (this.isBackfillEventProcessingComplete) {
+        return res.status(200).send();
+      }
 
       const max = this.resources.options.MAX_HEALTHCHECK_DURATION;
       const elapsed = Math.floor(process.uptime());

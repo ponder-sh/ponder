@@ -146,25 +146,6 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
       count: logs.length,
       toTimestamp: toTimestamp,
     });
-
-    // // If, after this batch of logs, logsAddedToTimestamp is greater than the latest
-    // // frontfill network timestamp AND the backfill is complete, log processing is complete.
-    // const latestBackfillTimestamp = Math.max(
-    //   ...this.frontfillNetworks.map(
-    //     ({ latestBlockNumber }) => latestBlockNumber
-    //   )
-    // );
-    // if (
-    //   !this.isLogProcessingComplete &&
-    //   this.logsAddedToTimestamp >= latestBackfillTimestamp &&
-    //   this.isBackfillComplete
-    // ) {
-    //   this.logMessage(
-    //     MessageKind.INDEXER,
-    //     "backfill event processing complete"
-    //   );
-    //   this.isLogProcessingComplete = true;
-    // }
   }
 
   private createEventQueue({

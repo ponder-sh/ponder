@@ -23,11 +23,13 @@ type FrontfillServiceEvents = {
 export class FrontfillService extends EventEmitter<FrontfillServiceEvents> {
   resources: Resources;
 
-  private frontfillNetworks: {
-    network: Network;
-    latestBlockNumber: number;
-  }[] = [];
   private queueKillFunctions: (() => void)[] = [];
+  private liveNetworks: {
+    network: Network;
+    cutoffBlockNumber: number;
+    cutoffBlockTimestamp: number;
+  }[] = [];
+  backfillCutoffTimestamp = Number.MAX_SAFE_INTEGER;
 
   constructor({ resources }: { resources: Resources }) {
     super();
@@ -35,40 +37,43 @@ export class FrontfillService extends EventEmitter<FrontfillServiceEvents> {
   }
 
   async getLatestBlockNumbers() {
-    const frontfillContracts = this.resources.contracts.filter(
+    const liveContracts = this.resources.contracts.filter(
       (contract) => contract.endBlock === undefined && contract.isIndexed
     );
 
-    const frontfillNetworkSet = new Set<Network>();
-    frontfillContracts.forEach((contract) =>
-      frontfillNetworkSet.add(contract.network)
-    );
+    const uniqueLiveNetworks = liveContracts
+      .map((c) => c.network)
+      .filter((value, index, self) => self.indexOf(value) === index);
 
     await Promise.all(
-      Array.from(frontfillNetworkSet).map(async (network) => {
-        const latestBlockNumber = await this.getLatestBlockForNetwork({
+      uniqueLiveNetworks.map(async (network) => {
+        const { blockNumber, blockTimestamp } =
+          await this.getLatestBlockForNetwork({
+            network,
+          });
+        this.liveNetworks.push({
           network,
+          cutoffBlockNumber: blockNumber,
+          cutoffBlockTimestamp: blockTimestamp,
         });
-        this.frontfillNetworks.push({ network, latestBlockNumber });
       })
     );
 
-    frontfillContracts.forEach((contract) => {
-      const frontfillNetwork = this.frontfillNetworks.find(
+    liveContracts.forEach((contract) => {
+      const liveNetwork = this.liveNetworks.find(
         (n) => n.network.name === contract.network.name
       );
-      if (!frontfillNetwork) {
-        throw new Error(
-          `Frontfill network not found: ${contract.network.name}`
-        );
-      }
-      contract.endBlock = frontfillNetwork.latestBlockNumber;
+      contract.endBlock = liveNetwork?.cutoffBlockNumber;
     });
+
+    this.backfillCutoffTimestamp = Math.max(
+      ...this.liveNetworks.map((n) => n.cutoffBlockTimestamp)
+    );
   }
 
   startFrontfill() {
-    this.frontfillNetworks.forEach((frontfillNetwork) => {
-      const { network, latestBlockNumber } = frontfillNetwork;
+    this.liveNetworks.forEach((liveNetwork) => {
+      const { network, cutoffBlockNumber } = liveNetwork;
 
       const contractAddresses = this.resources.contracts
         .filter((contract) => contract.network.name === network.name)
@@ -82,9 +87,9 @@ export class FrontfillService extends EventEmitter<FrontfillServiceEvents> {
 
       const blockListener = (blockNumber: number) => {
         // Messy way to avoid double-processing latestBlockNumber.
-        // Also noticed taht this approach sometimes skips the block
+        // Also noticed that this approach sometimes skips the block
         // immediately after latestBlockNumber.
-        if (blockNumber > latestBlockNumber) {
+        if (blockNumber > cutoffBlockNumber) {
           frontfillQueue.push({ blockNumber });
         }
       };
@@ -104,21 +109,21 @@ export class FrontfillService extends EventEmitter<FrontfillServiceEvents> {
 
   private async getLatestBlockForNetwork({ network }: { network: Network }) {
     // Kinda weird but should work to make sure this RPC request gets done
-    let latestBlockRequestCount = 0;
-    let latestBlockNumber: number | null = null;
-    let latestBlockTimestamp: number | null = null;
+    let blockRequestCount = 0;
+    let blockNumber: number | null = null;
+    let blockTimestamp: number | null = null;
 
-    while (latestBlockNumber === null || latestBlockTimestamp === null) {
+    while (blockNumber === null || blockTimestamp === null) {
       try {
-        const latestBlock = await network.provider.getBlock("latest");
-        latestBlockNumber = latestBlock.number;
-        latestBlockTimestamp = latestBlock.timestamp;
+        const block = await network.provider.getBlock("latest");
+        blockNumber = block.number;
+        blockTimestamp = block.timestamp;
       } catch (err) {
         this.resources.logger.warn(
           `Failed to fetch latest block for network [${network.name}], retrying...`
         );
-        latestBlockRequestCount += 1;
-        if (latestBlockRequestCount > 5) {
+        blockRequestCount += 1;
+        if (blockRequestCount > 5) {
           this.resources.logger.error(
             `Unable to get latest block after 5 retries:`
           );
@@ -129,10 +134,10 @@ export class FrontfillService extends EventEmitter<FrontfillServiceEvents> {
 
     this.emit("networkConnected", {
       network: network.name,
-      blockNumber: latestBlockNumber,
-      blockTimestamp: latestBlockTimestamp,
+      blockNumber,
+      blockTimestamp,
     });
 
-    return latestBlockNumber;
+    return { blockNumber, blockTimestamp };
   }
 }
