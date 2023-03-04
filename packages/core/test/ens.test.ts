@@ -74,7 +74,7 @@ describe("Ponder", () => {
       await ponder.setup();
       await ponder.frontfillService.getLatestBlockNumbers();
       await ponder.backfillService.startBackfill();
-      await ponder.eventHandlerService.processNewEvents();
+      await ponder.eventHandlerService.processEvents();
     });
 
     // TODO: expose instanceId
@@ -96,7 +96,7 @@ describe("Ponder", () => {
       await ponder.setup();
       await ponder.frontfillService.getLatestBlockNumbers();
       await ponder.backfillService.startBackfill();
-      await ponder.eventHandlerService.processNewEvents();
+      await ponder.eventHandlerService.processEvents();
 
       gql = async (query) => {
         const app = request(ponder.serverService.app);

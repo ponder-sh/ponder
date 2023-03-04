@@ -69,7 +69,7 @@ cli
     const config = await buildPonderConfig(options);
     const ponder = new Ponder({ options, config });
     registerKilledProcessListener(() => ponder.kill());
-    ponder.codegen();
+    await ponder.codegen();
   });
 
 cli.parse();

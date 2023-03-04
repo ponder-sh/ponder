@@ -95,6 +95,7 @@ export class ReloadService extends EventEmitter<ReloadServiceEvents> {
       const schema = buildSchema(userGraphqlSchema);
       const graphqlSchema = buildGqlSchema(schema);
       this.emit("newSchema", { schema, graphqlSchema });
+      return { schema, graphqlSchema };
     } catch (error) {
       this.resources.errors.submitHandlerError({
         context: "building schema",

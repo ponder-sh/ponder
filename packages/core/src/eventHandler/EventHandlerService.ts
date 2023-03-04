@@ -76,7 +76,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     this.emit("eventQueueReset");
   }
 
-  async processNewEvents() {
+  async processEvents() {
     if (
       !this.queue ||
       this.isProcessingEvents ||

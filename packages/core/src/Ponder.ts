@@ -79,7 +79,72 @@ export class Ponder {
     this.eventHandlerService = new EventHandlerService({ resources });
     this.codegenService = new CodegenService({ resources });
     this.uiService = new UiService({ resources });
+  }
 
+  async setup() {
+    // Manually trigger loading schema and handlers. Subsequent loads
+    // are triggered by changes to project files (handled in ReloadService).
+    this.reloadService.loadSchema();
+    await this.reloadService.loadHandlers();
+
+    // These files depend only on ponder.config.ts, so can generate once on setup.
+    this.codegenService.generateAppFile();
+    this.codegenService.generateContractTypeFiles();
+
+    await this.resources.cacheStore.migrate();
+  }
+
+  async dev() {
+    this.registerDevAndStartHandlers();
+    this.registerUiHandlers();
+
+    await this.setup();
+    await this.frontfillService.getLatestBlockNumbers();
+    this.frontfillService.startFrontfill();
+    this.reloadService.watch();
+    await this.backfillService.startBackfill();
+  }
+
+  async start() {
+    this.registerDevAndStartHandlers();
+    this.registerUiHandlers();
+
+    // When ran with `ponder start`, handler errors should kill the process.
+    this.resources.errors.on("handlerError", async () => {
+      await this.kill();
+    });
+
+    await this.setup();
+    await this.frontfillService.getLatestBlockNumbers();
+    this.frontfillService.startFrontfill();
+    await this.backfillService.startBackfill();
+  }
+
+  async codegen() {
+    this.codegenService.generateAppFile();
+    this.codegenService.generateContractTypeFiles();
+
+    const result = this.reloadService.loadSchema();
+    if (result) {
+      const { schema, graphqlSchema } = result;
+      this.codegenService.generateAppTypeFile({ schema });
+      this.codegenService.generateSchemaFile({ graphqlSchema });
+    }
+
+    await this.kill();
+  }
+
+  async kill() {
+    await this.reloadService.kill?.();
+    this.uiService.kill();
+    this.frontfillService.killQueues();
+    this.backfillService.killQueues();
+    this.eventHandlerService.killQueue();
+    await this.serverService.teardown();
+    await this.resources.entityStore.teardown();
+  }
+
+  private registerDevAndStartHandlers() {
     this.reloadService.on("ponderConfigChanged", async () => {
       await this.kill();
     });
@@ -92,94 +157,41 @@ export class Ponder {
 
       await this.resources.entityStore.load(schema);
       this.eventHandlerService.resetEventQueue({ schema });
-      await this.eventHandlerService.processNewEvents();
+      await this.eventHandlerService.processEvents();
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
       await this.resources.entityStore.load();
       this.eventHandlerService.resetEventQueue({ handlers });
-      await this.eventHandlerService.processNewEvents();
+      await this.eventHandlerService.processEvents();
     });
 
     this.frontfillService.on("newEventsAdded", async () => {
-      await this.eventHandlerService.processNewEvents();
+      await this.eventHandlerService.processEvents();
     });
 
     this.backfillService.on("newEventsAdded", async () => {
-      await this.eventHandlerService.processNewEvents();
+      await this.eventHandlerService.processEvents();
     });
 
     this.backfillService.on("backfillCompleted", async () => {
-      await this.eventHandlerService.processNewEvents();
+      this.resources.logger.logMessage(
+        MessageKind.BACKFILL,
+        "backfill complete"
+      );
+      await this.eventHandlerService.processEvents();
     });
 
     this.resources.errors.on("handlerError", async ({ context, error }) => {
-      if (this.resources.options.LOG_TYPE === "codegen") return;
-
       this.eventHandlerService.killQueue();
-
       this.resources.logger.logMessage(
         MessageKind.ERROR,
         context + `\n` + error.stack
       );
-
-      // If prod, kill the app.
-      if (this.resources.options.LOG_TYPE === "start") {
-        await this.kill();
-        return;
-      }
     });
-
-    // this.resources.errors.on("handlerErrorCleared", async () => {
-    //   await this.resources.entityStore.load();
-    //   this.eventHandlerService.resetEventQueue();
-    //   await this.eventHandlerService.processNewEvents();
-    // });
-
-    this.registerUiHandlers();
   }
 
-  async setup() {
-    this.reloadService.loadSchema();
-
-    await Promise.all([
-      this.reloadService.loadHandlers(),
-      this.resources.cacheStore.migrate(),
-    ]);
-  }
-
-  async dev() {
-    await this.setup();
-    await this.frontfillService.getLatestBlockNumbers();
-    this.frontfillService.startFrontfill();
-    this.reloadService.watch();
-    await this.backfillService.startBackfill();
-  }
-
-  async start() {
-    await this.setup();
-    await this.frontfillService.getLatestBlockNumbers();
-    this.frontfillService.startFrontfill();
-    await this.backfillService.startBackfill();
-  }
-
-  async codegen() {
-    await this.setup();
-
-    this.codegenService.generateAppFile();
-    this.codegenService.generateContractTypeFiles();
-  }
-
-  async kill() {
-    await this.reloadService.kill?.();
-    this.frontfillService.killQueues();
-    this.backfillService.killQueues();
-    this.eventHandlerService.killQueue();
-    await this.serverService.teardown();
-    await this.resources.entityStore.teardown();
-  }
-
-  registerUiHandlers() {
+  private registerUiHandlers() {
     this.frontfillService.on("networkConnected", (e) => {
       this.uiService.ui.networks[e.network] = {
         name: e.network,
