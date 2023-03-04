@@ -243,15 +243,15 @@ export class Ponder {
       };
     });
 
-    this.backfillService.on("contractStarted", (e) => {
+    this.backfillService.on("contractStarted", ({ contract, cacheRate }) => {
       this.resources.logger.logMessage(
         MessageKind.BACKFILL,
         `started backfill for contract ${pico.bold(
-          e.contract
-        )} (${formatPercentage(e.cacheRate)} cached)`
+          contract
+        )} (${formatPercentage(cacheRate)} cached)`
       );
 
-      this.uiService.ui.stats[e.contract].cacheRate = e.cacheRate;
+      this.uiService.ui.stats[contract].cacheRate = cacheRate;
     });
 
     this.backfillService.on("logTasksAdded", ({ contract, count }) => {
@@ -308,24 +308,31 @@ export class Ponder {
       this.uiService.ui.backfillDuration = formatEta(duration);
     });
 
-    this.frontfillService.on("newEventsAdded", (e) => {
-      if (
-        this.resources.options.LOG_TYPE === "start" &&
-        this.uiService.ui.isBackfillComplete
-      ) {
-        this.resources.logger.logMessage(
-          MessageKind.FRONTFILL,
-          `${e.network} block ${e.blockNumber} (${e.blockTxnCount} txns, ${e.matchedLogCount} matched events)`
-        );
+    this.frontfillService.on(
+      "newEventsAdded",
+      ({
+        network,
+        blockNumber,
+        blockTimestamp,
+        blockTxnCount,
+        matchedLogCount,
+      }) => {
+        if (matchedLogCount > 0) {
+          this.resources.logger.logMessage(
+            MessageKind.FRONTFILL,
+            `${network} block ${blockNumber} (${blockTxnCount} txns, ${matchedLogCount} matched events)`
+          );
+        }
+
+        this.uiService.ui.networks[network] = {
+          name: network,
+          blockNumber: blockNumber,
+          blockTimestamp: blockTimestamp,
+          blockTxnCount: blockTxnCount,
+          matchedLogCount: matchedLogCount,
+        };
       }
-      this.uiService.ui.networks[e.network] = {
-        name: e.network,
-        blockNumber: e.blockNumber,
-        blockTimestamp: e.blockTimestamp,
-        blockTxnCount: e.blockTxnCount,
-        matchedLogCount: e.matchedLogCount,
-      };
-    });
+    );
 
     this.frontfillService.on("taskFailed", ({ error }) => {
       this.resources.logger.logMessage(
@@ -344,18 +351,28 @@ export class Ponder {
       }
     });
 
-    this.eventHandlerService.on("eventsAdded", (e) => {
-      this.uiService.ui.handlersTotal += e.totalCount;
-      this.uiService.ui.handlersHandledTotal += e.handledCount;
-    });
-    this.eventHandlerService.on("eventsProcessed", (e) => {
-      this.uiService.ui.handlersToTimestamp = e.toTimestamp;
+    this.eventHandlerService.on(
+      "eventsAdded",
+      ({ totalCount, handledCount }) => {
+        this.uiService.ui.handlersTotal += totalCount;
+        this.uiService.ui.handlersHandledTotal += handledCount;
+      }
+    );
+    this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
+      this.uiService.ui.handlersToTimestamp = toTimestamp;
     });
     this.eventHandlerService.on("eventQueueReset", () => {
       this.uiService.ui.handlersCurrent = 0;
       this.uiService.ui.handlersTotal = 0;
       this.uiService.ui.handlersHandledTotal = 0;
       this.uiService.ui.handlersToTimestamp = 0;
+    });
+
+    this.resources.errors.on("handlerError", () => {
+      this.uiService.ui.handlerError = true;
+    });
+    this.resources.errors.on("handlerErrorCleared", () => {
+      this.uiService.ui.handlerError = false;
     });
   }
 }
