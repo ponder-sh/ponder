@@ -1,13 +1,15 @@
-import { EventEmitter } from "@/common/EventEmitter";
-import { Handlers } from "@/reload/readHandlers";
 import { Contract as EthersContract, utils } from "ethers";
 import fastq from "fastq";
-import { Schema } from "@/schema/types";
-import { getStackTraceAndCodeFrame } from "./getStackTrace";
-import { Resources } from "@/Ponder";
-import { decodeLog } from "./decodeLog";
-import type { Log } from "@/types";
+
+import { EventEmitter } from "@/common/EventEmitter";
 import { CachedProvider } from "@/handlers/CachedProvider";
+import { Resources } from "@/Ponder";
+import { Handlers } from "@/reload/readHandlers";
+import { Schema } from "@/schema/types";
+import type { Log } from "@/types";
+
+import { decodeLog } from "./decodeLog";
+import { getStackTraceAndCodeFrame } from "./getStackTrace";
 
 type EventHandlerServiceEvents = {
   taskStarted: () => void;
@@ -52,6 +54,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
         cachedProvider = new CachedProvider({
           eventHandlerService: this,
           cacheStore: this.resources.cacheStore,
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
           url: contract.network.rpcUrl!,
           chainId: contract.network.chainId,
         });
