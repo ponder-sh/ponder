@@ -1,4 +1,4 @@
-import type { Block, Log, Transaction } from "@/types";
+import type { Block, Log, Transaction } from "@/database/types";
 
 export const hexStringToDecimal = (value: string | number) => {
   return typeof value === "string"

@@ -1,6 +1,6 @@
 import pico from "picocolors";
 
-import { PonderOptions } from "./options";
+import { PonderOptions } from "../config/options";
 
 export enum LogLevel {
   // Silent 0

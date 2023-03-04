@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 
 import { merge_intervals } from "@/common/utils";
-import type { Block, Log, Transaction } from "@/types";
+import type { Block, Log, Transaction } from "@/database/types";
 
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
 

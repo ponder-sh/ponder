@@ -3,8 +3,8 @@ import { ethers } from "ethers";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { PonderOptions } from "@/common/options";
-import { ResolvedPonderConfig } from "@/config/buildPonderConfig";
+import { PonderOptions } from "@/config/options";
+import { ResolvedPonderConfig } from "@/config/ponderConfig";
 
 export type Network = {
   name: string;

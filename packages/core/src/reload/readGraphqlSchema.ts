@@ -1,7 +1,7 @@
 import { buildSchema } from "graphql";
 import { readFileSync } from "node:fs";
 
-import { PonderOptions } from "@/common/options";
+import { PonderOptions } from "@/config/options";
 
 const schemaHeader = `
 "Directs the executor to process this type as a Ponder entity."

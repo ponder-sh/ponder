@@ -2,11 +2,11 @@ import { Contract as EthersContract, utils } from "ethers";
 import fastq from "fastq";
 
 import { EventEmitter } from "@/common/EventEmitter";
+import type { Log } from "@/database/types";
 import { CachedProvider } from "@/handlers/CachedProvider";
 import { Resources } from "@/Ponder";
 import { Handlers } from "@/reload/readHandlers";
 import { Schema } from "@/schema/types";
-import type { Log } from "@/types";
 
 import { decodeLog } from "./decodeLog";
 import { getStackTraceAndCodeFrame } from "./getStackTrace";

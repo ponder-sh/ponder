@@ -2,7 +2,7 @@ import { utils } from "ethers";
 import fastq from "fastq";
 
 import { Network } from "@/config/contracts";
-import { parseBlock, parseLog, parseTransaction } from "@/db/cache/utils";
+import { parseBlock, parseLog, parseTransaction } from "@/database/cache/utils";
 
 import { FrontfillService } from "./FrontfillService";
 

@@ -2,9 +2,9 @@ import { JsonRpcProvider } from "@ethersproject/providers";
 import { rmSync } from "node:fs";
 import request from "supertest";
 
-import { buildOptions } from "@/common/options";
-import { buildPonderConfig } from "@/config/buildPonderConfig";
-import { SqliteDb } from "@/db/db";
+import { buildOptions } from "@/config/options";
+import { buildPonderConfig } from "@/config/ponderConfig";
+import { SqliteDb } from "@/database/db";
 import { Ponder } from "@/Ponder";
 
 import { buildSendFunc } from "./utils/buildSendFunc";

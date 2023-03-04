@@ -3,8 +3,8 @@ import glob from "glob";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import { PonderOptions } from "@/common/options";
-import type { Block, Log, Transaction } from "@/types";
+import { PonderOptions } from "@/config/options";
+import type { Block, Log, Transaction } from "@/database/types";
 
 export interface HandlerEvent {
   name: string;

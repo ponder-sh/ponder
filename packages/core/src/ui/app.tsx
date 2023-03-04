@@ -1,8 +1,8 @@
 import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
-import { PonderOptions } from "@/common/options";
 import { Contract } from "@/config/contracts";
+import { PonderOptions } from "@/config/options";
 
 import { BackfillBar } from "./BackfillBar";
 import { HandlersBar } from "./HandlersBar";

@@ -3,9 +3,9 @@ import path from "node:path";
 import { Pool } from "pg";
 
 import { LoggerService } from "@/common/LoggerService";
-import { PonderOptions } from "@/common/options";
 import { ensureDirExists } from "@/common/utils";
-import { ResolvedPonderConfig } from "@/config/buildPonderConfig";
+import { PonderOptions } from "@/config/options";
+import { ResolvedPonderConfig } from "@/config/ponderConfig";
 
 // Patch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114

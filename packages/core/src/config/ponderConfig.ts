@@ -3,8 +3,8 @@ import { existsSync, rmSync } from "node:fs";
 import path from "path";
 import { z } from "zod";
 
-import type { PonderOptions } from "@/common/options";
 import { ensureDirExists } from "@/common/utils";
+import type { PonderOptions } from "@/config/options";
 
 const ponderConfigSchema = z.object({
   database: z.optional(

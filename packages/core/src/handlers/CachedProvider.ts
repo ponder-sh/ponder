@@ -2,7 +2,7 @@ import type { BlockTag, TransactionRequest } from "@ethersproject/providers";
 import { ethers } from "ethers";
 import type { Deferrable } from "ethers/lib/utils";
 
-import { CacheStore } from "@/db/cache/cacheStore";
+import { CacheStore } from "@/database/cache/cacheStore";
 
 import { EventHandlerService } from "./EventHandlerService";
 

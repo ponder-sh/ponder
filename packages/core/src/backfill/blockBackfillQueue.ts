@@ -1,7 +1,7 @@
 import fastq from "fastq";
 
 import type { Contract } from "@/config/contracts";
-import { parseBlock, parseTransaction } from "@/db/cache/utils";
+import { parseBlock, parseTransaction } from "@/database/cache/utils";
 
 import { BackfillService } from "./BackfillService";
 

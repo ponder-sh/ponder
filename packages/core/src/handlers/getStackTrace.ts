@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseStackTrace } from "stacktrace-parser";
 
-import { PonderOptions } from "@/common/options";
+import { PonderOptions } from "@/config/options";
 
 export const getStackTraceAndCodeFrame = (
   error: Error,

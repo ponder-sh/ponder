@@ -1,4 +1,4 @@
-import type { Block, Log, Transaction } from "@/types";
+import type { Block, Log, Transaction } from "@/database/types";
 
 import { PonderDatabase } from "../db";
 import { PostgresCacheStore } from "./postgresCacheStore";

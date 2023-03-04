@@ -1,6 +1,6 @@
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
 
-import { EntityStore } from "@/db/entity/entityStore";
+import { EntityStore } from "@/database/entity/entityStore";
 import { Schema } from "@/schema/types";
 
 import { buildEntityType } from "./buildEntityType";

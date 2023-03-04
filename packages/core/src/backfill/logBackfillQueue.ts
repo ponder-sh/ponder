@@ -2,7 +2,7 @@ import { utils } from "ethers";
 import fastq from "fastq";
 
 import type { Contract } from "@/config/contracts";
-import { parseBlock, parseLog } from "@/db/cache/utils";
+import { parseBlock, parseLog } from "@/database/cache/utils";
 
 import { BackfillService } from "./BackfillService";
 import type { BlockBackfillQueue } from "./blockBackfillQueue";
