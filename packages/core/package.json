@@ -10,11 +10,11 @@
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "bin": {
-    "ponder": "dist/src/bin/ponder"
+    "ponder": "dist/src/bin/ponder.js"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc && tsconfig-replace-paths --src . && mv dist/src/bin/ponder.js dist/src/bin/ponder",
-    "fixtures": "$npm_execpath build && export $(grep -v '^#' .env.local | xargs) && node dist/test/utils/generateFixtures.js && $npm_execpath build",
+    "build": "rm -rf dist && tsc && tsconfig-replace-paths --src .",
+    "fixtures": "$npm_execpath build && source .env.local && node dist/test/utils/generateFixtures.js && $npm_execpath build",
     "test": "jest",
     "typecheck": "tsc --noEmit"
   },

@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsc && tsconfig-replace-paths --src .",
-    "test": "$npm_execpath build && export $(grep -v '^#' .env.local | xargs) && jest",
+    "test": "$npm_execpath build && source .env.local && jest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
