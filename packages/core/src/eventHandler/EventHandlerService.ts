@@ -35,7 +35,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
 
   private injectedContracts: Record<string, EthersContract | undefined> = {};
 
-  private isProcessingEvents = false;
+  private eventProcessingPromise?: Promise<void>;
   private eventsHandledToTimestamp = 0;
 
   currentLogEventBlockNumber = 0;
@@ -94,58 +94,63 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     });
 
     this.queue = queue;
-    this.isProcessingEvents = false;
+    this.eventProcessingPromise = undefined;
     this.eventsHandledToTimestamp = 0;
 
     this.emit("eventQueueReset");
   }
 
   async processEvents() {
-    if (
-      !this.queue ||
-      this.isProcessingEvents ||
-      this.resources.errors.isHandlerError
-    ) {
+    if (this.resources.errors.isHandlerError) {
       return;
     }
-    this.isProcessingEvents = true;
 
-    const { hasNewLogs, toTimestamp, logs, totalLogCount } =
-      await this.getNewEvents({
+    // If there is already a call to processEvents() in progress, wait for that to be
+    // complete before kicking off another. This is likely buggy.
+    if (this.eventProcessingPromise) {
+      await this.eventProcessingPromise;
+    }
+
+    const eventProcessingPromise = async () => {
+      if (!this.queue) return;
+
+      const { hasNewLogs, toTimestamp, logs, totalLogCount } =
+        await this.getNewEvents({
+          fromTimestamp: this.eventsHandledToTimestamp,
+        });
+
+      if (!hasNewLogs) return;
+
+      // Add new events to the queue.
+      for (const log of logs) {
+        this.queue.push(log);
+      }
+
+      this.emit("eventsAdded", {
+        handledCount: logs.length,
+        totalCount: totalLogCount ?? logs.length,
         fromTimestamp: this.eventsHandledToTimestamp,
+        toTimestamp: toTimestamp,
       });
 
-    if (!hasNewLogs) {
-      this.isProcessingEvents = false;
-      return;
-    }
+      // Process new events that were added to the queue.
+      this.queue.resume();
+      if (!this.queue.idle()) {
+        await this.queue.drained();
+      }
+      this.queue.pause();
 
-    // Add new events to the queue.
-    for (const log of logs) {
-      this.queue.push(log);
-    }
+      this.eventsHandledToTimestamp = toTimestamp;
 
-    this.emit("eventsAdded", {
-      handledCount: logs.length,
-      totalCount: totalLogCount ?? logs.length,
-      fromTimestamp: this.eventsHandledToTimestamp,
-      toTimestamp: toTimestamp,
-    });
+      this.emit("eventsProcessed", {
+        count: logs.length,
+        toTimestamp: toTimestamp,
+      });
+    };
 
-    // Process new events that were added to the queue.
-    this.queue.resume();
-    if (!this.queue.idle()) {
-      await this.queue.drained();
-    }
-    this.queue.pause();
-
-    this.eventsHandledToTimestamp = toTimestamp;
-    this.isProcessingEvents = false;
-
-    this.emit("eventsProcessed", {
-      count: logs.length,
-      toTimestamp: toTimestamp,
-    });
+    const promise = eventProcessingPromise();
+    this.eventProcessingPromise = promise;
+    await promise;
   }
 
   private createEventQueue({
