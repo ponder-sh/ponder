@@ -10,14 +10,18 @@ type FrontfillServiceEvents = {
     blockNumber: number;
     blockTimestamp: number;
   }) => void;
+
+  taskAdded: (arg: { network: string; blockNumber: number }) => void;
   taskFailed: (arg: { network: string; error: Error }) => void;
-  newEventsAdded: (arg: {
+  taskCompleted: (arg: {
     network: string;
     blockNumber: number;
     blockTimestamp: number;
-    blockTxnCount: number;
+    blockTxCount: number;
     matchedLogCount: number;
   }) => void;
+
+  eventsAdded: (arg: { count: number }) => void;
 };
 
 export class FrontfillService extends EventEmitter<FrontfillServiceEvents> {
@@ -92,6 +96,10 @@ export class FrontfillService extends EventEmitter<FrontfillServiceEvents> {
         if (blockNumber > cutoffBlockNumber) {
           frontfillQueue.push({ blockNumber });
         }
+        this.emit("taskAdded", {
+          network: network.name,
+          blockNumber,
+        });
       };
 
       network.provider.on("block", blockListener);
