@@ -45,6 +45,7 @@
   width: 100%;
   height: unset;
   margin-top: 24px;
+  margin-bottom: 8px;
 }
 .dark .excalidraw {
   filter: invert(100%) hue-rotate(180deg);
@@ -53,12 +54,11 @@
   fill: #eee;
 }
 
-.excalidraw-caption {
+.caption {
   color: #6b7280;
-  margin-top: 8px;
   font-size: smaller;
 }
 
-.dark .excalidraw-caption {
+.dark .caption {
   color: #737373;
 }

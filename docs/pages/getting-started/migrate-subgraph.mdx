@@ -6,54 +6,63 @@ import { Tabs, Tab } from "nextra-theme-docs";
 
 # Migrate a Graph Protocol subgraph
 
-The `create-ponder` CLI tool makes it easy to migrate a subgraph to Ponder.
-
 <div className="steps-container">
 
 ### Run the `create-ponder` CLI tool
 
-This command creates a project folder called `ponder` in the current working directory. Include the `--from-subgraph` option with a path to a Graph Protocol subgraph repo on your local machine.
-
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tab>
 ```
-pnpm create ponder --from-subgraph <path>
+pnpm create ponder
 ```
 </Tab>
   <Tab>
 ```
-yarn create ponder --from-subgraph <path>
+yarn create ponder
 ```
 </Tab>
   <Tab>
 ```
-npm create ponder@latest -- --from-subgraph <path>
+npm create ponder@latest
 ```
 </Tab>
 </Tabs>
 
+Enter a project name, then select the **Subgraph ID** template option and paste in your subgraph's deployment ID:
+
+![Subgraph ID screenshot](/subgraph-id.png)
+
+<p className="caption">
+  [MakerDAO's
+  subgraph](https://thegraph.com/hosted-service/subgraph/protofire/makerdao-governance)
+  on the Graph Protocol's hosted service.
+</p>
+
+The newly generated Ponder app will use your subgraph's `schema.graphql` as well as the addresses, ABIs, and start blocks for each event source defined in `subgraph.yaml`.
+
+The tool will then create a project directory, install dependencies, and initialize a git repository.
+
 ### Start the development server
 
-The dev server is an important part of the Ponder development workflow. Just like Next.js, the dev server automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
+Just like Next.js and Vite, Ponder has a development server that automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
+
+First, `cd` into your project directory, then start the server.
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tab>
 ```
-cd ponder
 pnpm dev
 ```
 </Tab>
   <Tab>
 ```
-cd ponder
 yarn dev
 ```
 </Tab>
   <Tab>
 ```
-cd ponder
 npm run dev
 ```
 </Tab>
@@ -61,9 +70,9 @@ npm run dev
 
 ### Add an RPC URL
 
-Ponder fetches data using the Ethereum RPC API. To get started, you'll need an RPC URL from a provider like Alchemy or Infura.
+Ponder fetches data using the standard Ethereum RPC API. To get started, you'll need an RPC URL from a provider like Alchemy or Infura.
 
-Open up `.env.local` and paste in your RPC URL:
+Open up `.env.local` and paste in RPC URLs for any networks that your project uses:
 
 {/* prettier-ignore */}
 ```js filename=".env.local"
@@ -94,14 +103,14 @@ In a Graph Protocol subgraph mapping file, entity models and contract factories 
 
 ```ts filename="mapping.ts (Graph Protocol)"
 import { Token, Wallet } from "../generated/schema";
-import { SomeNftContract } from "../generated/SomeNftContract/SomeNftContract";
+import { MyNftContract } from "../generated/MyNftContract/MyNftContract";
 
 export function handleTransfer(event) {
   // Get an entity object
   const token = Token.load(event.params.id);
 
   // Bind and call a contract
-  const tokenUri = SomeNftContract.bind("0x137...01a2").tokenUri(token.id);
+  const tokenUri = MyNftContract.bind("0x137...01a2").tokenUri(token.id);
 
   // ...
 }
@@ -111,18 +120,18 @@ With Ponder, entity models and contracts are injected as properties of `context`
 
 Contracts injected this way are ready-to-go using the address and network specified in `ponder.config.ts`. (You don't need to call `Contract.bind(address)`. The contracts are normal `ethers.Contract` objects that are already connected to a provider.
 
-```ts filename="src/SomeNftContract.ts"
+```ts filename="src/MyNftContract.ts"
 import { ponder } from "../generated";
 
-ponder.on("SomeNftContract:Transfer", async ({ event, context }) => {
+ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
   const { Token } = context.entities;
-  const { SomeNftContract } = context.contracts;
+  const { MyNftContract } = context.contracts;
 
   // Get an entity object
   const token = await Token.get(event.params.id);
 
   // Call a contract read function
-  const tokenUri = await SomeNftContract.tokenUri(token.id);
+  const tokenUri = await MyNftContract.tokenUri(token.id);
 
   // ...
 });

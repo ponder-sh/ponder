@@ -8,7 +8,7 @@ import Architecture from "../public/architecture.svg";
 
 # Ponder
 
-Ponder is an open-source framework for blockchain application backends. With Ponder, you can build a GraphQL API for any set of smart contracts on Ethereum-based blockchains while enjoying hot reloading, type safety, and easy deployment to production.
+Ponder is an open-source framework for blockchain backends. With Ponder, you can build a GraphQL API for any set of smart contracts on Ethereum-based blockchains while enjoying hot reloading, type safety, and easy deployment to production.
 
 ## Features
 
@@ -22,9 +22,9 @@ Ponder is an open-source framework for blockchain application backends. With Pon
 ## Architecture
 
 <Architecture className="excalidraw" role="img" />
-<p className="excalidraw-caption">
-  Ponder converts raw blockchain data into a format that is useful for end-user
-  applications.
+<p className="caption">
+  Data flows from smart contracts → event handler functions → entity store →
+  GraphQL API → client applications.
 </p>
 
 <Callout type="info">

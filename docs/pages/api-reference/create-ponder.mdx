@@ -6,7 +6,7 @@ import { Tabs, Tab } from "nextra-theme-docs";
 
 # `create-ponder`
 
-This command line interface (CLI) bootstraps a TypeScript project directory with `package.json`, `ponder.config.ts`, `schema.graphql`, and other configuration files.
+This command line tool creates a new project directory with `package.json`, `ponder.config.ts`, `schema.graphql`, and other configuration files.
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
@@ -29,9 +29,30 @@ npm create ponder@latest {...options}
 
 ## Options
 
-| option                      | description                                                     |
-| :-------------------------- | :-------------------------------------------------------------- |
-| `--from-subgraph <path>`    | `[string]` path to a Graph Protocol subgraph repository         |
-| `--from-etherscan <url>`    | `[string]` link to a contract page on Etherscan                 |
-| `--etherscan-api-key <key>` | `[string]` Etherscan API key to use with `--from-etherscan`     |
-| `--dir <path>`              | `[string]` path to use for the project root (default: `ponder`) |
+| option                        | description                                         |
+| :---------------------------- | :-------------------------------------------------- |
+| `--from-etherscan <url>`      | Link to a contract page on Etherscan                |
+| `--from-subgraph-id <id>`     | Subgraph ID, an IPFS content hash like `"Qmb..."`   |
+| `--from-subgraph-repo <path>` | Path to a subgraph repository on your local machine |
+| `--etherscan-api-key <key>`   | Etherscan API key to use with `--from-etherscan`    |
+| `--dir <path>`                | Path to use for the project root                    |
+
+## Templates
+
+Templates help get you started faster by copying contract addresses, ABIs, and deployment blocks from an existing source.
+
+### Etherscan contract link
+
+The `--from-etherscan` option accepts a link to an Etherscan contract page. See [here](https://github.com/0xOlias/ponder/blob/main/packages/create-ponder/src/helpers/getEtherscanChainId.ts) for a full list of supported Etherscan deployments.
+
+![Etherscan contract link screenshot](/etherscan-link.png)
+
+### Subgraph ID
+
+The `--from-subgraph-id` option accepts a deployment ID for a subgraph that has been deployed to the hosted service. This template will copy `schema.graphql` as well as the addresses, ABIs, and start blocks for each event source defined in the subgraph's `subgraph.yaml`.
+
+![Subgraph ID screenshot](/subgraph-id.png)
+
+### Subgraph repo
+
+The `--from-subgraph-repo` option accepts a path to a subgraph directory on your local machine. If your subgraph has been deployed to the hosted service, use `--from-subgraph-id` instead.
