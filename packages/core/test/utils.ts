@@ -25,5 +25,5 @@ export async function setup() {
     jsonRpcUrl: process.env.ANVIL_FORK_URL,
   });
   await testClient.setAutomine(false);
-  await testClient.setIntervalMining({ interval: 1 });
+  await testClient.setIntervalMining({ interval: 0 });
 }

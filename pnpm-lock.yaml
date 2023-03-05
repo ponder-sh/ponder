@@ -100,6 +100,7 @@ importers:
       cors: ^2.8.5
       data-uri-to-buffer: 3.0.1
       dotenv: ^16.0.1
+      emittery: ^1.0.1
       esbuild: ^0.15.2
       ethers: ^5.6.9
       express: ^4.18.1
@@ -134,6 +135,7 @@ importers:
       cors: 2.8.5
       data-uri-to-buffer: 3.0.1
       dotenv: 16.0.1
+      emittery: 1.0.1
       esbuild: 0.15.4
       ethers: 5.6.9
       express: 4.18.1
@@ -5074,6 +5076,11 @@ packages:
     resolution: {integrity: sha512-DeWwawk6r5yR9jFgnDKYt4sLS0LmHJJi3ZOnb5/JdbYwj3nW+FxQnHIjhBKz8YLC7oRNPVM9NQ47I3CVx34eqQ==}
     engines: {node: '>=12'}
     dev: true
+
+  /emittery/1.0.1:
+    resolution: {integrity: sha512-2ID6FdrMD9KDLldGesP6317G78K7km/kMcwItRtVFva7I/cSEOIaLpewaUb+YLXVwdAp3Ctfxh/V5zIl1sj7dQ==}
+    engines: {node: '>=14.16'}
+    dev: false
 
   /emoji-regex/8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}

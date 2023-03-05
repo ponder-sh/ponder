@@ -1,30 +1,31 @@
-import { EventEmitter } from "@/common/EventEmitter";
+import Emittery from "emittery";
+
 import { Network } from "@/config/contracts";
 import { Resources } from "@/Ponder";
 
 import { createBlockFrontfillQueue } from "./blockFrontfillQueue";
 
 type FrontfillServiceEvents = {
-  networkConnected: (arg: {
+  networkConnected: {
     network: string;
     blockNumber: number;
     blockTimestamp: number;
-  }) => void;
+  };
 
-  taskAdded: (arg: { network: string; blockNumber: number }) => void;
-  taskFailed: (arg: { network: string; error: Error }) => void;
-  taskCompleted: (arg: {
+  taskAdded: { network: string; blockNumber: number };
+  taskFailed: { network: string; error: Error };
+  taskCompleted: {
     network: string;
     blockNumber: number;
     blockTimestamp: number;
     blockTxCount: number;
     matchedLogCount: number;
-  }) => void;
+  };
 
-  eventsAdded: (arg: { count: number }) => void;
+  eventsAdded: { count: number };
 };
 
-export class FrontfillService extends EventEmitter<FrontfillServiceEvents> {
+export class FrontfillService extends Emittery<FrontfillServiceEvents> {
   resources: Resources;
 
   private queueKillFunctions: (() => void)[] = [];
@@ -95,11 +96,11 @@ export class FrontfillService extends EventEmitter<FrontfillServiceEvents> {
         // immediately after latestBlockNumber.
         if (blockNumber > cutoffBlockNumber) {
           frontfillQueue.push({ blockNumber });
+          this.emit("taskAdded", {
+            network: network.name,
+            blockNumber,
+          });
         }
-        this.emit("taskAdded", {
-          network: network.name,
-          blockNumber,
-        });
       };
 
       network.provider.on("block", blockListener);
