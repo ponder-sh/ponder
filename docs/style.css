@@ -1,3 +1,5 @@
+/* STEPS CONTAINER STYLES */
+
 .steps-container {
   margin-left: 1rem;
   padding-left: 1.5rem;
@@ -35,4 +37,28 @@
   color: #999;
   border: 4px solid rgba(17, 17, 17, var(--tw-bg-opacity));
   background: #2e2e2e;
+}
+
+/* EXCALIDRAW DIAGRAM STYLES */
+
+.excalidraw {
+  width: 100%;
+  height: unset;
+  margin-top: 24px;
+}
+.dark .excalidraw {
+  filter: invert(100%) hue-rotate(180deg);
+}
+.dark .excalidraw path:first-of-type {
+  fill: #eee;
+}
+
+.excalidraw-caption {
+  color: #6b7280;
+  margin-top: 8px;
+  font-size: smaller;
+}
+
+.dark .excalidraw-caption {
+  color: #737373;
 }
