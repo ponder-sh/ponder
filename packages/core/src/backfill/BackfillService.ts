@@ -1,4 +1,5 @@
-import { EventEmitter } from "@/common/EventEmitter";
+import Emittery from "emittery";
+
 import { endBenchmark, p1_excluding_all, startBenchmark } from "@/common/utils";
 import { Contract } from "@/config/contracts";
 import { Resources } from "@/Ponder";
@@ -7,23 +8,23 @@ import { createBlockBackfillQueue } from "./blockBackfillQueue";
 import { createLogBackfillQueue } from "./logBackfillQueue";
 
 type BackfillServiceEvents = {
-  contractStarted: (arg: { contract: string; cacheRate: number }) => void;
+  contractStarted: { contract: string; cacheRate: number };
 
-  logTasksAdded: (arg: { contract: string; count: number }) => void;
-  blockTasksAdded: (arg: { contract: string; count: number }) => void;
+  logTasksAdded: { contract: string; count: number };
+  blockTasksAdded: { contract: string; count: number };
 
-  logTaskFailed: (arg: { contract: string; error: Error }) => void;
-  blockTaskFailed: (arg: { contract: string; error: Error }) => void;
+  logTaskFailed: { contract: string; error: Error };
+  blockTaskFailed: { contract: string; error: Error };
 
-  logTaskCompleted: (arg: { contract: string }) => void;
-  blockTaskCompleted: (arg: { contract: string }) => void;
+  logTaskCompleted: { contract: string };
+  blockTaskCompleted: { contract: string };
 
-  newEventsAdded: (arg: { count: number }) => void;
+  newEventsAdded: { count: number };
 
-  backfillCompleted: (arg: { duration: number }) => void;
+  backfillCompleted: { duration: number };
 };
 
-export class BackfillService extends EventEmitter<BackfillServiceEvents> {
+export class BackfillService extends Emittery<BackfillServiceEvents> {
   resources: Resources;
 
   private queueKillFunctions: (() => void)[] = [];
@@ -95,6 +96,7 @@ export class BackfillService extends EventEmitter<BackfillServiceEvents> {
       0,
       1 - requiredBlockCount / (contract.endBlock - contract.startBlock)
     );
+
     this.emit("contractStarted", {
       contract: contract.name,
       cacheRate: cacheRate,
