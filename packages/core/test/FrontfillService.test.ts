@@ -5,7 +5,7 @@ import { FrontfillService } from "@/frontfill/FrontfillService";
 
 import BaseRegistrarImplementationAbi from "./abis/BaseRegistrarImplementation.abi.json";
 import { buildTestResources } from "./resources";
-import { setup, testClient } from "./utils";
+import { setup, testClient } from "./utils/clients";
 
 describe("FrontfillService", () => {
   let frontfillService: FrontfillService;
@@ -40,13 +40,13 @@ describe("FrontfillService", () => {
     await networkConnectedEvents.next().then(({ value }) => {
       expect(value).toEqual({
         network: "mainnet",
-        blockNumber: 16370000,
-        blockTimestamp: 1673276423,
+        blockNumber: 16380000,
+        blockTimestamp: 1673397071,
       });
       networkConnectedEvents.return?.();
     });
 
-    expect(frontfillService.backfillCutoffTimestamp).toBe(1673276423);
+    expect(frontfillService.backfillCutoffTimestamp).toBe(1673397071);
   });
 
   test("startFrontfill", async () => {
@@ -66,14 +66,14 @@ describe("FrontfillService", () => {
       .then(({ value }) => {
         expect(value).toEqual({
           network: "mainnet",
-          blockNumber: 16370001,
+          blockNumber: 16380001,
         });
         return taskAddedEvents.next();
       })
       .then(({ value }) => {
         expect(value).toEqual({
           network: "mainnet",
-          blockNumber: 16370002,
+          blockNumber: 16380002,
         });
 
         return taskAddedEvents.return?.();
@@ -84,8 +84,8 @@ describe("FrontfillService", () => {
       .then(({ value }) => {
         expect(value).toEqual({
           network: "mainnet",
-          blockNumber: 16370001,
-          blockTimestamp: 1673276424,
+          blockNumber: 16380001,
+          blockTimestamp: 1673397072,
           blockTxCount: 0,
           matchedLogCount: 0,
         });
@@ -94,8 +94,8 @@ describe("FrontfillService", () => {
       .then(({ value }) => {
         expect(value).toEqual({
           network: "mainnet",
-          blockNumber: 16370002,
-          blockTimestamp: 1673276425,
+          blockNumber: 16380002,
+          blockTimestamp: 1673397073,
           blockTxCount: 0,
           matchedLogCount: 0,
         });

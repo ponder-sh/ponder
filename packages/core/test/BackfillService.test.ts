@@ -4,7 +4,7 @@ import { BackfillService } from "@/backfill/BackfillService";
 
 import BaseRegistrarImplementationAbi from "./abis/BaseRegistrarImplementation.abi.json";
 import { buildTestResources } from "./resources";
-import { setup } from "./utils";
+import { setup } from "./utils/clients";
 
 describe("BackfillService", () => {
   let backfillService: BackfillService;
