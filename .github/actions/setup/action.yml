@@ -1,7 +1,7 @@
-name: "Setup"
-description: "Ponder monorepo action setup"
+name: Setup
+description: Ponder monorepo action setup
 runs:
-  using: "composite"
+  using: composite
   steps:
     - uses: actions/checkout@v3
     - uses: pnpm/action-setup@v2.2.2
@@ -28,7 +28,18 @@ runs:
           examples/**/node_modules
           packages/**/node_modules
         key: modules-${{ hashFiles('pnpm-lock.yaml') }}
-    - name: Install Dependencies
+    - name: Install rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+        profile: minimal
+        override: true
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: nightly
+    - name: Install dependencies
       shell: bash
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: pnpm i
