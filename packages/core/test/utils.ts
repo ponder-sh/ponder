@@ -1,5 +1,6 @@
 import { createPublicClient, createTestClient, http } from "viem";
 import { localhost, mainnet } from "viem/chains";
+import { reset, setAutomine, setIntervalMining } from "viem/test";
 
 const anvilChain = {
   ...localhost,
@@ -19,11 +20,11 @@ export const testClient = createTestClient({
 });
 
 export async function setup() {
-  await testClient.reset({
+  await reset(testClient, {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     blockNumber: BigInt(parseInt(process.env.ANVIL_BLOCK_NUMBER!)),
     jsonRpcUrl: process.env.ANVIL_FORK_URL,
   });
-  await testClient.setAutomine(false);
-  await testClient.setIntervalMining({ interval: 0 });
+  await setAutomine(testClient, false);
+  await setIntervalMining(testClient, { interval: 0 });
 }

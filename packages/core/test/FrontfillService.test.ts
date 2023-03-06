@@ -1,3 +1,4 @@
+import { mine } from "viem/test";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { FrontfillService } from "@/frontfill/FrontfillService";
@@ -55,10 +56,10 @@ describe("FrontfillService", () => {
     await frontfillService.getLatestBlockNumbers();
     frontfillService.startFrontfill();
 
-    await testClient.mine({ blocks: 1 });
+    await mine(testClient, { blocks: 1 });
     // ethers.provider.on("block", listener) doesn't seem to fire twice unless this is here
     await new Promise((r) => setTimeout(r));
-    await testClient.mine({ blocks: 1 });
+    await mine(testClient, { blocks: 1 });
 
     await taskAddedEvents
       .next()

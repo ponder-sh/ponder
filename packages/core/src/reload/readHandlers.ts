@@ -110,17 +110,6 @@ export const readHandlers = async ({
     );
   }
 
-  // try {
-  //   await replaceTscAliasPaths({
-  //     configFile: tsconfigPath,
-  //     outDir: buildDir,
-  //   });
-  // } catch (err) {
-  //   logger.warn(
-  //     `tsconfig.json not found, unable to resolve "@/*" path aliases. Expected at: ${tsconfigPath}`
-  //   );
-  // }
-
   const outGlob = buildDir + "/**/*.js";
   const outFilenames = glob.sync(outGlob);
 

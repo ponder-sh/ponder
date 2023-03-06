@@ -1,5 +1,5 @@
 import path from "node:path";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
@@ -7,7 +7,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // test: {
-  //   // ...
-  // },
+  test: {
+    setupFiles: "test/utils/setupPackageAlias.ts",
+  },
 });
