@@ -16,7 +16,6 @@
   "scripts": {
     "anvil": "export $(grep -v '^#' .env.local | xargs) && anvil --fork-url $ANVIL_FORK_URL --fork-block-number $ANVIL_BLOCK_NUMBER --block-time $ANVIL_BLOCK_TIME",
     "build": "tsup-node",
-    "fixtures": "$npm_execpath build && export $(grep -v '^#' .env.local | xargs) && node dist/test/utils/generateFixtures.js && $npm_execpath build",
     "test": "export $(grep -v '^#' .env.local | xargs) && vitest",
     "typecheck": "tsc --noEmit"
   },

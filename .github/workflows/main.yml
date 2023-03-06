@@ -111,10 +111,6 @@ jobs:
           key: modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Build
         run: pnpm build
-      - name: Generate fixtures
-        run: pnpm fixtures
-        env:
-          PONDER_RPC_URL_1: ${{ secrets.PONDER_RPC_URL_1 }}
       - name: Test
         run: pnpm test
         env:
