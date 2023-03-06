@@ -16,65 +16,24 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [16]
+        node-version: [18]
         pnpm-version: [7]
     steps:
       - uses: actions/checkout@v3
-      - uses: pnpm/action-setup@v2.2.4
-        with:
-          version: ${{ matrix.pnpm-version }}
-      - name: Set up node ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          cache: "pnpm"
-          node-version: ${{ matrix.node-version }}
-      - name: Cache pnpm
-        uses: actions/cache@v3
-        with:
-          path: ~/.pnpm-store
-          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-
-      - name: Cache node_modules
-        uses: actions/cache@v3
-        id: cache-node-modules
-        with:
-          path: |
-            node_modules
-            docs/node_modules
-            examples/**/node_modules
-            packages/**/node_modules
-          key: modules-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm i
+      - name: Setup
+        uses: ./.github/actions/setup
 
   lint:
     name: Lint
-    needs: install
+    needs: Install
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [16]
+        node-version: [18]
         pnpm-version: [7]
     steps:
-      - uses: actions/checkout@v3
-      - uses: pnpm/action-setup@v2.2.4
-        with:
-          version: ${{ matrix.pnpm-version }}
-      - name: Set up node ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          cache: "pnpm"
-          node-version: ${{ matrix.node-version }}
-      - name: Cache node_modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            node_modules
-            docs/node_modules
-            examples/**/node_modules
-            packages/**/node_modules
-          key: modules-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Setup
+        uses: ./.github/actions/setup
       - name: Build
         run: pnpm build
       - name: Typecheck
@@ -84,33 +43,21 @@ jobs:
 
   test:
     name: Test
-    needs: install
+    needs: Install
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [16]
+        node-version: [18]
         pnpm-version: [7]
     steps:
-      - uses: actions/checkout@v3
-      - uses: pnpm/action-setup@v2.2.4
-        with:
-          version: ${{ matrix.pnpm-version }}
-      - name: Set up node ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          cache: "pnpm"
-          node-version: ${{ matrix.node-version }}
-      - name: Cache node_modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            node_modules
-            docs/node_modules
-            examples/**/node_modules
-            packages/**/node_modules
-          key: modules-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Build
-        run: pnpm build
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Launch Anvil
+        run: anvil --fork-url $ANVIL_FORK_URL --fork-block-number $ANVIL_BLOCK_NUMBER --block-time $ANVIL_BLOCK_TIME &
+        env:
+          ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}
+          ANVIL_BLOCK_TIME: ${{ secrets.ANVIL_BLOCK_TIME }}
+          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
       - name: Test
         run: pnpm test
         env:
