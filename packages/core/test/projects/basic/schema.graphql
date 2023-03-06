@@ -1,3 +1,0 @@
-type Entity @entity {
-  id: ID!
-}
