@@ -49,7 +49,7 @@
     "stacktrace-parser": "^0.1.10",
     "tsc-alias": "^1.8.2",
     "typescript": "^4.9.5",
-    "viem": "0.0.1-sushi.27",
+    "viem": "0.1.1",
     "zod": "^3.20.2"
   },
   "devDependencies": {

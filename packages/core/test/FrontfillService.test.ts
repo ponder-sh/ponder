@@ -56,10 +56,10 @@ describe("FrontfillService", () => {
     await frontfillService.getLatestBlockNumbers();
     frontfillService.startFrontfill();
 
-    await mine(testClient, { blocks: 1 });
+    await testClient.mine({ blocks: 1 });
     // ethers.provider.on("block", listener) doesn't seem to fire twice unless this is here
     await new Promise((r) => setTimeout(r));
-    await mine(testClient, { blocks: 1 });
+    await testClient.mine({ blocks: 1 });
 
     await taskAddedEvents
       .next()
