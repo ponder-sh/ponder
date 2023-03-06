@@ -4,18 +4,18 @@
   "description": "API builder for blockchain apps",
   "license": "MIT",
   "author": "olias.eth",
-  "type": "module",
-  "main": "dist/src/index.js",
-  "types": "dist/src/index.d.ts",
-  "files": [
-    "dist/src"
-  ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
   "bin": {
-    "ponder": "dist/src/bin/ponder.js"
+    "ponder": "dist/bin/ponder.js"
   },
+  "files": [
+    "/dist"
+  ],
   "scripts": {
     "anvil": "export $(grep -v '^#' .env.local | xargs) && anvil --fork-url $ANVIL_FORK_URL --fork-block-number $ANVIL_BLOCK_NUMBER --block-time $ANVIL_BLOCK_TIME",
-    "build": "rm -rf dist && tsc && tsconfig-replace-paths --src .",
+    "build": "tsup-node",
     "fixtures": "$npm_execpath build && export $(grep -v '^#' .env.local | xargs) && node dist/test/utils/generateFixtures.js && $npm_execpath build",
     "test": "export $(grep -v '^#' .env.local | xargs) && vitest",
     "typecheck": "tsc --noEmit"
@@ -33,7 +33,7 @@
     "cors": "^2.8.5",
     "data-uri-to-buffer": "3.0.1",
     "dotenv": "^16.0.1",
-    "emittery": "^1.0.1",
+    "emittery": "^0.13.1",
     "esbuild": "^0.15.2",
     "ethers": "^5.6.9",
     "express": "^4.18.1",
@@ -47,8 +47,9 @@
     "prettier": "^2.6.2",
     "react": "17",
     "stacktrace-parser": "^0.1.10",
+    "tsc-alias": "^1.8.2",
     "typescript": "^4.9.5",
-    "viem": "^0.0.1-alpha.39",
+    "viem": "0.0.1-sushi.27",
     "zod": "^3.20.2"
   },
   "devDependencies": {
@@ -63,6 +64,7 @@
     "@types/supertest": "^2.0.12",
     "supertest": "^6.3.3",
     "tsconfig-replace-paths": "^0.0.11",
+    "tsup": "^6.6.3",
     "typed-emitter": "^2.1.0",
     "vite": "^4.1.4",
     "vitest": "^0.29.2"

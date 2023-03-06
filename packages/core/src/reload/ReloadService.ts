@@ -77,7 +77,10 @@ export class ReloadService extends EventEmitter<ReloadServiceEvents> {
 
   async loadHandlers() {
     try {
-      const handlers = await readHandlers({ options: this.resources.options });
+      const handlers = await readHandlers({
+        options: this.resources.options,
+        logger: this.resources.logger,
+      });
       this.emit("newHandlers", { handlers });
     } catch (error) {
       this.resources.errors.submitHandlerError({

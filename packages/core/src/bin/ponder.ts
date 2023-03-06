@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable @typescript-eslint/no-var-requires */
 
 import { cac } from "cac";
 import dotenv from "dotenv";
@@ -9,9 +8,7 @@ import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import packageJson from "../../../package.json";
+import packageJson from "../../package.json" assert { type: "json" };
 
 dotenv.config({ path: ".env.local" });
 

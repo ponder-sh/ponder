@@ -7,6 +7,7 @@ export type PonderOptions = {
   SCHEMA_FILE_PATH: string;
   PORT: number;
 
+  ROOT_DIR_PATH: string;
   SRC_DIR_PATH: string;
   HANDLERS_DIR_PATH: string;
   GENERATED_DIR_PATH: string;
@@ -40,6 +41,7 @@ export const buildOptions = (
   return {
     ...defaults,
     // Resolve paths
+    ROOT_DIR_PATH: rootDir,
     PONDER_CONFIG_FILE_PATH: path.join(
       rootDir,
       defaults.PONDER_CONFIG_FILE_PATH
