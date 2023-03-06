@@ -55,7 +55,7 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
       - name: Launch Anvil
-        run: anvil --fork-url $ANVIL_FORK_URL --fork-block-number $ANVIL_BLOCK_NUMBER --block-time $ANVIL_BLOCK_TIME &
+        run: anvil --fork-url $ANVIL_FORK_URL --fork-block-number $ANVIL_BLOCK_NUMBER --block-time $ANVIL_BLOCK_TIME
         env:
           ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}
           ANVIL_BLOCK_TIME: ${{ secrets.ANVIL_BLOCK_TIME }}
@@ -64,3 +64,4 @@ jobs:
         run: pnpm test
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+          ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}
