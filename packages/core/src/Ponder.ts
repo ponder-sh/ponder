@@ -188,7 +188,7 @@ export class Ponder {
       await this.eventHandlerService.processEvents();
     });
 
-    this.frontfillService.on("newEventsAdded", async () => {
+    this.frontfillService.on("eventsAdded", async () => {
       await this.eventHandlerService.processEvents();
     });
 
@@ -306,18 +306,18 @@ export class Ponder {
     });
 
     this.frontfillService.on(
-      "newEventsAdded",
+      "taskCompleted",
       ({
         network,
         blockNumber,
         blockTimestamp,
-        blockTxnCount,
+        blockTxCount,
         matchedLogCount,
       }) => {
         if (matchedLogCount > 0) {
           this.resources.logger.logMessage(
             MessageKind.FRONTFILL,
-            `${network} block ${blockNumber} (${blockTxnCount} txns, ${matchedLogCount} matched events)`
+            `${network} block ${blockNumber} (${blockTxCount} txns, ${matchedLogCount} matched events)`
           );
         }
 
@@ -325,7 +325,7 @@ export class Ponder {
           name: network,
           blockNumber: blockNumber,
           blockTimestamp: blockTimestamp,
-          blockTxnCount: blockTxnCount,
+          blockTxnCount: blockTxCount,
           matchedLogCount: matchedLogCount,
         };
       }

@@ -4,7 +4,11 @@
     "module": "esnext",
     "esModuleInterop": true,
     "strict": true,
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "rootDir": ".",
+    "paths": {
+      "@/generated": ["./generated/index.ts"]
+    }
   },
   "include": ["./**/*.ts"],
   "exclude": ["node_modules"]

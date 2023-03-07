@@ -94,11 +94,17 @@ async function blockFrontfillWorker(
     )
   );
 
-  frontfillService.emit("newEventsAdded", {
+  frontfillService.emit("taskCompleted", {
     network: network.name,
     blockNumber: block.number,
     blockTimestamp: block.timestamp,
-    blockTxnCount: rawBlock.transactions.length,
+    blockTxCount: rawBlock.transactions.length,
     matchedLogCount: logs.length,
   });
+
+  if (logs.length > 0) {
+    frontfillService.emit("eventsAdded", {
+      count: logs.length,
+    });
+  }
 }

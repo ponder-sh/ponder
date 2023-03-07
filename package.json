@@ -9,7 +9,6 @@
     "build": "pnpm --filter '@ponder/core' build && pnpm --filter './packages/*' --filter '!@ponder/core' --parallel build",
     "changeset:release": "pnpm build && changeset publish",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
-    "fixtures": "pnpm --parallel fixtures",
     "install:packages": "pnpm --filter './packages/**' install",
     "install:examples": "pnpm --filter './examples/**' install",
     "lint": "eslint . --cache",
@@ -17,6 +16,7 @@
     "lint:format": "prettier --write",
     "preinstall": "npx -y only-allow pnpm",
     "test": "pnpm --parallel --no-bail test",
+    "test:ci": "pnpm --parallel --no-bail test:ci",
     "typecheck": "pnpm --parallel typecheck"
   },
   "devDependencies": {
@@ -29,11 +29,16 @@
     "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-simple-import-sort": "^7.0.0",
-    "prettier": "^2.6.2",
-    "typescript": "^4.9.4"
+    "prettier": "^2.8.2",
+    "typescript": "^4.9.5"
   },
   "engines": {
-    "node": "16",
+    "node": "18",
     "pnpm": "7"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "graphql@15.8.0": "patches/graphql@15.8.0.patch"
+    }
   }
 }

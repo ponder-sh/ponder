@@ -4,11 +4,9 @@ import path from "node:path";
 import prompts from "prompts";
 
 import { CreatePonderOptions, Template, TemplateKind } from "@/common";
+import { run } from "@/index";
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import packageJson from "../../../package.json";
-import { run } from "../index";
+import packageJson from "../../package.json" assert { type: "json" };
 
 const createPonder = async () => {
   const cli = cac(packageJson.name)

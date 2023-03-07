@@ -2,7 +2,9 @@ import { build, formatMessagesSync, Message } from "esbuild";
 import glob from "glob";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
+import { replaceTscAliasPaths } from "tsc-alias";
 
+import { LoggerService, MessageKind } from "@/common/LoggerService";
 import { PonderOptions } from "@/config/options";
 import type { Block, Log, Transaction } from "@/database/types";
 
@@ -53,7 +55,13 @@ export class PonderApp<HandlersType = Record<string, any>> {
   }
 }
 
-export const readHandlers = async ({ options }: { options: PonderOptions }) => {
+export const readHandlers = async ({
+  options,
+  logger,
+}: {
+  options: PonderOptions;
+  logger: LoggerService;
+}) => {
   const entryAppFilename = path.join(options.GENERATED_DIR_PATH, "index.ts");
   if (!existsSync(entryAppFilename)) {
     throw new Error(
@@ -87,6 +95,19 @@ export const readHandlers = async ({ options }: { options: PonderOptions }) => {
     error.stack = stackTraces.join("\n");
 
     throw error;
+  }
+
+  const tsconfigPath = path.join(options.ROOT_DIR_PATH, "tsconfig.json");
+  if (existsSync(tsconfigPath)) {
+    await replaceTscAliasPaths({
+      configFile: tsconfigPath,
+      outDir: buildDir,
+    });
+  } else {
+    logger.logMessage(
+      MessageKind.WARNING,
+      `tsconfig.json not found, unable to resolve "@/*" path aliases. Expected at: ${tsconfigPath}`
+    );
   }
 
   const outGlob = buildDir + "/**/*.js";
@@ -126,8 +147,8 @@ export const readHandlers = async ({ options }: { options: PonderOptions }) => {
   if (!app) {
     throw new Error(`ponder not exported from generated/index.ts`);
   }
-  if (!(app instanceof PonderApp)) {
-    throw new Error(`ponder not exported from generated/index.ts`);
+  if (!(app.constructor.name === "PonderApp")) {
+    throw new Error(`exported ponder not instanceof PonderApp`);
   }
   if (app["errors"].length > 0) {
     const error = app["errors"][0];

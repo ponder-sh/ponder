@@ -1,29 +1,19 @@
-import { JsonRpcProvider } from "@ethersproject/providers";
 import { rmSync } from "node:fs";
 import request from "supertest";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { SqliteDb } from "@/database/db";
 import { Ponder } from "@/Ponder";
 
-import { buildSendFunc } from "./utils/buildSendFunc";
 import { getFreePort } from "./utils/getFreePort";
-
-beforeAll(() => {
-  jest
-    .spyOn(JsonRpcProvider.prototype, "send")
-    .mockImplementation(buildSendFunc("ENS"));
-});
-
-afterAll(() => {
-  jest.restoreAllMocks();
-});
 
 describe("Ponder", () => {
   let ponder: Ponder;
+  let gql: (query: string) => Promise<any>;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     rmSync("./test/projects/ens/.ponder", { recursive: true, force: true });
     rmSync("./test/projects/ens/generated", { recursive: true, force: true });
     process.env.PORT = (await getFreePort()).toString();
@@ -37,20 +27,29 @@ describe("Ponder", () => {
 
     const config = await buildPonderConfig(options);
     ponder = new Ponder({ options, config });
+
+    await ponder.start();
+
+    const app = request(ponder.serverService.app);
+
+    gql = async (query) => {
+      const response = await app
+        .post("/graphql")
+        .send({ query: `query { ${query} }` });
+
+      expect(response.body.errors).toBeUndefined();
+      expect(response.statusCode).toBe(200);
+
+      return response.body.data;
+    };
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     await ponder.kill();
   });
 
   describe("backfill", () => {
-    beforeEach(async () => {
-      await ponder.setup();
-      await ponder.frontfillService.getLatestBlockNumbers();
-      await ponder.backfillService.backfill();
-    });
-
-    it("inserts backfill data into the cache store", async () => {
+    test("inserts backfill data into the cache store", async () => {
       const logs = (ponder.resources.database as SqliteDb).db
         .prepare(`SELECT * FROM __ponder__v2__logs`)
         .all();
@@ -70,14 +69,7 @@ describe("Ponder", () => {
   });
 
   describe("event processing", () => {
-    beforeEach(async () => {
-      await ponder.setup();
-      await ponder.frontfillService.getLatestBlockNumbers();
-      await ponder.backfillService.backfill();
-      await ponder.eventHandlerService.processEvents();
-    });
-
-    it("inserts data into the entity store", async () => {
+    test("inserts data into the entity store", async () => {
       const entity = ponder.resources.entityStore.schema?.entities.find(
         (e) => e.name === "EnsNft"
       );
@@ -92,26 +84,7 @@ describe("Ponder", () => {
   });
 
   describe("graphql", () => {
-    let gql: (query: string) => Promise<any>;
-
-    beforeEach(async () => {
-      await ponder.setup();
-      await ponder.frontfillService.getLatestBlockNumbers();
-      await ponder.backfillService.backfill();
-      await ponder.eventHandlerService.processEvents();
-
-      gql = async (query) => {
-        const app = request(ponder.serverService.app);
-        const response = await app
-          .post("/graphql")
-          .send({ query: `query { ${query} }` });
-
-        expect(response.body.errors).toBeUndefined();
-        return response.body.data;
-      };
-    });
-
-    it("serves data", async () => {
+    test("serves data", async () => {
       const { ensNfts, accounts } = await gql(`
         ensNfts {
           id
@@ -134,7 +107,7 @@ describe("Ponder", () => {
       expect(accounts).toHaveLength(68);
     });
 
-    it("returns string array types", async () => {
+    test("returns string array types", async () => {
       const { ensNfts } = await gql(`
         ensNfts {
           id
@@ -145,7 +118,7 @@ describe("Ponder", () => {
       expect(ensNfts[0].stringArray).toEqual(["123", "abc"]);
     });
 
-    it("returns int array types", async () => {
+    test("returns int array types", async () => {
       const { ensNfts } = await gql(`
         ensNfts {
           id
@@ -156,7 +129,7 @@ describe("Ponder", () => {
       expect(ensNfts[0].intArray).toEqual([123, 456]);
     });
 
-    it("limits", async () => {
+    test("limits", async () => {
       const { ensNfts } = await gql(`
         ensNfts(first: 2) {
           id
@@ -166,7 +139,7 @@ describe("Ponder", () => {
       expect(ensNfts).toHaveLength(2);
     });
 
-    it("skips", async () => {
+    test("skips", async () => {
       const { ensNfts } = await gql(`
         ensNfts(skip: 5) {
           id
@@ -176,7 +149,7 @@ describe("Ponder", () => {
       expect(ensNfts).toHaveLength(53);
     });
 
-    it("orders ascending", async () => {
+    test("orders ascending", async () => {
       const { ensNfts } = await gql(`
         ensNfts(orderBy: "transferredAt", orderDirection: "asc") {
           id
@@ -189,7 +162,7 @@ describe("Ponder", () => {
       );
     });
 
-    it("orders descending", async () => {
+    test("orders descending", async () => {
       const { ensNfts } = await gql(`
         ensNfts(orderBy: "transferredAt", orderDirection: "desc") {
           id
@@ -202,7 +175,7 @@ describe("Ponder", () => {
       );
     });
 
-    it("filters on integer field equals", async () => {
+    test("filters on integer field equals", async () => {
       const { ensNfts } = await gql(`
         ensNfts(where: { transferredAt: 1673278703 }) {
           id
@@ -214,7 +187,7 @@ describe("Ponder", () => {
       expect(ensNfts[0].transferredAt).toBe(1673278703);
     });
 
-    it("filters on integer field in", async () => {
+    test("filters on integer field in", async () => {
       const { ensNfts } = await gql(`
         ensNfts(where: { transferredAt_in: [1673278703, 1673278739] }) {
           id
@@ -227,7 +200,7 @@ describe("Ponder", () => {
       expect(ensNfts[1].transferredAt).toBe(1673278739);
     });
 
-    it("filters on string field equals", async () => {
+    test("filters on string field equals", async () => {
       const { ensNfts } = await gql(`
         ensNfts(where: { labelHash: "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7" }) {
           id
@@ -241,7 +214,7 @@ describe("Ponder", () => {
       );
     });
 
-    it("filters on string field in", async () => {
+    test("filters on string field in", async () => {
       const { ensNfts } = await gql(`
         ensNfts(where: { labelHash_in: ["0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7", "0xa594dce9890a89d2a1399c0870196851ca7a0db19650fb38c682a6599a6b4d9b"] }) {
           id
@@ -258,7 +231,7 @@ describe("Ponder", () => {
       );
     });
 
-    it("filters on relationship field equals", async () => {
+    test("filters on relationship field equals", async () => {
       const { ensNfts } = await gql(`
         ensNfts(where: { owner: "0x3b42845cD161fE095e083aF493525271a3CF27cf" }) {
           id
@@ -277,7 +250,7 @@ describe("Ponder", () => {
       );
     });
 
-    it("filters on relationship field contains", async () => {
+    test("filters on relationship field contains", async () => {
       const { ensNfts } = await gql(`
         ensNfts(where: { owner_contains: "0x3b42845cD161f" }) {
           id
