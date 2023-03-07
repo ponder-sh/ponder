@@ -35,5 +35,10 @@
   "engines": {
     "node": "18",
     "pnpm": "7"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "graphql@15.8.0": "patches/graphql@15.8.0.patch"
+    }
   }
 }

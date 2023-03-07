@@ -1,14 +1,6 @@
 import { rmSync } from "node:fs";
 import request from "supertest";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test,
-} from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
@@ -44,8 +36,6 @@ describe("Ponder", () => {
       const response = await app
         .post("/graphql")
         .send({ query: `query { ${query} }` });
-
-      console.log(response.body.errors);
 
       expect(response.body.errors).toBeUndefined();
       expect(response.statusCode).toBe(200);
@@ -93,190 +83,190 @@ describe("Ponder", () => {
     });
   });
 
-  // describe("graphql", () => {
-  //   test("serves data", async () => {
-  //     const { ensNfts, accounts } = await gql(`
-  //       ensNfts {
-  //         id
-  //         labelHash
-  //         owner {
-  //           id
-  //         }
-  //         transferredAt
-  //       }
-  //       accounts {
-  //         id
-  //         lastActive
-  //         tokens {
-  //           id
-  //         }
-  //       }
-  //     `);
+  describe("graphql", () => {
+    test("serves data", async () => {
+      const { ensNfts, accounts } = await gql(`
+        ensNfts {
+          id
+          labelHash
+          owner {
+            id
+          }
+          transferredAt
+        }
+        accounts {
+          id
+          lastActive
+          tokens {
+            id
+          }
+        }
+      `);
 
-  //     expect(ensNfts).toHaveLength(58);
-  //     expect(accounts).toHaveLength(68);
-  //   });
+      expect(ensNfts).toHaveLength(58);
+      expect(accounts).toHaveLength(68);
+    });
 
-  //   test("returns string array types", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts {
-  //         id
-  //         stringArray
-  //       }
-  //     `);
+    test("returns string array types", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts {
+          id
+          stringArray
+        }
+      `);
 
-  //     expect(ensNfts[0].stringArray).toEqual(["123", "abc"]);
-  //   });
+      expect(ensNfts[0].stringArray).toEqual(["123", "abc"]);
+    });
 
-  //   test("returns int array types", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts {
-  //         id
-  //         intArray
-  //       }
-  //     `);
+    test("returns int array types", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts {
+          id
+          intArray
+        }
+      `);
 
-  //     expect(ensNfts[0].intArray).toEqual([123, 456]);
-  //   });
+      expect(ensNfts[0].intArray).toEqual([123, 456]);
+    });
 
-  //   test("limits", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts(first: 2) {
-  //         id
-  //       }
-  //     `);
+    test("limits", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(first: 2) {
+          id
+        }
+      `);
 
-  //     expect(ensNfts).toHaveLength(2);
-  //   });
+      expect(ensNfts).toHaveLength(2);
+    });
 
-  //   test("skips", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts(skip: 5) {
-  //         id
-  //       }
-  //     `);
+    test("skips", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(skip: 5) {
+          id
+        }
+      `);
 
-  //     expect(ensNfts).toHaveLength(53);
-  //   });
+      expect(ensNfts).toHaveLength(53);
+    });
 
-  //   test("orders ascending", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts(orderBy: "transferredAt", orderDirection: "asc") {
-  //         id
-  //         transferredAt
-  //       }
-  //     `);
+    test("orders ascending", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(orderBy: "transferredAt", orderDirection: "asc") {
+          id
+          transferredAt
+        }
+      `);
 
-  //     expect(ensNfts).toBe(
-  //       ensNfts.sort((a: any, b: any) => a.transferredAt - b.transferredAt)
-  //     );
-  //   });
+      expect(ensNfts).toBe(
+        ensNfts.sort((a: any, b: any) => a.transferredAt - b.transferredAt)
+      );
+    });
 
-  //   test("orders descending", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts(orderBy: "transferredAt", orderDirection: "desc") {
-  //         id
-  //         transferredAt
-  //       }
-  //     `);
+    test("orders descending", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(orderBy: "transferredAt", orderDirection: "desc") {
+          id
+          transferredAt
+        }
+      `);
 
-  //     expect(ensNfts).toBe(
-  //       ensNfts.sort((a: any, b: any) => b.transferredAt - a.transferredAt)
-  //     );
-  //   });
+      expect(ensNfts).toBe(
+        ensNfts.sort((a: any, b: any) => b.transferredAt - a.transferredAt)
+      );
+    });
 
-  //   test("filters on integer field equals", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts(where: { transferredAt: 1673278703 }) {
-  //         id
-  //         transferredAt
-  //       }
-  //     `);
+    test("filters on integer field equals", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { transferredAt: 1673278703 }) {
+          id
+          transferredAt
+        }
+      `);
 
-  //     expect(ensNfts).toHaveLength(1);
-  //     expect(ensNfts[0].transferredAt).toBe(1673278703);
-  //   });
+      expect(ensNfts).toHaveLength(1);
+      expect(ensNfts[0].transferredAt).toBe(1673278703);
+    });
 
-  //   test("filters on integer field in", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts(where: { transferredAt_in: [1673278703, 1673278739] }) {
-  //         id
-  //         transferredAt
-  //       }
-  //     `);
+    test("filters on integer field in", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { transferredAt_in: [1673278703, 1673278739] }) {
+          id
+          transferredAt
+        }
+      `);
 
-  //     expect(ensNfts).toHaveLength(2);
-  //     expect(ensNfts[0].transferredAt).toBe(1673278703);
-  //     expect(ensNfts[1].transferredAt).toBe(1673278739);
-  //   });
+      expect(ensNfts).toHaveLength(2);
+      expect(ensNfts[0].transferredAt).toBe(1673278703);
+      expect(ensNfts[1].transferredAt).toBe(1673278739);
+    });
 
-  //   test("filters on string field equals", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts(where: { labelHash: "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7" }) {
-  //         id
-  //         labelHash
-  //       }
-  //     `);
+    test("filters on string field equals", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { labelHash: "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7" }) {
+          id
+          labelHash
+        }
+      `);
 
-  //     expect(ensNfts).toHaveLength(1);
-  //     expect(ensNfts[0].labelHash).toBe(
-  //       "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7"
-  //     );
-  //   });
+      expect(ensNfts).toHaveLength(1);
+      expect(ensNfts[0].labelHash).toBe(
+        "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7"
+      );
+    });
 
-  //   test("filters on string field in", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts(where: { labelHash_in: ["0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7", "0xa594dce9890a89d2a1399c0870196851ca7a0db19650fb38c682a6599a6b4d9b"] }) {
-  //         id
-  //         labelHash
-  //       }
-  //     `);
+    test("filters on string field in", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { labelHash_in: ["0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7", "0xa594dce9890a89d2a1399c0870196851ca7a0db19650fb38c682a6599a6b4d9b"] }) {
+          id
+          labelHash
+        }
+      `);
 
-  //     expect(ensNfts).toHaveLength(2);
-  //     expect(ensNfts[0].labelHash).toBe(
-  //       "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7"
-  //     );
-  //     expect(ensNfts[1].labelHash).toBe(
-  //       "0xa594dce9890a89d2a1399c0870196851ca7a0db19650fb38c682a6599a6b4d9b"
-  //     );
-  //   });
+      expect(ensNfts).toHaveLength(2);
+      expect(ensNfts[0].labelHash).toBe(
+        "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7"
+      );
+      expect(ensNfts[1].labelHash).toBe(
+        "0xa594dce9890a89d2a1399c0870196851ca7a0db19650fb38c682a6599a6b4d9b"
+      );
+    });
 
-  //   test("filters on relationship field equals", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts(where: { owner: "0x3b42845cD161fE095e083aF493525271a3CF27cf" }) {
-  //         id
-  //         owner {
-  //           id
-  //         }
-  //       }
-  //     `);
+    test("filters on relationship field equals", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { owner: "0x3b42845cD161fE095e083aF493525271a3CF27cf" }) {
+          id
+          owner {
+            id
+          }
+        }
+      `);
 
-  //     expect(ensNfts).toHaveLength(2);
-  //     expect(ensNfts[0].owner.id).toBe(
-  //       "0x3b42845cD161fE095e083aF493525271a3CF27cf"
-  //     );
-  //     expect(ensNfts[1].owner.id).toBe(
-  //       "0x3b42845cD161fE095e083aF493525271a3CF27cf"
-  //     );
-  //   });
+      expect(ensNfts).toHaveLength(2);
+      expect(ensNfts[0].owner.id).toBe(
+        "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+      );
+      expect(ensNfts[1].owner.id).toBe(
+        "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+      );
+    });
 
-  //   test("filters on relationship field contains", async () => {
-  //     const { ensNfts } = await gql(`
-  //       ensNfts(where: { owner_contains: "0x3b42845cD161f" }) {
-  //         id
-  //         owner {
-  //           id
-  //         }
-  //       }
-  //     `);
+    test("filters on relationship field contains", async () => {
+      const { ensNfts } = await gql(`
+        ensNfts(where: { owner_contains: "0x3b42845cD161f" }) {
+          id
+          owner {
+            id
+          }
+        }
+      `);
 
-  //     expect(ensNfts).toHaveLength(2);
-  //     expect(ensNfts[0].owner.id).toBe(
-  //       "0x3b42845cD161fE095e083aF493525271a3CF27cf"
-  //     );
-  //     expect(ensNfts[1].owner.id).toBe(
-  //       "0x3b42845cD161fE095e083aF493525271a3CF27cf"
-  //     );
-  //   });
-  // });
+      expect(ensNfts).toHaveLength(2);
+      expect(ensNfts[0].owner.id).toBe(
+        "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+      );
+      expect(ensNfts[1].owner.id).toBe(
+        "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+      );
+    });
+  });
 });
