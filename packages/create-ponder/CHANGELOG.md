@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.39
+
+### Patch Changes
+
+- [`636f205`](https://github.com/0xOlias/ponder/commit/636f2051f6e1591fb14158d7b46d063343aa6e5e) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed script path bug
+
 ## 0.0.38
 
 ### Patch Changes
