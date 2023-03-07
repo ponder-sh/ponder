@@ -1,10 +1,9 @@
-import { mine } from "viem/test";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { FrontfillService } from "@/frontfill/FrontfillService";
 
 import BaseRegistrarImplementationAbi from "./abis/BaseRegistrarImplementation.abi.json";
-import { buildTestResources } from "./resources";
+import { buildTestResources } from "./utils/resources";
 import { setup, testClient } from "./utils/clients";
 
 describe("FrontfillService", () => {

@@ -74,7 +74,7 @@ export const buildPonderConfig = async (options: PonderOptions) => {
       logLevel: "silent",
     });
 
-    const { default: rawDefault, config: rawConfig } = await import(buildFile);
+    const { default: rawDefault, config: rawConfig } = require(buildFile);
     rmSync(buildFile, { force: true });
 
     if (!rawConfig) {
