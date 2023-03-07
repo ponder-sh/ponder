@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -33,7 +34,7 @@ describe("create-ponder", () => {
         );
       });
 
-      it("creates project files and directories", async () => {
+      test("creates project files and directories", async () => {
         const root = fs.readdirSync(rootDir);
         expect(root.sort()).toEqual(
           [
@@ -52,7 +53,7 @@ describe("create-ponder", () => {
         );
       });
 
-      it("downloads abi", async () => {
+      test("downloads abi", async () => {
         const abiString = fs.readFileSync(
           path.join(rootDir, `abis/FileStore.json`),
           { encoding: "utf8" }
@@ -62,7 +63,7 @@ describe("create-ponder", () => {
         expect(abi.length).toBeGreaterThan(0);
       });
 
-      it("creates codegen files", async () => {
+      test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
         expect(generated.sort()).toEqual(
           ["index.ts", "app.ts", "contracts", "schema.graphql"].sort()
@@ -73,7 +74,7 @@ describe("create-ponder", () => {
         expect(contracts.sort()).toEqual(["FileStore.ts"].sort());
       });
 
-      it("creates src files", async () => {
+      test("creates src files", async () => {
         const src = fs.readdirSync(path.join(rootDir, "src"));
         expect(src.sort()).toEqual(["FileStore.ts"].sort());
       });
@@ -99,7 +100,7 @@ describe("create-ponder", () => {
         );
       });
 
-      it("creates project files and directories", async () => {
+      test("creates project files and directories", async () => {
         const root = fs.readdirSync(rootDir);
         expect(root.sort()).toEqual(
           [
@@ -118,7 +119,7 @@ describe("create-ponder", () => {
         );
       });
 
-      it("downloads abi", async () => {
+      test("downloads abi", async () => {
         const abiString = fs.readFileSync(
           path.join(rootDir, `abis/Collector.json`),
           { encoding: "utf8" }
@@ -128,7 +129,7 @@ describe("create-ponder", () => {
         expect(abi.length).toBeGreaterThan(0);
       });
 
-      it("creates codegen files", async () => {
+      test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
         expect(generated.sort()).toEqual(
           ["index.ts", "app.ts", "contracts", "schema.graphql"].sort()
@@ -139,7 +140,7 @@ describe("create-ponder", () => {
         expect(contracts.sort()).toEqual(["Collector.ts"].sort());
       });
 
-      it("creates src files", async () => {
+      test("creates src files", async () => {
         const src = fs.readdirSync(path.join(rootDir, "src"));
         expect(src.sort()).toEqual(["Collector.ts"].sort());
       });
@@ -167,7 +168,7 @@ describe("create-ponder", () => {
         );
       });
 
-      it("creates project files and directories", async () => {
+      test("creates project files and directories", async () => {
         const root = fs.readdirSync(rootDir);
         expect(root.sort()).toEqual(
           [
@@ -186,7 +187,7 @@ describe("create-ponder", () => {
         );
       });
 
-      it("downloads abi", async () => {
+      test("downloads abi", async () => {
         const abiString = fs.readFileSync(
           path.join(rootDir, `abis/LToken.json`),
           { encoding: "utf8" }
@@ -196,7 +197,7 @@ describe("create-ponder", () => {
         expect(abi.length).toBeGreaterThan(0);
       });
 
-      it("creates codegen files", async () => {
+      test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
         expect(generated.sort()).toEqual(
           ["index.ts", "app.ts", "contracts", "schema.graphql"].sort()
@@ -209,7 +210,7 @@ describe("create-ponder", () => {
         );
       });
 
-      it("creates src files", async () => {
+      test("creates src files", async () => {
         const src = fs.readdirSync(path.join(rootDir, "src"));
         expect(src.sort()).toEqual(
           ["LETH.ts", "LFRAX.ts", "LUSDC.ts", "LUSDT.ts"].sort()

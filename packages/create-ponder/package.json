@@ -5,15 +5,15 @@
   "license": "MIT",
   "author": "olias.eth",
   "files": [
-    "dist/src"
+    "dist"
   ],
   "bin": {
-    "create-ponder": "dist/src/bin/create-ponder.js"
+    "create-ponder": "dist/bin/create-ponder.js"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc && tsconfig-replace-paths --src .",
-    "test": "export $(grep -v '^#' .env.local | xargs) && jest",
-    "test:ci": "jest",
+    "build": "tsup-node",
+    "test": "export $(grep -v '^#' .env.local | xargs) && vitest --no-threads",
+    "test:ci": "vitest --no-threads",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -31,13 +31,13 @@
   },
   "devDependencies": {
     "@ponder/core": "workspace:*",
-    "@types/jest": "^29.2.3",
     "@types/node": "^18.7.8",
     "@types/node-fetch": "2",
     "@types/prettier": "^2.7.1",
     "@types/prompts": "^2.4.2",
-    "jest": "^29.3.1",
     "tsconfig-replace-paths": "^0.0.11",
-    "typescript": "^4.5.5"
+    "tsup": "^6.6.3",
+    "typescript": "^4.5.5",
+    "vitest": "^0.29.2"
   }
 }
