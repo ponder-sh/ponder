@@ -1,5 +1,28 @@
 # @ponder/core
 
+## 0.0.38
+
+### Patch Changes
+
+- [#118](https://github.com/0xOlias/ponder/pull/118) [`84b4ca0`](https://github.com/0xOlias/ponder/commit/84b4ca0b7e3b4e73ff6daa8c317b48a22b4ca652) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated package exports to include cjs and esm
+
+- [#118](https://github.com/0xOlias/ponder/pull/118) [`84b4ca0`](https://github.com/0xOlias/ponder/commit/84b4ca0b7e3b4e73ff6daa8c317b48a22b4ca652) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for a path alias `@/generated` in Ponder project `src` files.
+
+  ```ts
+  // src/SomeContract.ts
+  import { ponder } from "@/generated";
+
+  ponder.on(...)
+  ```
+
+  ```ts
+  // src/nested/AnotherContract.ts
+  import { ponder } from "@/generated";
+
+  ponder.on(...)
+
+  ```
+
 ## 0.0.37
 
 ### Patch Changes
