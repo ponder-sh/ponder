@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { FrontfillService } from "@/frontfill/FrontfillService";
 
 import BaseRegistrarImplementationAbi from "./abis/BaseRegistrarImplementation.abi.json";
-import { buildTestResources } from "./utils/resources";
 import { setup, testClient } from "./utils/clients";
+import { buildTestResources } from "./utils/resources";
 
 describe("FrontfillService", () => {
   let frontfillService: FrontfillService;
