@@ -16,6 +16,7 @@
     "lint:format": "prettier --write",
     "preinstall": "npx -y only-allow pnpm",
     "test": "pnpm --parallel --no-bail test",
+    "test:ci": "pnpm --parallel --no-bail test:ci",
     "typecheck": "pnpm --parallel typecheck"
   },
   "devDependencies": {
