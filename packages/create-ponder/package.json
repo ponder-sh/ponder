@@ -8,7 +8,7 @@
     "dist"
   ],
   "bin": {
-    "create-ponder": "dist/bin/create-ponder.js"
+    "create-ponder": "dist/create-ponder.js"
   },
   "scripts": {
     "build": "tsup-node",
