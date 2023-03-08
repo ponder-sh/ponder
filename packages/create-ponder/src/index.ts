@@ -98,7 +98,7 @@ export const run = async (
     const eventNamesToWrite = abiEvents.map((event) => event.name).slice(0, 2);
 
     const handlerFileContents = `
-      import { ponder } from '../generated'
+      import { ponder } from '@/generated'
 
       ${eventNamesToWrite
         .map(

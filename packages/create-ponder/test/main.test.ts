@@ -66,12 +66,8 @@ describe("create-ponder", () => {
       test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
         expect(generated.sort()).toEqual(
-          ["index.ts", "app.ts", "contracts", "schema.graphql"].sort()
+          ["index.ts", "app.ts", "schema.graphql"].sort()
         );
-        const contracts = fs.readdirSync(
-          path.join(rootDir, "generated/contracts")
-        );
-        expect(contracts.sort()).toEqual(["FileStore.ts"].sort());
       });
 
       test("creates src files", async () => {
@@ -132,12 +128,8 @@ describe("create-ponder", () => {
       test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
         expect(generated.sort()).toEqual(
-          ["index.ts", "app.ts", "contracts", "schema.graphql"].sort()
+          ["index.ts", "app.ts", "schema.graphql"].sort()
         );
-        const contracts = fs.readdirSync(
-          path.join(rootDir, "generated/contracts")
-        );
-        expect(contracts.sort()).toEqual(["Collector.ts"].sort());
       });
 
       test("creates src files", async () => {
@@ -200,13 +192,7 @@ describe("create-ponder", () => {
       test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
         expect(generated.sort()).toEqual(
-          ["index.ts", "app.ts", "contracts", "schema.graphql"].sort()
-        );
-        const contracts = fs.readdirSync(
-          path.join(rootDir, "generated/contracts")
-        );
-        expect(contracts.sort()).toEqual(
-          ["LETH.ts", "LFRAX.ts", "LUSDC.ts", "LUSDT.ts"].sort()
+          ["index.ts", "app.ts", "schema.graphql"].sort()
         );
       });
 
