@@ -6,24 +6,25 @@ import type {
   Transaction as ViemTransaction,
 } from "viem";
 
-type FinalizedBlock<
-  TIncludeTransactions extends "includeTransactions" | false = false
-> = ViemBlock & {
-  hash: Hash;
-  logsBloom: Hex;
-  nonce: Hex;
-  number: bigint;
-  transactions: TIncludeTransactions extends "includeTransactions"
-    ? FinalizedTransaction[]
-    : Hash[];
-};
 export type Block<
   TIncludeTransactions extends "includeTransactions" | false = false
-> = FinalizedBlock<TIncludeTransactions>;
+> = Omit<ViemBlock, "hash" | "logsBloom" | "nonce" | "number"> & {
+  /** Block hash */
+  hash: Hash;
+  /** Logs bloom filter */
+  logsBloom: Hex;
+  /** Proof-of-work hash */
+  nonce: Hex;
+  /** Block number */
+  number: bigint;
+  transactions: TIncludeTransactions extends "includeTransactions"
+    ? Transaction[]
+    : Hash[];
+};
 
 function isFinalizedBlock<
   TIncludeTransactions extends "includeTransactions" | false = false
->(block: ViemBlock): block is FinalizedBlock<TIncludeTransactions> {
+>(block: ViemBlock): block is Block<TIncludeTransactions> {
   return !!(
     block.hash !== null &&
     block.logsBloom !== null &&
@@ -38,19 +39,19 @@ export function parseBlock<
   return isFinalizedBlock<TIncludeTransactions>(block) ? block : null;
 }
 
-type FinalizedTransaction = ViemTransaction & {
+export type Transaction = Omit<
+  ViemTransaction,
+  "blockHash" | "blockNumber" | "transactionIndex"
+> & {
+  /** Hash of block containing this transaction */
   blockHash: Hash;
+  /** Number of block containing this transaction */
   blockNumber: bigint;
+  /** Index of this transaction in the block */
   transactionIndex: number;
 };
-export type Transaction = FinalizedTransaction & {
-  // These fields are derived from the raw log data and are used internally by Ponder.
-  chainId: number;
-};
 
-function isFinalizedTransaction(
-  transaction: ViemTransaction
-): transaction is FinalizedTransaction {
+function isFinalizedTransaction(transaction: ViemTransaction) {
   return !!(
     transaction.blockHash !== null &&
     transaction.blockNumber !== null &&
@@ -64,9 +65,7 @@ export function parseTransactions(
   return rawTransactions.reduce<Transaction[]>(
     (transactions, rawTransaction) => {
       if (isFinalizedTransaction(rawTransaction)) {
-        transactions.push(rawTransaction);
-      } else {
-        console.log({ rawTransaction });
+        transactions.push(rawTransaction as Transaction);
       }
       return transactions;
     },
@@ -74,18 +73,30 @@ export function parseTransactions(
   );
 }
 
-type FinalizedLog = ViemLog & {
+export type Log = Omit<
+  ViemLog,
+  | "blockHash"
+  | "blockNumber"
+  | "logIndex"
+  | "transactionHash"
+  | "transactionIndex"
+> & {
+  /** Hash of block containing this log */
   blockHash: Hash;
+  /** Number of block containing this log */
   blockNumber: bigint;
+  /** Index of this log within its block */
   logIndex: number;
+  /** Hash of the transaction that created this log */
   transactionHash: Hash;
+  /** Index of the transaction that created this log */
   transactionIndex: number;
-};
 
-export type Log = FinalizedLog & {
-  // These fields are derived from the raw log data and are used internally by Ponder.
-  logId: `${Hash}-${number}`; // `${blockHash}-${logIndex}`
-  logSortKey: bigint; // (blockNumber * 100000) + logIndex,
+  /** Globally unique identifier for this log */
+  logId: `${Hash}-${number}`;
+  /** Value used internally by Ponder to sort logs across networks */
+  logSortKey: bigint;
+  /** Unix timestamp of when the block containing this log was collated */
   blockTimestamp: bigint | null;
   topic0: Hex | null;
   topic1: Hex | null;
@@ -93,7 +104,7 @@ export type Log = FinalizedLog & {
   topic3: Hex | null;
 };
 
-function isFinalizedLog(log: ViemLog): log is FinalizedLog {
+function isFinalizedLog(log: ViemLog): log is Log {
   return !!(
     log.blockHash !== null &&
     log.blockNumber !== null &&
