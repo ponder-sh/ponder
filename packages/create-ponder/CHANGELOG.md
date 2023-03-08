@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.40
+
+### Patch Changes
+
+- [#123](https://github.com/0xOlias/ponder/pull/123) [`9d6f820`](https://github.com/0xOlias/ponder/commit/9d6f820e9d0d1815aa6ebf7b001c0a3139c58f7c) Thanks [@0xOlias](https://github.com/0xOlias)! - Migrated to viem and added `@/generated` alias in generated handler code
+
 ## 0.0.39
 
 ### Patch Changes
