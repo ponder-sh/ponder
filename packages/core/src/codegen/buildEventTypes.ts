@@ -11,17 +11,19 @@ export const buildEventTypes = (contracts: Contract[]) => {
 
       return abiEvents
         .map(({ name, inputs }) => {
-          // const eventName = signature.slice(0, signature.indexOf("("));
-          // const paramsType = generateParamsType(event.inputs);
+          const paramsType = `{${inputs
+            .map(
+              (input) => `${input.name}:
+                AbiParameterToPrimitiveType<${JSON.stringify(input)}>`
+            )
+            .join(";")}}`;
 
           return `["${contract.name}:${name}"]: ({
             event, context
             }: {
               event: {
                 name: "${name}";
-                params: AbiParametersToPrimitiveTypes<${JSON.stringify(
-                  inputs
-                )}>;
+                params: ${paramsType};
                 log: Log;
                 block: Block;
                 transaction: Transaction;

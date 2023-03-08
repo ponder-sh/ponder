@@ -2,8 +2,8 @@ import fastq from "fastq";
 import { Hash } from "viem";
 
 import { MessageKind } from "@/common/LoggerService";
-import type { Contract } from "@/config/contracts";
 import { parseBlock, parseTransactions } from "@/common/types";
+import type { Contract } from "@/config/contracts";
 
 import { BackfillService } from "./BackfillService";
 

@@ -1,7 +1,7 @@
 import type Sqlite from "better-sqlite3";
 
-import { merge_intervals } from "@/common/utils";
 import type { Block, Log, Transaction } from "@/common/types";
+import { merge_intervals } from "@/common/utils";
 
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
 import {
