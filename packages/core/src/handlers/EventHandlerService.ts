@@ -243,8 +243,6 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
         );
       }
 
-      // console.log({ block, transaction, log });
-
       const event = {
         name: eventName,
         params: args as any,

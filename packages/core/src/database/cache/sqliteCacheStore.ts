@@ -386,14 +386,7 @@ export class SqliteCacheStore implements CacheStore {
       }
     );
 
-    try {
-      insertTransactionsTx(transactions);
-    } catch (error) {
-      console.log("error while inserting transactions:");
-      console.log({ error });
-      console.log({ transactions });
-      throw error;
-    }
+    insertTransactionsTx(transactions);
   };
 
   getLogs = async (

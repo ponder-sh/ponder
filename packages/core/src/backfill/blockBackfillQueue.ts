@@ -37,8 +37,6 @@ export const createBlockBackfillQueue = ({
         contract: contract.name,
         error: err,
       });
-      console.log("failed task:", { task });
-
       queue.unshift(task);
     }
   });
