@@ -6,9 +6,10 @@ import type {
   Transaction as ViemTransaction,
 } from "viem";
 
-export type Block<
-  TIncludeTransactions extends "includeTransactions" | false = false
-> = Omit<ViemBlock, "hash" | "logsBloom" | "nonce" | "number"> & {
+export type Block = Omit<
+  ViemBlock,
+  "hash" | "logsBloom" | "nonce" | "number"
+> & {
   /** Block hash */
   hash: Hash;
   /** Logs bloom filter */
@@ -17,14 +18,9 @@ export type Block<
   nonce: Hex;
   /** Block number */
   number: bigint;
-  transactions: TIncludeTransactions extends "includeTransactions"
-    ? Transaction[]
-    : Hash[];
 };
 
-function isFinalizedBlock<
-  TIncludeTransactions extends "includeTransactions" | false = false
->(block: ViemBlock): block is Block<TIncludeTransactions> {
+function isFinalizedBlock(block: ViemBlock): block is Block {
   return !!(
     block.hash !== null &&
     block.logsBloom !== null &&
@@ -33,10 +29,8 @@ function isFinalizedBlock<
   );
 }
 
-export function parseBlock<
-  TIncludeTransactions extends "includeTransactions" | false = false
->(block: ViemBlock): Block<TIncludeTransactions> | null {
-  return isFinalizedBlock<TIncludeTransactions>(block) ? block : null;
+export function parseBlock(block: ViemBlock) {
+  return isFinalizedBlock(block) ? block : null;
 }
 
 export type Transaction = Omit<

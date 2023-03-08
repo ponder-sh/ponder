@@ -1,5 +1,5 @@
 import fastq from "fastq";
-import { Hash } from "viem";
+import { Hash, Transaction as ViemTransaction } from "viem";
 
 import { MessageKind } from "@/common/LoggerService";
 import { parseBlock, parseLogs, parseTransactions } from "@/common/types";
@@ -66,7 +66,7 @@ async function blockFrontfillWorker(
     }),
   ]);
 
-  const block = parseBlock<"includeTransactions">(rawBlock);
+  const block = parseBlock(rawBlock);
   const logs = parseLogs(rawLogs);
 
   // If the log is pending, log a warning.
@@ -90,7 +90,9 @@ async function blockFrontfillWorker(
 
   const requiredTxHashSet = new Set(logs.map((l) => l.transactionHash));
 
-  const allTransactions = parseTransactions(block.transactions);
+  const allTransactions = parseTransactions(
+    block.transactions as ViemTransaction[]
+  );
 
   // If any pending transactions were present in the block, log a warning.
   if (allTransactions.length !== block.transactions.length) {
