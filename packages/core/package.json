@@ -16,8 +16,8 @@
   "scripts": {
     "anvil": "export $(grep -v '^#' .env.local | xargs) && anvil --fork-url $ANVIL_FORK_URL --fork-block-number $ANVIL_BLOCK_NUMBER --block-time 1",
     "build": "tsup-node",
-    "test": "export $(grep -v '^#' .env.local | xargs) && vitest",
-    "test:ci": "CI=true vitest",
+    "test": "export $(grep -v '^#' .env.local | xargs) && vitest --threads=false",
+    "test:ci": "CI=true vitest --threads=false",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
