@@ -155,10 +155,9 @@ export const run = async (
       },
       "devDependencies": {
         "@types/node": "^18.11.18",
-        "ethers": "^5.6.9"
-      },
-      "engines": {
-        "node": ">=16.0.0 <19.0.0"
+        "abitype": "^0.6.7",
+        "typescript": "^4.9.5",
+        "viem": "0.1.6"
       }
     }
   `;
@@ -171,11 +170,15 @@ export const run = async (
   const tsConfig = `
     {
       "compilerOptions": {
-        "target": "esnext",
-        "module": "esnext",
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "node",
         "esModuleInterop": true,
         "strict": true,
-        "moduleResolution": "node"
+        "rootDir": ".",
+        "paths": {
+          "@/generated": ["./generated/index.ts"]
+        }
       },
       "include": ["./**/*.ts"],
       "exclude": ["node_modules"]
