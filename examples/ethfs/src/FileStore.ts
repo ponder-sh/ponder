@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 
-import { ponder } from "../generated";
+import { ponder } from "@/generated";
 
 const parseJson = (encodedJson: string, defaultValue: any = null) => {
   try {
@@ -25,7 +25,7 @@ ponder.on("FileStore:FileCreated", async ({ event, context }) => {
         blockTag: event.block.number,
       }
     ),
-    createdAt: event.block.timestamp,
+    createdAt: Number(event.block.timestamp),
     type: metadata?.type,
     compression: metadata?.compression,
     encoding: metadata?.encoding,
