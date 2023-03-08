@@ -6,7 +6,7 @@ description: "API reference for Ponder event handler event"
 
 Event handler functions receive two arguments: `event` and `context`.
 
-The `event` object contains the event params, the transaction that produced the event, and the block containing that transaction. These types very closely match the corresponding types from `viem`.
+The `event` object contains the event params, the transaction that produced the event, and the block containing that transaction. These types are based on the corresponding types from `viem`, but represent only the finalized blockchain state.
 
 ## `Event`
 
@@ -36,7 +36,6 @@ type Log = {
   logSortKey: bigint;
   /** Unix timestamp of when the block containing this log was collated */
   blockTimestamp: bigint;
-
   /** The address from which this log originated */
   address: Address;
   /** Hash of block containing this log */
@@ -73,13 +72,13 @@ type Block = {
   /** Total used gas by all transactions in this block */
   gasUsed: bigint;
   /** Block hash */
-  hash: Hash | null;
+  hash: Hash;
   /** Logs bloom filter */
-  logsBloom: Hex | null;
+  logsBloom: Hex;
   /** Address that received this block’s mining rewards */
   miner: Address;
   /** Block number */
-  number: bigint | null;
+  number: bigint;
   /** Parent block hash */
   parentHash: Hash;
   /** Root of the this block’s receipts trie */
