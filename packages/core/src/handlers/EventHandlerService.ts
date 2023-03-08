@@ -3,11 +3,14 @@ import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 
 import { EventEmitter } from "@/common/EventEmitter";
 import type { Log } from "@/common/types";
-import { CachedProvider } from "@/handlers/CachedProvider";
 import { Resources } from "@/Ponder";
 import { Handlers } from "@/reload/readHandlers";
 import { Schema } from "@/schema/types";
 
+import {
+  buildInjectedContract,
+  ReadOnlyContract,
+} from "./buildInjectedContract";
 import { getStackTraceAndCodeFrame } from "./getStackTrace";
 
 type EventHandlerServiceEvents = {
@@ -27,10 +30,6 @@ type EventHandlerServiceEvents = {
 type HandlerTask = Log;
 type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
 
-type ReadOnlyContractObject = {
-  [key: string]: (...args: any[]) => Promise<void>;
-};
-
 export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents> {
   resources: Resources;
 
@@ -38,10 +37,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
   private schema?: Schema;
   private queue?: HandlerQueue;
 
-  private injectedContracts: Record<
-    string,
-    ReadOnlyContractObject | undefined
-  > = {};
+  private injectedContracts: Record<string, ReadOnlyContract | undefined> = {};
 
   private eventProcessingPromise?: Promise<void>;
   private eventsHandledToTimestamp = 0;
@@ -52,21 +48,13 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     super();
     this.resources = resources;
 
-    // Build the injected contract objects. They are not dynamic.
+    // Build the injected contract objects. They depend only on contract config,
+    // so they can't be hot reloaded.
     this.resources.contracts.forEach((contract) => {
-      // let cachedProvider = cachedProviders[contract.network.chainId];
-      // if (!cachedProvider) {
-      //   cachedProvider = new CachedProvider({
-      //     eventHandlerService: this,
-      //     cacheStore: this.resources.cacheStore,
-      //     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      //     url: contract.network.rpcUrl!,
-      //     chainId: contract.network.chainId,
-      //   });
-      //   cachedProviders[contract.network.chainId] = cachedProvider;
-      // }
-
-      this.injectedContracts[contract.name] = {};
+      this.injectedContracts[contract.name] = buildInjectedContract({
+        contract,
+        eventHandlerService: this,
+      });
     });
   }
 

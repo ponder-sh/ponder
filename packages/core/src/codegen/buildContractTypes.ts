@@ -28,6 +28,7 @@ export const buildContractTypes = (contracts: Contract[]) => {
                   input.name !== "" ? input.name : `arg_${index}`
                 }: AbiParameterToPrimitiveType<${JSON.stringify(input)}>`
             )
+            .concat(`overrides?: CallOverrides`)
             .join(",")}`;
 
           let returnType: string;

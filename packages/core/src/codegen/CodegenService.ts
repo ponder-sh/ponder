@@ -56,8 +56,19 @@ export class CodegenService extends EventEmitter<CodegenServiceEvents> {
   
       import type { Block, Log, Transaction } from "@ponder/core";
       import type { AbiParameterToPrimitiveType } from "abitype";
+      import type { BlockTag, Hash } from "viem";
 
-      type Hash = \`0x$\{string}\`;
+      type CallOverrides =
+        | {
+            /** The block number at which to execute the contract call. */
+            blockNumber?: bigint
+            blockTag?: never
+          }
+        | {
+            blockNumber?: never
+            /** The block tag at which to execute the contract call. */
+            blockTag?: BlockTag
+          }
 
       /* CONTRACT TYPES */
 
