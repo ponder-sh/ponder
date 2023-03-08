@@ -11,12 +11,12 @@ Event handler functions receive two arguments: `event` and `context`.
 The `context` object exposes the entities defined in `schema.graphql` and the contracts defined in `ponder.config.ts`.
 
 ```ts
-interface Context {
+type Context = {
   // Keyed by entity type names from schema.graphql
   entities: Record<string, EntityModel>;
   // Keyed by contract names from ponder.config.ts
-  contracts: Record<string, ethers.Contract>;
-}
+  contracts: Record<string, ReadOnlyContract>;
+};
 ```
 
 ## Entities
@@ -24,25 +24,21 @@ interface Context {
 `context.entities` an object-relational mapper for each entity in your `schema.graphql`. You can use these objects to insert and update entities that will be served automatically by the GraphQL server.
 
 ```ts
-interface EntityModel {
+type EntityModel = {
   get: (id: string) => Promise<Entity | null>;
   insert: (id: string, obj: Omit<Entity, "id">) => Promise<Entity>;
   update: (id: string, obj: Partial<Omit<Entity, "id">>) => Promise<Entity>;
   delete: (id: string) => Promise<boolean>;
   upsert: (id: string, obj: Omit<Entity, "id">) => Promise<Entity>;
-}
+};
 ```
 
 ## Contracts
 
-`context.contracts` contains an `ethers.Contract` object for each contract in your `ponder.config.ts`. You can use these to read data directly from the smart contract using RPC calls.
+`context.contracts` contains a `ReadOnlyContract` object for each contract in your `ponder.config.ts`. You can use these to read data directly from the smart contract using RPC calls.
 
 <Callout type="warning">
   Reading directly from contracts is slow and expensive. If you're designing
-  smart contracts that will be indexed by Ponder, try to emit events
-  including all the data you need. If you absolutely must read from a contract,
-  you can dramatically speed up indexing by hard-coding a block number (e.g. the
-  contract deployment block number) which allows Ponder to cache the results.
-  You can do this by including a final argument to your contract call like
-  this: `Contract.myFunction(...args, { blockTag: 12345 })`
+  smart contracts that will be indexed by Ponder, try to emit events that
+  include all the data you need.
 </Callout>

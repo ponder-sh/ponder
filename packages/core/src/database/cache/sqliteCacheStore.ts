@@ -1,17 +1,34 @@
 import type Sqlite from "better-sqlite3";
 
+import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
-import type { Block, Log, Transaction } from "@/database/types";
 
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
+import {
+  DatabaseBlock,
+  DatabaseLog,
+  DatabaseTransaction,
+  decodeBlock,
+  decodeLog,
+  decodeTransaction,
+  encodeBlock,
+  encodeLog,
+  encodeTransaction,
+} from "./mappers";
 
-const SQLITE_TABLE_PREFIX = "__ponder__v2__";
+export const SQLITE_TABLE_PREFIX = "__ponder__v2__";
 
 const cachedIntervalsTableName = `${SQLITE_TABLE_PREFIX}cachedIntervals`;
 const logsTableName = `${SQLITE_TABLE_PREFIX}logs`;
 const blocksTableName = `${SQLITE_TABLE_PREFIX}blocks`;
 const transactionsTableName = `${SQLITE_TABLE_PREFIX}transactions`;
 const contractCallsTableName = `${SQLITE_TABLE_PREFIX}contractCalls`;
+
+// There are some quirks about the way the SQLite persists data that require
+// slightly different types. Specifically, bigints larger than 9223372036854775807
+// must be persisted as strings, and any fields than can be undefined on the objects
+// coming from viem (notably the transaction fee parameters) must be explcitly defined
+// as `null` rather than `undefined`.
 
 export class SqliteCacheStore implements CacheStore {
   db: Sqlite.Database;
@@ -260,11 +277,13 @@ export class SqliteCacheStore implements CacheStore {
       `
     );
 
-    const insertLogsTxn = this.db.transaction((logs: Log[]) => {
-      logs.forEach((log) => insertLog.run(log));
+    const insertLogsTx = this.db.transaction((logs: Log[]) => {
+      logs.forEach((log) => {
+        insertLog.run(encodeLog(log));
+      });
     });
 
-    insertLogsTxn(logs);
+    insertLogsTx(logs);
   };
 
   insertBlock = async (block: Block) => {
@@ -306,7 +325,7 @@ export class SqliteCacheStore implements CacheStore {
           ) ON CONFLICT("hash") DO NOTHING
         `
       )
-      .run({ ...block, id: block.hash });
+      .run(encodeBlock(block));
 
     this.db
       .prepare(
@@ -359,11 +378,15 @@ export class SqliteCacheStore implements CacheStore {
       `
     );
 
-    const insertTransactionsTxn = this.db.transaction((txns: Transaction[]) => {
-      txns.forEach((txn) => insertTransaction.run(txn));
-    });
+    const insertTransactionsTx = this.db.transaction(
+      (transactions: Transaction[]) => {
+        transactions.forEach((transaction) => {
+          insertTransaction.run(encodeTransaction(transaction));
+        });
+      }
+    );
 
-    insertTransactionsTxn(transactions);
+    insertTransactionsTx(transactions);
   };
 
   getLogs = async (
@@ -381,7 +404,7 @@ export class SqliteCacheStore implements CacheStore {
       topicParams = eventSigHashes;
     }
 
-    const logs = this.db
+    const logs: DatabaseLog[] = this.db
       .prepare(
         `
           SELECT * FROM "${logsTableName}"
@@ -397,39 +420,35 @@ export class SqliteCacheStore implements CacheStore {
         toBlockTimestamp,
       });
 
-    return <Log[]>logs;
+    return logs.map(decodeLog);
   };
 
   getBlock = async (hash: string) => {
-    const block = this.db
+    const block: DatabaseBlock = this.db
       .prepare(
         `
         SELECT * FROM "${blocksTableName}" WHERE "hash" = @hash
         `
       )
-      .get({
-        hash: hash,
-      });
+      .get({ hash });
 
     if (!block) return null;
 
-    return <Block>block;
+    return decodeBlock(block);
   };
 
   getTransaction = async (hash: string) => {
-    const transaction = this.db
+    const transaction: DatabaseTransaction = this.db
       .prepare(
         `
         SELECT * FROM "${transactionsTableName}" WHERE "hash" = @hash
         `
       )
-      .get({
-        hash: hash,
-      });
+      .get({ hash });
 
     if (!transaction) return null;
 
-    return <Transaction>transaction;
+    return decodeTransaction(transaction);
   };
 
   upsertContractCall = async (contractCall: ContractCall) => {
@@ -443,23 +462,16 @@ export class SqliteCacheStore implements CacheStore {
           RETURNING *
           `
       )
-      .run({
-        key: contractCall.key,
-        result: contractCall.result,
-      });
+      .run(contractCall);
   };
 
   getContractCall = async (contractCallKey: string) => {
-    const result = this.db
+    const result: ContractCall | null = this.db
       .prepare(`SELECT * FROM "${contractCallsTableName}" WHERE "key" = @key`)
-      .get({
-        key: contractCallKey,
-      });
+      .get({ key: contractCallKey });
 
     if (!result) return null;
 
-    const contractCall = result as ContractCall;
-
-    return contractCall;
+    return result;
   };
 }

@@ -1,10 +1,14 @@
 {
   "compilerOptions": {
-    "target": "esnext",
-    "module": "esnext",
+    "target": "ESNext",
+    "module": "ESNext",
     "esModuleInterop": true,
     "strict": true,
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "rootDir": ".",
+    "paths": {
+      "@/generated": ["./generated/index.ts"]
+    }
   },
   "include": ["./**/*.ts"],
   "exclude": ["node_modules"]

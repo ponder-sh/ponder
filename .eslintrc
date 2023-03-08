@@ -18,5 +18,5 @@
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/no-explicit-any": "off"
   },
-  "ignorePatterns": ["dist", "node_modules", "generated", "ethers-abitype"]
+  "ignorePatterns": ["dist", "node_modules", "generated"]
 }

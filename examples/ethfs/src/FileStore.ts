@@ -1,6 +1,6 @@
-import { ethers } from "ethers";
+import { fromHex } from "viem";
 
-import { ponder } from "../generated";
+import { ponder } from "@/generated";
 
 const parseJson = (encodedJson: string, defaultValue: any = null) => {
   try {
@@ -13,19 +13,16 @@ const parseJson = (encodedJson: string, defaultValue: any = null) => {
 ponder.on("FileStore:FileCreated", async ({ event, context }) => {
   const { filename, size, metadata: rawMetadata } = event.params;
 
-  const metadata = parseJson(ethers.utils.toUtf8String(rawMetadata));
+  const metadata = parseJson(fromHex(rawMetadata, "string"));
 
   await context.entities.File.upsert(filename, {
     name: filename,
-    size: size.toNumber(),
+    size: Number(size),
     contents: await context.contracts.FileStoreFrontend.readFile(
       event.transaction.to as `0x{string}`,
-      filename,
-      {
-        blockTag: event.block.number,
-      }
+      filename
     ),
-    createdAt: event.block.timestamp,
+    createdAt: Number(event.block.timestamp),
     type: metadata?.type,
     compression: metadata?.compression,
     encoding: metadata?.encoding,

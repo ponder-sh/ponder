@@ -1,30 +1,28 @@
 import type { Pool } from "pg";
 
+import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
-import type { Block, Log, Transaction } from "@/database/types";
 
 import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
+import {
+  DatabaseBlock,
+  DatabaseLog,
+  DatabaseTransaction,
+  decodeBlock,
+  decodeLog,
+  decodeTransaction,
+  encodeBlock,
+  encodeLog,
+  encodeTransaction,
+} from "./mappers";
 
-const POSTGRES_TABLE_PREFIX = "__ponder__v2__";
+export const POSTGRES_TABLE_PREFIX = "__ponder__v2__";
 
 const cachedIntervalsTableName = `${POSTGRES_TABLE_PREFIX}cachedIntervals`;
 const logsTableName = `${POSTGRES_TABLE_PREFIX}logs`;
 const blocksTableName = `${POSTGRES_TABLE_PREFIX}blocks`;
 const transactionsTableName = `${POSTGRES_TABLE_PREFIX}transactions`;
 const contractCallsTableName = `${POSTGRES_TABLE_PREFIX}contractCalls`;
-
-const buildInsertParams = (propertyCount: number, itemCount: number) =>
-  [...Array(itemCount).keys()]
-    .map(
-      (itemIndex) =>
-        `(${[...Array(propertyCount).keys()]
-          .map(
-            (propertyIndex) =>
-              `$${itemIndex * propertyCount + (propertyIndex + 1)}`
-          )
-          .join(",")})`
-    )
-    .join(",");
 
 export class PostgresCacheStore implements CacheStore {
   pool: Pool;
@@ -231,22 +229,25 @@ export class PostgresCacheStore implements CacheStore {
     if (logs.length === 0) return;
 
     const params = logs
-      .map((log) => [
-        log.logId,
-        log.logSortKey,
-        log.address,
-        log.data,
-        log.topic0,
-        log.topic1,
-        log.topic2,
-        log.topic3,
-        log.blockHash,
-        log.blockNumber,
-        log.logIndex,
-        log.transactionHash,
-        log.transactionIndex,
-        log.removed,
-      ])
+      .map((rawLog) => {
+        const log = encodeLog(rawLog);
+        return [
+          log.logId,
+          log.logSortKey,
+          log.address,
+          log.data,
+          log.topic0,
+          log.topic1,
+          log.topic2,
+          log.topic3,
+          log.blockHash,
+          log.blockNumber,
+          log.logIndex,
+          log.transactionHash,
+          log.transactionIndex,
+          log.removed,
+        ];
+      })
       .flat();
 
     const query = `
@@ -265,14 +266,15 @@ export class PostgresCacheStore implements CacheStore {
         "transactionHash",
         "transactionIndex",
         "removed"
-      ) VALUES ${buildInsertParams(14, logs.length)}
+      ) VALUES ${this.buildInsertParams(14, logs.length)}
       ON CONFLICT("logId") DO NOTHING
     `;
 
     await this.pool.query(query, params);
   };
 
-  insertBlock = async (block: Block) => {
+  insertBlock = async (rawBlock: Block) => {
+    const block = encodeBlock(rawBlock);
     const blockParams = [
       block.hash,
       block.number,
@@ -307,7 +309,7 @@ export class PostgresCacheStore implements CacheStore {
         "receiptsRoot",
         "logsBloom",
         "totalDifficulty"
-      ) VALUES ${buildInsertParams(15, 1)}
+      ) VALUES ${this.buildInsertParams(15, 1)}
       ON CONFLICT("hash") DO NOTHING
     `;
 
@@ -338,22 +340,25 @@ export class PostgresCacheStore implements CacheStore {
     if (transactions.length === 0) return;
 
     const params = transactions
-      .map((transaction) => [
-        transaction.hash,
-        transaction.nonce,
-        transaction.from,
-        transaction.to,
-        transaction.value,
-        transaction.input,
-        transaction.gas,
-        transaction.gasPrice,
-        transaction.maxFeePerGas,
-        transaction.maxPriorityFeePerGas,
-        transaction.blockHash,
-        transaction.blockNumber,
-        transaction.transactionIndex,
-        transaction.chainId,
-      ])
+      .map((rawTransaction) => {
+        const transaction = encodeTransaction(rawTransaction);
+        return [
+          transaction.hash,
+          transaction.nonce,
+          transaction.from,
+          transaction.to,
+          transaction.value,
+          transaction.input,
+          transaction.gas,
+          transaction.gasPrice,
+          transaction.maxFeePerGas,
+          transaction.maxPriorityFeePerGas,
+          transaction.blockHash,
+          transaction.blockNumber,
+          transaction.transactionIndex,
+          transaction.chainId,
+        ];
+      })
       .flat();
 
     const query = `
@@ -372,7 +377,7 @@ export class PostgresCacheStore implements CacheStore {
         "blockNumber",
         "transactionIndex",
         "chainId"
-      ) VALUES ${buildInsertParams(14, transactions.length)}
+      ) VALUES ${this.buildInsertParams(14, transactions.length)}
       ON CONFLICT("hash") DO NOTHING
     `;
 
@@ -400,7 +405,7 @@ export class PostgresCacheStore implements CacheStore {
       topicParams = eventSigHashes;
     }
 
-    const { rows } = await this.pool.query<Log>(
+    const { rows } = await this.pool.query<DatabaseLog>(
       `
       SELECT * FROM "${logsTableName}"
       WHERE "address" = $1
@@ -411,16 +416,11 @@ export class PostgresCacheStore implements CacheStore {
       [address, fromBlockTimestamp, toBlockTimestamp, ...topicParams]
     );
 
-    // For some reason, the log.logSortKey field comes as a string even though
-    // the column type is a bigint.
-    return rows.map((log) => ({
-      ...log,
-      logSortKey: parseInt(log.logSortKey as unknown as string),
-    }));
+    return rows.map(decodeLog);
   };
 
   getBlock = async (hash: string) => {
-    const { rows, rowCount } = await this.pool.query<Block>(
+    const { rows, rowCount } = await this.pool.query<DatabaseBlock>(
       `
       SELECT * FROM "${blocksTableName}" WHERE "hash" = $1
       `,
@@ -428,11 +428,11 @@ export class PostgresCacheStore implements CacheStore {
     );
 
     if (rowCount == 0) return null;
-    return rows[0];
+    return decodeBlock(rows[0]);
   };
 
   getTransaction = async (hash: string) => {
-    const { rows, rowCount } = await this.pool.query<Transaction>(
+    const { rows, rowCount } = await this.pool.query<DatabaseTransaction>(
       `
       SELECT * FROM "${transactionsTableName}" WHERE "hash" = $1
       `,
@@ -440,7 +440,7 @@ export class PostgresCacheStore implements CacheStore {
     );
 
     if (rowCount == 0) return null;
-    return rows[0];
+    return decodeTransaction(rows[0]);
   };
 
   upsertContractCall = async (contractCall: ContractCall) => {
@@ -463,4 +463,17 @@ export class PostgresCacheStore implements CacheStore {
     if (rowCount == 0) return null;
     return rows[0];
   };
+
+  private buildInsertParams = (propertyCount: number, itemCount: number) =>
+    [...Array(itemCount).keys()]
+      .map(
+        (itemIndex) =>
+          `(${[...Array(propertyCount).keys()]
+            .map(
+              (propertyIndex) =>
+                `$${itemIndex * propertyCount + (propertyIndex + 1)}`
+            )
+            .join(",")})`
+      )
+      .join(",");
 }

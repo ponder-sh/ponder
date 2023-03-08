@@ -99,7 +99,6 @@ export class Ponder {
     // These files depend only on ponder.config.ts, so can generate once on setup.
     // Note that loadHandlers depends on the index.ts file being present.
     this.codegenService.generateAppFile();
-    this.codegenService.generateContractTypeFiles();
 
     // Note that this must occur before loadSchema and loadHandlers.
     await this.resources.cacheStore.migrate();
@@ -144,7 +143,6 @@ export class Ponder {
 
   async codegen() {
     this.codegenService.generateAppFile();
-    this.codegenService.generateContractTypeFiles();
 
     const result = this.reloadService.loadSchema();
     if (result) {
@@ -208,7 +206,7 @@ export class Ponder {
       this.eventHandlerService.killQueue();
       this.resources.logger.logMessage(
         MessageKind.ERROR,
-        context + `\n` + error.stack
+        context + ": " + error.message + `\n` + error.stack
       );
     });
 

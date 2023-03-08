@@ -52,14 +52,21 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
 
     await Promise.all(
       uniqueLiveNetworks.map(async (network) => {
-        const { blockNumber, blockTimestamp } =
-          await this.getLatestBlockForNetwork({
-            network,
-          });
+        const block = await network.client.getBlock({
+          blockTag: "latest",
+          includeTransactions: false,
+        });
+
+        this.emit("networkConnected", {
+          network: network.name,
+          blockNumber: Number(block.number),
+          blockTimestamp: Number(block.timestamp),
+        });
+
         this.liveNetworks.push({
           network,
-          cutoffBlockNumber: blockNumber,
-          cutoffBlockTimestamp: blockTimestamp,
+          cutoffBlockNumber: Number(block.number),
+          cutoffBlockTimestamp: Number(block.timestamp),
         });
       })
     );
@@ -90,63 +97,31 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
         contractAddresses,
       });
 
-      const blockListener = (blockNumber: number) => {
+      const blockListener = (blockNumber: bigint) => {
         // Messy way to avoid double-processing latestBlockNumber.
         // Also noticed that this approach sometimes skips the block
         // immediately after latestBlockNumber.
         if (blockNumber > cutoffBlockNumber) {
-          frontfillQueue.push({ blockNumber });
+          frontfillQueue.push({ blockNumber: Number(blockNumber) });
           this.emit("taskAdded", {
             network: network.name,
-            blockNumber,
+            blockNumber: Number(blockNumber),
           });
         }
       };
 
-      network.provider.on("block", blockListener);
+      const unwatch = network.client.watchBlockNumber({
+        onBlockNumber: blockListener,
+      });
 
       this.queueKillFunctions.push(() => {
         frontfillQueue.kill();
-        network.provider.off("block", blockListener);
+        unwatch();
       });
     });
   }
 
   killQueues() {
     this.queueKillFunctions.forEach((f) => f());
-  }
-
-  private async getLatestBlockForNetwork({ network }: { network: Network }) {
-    // Kinda weird but should work to make sure this RPC request gets done
-    let blockRequestCount = 0;
-    let blockNumber: number | null = null;
-    let blockTimestamp: number | null = null;
-
-    while (blockNumber === null || blockTimestamp === null) {
-      try {
-        const block = await network.provider.getBlock("latest");
-        blockNumber = block.number;
-        blockTimestamp = block.timestamp;
-      } catch (err) {
-        this.resources.logger.warn(
-          `Failed to fetch latest block for network [${network.name}], retrying...`
-        );
-        blockRequestCount += 1;
-        if (blockRequestCount > 5) {
-          this.resources.logger.error(
-            `Unable to get latest block after 5 retries:`
-          );
-          throw err;
-        }
-      }
-    }
-
-    this.emit("networkConnected", {
-      network: network.name,
-      blockNumber,
-      blockTimestamp,
-    });
-
-    return { blockNumber, blockTimestamp };
   }
 }

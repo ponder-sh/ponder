@@ -5,14 +5,14 @@ import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
 
 import { LoggerService, MessageKind } from "@/common/LoggerService";
+import type { Block, Log, Transaction } from "@/common/types";
 import { PonderOptions } from "@/config/options";
-import type { Block, Log, Transaction } from "@/database/types";
 
 export interface HandlerEvent {
   name: string;
   params: Record<string, any>;
   log: Log;
-  block: Block;
+  block: Omit<Block, "transactions">;
   transaction: Transaction;
 }
 

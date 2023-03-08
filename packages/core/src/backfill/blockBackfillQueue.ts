@@ -1,14 +1,16 @@
 import fastq from "fastq";
+import { Hash, Transaction as ViemTransaction } from "viem";
 
+import { MessageKind } from "@/common/LoggerService";
+import { parseBlock, parseTransactions } from "@/common/types";
 import type { Contract } from "@/config/contracts";
-import { parseBlock, parseTransaction } from "@/database/cache/utils";
 
 import { BackfillService } from "./BackfillService";
 
 export type BlockBackfillTask = {
-  blockHash: string;
-  requiredTxnHashes: string[];
-  onSuccess: (blockHash: string) => Promise<void>;
+  blockHash: Hash;
+  requiredTxHashes: Hash[];
+  onSuccess: (blockHash: Hash) => Promise<void>;
 };
 
 export type BlockBackfillWorkerContext = {
@@ -44,22 +46,48 @@ export const createBlockBackfillQueue = ({
 
 async function blockBackfillWorker(
   this: BlockBackfillWorkerContext,
-  { blockHash, requiredTxnHashes, onSuccess }: BlockBackfillTask
+  { blockHash, requiredTxHashes, onSuccess }: BlockBackfillTask
 ) {
   const { backfillService, contract } = this;
-  const { provider } = contract.network;
+  const { client } = contract.network;
 
-  const rawBlock = await provider.send("eth_getBlockByHash", [blockHash, true]);
+  const rawBlock = await client.getBlock({
+    blockHash: blockHash,
+    includeTransactions: true,
+  });
 
   const block = parseBlock(rawBlock);
 
-  const requiredTxnHashesSet = new Set(requiredTxnHashes);
+  // If the log is pending, log a warning.
+  if (!block) {
+    this.backfillService.resources.logger.logMessage(
+      MessageKind.WARNING,
+      `Received unexpected pending block (hash: ${blockHash})`
+    );
+    return;
+  }
 
-  // Filter out pending transactions (this might not be necessary?).
-  const transactions = (rawBlock.transactions as any[])
-    .filter((txn) => !!txn.hash)
-    .filter((txn) => requiredTxnHashesSet.has(txn.hash))
-    .map(parseTransaction);
+  const requiredTxHashSet = new Set(requiredTxHashes);
+
+  const allTransactions = parseTransactions(
+    block.transactions as ViemTransaction[]
+  );
+
+  // If any pending transactions were present in the block, log a warning.
+  if (allTransactions.length !== block.transactions.length) {
+    this.backfillService.resources.logger.logMessage(
+      MessageKind.WARNING,
+      `Received unexpected pending transactions in block (hash: ${blockHash}, count: ${
+        block.transactions.length - allTransactions.length
+      })`
+    );
+    return;
+  }
+
+  // Filter down to only required transactions (transactions that emitted events we care about).
+  const transactions = allTransactions.filter((txn) =>
+    requiredTxHashSet.has(txn.hash)
+  );
 
   await Promise.all([
     backfillService.resources.cacheStore.insertBlock(block),

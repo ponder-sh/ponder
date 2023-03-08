@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import type { Abi, AbiEvent } from "abitype";
 import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -86,17 +86,19 @@ export const run = async (
 
   // Write the handler ts files.
   ponderConfig.contracts.forEach((contract) => {
-    const abi = readFileSync(path.join(rootDir, contract.abi), {
+    const abiString = readFileSync(path.join(rootDir, contract.abi), {
       encoding: "utf-8",
     });
-    const abiInterface = new ethers.utils.Interface(abi);
-    const eventNames = Object.keys(abiInterface.events).map((signature) =>
-      signature.slice(0, signature.indexOf("("))
+    const abi: Abi = JSON.parse(abiString);
+
+    const abiEvents = abi.filter(
+      (item): item is AbiEvent => item.type === "event"
     );
-    const eventNamesToWrite = eventNames.slice(0, 2);
+
+    const eventNamesToWrite = abiEvents.map((event) => event.name).slice(0, 2);
 
     const handlerFileContents = `
-      import { ponder } from '../generated'
+      import { ponder } from '@/generated'
 
       ${eventNamesToWrite
         .map(
@@ -155,10 +157,9 @@ export const run = async (
       },
       "devDependencies": {
         "@types/node": "^18.11.18",
-        "ethers": "^5.6.9"
-      },
-      "engines": {
-        "node": ">=16.0.0 <19.0.0"
+        "abitype": "^0.6.7",
+        "typescript": "^4.9.5",
+        "viem": "0.1.6"
       }
     }
   `;
@@ -171,11 +172,15 @@ export const run = async (
   const tsConfig = `
     {
       "compilerOptions": {
-        "target": "esnext",
-        "module": "esnext",
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "node",
         "esModuleInterop": true,
         "strict": true,
-        "moduleResolution": "node"
+        "rootDir": ".",
+        "paths": {
+          "@/generated": ["./generated/index.ts"]
+        }
       },
       "include": ["./**/*.ts"],
       "exclude": ["node_modules"]

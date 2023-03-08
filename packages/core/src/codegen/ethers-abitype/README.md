@@ -1,1 +1,0 @@
-The files in this directory were copied and modified from `wagmi`. This directory exports a generic type `ReadOnlyContract` that `@ponder/core` re-exports. This generic type is used in the `contracts.ts` file that Ponder generates and handler files import.
