@@ -67,11 +67,15 @@ importers:
   examples/art-gobblers:
     specifiers:
       '@ponder/core': workspace:latest
-      ethers: ^5.6.9
+      abitype: ^0.6.7
+      typescript: ^4.9.5
+      viem: 0.1.6
     dependencies:
       '@ponder/core': link:../../packages/core
     devDependencies:
-      ethers: 5.6.9
+      abitype: 0.6.7_typescript@4.9.5
+      typescript: 4.9.5
+      viem: 0.1.6_typescript@4.9.5
 
   examples/ethfs:
     specifiers:
@@ -181,15 +185,13 @@ importers:
 
   packages/create-ponder:
     specifiers:
-      '@ethersproject/abi': ^5.6.4
-      '@ethersproject/providers': ^5.6.8
       '@ponder/core': workspace:*
       '@types/node': ^18.7.8
       '@types/node-fetch': '2'
       '@types/prettier': ^2.7.1
       '@types/prompts': ^2.4.2
+      abitype: ^0.6.7
       cac: ^6.7.14
-      ethers: ^5.6.9
       execa: '5'
       node-fetch: ^2.6.7
       picocolors: ^1.0.0
@@ -201,10 +203,7 @@ importers:
       vitest: ^0.29.2
       yaml: ^2.1.1
     dependencies:
-      '@ethersproject/abi': 5.6.4
-      '@ethersproject/providers': 5.6.8
       cac: 6.7.14
-      ethers: 5.6.9
       execa: 5.1.1
       node-fetch: 2.6.7
       picocolors: 1.0.0
@@ -218,6 +217,7 @@ importers:
       '@types/node-fetch': 2.6.2
       '@types/prettier': 2.7.1
       '@types/prompts': 2.4.2
+      abitype: 0.6.7_typescript@4.9.5
       tsup: 6.6.3_typescript@4.9.5
       typescript: 4.9.5
       vitest: 0.29.2
@@ -2777,7 +2777,6 @@ packages:
 
   /@noble/hashes/1.2.0:
     resolution: {integrity: sha512-FZfhjEDbT5GRswV3C6uvLPHMiVD6lQBmpoX5+eSiPaMTXte/IKqI5dykDxzZB/WBeK/CDuQRBWarPdi3FNY2zQ==}
-    dev: false
 
   /@nodelib/fs.scandir/2.1.5:
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -3416,7 +3415,6 @@ packages:
         optional: true
     dependencies:
       typescript: 4.9.5
-    dev: false
 
   /abitype/0.6.7_p5jgycp7euppyerdfacwyih2x4:
     resolution: {integrity: sha512-PFiyVoR09ZYqOG8/LJg9T1CTsYzfBRcyp5sNQYq7PRZ4oZ+c3yp22GFIeP99pTrMEQxuoA3pq4f0kEjWyVqOSQ==}
@@ -3430,6 +3428,18 @@ packages:
       typescript: 4.9.5
       zod: 3.20.2
     dev: false
+
+  /abitype/0.6.7_typescript@4.9.5:
+    resolution: {integrity: sha512-PFiyVoR09ZYqOG8/LJg9T1CTsYzfBRcyp5sNQYq7PRZ4oZ+c3yp22GFIeP99pTrMEQxuoA3pq4f0kEjWyVqOSQ==}
+    peerDependencies:
+      typescript: '>=4.9.4'
+      zod: '>=3.19.1'
+    peerDependenciesMeta:
+      zod:
+        optional: true
+    dependencies:
+      typescript: 4.9.5
+    dev: true
 
   /accepts/1.3.8:
     resolution: {integrity: sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==}
@@ -5955,7 +5965,6 @@ packages:
     engines: {node: '>=16.15.1', npm: '>=8.11.1'}
     dependencies:
       punycode: 2.1.1
-    dev: false
 
   /ieee754/1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
@@ -6281,7 +6290,6 @@ packages:
       ws: '*'
     dependencies:
       ws: 8.12.1
-    dev: false
 
   /joycon/3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
@@ -9389,6 +9397,22 @@ packages:
       - zod
     dev: false
 
+  /viem/0.1.6_typescript@4.9.5:
+    resolution: {integrity: sha512-ffbavU8RBGYltzr0huE2NLJFKH5eeaEsWReoLD6r7rBxBWWWgdUoGx1UnAKtT4Q+GN3r0G7v673JXIKKRuT7Uw==}
+    dependencies:
+      '@noble/hashes': 1.2.0
+      '@wagmi/chains': 0.2.11_typescript@4.9.5
+      abitype: 0.6.7_typescript@4.9.5
+      idna-uts46-hx: 4.1.2
+      isomorphic-ws: 5.0.0_ws@8.12.1
+      ws: 8.12.1
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
+    dev: true
+
   /vite-node/0.29.2_@types+node@18.7.8:
     resolution: {integrity: sha512-5oe1z6wzI3gkvc4yOBbDBbgpiWiApvuN4P55E8OI131JGrSuo4X3SOZrNmZYo4R8Zkze/dhi572blX0zc+6SdA==}
     engines: {node: '>=v14.16.0'}
@@ -9646,7 +9670,6 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
-    dev: false
 
   /xtend/4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
