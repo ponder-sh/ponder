@@ -208,7 +208,7 @@ export class Ponder {
       this.eventHandlerService.killQueue();
       this.resources.logger.logMessage(
         MessageKind.ERROR,
-        context + `\n` + error.stack
+        context + ": " + error.message + `\n` + error.stack
       );
     });
 

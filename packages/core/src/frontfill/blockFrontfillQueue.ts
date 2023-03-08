@@ -1,8 +1,9 @@
-import { utils } from "ethers";
 import fastq from "fastq";
+import { Hash } from "viem";
 
+import { MessageKind } from "@/common/LoggerService";
 import { Network } from "@/config/contracts";
-import { parseBlock, parseLog, parseTransaction } from "@/database/cache/utils";
+import { parseBlock, parseLogs, parseTransactions } from "@/common/types";
 
 import { FrontfillService } from "./FrontfillService";
 
@@ -13,7 +14,7 @@ export type BlockFrontfillTask = {
 export type BlockFrontfillWorkerContext = {
   frontfillService: FrontfillService;
   network: Network;
-  contractAddresses: string[];
+  contractAddresses: Hash[];
 };
 
 export type BlockFrontfillQueue = fastq.queueAsPromised<BlockFrontfillTask>;
@@ -51,29 +52,61 @@ async function blockFrontfillWorker(
   { blockNumber }: BlockFrontfillTask
 ) {
   const { frontfillService, network, contractAddresses } = this;
-  const { provider } = network;
+  const { client } = network;
 
   const [rawLogs, rawBlock] = await Promise.all([
-    provider.send("eth_getLogs", [
-      {
-        address: contractAddresses,
-        fromBlock: utils.hexValue(blockNumber),
-        toBlock: utils.hexValue(blockNumber),
-      },
-    ]),
-    provider.send("eth_getBlockByNumber", [utils.hexValue(blockNumber), true]),
+    client.getLogs({
+      address: contractAddresses,
+      fromBlock: BigInt(blockNumber),
+      toBlock: BigInt(blockNumber),
+    }),
+    client.getBlock({
+      blockNumber: BigInt(blockNumber),
+      includeTransactions: true,
+    }),
   ]);
 
-  const block = parseBlock(rawBlock);
-  const logs = (rawLogs as unknown[]).map(parseLog);
+  const block = parseBlock<"includeTransactions">(rawBlock);
+  const logs = parseLogs(rawLogs);
 
-  const requiredTxnHashSet = new Set(logs.map((l) => l.transactionHash));
+  // If the log is pending, log a warning.
+  if (!block) {
+    this.frontfillService.resources.logger.logMessage(
+      MessageKind.WARNING,
+      `Received unexpected pending block (number: ${blockNumber})`
+    );
+    return;
+  }
 
-  // Filter out pending transactions (this might not be necessary?).
-  const transactions = (rawBlock.transactions as any[])
-    .filter((txn) => !!txn.hash)
-    .filter((txn) => requiredTxnHashSet.has(txn.hash))
-    .map(parseTransaction);
+  // If any pending logs were present in the response, log a warning.
+  if (logs.length !== rawLogs.length) {
+    this.frontfillService.resources.logger.logMessage(
+      MessageKind.WARNING,
+      `Received unexpected pending logs (count: ${
+        logs.length - rawLogs.length
+      })`
+    );
+  }
+
+  const requiredTxHashSet = new Set(logs.map((l) => l.transactionHash));
+
+  const allTransactions = parseTransactions(block.transactions);
+
+  // If any pending transactions were present in the block, log a warning.
+  if (allTransactions.length !== block.transactions.length) {
+    this.frontfillService.resources.logger.logMessage(
+      MessageKind.WARNING,
+      `Received unexpected pending transactions in block (number: ${blockNumber}, count: ${
+        block.transactions.length - allTransactions.length
+      })`
+    );
+    return;
+  }
+
+  // Filter down to only required transactions (transactions that emitted events we care about).
+  const transactions = allTransactions.filter((txn) =>
+    requiredTxHashSet.has(txn.hash)
+  );
 
   await Promise.all([
     frontfillService.resources.cacheStore.insertLogs(logs),
@@ -87,18 +120,18 @@ async function blockFrontfillWorker(
     contractAddresses.map((contractAddress) =>
       frontfillService.resources.cacheStore.insertCachedInterval({
         contractAddress,
-        startBlock: block.number,
-        endBlock: block.number,
-        endBlockTimestamp: block.timestamp,
+        startBlock: Number(block.number),
+        endBlock: Number(block.number),
+        endBlockTimestamp: Number(block.timestamp),
       })
     )
   );
 
   frontfillService.emit("taskCompleted", {
     network: network.name,
-    blockNumber: block.number,
-    blockTimestamp: block.timestamp,
-    blockTxCount: rawBlock.transactions.length,
+    blockNumber: Number(block.number),
+    blockTimestamp: Number(block.timestamp),
+    blockTxCount: allTransactions.length,
     matchedLogCount: logs.length,
   });
 

@@ -4,6 +4,7 @@ import { BackfillService } from "@/backfill/BackfillService";
 
 import BaseRegistrarImplementationAbi from "./abis/BaseRegistrarImplementation.abi.json";
 import { setup } from "./utils/clients";
+import { resetCacheStore } from "./utils/resetCacheStore";
 import { buildTestResources } from "./utils/resources";
 
 describe("BackfillService", () => {
@@ -29,11 +30,13 @@ describe("BackfillService", () => {
     backfillService = new BackfillService({ resources });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     backfillService.killQueues();
+
+    await resetCacheStore(backfillService.resources.database);
   });
 
-  test("backfill", async () => {
+  test("backfill events", async () => {
     const contractStartedEvents = backfillService.events("contractStarted");
     const backfillCompletedEvents = backfillService.events("backfillCompleted");
 
@@ -64,5 +67,11 @@ describe("BackfillService", () => {
       expect(value.duration).toBeGreaterThan(0);
       return backfillCompletedEvents.return?.();
     });
+  });
+
+  test("backfill data written to cache store", async () => {
+    expect(backfillService.resources.cacheStore.getBlock("0x0"));
+
+    await backfillService.backfill();
   });
 });

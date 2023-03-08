@@ -1,7 +1,8 @@
-import { StaticJsonRpcProvider } from "@ethersproject/providers";
-import { ethers } from "ethers";
+import { Abi, Address } from "abitype";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { createPublicClient, http, PublicClient } from "viem";
+import { mainnet } from "viem/chains";
 
 import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
@@ -10,17 +11,16 @@ export type Network = {
   name: string;
   chainId: number;
   rpcUrl?: string;
-  provider: StaticJsonRpcProvider;
+  client: PublicClient;
 };
 
 export type Contract = {
   name: string;
-  address: string;
+  address: Address;
   network: Network;
 
-  abi: any; // This is the ABI as an object.
+  abi: Abi;
   abiFilePath?: string;
-  abiInterface: ethers.utils.Interface;
 
   startBlock: number;
   endBlock?: number;
@@ -29,7 +29,7 @@ export type Contract = {
   isIndexed: boolean;
 };
 
-const providers: Record<number, StaticJsonRpcProvider | undefined> = {};
+const clients: Record<number, PublicClient | undefined> = {};
 
 export function buildContracts({
   config,
@@ -39,6 +39,8 @@ export function buildContracts({
   options: PonderOptions;
 }): Contract[] {
   return config.contracts.map((contract) => {
+    const address = contract.address.toLowerCase() as Address;
+
     let abiFilePath: string | undefined;
     let abiObject: any;
 
@@ -60,8 +62,7 @@ export function buildContracts({
     }
 
     // Handle the case where the ABI is actually the `abi` property of an object. Hardhat emits ABIs like this.
-    const abi = abiObject?.abi ? abiObject.abi : abiObject;
-    const abiInterface = new ethers.utils.Interface(abi);
+    const abi: Abi = abiObject?.abi ? abiObject.abi : abiObject;
 
     // Get the contract network/provider.
     const network = config.networks.find((n) => n.name === contract.network);
@@ -71,26 +72,34 @@ export function buildContracts({
       );
     }
 
-    let provider = providers[network.chainId];
-    if (!provider) {
-      provider = new StaticJsonRpcProvider(network.rpcUrl, network.chainId);
-      providers[network.chainId] = provider;
+    let client = clients[network.chainId];
+
+    if (!client) {
+      client = createPublicClient({
+        transport: http(network.rpcUrl),
+        chain: {
+          ...mainnet,
+          name: network.name,
+          id: network.chainId,
+          network: network.name,
+        },
+      });
+      clients[network.chainId] = client;
     }
 
     return {
       name: contract.name,
-      address: contract.address.toLowerCase(),
+      address,
 
       network: {
         name: network.name,
         chainId: network.chainId,
         rpcUrl: network.rpcUrl,
-        provider,
+        client,
       },
 
       abi,
       abiFilePath: abiFilePath,
-      abiInterface: abiInterface,
 
       startBlock: contract.startBlock || 0,
       endBlock: contract.endBlock,

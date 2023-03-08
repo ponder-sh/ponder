@@ -1,14 +1,13 @@
-import { Contract as EthersContract, utils } from "ethers";
 import fastq from "fastq";
+import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 
 import { EventEmitter } from "@/common/EventEmitter";
-import type { Log } from "@/database/types";
+import type { Log } from "@/common/types";
 import { CachedProvider } from "@/handlers/CachedProvider";
 import { Resources } from "@/Ponder";
 import { Handlers } from "@/reload/readHandlers";
 import { Schema } from "@/schema/types";
 
-import { decodeLog } from "./decodeLog";
 import { getStackTraceAndCodeFrame } from "./getStackTrace";
 
 type EventHandlerServiceEvents = {
@@ -28,6 +27,10 @@ type EventHandlerServiceEvents = {
 type HandlerTask = Log;
 type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
 
+type ReadOnlyContractObject = {
+  [key: string]: (...args: any[]) => Promise<void>;
+};
+
 export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents> {
   resources: Resources;
 
@@ -35,37 +38,35 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
   private schema?: Schema;
   private queue?: HandlerQueue;
 
-  private injectedContracts: Record<string, EthersContract | undefined> = {};
+  private injectedContracts: Record<
+    string,
+    ReadOnlyContractObject | undefined
+  > = {};
 
   private eventProcessingPromise?: Promise<void>;
   private eventsHandledToTimestamp = 0;
 
-  currentLogEventBlockNumber = 0;
+  currentLogEventBlockNumber = 0n;
 
   constructor({ resources }: { resources: Resources }) {
     super();
     this.resources = resources;
 
     // Build the injected contract objects. They are not dynamic.
-    const cachedProviders: Record<number, CachedProvider | undefined> = {};
     this.resources.contracts.forEach((contract) => {
-      let cachedProvider = cachedProviders[contract.network.chainId];
-      if (!cachedProvider) {
-        cachedProvider = new CachedProvider({
-          eventHandlerService: this,
-          cacheStore: this.resources.cacheStore,
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          url: contract.network.rpcUrl!,
-          chainId: contract.network.chainId,
-        });
-        cachedProviders[contract.network.chainId] = cachedProvider;
-      }
+      // let cachedProvider = cachedProviders[contract.network.chainId];
+      // if (!cachedProvider) {
+      //   cachedProvider = new CachedProvider({
+      //     eventHandlerService: this,
+      //     cacheStore: this.resources.cacheStore,
+      //     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      //     url: contract.network.rpcUrl!,
+      //     chainId: contract.network.chainId,
+      //   });
+      //   cachedProviders[contract.network.chainId] = cachedProvider;
+      // }
 
-      this.injectedContracts[contract.name] = new EthersContract(
-        contract.address,
-        contract.abiInterface,
-        cachedProvider
-      );
+      this.injectedContracts[contract.name] = {};
     });
   }
 
@@ -207,10 +208,13 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
         return;
       }
 
-      const decodedLog = decodeLog({
-        log,
-        abiInterface: contract.abiInterface,
+      const decodedLog = decodeEventLog({
+        // TODO: Remove this filter once viem is fixed.
+        abi: contract.abi.filter((item) => item.type !== "constructor"),
+        data: log.data,
+        topics: [log.topic0 as Hex, log.topic1, log.topic2, log.topic3],
       });
+
       if (!decodedLog) {
         this.resources.logger.warn(
           `Event log not found in ABI, data: ${log.data} topics: ${[
@@ -222,7 +226,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
         );
         return;
       }
-      const { eventName, params } = decodedLog;
+      const { eventName, args } = decodedLog;
 
       const handler = contractHandlers[eventName];
       if (!handler) {
@@ -251,9 +255,11 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
         );
       }
 
+      // console.log({ block, transaction, log });
+
       const event = {
         name: eventName,
-        params: params,
+        params: args as any,
         log: log,
         block,
         transaction,
@@ -266,7 +272,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
       // Running user code here!
       await handler({ event, context: handlerContext });
 
-      this.emit("taskCompleted", { timestamp: block.timestamp });
+      this.emit("taskCompleted", { timestamp: Number(block.timestamp) });
     };
 
     const queue = fastq.promise<unknown, Log>({}, handlerWorker, 1);
@@ -343,20 +349,15 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
         const contractHandlers = handlers[contract.name] ?? {};
         const eventNames = Object.keys(contractHandlers);
 
-        const eventSigHashes = eventNames
-          .map((eventName) => {
-            try {
-              const fragment = contract.abiInterface.getEvent(eventName);
-              const signature = fragment.format();
-              const hash = utils.solidityKeccak256(["string"], [signature]);
-              return hash;
-            } catch (err) {
-              this.resources.logger.error(
-                `Unable to generate event sig hash for event: ${eventName}`
-              );
-            }
-          })
-          .filter((hash): hash is string => !!hash);
+        const eventSigHashes = eventNames.map((eventName) => {
+          // TODO: Disambiguate overloaded ABI event signatures BEFORE getting here.
+          const eventTopics = encodeEventTopics({
+            abi: contract.abi,
+            eventName,
+          });
+          const eventSignatureTopic = eventTopics[0];
+          return eventSignatureTopic;
+        });
 
         const [logs, totalLogs] = await Promise.all([
           this.resources.cacheStore.getLogs(
@@ -378,7 +379,11 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
       })
     );
 
-    const logs = rawLogs.flat().sort((a, b) => a.logSortKey - b.logSortKey);
+    const logs = rawLogs
+      .flat()
+      .sort((a, b) =>
+        a.logSortKey < b.logSortKey ? -1 : a.logSortKey > b.logSortKey ? 1 : 0
+      );
 
     return { hasNewLogs: true, toTimestamp, logs, totalLogCount };
   }

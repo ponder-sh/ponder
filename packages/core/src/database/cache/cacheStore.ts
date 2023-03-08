@@ -1,4 +1,4 @@
-import type { Block, Log, Transaction } from "@/database/types";
+import type { Block, Log, Transaction } from "@/common/types";
 
 import { PonderDatabase } from "../db";
 import { PostgresCacheStore } from "./postgresCacheStore";
@@ -25,7 +25,7 @@ export interface CacheStore {
 
   insertLogs(logs: Log[]): Promise<void>;
 
-  insertBlock(block: Block): Promise<void>;
+  insertBlock(block: Omit<Block, "transactions">): Promise<void>;
 
   insertTransactions(transactions: Transaction[]): Promise<void>;
 
@@ -36,7 +36,7 @@ export interface CacheStore {
     eventSigHashes?: string[]
   ): Promise<Log[]>;
 
-  getBlock(hash: string): Promise<Block | null>;
+  getBlock(hash: string): Promise<Omit<Block, "transactions"> | null>;
 
   getTransaction(hash: string): Promise<Transaction | null>;
 

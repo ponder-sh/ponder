@@ -1,14 +1,16 @@
-import { utils } from "ethers";
+import { Address } from "abitype";
 import fastq from "fastq";
+import { Hash } from "viem";
 
+import { MessageKind } from "@/common/LoggerService";
 import type { Contract } from "@/config/contracts";
-import { parseBlock, parseLog } from "@/database/cache/utils";
+import { parseLogs } from "@/common/types";
 
 import { BackfillService } from "./BackfillService";
 import type { BlockBackfillQueue } from "./blockBackfillQueue";
 
 export type LogBackfillTask = {
-  contractAddresses: string[];
+  contractAddresses: Address[];
   fromBlock: number;
   toBlock: number;
 };
@@ -51,27 +53,38 @@ async function logBackfillWorker(
   { contractAddresses, fromBlock, toBlock }: LogBackfillTask
 ) {
   const { backfillService, contract, blockBackfillQueue } = this;
-  const { provider } = contract.network;
+  const { client } = contract.network;
 
   const [rawLogs, rawToBlock] = await Promise.all([
-    provider.send("eth_getLogs", [
-      {
-        address: contractAddresses,
-        fromBlock: utils.hexValue(fromBlock),
-        toBlock: utils.hexValue(toBlock),
-      },
-    ]),
-    provider.send("eth_getBlockByNumber", [utils.hexValue(toBlock), false]),
+    client.getLogs({
+      address: contractAddresses,
+      fromBlock: BigInt(fromBlock),
+      toBlock: BigInt(toBlock),
+    }),
+    client.getBlock({
+      blockNumber: BigInt(toBlock),
+      includeTransactions: false,
+    }),
   ]);
 
   // The timestamp of the toBlock is required to properly update the cached intervals below.
-  const toBlockTimestamp = parseBlock(rawToBlock).timestamp;
+  const toBlockTimestamp = rawToBlock.timestamp;
 
-  const logs = (rawLogs as unknown[]).map(parseLog);
+  const logs = parseLogs(rawLogs);
+
+  // If any pending logs were present in the response, log a warning.
+  if (logs.length !== rawLogs.length) {
+    this.backfillService.resources.logger.logMessage(
+      MessageKind.WARNING,
+      `Received unexpected pending logs (count: ${
+        logs.length - rawLogs.length
+      })`
+    );
+  }
 
   await backfillService.resources.cacheStore.insertLogs(logs);
 
-  const txnHashesForBlockHash = logs.reduce((acc, log) => {
+  const txHashesForBlockHash = logs.reduce((acc, log) => {
     if (acc[log.blockHash]) {
       if (!acc[log.blockHash].includes(log.transactionHash)) {
         acc[log.blockHash].push(log.transactionHash);
@@ -80,9 +93,9 @@ async function logBackfillWorker(
       acc[log.blockHash] = [log.transactionHash];
     }
     return acc;
-  }, {} as Record<string, string[]>);
+  }, {} as Record<Hash, Hash[]>);
 
-  const requiredBlockHashes = Object.keys(txnHashesForBlockHash);
+  const requiredBlockHashes = Object.keys(txHashesForBlockHash) as Hash[];
 
   // The block request worker calls the `onSuccess` callback when it finishes. This serves as
   // a hacky way to run some code when all "child" jobs are done. In this case,
@@ -90,7 +103,7 @@ async function logBackfillWorker(
 
   const requiredBlockHashSet = new Set(requiredBlockHashes);
 
-  const onSuccess = async (blockHash?: string) => {
+  const onSuccess = async (blockHash?: Hash) => {
     if (blockHash) requiredBlockHashSet.delete(blockHash);
 
     if (requiredBlockHashSet.size === 0) {
@@ -100,7 +113,7 @@ async function logBackfillWorker(
             contractAddress,
             startBlock: fromBlock,
             endBlock: toBlock,
-            endBlockTimestamp: toBlockTimestamp,
+            endBlockTimestamp: Number(toBlockTimestamp),
           })
         )
       );
@@ -121,7 +134,7 @@ async function logBackfillWorker(
   requiredBlockHashes.forEach((blockHash) => {
     blockBackfillQueue.push({
       blockHash,
-      requiredTxnHashes: txnHashesForBlockHash[blockHash],
+      requiredTxHashes: txHashesForBlockHash[blockHash],
       onSuccess,
     });
   });
