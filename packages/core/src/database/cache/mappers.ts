@@ -1,3 +1,5 @@
+import { Hex } from "viem";
+
 import { Block, Log, Transaction } from "../../common/types";
 
 export type DatabaseBlock = Omit<Block, "totalDifficulty"> & {
@@ -101,6 +103,9 @@ export function decodeLog(log: DatabaseLog): Log {
   return {
     ...log,
     removed: log.removed === 1 ? true : false,
+    topics: [log.topic0, log.topic1, log.topic2, log.topic3].filter(
+      (t): t is Hex => t !== null
+    ),
 
     logSortKey: BigInt(log.logSortKey),
     blockNumber: BigInt(log.blockNumber),

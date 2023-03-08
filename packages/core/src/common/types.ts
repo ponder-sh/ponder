@@ -98,6 +98,10 @@ export type Log = Omit<
   logSortKey: bigint;
   /** Unix timestamp of when the block containing this log was collated */
   blockTimestamp: bigint | null;
+  /** List of order-dependent topics */
+  topics: string[];
+
+  // TODO: remove these from the public type.
   topic0: Hex | null;
   topic1: Hex | null;
   topic2: Hex | null;
