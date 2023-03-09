@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.41
+
+### Patch Changes
+
+- [`c5abf10`](https://github.com/0xOlias/ponder/commit/c5abf10dcb3d172d029daae76b735cee9eb39d9e) Thanks [@0xOlias](https://github.com/0xOlias)! - Bumped viem to fix event decoding bug
+
 ## 0.0.40
 
 ### Patch Changes
