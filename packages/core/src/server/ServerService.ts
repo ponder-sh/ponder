@@ -63,6 +63,7 @@ export class ServerService {
   }
 
   teardown() {
+    this.server.unref();
     return new Promise<void>((resolve, reject) => {
       this.server.close((err) => {
         if (err) return reject(err);

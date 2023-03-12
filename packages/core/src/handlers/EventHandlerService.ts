@@ -39,6 +39,9 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
 
   private injectedContracts: Record<string, ReadOnlyContract | undefined> = {};
 
+  isBackfillStarted = false;
+  isFrontfillStarted = false;
+
   private eventProcessingPromise?: Promise<void>;
   private eventsHandledToTimestamp = 0;
 
@@ -93,9 +96,8 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
   }
 
   async processEvents() {
-    if (this.resources.errors.isHandlerError) {
-      return;
-    }
+    if (!this.isBackfillStarted || !this.isFrontfillStarted) return;
+    if (this.resources.errors.isHandlerError) return;
 
     // If there is already a call to processEvents() in progress, wait for that to be
     // complete before kicking off another. This is likely buggy.
@@ -127,9 +129,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
 
       // Process new events that were added to the queue.
       this.queue.resume();
-      if (!this.queue.idle()) {
-        await this.queue.drained();
-      }
+      await this.queue.drained();
       this.queue.pause();
 
       this.eventsHandledToTimestamp = toTimestamp;

@@ -21,14 +21,15 @@ type BackfillServiceEvents = {
 
   newEventsAdded: { count: number };
 
+  backfillStarted: { contractCount: number };
   backfillCompleted: { duration: number };
 };
 
 export class BackfillService extends Emittery<BackfillServiceEvents> {
   resources: Resources;
 
-  private queueKillFunctions: (() => void)[] = [];
-  private queueDrainFunctions: (() => Promise<void>)[] = [];
+  private killFunctions: (() => Promise<void>)[] = [];
+  private drainFunctions: (() => Promise<void>)[] = [];
 
   constructor({ resources }: { resources: Resources }) {
     super();
@@ -38,22 +39,26 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
   async backfill() {
     const backfillStartedAt = startBenchmark();
 
-    await Promise.all(
-      this.resources.contracts
-        .filter((contract) => contract.isIndexed)
-        .map(async (contract) => {
-          await this.startBackfillForContract({ contract });
-        })
+    const indexedContracts = this.resources.contracts.filter(
+      (contract) => contract.isIndexed
     );
 
-    await Promise.all(this.queueDrainFunctions.map(async (f) => await f()));
+    await Promise.all(
+      indexedContracts.map(async (contract) => {
+        await this.startBackfillForContract({ contract });
+      })
+    );
+
+    this.emit("backfillStarted", { contractCount: indexedContracts.length });
+
+    await Promise.all(this.drainFunctions.map((f) => f()));
 
     const backfillDuration = endBenchmark(backfillStartedAt);
     this.emit("backfillCompleted", { duration: backfillDuration });
   }
 
-  killQueues() {
-    this.queueKillFunctions.forEach((f) => f());
+  async kill() {
+    await Promise.all(this.killFunctions.map((f) => f()));
   }
 
   private async startBackfillForContract({ contract }: { contract: Contract }) {
@@ -137,19 +142,16 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
       }
     }
 
-    this.queueKillFunctions.push(() => {
+    this.killFunctions.push(async () => {
       logBackfillQueue.kill();
+      await logBackfillQueue.drained();
       blockBackfillQueue.kill();
+      await blockBackfillQueue.drained();
     });
 
-    this.queueDrainFunctions.push(async () => {
-      if (!logBackfillQueue.idle()) {
-        await logBackfillQueue.drained();
-      }
-
-      if (!blockBackfillQueue.idle()) {
-        await blockBackfillQueue.drained();
-      }
+    this.drainFunctions.push(async () => {
+      await logBackfillQueue.drained();
+      await blockBackfillQueue.drained();
     });
   }
 }

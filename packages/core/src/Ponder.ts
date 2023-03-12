@@ -155,10 +155,17 @@ export class Ponder {
   }
 
   async kill() {
+    // console.log({
+    //   handles: process._getActiveHandles(),
+    //   requests: process._getActiveRequests(),
+    // });
+
     await this.reloadService.kill?.();
     this.uiService.kill();
-    this.frontfillService.killQueues();
-    this.backfillService.killQueues();
+
+    await this.frontfillService.kill();
+    await this.backfillService.kill();
+
     this.eventHandlerService.killQueue();
     await this.serverService.teardown();
     await this.resources.entityStore.teardown();
@@ -186,10 +193,18 @@ export class Ponder {
       await this.eventHandlerService.processEvents();
     });
 
-    this.frontfillService.on("eventsAdded", async () => {
+    this.frontfillService.on("frontfillStarted", async () => {
+      this.eventHandlerService.isFrontfillStarted = true;
+      await this.eventHandlerService.processEvents();
+    });
+    this.backfillService.on("backfillStarted", async () => {
+      this.eventHandlerService.isBackfillStarted = true;
       await this.eventHandlerService.processEvents();
     });
 
+    this.frontfillService.on("eventsAdded", async () => {
+      await this.eventHandlerService.processEvents();
+    });
     this.backfillService.on("newEventsAdded", async () => {
       await this.eventHandlerService.processEvents();
     });

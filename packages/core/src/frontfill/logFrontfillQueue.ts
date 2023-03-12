@@ -138,9 +138,7 @@ async function logFrontfillWorker(
   // the onSuccess callback relies on the shared `currentBlockNumber` state for the
   // network. If the next task starts before that value has been properly updated,
   // the insertCachedInterval call above will be borked. TODO: improve.
-  if (!blockFrontfillQueue.idle()) {
-    await blockFrontfillQueue.drained();
-  }
+  await blockFrontfillQueue.drained();
 
   // This is a mapping of block number -> contract address -> log count
   // that is used for logging the number of events in this batch.

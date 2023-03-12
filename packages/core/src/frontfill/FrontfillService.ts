@@ -13,6 +13,7 @@ export type FrontfillServiceEvents = {
     blockNumber: number;
     blockTimestamp: number;
   };
+  frontfillStarted: { networkCount: number };
 
   logTasksAdded: { network: string; count: number };
   blockTasksAdded: { network: string; count: number };
@@ -32,7 +33,7 @@ export type FrontfillServiceEvents = {
 export class FrontfillService extends Emittery<FrontfillServiceEvents> {
   resources: Resources;
 
-  private queueKillFunctions: (() => void)[] = [];
+  private killFunctions: (() => Promise<void>)[] = [];
 
   liveNetworks: {
     network: Network;
@@ -130,15 +131,19 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
         batch: true,
       });
 
-      this.queueKillFunctions.push(() => {
-        blockFrontfillQueue.kill();
+      this.killFunctions.push(async () => {
         logFrontfillQueue.kill();
+        await logFrontfillQueue.drained();
+        blockFrontfillQueue.kill();
+        await blockFrontfillQueue.drained();
         unwatch();
       });
     });
+
+    this.emit("frontfillStarted", { networkCount: this.liveNetworks.length });
   }
 
-  killQueues() {
-    this.queueKillFunctions.forEach((f) => f());
+  async kill() {
+    await Promise.all(this.killFunctions.map((f) => f()));
   }
 }

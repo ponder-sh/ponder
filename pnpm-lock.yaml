@@ -115,7 +115,7 @@ importers:
       esbuild: ^0.15.2
       express: ^4.18.1
       express-graphql: ^0.12.0
-      fastq: ^1.13.0
+      fastq: ^1.15.0
       glob: ^8.1.0
       graphql: ^15.3.0
       ink: ^3.2.0
@@ -147,7 +147,7 @@ importers:
       esbuild: 0.15.4
       express: 4.18.1
       express-graphql: 0.12.0_graphql@15.8.0
-      fastq: 1.13.0
+      fastq: 1.15.0
       glob: 8.1.0
       graphql: 15.8.0_qb2u6q36ugvr6swjr2i3rg76ty
       ink: 3.2.0_qnxonbsml5syl42mqdnwkqq4yu
@@ -2498,7 +2498,7 @@ packages:
     engines: {node: '>= 8'}
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
-      fastq: 1.13.0
+      fastq: 1.15.0
 
   /@pkgr/utils/2.3.1:
     resolution: {integrity: sha512-wfzX8kc1PMyUILA+1Z/EqoE4UCXGy0iRGMhPwdfae1+f0OXlLqCk+By+aMzgJBzR9AzS4CDizioG6Ss1gvAFJw==}
@@ -5105,8 +5105,8 @@ packages:
     resolution: {integrity: sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==}
     dev: true
 
-  /fastq/1.13.0:
-    resolution: {integrity: sha512-YpkpUnK8od0o1hmeSc7UUs/eB/vIPWJYjKck2QKIzAf71Vm1AAQ3EbuZB3g2JIy+pg+ERD0vqI79KyZiB2e2Nw==}
+  /fastq/1.15.0:
+    resolution: {integrity: sha512-wBrocU2LCXXa+lWBt8RoIRD89Fi8OdABODa/kEnyeyjS5aZO5/GNvI5sEINADqP/h8M29UHTHUb53sUu5Ihqdw==}
     dependencies:
       reusify: 1.0.4
 
