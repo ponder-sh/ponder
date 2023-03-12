@@ -229,13 +229,7 @@ export class Ponder {
 
   private registerUiHandlers() {
     this.frontfillService.on("networkConnected", (e) => {
-      this.uiService.ui.networks[e.network] = {
-        name: e.network,
-        blockNumber: e.blockNumber,
-        blockTimestamp: e.blockTimestamp,
-        blockTxnCount: -1,
-        matchedLogCount: -1,
-      };
+      this.uiService.ui.networks.push(e.network);
     });
 
     this.backfillService.on("contractStarted", ({ contract, cacheRate }) => {
@@ -303,31 +297,15 @@ export class Ponder {
       this.uiService.ui.backfillDuration = formatEta(duration);
     });
 
-    // this.frontfillService.on(
-    //   "taskCompleted",
-    //   ({
-    //     network,
-    //     blockNumber,
-    //     blockTimestamp,
-    //     blockTxCount,
-    //     matchedLogCount,
-    //   }) => {
-    //     if (matchedLogCount > 0) {
-    //       this.resources.logger.logMessage(
-    //         MessageKind.FRONTFILL,
-    //         `${network} block ${blockNumber} (${blockTxCount} txns, ${matchedLogCount} matched events)`
-    //       );
-    //     }
-
-    //     this.uiService.ui.networks[network] = {
-    //       name: network,
-    //       blockNumber: blockNumber,
-    //       blockTimestamp: blockTimestamp,
-    //       blockTxnCount: blockTxCount,
-    //       matchedLogCount: matchedLogCount,
-    //     };
-    //   }
-    // );
+    this.frontfillService.on("logTaskCompleted", ({ network, logData }) => {
+      Object.entries(logData).forEach(([blockNumber, logInfo]) => {
+        const total = Object.values(logInfo).reduce((sum, a) => sum + a, 0);
+        this.resources.logger.logMessage(
+          MessageKind.FRONTFILL,
+          `${network} @ ${blockNumber} (${total} matched events)`
+        );
+      });
+    });
 
     this.frontfillService.on("logTaskFailed", ({ network, error }) => {
       this.resources.logger.logMessage(

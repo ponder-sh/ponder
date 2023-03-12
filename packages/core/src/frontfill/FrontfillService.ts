@@ -20,7 +20,10 @@ export type FrontfillServiceEvents = {
   logTaskFailed: { network: string; error: Error };
   blockTaskFailed: { network: string; error: Error };
 
-  logTaskCompleted: { network: string };
+  logTaskCompleted: {
+    network: string;
+    logData: Record<number, Record<string, number>>;
+  };
   blockTaskCompleted: { network: string };
 
   eventsAdded: { count: number };

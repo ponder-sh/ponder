@@ -143,5 +143,20 @@ async function logFrontfillWorker(
     await blockFrontfillQueue.drained();
   }
 
-  frontfillService.emit("logTaskCompleted", { network: network.name });
+  // This is a mapping of block number -> contract address -> log count
+  // that is used for logging the number of events in this batch.
+  const logData = logs.reduce<Record<number, Record<string, number>>>(
+    (acc, log) => {
+      acc[Number(log.blockNumber)] ||= {};
+      acc[Number(log.blockNumber)][log.address] ||= 0;
+      acc[Number(log.blockNumber)][log.address] += 1;
+      return acc;
+    },
+    {}
+  );
+
+  frontfillService.emit("logTaskCompleted", {
+    network: network.name,
+    logData,
+  });
 }
