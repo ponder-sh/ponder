@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.43
+
+### Patch Changes
+
+- [`7833912`](https://github.com/0xOlias/ponder/commit/78339121197d861b7d03f733b7c935a0063f0e33) Thanks [@0xOlias](https://github.com/0xOlias)! - Fix baseFeePerGas bug on optimism/postgres
+
 ## 0.0.42
 
 ### Patch Changes
