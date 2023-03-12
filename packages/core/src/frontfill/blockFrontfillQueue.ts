@@ -82,8 +82,8 @@ async function blockFrontfillWorker(
   }
 
   // Filter down to only required transactions (transactions that emitted events we care about).
-  const transactions = allTransactions.filter((txn) =>
-    requiredTxHashes.has(txn.hash)
+  const transactions = allTransactions.filter((tx) =>
+    requiredTxHashes.has(tx.hash)
   );
 
   await Promise.all([
