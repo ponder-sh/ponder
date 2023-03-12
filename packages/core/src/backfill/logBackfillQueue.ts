@@ -28,7 +28,6 @@ export const createLogBackfillQueue = ({
   contract,
   blockBackfillQueue,
 }: LogBackfillWorkerContext) => {
-  // Queue for fetching historical blocks and transactions.
   const queue = fastq.promise<LogBackfillWorkerContext, LogBackfillTask>(
     { backfillService, contract, blockBackfillQueue },
     logBackfillWorker,
@@ -84,29 +83,25 @@ async function logBackfillWorker(
 
   await backfillService.resources.cacheStore.insertLogs(logs);
 
-  const txHashesForBlockHash = logs.reduce((acc, log) => {
-    if (acc[log.blockHash]) {
-      if (!acc[log.blockHash].includes(log.transactionHash)) {
-        acc[log.blockHash].push(log.transactionHash);
-      }
-    } else {
-      acc[log.blockHash] = [log.transactionHash];
-    }
-    return acc;
-  }, {} as Record<Hash, Hash[]>);
-
-  const requiredBlockHashes = Object.keys(txHashesForBlockHash) as Hash[];
+  const requiredBlockHashes = [...new Set(logs.map((l) => l.blockHash))];
+  const txHashesByBlockHash = logs.reduce<Record<Hash, Set<Hash>>>(
+    (acc, log) => {
+      acc[log.blockHash] ||= new Set<Hash>();
+      acc[log.blockHash].add(log.transactionHash);
+      return acc;
+    },
+    {}
+  );
 
   // The block request worker calls the `onSuccess` callback when it finishes. This serves as
   // a hacky way to run some code when all "child" jobs are done. In this case,
   // we want to update the contract metadata to store that this block range has been cached.
+  const completedBlockHashes: Hash[] = [];
 
-  const requiredBlockHashSet = new Set(requiredBlockHashes);
+  const onSuccess = async ({ blockHash }: { blockHash?: Hash } = {}) => {
+    if (blockHash) completedBlockHashes.push(blockHash);
 
-  const onSuccess = async (blockHash?: Hash) => {
-    if (blockHash) requiredBlockHashSet.delete(blockHash);
-
-    if (requiredBlockHashSet.size === 0) {
+    if (completedBlockHashes.length === requiredBlockHashes.length) {
       await Promise.all(
         contractAddresses.map((contractAddress) =>
           backfillService.resources.cacheStore.insertCachedInterval({
@@ -134,7 +129,7 @@ async function logBackfillWorker(
   requiredBlockHashes.forEach((blockHash) => {
     blockBackfillQueue.push({
       blockHash,
-      requiredTxHashes: txHashesForBlockHash[blockHash],
+      requiredTxHashes: txHashesByBlockHash[blockHash],
       onSuccess,
     });
   });

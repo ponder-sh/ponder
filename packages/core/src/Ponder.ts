@@ -303,36 +303,42 @@ export class Ponder {
       this.uiService.ui.backfillDuration = formatEta(duration);
     });
 
-    this.frontfillService.on(
-      "taskCompleted",
-      ({
-        network,
-        blockNumber,
-        blockTimestamp,
-        blockTxCount,
-        matchedLogCount,
-      }) => {
-        if (matchedLogCount > 0) {
-          this.resources.logger.logMessage(
-            MessageKind.FRONTFILL,
-            `${network} block ${blockNumber} (${blockTxCount} txns, ${matchedLogCount} matched events)`
-          );
-        }
+    // this.frontfillService.on(
+    //   "taskCompleted",
+    //   ({
+    //     network,
+    //     blockNumber,
+    //     blockTimestamp,
+    //     blockTxCount,
+    //     matchedLogCount,
+    //   }) => {
+    //     if (matchedLogCount > 0) {
+    //       this.resources.logger.logMessage(
+    //         MessageKind.FRONTFILL,
+    //         `${network} block ${blockNumber} (${blockTxCount} txns, ${matchedLogCount} matched events)`
+    //       );
+    //     }
 
-        this.uiService.ui.networks[network] = {
-          name: network,
-          blockNumber: blockNumber,
-          blockTimestamp: blockTimestamp,
-          blockTxnCount: blockTxCount,
-          matchedLogCount: matchedLogCount,
-        };
-      }
-    );
+    //     this.uiService.ui.networks[network] = {
+    //       name: network,
+    //       blockNumber: blockNumber,
+    //       blockTimestamp: blockTimestamp,
+    //       blockTxnCount: blockTxCount,
+    //       matchedLogCount: matchedLogCount,
+    //     };
+    //   }
+    // );
 
-    this.frontfillService.on("taskFailed", ({ error }) => {
+    this.frontfillService.on("logTaskFailed", ({ network, error }) => {
       this.resources.logger.logMessage(
         MessageKind.WARNING,
-        `block frontfill task failed with error: ${error.message}`
+        `(${network}) log frontfill task failed with error: ${error.message}`
+      );
+    });
+    this.frontfillService.on("blockTaskFailed", ({ network, error }) => {
+      this.resources.logger.logMessage(
+        MessageKind.WARNING,
+        `(${network}) block frontfill task failed with error: ${error.message}`
       );
     });
 
