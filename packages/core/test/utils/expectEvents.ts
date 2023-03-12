@@ -13,7 +13,9 @@ export async function expectEvents<Events extends Record<string, any>>(
 
     if (result === undefined) {
       throw new Error(
-        `Did not receive event: ("${String(expected[index].name)}")`
+        `Did not receive event "${String(
+          expected[index].name
+        )}" at index ${index}`
       );
     }
 

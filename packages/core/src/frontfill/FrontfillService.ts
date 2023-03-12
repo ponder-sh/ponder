@@ -54,9 +54,11 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
       (contract) => contract.endBlock === undefined && contract.isIndexed
     );
 
-    const uniqueLiveNetworks = liveContracts
-      .map((c) => c.network)
-      .filter((value, index, self) => self.indexOf(value) === index);
+    const uniqueLiveNetworks = [
+      ...new Map(
+        liveContracts.map((c) => [c.network.name, c.network])
+      ).values(),
+    ];
 
     await Promise.all(
       uniqueLiveNetworks.map(async (network) => {

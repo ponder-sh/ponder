@@ -1,6 +1,5 @@
-import { Address } from "abitype";
 import fastq from "fastq";
-import { Hash } from "viem";
+import { Hash, HttpRequestError, InvalidParamsRpcError } from "viem";
 
 import { MessageKind } from "@/common/LoggerService";
 import { parseLogs } from "@/common/types";
@@ -10,9 +9,9 @@ import { BackfillService } from "./BackfillService";
 import type { BlockBackfillQueue } from "./blockBackfillQueue";
 
 export type LogBackfillTask = {
-  contractAddresses: Address[];
   fromBlock: number;
   toBlock: number;
+  isRetry: boolean;
 };
 
 export type LogBackfillWorkerContext = {
@@ -34,14 +33,62 @@ export const createLogBackfillQueue = ({
     10 // TODO: Make this configurable
   );
 
-  queue.error((err, task) => {
-    if (err) {
-      backfillService.emit("logTaskFailed", {
-        contract: contract.name,
-        error: err,
+  queue.error((error, task) => {
+    if (!error) return;
+
+    // Handle Alchemy error message.
+    if (
+      error instanceof InvalidParamsRpcError &&
+      error.details.startsWith("Log response size exceeded.")
+    ) {
+      const safe = error.details.split("this block range should work: ")[1];
+      const safeStart = Number(safe.split(", ")[0].slice(1));
+      const safeEnd = Number(safe.split(", ")[1].slice(0, -1));
+
+      queue.unshift({
+        fromBlock: safeStart,
+        toBlock: safeEnd,
+        isRetry: true,
       });
-      queue.unshift(task);
+      queue.unshift({
+        fromBlock: safeEnd + 1,
+        toBlock: task.toBlock,
+        isRetry: true,
+      });
+
+      return;
     }
+
+    // Handle Quicknode block range limit error (should never happen).
+    if (
+      error instanceof HttpRequestError &&
+      error.details.includes(
+        "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range"
+      )
+    ) {
+      const midpoint = Math.floor(
+        (task.toBlock - task.fromBlock) / 2 + task.fromBlock
+      );
+
+      queue.unshift({
+        fromBlock: task.fromBlock,
+        toBlock: midpoint,
+        isRetry: true,
+      });
+      queue.unshift({
+        fromBlock: midpoint + 1,
+        toBlock: task.toBlock,
+        isRetry: true,
+      });
+
+      return;
+    }
+
+    backfillService.emit("logTaskFailed", {
+      contract: contract.name,
+      error,
+    });
+    queue.unshift(task);
   });
 
   return queue;
@@ -49,14 +96,14 @@ export const createLogBackfillQueue = ({
 
 async function logBackfillWorker(
   this: LogBackfillWorkerContext,
-  { contractAddresses, fromBlock, toBlock }: LogBackfillTask
+  { fromBlock, toBlock, isRetry }: LogBackfillTask
 ) {
   const { backfillService, contract, blockBackfillQueue } = this;
   const { client } = contract.network;
 
   const [rawLogs, rawToBlock] = await Promise.all([
     client.getLogs({
-      address: contractAddresses,
+      address: [contract.address],
       fromBlock: BigInt(fromBlock),
       toBlock: BigInt(toBlock),
     }),
@@ -102,16 +149,13 @@ async function logBackfillWorker(
     if (blockHash) completedBlockHashes.push(blockHash);
 
     if (completedBlockHashes.length === requiredBlockHashes.length) {
-      await Promise.all(
-        contractAddresses.map((contractAddress) =>
-          backfillService.resources.cacheStore.insertCachedInterval({
-            contractAddress,
-            startBlock: fromBlock,
-            endBlock: toBlock,
-            endBlockTimestamp: Number(toBlockTimestamp),
-          })
-        )
-      );
+      await backfillService.resources.cacheStore.insertCachedInterval({
+        contractAddress: contract.address,
+        startBlock: fromBlock,
+        endBlock: toBlock,
+        endBlockTimestamp: Number(toBlockTimestamp),
+      });
+
       // If there were logs in this batch, send an event to process them.
       const logCount = logs.length;
       if (logCount > 0) {
@@ -127,11 +171,18 @@ async function logBackfillWorker(
   }
 
   requiredBlockHashes.forEach((blockHash) => {
-    blockBackfillQueue.push({
+    const task = {
       blockHash,
       requiredTxHashes: txHashesByBlockHash[blockHash],
       onSuccess,
-    });
+    };
+
+    // If this is a retry, put the block tasks at the front of the queue.
+    if (isRetry) {
+      blockBackfillQueue.unshift(task);
+    } else {
+      blockBackfillQueue.push(task);
+    }
   });
 
   backfillService.emit("blockTasksAdded", {

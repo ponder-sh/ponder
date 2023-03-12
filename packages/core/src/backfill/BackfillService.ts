@@ -109,32 +109,15 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
 
     for (const blockInterval of requiredBlockIntervals) {
       const [startBlock, endBlock] = blockInterval;
+
       let fromBlock = startBlock;
-      let toBlock = Math.min(fromBlock + contract.blockLimit, endBlock);
+      let toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
 
-      // Handle special case for a one block range. Probably shouldn't need this.
-      if (fromBlock === toBlock) {
-        logBackfillQueue.push({
-          contractAddresses: [contract.address],
-          fromBlock,
-          toBlock,
-        });
-        this.emit("logTasksAdded", {
-          contract: contract.name,
-          count: 1,
-        });
-        continue;
-      }
-
-      while (fromBlock < endBlock) {
-        logBackfillQueue.push({
-          contractAddresses: [contract.address],
-          fromBlock,
-          toBlock,
-        });
+      while (fromBlock <= endBlock) {
+        logBackfillQueue.push({ fromBlock, toBlock, isRetry: false });
 
         fromBlock = toBlock + 1;
-        toBlock = Math.min(fromBlock + contract.blockLimit, endBlock);
+        toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
         this.emit("logTasksAdded", {
           contract: contract.name,
           count: 1,
