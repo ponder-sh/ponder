@@ -114,7 +114,7 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
       let toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
 
       while (fromBlock <= endBlock) {
-        logBackfillQueue.push({ fromBlock, toBlock });
+        logBackfillQueue.push({ fromBlock, toBlock, isRetry: false });
 
         fromBlock = toBlock + 1;
         toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
