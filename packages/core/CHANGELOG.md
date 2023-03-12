@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.44
+
+### Patch Changes
+
+- [`9efcf85`](https://github.com/0xOlias/ponder/commit/9efcf85ce2e76cf1e3d1e18c2ea392f0d8ab81ef) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed bug where Ponder instances would not close all open handles when killed
+
 ## 0.0.43
 
 ### Patch Changes
