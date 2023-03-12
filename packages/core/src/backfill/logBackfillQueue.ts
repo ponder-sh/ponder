@@ -1,4 +1,3 @@
-import { Address } from "abitype";
 import fastq from "fastq";
 import { Hash } from "viem";
 
@@ -10,7 +9,6 @@ import { BackfillService } from "./BackfillService";
 import type { BlockBackfillQueue } from "./blockBackfillQueue";
 
 export type LogBackfillTask = {
-  contractAddresses: Address[];
   fromBlock: number;
   toBlock: number;
 };
@@ -49,14 +47,14 @@ export const createLogBackfillQueue = ({
 
 async function logBackfillWorker(
   this: LogBackfillWorkerContext,
-  { contractAddresses, fromBlock, toBlock }: LogBackfillTask
+  { fromBlock, toBlock }: LogBackfillTask
 ) {
   const { backfillService, contract, blockBackfillQueue } = this;
   const { client } = contract.network;
 
   const [rawLogs, rawToBlock] = await Promise.all([
     client.getLogs({
-      address: contractAddresses,
+      address: [contract.address],
       fromBlock: BigInt(fromBlock),
       toBlock: BigInt(toBlock),
     }),
@@ -102,16 +100,13 @@ async function logBackfillWorker(
     if (blockHash) completedBlockHashes.push(blockHash);
 
     if (completedBlockHashes.length === requiredBlockHashes.length) {
-      await Promise.all(
-        contractAddresses.map((contractAddress) =>
-          backfillService.resources.cacheStore.insertCachedInterval({
-            contractAddress,
-            startBlock: fromBlock,
-            endBlock: toBlock,
-            endBlockTimestamp: Number(toBlockTimestamp),
-          })
-        )
-      );
+      await backfillService.resources.cacheStore.insertCachedInterval({
+        contractAddress: contract.address,
+        startBlock: fromBlock,
+        endBlock: toBlock,
+        endBlockTimestamp: Number(toBlockTimestamp),
+      });
+
       // If there were logs in this batch, send an event to process them.
       const logCount = logs.length;
       if (logCount > 0) {
