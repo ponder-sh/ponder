@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.42
+
+### Patch Changes
+
+- [#127](https://github.com/0xOlias/ponder/pull/127) [`b308f2f`](https://github.com/0xOlias/ponder/commit/b308f2ff034ff367a217791a35e45943650ab790) Thanks [@0xOlias](https://github.com/0xOlias)! - Changed how frontfill logs and blocks are fetched to improve performance on high-throughput chains like Arbitrum and Optimism. Also made a small change to the dev UI as a result.
+
 ## 0.0.41
 
 ### Patch Changes
