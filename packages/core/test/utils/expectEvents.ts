@@ -20,8 +20,20 @@ export async function expectEvents<Events extends Record<string, any>>(
     const { value } = result as { value: [string, any]; done: boolean };
     const [eventName, data] = value;
 
-    expect(eventName).toBe(expected[index].name);
-    expect(data).toMatchObject(expected[index].value);
+    // Ignore internal events like Symbol("listenerAdded")
+    if (typeof eventName === "symbol") {
+      continue;
+    }
+
+    // Ignore events that we don't specifically expect.
+    if (expected[index].name !== eventName) {
+      continue;
+    }
+
+    expect({ eventName: eventName, data: data }).toMatchObject({
+      eventName,
+      data: expected[index].value,
+    });
 
     index++;
   }

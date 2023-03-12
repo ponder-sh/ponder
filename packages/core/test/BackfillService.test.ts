@@ -1,25 +1,37 @@
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "vitest";
 
 import { BackfillService } from "@/backfill/BackfillService";
 
-import BaseRegistrarImplementationAbi from "./abis/BaseRegistrarImplementation.abi.json";
-import { setup } from "./utils/clients";
+import { testClient } from "./utils/clients";
+import { usdcContractConfig } from "./utils/constants";
+import { expectEvents } from "./utils/expectEvents";
 import { resetCacheStore } from "./utils/resetCacheStore";
 import { buildTestResources } from "./utils/resources";
+
+beforeAll(async () => {
+  await testClient.reset({
+    blockNumber: BigInt(parseInt(process.env.ANVIL_BLOCK_NUMBER!)),
+    jsonRpcUrl: process.env.ANVIL_FORK_URL,
+  });
+});
 
 describe("BackfillService", () => {
   let backfillService: BackfillService;
 
   beforeEach(async () => {
-    await setup();
-
     const resources = await buildTestResources({
       contracts: [
         {
-          name: "BaseRegistrarImplementation",
+          name: "USDC",
           network: "mainnet",
-          abi: BaseRegistrarImplementationAbi,
-          address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+          ...usdcContractConfig,
           startBlock: 16369950,
           endBlock: 16370000,
           blockLimit: 10,
@@ -37,8 +49,7 @@ describe("BackfillService", () => {
   });
 
   test("backfill events", async () => {
-    const contractStartedEvents = backfillService.events("contractStarted");
-    const backfillCompletedEvents = backfillService.events("backfillCompleted");
+    const eventIterator = backfillService.anyEvent();
 
     let logTaskCount = 0;
     backfillService.on("logTasksAdded", ({ count }) => {
@@ -53,25 +64,40 @@ describe("BackfillService", () => {
     await backfillService.backfill();
 
     expect(logTaskCount).toBe(5);
-    expect(blockTaskCount).toBe(15);
+    expect(blockTaskCount).toBe(51);
 
-    await contractStartedEvents.next().then(({ value }) => {
-      expect(value).toEqual({
-        contract: "BaseRegistrarImplementation",
-        cacheRate: 0,
-      });
-      return contractStartedEvents.return?.();
-    });
-
-    await backfillCompletedEvents.next().then(({ value }) => {
-      expect(value.duration).toBeGreaterThan(0);
-      return backfillCompletedEvents.return?.();
-    });
+    await expectEvents(eventIterator, [
+      {
+        name: "contractStarted",
+        value: { contract: "USDC", cacheRate: 0 },
+      },
+      ...Array(5).fill({
+        name: "logTasksAdded",
+        value: { count: 1 },
+      }),
+      // There are a bunch of blockTasksAdded, blockTaskCompleted, etc. here
+      {
+        name: "backfillCompleted",
+        value: {},
+      },
+    ]);
   });
 
   test("backfill data written to cache store", async () => {
-    expect(backfillService.resources.cacheStore.getBlock("0x0"));
-
     await backfillService.backfill();
+
+    expect(
+      await backfillService.resources.cacheStore.getCachedIntervals(
+        usdcContractConfig.address
+      )
+    ).toMatchObject([
+      {
+        id: 1,
+        contractAddress: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        startBlock: 16369950,
+        endBlock: 16370000,
+        endBlockTimestamp: 1673276423,
+      },
+    ]);
   });
 });

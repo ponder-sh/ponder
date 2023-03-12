@@ -47,8 +47,8 @@ describe("FrontfillService", () => {
         {
           name: "USDC",
           network: "mainnet",
-          startBlock: 16370000,
           ...usdcContractConfig,
+          startBlock: 16370000,
         },
       ],
     });
