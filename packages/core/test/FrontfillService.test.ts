@@ -1,24 +1,54 @@
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "vitest";
 
-import { FrontfillService } from "@/frontfill/FrontfillService";
+import {
+  FrontfillService,
+  FrontfillServiceEvents,
+} from "@/frontfill/FrontfillService";
 
-import BaseRegistrarImplementationAbi from "./abis/BaseRegistrarImplementation.abi.json";
-import { setup, testClient } from "./utils/clients";
+import { testClient, walletClient } from "./utils/clients";
+import { accounts, usdcContractConfig, vitalik } from "./utils/constants";
+import { expectEvents } from "./utils/expectEvents";
+import { resetCacheStore } from "./utils/resetCacheStore";
 import { buildTestResources } from "./utils/resources";
+import { wait } from "./utils/wait";
+
+beforeAll(async () => {
+  await testClient.reset({
+    blockNumber: BigInt(parseInt(process.env.ANVIL_BLOCK_NUMBER!)),
+    jsonRpcUrl: process.env.ANVIL_FORK_URL,
+  });
+
+  await testClient.impersonateAccount({
+    address: vitalik.address,
+  });
+  await testClient.setAutomine(true);
+});
+
+afterAll(async () => {
+  await testClient.stopImpersonatingAccount({
+    address: vitalik.address,
+  });
+  await testClient.setAutomine(false);
+});
 
 describe("FrontfillService", () => {
   let frontfillService: FrontfillService;
 
   beforeEach(async () => {
-    await setup();
-
     const resources = await buildTestResources({
       contracts: [
         {
-          name: "BaseRegistrarImplementation",
+          name: "USDC",
           network: "mainnet",
-          abi: BaseRegistrarImplementationAbi,
-          address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+          ...usdcContractConfig,
           startBlock: 16370000,
         },
       ],
@@ -27,23 +57,26 @@ describe("FrontfillService", () => {
     frontfillService = new FrontfillService({ resources });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     frontfillService.killQueues();
+    await resetCacheStore(frontfillService.resources.database);
   });
 
   test("getLatestBlockNumbers", async () => {
-    const networkConnectedEvents = frontfillService.events("networkConnected");
+    const eventIterator = frontfillService.anyEvent();
 
     await frontfillService.getLatestBlockNumbers();
 
-    await networkConnectedEvents.next().then(({ value }) => {
-      expect(value).toEqual({
-        network: "mainnet",
-        blockNumber: 16380000,
-        blockTimestamp: 1673397071,
-      });
-      networkConnectedEvents.return?.();
-    });
+    await expectEvents<FrontfillServiceEvents>(eventIterator, [
+      {
+        name: "networkConnected",
+        value: {
+          network: "mainnet",
+          blockNumber: 16380000,
+          blockTimestamp: 1673397071,
+        },
+      },
+    ]);
 
     expect(frontfillService.backfillCutoffTimestamp).toBe(1673397071);
   });
@@ -51,56 +84,90 @@ describe("FrontfillService", () => {
   test(
     "startFrontfill",
     async () => {
-      const taskAddedEvents = frontfillService.events("taskAdded");
-      const taskCompletedEvents = frontfillService.events("taskCompleted");
+      const eventIterator = frontfillService.anyEvent();
 
       await frontfillService.getLatestBlockNumbers();
       frontfillService.startFrontfill();
 
-      // Mine 1st block and confirm events are emitted.
-      await testClient.mine({ blocks: 1 });
-
-      await taskAddedEvents.next().then(({ value }) => {
-        expect(value).toEqual({
-          network: "mainnet",
-          blockNumber: 16380001,
-        });
-        return taskAddedEvents.return?.();
+      await walletClient.writeContract({
+        ...usdcContractConfig,
+        functionName: "transfer",
+        args: [accounts[0].address, 1n],
+        account: vitalik.account,
       });
+      await wait(1100);
 
-      await taskCompletedEvents.next().then(({ value }) => {
-        expect(value).toEqual({
-          network: "mainnet",
-          blockNumber: 16380001,
-          blockTimestamp: 1673397072,
-          blockTxCount: 0,
-          matchedLogCount: 0,
-        });
-        return taskCompletedEvents.return?.();
+      await expectEvents<FrontfillServiceEvents>(eventIterator, [
+        {
+          name: "networkConnected",
+          value: {
+            network: "mainnet",
+            blockNumber: 16380000,
+            blockTimestamp: 1673397071,
+          },
+        },
+        {
+          name: "logTasksAdded",
+          value: { network: "mainnet", count: 1 },
+        },
+        {
+          name: "blockTasksAdded",
+          value: { network: "mainnet", count: 1 },
+        },
+        {
+          name: "blockTaskCompleted",
+          value: { network: "mainnet" },
+        },
+        {
+          name: "eventsAdded",
+          value: { count: 1 },
+        },
+        {
+          name: "logTaskCompleted",
+          value: { network: "mainnet" },
+        },
+      ]);
+
+      await walletClient.writeContract({
+        ...usdcContractConfig,
+        functionName: "transfer",
+        args: [accounts[0].address, 1n],
+        account: vitalik.account,
       });
+      await walletClient.writeContract({
+        ...usdcContractConfig,
+        functionName: "transfer",
+        args: [accounts[0].address, 1n],
+        account: vitalik.account,
+      });
+      await wait(1100);
 
-      // TODO: improve frontfill tests!
-      // // Mine 2nd block and confirm events are emitted.
-      // await testClient.mine({ blocks: 1 });
-
-      // await taskAddedEvents.next().then(({ value }) => {
-      //   expect(value).toEqual({
-      //     network: "mainnet",
-      //     blockNumber: 16380002,
-      //   });
-      //   return taskAddedEvents.return?.();
-      // });
-
-      // await taskCompletedEvents.next().then(({ value }) => {
-      //   expect(value).toEqual({
-      //     network: "mainnet",
-      //     blockNumber: 16380002,
-      //     blockTimestamp: 1673397073,
-      //     blockTxCount: 0,
-      //     matchedLogCount: 0,
-      //   });
-      //   return taskCompletedEvents.return?.();
-      // });
+      await expectEvents<FrontfillServiceEvents>(eventIterator, [
+        {
+          name: "logTasksAdded",
+          value: { network: "mainnet", count: 1 },
+        },
+        {
+          name: "blockTasksAdded",
+          value: { network: "mainnet", count: 2 },
+        },
+        {
+          name: "blockTaskCompleted",
+          value: { network: "mainnet" },
+        },
+        {
+          name: "blockTaskCompleted",
+          value: { network: "mainnet" },
+        },
+        {
+          name: "eventsAdded",
+          value: { count: 2 },
+        },
+        {
+          name: "logTaskCompleted",
+          value: { network: "mainnet" },
+        },
+      ]);
     },
     {
       timeout: 10_000,

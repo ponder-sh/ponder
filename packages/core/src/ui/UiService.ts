@@ -20,7 +20,6 @@ export class UiService {
     this.render = () => render(this.ui);
 
     this.renderInterval = setInterval(() => {
-      this.ui.timestamp = Math.floor(Date.now() / 1000);
       if (this.resources.options.LOG_TYPE === "dev") this.render();
     }, 17);
 

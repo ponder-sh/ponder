@@ -9,7 +9,6 @@ import { HandlersBar } from "./HandlersBar";
 
 export type UiState = {
   isSilent: boolean;
-  timestamp: number;
   port: number;
 
   stats: Record<
@@ -41,22 +40,12 @@ export type UiState = {
   handlersHandledTotal: number;
   handlersToTimestamp: number;
 
-  networks: Record<
-    string,
-    {
-      name: string;
-      blockNumber: number;
-      blockTimestamp: number;
-      blockTxnCount: number;
-      matchedLogCount: number;
-    }
-  >;
+  networks: string[];
 };
 
 export const getUiState = (options: Partial<PonderOptions>): UiState => {
   return {
     isSilent: options.SILENT ?? false,
-    timestamp: 0,
     port: options.PORT ?? 0,
 
     stats: {},
@@ -70,7 +59,7 @@ export const getUiState = (options: Partial<PonderOptions>): UiState => {
     handlersHandledTotal: 0,
     handlersToTimestamp: 0,
 
-    networks: {},
+    networks: [],
   };
 };
 
@@ -103,7 +92,6 @@ export const hydrateUi = ({
 const App = (ui: UiState) => {
   const {
     isSilent,
-    timestamp,
     port,
     stats,
     isBackfillComplete,
@@ -151,27 +139,14 @@ const App = (ui: UiState) => {
 
       <HandlersBar ui={ui} />
 
-      {Object.values(networks).length > 0 && (
+      {networks.length > 0 && (
         <Box flexDirection="column">
-          <Text bold={true}>Frontfill </Text>
-          {Object.values(networks).map((network) => (
-            <Box flexDirection="row" key={network.name}>
+          <Text bold={true}>Networks</Text>
+          {networks.map((network) => (
+            <Box flexDirection="row" key={network}>
               <Text>
-                {network.name.slice(0, 1).toUpperCase() + network.name.slice(1)}{" "}
-                @{" "}
+                {network.slice(0, 1).toUpperCase() + network.slice(1)} (live)
               </Text>
-              {network.blockTxnCount !== -1 ? (
-                <Text>
-                  block {network.blockNumber} ({network.blockTxnCount} txs,{" "}
-                  {network.matchedLogCount} matched logs,{" "}
-                  {timestamp - network.blockTimestamp}s ago)
-                </Text>
-              ) : (
-                <Text>
-                  block {network.blockNumber} (
-                  {Math.max(timestamp - network.blockTimestamp, 0)}s ago)
-                </Text>
-              )}
             </Box>
           ))}
           <Text> </Text>

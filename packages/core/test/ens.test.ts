@@ -7,7 +7,15 @@ import { buildPonderConfig } from "@/config/ponderConfig";
 import { SqliteDb } from "@/database/db";
 import { Ponder } from "@/Ponder";
 
+import { testClient } from "./utils/clients";
 import { getFreePort } from "./utils/getFreePort";
+
+beforeAll(async () => {
+  await testClient.reset({
+    blockNumber: BigInt(parseInt(process.env.ANVIL_BLOCK_NUMBER!)),
+    jsonRpcUrl: process.env.ANVIL_FORK_URL,
+  });
+});
 
 describe("Ponder", () => {
   let ponder: Ponder;
@@ -76,7 +84,6 @@ describe("Ponder", () => {
       expect(entity).toBeDefined();
 
       const ensNfts = await ponder.resources.entityStore.getEntities(
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         entity!.id
       );
       expect(ensNfts.length).toBe(58);

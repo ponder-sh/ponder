@@ -1,26 +1,30 @@
 import Emittery from "emittery";
+import { Log as ViemLog } from "viem";
 
 import { Network } from "@/config/contracts";
 import { Resources } from "@/Ponder";
 
 import { createBlockFrontfillQueue } from "./blockFrontfillQueue";
+import { createLogFrontfillQueue } from "./logFrontfillQueue";
 
-type FrontfillServiceEvents = {
+export type FrontfillServiceEvents = {
   networkConnected: {
     network: string;
     blockNumber: number;
     blockTimestamp: number;
   };
 
-  taskAdded: { network: string; blockNumber: number };
-  taskFailed: { network: string; error: Error };
-  taskCompleted: {
+  logTasksAdded: { network: string; count: number };
+  blockTasksAdded: { network: string; count: number };
+
+  logTaskFailed: { network: string; error: Error };
+  blockTaskFailed: { network: string; error: Error };
+
+  logTaskCompleted: {
     network: string;
-    blockNumber: number;
-    blockTimestamp: number;
-    blockTxCount: number;
-    matchedLogCount: number;
+    logData: Record<number, Record<string, number>>;
   };
+  blockTaskCompleted: { network: string };
 
   eventsAdded: { count: number };
 };
@@ -29,11 +33,14 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
   resources: Resources;
 
   private queueKillFunctions: (() => void)[] = [];
-  private liveNetworks: {
+
+  liveNetworks: {
     network: Network;
-    cutoffBlockNumber: number;
-    cutoffBlockTimestamp: number;
+    startBlockNumber: number;
+    startBlockTimestamp: number;
+    currentBlockNumber: number;
   }[] = [];
+
   backfillCutoffTimestamp = Number.MAX_SAFE_INTEGER;
 
   constructor({ resources }: { resources: Resources }) {
@@ -65,57 +72,67 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
 
         this.liveNetworks.push({
           network,
-          cutoffBlockNumber: Number(block.number),
-          cutoffBlockTimestamp: Number(block.timestamp),
+          startBlockNumber: Number(block.number),
+          startBlockTimestamp: Number(block.timestamp),
+          currentBlockNumber: Number(block.number),
         });
       })
     );
 
+    // Set `endBlock` to the latest block number for any contract
+    // that did not specify one.
     liveContracts.forEach((contract) => {
       const liveNetwork = this.liveNetworks.find(
         (n) => n.network.name === contract.network.name
       );
-      contract.endBlock = liveNetwork?.cutoffBlockNumber;
+      contract.endBlock = liveNetwork?.startBlockNumber;
     });
 
+    // Store the latest timestamp among all connected networks.
+    // This is used to determine when backfill event processing is complete.
     this.backfillCutoffTimestamp = Math.max(
-      ...this.liveNetworks.map((n) => n.cutoffBlockTimestamp)
+      ...this.liveNetworks.map((n) => n.startBlockTimestamp)
     );
   }
 
   startFrontfill() {
-    this.liveNetworks.forEach((liveNetwork) => {
-      const { network, cutoffBlockNumber } = liveNetwork;
-
+    this.liveNetworks.forEach(({ network }) => {
       const contractAddresses = this.resources.contracts
         .filter((contract) => contract.network.name === network.name)
         .map((contract) => contract.address);
 
-      const frontfillQueue = createBlockFrontfillQueue({
+      const blockFrontfillQueue = createBlockFrontfillQueue({
+        frontfillService: this,
+        network,
+      });
+
+      const logFrontfillQueue = createLogFrontfillQueue({
         frontfillService: this,
         network,
         contractAddresses,
+        blockFrontfillQueue,
       });
 
-      const blockListener = (blockNumber: bigint) => {
-        // Messy way to avoid double-processing latestBlockNumber.
-        // Also noticed that this approach sometimes skips the block
-        // immediately after latestBlockNumber.
-        if (blockNumber > cutoffBlockNumber) {
-          frontfillQueue.push({ blockNumber: Number(blockNumber) });
-          this.emit("taskAdded", {
-            network: network.name,
-            blockNumber: Number(blockNumber),
-          });
-        }
+      const handleLogs = (logs: ViemLog[]) => {
+        if (logs.length === 0) return;
+
+        logFrontfillQueue.push({ logs });
+        this.emit("logTasksAdded", {
+          network: network.name,
+          count: 1,
+        });
       };
 
-      const unwatch = network.client.watchBlockNumber({
-        onBlockNumber: blockListener,
+      const unwatch = network.client.watchEvent({
+        address: contractAddresses,
+        onLogs: handleLogs,
+        pollingInterval: 1_000, // 1 second by default
+        batch: true,
       });
 
       this.queueKillFunctions.push(() => {
-        frontfillQueue.kill();
+        blockFrontfillQueue.kill();
+        logFrontfillQueue.kill();
         unwatch();
       });
     });

@@ -2,19 +2,20 @@ import fastq from "fastq";
 import { Hash, Transaction as ViemTransaction } from "viem";
 
 import { MessageKind } from "@/common/LoggerService";
-import { parseBlock, parseLogs, parseTransactions } from "@/common/types";
-import { Network } from "@/config/contracts";
+import { Block, parseBlock, parseTransactions } from "@/common/types";
+import type { Network } from "@/config/contracts";
 
 import { FrontfillService } from "./FrontfillService";
 
 export type BlockFrontfillTask = {
-  blockNumber: number;
+  blockHash: Hash;
+  requiredTxHashes: Set<Hash>;
+  onSuccess: (args: { block: Block }) => Promise<void>;
 };
 
 export type BlockFrontfillWorkerContext = {
   frontfillService: FrontfillService;
   network: Network;
-  contractAddresses: Hash[];
 };
 
 export type BlockFrontfillQueue = fastq.queueAsPromised<BlockFrontfillTask>;
@@ -22,18 +23,16 @@ export type BlockFrontfillQueue = fastq.queueAsPromised<BlockFrontfillTask>;
 export const createBlockFrontfillQueue = ({
   frontfillService,
   network,
-  contractAddresses,
 }: BlockFrontfillWorkerContext) => {
-  // Queue for fetching live blocks, transactions, and.
   const queue = fastq.promise<BlockFrontfillWorkerContext, BlockFrontfillTask>(
-    { frontfillService, network, contractAddresses },
+    { frontfillService, network },
     blockFrontfillWorker,
-    1
+    10 // TODO: Make this configurable
   );
 
   queue.error((err, task) => {
     if (err) {
-      frontfillService.emit("taskFailed", {
+      frontfillService.emit("blockTaskFailed", {
         network: network.name,
         error: err,
       });
@@ -44,51 +43,28 @@ export const createBlockFrontfillQueue = ({
   return queue;
 };
 
-// This worker is responsible for ensuring that the block, its transactions, and any
-// logs for the logGroup within that block are written to the cacheStore.
-// It then enqueues a task to process any matched logs from the block.
 async function blockFrontfillWorker(
   this: BlockFrontfillWorkerContext,
-  { blockNumber }: BlockFrontfillTask
+  { blockHash, requiredTxHashes, onSuccess }: BlockFrontfillTask
 ) {
-  const { frontfillService, network, contractAddresses } = this;
+  const { frontfillService, network } = this;
   const { client } = network;
 
-  const [rawLogs, rawBlock] = await Promise.all([
-    client.getLogs({
-      address: contractAddresses,
-      fromBlock: BigInt(blockNumber),
-      toBlock: BigInt(blockNumber),
-    }),
-    client.getBlock({
-      blockNumber: BigInt(blockNumber),
-      includeTransactions: true,
-    }),
-  ]);
+  const rawBlock = await client.getBlock({
+    blockHash: blockHash,
+    includeTransactions: true,
+  });
 
   const block = parseBlock(rawBlock);
-  const logs = parseLogs(rawLogs);
 
-  // If the log is pending, log a warning.
+  // If the block is pending, log a warning.
   if (!block) {
     this.frontfillService.resources.logger.logMessage(
       MessageKind.WARNING,
-      `Received unexpected pending block (number: ${blockNumber})`
+      `Received unexpected pending block (hash: ${blockHash})`
     );
     return;
   }
-
-  // If any pending logs were present in the response, log a warning.
-  if (logs.length !== rawLogs.length) {
-    this.frontfillService.resources.logger.logMessage(
-      MessageKind.WARNING,
-      `Received unexpected pending logs (count: ${
-        logs.length - rawLogs.length
-      })`
-    );
-  }
-
-  const requiredTxHashSet = new Set(logs.map((l) => l.transactionHash));
 
   const allTransactions = parseTransactions(
     block.transactions as ViemTransaction[]
@@ -98,7 +74,7 @@ async function blockFrontfillWorker(
   if (allTransactions.length !== block.transactions.length) {
     this.frontfillService.resources.logger.logMessage(
       MessageKind.WARNING,
-      `Received unexpected pending transactions in block (number: ${blockNumber}, count: ${
+      `Received unexpected pending transactions in block (hash: ${blockHash}, count: ${
         block.transactions.length - allTransactions.length
       })`
     );
@@ -106,40 +82,16 @@ async function blockFrontfillWorker(
   }
 
   // Filter down to only required transactions (transactions that emitted events we care about).
-  const transactions = allTransactions.filter((txn) =>
-    requiredTxHashSet.has(txn.hash)
+  const transactions = allTransactions.filter((tx) =>
+    requiredTxHashes.has(tx.hash)
   );
 
   await Promise.all([
-    frontfillService.resources.cacheStore.insertLogs(logs),
+    frontfillService.resources.cacheStore.insertBlock(block),
     frontfillService.resources.cacheStore.insertTransactions(transactions),
   ]);
 
-  // Must insert the block AFTER the logs to make sure log.blockTimestamp gets updated.
-  await frontfillService.resources.cacheStore.insertBlock(block);
+  frontfillService.emit("blockTaskCompleted", { network: network.name });
 
-  await Promise.all(
-    contractAddresses.map((contractAddress) =>
-      frontfillService.resources.cacheStore.insertCachedInterval({
-        contractAddress,
-        startBlock: Number(block.number),
-        endBlock: Number(block.number),
-        endBlockTimestamp: Number(block.timestamp),
-      })
-    )
-  );
-
-  frontfillService.emit("taskCompleted", {
-    network: network.name,
-    blockNumber: Number(block.number),
-    blockTimestamp: Number(block.timestamp),
-    blockTxCount: allTransactions.length,
-    matchedLogCount: logs.length,
-  });
-
-  if (logs.length > 0) {
-    frontfillService.emit("eventsAdded", {
-      count: logs.length,
-    });
-  }
+  await onSuccess({ block });
 }

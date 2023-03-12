@@ -9,8 +9,8 @@ import { BackfillService } from "./BackfillService";
 
 export type BlockBackfillTask = {
   blockHash: Hash;
-  requiredTxHashes: Hash[];
-  onSuccess: (blockHash: Hash) => Promise<void>;
+  requiredTxHashes: Set<Hash>;
+  onSuccess: (arg: { blockHash: Hash }) => Promise<void>;
 };
 
 export type BlockBackfillWorkerContext = {
@@ -67,8 +67,6 @@ async function blockBackfillWorker(
     return;
   }
 
-  const requiredTxHashSet = new Set(requiredTxHashes);
-
   const allTransactions = parseTransactions(
     block.transactions as ViemTransaction[]
   );
@@ -85,8 +83,8 @@ async function blockBackfillWorker(
   }
 
   // Filter down to only required transactions (transactions that emitted events we care about).
-  const transactions = allTransactions.filter((txn) =>
-    requiredTxHashSet.has(txn.hash)
+  const transactions = allTransactions.filter((tx) =>
+    requiredTxHashes.has(tx.hash)
   );
 
   await Promise.all([
@@ -94,6 +92,6 @@ async function blockBackfillWorker(
     backfillService.resources.cacheStore.insertTransactions(transactions),
   ]);
 
-  await onSuccess(blockHash);
+  await onSuccess({ blockHash });
   backfillService.emit("blockTaskCompleted", { contract: contract.name });
 }
