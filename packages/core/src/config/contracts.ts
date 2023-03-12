@@ -87,25 +87,70 @@ export function buildContracts({
       clients[network.chainId] = client;
     }
 
+    const resolvedNetwork: Network = {
+      name: network.name,
+      chainId: network.chainId,
+      rpcUrl: network.rpcUrl,
+      client,
+    };
+
     return {
       name: contract.name,
       address,
 
-      network: {
-        name: network.name,
-        chainId: network.chainId,
-        rpcUrl: network.rpcUrl,
-        client,
-      },
+      network: resolvedNetwork,
 
       abi,
       abiFilePath: abiFilePath,
 
       startBlock: contract.startBlock || 0,
       endBlock: contract.endBlock,
-      blockLimit: contract.blockLimit || 50,
+      blockLimit:
+        contract.blockLimit || getDefaultBlockLimitForNetwork(resolvedNetwork),
 
       isIndexed: contract.isIndexed !== undefined ? contract.isIndexed : true,
     };
   });
+}
+
+function getDefaultBlockLimitForNetwork(network: Network) {
+  // Quicknode enforces a hard limit of 10_000.
+  if (network.rpcUrl !== undefined && network.rpcUrl.includes("quiknode.pro")) {
+    return 10_000;
+  }
+
+  // Otherwise (e.g. Alchemy) use an optimistically high block limit and lean
+  // on the error handler to resolve failures.
+
+  let blockLimit: number;
+  switch (network.chainId) {
+    // Mainnet.
+    case 1:
+    case 3:
+    case 4:
+    case 5:
+    case 42:
+    case 11155111:
+      blockLimit = 2_000;
+      break;
+    // Optimism.
+    case 10:
+    case 420:
+      blockLimit = 50_000;
+      break;
+    // Polygon.
+    case 137:
+    case 80001:
+      blockLimit = 50_000;
+      break;
+    // Arbitrum.
+    case 42161:
+    case 421613:
+      blockLimit = 50_000;
+      break;
+    default:
+      blockLimit = 50_000;
+  }
+
+  return blockLimit;
 }
