@@ -2,9 +2,10 @@ import { Hex } from "viem";
 
 import { Block, Log, Transaction } from "../../common/types";
 
-export type DatabaseBlock = Omit<Block, "totalDifficulty"> & {
+export type DatabaseBlock = Omit<Block, "totalDifficulty" | "baseFeePerGas"> & {
   totalDifficulty: string | null;
-  // TODO: properly reflect that 7 additional fields are being persisted as strings.
+  baseFeePerGas: string;
+  // TODO: properly reflect that 6 additional fields are being persisted as strings.
 };
 
 export function encodeBlock(block: Block): DatabaseBlock {
@@ -15,6 +16,11 @@ export function encodeBlock(block: Block): DatabaseBlock {
     // so must manually convert to string before passing it.
     totalDifficulty:
       block.totalDifficulty !== null ? block.totalDifficulty.toString() : null,
+
+    // baseFeePerGas is null on some chains. It should probably be optional in the
+    // database as well, actually.
+    baseFeePerGas:
+      block.totalDifficulty !== null ? block.totalDifficulty.toString() : "0x0",
   };
 }
 
