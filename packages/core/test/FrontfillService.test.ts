@@ -21,7 +21,6 @@ import { wait } from "./utils/wait";
 
 beforeAll(async () => {
   await testClient.reset({
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     blockNumber: BigInt(parseInt(process.env.ANVIL_BLOCK_NUMBER!)),
     jsonRpcUrl: process.env.ANVIL_FORK_URL,
   });

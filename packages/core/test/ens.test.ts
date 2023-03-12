@@ -76,7 +76,6 @@ describe("Ponder", () => {
       expect(entity).toBeDefined();
 
       const ensNfts = await ponder.resources.entityStore.getEntities(
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         entity!.id
       );
       expect(ensNfts.length).toBe(58);

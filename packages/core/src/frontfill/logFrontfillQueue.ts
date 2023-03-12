@@ -93,7 +93,6 @@ async function logFrontfillWorker(
       )[completedBlocks.length - 1];
 
       // Get the previous endBlock and set this as the startBlock for caching.
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const fromBlockNumber = this.frontfillService.liveNetworks.find(
         (n) => n.network.name === network.name
       )!.currentBlockNumber;
