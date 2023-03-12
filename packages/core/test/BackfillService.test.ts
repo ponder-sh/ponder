@@ -63,7 +63,7 @@ describe("BackfillService", () => {
 
     await backfillService.backfill();
 
-    expect(logTaskCount).toBe(5);
+    expect(logTaskCount).toBe(6);
     expect(blockTaskCount).toBe(51);
 
     await expectEvents(eventIterator, [
@@ -71,7 +71,7 @@ describe("BackfillService", () => {
         name: "contractStarted",
         value: { contract: "USDC", cacheRate: 0 },
       },
-      ...Array(5).fill({
+      ...Array(6).fill({
         name: "logTasksAdded",
         value: { count: 1 },
       }),
