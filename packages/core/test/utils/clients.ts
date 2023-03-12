@@ -1,4 +1,9 @@
-import { createPublicClient, createTestClient, http } from "viem";
+import {
+  createPublicClient,
+  createTestClient,
+  createWalletClient,
+  http,
+} from "viem";
 import { localhost, mainnet } from "viem/chains";
 
 const anvilChain = {
@@ -10,6 +15,11 @@ const anvilChain = {
 export const publicClient = createPublicClient({
   chain: anvilChain,
   transport: http(),
+});
+
+export const walletClient = createWalletClient({
+  chain: anvilChain,
+  transport: http(localhost.rpcUrls.public.http[0]),
 });
 
 export const testClient = createTestClient({
