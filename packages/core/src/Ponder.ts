@@ -155,11 +155,6 @@ export class Ponder {
   }
 
   async kill() {
-    console.log({
-      handles: process._getActiveHandles(),
-      requests: process._getActiveRequests(),
-    });
-
     await this.reloadService.kill?.();
     this.uiService.kill();
 
@@ -169,11 +164,6 @@ export class Ponder {
     this.eventHandlerService.killQueue();
     await this.serverService.teardown();
     await this.resources.entityStore.teardown();
-
-    console.log({
-      handles: process._getActiveHandles(),
-      requests: process._getActiveRequests(),
-    });
   }
 
   private registerDevAndStartHandlers() {
