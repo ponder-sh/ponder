@@ -58,7 +58,7 @@ describe("FrontfillService", () => {
   });
 
   afterEach(async () => {
-    frontfillService.killQueues();
+    await frontfillService.kill();
     await resetCacheStore(frontfillService.resources.database);
   });
 

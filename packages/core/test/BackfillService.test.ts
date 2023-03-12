@@ -43,7 +43,7 @@ describe("BackfillService", () => {
   });
 
   afterEach(async () => {
-    backfillService.killQueues();
+    await backfillService.kill();
 
     await resetCacheStore(backfillService.resources.database);
   });
