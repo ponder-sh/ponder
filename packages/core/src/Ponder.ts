@@ -133,6 +133,7 @@ export class Ponder {
 
     // When ran with `ponder start`, handler errors should kill the process.
     this.resources.errors.on("handlerError", async () => {
+      process.exitCode = 1;
       await this.kill();
     });
 
