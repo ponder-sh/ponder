@@ -29,12 +29,12 @@ export interface CacheStore {
 
   insertTransactions(transactions: Transaction[]): Promise<void>;
 
-  getLogs(
-    contractAddress: string,
-    fromBlockTimestamp: number,
-    toBlockTimestamp: number,
-    eventSigHashes?: string[]
-  ): Promise<Log[]>;
+  getLogs(arg: {
+    contractAddress: string;
+    fromBlockTimestamp: number;
+    toBlockTimestamp: number;
+    eventSigHashes?: string[];
+  }): Promise<Log[]>;
 
   getBlock(hash: string): Promise<Omit<Block, "transactions"> | null>;
 

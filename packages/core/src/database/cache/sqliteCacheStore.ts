@@ -389,12 +389,17 @@ export class SqliteCacheStore implements CacheStore {
     insertTransactionsTx(transactions);
   };
 
-  getLogs = async (
-    address: string,
-    fromBlockTimestamp: number,
-    toBlockTimestamp: number,
-    eventSigHashes?: string[]
-  ) => {
+  getLogs = async ({
+    contractAddress,
+    fromBlockTimestamp,
+    toBlockTimestamp,
+    eventSigHashes,
+  }: {
+    contractAddress: string;
+    fromBlockTimestamp: number;
+    toBlockTimestamp: number;
+    eventSigHashes?: string[];
+  }) => {
     let topicStatement = "";
     let topicParams: string[] = [];
     if (eventSigHashes !== undefined) {
@@ -408,14 +413,14 @@ export class SqliteCacheStore implements CacheStore {
       .prepare(
         `
           SELECT * FROM "${logsTableName}"
-          WHERE "address" = @address
+          WHERE "address" = @contractAddress
           AND "blockTimestamp" > @fromBlockTimestamp
           AND "blockTimestamp" <= @toBlockTimestamp
           ${topicStatement}
           `
       )
       .all(...topicParams, {
-        address,
+        contractAddress,
         fromBlockTimestamp,
         toBlockTimestamp,
       });

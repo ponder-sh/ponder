@@ -346,17 +346,17 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
         });
 
         const [logs, totalLogs] = await Promise.all([
-          this.resources.cacheStore.getLogs(
-            contract.address,
-            fromTimestamp,
-            toTimestamp,
-            eventSigHashes
-          ),
-          this.resources.cacheStore.getLogs(
-            contract.address,
-            fromTimestamp,
-            toTimestamp
-          ),
+          this.resources.cacheStore.getLogs({
+            contractAddress: contract.address,
+            fromBlockTimestamp: fromTimestamp,
+            toBlockTimestamp: toTimestamp,
+            eventSigHashes,
+          }),
+          this.resources.cacheStore.getLogs({
+            contractAddress: contract.address,
+            fromBlockTimestamp: fromTimestamp,
+            toBlockTimestamp: toTimestamp,
+          }),
         ]);
 
         totalLogCount += totalLogs.length;

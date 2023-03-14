@@ -384,12 +384,17 @@ export class PostgresCacheStore implements CacheStore {
     await this.pool.query(query, params);
   };
 
-  getLogs = async (
-    address: string,
-    fromBlockTimestamp: number,
-    toBlockTimestamp: number,
-    eventSigHashes?: string[]
-  ) => {
+  getLogs = async ({
+    contractAddress,
+    fromBlockTimestamp,
+    toBlockTimestamp,
+    eventSigHashes,
+  }: {
+    contractAddress: string;
+    fromBlockTimestamp: number;
+    toBlockTimestamp: number;
+    eventSigHashes?: string[];
+  }) => {
     let topicStatement = "";
     let topicParams: string[] = [];
     if (eventSigHashes !== undefined) {
@@ -413,7 +418,7 @@ export class PostgresCacheStore implements CacheStore {
       AND "blockTimestamp" <= $3
       ${topicStatement}
       `,
-      [address, fromBlockTimestamp, toBlockTimestamp, ...topicParams]
+      [contractAddress, fromBlockTimestamp, toBlockTimestamp, ...topicParams]
     );
 
     return rows.map(decodeLog);
