@@ -62,7 +62,7 @@ describe("FrontfillService", () => {
     await resetCacheStore(frontfillService.resources.database);
   });
 
-  test("getLatestBlockNumbers", async () => {
+  test("getLatestBlockNumbers()", async () => {
     const eventIterator = frontfillService.anyEvent();
 
     await frontfillService.getLatestBlockNumbers();
@@ -82,7 +82,7 @@ describe("FrontfillService", () => {
   });
 
   test(
-    "startFrontfill",
+    "startFrontfill()",
     async () => {
       const eventIterator = frontfillService.anyEvent();
 

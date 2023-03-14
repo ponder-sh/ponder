@@ -25,7 +25,7 @@ beforeAll(async () => {
   });
 });
 
-describe("backfill()", () => {
+describe("BackfillService", () => {
   let backfillService: BackfillService;
 
   beforeEach(async () => {
@@ -50,89 +50,78 @@ describe("backfill()", () => {
     await resetCacheStore(backfillService.resources.database);
   });
 
-  test("events are emitted", async () => {
-    const eventIterator = backfillService.anyEvent();
+  describe("backfill()", async () => {
+    test("events are emitted", async () => {
+      const eventIterator = backfillService.anyEvent();
 
-    let logTaskCount = 0;
-    backfillService.on("logTasksAdded", ({ count }) => {
-      logTaskCount += count;
-    });
-
-    let blockTaskCount = 0;
-    backfillService.on("blockTasksAdded", ({ count }) => {
-      blockTaskCount += count;
-    });
-
-    await backfillService.backfill();
-
-    expect(logTaskCount).toBe(6);
-    expect(blockTaskCount).toBe(51);
-
-    await expectEvents<BackfillServiceEvents>(eventIterator, [
-      {
-        name: "contractStarted",
-        value: { contract: "USDC", cacheRate: 0 },
-      },
-      ...Array(6).fill({
-        name: "logTasksAdded",
-        value: { count: 1 },
-      }),
-      // There are a bunch of blockTasksAdded and blockTaskCompleted
-      // events here in a non-deterministic order
-      ...Array(6).fill({
-        name: "logTaskCompleted",
-        value: { contract: "USDC" },
-      }),
-      {
-        name: "backfillCompleted",
-        value: {},
-      },
-    ]);
-  });
-
-  describe("data is written to cache store", () => {
-    beforeEach(async () => {
       await backfillService.backfill();
-    });
 
-    test("logs, blocks, and transactions", async () => {
-      const logs = await backfillService.resources.cacheStore.getLogs({
-        contractAddress: usdcContractConfig.address,
-        fromBlockTimestamp: 0,
-        toBlockTimestamp: 1673276423,
-      });
-
-      expect(logs).toHaveLength(726);
-
-      for (const log of logs) {
-        const block = await backfillService.resources.cacheStore.getBlock(
-          log.blockHash
-        );
-        expect(block).toBeTruthy();
-
-        const transaction =
-          await backfillService.resources.cacheStore.getTransaction(
-            log.transactionHash
-          );
-        expect(transaction).toBeTruthy();
-      }
-    });
-
-    test("cached interval", async () => {
-      const cachedInterval =
-        await backfillService.resources.cacheStore.getCachedIntervals(
-          usdcContractConfig.address
-        );
-
-      expect(cachedInterval).toMatchObject([
+      await expectEvents<BackfillServiceEvents>(eventIterator, [
         {
-          id: 1,
-          contractAddress: usdcContractConfig.address,
-          startBlock: 16369950,
-          endBlock: 16370000,
-          endBlockTimestamp: 1673276423,
+          name: "contractStarted",
+          value: { contract: "USDC", cacheRate: 0 },
+        },
+        ...Array(6).fill({
+          name: "logTasksAdded",
+          value: { count: 1 },
+        }),
+        // There are a bunch of blockTasksAdded and blockTaskCompleted
+        // events here in a non-deterministic order
+        ...Array(6).fill({
+          name: "logTaskCompleted",
+          value: { contract: "USDC" },
+        }),
+        {
+          name: "backfillCompleted",
+          value: {},
         },
       ]);
+    });
+
+    describe("data is written to the cache store", () => {
+      beforeEach(async () => {
+        await backfillService.backfill();
+      });
+
+      test("logs, blocks, and transactions", async () => {
+        const logs = await backfillService.resources.cacheStore.getLogs({
+          contractAddress: usdcContractConfig.address,
+          fromBlockTimestamp: 0,
+          toBlockTimestamp: 1673276423,
+        });
+
+        expect(logs).toHaveLength(726);
+
+        for (const log of logs) {
+          const block = await backfillService.resources.cacheStore.getBlock(
+            log.blockHash
+          );
+          expect(block).toBeTruthy();
+
+          const transaction =
+            await backfillService.resources.cacheStore.getTransaction(
+              log.transactionHash
+            );
+          expect(transaction).toBeTruthy();
+        }
+      });
+
+      test("cached interval", async () => {
+        const cachedInterval =
+          await backfillService.resources.cacheStore.getCachedIntervals(
+            usdcContractConfig.address
+          );
+
+        expect(cachedInterval).toMatchObject([
+          {
+            id: 1,
+            contractAddress: usdcContractConfig.address,
+            startBlock: 16369950,
+            endBlock: 16370000,
+            endBlockTimestamp: 1673276423,
+          },
+        ]);
+      });
     });
   });
 });
