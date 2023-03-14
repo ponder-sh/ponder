@@ -5,12 +5,13 @@ export type Queue<TTask> = PQueue & {
   addTasks: (tasks: TTask[], options?: { priority?: number }) => Promise<void>;
 };
 
-export function createQueue<TTask, TContext>({
+// TODO: Improve so the 'error' and `completed' events are properly typed.
+export function createQueue<TTask, TContext, TReturn>({
   worker,
   context,
   options,
 }: {
-  worker: (arg: { task: TTask; context: TContext }) => Promise<void>;
+  worker: (arg: { task: TTask; context: TContext }) => Promise<TReturn>;
   context: TContext;
   options: Options<
     TPQueue<() => Promise<unknown>, DefaultAddOptions>,
@@ -20,13 +21,13 @@ export function createQueue<TTask, TContext>({
   const queue = new PQueue(options) as Queue<TTask>;
 
   const buildTask = (task: TTask) => async () => {
-    await worker({ task, context });
+    return await worker({ task, context });
   };
 
   queue.addTask = async (task, options) => {
     try {
       const result = await queue.add(buildTask(task), options);
-      queue.emit("completed", result);
+      queue.emit("completed", { result });
     } catch (error) {
       queue.emit("error", { error, task });
     }
@@ -37,7 +38,7 @@ export function createQueue<TTask, TContext>({
       tasks.map(async (task) => {
         try {
           const result = await queue.add(buildTask(task), options);
-          queue.emit("completed", result);
+          queue.emit("completed", { result });
         } catch (error) {
           queue.emit("error", { error, task });
         }

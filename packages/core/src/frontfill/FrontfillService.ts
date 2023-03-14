@@ -119,11 +119,7 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
       const handleLogs = (logs: ViemLog[]) => {
         if (logs.length === 0) return;
 
-        logFrontfillQueue.push({ logs });
-        this.emit("logTasksAdded", {
-          network: network.name,
-          count: 1,
-        });
+        logFrontfillQueue.addTask({ logs });
       };
 
       const unwatch = network.client.watchEvent({
@@ -134,10 +130,10 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
       });
 
       this.killFunctions.push(async () => {
-        logFrontfillQueue.kill();
-        await logFrontfillQueue.drained();
-        blockFrontfillQueue.kill();
-        await blockFrontfillQueue.drained();
+        logFrontfillQueue.clear();
+        await logFrontfillQueue.onIdle();
+        blockFrontfillQueue.clear();
+        await blockFrontfillQueue.onIdle();
         unwatch();
       });
     });

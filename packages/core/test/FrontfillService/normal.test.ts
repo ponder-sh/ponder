@@ -6,6 +6,7 @@ import {
   describe,
   expect,
   test,
+  vi,
 } from "vitest";
 
 import { FrontfillService } from "@/frontfill/FrontfillService";
@@ -100,6 +101,7 @@ describe("FrontfillService", () => {
       });
 
       const eventIterator2 = frontfillService.anyEvent();
+      const emitSpy = vi.spyOn(frontfillService, "emit");
 
       await walletClient.writeContract({
         ...usdcContractConfig,
@@ -120,10 +122,22 @@ describe("FrontfillService", () => {
         logTasksAdded: 1,
         logTaskCompleted: 1,
         logTaskFailed: 0,
-        blockTasksAdded: 1,
-        blockTaskCompleted: 1,
+        blockTasksAdded: 2,
+        blockTaskCompleted: 2,
         blockTaskFailed: 0,
         eventsAdded: 1,
+      });
+
+      expect(emitSpy).toHaveBeenCalledWith("logTaskCompleted", {
+        network: "mainnet",
+        logData: {
+          16380002: {
+            [usdcContractConfig.address]: 1,
+          },
+          16380003: {
+            [usdcContractConfig.address]: 1,
+          },
+        },
       });
     },
     {

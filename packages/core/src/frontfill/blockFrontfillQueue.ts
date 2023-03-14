@@ -1,6 +1,6 @@
-import fastq from "fastq";
 import { Hash, Transaction as ViemTransaction } from "viem";
 
+import { createQueue, Queue } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
 import { Block, parseBlock, parseTransactions } from "@/common/types";
 import type { Network } from "@/config/contracts";
@@ -18,36 +18,57 @@ export type BlockFrontfillWorkerContext = {
   network: Network;
 };
 
-export type BlockFrontfillQueue = fastq.queueAsPromised<BlockFrontfillTask>;
+export type BlockFrontfillQueue = Queue<BlockFrontfillTask>;
 
-export const createBlockFrontfillQueue = ({
-  frontfillService,
-  network,
-}: BlockFrontfillWorkerContext) => {
-  const queue = fastq.promise<BlockFrontfillWorkerContext, BlockFrontfillTask>(
-    { frontfillService, network },
-    blockFrontfillWorker,
-    10 // TODO: Make this configurable
-  );
+export const createBlockFrontfillQueue = (
+  context: BlockFrontfillWorkerContext
+) => {
+  const queue = createQueue({
+    worker: blockFrontfillWorker,
+    context,
+    options: {
+      concurrency: 1,
+    },
+  });
 
-  queue.error((err, task) => {
-    if (err) {
-      frontfillService.emit("blockTaskFailed", {
-        network: network.name,
-        error: err,
-      });
-      queue.unshift(task);
-    }
+  // Pass queue events on to service layer.
+  queue.on("add", () => {
+    context.frontfillService.emit("blockTasksAdded", {
+      network: context.network.name,
+      count: 1,
+    });
+  });
+
+  queue.on("error", ({ error }: { error: Error }) => {
+    context.frontfillService.emit("blockTaskFailed", {
+      network: context.network.name,
+      error,
+    });
+  });
+
+  queue.on("completed", () => {
+    context.frontfillService.emit("blockTaskCompleted", {
+      network: context.network.name,
+    });
+  });
+
+  // Default to a simple retry.
+  queue.on("error", ({ task }: { task: BlockFrontfillTask }) => {
+    queue.addTask(task);
   });
 
   return queue;
 };
 
-async function blockFrontfillWorker(
-  this: BlockFrontfillWorkerContext,
-  { blockHash, requiredTxHashes, onSuccess }: BlockFrontfillTask
-) {
-  const { frontfillService, network } = this;
+async function blockFrontfillWorker({
+  task,
+  context,
+}: {
+  task: BlockFrontfillTask;
+  context: BlockFrontfillWorkerContext;
+}) {
+  const { blockHash, requiredTxHashes, onSuccess } = task;
+  const { frontfillService, network } = context;
   const { client } = network;
 
   const rawBlock = await client.getBlock({
@@ -59,7 +80,7 @@ async function blockFrontfillWorker(
 
   // If the block is pending, log a warning.
   if (!block) {
-    this.frontfillService.resources.logger.logMessage(
+    frontfillService.resources.logger.logMessage(
       MessageKind.WARNING,
       `Received unexpected pending block (hash: ${blockHash})`
     );
@@ -72,7 +93,7 @@ async function blockFrontfillWorker(
 
   // If any pending transactions were present in the block, log a warning.
   if (allTransactions.length !== block.transactions.length) {
-    this.frontfillService.resources.logger.logMessage(
+    frontfillService.resources.logger.logMessage(
       MessageKind.WARNING,
       `Received unexpected pending transactions in block (hash: ${blockHash}, count: ${
         block.transactions.length - allTransactions.length
@@ -90,8 +111,6 @@ async function blockFrontfillWorker(
     frontfillService.resources.cacheStore.insertBlock(block),
     frontfillService.resources.cacheStore.insertTransactions(transactions),
   ]);
-
-  frontfillService.emit("blockTaskCompleted", { network: network.name });
 
   await onSuccess({ block });
 }
