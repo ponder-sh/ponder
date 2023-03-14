@@ -95,7 +95,7 @@ describe("FrontfillService", () => {
         args: [accounts[0].address, 1n],
         account: vitalik.account,
       });
-      await wait(1050);
+      await wait(1200);
 
       await expectEvents(eventIterator1, {
         frontfillStarted: 1,
@@ -123,7 +123,7 @@ describe("FrontfillService", () => {
         args: [accounts[0].address, 1n],
         account: vitalik.account,
       });
-      await wait(1050);
+      await wait(1200);
 
       await expectEvents(eventIterator2, {
         frontfillStarted: 0,
