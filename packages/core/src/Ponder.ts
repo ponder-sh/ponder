@@ -190,7 +190,6 @@ export class Ponder {
     });
 
     this.frontfillService.on("frontfillStarted", async () => {
-      this.eventHandlerService.isFrontfillStarted = true;
       await this.eventHandlerService.processEvents();
     });
     this.backfillService.on("backfillStarted", async () => {

@@ -40,7 +40,6 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
   private injectedContracts: Record<string, ReadOnlyContract | undefined> = {};
 
   isBackfillStarted = false;
-  isFrontfillStarted = false;
 
   private eventProcessingPromise?: Promise<void>;
   private eventsHandledToTimestamp = 0;
@@ -96,7 +95,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
   }
 
   async processEvents() {
-    if (!this.isBackfillStarted || !this.isFrontfillStarted) return;
+    if (!this.isBackfillStarted) return;
     if (this.resources.errors.isHandlerError) return;
 
     // If there is already a call to processEvents() in progress, wait for that to be

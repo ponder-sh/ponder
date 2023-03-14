@@ -1,7 +1,7 @@
 import Emittery from "emittery";
 import { Log as ViemLog } from "viem";
 
-import { Network } from "@/config/contracts";
+import { Contract, Network } from "@/config/contracts";
 import { Resources } from "@/Ponder";
 
 import { createBlockFrontfillQueue } from "./blockFrontfillQueue";
@@ -42,7 +42,7 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
     currentBlockNumber: number;
   }[] = [];
 
-  backfillCutoffTimestamp = Number.MAX_SAFE_INTEGER;
+  backfillCutoffTimestamp = Number.POSITIVE_INFINITY;
 
   constructor({ resources }: { resources: Resources }) {
     super();
@@ -53,6 +53,15 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
     const liveContracts = this.resources.contracts.filter(
       (contract) => contract.endBlock === undefined && contract.isIndexed
     );
+
+    // If there are no live contracts, set backfillCutoffTimestamp to the
+    // greatest timestamp among all the end blocks of all historical contracts.
+    // Then return early.
+    if (liveContracts.length === 0) {
+      const maxEndBlockTimestamp = await this.getMaxEndBlockTimestamp();
+      this.backfillCutoffTimestamp = maxEndBlockTimestamp;
+      return;
+    }
 
     const uniqueLiveNetworks = [
       ...new Map(
@@ -93,12 +102,16 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
 
     // Store the latest timestamp among all connected networks.
     // This is used to determine when backfill event processing is complete.
-    this.backfillCutoffTimestamp = Math.max(
+    const maxLatestBlockTimestamp = Math.max(
       ...this.liveNetworks.map((n) => n.startBlockTimestamp)
     );
+    this.backfillCutoffTimestamp = maxLatestBlockTimestamp;
   }
 
   startFrontfill() {
+    // If there are no live networks, return early.
+    if (this.liveNetworks.length === 0) return;
+
     this.liveNetworks.forEach(({ network }) => {
       const contractAddresses = this.resources.contracts
         .filter((contract) => contract.network.name === network.name)
@@ -143,5 +156,27 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
 
   async kill() {
     await Promise.all(this.killFunctions.map((f) => f()));
+  }
+
+  private async getMaxEndBlockTimestamp() {
+    const historicalContracts = this.resources.contracts.filter(
+      (contract): contract is Required<Contract> =>
+        contract.endBlock !== undefined && contract.isIndexed
+    );
+
+    const blocks = await Promise.all(
+      historicalContracts.map(async (contract) => {
+        return await contract.network.client.getBlock({
+          blockNumber: BigInt(contract.endBlock),
+          includeTransactions: false,
+        });
+      })
+    );
+
+    const maxEndBlockTimestamp = Math.max(
+      ...blocks.map((block) => Number(block.timestamp))
+    );
+
+    return maxEndBlockTimestamp;
   }
 }
