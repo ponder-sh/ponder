@@ -10,8 +10,9 @@ import { ResolvedPonderConfig } from "@/config/ponderConfig";
 export type Network = {
   name: string;
   chainId: number;
-  rpcUrl?: string;
   client: PublicClient;
+  rpcUrl?: string;
+  pollingInterval?: number;
 };
 
 export type Contract = {
@@ -90,8 +91,9 @@ export function buildContracts({
     const resolvedNetwork: Network = {
       name: network.name,
       chainId: network.chainId,
-      rpcUrl: network.rpcUrl,
       client,
+      rpcUrl: network.rpcUrl,
+      pollingInterval: network.pollingInterval,
     };
 
     return {

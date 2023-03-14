@@ -125,7 +125,7 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
       const unwatch = network.client.watchEvent({
         address: contractAddresses,
         onLogs: handleLogs,
-        pollingInterval: 1_000, // 1 second by default
+        pollingInterval: network.pollingInterval ?? 1_000,
         batch: true,
       });
 
