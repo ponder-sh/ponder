@@ -39,7 +39,7 @@ export const createBlockFrontfillQueue = (
     });
   });
 
-  queue.on("error", ({ error }: { error: Error }) => {
+  queue.on("error", ({ error }) => {
     context.frontfillService.emit("blockTaskFailed", {
       network: context.network.name,
       error,
@@ -53,7 +53,7 @@ export const createBlockFrontfillQueue = (
   });
 
   // Default to a simple retry.
-  queue.on("error", ({ task }: { task: BlockFrontfillTask }) => {
+  queue.on("error", ({ task }) => {
     queue.addTask(task);
   });
 

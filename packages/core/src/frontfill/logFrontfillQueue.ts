@@ -12,6 +12,8 @@ export type LogFrontfillTask = {
   logs: ViemLog[];
 };
 
+type LogFrontfillTaskResult = Record<number, Record<string, number>>;
+
 export type LogFrontfillWorkerContext = {
   frontfillService: FrontfillService;
   network: Network;
@@ -19,7 +21,7 @@ export type LogFrontfillWorkerContext = {
   blockFrontfillQueue: BlockFrontfillQueue;
 };
 
-export type LogFrontfillQueue = Queue<LogFrontfillTask>;
+export type LogFrontfillQueue = Queue<LogFrontfillTask, LogFrontfillTaskResult>;
 
 export const createLogFrontfillQueue = (context: LogFrontfillWorkerContext) => {
   const queue = createQueue({
@@ -38,14 +40,14 @@ export const createLogFrontfillQueue = (context: LogFrontfillWorkerContext) => {
     });
   });
 
-  queue.on("error", ({ error }: { error: Error }) => {
+  queue.on("error", ({ error }) => {
     context.frontfillService.emit("logTaskFailed", {
       network: context.network.name,
       error,
     });
   });
 
-  queue.on("completed", ({ result }: { result: LogData }) => {
+  queue.on("completed", ({ result }) => {
     context.frontfillService.emit("logTaskCompleted", {
       network: context.network.name,
       logData: result,
@@ -53,14 +55,12 @@ export const createLogFrontfillQueue = (context: LogFrontfillWorkerContext) => {
   });
 
   // Default to a simple retry.
-  queue.on("error", ({ task }: { task: LogFrontfillTask }) => {
+  queue.on("error", ({ task }) => {
     queue.addTask(task);
   });
 
   return queue;
 };
-
-type LogData = Record<number, Record<string, number>>;
 
 // This worker stores the new logs recieved from `eth_getFilterChanges`,
 // then enqueues tasks to fetch the block (and transaction) for each log.
@@ -70,7 +70,7 @@ async function logFrontfillWorker({
 }: {
   task: LogFrontfillTask;
   context: LogFrontfillWorkerContext;
-}): Promise<LogData> {
+}): Promise<LogFrontfillTaskResult> {
   const { logs: rawLogs } = task;
   const { frontfillService, network, contractAddresses, blockFrontfillQueue } =
     context;

@@ -41,7 +41,7 @@ export const createLogBackfillQueue = (
     });
   });
 
-  queue.on("error", ({ error }: { error: Error }) => {
+  queue.on("error", ({ error }) => {
     context.backfillService.emit("logTaskFailed", {
       contract: context.contract.name,
       error,
@@ -54,60 +54,57 @@ export const createLogBackfillQueue = (
     });
   });
 
-  queue.on(
-    "error",
-    ({ error, task }: { error: Error; task: LogBackfillTask }) => {
-      // Handle Alchemy response size error.
-      if (
-        error instanceof InvalidParamsRpcError &&
-        error.details.startsWith("Log response size exceeded.")
-      ) {
-        const safe = error.details.split("this block range should work: ")[1];
-        const safeStart = Number(safe.split(", ")[0].slice(1));
-        const safeEnd = Number(safe.split(", ")[1].slice(0, -1));
+  queue.on("error", ({ error, task }) => {
+    // Handle Alchemy response size error.
+    if (
+      error instanceof InvalidParamsRpcError &&
+      error.details.startsWith("Log response size exceeded.")
+    ) {
+      const safe = error.details.split("this block range should work: ")[1];
+      const safeStart = Number(safe.split(", ")[0].slice(1));
+      const safeEnd = Number(safe.split(", ")[1].slice(0, -1));
 
-        queue.addTask({
-          fromBlock: safeStart,
-          toBlock: safeEnd,
-          isRetry: true,
-        });
-        queue.addTask({
-          fromBlock: safeEnd,
-          toBlock: task.toBlock,
-          isRetry: true,
-        });
+      queue.addTask({
+        fromBlock: safeStart,
+        toBlock: safeEnd,
+        isRetry: true,
+      });
+      queue.addTask({
+        fromBlock: safeEnd,
+        toBlock: task.toBlock,
+        isRetry: true,
+      });
 
-        return;
-      }
-
-      // Handle Quicknode block range limit error (should never happen).
-      if (
-        error instanceof HttpRequestError &&
-        error.details.includes(
-          "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range"
-        )
-      ) {
-        const midpoint = Math.floor(
-          (task.toBlock - task.fromBlock) / 2 + task.fromBlock
-        );
-        queue.addTask({
-          fromBlock: task.fromBlock,
-          toBlock: midpoint,
-          isRetry: true,
-        });
-        queue.addTask({
-          fromBlock: midpoint + 1,
-          toBlock: task.toBlock,
-          isRetry: true,
-        });
-
-        return;
-      }
-
-      // Default to a simple retry.
-      queue.addTask(task);
+      return;
     }
-  );
+
+    // Handle Quicknode block range limit error (should never happen).
+    if (
+      error instanceof HttpRequestError &&
+      error.details.includes(
+        "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range"
+      )
+    ) {
+      const midpoint = Math.floor(
+        (task.toBlock - task.fromBlock) / 2 + task.fromBlock
+      );
+      queue.addTask({
+        fromBlock: task.fromBlock,
+        toBlock: midpoint,
+        isRetry: true,
+      });
+      queue.addTask({
+        fromBlock: midpoint + 1,
+        toBlock: task.toBlock,
+        isRetry: true,
+      });
+
+      return;
+    }
+
+    // Default to a simple retry.
+    queue.addTask(task);
+  });
 
   return queue;
 };

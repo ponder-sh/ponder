@@ -39,7 +39,7 @@ export const createBlockBackfillQueue = (
     });
   });
 
-  queue.on("error", ({ error }: { error: Error }) => {
+  queue.on("error", ({ error }) => {
     context.backfillService.emit("blockTaskFailed", {
       contract: context.contract.name,
       error,
@@ -53,7 +53,7 @@ export const createBlockBackfillQueue = (
   });
 
   // Default to a simple retry.
-  queue.on("error", ({ task }: { error: Error; task: BlockBackfillTask }) => {
+  queue.on("error", ({ task }) => {
     queue.addTask(task);
   });
 
