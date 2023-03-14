@@ -1,6 +1,6 @@
-import fastq from "fastq";
 import { Hash, HttpRequestError, InvalidParamsRpcError } from "viem";
 
+import { createQueue, Queue } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
 import { parseLogs } from "@/common/types";
 import type { Contract } from "@/config/contracts";
@@ -20,85 +20,91 @@ export type LogBackfillWorkerContext = {
   blockBackfillQueue: BlockBackfillQueue;
 };
 
-export type LogBackfillQueue = fastq.queueAsPromised<LogBackfillTask>;
+export type LogBackfillQueue = Queue<LogBackfillTask>;
 
-export const createLogBackfillQueue = ({
-  backfillService,
-  contract,
-  blockBackfillQueue,
-}: LogBackfillWorkerContext) => {
-  const queue = fastq.promise<LogBackfillWorkerContext, LogBackfillTask>(
-    { backfillService, contract, blockBackfillQueue },
-    logBackfillWorker,
-    10 // TODO: Make this configurable
-  );
-
-  queue.error((error, task) => {
-    if (!error) return;
-
-    // Handle Alchemy error message.
-    if (
-      error instanceof InvalidParamsRpcError &&
-      error.details.startsWith("Log response size exceeded.")
-    ) {
-      const safe = error.details.split("this block range should work: ")[1];
-      const safeStart = Number(safe.split(", ")[0].slice(1));
-      const safeEnd = Number(safe.split(", ")[1].slice(0, -1));
-
-      queue.unshift({
-        fromBlock: safeStart,
-        toBlock: safeEnd,
-        isRetry: true,
-      });
-      queue.unshift({
-        fromBlock: safeEnd + 1,
-        toBlock: task.toBlock,
-        isRetry: true,
-      });
-
-      return;
-    }
-
-    // Handle Quicknode block range limit error (should never happen).
-    if (
-      error instanceof HttpRequestError &&
-      error.details.includes(
-        "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range"
-      )
-    ) {
-      const midpoint = Math.floor(
-        (task.toBlock - task.fromBlock) / 2 + task.fromBlock
-      );
-
-      queue.unshift({
-        fromBlock: task.fromBlock,
-        toBlock: midpoint,
-        isRetry: true,
-      });
-      queue.unshift({
-        fromBlock: midpoint + 1,
-        toBlock: task.toBlock,
-        isRetry: true,
-      });
-
-      return;
-    }
-
-    backfillService.emit("logTaskFailed", {
-      contract: contract.name,
-      error,
-    });
-    queue.unshift(task);
+export const createLogBackfillQueue = (
+  context: LogBackfillWorkerContext
+): LogBackfillQueue => {
+  const queue = createQueue({
+    worker: logBackfillWorker,
+    context,
+    options: {
+      concurrency: 10,
+    },
   });
+
+  queue.on(
+    "error",
+    ({ error, task }: { error: Error; task: LogBackfillTask }) => {
+      console.log("in error handler with", { error });
+
+      // Handle Alchemy response size error.
+      if (
+        error instanceof InvalidParamsRpcError &&
+        error.details.startsWith("Log response size exceeded.")
+      ) {
+        const safe = error.details.split("this block range should work: ")[1];
+        const safeStart = Number(safe.split(", ")[0].slice(1));
+        const safeEnd = Number(safe.split(", ")[1].slice(0, -1));
+
+        queue.addTask({
+          fromBlock: safeStart,
+          toBlock: safeEnd,
+          isRetry: true,
+        });
+        queue.addTask({
+          fromBlock: safeStart,
+          toBlock: safeEnd,
+          isRetry: true,
+        });
+        return;
+      }
+
+      // Handle Quicknode block range limit error (should never happen).
+      if (
+        error instanceof HttpRequestError &&
+        error.details.includes(
+          "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range"
+        )
+      ) {
+        const midpoint = Math.floor(
+          (task.toBlock - task.fromBlock) / 2 + task.fromBlock
+        );
+        queue.addTask({
+          fromBlock: task.fromBlock,
+          toBlock: midpoint,
+          isRetry: true,
+        });
+        queue.addTask({
+          fromBlock: midpoint + 1,
+          toBlock: task.toBlock,
+          isRetry: true,
+        });
+        return;
+      }
+
+      context.backfillService.emit("logTaskFailed", {
+        contract: context.contract.name,
+        error,
+      });
+
+      // Default to a simple retry.
+      queue.addTask(task);
+    }
+  );
 
   return queue;
 };
 
-async function logBackfillWorker(
-  this: LogBackfillWorkerContext,
-  { fromBlock, toBlock, isRetry }: LogBackfillTask
-) {
-  const { backfillService, contract, blockBackfillQueue } = this;
+async function logBackfillWorker({
+  task,
+  context,
+}: {
+  task: LogBackfillTask;
+  context: LogBackfillWorkerContext;
+}) {
+  const { fromBlock, toBlock, isRetry } = task;
+  const { backfillService, contract, blockBackfillQueue } = context;
   const { client } = contract.network;
 
   const [rawLogs, rawToBlock] = await Promise.all([
@@ -120,7 +126,7 @@ async function logBackfillWorker(
 
   // If any pending logs were present in the response, log a warning.
   if (logs.length !== rawLogs.length) {
-    this.backfillService.resources.logger.logMessage(
+    backfillService.resources.logger.logMessage(
       MessageKind.WARNING,
       `Received unexpected pending logs (count: ${
         logs.length - rawLogs.length
@@ -167,7 +173,7 @@ async function logBackfillWorker(
   // If there are no required blocks, call the batch success callback manually
   // so we make sure to update the contract metadata accordingly.
   if (requiredBlockHashes.length === 0) {
-    onSuccess();
+    await onSuccess();
   }
 
   requiredBlockHashes.forEach((blockHash) => {

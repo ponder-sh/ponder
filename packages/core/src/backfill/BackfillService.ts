@@ -114,7 +114,7 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
       let toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
 
       while (fromBlock <= endBlock) {
-        logBackfillQueue.push({ fromBlock, toBlock, isRetry: false });
+        logBackfillQueue.addTask({ fromBlock, toBlock, isRetry: false });
 
         fromBlock = toBlock + 1;
         toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
@@ -126,14 +126,14 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
     }
 
     this.killFunctions.push(async () => {
-      logBackfillQueue.kill();
-      await logBackfillQueue.drained();
+      logBackfillQueue.clear();
+      await logBackfillQueue.onIdle();
       blockBackfillQueue.kill();
       await blockBackfillQueue.drained();
     });
 
     this.drainFunctions.push(async () => {
-      await logBackfillQueue.drained();
+      await logBackfillQueue.onIdle();
       await blockBackfillQueue.drained();
     });
   }
