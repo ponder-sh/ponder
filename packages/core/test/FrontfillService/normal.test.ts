@@ -42,6 +42,14 @@ describe("FrontfillService", () => {
 
   beforeEach(async () => {
     const resources = await buildTestResources({
+      networks: [
+        {
+          name: "mainnet",
+          chainId: 1,
+          rpcUrl: "http://127.0.0.1:8545",
+          pollingInterval: 500,
+        },
+      ],
       contracts: [
         {
           name: "USDC",
@@ -87,7 +95,7 @@ describe("FrontfillService", () => {
         args: [accounts[0].address, 1n],
         account: vitalik.account,
       });
-      await wait(1100);
+      await wait(1050);
 
       await expectEvents(eventIterator1, {
         frontfillStarted: 1,
@@ -115,7 +123,7 @@ describe("FrontfillService", () => {
         args: [accounts[0].address, 1n],
         account: vitalik.account,
       });
-      await wait(1100);
+      await wait(1050);
 
       await expectEvents(eventIterator2, {
         frontfillStarted: 0,
