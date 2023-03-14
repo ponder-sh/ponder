@@ -1,6 +1,6 @@
-import fastq from "fastq";
 import { Hash, Transaction as ViemTransaction } from "viem";
 
+import { createQueue, Queue } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
 import { parseBlock, parseTransactions } from "@/common/types";
 import type { Contract } from "@/config/contracts";
@@ -18,37 +18,44 @@ export type BlockBackfillWorkerContext = {
   contract: Contract;
 };
 
-export type BlockBackfillQueue = fastq.queueAsPromised<BlockBackfillTask>;
+export type BlockBackfillQueue = Queue<BlockBackfillTask>;
 
-export const createBlockBackfillQueue = ({
-  backfillService,
-  contract,
-}: BlockBackfillWorkerContext) => {
-  // Queue for fetching historical blocks and transactions.
-  const queue = fastq.promise<BlockBackfillWorkerContext, BlockBackfillTask>(
-    { backfillService, contract },
-    blockBackfillWorker,
-    10 // TODO: Make this configurable
-  );
-
-  queue.error((err, task) => {
-    if (err) {
-      backfillService.emit("blockTaskFailed", {
-        contract: contract.name,
-        error: err,
-      });
-      queue.unshift(task);
-    }
+export const createBlockBackfillQueue = (
+  context: BlockBackfillWorkerContext
+) => {
+  const queue = createQueue({
+    worker: blockBackfillWorker,
+    context,
+    options: {
+      concurrency: 10,
+    },
   });
+
+  queue.on(
+    "error",
+    ({ error, task }: { error: Error; task: BlockBackfillTask }) => {
+      context.backfillService.emit("blockTaskFailed", {
+        contract: context.contract.name,
+        error,
+      });
+
+      // Default to a simple retry.
+      queue.addTask(task);
+    }
+  );
 
   return queue;
 };
 
-async function blockBackfillWorker(
-  this: BlockBackfillWorkerContext,
-  { blockHash, requiredTxHashes, onSuccess }: BlockBackfillTask
-) {
-  const { backfillService, contract } = this;
+async function blockBackfillWorker({
+  task,
+  context,
+}: {
+  task: BlockBackfillTask;
+  context: BlockBackfillWorkerContext;
+}) {
+  const { blockHash, requiredTxHashes, onSuccess } = task;
+  const { backfillService, contract } = context;
   const { client } = contract.network;
 
   const rawBlock = await client.getBlock({
@@ -60,7 +67,7 @@ async function blockBackfillWorker(
 
   // If the log is pending, log a warning.
   if (!block) {
-    this.backfillService.resources.logger.logMessage(
+    backfillService.resources.logger.logMessage(
       MessageKind.WARNING,
       `Received unexpected pending block (hash: ${blockHash})`
     );
@@ -73,7 +80,7 @@ async function blockBackfillWorker(
 
   // If any pending transactions were present in the block, log a warning.
   if (allTransactions.length !== block.transactions.length) {
-    this.backfillService.resources.logger.logMessage(
+    backfillService.resources.logger.logMessage(
       MessageKind.WARNING,
       `Received unexpected pending transactions in block (hash: ${blockHash}, count: ${
         block.transactions.length - allTransactions.length

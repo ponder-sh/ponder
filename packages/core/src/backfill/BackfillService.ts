@@ -128,13 +128,13 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
     this.killFunctions.push(async () => {
       logBackfillQueue.clear();
       await logBackfillQueue.onIdle();
-      blockBackfillQueue.kill();
-      await blockBackfillQueue.drained();
+      blockBackfillQueue.clear();
+      await blockBackfillQueue.onIdle();
     });
 
     this.drainFunctions.push(async () => {
       await logBackfillQueue.onIdle();
-      await blockBackfillQueue.drained();
+      await blockBackfillQueue.onIdle();
     });
   }
 }

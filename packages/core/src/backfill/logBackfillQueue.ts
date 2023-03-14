@@ -36,8 +36,6 @@ export const createLogBackfillQueue = (
   queue.on(
     "error",
     ({ error, task }: { error: Error; task: LogBackfillTask }) => {
-      console.log("in error handler with", { error });
-
       // Handle Alchemy response size error.
       if (
         error instanceof InvalidParamsRpcError &&
@@ -184,10 +182,11 @@ async function logBackfillWorker({
     };
 
     // If this is a retry, put the block tasks at the front of the queue.
+    // TODO: fix using priority.
     if (isRetry) {
-      blockBackfillQueue.unshift(task);
+      blockBackfillQueue.addTask(task);
     } else {
-      blockBackfillQueue.push(task);
+      blockBackfillQueue.addTask(task);
     }
   });
 
