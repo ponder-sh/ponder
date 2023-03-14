@@ -72,8 +72,8 @@ export const createLogBackfillQueue = (
           isRetry: true,
         });
         queue.addTask({
-          fromBlock: safeStart,
-          toBlock: safeEnd,
+          fromBlock: safeEnd,
+          toBlock: task.toBlock,
           isRetry: true,
         });
 
