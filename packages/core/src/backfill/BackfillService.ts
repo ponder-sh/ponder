@@ -7,7 +7,7 @@ import { Resources } from "@/Ponder";
 import { createBlockBackfillQueue } from "./blockBackfillQueue";
 import { createLogBackfillQueue } from "./logBackfillQueue";
 
-type BackfillServiceEvents = {
+export type BackfillServiceEvents = {
   contractStarted: { contract: string; cacheRate: number };
 
   logTasksAdded: { contract: string; count: number };
