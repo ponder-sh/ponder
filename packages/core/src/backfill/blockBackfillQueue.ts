@@ -31,18 +31,31 @@ export const createBlockBackfillQueue = (
     },
   });
 
-  queue.on(
-    "error",
-    ({ error, task }: { error: Error; task: BlockBackfillTask }) => {
-      context.backfillService.emit("blockTaskFailed", {
-        contract: context.contract.name,
-        error,
-      });
+  // Pass queue events on to service layer.
+  queue.on("add", () => {
+    context.backfillService.emit("blockTasksAdded", {
+      contract: context.contract.name,
+      count: 1,
+    });
+  });
 
-      // Default to a simple retry.
-      queue.addTask(task);
-    }
-  );
+  queue.on("error", ({ error }: { error: Error }) => {
+    context.backfillService.emit("blockTaskFailed", {
+      contract: context.contract.name,
+      error,
+    });
+  });
+
+  queue.on("completed", () => {
+    context.backfillService.emit("blockTaskCompleted", {
+      contract: context.contract.name,
+    });
+  });
+
+  // Default to a simple retry.
+  queue.on("error", ({ task }: { error: Error; task: BlockBackfillTask }) => {
+    queue.addTask(task);
+  });
 
   return queue;
 };
@@ -100,5 +113,4 @@ async function blockBackfillWorker({
   ]);
 
   await onSuccess({ blockHash });
-  backfillService.emit("blockTaskCompleted", { contract: contract.name });
 }

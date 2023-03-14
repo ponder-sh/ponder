@@ -118,10 +118,6 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
 
         fromBlock = toBlock + 1;
         toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
-        this.emit("logTasksAdded", {
-          contract: contract.name,
-          count: 1,
-        });
       }
     }
 

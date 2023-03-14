@@ -1,6 +1,9 @@
 import PQueue, { DefaultAddOptions, Options, Queue as TPQueue } from "p-queue";
 
-export type Queue<TTask> = PQueue & { addTask: (task: TTask) => void };
+export type Queue<TTask> = PQueue & {
+  addTask: (task: TTask, options?: { priority?: number }) => Promise<void>;
+  addTasks: (tasks: TTask[], options?: { priority?: number }) => Promise<void>;
+};
 
 export function createQueue<TTask, TContext>({
   worker,
@@ -20,10 +23,26 @@ export function createQueue<TTask, TContext>({
     await worker({ task, context });
   };
 
-  queue.addTask = (task: TTask) => {
-    queue.add(buildTask(task)).catch((error) => {
+  queue.addTask = async (task, options) => {
+    try {
+      const result = await queue.add(buildTask(task), options);
+      queue.emit("completed", result);
+    } catch (error) {
       queue.emit("error", { error, task });
-    });
+    }
+  };
+
+  queue.addTasks = async (tasks, options) => {
+    await Promise.all(
+      tasks.map(async (task) => {
+        try {
+          const result = await queue.add(buildTask(task), options);
+          queue.emit("completed", result);
+        } catch (error) {
+          queue.emit("error", { error, task });
+        }
+      })
+    );
   };
 
   return queue;

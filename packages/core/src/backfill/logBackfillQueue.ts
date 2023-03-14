@@ -33,6 +33,27 @@ export const createLogBackfillQueue = (
     },
   });
 
+  // Pass queue events on to service layer.
+  queue.on("add", () => {
+    context.backfillService.emit("logTasksAdded", {
+      contract: context.contract.name,
+      count: 1,
+    });
+  });
+
+  queue.on("error", ({ error }: { error: Error }) => {
+    context.backfillService.emit("logTaskFailed", {
+      contract: context.contract.name,
+      error,
+    });
+  });
+
+  queue.on("completed", () => {
+    context.backfillService.emit("logTaskCompleted", {
+      contract: context.contract.name,
+    });
+  });
+
   queue.on(
     "error",
     ({ error, task }: { error: Error; task: LogBackfillTask }) => {
@@ -55,6 +76,7 @@ export const createLogBackfillQueue = (
           toBlock: safeEnd,
           isRetry: true,
         });
+
         return;
       }
 
@@ -78,13 +100,9 @@ export const createLogBackfillQueue = (
           toBlock: task.toBlock,
           isRetry: true,
         });
+
         return;
       }
-
-      context.backfillService.emit("logTaskFailed", {
-        contract: context.contract.name,
-        error,
-      });
 
       // Default to a simple retry.
       queue.addTask(task);
@@ -174,25 +192,13 @@ async function logBackfillWorker({
     await onSuccess();
   }
 
-  requiredBlockHashes.forEach((blockHash) => {
-    const task = {
-      blockHash,
-      requiredTxHashes: txHashesByBlockHash[blockHash],
-      onSuccess,
-    };
+  const blockBackfillTasks = requiredBlockHashes.map((blockHash) => ({
+    blockHash,
+    requiredTxHashes: txHashesByBlockHash[blockHash],
+    onSuccess,
+  }));
 
-    // If this is a retry, put the block tasks at the front of the queue.
-    // TODO: fix using priority.
-    if (isRetry) {
-      blockBackfillQueue.addTask(task);
-    } else {
-      blockBackfillQueue.addTask(task);
-    }
+  blockBackfillQueue.addTasks(blockBackfillTasks, {
+    priority: isRetry ? 1 : 0,
   });
-
-  backfillService.emit("blockTasksAdded", {
-    contract: contract.name,
-    count: requiredBlockHashes.length,
-  });
-  backfillService.emit("logTaskCompleted", { contract: contract.name });
 }
