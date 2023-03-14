@@ -2,41 +2,33 @@ import { expect } from "vitest";
 
 import { wait } from "./wait";
 
-export async function expectEvents<Events extends Record<string, any>>(
-  iterator: AsyncIterableIterator<[keyof Events, any]>,
-  expected: { name: keyof Events; value: Events[keyof Events] }[]
+export async function expectEvents<TEventNames extends string>(
+  iterator: AsyncIterableIterator<[TEventNames, any]>,
+  expected: Partial<Record<TEventNames, number>>
 ) {
-  let index = 0;
+  const actual: Record<string, number> = {};
+  Object.keys(expected).forEach((key) => {
+    actual[key] = 0;
+  });
 
-  while (index < expected.length) {
-    const result = await Promise.race([iterator.next(), wait(10)]);
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const result = await Promise.race([iterator.next(), wait(1)]);
 
-    if (result === undefined) {
-      throw new Error(
-        `Did not receive event "${String(
-          expected[index].name
-        )}" at index ${index}`
-      );
-    }
+    // If result is undefined, there are no more events.
+    if (!result) break;
 
-    const { value } = result as { value: [string, any]; done: boolean };
-    const [eventName, data] = value;
+    const { value } = result as { value: [string, any] };
+    const eventName = value[0];
 
     // Ignore internal events like Symbol("listenerAdded")
-    if (typeof eventName === "symbol") {
-      continue;
-    }
+    if (typeof eventName === "symbol") continue;
 
-    // Ignore events that we don't specifically expect.
-    if (expected[index].name !== eventName) {
-      continue;
-    }
+    // Ignore events not present in expected
+    if (!(eventName in expected)) continue;
 
-    expect({ eventName: eventName, data: data }).toMatchObject({
-      eventName,
-      data: expected[index].value,
-    });
-
-    index++;
+    actual[eventName] += 1;
   }
+
+  expect(actual).toMatchObject(expected);
 }
