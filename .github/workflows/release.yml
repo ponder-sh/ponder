@@ -12,7 +12,6 @@ jobs:
     strategy:
       matrix:
         node-version: [18]
-        pnpm-version: [7]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -20,7 +19,7 @@ jobs:
           fetch-depth: 0
       - uses: pnpm/action-setup@v2.2.4
         with:
-          version: ${{ matrix.pnpm-version }}
+          version: 7
       - name: Set up node ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:

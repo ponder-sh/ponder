@@ -16,8 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18]
-        pnpm-version: [7]
+        node-version: [16, 18]
     steps:
       - uses: actions/checkout@v3
       - name: Setup
@@ -29,8 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18]
-        pnpm-version: [7]
+        node-version: [16, 18]
     steps:
       - uses: actions/checkout@v3
       - name: Setup
@@ -46,8 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18]
-        pnpm-version: [7]
+        node-version: [16, 18]
         database: [postgres, sqlite]
     services:
       postgres:
@@ -55,6 +52,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -74,6 +72,6 @@ jobs:
       - name: Test
         run: pnpm test:ci
         env:
-          DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql://postgres:postgres@localhost:5432/db' || '' }}
+          DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql://postgres:postgres@localhost:5432/postgres' || '' }}
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
           ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}
