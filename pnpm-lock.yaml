@@ -115,7 +115,6 @@ importers:
       esbuild: ^0.15.2
       express: ^4.18.1
       express-graphql: ^0.12.0
-      fastq: ^1.15.0
       glob: ^8.1.0
       graphql: ^15.3.0
       ink: ^3.2.0
@@ -147,7 +146,6 @@ importers:
       esbuild: 0.15.4
       express: 4.18.1
       express-graphql: 0.12.0_graphql@15.8.0
-      fastq: 1.15.0
       glob: 8.1.0
       graphql: 15.8.0_qb2u6q36ugvr6swjr2i3rg76ty
       ink: 3.2.0_qnxonbsml5syl42mqdnwkqq4yu
