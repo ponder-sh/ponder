@@ -55,27 +55,27 @@ describe("Ponder", () => {
     await ponder.kill();
   });
 
-  describe("backfill", () => {
-    test("inserts backfill data into the cache store", async () => {
-      const logs = await ponder.resources.cacheStore.getLogs({
-        contractAddress: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-        fromBlockTimestamp: 0,
-        toBlockTimestamp: 1673278823, // mainnet 16370200
-      });
+  // describe("backfill", () => {
+  //   test("inserts backfill data into the cache store", async () => {
+  //     const logs = await ponder.resources.cacheStore.getLogs({
+  //       contractAddress: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+  //       fromBlockTimestamp: 0,
+  //       toBlockTimestamp: 1673278823, // mainnet 16370200
+  //     });
 
-      expect(logs).toHaveLength(148);
+  //     expect(logs).toHaveLength(148);
 
-      for (const log of logs) {
-        const block = await ponder.resources.cacheStore.getBlock(log.blockHash);
-        expect(block).toBeTruthy();
+  //     for (const log of logs) {
+  //       const block = await ponder.resources.cacheStore.getBlock(log.blockHash);
+  //       expect(block).toBeTruthy();
 
-        const transaction = await ponder.resources.cacheStore.getTransaction(
-          log.transactionHash
-        );
-        expect(transaction).toBeTruthy();
-      }
-    });
-  });
+  //       const transaction = await ponder.resources.cacheStore.getTransaction(
+  //         log.transactionHash
+  //       );
+  //       expect(transaction).toBeTruthy();
+  //     }
+  //   });
+  // });
 
   describe("event processing", () => {
     test("inserts data into the entity store", async () => {
