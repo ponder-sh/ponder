@@ -1,7 +1,7 @@
+import Emittery from "emittery";
 import fastq from "fastq";
 import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 
-import { EventEmitter } from "@/common/EventEmitter";
 import type { Log } from "@/common/types";
 import { Resources } from "@/Ponder";
 import { Handlers } from "@/reload/readHandlers";
@@ -14,23 +14,23 @@ import {
 import { getStackTraceAndCodeFrame } from "./getStackTrace";
 
 type EventHandlerServiceEvents = {
-  taskStarted: () => void;
-  taskCompleted: (arg: { timestamp: number }) => void;
+  taskStarted: { logId: string };
+  taskCompleted: { timestamp: number };
 
-  eventsAdded: (arg: {
+  eventsAdded: {
     handledCount: number;
     totalCount: number;
     fromTimestamp: number;
     toTimestamp: number;
-  }) => void;
-  eventsProcessed: (arg: { count: number; toTimestamp: number }) => void;
-  eventQueueReset: () => void;
+  };
+  eventsProcessed: { count: number; toTimestamp: number };
+  eventQueueReset: undefined;
 };
 
 type HandlerTask = Log;
 type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
 
-export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents> {
+export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
   resources: Resources;
 
   private handlers?: Handlers;
@@ -175,7 +175,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
     };
 
     const handlerWorker = async (log: HandlerTask) => {
-      this.emit("taskStarted");
+      this.emit("taskStarted", { logId: log.logId });
 
       const contract = this.resources.contracts.find(
         (contract) => contract.address === log.address

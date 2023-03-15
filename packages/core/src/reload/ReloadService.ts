@@ -1,11 +1,11 @@
 import chokidar from "chokidar";
+import Emittery from "emittery";
 import { GraphQLSchema } from "graphql";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
 
-import { EventEmitter } from "@/common/EventEmitter";
 import { MessageKind } from "@/common/LoggerService";
 import { Resources } from "@/Ponder";
 import { buildSchema } from "@/schema/buildSchema";
@@ -16,13 +16,13 @@ import { readGraphqlSchema } from "./readGraphqlSchema";
 import { Handlers, readHandlers } from "./readHandlers";
 
 type ReloadServiceEvents = {
-  ponderConfigChanged: () => void;
-  projectFileChanged: () => void;
-  newHandlers: (arg: { handlers: Handlers }) => void;
-  newSchema: (arg: { schema: Schema; graphqlSchema: GraphQLSchema }) => void;
+  ponderConfigChanged: undefined;
+  projectFileChanged: undefined;
+  newHandlers: { handlers: Handlers };
+  newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
 
-export class ReloadService extends EventEmitter<ReloadServiceEvents> {
+export class ReloadService extends Emittery<ReloadServiceEvents> {
   resources: Resources;
 
   latestFileHashes: Record<string, string | undefined> = {};
