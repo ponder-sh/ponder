@@ -143,11 +143,11 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
       });
 
       this.killFunctions.push(async () => {
+        unwatch();
         logFrontfillQueue.clear();
         await logFrontfillQueue.onIdle();
         blockFrontfillQueue.clear();
         await blockFrontfillQueue.onIdle();
-        unwatch();
       });
     });
 
