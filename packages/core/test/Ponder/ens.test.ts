@@ -6,8 +6,8 @@ import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
 
-import { testClient } from "./utils/clients";
-import { getFreePort } from "./utils/getFreePort";
+import { testClient } from "../utils/clients";
+import { getFreePort } from "../utils/getFreePort";
 
 beforeAll(async () => {
   await testClient.reset({
@@ -20,12 +20,12 @@ describe("Ponder", () => {
   let ponder: Ponder;
 
   beforeAll(async () => {
-    rmSync("./test/projects/ens/.ponder", { recursive: true, force: true });
-    rmSync("./test/projects/ens/generated", { recursive: true, force: true });
+    rmSync("./test/Ponder/ens/.ponder", { recursive: true, force: true });
+    rmSync("./test/Ponder/ens/generated", { recursive: true, force: true });
     process.env.PORT = (await getFreePort()).toString();
 
     const options = buildOptions({
-      rootDir: "./test/projects/ens",
+      rootDir: "./test/Ponder/ens",
       configFile: "ponder.config.ts",
       logType: "start",
       silent: true,
