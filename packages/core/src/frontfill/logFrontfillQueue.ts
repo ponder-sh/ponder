@@ -1,6 +1,6 @@
 import { Hash, Log as ViemLog } from "viem";
 
-import { createQueue, Queue } from "@/common/createQueue";
+import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
 import { Block, parseLogs } from "@/common/types";
 import { Network } from "@/config/contracts";
@@ -64,13 +64,11 @@ export const createLogFrontfillQueue = (context: LogFrontfillWorkerContext) => {
 
 // This worker stores the new logs recieved from `eth_getFilterChanges`,
 // then enqueues tasks to fetch the block (and transaction) for each log.
-async function logFrontfillWorker({
-  task,
-  context,
-}: {
-  task: LogFrontfillTask;
-  context: LogFrontfillWorkerContext;
-}): Promise<LogFrontfillTaskResult> {
+const logFrontfillWorker: Worker<
+  LogFrontfillTask,
+  LogFrontfillWorkerContext,
+  LogFrontfillTaskResult
+> = async ({ task, context }) => {
   const { logs: rawLogs } = task;
   const { frontfillService, network, contractAddresses, blockFrontfillQueue } =
     context;
@@ -162,4 +160,4 @@ async function logFrontfillWorker({
     acc[Number(log.blockNumber)][log.address] += 1;
     return acc;
   }, {});
-}
+};

@@ -1,6 +1,6 @@
 import { Hash, Transaction as ViemTransaction } from "viem";
 
-import { createQueue, Queue } from "@/common/createQueue";
+import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
 import { parseBlock, parseTransactions } from "@/common/types";
 import type { Contract } from "@/config/contracts";
@@ -60,13 +60,10 @@ export const createBlockBackfillQueue = (
   return queue;
 };
 
-async function blockBackfillWorker({
-  task,
-  context,
-}: {
-  task: BlockBackfillTask;
-  context: BlockBackfillWorkerContext;
-}) {
+const blockBackfillWorker: Worker<
+  BlockBackfillTask,
+  BlockBackfillWorkerContext
+> = async ({ task, context }) => {
   const { blockHash, requiredTxHashes, onSuccess } = task;
   const { backfillService, contract } = context;
   const { client } = contract.network;
@@ -113,4 +110,4 @@ async function blockBackfillWorker({
   ]);
 
   await onSuccess({ blockHash });
-}
+};

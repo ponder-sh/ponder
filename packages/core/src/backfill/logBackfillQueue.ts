@@ -1,6 +1,6 @@
 import { Hash, HttpRequestError, InvalidParamsRpcError } from "viem";
 
-import { createQueue, Queue } from "@/common/createQueue";
+import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
 import { parseLogs } from "@/common/types";
 import type { Contract } from "@/config/contracts";
@@ -109,13 +109,10 @@ export const createLogBackfillQueue = (
   return queue;
 };
 
-async function logBackfillWorker({
-  task,
-  context,
-}: {
-  task: LogBackfillTask;
-  context: LogBackfillWorkerContext;
-}) {
+const logBackfillWorker: Worker<
+  LogBackfillTask,
+  LogBackfillWorkerContext
+> = async ({ task, context }) => {
   const { fromBlock, toBlock, isRetry } = task;
   const { backfillService, contract, blockBackfillQueue } = context;
   const { client } = contract.network;
@@ -198,4 +195,4 @@ async function logBackfillWorker({
   blockBackfillQueue.addTasks(blockBackfillTasks, {
     priority: isRetry ? 1 : 0,
   });
-}
+};

@@ -278,6 +278,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
     const queue = createQueue({
       worker: eventHandlerWorker,
+      context: undefined,
       options: {
         concurrency: 1,
         autoStart: false,

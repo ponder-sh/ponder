@@ -16,7 +16,7 @@ export type Queue<TTask, TReturn = void> = PQueue & {
 
 export type Worker<TTask, TContext = undefined, TReturn = void> = (arg: {
   task: TTask;
-  context?: TContext;
+  context: TContext;
   queue: Queue<TTask, TReturn>;
 }) => Promise<TReturn>;
 
@@ -26,7 +26,7 @@ export function createQueue<TTask, TContext, TReturn>({
   options,
 }: {
   worker: Worker<TTask, TContext, TReturn>;
-  context?: TContext;
+  context: TContext;
   options: Options<
     TPQueue<() => Promise<unknown>, DefaultAddOptions>,
     DefaultAddOptions
