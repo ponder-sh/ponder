@@ -18,7 +18,6 @@ beforeAll(async () => {
 
 describe("Ponder", () => {
   let ponder: Ponder;
-  let gql: (query: string) => Promise<any>;
 
   beforeAll(async () => {
     rmSync("./test/projects/ens/.ponder", { recursive: true, force: true });
@@ -31,51 +30,39 @@ describe("Ponder", () => {
       logType: "start",
       silent: true,
     });
-
     const config = await buildPonderConfig(options);
+
     ponder = new Ponder({ options, config });
 
     await ponder.start();
-
-    const app = request(ponder.serverService.app);
-
-    gql = async (query) => {
-      const response = await app
-        .post("/graphql")
-        .send({ query: `query { ${query} }` });
-
-      expect(response.body.errors).toBeUndefined();
-      expect(response.statusCode).toBe(200);
-
-      return response.body.data;
-    };
   });
 
   afterAll(async () => {
     await ponder.kill();
   });
 
-  // describe("backfill", () => {
-  //   test("inserts backfill data into the cache store", async () => {
-  //     const logs = await ponder.resources.cacheStore.getLogs({
-  //       contractAddress: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-  //       fromBlockTimestamp: 0,
-  //       toBlockTimestamp: 1673278823, // mainnet 16370200
-  //     });
+  describe("backfill", () => {
+    test("inserts backfill data into the cache store", async () => {
+      const logs = await ponder.resources.cacheStore.getLogs({
+        contractAddress:
+          "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85".toLowerCase(),
+        fromBlockTimestamp: 0,
+        toBlockTimestamp: 1673278823, // mainnet 16370200
+      });
 
-  //     expect(logs).toHaveLength(148);
+      expect(logs).toHaveLength(148);
 
-  //     for (const log of logs) {
-  //       const block = await ponder.resources.cacheStore.getBlock(log.blockHash);
-  //       expect(block).toBeTruthy();
+      for (const log of logs) {
+        const block = await ponder.resources.cacheStore.getBlock(log.blockHash);
+        expect(block).toBeTruthy();
 
-  //       const transaction = await ponder.resources.cacheStore.getTransaction(
-  //         log.transactionHash
-  //       );
-  //       expect(transaction).toBeTruthy();
-  //     }
-  //   });
-  // });
+        const transaction = await ponder.resources.cacheStore.getTransaction(
+          log.transactionHash
+        );
+        expect(transaction).toBeTruthy();
+      }
+    });
+  });
 
   describe("event processing", () => {
     test("inserts data into the entity store", async () => {
@@ -92,6 +79,23 @@ describe("Ponder", () => {
   });
 
   describe("graphql", () => {
+    let gql: (query: string) => Promise<any>;
+
+    beforeAll(() => {
+      const app = request(ponder.serverService.app);
+
+      gql = async (query) => {
+        const response = await app
+          .post("/graphql")
+          .send({ query: `query { ${query} }` });
+
+        expect(response.body.errors).toBeUndefined();
+        expect(response.statusCode).toBe(200);
+
+        return response.body.data;
+      };
+    });
+
     test("serves data", async () => {
       const { ensNfts, accounts } = await gql(`
         ensNfts {
@@ -165,6 +169,7 @@ describe("Ponder", () => {
         }
       `);
 
+      expect(ensNfts.length).toBeGreaterThan(0);
       expect(ensNfts).toBe(
         ensNfts.sort((a: any, b: any) => a.transferredAt - b.transferredAt)
       );
@@ -178,6 +183,7 @@ describe("Ponder", () => {
         }
       `);
 
+      expect(ensNfts.length).toBeGreaterThan(0);
       expect(ensNfts).toBe(
         ensNfts.sort((a: any, b: any) => b.transferredAt - a.transferredAt)
       );
