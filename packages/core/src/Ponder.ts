@@ -215,14 +215,6 @@ export class Ponder {
       await this.eventHandlerService.processEvents();
     });
 
-    this.resources.errors.on("handlerError", async ({ context, error }) => {
-      this.eventHandlerService.killQueue();
-      this.resources.logger.logMessage(
-        MessageKind.ERROR,
-        context + ": " + error.message + `\n` + error.stack
-      );
-    });
-
     this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
       if (this.serverService.isBackfillEventProcessingComplete) return;
 
