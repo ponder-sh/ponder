@@ -175,7 +175,7 @@ const logBackfillWorker: Worker<
       // If there were logs in this batch, send an event to process them.
       const logCount = logs.length;
       if (logCount > 0) {
-        backfillService.emit("newEventsAdded", { count: logCount });
+        backfillService.emit("eventsAdded", { count: logCount });
       }
     }
   };

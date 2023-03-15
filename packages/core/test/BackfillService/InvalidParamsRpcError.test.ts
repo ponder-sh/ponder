@@ -85,7 +85,7 @@ describe("InvalidParamsRpcError", () => {
         blockTaskCompleted: 52, // 1 more than normal
         blockTaskFailed: 0,
         backfillCompleted: 1,
-        newEventsAdded: 7, // 1 more than normal
+        eventsAdded: 7, // 1 more than normal
       });
     });
 

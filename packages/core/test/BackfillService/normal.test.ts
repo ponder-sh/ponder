@@ -61,7 +61,7 @@ describe("normal", () => {
         blockTaskCompleted: 51,
         blockTaskFailed: 0,
         backfillCompleted: 1,
-        newEventsAdded: 6,
+        eventsAdded: 6,
       });
     });
 

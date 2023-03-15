@@ -124,6 +124,7 @@ export class Ponder {
     this.frontfillService.startFrontfill();
     this.reloadService.watch();
     await this.backfillService.backfill();
+    await this.eventHandlerService.processEvents();
   }
 
   async start() {
@@ -143,6 +144,7 @@ export class Ponder {
     await this.frontfillService.getLatestBlockNumbers();
     this.frontfillService.startFrontfill();
     await this.backfillService.backfill();
+    await this.eventHandlerService.processEvents();
   }
 
   async codegen() {
@@ -205,7 +207,7 @@ export class Ponder {
     this.frontfillService.on("eventsAdded", async () => {
       await this.eventHandlerService.processEvents();
     });
-    this.backfillService.on("newEventsAdded", async () => {
+    this.backfillService.on("eventsAdded", async () => {
       await this.eventHandlerService.processEvents();
     });
 

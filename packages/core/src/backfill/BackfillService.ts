@@ -19,7 +19,7 @@ export type BackfillServiceEvents = {
   logTaskCompleted: { contract: string };
   blockTaskCompleted: { contract: string };
 
-  newEventsAdded: { count: number };
+  eventsAdded: { count: number };
 
   backfillStarted: { contractCount: number };
   backfillCompleted: { duration: number };
