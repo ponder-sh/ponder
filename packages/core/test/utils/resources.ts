@@ -13,10 +13,15 @@ import { buildEntityStore } from "@/database/entity/entityStore";
 import { Resources } from "@/Ponder";
 
 const defaultConfig: ResolvedPonderConfig = {
-  database: {
-    kind: "sqlite",
-    filename: ":memory:",
-  },
+  database: process.env.DATABASE_URL
+    ? {
+        kind: "postgres",
+        connectionString: process.env.DATABASE_URL,
+      }
+    : {
+        kind: "sqlite",
+        filename: ":memory:",
+      },
   networks: [
     {
       name: "mainnet",
