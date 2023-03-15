@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 
 import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
@@ -148,7 +148,6 @@ export class PostgresCacheStore implements CacheStore {
   insertCachedInterval = async (newInterval: CachedInterval) => {
     const { contractAddress } = newInterval;
     const client = await this.pool.connect();
-
     try {
       await client.query("BEGIN");
 
@@ -228,6 +227,27 @@ export class PostgresCacheStore implements CacheStore {
   insertLogs = async (logs: Log[]) => {
     if (logs.length === 0) return;
 
+    const client = await this.pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const batchSize = 1000;
+      for (let i = 0; i < logs.length; i += batchSize) {
+        const batch = logs.slice(i, i + batchSize);
+        await this.insertLogBatch(client, batch);
+      }
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  };
+
+  private async insertLogBatch(client: PoolClient, logs: Log[]) {
     const params = logs
       .map((rawLog) => {
         const log = encodeLog(rawLog);
@@ -270,8 +290,8 @@ export class PostgresCacheStore implements CacheStore {
       ON CONFLICT("logId") DO NOTHING
     `;
 
-    await this.pool.query(query, params);
-  };
+    await client.query(query, params);
+  }
 
   insertBlock = async (rawBlock: Block) => {
     const block = encodeBlock(rawBlock);
