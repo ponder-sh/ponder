@@ -11,22 +11,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # install:
-  #   name: Install
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     matrix:
-  #       node-version: [16, 18]
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - name: Setup
-  #       uses: ./.github/actions/setup
-
   lint:
     name: Lint
-    # needs: Install
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         node-version: [16, 18]
     steps:
@@ -40,9 +29,9 @@ jobs:
 
   test:
     name: Test
-    # needs: Install
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         node-version: [16, 18]
         database: [postgres, sqlite]
