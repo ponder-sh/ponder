@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
-import { SqliteDb } from "@/database/db";
 import { Ponder } from "@/Ponder";
 
 import { testClient } from "./utils/clients";
@@ -58,21 +57,23 @@ describe("Ponder", () => {
 
   describe("backfill", () => {
     test("inserts backfill data into the cache store", async () => {
-      const logs = (ponder.resources.database as SqliteDb).db
-        .prepare(`SELECT * FROM __ponder__v2__logs`)
-        .all();
+      const logs = await ponder.resources.cacheStore.getLogs({
+        contractAddress: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        fromBlockTimestamp: 0,
+        toBlockTimestamp: 1673278823, // mainnet 16370200
+      });
 
-      const blocks = (ponder.resources.database as SqliteDb).db
-        .prepare(`SELECT * FROM __ponder__v2__blocks`)
-        .all();
+      expect(logs).toHaveLength(148);
 
-      const transactions = (ponder.resources.database as SqliteDb).db
-        .prepare(`SELECT * FROM __ponder__v2__transactions`)
-        .all();
+      for (const log of logs) {
+        const block = await ponder.resources.cacheStore.getBlock(log.blockHash);
+        expect(block).toBeTruthy();
 
-      expect(logs.length).toBe(148);
-      expect(blocks.length).toBe(66);
-      expect(transactions.length).toBe(76);
+        const transaction = await ponder.resources.cacheStore.getTransaction(
+          log.transactionHash
+        );
+        expect(transaction).toBeTruthy();
+      }
     });
   });
 
