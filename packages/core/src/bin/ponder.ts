@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import "@/common/setupFetchPolyfill";
+
 import { cac } from "cac";
 import dotenv from "dotenv";
 
