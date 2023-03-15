@@ -96,6 +96,9 @@ export class Ponder {
       );
     }
 
+    // Start the HTTP server.
+    this.serverService.start();
+
     // These files depend only on ponder.config.ts, so can generate once on setup.
     // Note that loadHandlers depends on the index.ts file being present.
     this.codegenService.generateAppFile();
