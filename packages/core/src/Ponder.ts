@@ -159,6 +159,9 @@ export class Ponder {
     await this.reloadService.kill?.();
     this.uiService.kill();
 
+    this.frontfillService.clearListeners();
+    this.backfillService.clearListeners();
+
     await this.frontfillService.kill();
     await this.backfillService.kill();
 
