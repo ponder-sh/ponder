@@ -31,33 +31,20 @@ export class PostgresEntityStore implements EntityStore {
     };
   };
 
-  async teardown() {
-    if (!this.schema) return;
+  async load(newSchema: Schema) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    await Promise.all(
-      this.schema.entities.map(async (entity) => {
-        await this.pool.query(`DROP TABLE IF EXISTS "${entity.id}"`);
-      })
-    );
-  }
+      if (this.schema) {
+        for (const entity of this.schema.entities) {
+          await client.query(`DROP TABLE IF EXISTS "${entity.id}"`);
+        }
+      }
 
-  async load(newSchema?: Schema) {
-    // If there is an existing schema, this is a hot reload and the existing entity tables should be dropped.
-    if (this.schema) {
-      await this.teardown();
-    }
+      for (const entity of newSchema.entities) {
+        await client.query(`DROP TABLE IF EXISTS "${entity.id}"`);
 
-    // If a new schema was provided, set it.
-    if (newSchema) {
-      this.schema = newSchema;
-    }
-    if (!this.schema) return;
-
-    await Promise.all(
-      this.schema.entities.map(async (entity) => {
-        // Build the create table statement using field migration fragments.
-        // TODO: Update this so the generation of the field migration fragments happens here
-        // instead of when the Schema gets built.
         const columnStatements = entity.fields
           .filter(
             // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
@@ -65,11 +52,65 @@ export class PostgresEntityStore implements EntityStore {
           )
           .map((field) => field.migrateUpStatement);
 
-        await this.pool.query(
+        await client.query(
           `CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`
         );
-      })
-    );
+      }
+      await client.query("COMMIT");
+      this.schema = newSchema;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async reset() {
+    if (!this.schema) return;
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      for (const entity of this.schema.entities) {
+        await client.query(`DROP TABLE IF EXISTS "${entity.id}"`);
+
+        const columnStatements = entity.fields
+          .filter(
+            // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
+            (field): field is ScalarField => field.kind !== FieldKind.DERIVED
+          )
+          .map((field) => field.migrateUpStatement);
+
+        await client.query(
+          `CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`
+        );
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async teardown() {
+    if (!this.schema) return;
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      for (const entity of this.schema.entities) {
+        await client.query(`DROP TABLE IF EXISTS "${entity.id}"`);
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   getEntity = this.errorWrapper(async (entityId: string, id: string) => {

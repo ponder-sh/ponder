@@ -159,18 +159,17 @@ export class Ponder {
   }
 
   async kill() {
-    await this.reloadService.kill?.();
-    this.uiService.kill();
-
     this.frontfillService.clearListeners();
     this.backfillService.clearListeners();
 
-    await this.frontfillService.kill();
-    await this.backfillService.kill();
-
+    await this.reloadService.kill?.();
+    this.uiService.kill();
     this.eventHandlerService.killQueue();
     await this.serverService.teardown();
     await this.resources.entityStore.teardown();
+
+    await this.frontfillService.kill();
+    await this.backfillService.kill();
   }
 
   private registerDevAndStartHandlers() {
@@ -190,7 +189,7 @@ export class Ponder {
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
-      await this.resources.entityStore.load();
+      await this.resources.entityStore.reset();
       this.eventHandlerService.resetEventQueue({ handlers });
       await this.eventHandlerService.processEvents();
     });

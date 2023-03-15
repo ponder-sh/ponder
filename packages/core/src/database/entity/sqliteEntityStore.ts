@@ -17,30 +17,14 @@ export class SqliteEntityStore implements EntityStore {
     this.db = db;
   }
 
-  teardown = () => {
-    if (!this.schema) return;
-
-    this.schema.entities.forEach((entity) => {
-      this.db.prepare(`DROP TABLE IF EXISTS "${entity.id}"`).run();
-    });
-  };
-
-  load = (newSchema?: Schema) => {
-    // If there is an existing schema, this is a hot reload and the existing entity tables should be dropped.
+  load(newSchema: Schema) {
     if (this.schema) {
-      this.teardown();
+      this.schema.entities.forEach((entity) => {
+        this.db.prepare(`DROP TABLE IF EXISTS "${entity.id}"`).run();
+      });
     }
 
-    // If a new schema was provided, set it.
-    if (newSchema) {
-      this.schema = newSchema;
-    }
-    if (!this.schema) return;
-
-    this.schema.entities.forEach((entity) => {
-      // Build the create table statement using field migration fragments.
-      // TODO: Update this so the generation of the field migration fragments happens here
-      // instead of when the Schema gets built.
+    newSchema.entities.forEach((entity) => {
       const columnStatements = entity.fields
         .filter(
           // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
@@ -52,7 +36,36 @@ export class SqliteEntityStore implements EntityStore {
         .prepare(`CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`)
         .run();
     });
-  };
+
+    this.schema = newSchema;
+  }
+
+  reset() {
+    if (!this.schema) return;
+
+    for (const entity of this.schema.entities) {
+      this.db.prepare(`DROP TABLE IF EXISTS "${entity.id}"`).run();
+
+      const columnStatements = entity.fields
+        .filter(
+          // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
+          (field): field is ScalarField => field.kind !== FieldKind.DERIVED
+        )
+        .map((field) => field.migrateUpStatement);
+
+      this.db
+        .prepare(`CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`)
+        .run();
+    }
+  }
+
+  teardown() {
+    if (!this.schema) return;
+
+    this.schema.entities.forEach((entity) => {
+      this.db.prepare(`DROP TABLE IF EXISTS "${entity.id}"`).run();
+    });
+  }
 
   getEntity = (entityId: string, id: string) => {
     const statement = `SELECT "${entityId}".* FROM "${entityId}" WHERE "${entityId}"."id" = ?`;

@@ -28,7 +28,8 @@ type MaybePromise<T> = T | Promise<T>;
 export interface EntityStore {
   schema?: Schema;
 
-  load(schema?: Schema): MaybePromise<void>;
+  load(schema: Schema): MaybePromise<void>;
+  reset(): MaybePromise<void>;
   teardown(): MaybePromise<void>;
 
   getEntity(entityId: string, id: string): MaybePromise<Entity | null>;
