@@ -74,6 +74,6 @@ jobs:
       - name: Test
         run: pnpm test:ci
         env:
-          DATABASE_URL: ${{ matrix.database == postgres && postgresql://postgres:postgres@localhost:5432/db || '' }}
+          DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql://postgres:postgres@localhost:5432/db' || '' }}
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
           ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}
