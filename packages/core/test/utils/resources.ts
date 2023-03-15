@@ -12,6 +12,8 @@ import { buildDb } from "@/database/db";
 import { buildEntityStore } from "@/database/entity/entityStore";
 import { Resources } from "@/Ponder";
 
+import { resetCacheStore } from "./resetCacheStore";
+
 const defaultConfig: ResolvedPonderConfig = {
   database: process.env.DATABASE_URL
     ? {
@@ -69,6 +71,7 @@ export const buildTestResources = async (
   };
 
   await resources.cacheStore.migrate();
+  await resetCacheStore(database);
 
   return resources;
 };

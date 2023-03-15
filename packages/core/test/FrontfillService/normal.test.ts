@@ -14,7 +14,6 @@ import { FrontfillService } from "@/frontfill/FrontfillService";
 import { testClient, walletClient } from "../utils/clients";
 import { accounts, usdcContractConfig, vitalik } from "../utils/constants";
 import { expectEvents } from "../utils/expectEvents";
-import { resetCacheStore } from "../utils/resetCacheStore";
 import { buildTestResources } from "../utils/resources";
 import { wait } from "../utils/wait";
 
@@ -65,7 +64,6 @@ describe("FrontfillService", () => {
 
   afterEach(async () => {
     await frontfillService.kill();
-    await resetCacheStore(frontfillService.resources.database);
   });
 
   test("getLatestBlockNumbers()", async () => {

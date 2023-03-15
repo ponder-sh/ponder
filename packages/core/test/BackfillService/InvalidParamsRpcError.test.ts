@@ -6,7 +6,6 @@ import { BackfillService } from "@/backfill/BackfillService";
 import { testClient } from "../utils/clients";
 import { usdcContractConfig } from "../utils/constants";
 import { expectEvents } from "../utils/expectEvents";
-import { resetCacheStore } from "../utils/resetCacheStore";
 import { buildTestResources } from "../utils/resources";
 
 beforeAll(async () => {
@@ -68,7 +67,6 @@ describe("InvalidParamsRpcError", () => {
 
   afterEach(async () => {
     await backfillService.kill();
-    await resetCacheStore(backfillService.resources.database);
   });
 
   describe("backfill()", () => {
