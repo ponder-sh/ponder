@@ -11,20 +11,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  install:
-    name: Install
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [16, 18]
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup
-        uses: ./.github/actions/setup
+  # install:
+  #   name: Install
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       node-version: [16, 18]
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Setup
+  #       uses: ./.github/actions/setup
 
   lint:
     name: Lint
-    needs: Install
+    # needs: Install
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -40,7 +40,7 @@ jobs:
 
   test:
     name: Test
-    needs: Install
+    # needs: Install
     runs-on: ubuntu-latest
     strategy:
       matrix:
