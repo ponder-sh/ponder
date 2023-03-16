@@ -89,7 +89,7 @@ describe("Ponder", () => {
           .post("/graphql")
           .send({ query: `query { ${query} }` });
 
-        expect(response.body.errors).toBeUndefined();
+        expect(response.body.errors).toBe(undefined);
         expect(response.statusCode).toBe(200);
 
         return response.body.data;

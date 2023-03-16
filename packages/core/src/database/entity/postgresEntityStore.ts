@@ -250,9 +250,6 @@ export class PostgresEntityStore implements EntityStore {
       }
 
       if (skip) {
-        if (!first) {
-          fragments.push(`LIMIT -1`); // Must add a no-op limit for SQLite to handle offset
-        }
         fragments.push(`OFFSET ${skip}`);
       }
 
