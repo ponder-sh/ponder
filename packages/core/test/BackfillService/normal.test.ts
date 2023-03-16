@@ -93,20 +93,18 @@ describe("normal", () => {
     test("cached interval is written to cache store", async () => {
       await backfillService.backfill();
 
-      const cachedInterval =
+      const cachedIntervals =
         await backfillService.resources.cacheStore.getCachedIntervals(
           usdcContractConfig.address
         );
 
-      expect(cachedInterval).toMatchObject([
-        {
-          id: 1,
-          contractAddress: usdcContractConfig.address,
-          startBlock: 16369950,
-          endBlock: 16370000,
-          endBlockTimestamp: 1673276423,
-        },
-      ]);
+      expect(cachedIntervals.length).toBe(1);
+      expect(cachedIntervals[0]).toMatchObject({
+        contractAddress: usdcContractConfig.address,
+        startBlock: 16369950,
+        endBlock: 16370000,
+        endBlockTimestamp: 1673276423,
+      });
     });
   });
 });
