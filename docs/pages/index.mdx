@@ -8,7 +8,7 @@ import Architecture from "../public/architecture.svg";
 
 # Ponder
 
-Ponder is an open-source framework for blockchain backends. With Ponder, you can build a GraphQL API for any set of smart contracts on Ethereum-based blockchains while enjoying hot reloading, type safety, and easy deployment to production.
+Ponder is an open-source framework for blockchain application backends. With Ponder, you can build a GraphQL API for any set of smart contracts on Ethereum-based blockchains while enjoying hot reloading, type safety, and easy deployment to production.
 
 ## Features
 
@@ -102,14 +102,15 @@ Here's an event handler to process the `NameRegistered` event. It inserts an `En
 import { ponder } from "../generated";
 
 ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
-  const { EnsName } = context.entities
+  const { EnsName } = context.entities;
+  const { name, owner } = event.params;
 
-  await EnsName.insert(`${owner}-${name}`, {
-    name: event.params.name,
-    owner: event.params.owner,
-    registeredAt: event.block.timestamp,
-  })
-})
+  await EnsName.insert(`${name}-${owner}`, {
+    name: name,
+    owner: owner,
+    registeredAt: event.block.timestamp
+  });
+});
 ```
 
 ### GraphQL API

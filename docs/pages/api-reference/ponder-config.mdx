@@ -27,11 +27,12 @@ Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundr
   development or production.
 </Callout>
 
-| field       |         type          |                                                                                                                                    |
-| :---------- | :-------------------: | :--------------------------------------------------------------------------------------------------------------------------------- |
-| **name**    |       `string`        | A unique name for the blockchain. Must be unique across all networks.                                                              |
-| **chainId** |       `number`        | The [chain ID](https://chainlist.org) for the network.                                                                             |
-| **rpcUrl**  | `string \| undefined` | An optional RPC URL for the network. If not provided, a public (heavily rate-limited) RPC provider will be used (not recommended). |
+| field               |         type          |                                                                                                                                    |
+| :------------------ | :-------------------: | :--------------------------------------------------------------------------------------------------------------------------------- |
+| **name**            |       `string`        | A unique name for the blockchain. Must be unique across all networks.                                                              |
+| **chainId**         |       `number`        | The [chain ID](https://chainlist.org) for the network.                                                                             |
+| **rpcUrl**          | `string \| undefined` | An optional RPC URL for the network. If not provided, a public (heavily rate-limited) RPC provider will be used (not recommended). |
+| **pollingInterval** | `number \| undefined` | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this network.                                          |
 
 ### Contracts
 
@@ -45,7 +46,7 @@ Contracts are smart contracts deployed to a network. Ponder will fetch all the e
 | **address**    |        `string`        | The contract address.                                                                                                                                                                                                                                                             |
 | **startBlock** | `number \| undefined`  | **Default: `0`**. The block number to start handling events for this contract. Usually the contract deployment block number. **Default: `0`**                                                                                                                                     |
 | **endBlock**   | `number \| undefined`  | **Default: `undefined`**. The optional block number to stop handling events for this contract. If this field is specified, Ponder will not listen to "live" events for this contract. This field can be used alongside `startBlock` to only process events for a range of blocks. |
-| **blockLimit** | `number \| undefined`  | **Default: `50`**. The maximum block range that Ponder will use when calling `eth_getLogs`.                                                                                                                                                                                       |
+| **blockLimit** | `number \| undefined`  | The maximum block range that Ponder will use when calling `eth_getLogs`. If not provided, Ponder uses a sane default based on the RPC provider and chain ID for this contract.                                                                                                    |
 | **isIndexed**  | `boolean \| undefined` | **Default: `true`**. Specifies if Ponder should process events for this contract. If `false`, Ponder will not fetch events for this contract, but it will still be available on the event handler `context.contracts`.                                                            |
 
 ### Database
@@ -72,8 +73,8 @@ export const config: PonderConfig = {
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: process.env.PONDER_RPC_URL_1,
-    },
+      rpcUrl: process.env.PONDER_RPC_URL_1
+    }
   ],
   contracts: [
     {
@@ -81,9 +82,9 @@ export const config: PonderConfig = {
       network: "mainnet",
       abi: "./abis/ArtGobblers.json",
       address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-      startBlock: 15863321,
-    },
-  ],
+      startBlock: 15863321
+    }
+  ]
 };
 ```
 
@@ -105,9 +106,9 @@ export const config: PonderConfig = async () => {
         network: "mainnet",
         abi: "./abis/ArtGobblers.json",
         address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: startBlock,
-      },
-    ],
+        startBlock: startBlock
+      }
+    ]
   };
 };
 ```

@@ -50,18 +50,18 @@ const config: DocsThemeConfig = {
 
     const defaultSeoProps = {
       description:
-        "Ponder is a framework for building blockchain app backends.",
+        "Ponder is a framework for building blockchain application backends.",
       openGraph: {
         description:
-          "Ponder is a framework for building blockchain app backends.",
-        title: "Ponder: A Node.js Framework for Ethereum",
+          "Ponder is a framework for building blockchain application backends.",
+        title: "Ponder: The Blockchain Backend Framework",
         images: [{ url: "https://ponder.sh/og.png" }],
       },
       themeColor: "#ffffff",
       twitter: {
         cardType: "summary_large_image",
-        // handle: "@ponder_sh",
-        site: "ponder.sh",
+        handle: "@ponder_sh",
+        site: "https://ponder.sh",
       },
     };
 
@@ -81,7 +81,7 @@ const config: DocsThemeConfig = {
       };
     return {
       ...defaultSeoProps,
-      title: "Ponder: A Node.js Framework for Ethereum",
+      title: "Ponder: The Blockchain Backend Framework",
     };
   },
 };
