@@ -96,6 +96,9 @@ export class Ponder {
       );
     }
 
+    // Start the HTTP server.
+    this.serverService.start();
+
     // These files depend only on ponder.config.ts, so can generate once on setup.
     // Note that loadHandlers depends on the index.ts file being present.
     this.codegenService.generateAppFile();
@@ -121,6 +124,7 @@ export class Ponder {
     this.frontfillService.startFrontfill();
     this.reloadService.watch();
     await this.backfillService.backfill();
+    await this.eventHandlerService.processEvents();
   }
 
   async start() {
@@ -140,6 +144,7 @@ export class Ponder {
     await this.frontfillService.getLatestBlockNumbers();
     this.frontfillService.startFrontfill();
     await this.backfillService.backfill();
+    await this.eventHandlerService.processEvents();
   }
 
   async codegen() {
@@ -156,15 +161,17 @@ export class Ponder {
   }
 
   async kill() {
+    this.frontfillService.clearListeners();
+    this.backfillService.clearListeners();
+
     await this.reloadService.kill?.();
     this.uiService.kill();
-
-    await this.frontfillService.kill();
-    await this.backfillService.kill();
-
     this.eventHandlerService.killQueue();
     await this.serverService.teardown();
     await this.resources.entityStore.teardown();
+
+    await this.frontfillService.kill();
+    await this.backfillService.kill();
   }
 
   private registerDevAndStartHandlers() {
@@ -184,13 +191,12 @@ export class Ponder {
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
-      await this.resources.entityStore.load();
+      await this.resources.entityStore.reset();
       this.eventHandlerService.resetEventQueue({ handlers });
       await this.eventHandlerService.processEvents();
     });
 
     this.frontfillService.on("frontfillStarted", async () => {
-      this.eventHandlerService.isFrontfillStarted = true;
       await this.eventHandlerService.processEvents();
     });
     this.backfillService.on("backfillStarted", async () => {
@@ -201,7 +207,7 @@ export class Ponder {
     this.frontfillService.on("eventsAdded", async () => {
       await this.eventHandlerService.processEvents();
     });
-    this.backfillService.on("newEventsAdded", async () => {
+    this.backfillService.on("eventsAdded", async () => {
       await this.eventHandlerService.processEvents();
     });
 
@@ -211,14 +217,6 @@ export class Ponder {
         "backfill complete"
       );
       await this.eventHandlerService.processEvents();
-    });
-
-    this.resources.errors.on("handlerError", async ({ context, error }) => {
-      this.eventHandlerService.killQueue();
-      this.resources.logger.logMessage(
-        MessageKind.ERROR,
-        context + ": " + error.message + `\n` + error.stack
-      );
     });
 
     this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {

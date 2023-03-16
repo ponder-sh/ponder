@@ -1,11 +1,11 @@
-import { EventEmitter } from "@/common/EventEmitter";
+import Emittery from "emittery";
 
 type ErrorServiceEvents = {
-  handlerError: (arg: { context: string; error: Error }) => void;
-  handlerErrorCleared: () => void;
+  handlerError: { context: string; error: Error };
+  handlerErrorCleared: undefined;
 };
 
-export class ErrorService extends EventEmitter<ErrorServiceEvents> {
+export class ErrorService extends Emittery<ErrorServiceEvents> {
   isHandlerError = false;
 
   submitHandlerError({ context, error }: { context: string; error: Error }) {

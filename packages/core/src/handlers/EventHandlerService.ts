@@ -1,7 +1,8 @@
-import fastq from "fastq";
+import Emittery from "emittery";
 import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 
-import { EventEmitter } from "@/common/EventEmitter";
+import { createQueue, Queue, Worker } from "@/common/createQueue";
+import { MessageKind } from "@/common/LoggerService";
 import type { Log } from "@/common/types";
 import { Resources } from "@/Ponder";
 import { Handlers } from "@/reload/readHandlers";
@@ -14,33 +15,32 @@ import {
 import { getStackTraceAndCodeFrame } from "./getStackTrace";
 
 type EventHandlerServiceEvents = {
-  taskStarted: () => void;
-  taskCompleted: (arg: { timestamp: number }) => void;
+  taskStarted: undefined;
+  taskCompleted: { timestamp: number };
 
-  eventsAdded: (arg: {
+  eventsAdded: {
     handledCount: number;
     totalCount: number;
     fromTimestamp: number;
     toTimestamp: number;
-  }) => void;
-  eventsProcessed: (arg: { count: number; toTimestamp: number }) => void;
-  eventQueueReset: () => void;
+  };
+  eventsProcessed: { count: number; toTimestamp: number };
+  eventQueueReset: undefined;
 };
 
-type HandlerTask = Log;
-type HandlerQueue = fastq.queueAsPromised<HandlerTask>;
+type EventHandlerTask = { log: Log };
+type EventHandlerQueue = Queue<EventHandlerTask>;
 
-export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents> {
+export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
   resources: Resources;
 
   private handlers?: Handlers;
   private schema?: Schema;
-  private queue?: HandlerQueue;
+  private queue?: EventHandlerQueue;
 
   private injectedContracts: Record<string, ReadOnlyContract | undefined> = {};
 
   isBackfillStarted = false;
-  isFrontfillStarted = false;
 
   private eventProcessingPromise?: Promise<void>;
   private eventsHandledToTimestamp = 0;
@@ -62,8 +62,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
   }
 
   killQueue() {
-    this.queue?.kill();
-    delete this.queue;
+    this.queue?.clear();
   }
 
   resetEventQueue({
@@ -78,17 +77,10 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
 
     if (!this.handlers || !this.schema) return;
 
-    if (this.queue) {
-      this.queue.kill();
-      delete this.queue;
-    }
-
-    const queue = this.createEventQueue({
+    this.queue = this.createEventQueue({
       handlers: this.handlers,
       schema: this.schema,
     });
-
-    this.queue = queue;
     this.eventProcessingPromise = undefined;
     this.eventsHandledToTimestamp = 0;
 
@@ -96,7 +88,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
   }
 
   async processEvents() {
-    if (!this.isBackfillStarted || !this.isFrontfillStarted) return;
+    if (!this.isBackfillStarted) return;
     if (this.resources.errors.isHandlerError) return;
 
     // If there is already a call to processEvents() in progress, wait for that to be
@@ -117,7 +109,7 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
 
       // Add new events to the queue.
       for (const log of logs) {
-        this.queue.push(log);
+        this.queue.addTask({ log });
       }
 
       this.emit("eventsAdded", {
@@ -128,8 +120,8 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
       });
 
       // Process new events that were added to the queue.
-      this.queue.resume();
-      await this.queue.drained();
+      this.queue.start();
+      await this.queue.onEmpty();
       this.queue.pause();
 
       this.eventsHandledToTimestamp = toTimestamp;
@@ -170,13 +162,18 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
       };
     });
 
-    const handlerContext = {
+    const injectedContext = {
       contracts: this.injectedContracts,
       entities: entityModels,
     };
 
-    const handlerWorker = async (log: HandlerTask) => {
+    const eventHandlerWorker: Worker<EventHandlerTask> = async ({
+      task,
+      queue,
+    }) => {
       this.emit("taskStarted");
+
+      const { log } = task;
 
       const contract = this.resources.contracts.find(
         (contract) => contract.address === log.address
@@ -255,30 +252,38 @@ export class EventHandlerService extends EventEmitter<EventHandlerServiceEvents>
       // handler code to use the event block number by default.
       this.currentLogEventBlockNumber = block.number;
 
-      // Running user code here!
-      await handler({ event, context: handlerContext });
+      try {
+        // Running user code here!
+        await handler({ event, context: injectedContext });
+      } catch (error_) {
+        // Remove all remaining tasks from the queue.
+        queue.clear();
 
-      this.emit("taskCompleted", { timestamp: Number(block.timestamp) });
-    };
-
-    const queue = fastq.promise<unknown, Log>({}, handlerWorker, 1);
-
-    /* TODO use the task arg to provide context to the user about the error. */
-    queue.error((error) => {
-      if (error) {
+        // Log stack trace and message.
+        const error = error_ as Error;
         const result = getStackTraceAndCodeFrame(error, this.resources.options);
         if (result) {
           error.stack = `${result.stackTrace}\n` + result.codeFrame;
         }
 
-        this.resources.errors.submitHandlerError({
-          context: "running event handlers",
-          error: error,
-        });
+        // TODO: Use the task arg to provide context to the user about the error.
+        this.resources.logger.logMessage(
+          MessageKind.ERROR,
+          "running event handlers" + ": " + error.message + `\n` + error.stack
+        );
       }
-    });
 
-    queue.pause();
+      this.emit("taskCompleted", { timestamp: Number(block.timestamp) });
+    };
+
+    const queue = createQueue({
+      worker: eventHandlerWorker,
+      context: undefined,
+      options: {
+        concurrency: 1,
+        autoStart: false,
+      },
+    });
 
     return queue;
   }

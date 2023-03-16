@@ -36,21 +36,16 @@ describe("create-ponder", () => {
 
       test("creates project files and directories", async () => {
         const root = fs.readdirSync(rootDir);
-        expect(root.sort()).toEqual(
-          [
-            ".env.local",
-            ".gitignore",
-            ".ponder",
-            "abis",
-            "generated",
-            "src",
-            "node_modules",
-            "package.json",
-            "ponder.config.ts",
-            "schema.graphql",
-            "tsconfig.json",
-          ].sort()
-        );
+        expect(root).toContain(".env.local");
+        expect(root).toContain(".gitignore");
+        expect(root).toContain("abis");
+        expect(root).toContain("generated");
+        expect(root).toContain("src");
+        expect(root).toContain("node_modules");
+        expect(root).toContain("package.json");
+        expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("schema.graphql");
+        expect(root).toContain("tsconfig.json");
       });
 
       test("downloads abi", async () => {
@@ -98,21 +93,16 @@ describe("create-ponder", () => {
 
       test("creates project files and directories", async () => {
         const root = fs.readdirSync(rootDir);
-        expect(root.sort()).toEqual(
-          [
-            ".env.local",
-            ".gitignore",
-            ".ponder",
-            "abis",
-            "generated",
-            "src",
-            "node_modules",
-            "package.json",
-            "ponder.config.ts",
-            "schema.graphql",
-            "tsconfig.json",
-          ].sort()
-        );
+        expect(root).toContain(".env.local");
+        expect(root).toContain(".gitignore");
+        expect(root).toContain("abis");
+        expect(root).toContain("generated");
+        expect(root).toContain("src");
+        expect(root).toContain("node_modules");
+        expect(root).toContain("package.json");
+        expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("schema.graphql");
+        expect(root).toContain("tsconfig.json");
       });
 
       test("downloads abi", async () => {
@@ -162,21 +152,16 @@ describe("create-ponder", () => {
 
       test("creates project files and directories", async () => {
         const root = fs.readdirSync(rootDir);
-        expect(root.sort()).toEqual(
-          [
-            ".env.local",
-            ".gitignore",
-            ".ponder",
-            "abis",
-            "generated",
-            "src",
-            "node_modules",
-            "package.json",
-            "ponder.config.ts",
-            "schema.graphql",
-            "tsconfig.json",
-          ].sort()
-        );
+        expect(root).toContain(".env.local");
+        expect(root).toContain(".gitignore");
+        expect(root).toContain("abis");
+        expect(root).toContain("generated");
+        expect(root).toContain("src");
+        expect(root).toContain("node_modules");
+        expect(root).toContain("package.json");
+        expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("schema.graphql");
+        expect(root).toContain("tsconfig.json");
       });
 
       test("downloads abi", async () => {

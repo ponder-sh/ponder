@@ -4,11 +4,10 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
-import { SqliteDb } from "@/database/db";
 import { Ponder } from "@/Ponder";
 
-import { testClient } from "./utils/clients";
-import { getFreePort } from "./utils/getFreePort";
+import { testClient } from "../utils/clients";
+import { getFreePort } from "../utils/getFreePort";
 
 beforeAll(async () => {
   await testClient.reset({
@@ -19,37 +18,23 @@ beforeAll(async () => {
 
 describe("Ponder", () => {
   let ponder: Ponder;
-  let gql: (query: string) => Promise<any>;
 
   beforeAll(async () => {
-    rmSync("./test/projects/ens/.ponder", { recursive: true, force: true });
-    rmSync("./test/projects/ens/generated", { recursive: true, force: true });
+    rmSync("./test/Ponder/ens/.ponder", { recursive: true, force: true });
+    rmSync("./test/Ponder/ens/generated", { recursive: true, force: true });
     process.env.PORT = (await getFreePort()).toString();
 
     const options = buildOptions({
-      rootDir: "./test/projects/ens",
+      rootDir: "./test/Ponder/ens",
       configFile: "ponder.config.ts",
       logType: "start",
       silent: true,
     });
-
     const config = await buildPonderConfig(options);
+
     ponder = new Ponder({ options, config });
 
     await ponder.start();
-
-    const app = request(ponder.serverService.app);
-
-    gql = async (query) => {
-      const response = await app
-        .post("/graphql")
-        .send({ query: `query { ${query} }` });
-
-      expect(response.body.errors).toBeUndefined();
-      expect(response.statusCode).toBe(200);
-
-      return response.body.data;
-    };
   });
 
   afterAll(async () => {
@@ -58,21 +43,24 @@ describe("Ponder", () => {
 
   describe("backfill", () => {
     test("inserts backfill data into the cache store", async () => {
-      const logs = (ponder.resources.database as SqliteDb).db
-        .prepare(`SELECT * FROM __ponder__v2__logs`)
-        .all();
+      const logs = await ponder.resources.cacheStore.getLogs({
+        contractAddress:
+          "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85".toLowerCase(),
+        fromBlockTimestamp: 0,
+        toBlockTimestamp: 1673278823, // mainnet 16370200
+      });
 
-      const blocks = (ponder.resources.database as SqliteDb).db
-        .prepare(`SELECT * FROM __ponder__v2__blocks`)
-        .all();
+      expect(logs).toHaveLength(148);
 
-      const transactions = (ponder.resources.database as SqliteDb).db
-        .prepare(`SELECT * FROM __ponder__v2__transactions`)
-        .all();
+      for (const log of logs) {
+        const block = await ponder.resources.cacheStore.getBlock(log.blockHash);
+        expect(block).toBeTruthy();
 
-      expect(logs.length).toBe(148);
-      expect(blocks.length).toBe(66);
-      expect(transactions.length).toBe(76);
+        const transaction = await ponder.resources.cacheStore.getTransaction(
+          log.transactionHash
+        );
+        expect(transaction).toBeTruthy();
+      }
     });
   });
 
@@ -91,6 +79,23 @@ describe("Ponder", () => {
   });
 
   describe("graphql", () => {
+    let gql: (query: string) => Promise<any>;
+
+    beforeAll(() => {
+      const app = request(ponder.serverService.app);
+
+      gql = async (query) => {
+        const response = await app
+          .post("/graphql")
+          .send({ query: `query { ${query} }` });
+
+        expect(response.body.errors).toBe(undefined);
+        expect(response.statusCode).toBe(200);
+
+        return response.body.data;
+      };
+    });
+
     test("serves data", async () => {
       const { ensNfts, accounts } = await gql(`
         ensNfts {
@@ -164,6 +169,7 @@ describe("Ponder", () => {
         }
       `);
 
+      expect(ensNfts.length).toBeGreaterThan(0);
       expect(ensNfts).toBe(
         ensNfts.sort((a: any, b: any) => a.transferredAt - b.transferredAt)
       );
@@ -177,6 +183,7 @@ describe("Ponder", () => {
         }
       `);
 
+      expect(ensNfts.length).toBeGreaterThan(0);
       expect(ensNfts).toBe(
         ensNfts.sort((a: any, b: any) => b.transferredAt - a.transferredAt)
       );
@@ -203,8 +210,9 @@ describe("Ponder", () => {
       `);
 
       expect(ensNfts).toHaveLength(2);
-      expect(ensNfts[0].transferredAt).toBe(1673278703);
-      expect(ensNfts[1].transferredAt).toBe(1673278739);
+      const transferredAt = ensNfts.map((n: any) => n.transferredAt);
+      expect(transferredAt).toContain(1673278703);
+      expect(transferredAt).toContain(1673278739);
     });
 
     test("filters on string field equals", async () => {

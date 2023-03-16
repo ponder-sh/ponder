@@ -10,15 +10,17 @@ import { Resources } from "@/Ponder";
 export class ServerService {
   resources: Resources;
 
-  app: express.Express;
-  server: http.Server;
+  app?: express.Express;
+  server?: http.Server;
   private graphqlMiddleware?: express.Handler;
 
   isBackfillEventProcessingComplete = false;
 
   constructor({ resources }: { resources: Resources }) {
     this.resources = resources;
+  }
 
+  start() {
     this.app = express();
     this.app.use(cors());
     this.server = this.app.listen(this.resources.options.PORT);
@@ -59,13 +61,13 @@ export class ServerService {
       graphiql: true,
     });
 
-    this.app.use("/graphql", (...args) => this.graphqlMiddleware?.(...args));
+    this.app?.use("/graphql", (...args) => this.graphqlMiddleware?.(...args));
   }
 
   teardown() {
-    this.server.unref();
+    this.server?.unref();
     return new Promise<void>((resolve, reject) => {
-      this.server.close((err) => {
+      this.server?.close((err) => {
         if (err) return reject(err);
         resolve();
       });

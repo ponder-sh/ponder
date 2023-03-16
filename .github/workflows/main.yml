@@ -11,26 +11,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  install:
-    name: Install
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18]
-        pnpm-version: [7]
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup
-        uses: ./.github/actions/setup
-
   lint:
     name: Lint
-    needs: Install
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [18]
-        pnpm-version: [7]
+        node-version: [16, 18]
     steps:
       - uses: actions/checkout@v3
       - name: Setup
@@ -42,12 +29,26 @@ jobs:
 
   test:
     name: Test
-    needs: Install
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [18]
-        pnpm-version: [7]
+        node-version: [16, 18]
+        database: [postgres, sqlite]
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v3
       - name: Setup
@@ -60,5 +61,6 @@ jobs:
       - name: Test
         run: pnpm test:ci
         env:
+          DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql://postgres:postgres@localhost:5432/postgres' || '' }}
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
           ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}

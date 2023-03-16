@@ -1,8 +1,8 @@
+import Emittery from "emittery";
 import { GraphQLSchema, printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { EventEmitter } from "@/common/EventEmitter";
 import { ensureDirExists } from "@/common/utils";
 import { Resources } from "@/Ponder";
 import { Schema } from "@/schema/types";
@@ -13,11 +13,11 @@ import { buildEventTypes } from "./buildEventTypes";
 import { formatPrettier } from "./utils";
 
 type CodegenServiceEvents = {
-  handlerError: (arg: { error: Error }) => void;
-  handlerErrorCleared: () => void;
+  handlerError: { error: Error };
+  handlerErrorCleared: undefined;
 };
 
-export class CodegenService extends EventEmitter<CodegenServiceEvents> {
+export class CodegenService extends Emittery<CodegenServiceEvents> {
   resources: Resources;
 
   constructor({ resources }: { resources: Resources }) {

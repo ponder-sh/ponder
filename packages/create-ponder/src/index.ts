@@ -6,7 +6,7 @@ import pico from "picocolors";
 import prettier from "prettier";
 
 import { CreatePonderOptions, TemplateKind } from "@/common";
-import { detect } from "@/helpers/detectPackageManager";
+import { getPackageManager } from "@/helpers/getPackageManager";
 import { tryGitInit } from "@/helpers/git";
 import { fromBasic } from "@/templates/basic";
 import { fromEtherscan } from "@/templates/etherscan";
@@ -197,16 +197,16 @@ export const run = async (
     `node_modules/\n.DS_Store\n\n.env.local\n.ponder/\ngenerated/`
   );
 
-  const packageManager = await detect();
-  const runCommand =
-    packageManager === "npm" ? `${packageManager} run` : packageManager;
+  const packageManager = await getPackageManager();
 
   // Install packages.
   console.log(pico.bold(`\nInstalling with ${packageManager}.`));
 
   const installCommand = overrides.installCommand
     ? overrides.installCommand
-    : `${packageManager} install`;
+    : `${packageManager} ${
+        packageManager === "npm" ? "--quiet" : "--silent"
+      } install`;
 
   execSync(installCommand, {
     cwd: rootDir,
@@ -219,7 +219,10 @@ export const run = async (
   console.log(`\nInitialized a git repository.`);
 
   // Run codegen.
-  execSync(`${runCommand} --silent codegen --silent`, {
+  const runCommand = `${
+    packageManager === "npm" ? `npm --quiet run` : `${packageManager} --silent`
+  } codegen`;
+  execSync(runCommand, {
     cwd: rootDir,
     stdio: "inherit",
   });

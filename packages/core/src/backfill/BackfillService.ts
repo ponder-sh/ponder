@@ -19,7 +19,7 @@ export type BackfillServiceEvents = {
   logTaskCompleted: { contract: string };
   blockTaskCompleted: { contract: string };
 
-  newEventsAdded: { count: number };
+  eventsAdded: { count: number };
 
   backfillStarted: { contractCount: number };
   backfillCompleted: { duration: number };
@@ -114,27 +114,23 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
       let toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
 
       while (fromBlock <= endBlock) {
-        logBackfillQueue.push({ fromBlock, toBlock, isRetry: false });
+        logBackfillQueue.addTask({ fromBlock, toBlock, isRetry: false });
 
         fromBlock = toBlock + 1;
         toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
-        this.emit("logTasksAdded", {
-          contract: contract.name,
-          count: 1,
-        });
       }
     }
 
     this.killFunctions.push(async () => {
-      logBackfillQueue.kill();
-      await logBackfillQueue.drained();
-      blockBackfillQueue.kill();
-      await blockBackfillQueue.drained();
+      logBackfillQueue.clear();
+      await logBackfillQueue.onIdle();
+      blockBackfillQueue.clear();
+      await blockBackfillQueue.onIdle();
     });
 
     this.drainFunctions.push(async () => {
-      await logBackfillQueue.drained();
-      await blockBackfillQueue.drained();
+      await logBackfillQueue.onIdle();
+      await blockBackfillQueue.onIdle();
     });
   }
 }

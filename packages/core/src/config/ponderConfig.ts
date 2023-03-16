@@ -19,6 +19,7 @@ const ponderConfigSchema = z.object({
       name: z.string(),
       chainId: z.number(),
       rpcUrl: z.optional(z.string()),
+      pollingInterval: z.optional(z.number()),
     })
   ),
   contracts: z.array(

@@ -12,11 +12,18 @@ import { buildDb } from "@/database/db";
 import { buildEntityStore } from "@/database/entity/entityStore";
 import { Resources } from "@/Ponder";
 
+import { resetCacheStore } from "./resetCacheStore";
+
 const defaultConfig: ResolvedPonderConfig = {
-  database: {
-    kind: "sqlite",
-    filename: ":memory:",
-  },
+  database: process.env.DATABASE_URL
+    ? {
+        kind: "postgres",
+        connectionString: process.env.DATABASE_URL,
+      }
+    : {
+        kind: "sqlite",
+        filename: ":memory:",
+      },
   networks: [
     {
       name: "mainnet",
@@ -64,6 +71,7 @@ export const buildTestResources = async (
   };
 
   await resources.cacheStore.migrate();
+  await resetCacheStore(database);
 
   return resources;
 };
