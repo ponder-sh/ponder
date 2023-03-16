@@ -170,7 +170,7 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
                   }ms)`
                 )
               ),
-            pollingInterval * 2
+            pollingInterval * 10
           );
           listener = ({ network: _network }) => {
             if (_network === network.name) {
