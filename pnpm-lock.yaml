@@ -222,21 +222,6 @@ importers:
       typescript: 4.9.5
       vitest: 0.29.2
 
-  tmp/ba40b694-97e4-48f1-9a32-67f24f023afa:
-    specifiers:
-      '@ponder/core': latest
-      '@types/node': ^18.11.18
-      abitype: ^0.6.7
-      typescript: ^4.9.5
-      viem: 0.1.6
-    dependencies:
-      '@ponder/core': link:../../packages/core
-    devDependencies:
-      '@types/node': 18.15.3
-      abitype: 0.6.7_typescript@4.9.5
-      typescript: 4.9.5
-      viem: 0.1.6_typescript@4.9.5
-
 packages:
 
   /@ampproject/remapping/2.2.0:
