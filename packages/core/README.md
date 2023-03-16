@@ -4,7 +4,7 @@ Ponder is an open-source framework for blockchain application backends.
 
 ## Documentation
 
-Visit [ponder.sh](https://ponder.sh) for documentation, guides, and the API reference.
+Visit [ponder.sh](https://ponder.sh) for documentation, guides, and an API reference.
 
 ## Features
 
@@ -136,7 +136,7 @@ Ponder automatically generates a frontend-ready GraphQL API based on your projec
 }
 ```
 
-That's it! Check out [ponder.sh](https://ponder.sh) for the API reference, guides for deploying to production, and FAQ.
+That's it! Visit [ponder.sh](https://ponder.sh) for documentation, guides for deploying to production, and an API reference.
 
 ## Contributing
 
