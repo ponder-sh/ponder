@@ -15,7 +15,6 @@ import { testClient, walletClient } from "../utils/clients";
 import { accounts, usdcContractConfig, vitalik } from "../utils/constants";
 import { expectEvents } from "../utils/expectEvents";
 import { buildTestResources } from "../utils/resources";
-import { wait } from "../utils/wait";
 
 beforeAll(async () => {
   await testClient.reset({
@@ -93,7 +92,7 @@ describe("FrontfillService", () => {
         args: [accounts[0].address, 1n],
         account: vitalik.account,
       });
-      await wait(1200);
+      await frontfillService.nextBatchesIdle();
 
       await expectEvents(eventIterator1, {
         frontfillStarted: 1,
@@ -121,7 +120,7 @@ describe("FrontfillService", () => {
         args: [accounts[0].address, 1n],
         account: vitalik.account,
       });
-      await wait(1200);
+      await frontfillService.nextBatchesIdle();
 
       await expectEvents(eventIterator2, {
         frontfillStarted: 0,
