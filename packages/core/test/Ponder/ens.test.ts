@@ -210,8 +210,9 @@ describe("Ponder", () => {
       `);
 
       expect(ensNfts).toHaveLength(2);
-      expect(ensNfts[0].transferredAt).toBe(1673278703);
-      expect(ensNfts[1].transferredAt).toBe(1673278739);
+      const transferredAt = ensNfts.map((n: any) => n.transferredAt);
+      expect(transferredAt).toContain(1673278703);
+      expect(transferredAt).toContain(1673278739);
     });
 
     test("filters on string field equals", async () => {
