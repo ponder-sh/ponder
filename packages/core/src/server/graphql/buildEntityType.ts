@@ -24,6 +24,22 @@ export const buildEntityType = (
       // Build resolvers for relationship fields on the entity.
       entity.fields.forEach((field) => {
         switch (field.kind) {
+          case FieldKind.SCALAR: {
+            fieldConfigMap[field.name] = {
+              type: field.notNull
+                ? new GraphQLNonNull(field.scalarGqlType)
+                : field.scalarGqlType,
+            };
+            break;
+          }
+          case FieldKind.ENUM: {
+            fieldConfigMap[field.name] = {
+              type: field.notNull
+                ? new GraphQLNonNull(field.enumGqlType)
+                : field.enumGqlType,
+            };
+            break;
+          }
           case FieldKind.RELATIONSHIP: {
             const resolver: GraphQLFieldResolver<Source, Context> = async (
               parent,
@@ -93,22 +109,6 @@ export const buildEntityType = (
             );
             fieldConfigMap[field.name] = {
               type: field.notNull ? new GraphQLNonNull(listType) : listType,
-            };
-            break;
-          }
-          case FieldKind.SCALAR: {
-            fieldConfigMap[field.name] = {
-              type: field.notNull
-                ? new GraphQLNonNull(field.scalarGqlType)
-                : field.scalarGqlType,
-            };
-            break;
-          }
-          default: {
-            fieldConfigMap[field.name] = {
-              type: field.notNull
-                ? new GraphQLNonNull(field.baseGqlType)
-                : field.baseGqlType,
             };
             break;
           }

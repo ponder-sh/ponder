@@ -27,11 +27,9 @@ export type ScalarField = {
 export type EnumField = {
   name: string;
   kind: FieldKind.ENUM;
-  baseGqlType: GraphQLEnumType;
-  originalFieldType: TypeNode;
   notNull: boolean;
-  migrateUpStatement: string;
-  sqlType: string;
+  originalFieldType: TypeNode;
+  enumGqlType: GraphQLEnumType;
   enumValues: string[];
 };
 

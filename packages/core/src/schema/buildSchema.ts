@@ -156,12 +156,17 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
 
       // Handle enum types.
       if (enumBaseType) {
-        return getEnumField(
-          fieldName,
-          enumBaseType,
-          originalFieldType,
-          isNotNull
+        const enumValues = (enumBaseType.astNode?.values || []).map(
+          (v) => v.name.value
         );
+        return <EnumField>{
+          name: fieldName,
+          kind: FieldKind.ENUM,
+          enumGqlType: enumBaseType,
+          originalFieldType,
+          notNull: isNotNull,
+          enumValues,
+        };
       }
 
       // Handle list types.
@@ -211,34 +216,6 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
   };
 
   return schema;
-};
-
-const getEnumField = (
-  fieldName: string,
-  baseType: GraphQLEnumType,
-  originalFieldType: TypeNode,
-  isNotNull: boolean
-) => {
-  const enumValues = (baseType.astNode?.values || []).map((v) => v.name.value);
-
-  let migrateUpStatement = `"${fieldName}" TEXT CHECK ("${fieldName}" IN (${enumValues
-    .map((v) => `'${v}'`)
-    .join(", ")}))`;
-
-  if (isNotNull) {
-    migrateUpStatement += " NOT NULL";
-  }
-
-  return <EnumField>{
-    name: fieldName,
-    kind: FieldKind.ENUM,
-    baseGqlType: baseType,
-    originalFieldType,
-    notNull: isNotNull,
-    migrateUpStatement,
-    sqlType: "string",
-    enumValues,
-  };
 };
 
 const getListField = (
@@ -333,7 +310,7 @@ const getDerivedField = (
 // ------------------------------- UTILITIES -------------------------------- //
 
 // Find the name and base type of a field definition,
-//  and return the number of NON_NULL and/or LIST wrappers.
+// handling any wrapper types (NON_NULL_TYPE and LIST_TYPE).
 const unwrapFieldDefinition = (field: FieldDefinitionNode) => {
   const fieldName = field.name.value;
   let fieldType = field.type;

@@ -130,6 +130,15 @@ export class PostgresEntityStore implements EntityStore {
             const pk = field.name === "id" ? "PRIMARY KEY" : "";
             return `"${field.name}" ${type} ${notNull} ${pk}`;
           }
+          case FieldKind.ENUM: {
+            const notNull = field.notNull ? "NOT NULL" : "";
+
+            return `"${field.name}" TEXT CHECK ("${
+              field.name
+            }" IN (${field.enumValues
+              .map((v) => `'${v}'`)
+              .join(", ")})) ${notNull}`;
+          }
           default: {
             return field.migrateUpStatement;
           }

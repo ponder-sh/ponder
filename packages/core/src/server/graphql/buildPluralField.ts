@@ -96,12 +96,12 @@ const buildPluralField = (
       case FieldKind.ENUM: {
         // Enum fields => universal, singular
         operators.universal.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+          filterFields[`${field.name}${suffix}`] = { type: field.enumGqlType };
         });
 
         operators.singular.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
-            type: new GraphQLList(field.baseGqlType),
+            type: new GraphQLList(field.enumGqlType),
           };
         });
         break;
