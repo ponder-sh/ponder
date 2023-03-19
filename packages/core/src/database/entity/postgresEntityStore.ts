@@ -1,6 +1,15 @@
 import type { Pool } from "pg";
 
-import { DerivedField, FieldKind, ScalarField, Schema } from "@/schema/types";
+import {
+  DerivedField,
+  Entity,
+  EnumField,
+  FieldKind,
+  ListField,
+  RelationshipField,
+  ScalarField,
+  Schema,
+} from "@/schema/types";
 
 import type { EntityFilter, EntityStore } from "./entityStore";
 import {
@@ -43,19 +52,10 @@ export class PostgresEntityStore implements EntityStore {
       }
 
       for (const entity of newSchema.entities) {
-        await client.query(`DROP TABLE IF EXISTS "${entity.id}"`);
-
-        const columnStatements = entity.fields
-          .filter(
-            // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
-            (field): field is ScalarField => field.kind !== FieldKind.DERIVED
-          )
-          .map((field) => field.migrateUpStatement);
-
-        await client.query(
-          `CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`
-        );
+        const createTableStatement = this.getCreateTableStatement(entity);
+        await client.query(createTableStatement);
       }
+
       await client.query("COMMIT");
       this.schema = newSchema;
     } catch (error) {
@@ -75,16 +75,8 @@ export class PostgresEntityStore implements EntityStore {
       for (const entity of this.schema.entities) {
         await client.query(`DROP TABLE IF EXISTS "${entity.id}"`);
 
-        const columnStatements = entity.fields
-          .filter(
-            // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
-            (field): field is ScalarField => field.kind !== FieldKind.DERIVED
-          )
-          .map((field) => field.migrateUpStatement);
-
-        await client.query(
-          `CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`
-        );
+        const createTableStatement = this.getCreateTableStatement(entity);
+        await client.query(createTableStatement);
       }
       await client.query("COMMIT");
     } catch (error) {
@@ -111,6 +103,40 @@ export class PostgresEntityStore implements EntityStore {
     } finally {
       client.release();
     }
+  }
+
+  private getCreateTableStatement(entity: Entity) {
+    const gqlScalarToSqlType: Record<string, string | undefined> = {
+      Boolean: "integer",
+      Int: "integer",
+      String: "text",
+      BigInt: "text",
+      BigDecimal: "text",
+      Bytes: "text",
+    };
+
+    const columnStatements = entity.fields
+      .filter(
+        (
+          field
+        ): field is RelationshipField | ScalarField | ListField | EnumField =>
+          field.kind !== FieldKind.DERIVED
+      )
+      .map((field) => {
+        switch (field.kind) {
+          case FieldKind.SCALAR: {
+            const type = gqlScalarToSqlType[field.scalarTypeName];
+            const notNull = field.notNull ? "NOT NULL" : "";
+            const pk = field.name === "id" ? "PRIMARY KEY" : "";
+            return `"${field.name}" ${type} ${notNull} ${pk}`;
+          }
+          default: {
+            return field.migrateUpStatement;
+          }
+        }
+      });
+
+    return `CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`;
   }
 
   getEntity = this.errorWrapper(async (entityId: string, id: string) => {
@@ -318,17 +344,23 @@ export class PostgresEntityStore implements EntityStore {
       const field = entity.fieldByName[fieldName];
       if (!field) return;
 
-      if (field.baseGqlType.toString() === "Boolean") {
-        deserializedInstance[fieldName] = value === 1 ? true : false;
-        return;
+      switch (field.kind) {
+        case FieldKind.SCALAR: {
+          if (field.scalarTypeName === "Boolean") {
+            deserializedInstance[fieldName] = value === 1 ? true : false;
+          } else {
+            deserializedInstance[fieldName] = value;
+          }
+          break;
+        }
+        case FieldKind.LIST: {
+          deserializedInstance[fieldName] = JSON.parse(value as string);
+          break;
+        }
+        default: {
+          deserializedInstance[fieldName] = value;
+        }
       }
-
-      if (field.kind === FieldKind.LIST) {
-        deserializedInstance[fieldName] = JSON.parse(value as string);
-        return;
-      }
-
-      deserializedInstance[fieldName] = value;
     });
 
     return deserializedInstance as Record<string, unknown>;

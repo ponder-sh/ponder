@@ -96,6 +96,14 @@ export const buildEntityType = (
             };
             break;
           }
+          case FieldKind.SCALAR: {
+            fieldConfigMap[field.name] = {
+              type: field.notNull
+                ? new GraphQLNonNull(field.scalarGqlType)
+                : field.scalarGqlType,
+            };
+            break;
+          }
           default: {
             fieldConfigMap[field.name] = {
               type: field.notNull

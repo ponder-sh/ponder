@@ -8,7 +8,6 @@ import type {
 } from "graphql";
 
 export enum FieldKind {
-  ID,
   SCALAR,
   ENUM,
   LIST,
@@ -16,24 +15,13 @@ export enum FieldKind {
   DERIVED,
 }
 
-export type IDField = {
-  name: string;
-  kind: FieldKind.ID;
-  baseGqlType: GraphQLScalarType;
-  originalFieldType: TypeNode;
-  notNull: boolean;
-  migrateUpStatement: string;
-  sqlType: string;
-};
-
 export type ScalarField = {
   name: string;
   kind: FieldKind.SCALAR;
-  baseGqlType: GraphQLScalarType;
-  originalFieldType: TypeNode;
   notNull: boolean;
-  migrateUpStatement: string;
-  sqlType: string;
+  originalFieldType: TypeNode;
+  scalarTypeName: string;
+  scalarGqlType: GraphQLScalarType;
 };
 
 export type EnumField = {
@@ -80,7 +68,6 @@ export type DerivedField = {
 };
 
 export type Field =
-  | IDField
   | ScalarField
   | EnumField
   | ListField

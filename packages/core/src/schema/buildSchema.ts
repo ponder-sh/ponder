@@ -23,7 +23,6 @@ import {
   EnumField,
   Field,
   FieldKind,
-  IDField,
   ListField,
   RelationshipField,
   ScalarField,
@@ -36,27 +35,22 @@ const gqlScalarTypeByName: Record<string, GraphQLScalarType | undefined> = {
   Float: GraphQLFloat,
   String: GraphQLString,
   Boolean: GraphQLBoolean,
-  // Graph Protocol custom scalars
+  // Custom scalars all use String.
   BigInt: GraphQLString,
   Bytes: GraphQLString,
   BigDecimal: GraphQLString,
 };
 
-const gqlScalarToSqlType: Record<string, string | undefined> = {
-  ID: "text",
-  Boolean: "integer",
-  Int: "integer",
-  String: "text",
-  // graph-ts scalar types
-  BigInt: "text",
-  BigDecimal: "text",
-  Bytes: "text",
-};
-
 export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
   const gqlEntityTypes = getEntityTypes(graphqlSchema);
   const gqlEnumTypes = getEnumTypes(graphqlSchema);
-  const gqlCustomScalarTypes = getCustomScalarTypes(graphqlSchema);
+
+  const userDefinedScalars = getUserDefinedScalarTypes(graphqlSchema);
+  if (userDefinedScalars.length > 0) {
+    throw new Error(
+      `Custom scalars are not supported: "${userDefinedScalars[0]}"`
+    );
+  }
 
   // The `id` field is used as a table name prefix in the EntityStore to avoid entity table name collisions.
   const instanceId = randomUUID();
@@ -85,11 +79,8 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         isListElementNotNull,
       } = unwrapFieldDefinition(field);
 
-      // Try to find a GQL type that matches the base type of this field.
-      const builtInScalarBaseType = gqlScalarTypeByName[fieldTypeName];
-      const customScalarBaseType = gqlCustomScalarTypes.find(
-        (t) => t.name === fieldTypeName
-      );
+      // Try to find a type that matches the base type of this field.
+      const scalarBaseType = gqlScalarTypeByName[fieldTypeName];
       const enumBaseType = gqlEnumTypes.find((t) => t.name === fieldTypeName);
       const entityBaseType = gqlEntityTypes.find(
         (t) => t.name === fieldTypeName
@@ -99,12 +90,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         (directive) => directive.name.value === "derivedFrom"
       );
 
-      if (customScalarBaseType) {
-        throw new Error(
-          `Custom scalars are not supported: ${entityName}.${fieldName}`
-        );
-      }
-
+      // Handle derived fields.
       if (derivedFromDirective) {
         if (!entityBaseType || !isList) {
           throw new Error(
@@ -120,12 +106,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         );
       }
 
-      // Handle the ID field as a special case.
-      if (fieldName === "id" && builtInScalarBaseType) {
-        const baseType = builtInScalarBaseType;
-        return getIdField(entityName, baseType, originalFieldType, isNotNull);
-      }
-
+      // Handle relationship types.
       if (entityBaseType) {
         if (isList) {
           throw new Error(
@@ -143,43 +124,65 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         );
       }
 
-      if (builtInScalarBaseType) {
-        const baseType = builtInScalarBaseType;
-        if (isList) {
-          return getListField(
-            fieldName,
-            baseType,
-            originalFieldType,
-            isNotNull,
-            isListElementNotNull
-          );
-        } else {
-          return getScalarField(
-            fieldName,
-            baseType,
-            originalFieldType,
-            isNotNull
-          );
+      // Handle scalar types.
+      if (scalarBaseType) {
+        const baseType = scalarBaseType;
+
+        // Validate the id field.
+        if (fieldName === "id") {
+          if (!isNotNull) {
+            throw new Error(`${entityName}.id field must be non-null`);
+          }
+          if (isList) {
+            throw new Error(`${entityName}.id field must not be a list`);
+          }
+          if (!["BigInt", "String", "Int", "Bytes"].includes(baseType.name)) {
+            throw new Error(
+              `${entityName}.id field must be a String, BigInt, Int, or Bytes.`
+            );
+          }
         }
+
+        const field: ScalarField = {
+          name: fieldName,
+          kind: FieldKind.SCALAR,
+          notNull: isNotNull,
+          originalFieldType,
+          scalarTypeName: fieldTypeName,
+          scalarGqlType: baseType,
+        };
+        return field;
       }
 
       // Handle enum types.
       if (enumBaseType) {
-        const baseType = enumBaseType;
-        if (isList) {
+        return getEnumField(
+          fieldName,
+          enumBaseType,
+          originalFieldType,
+          isNotNull
+        );
+      }
+
+      // Handle list types.
+      if (isList) {
+        if (scalarBaseType) {
           return getListField(
             fieldName,
-            baseType,
+            scalarBaseType,
             originalFieldType,
             isNotNull,
             isListElementNotNull
           );
-        } else {
-          return getEnumField(
+        }
+
+        if (enumBaseType) {
+          return getListField(
             fieldName,
-            baseType,
+            enumBaseType,
             originalFieldType,
-            isNotNull
+            isNotNull,
+            isListElementNotNull
           );
         }
       }
@@ -208,64 +211,6 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
   };
 
   return schema;
-};
-
-const getIdField = (
-  entityName: string,
-  baseType: GraphQLScalarType,
-  originalFieldType: TypeNode,
-  isNotNull: boolean
-) => {
-  if (!isNotNull) {
-    throw new Error(`${entityName}.id field must be non-null`);
-  }
-
-  if (
-    baseType.name !== "ID" &&
-    baseType.name !== "String" &&
-    baseType.name !== "Bytes"
-  ) {
-    throw new Error(
-      `${entityName}.id field must have type ID, String, or Bytes`
-    );
-  }
-
-  return <IDField>{
-    name: "id",
-    kind: FieldKind.ID,
-    baseGqlType: baseType,
-    originalFieldType,
-    notNull: true,
-    migrateUpStatement: `"id" TEXT NOT NULL PRIMARY KEY`,
-    sqlType: "string",
-  };
-};
-
-const getScalarField = (
-  fieldName: string,
-  baseType: GraphQLScalarType,
-  originalFieldType: TypeNode,
-  isNotNull: boolean
-) => {
-  const sqlType = gqlScalarToSqlType[baseType.name];
-  if (!sqlType) {
-    throw new Error(`Unhandled scalar type: ${baseType.name}`);
-  }
-
-  let migrateUpStatement = `"${fieldName}" ${sqlType}`;
-  if (isNotNull) {
-    migrateUpStatement += " NOT NULL";
-  }
-
-  return <ScalarField>{
-    name: fieldName,
-    kind: FieldKind.SCALAR,
-    baseGqlType: baseType,
-    originalFieldType,
-    notNull: isNotNull,
-    migrateUpStatement,
-    sqlType,
-  };
 };
 
 const getEnumField = (
@@ -445,7 +390,7 @@ const getEntityTypes = (schema: GraphQLSchema) => {
 };
 
 // Find all scalar types in the schema that were created by the user.
-const getCustomScalarTypes = (schema: GraphQLSchema) => {
+const getUserDefinedScalarTypes = (schema: GraphQLSchema) => {
   return Object.values(schema.getTypeMap()).filter(
     (type) =>
       !!type.astNode &&

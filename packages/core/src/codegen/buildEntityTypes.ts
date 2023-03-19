@@ -4,13 +4,10 @@ import { Kind } from "graphql";
 import { Entity, FieldKind } from "@/schema/types";
 
 const gqlScalarToTsType: Record<string, string | undefined> = {
-  ID: "string",
+  String: "string",
   Boolean: "boolean",
   Int: "number",
-  String: "string",
-  // graph-ts scalar types
-  BigInt: "string",
-  BigDecimal: "string",
+  BigInt: "bigint",
   Bytes: "string",
 };
 
@@ -22,23 +19,20 @@ export const buildEntityTypes = (entities: Entity[]) => {
     ${entity.fields
       .map((field) => {
         switch (field.kind) {
-          case FieldKind.ID: {
-            return `${field.name}: string;`;
+          case FieldKind.SCALAR: {
+            const scalarTsType = gqlScalarToTsType[field.scalarTypeName];
+            if (!scalarTsType) {
+              throw new Error(
+                `TypeScript type not found for scalar: ${field.scalarTypeName}`
+              );
+            }
+
+            return `${field.name}${field.notNull ? "" : "?"}: ${scalarTsType};`;
           }
           case FieldKind.ENUM: {
             return `${field.name}${field.notNull ? "" : "?"}: ${field.enumValues
               .map((val) => `"${val}"`)
               .join(" | ")};`;
-          }
-          case FieldKind.SCALAR: {
-            const scalarTsType = gqlScalarToTsType[field.baseGqlType.name];
-            if (!scalarTsType) {
-              throw new Error(
-                `TypeScript type not found for scalar: ${field.baseGqlType.name}`
-              );
-            }
-
-            return `${field.name}${field.notNull ? "" : "?"}: ${scalarTsType};`;
           }
           case FieldKind.LIST: {
             // This is trash
