@@ -129,6 +129,7 @@ describe("art-gobblers", () => {
         }
       `);
 
+      expect(tokens.length).toBeGreaterThan(0);
       for (const token of tokens) {
         expect(typeof token.id).toBe("string");
       }
@@ -141,6 +142,7 @@ describe("art-gobblers", () => {
         }
       `);
 
+      expect(tokens.length).toBeGreaterThan(0);
       expect(tokens.map((t: any) => Number(t.id))).toMatchObject(
         tokens
           .map((t: any) => Number(t.id))
@@ -155,6 +157,7 @@ describe("art-gobblers", () => {
         }
       `);
 
+      expect(tokens.length).toBeGreaterThan(0);
       expect(tokens.map((t: any) => Number(t.id))).toMatchObject(
         tokens
           .map((t: any) => Number(t.id))
