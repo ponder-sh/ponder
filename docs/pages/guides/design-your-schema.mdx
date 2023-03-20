@@ -1,0 +1,118 @@
+---
+description: "A guide to defining a Ponder schema"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Design your schema
+
+Your project's `schema.graphql` file determines the shape of the data served by the GraphQL API.
+
+## Entity types
+
+Entity types are marked with the `@entity` directive. Internally, Ponder will create a database table for each entity type you define. Your event handler functions are responsible for creating and updating entities, which will then be served by the GraphQL API.
+
+```graphql filename="schema.graphql"
+type Account @entity {
+  id: String! # Could also be Int!, Bytes!, or BigInt!
+  # ...
+}
+```
+
+### The `id` field
+
+Every entity type _must_ have an `id` field typed as `String!`, `Int!`,
+`Bytes!` or `BigInt!`. The `id` field serves as a unique identifier for each
+instance of this entity.
+
+## Field types
+
+### Scalars
+
+In GraphQL, scalar types represent the "leaves" of a query, and each one corresponds to a JavaScript primitive data type.
+
+| type      | description                                 | example               | TypeScript type |
+| :-------- | :------------------------------------------ | :-------------------- | :-------------- |
+| `Boolean` | `true` or `false`                           | `true`                | `boolean`       |
+| `String`  | A UTF‐8 character sequence                  | `vitalik.eth`         | `string`        |
+| `Bytes`   | A UTF‐8 character sequence with `0x` prefix | `0xA5d28ee12f`        | `0x${string}`   |
+| `Int`     | A signed 32‐bit integer                     | `1679337733`, `-5`    | `number`        |
+| `Float`   | A signed floating-point value               | `17.79`               | `number`        |
+| `BigInt`  | An unsigned integer (solidity `uint256`)    | `7770000000000000000` | `bigint`        |
+
+Here's an example of how each might be used.
+
+```graphql filename="schema.graphql"
+type Account @entity {
+  id: Bytes! # Ethereum address
+  daiBalance: BigInt! # Token balance with 18 decimals
+  totalUsdValue: Float! # Dollars and cents
+  lastActiveAt: Int! # Unix timestamp
+  isAdmin: Boolean! # Boolean permission
+  graffiti: String! # Text message
+}
+```
+
+### Enums
+
+Enumeration types are a special kind of scalar that is restricted to a particular set of allowed values.
+
+```graphql filename="schema.graphql"
+enum Color {
+  ORANGE
+  BLACK
+  WHITE
+}
+
+type Cat @entity {
+  id: String!
+  color: Color!
+}
+```
+
+Fields that use an enum type are stored and served as a string.
+
+```ts filename="src/index.ts"
+await Cat.insert({
+  id: "Fluffy",
+  color: "ORANGE"
+});
+```
+
+### Lists
+
+Ponder also supports lists of scalars and enums. Lists should only be used for small collections of data, and should not be used to define a [relationship](/guides/design-your-schema#one-to-one-relationships) between entities.
+
+```graphql filename="schema.graphql"
+enum Color {
+  ORANGE
+  BLACK
+  WHITE
+}
+
+type FancyCat @entity {
+  id: String!
+  colors: [Color!]!
+}
+```
+
+```ts filename="src/index.ts"
+await FancyCat.insert({
+  id: "Fluffy",
+  colors: ["BLACK", "WHITE"]
+});
+```
+
+<Callout type="warning">
+  **Avoid nullable list elements.** Unless you have a good reason not to, it's
+  strongly recommended to mark list elements as non-null. Good: `[Color!]!`,
+  bad: `[Color]!`.
+</Callout>
+
+### One-to-one relationships
+
+TODO
+
+### One-to-many relationships
+
+TODO
