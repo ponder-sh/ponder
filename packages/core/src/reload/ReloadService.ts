@@ -82,11 +82,10 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
         logger: this.resources.logger,
       });
       this.emit("newHandlers", { handlers });
-    } catch (error) {
-      this.resources.errors.submitHandlerError({
-        context: "building event handlers",
-        error: error as Error,
-      });
+    } catch (error_) {
+      const error = error_ as Error;
+      error.message = "Building event handlers: " + error.message;
+      this.resources.errors.submitHandlerError({ error });
     }
   }
 
@@ -99,11 +98,11 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
       const graphqlSchema = buildGqlSchema(schema);
       this.emit("newSchema", { schema, graphqlSchema });
       return { schema, graphqlSchema };
-    } catch (error) {
-      this.resources.errors.submitHandlerError({
-        context: "building schema",
-        error: error as Error,
-      });
+    } catch (error_) {
+      const error = error_ as Error;
+      error.message = "Building schema: " + error.message;
+      error.stack = "";
+      this.resources.errors.submitHandlerError({ error });
     }
   }
 
