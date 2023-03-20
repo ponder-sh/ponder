@@ -17,5 +17,5 @@
     }
   },
   "include": ["src", "test"],
-  "exclude": ["node_modules", "test/Ponder/**/src/**/*"]
+  "exclude": ["node_modules", "test/**/Ponder/ens/**/*"]
 }
