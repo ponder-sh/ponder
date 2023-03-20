@@ -1,5 +1,6 @@
-import { copyFileSync, readFileSync } from "node:fs";
+import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import prettier from "prettier";
 import { parse } from "yaml";
 
 import {
@@ -52,12 +53,17 @@ export const fromSubgraphRepo = ({
   const subgraphYaml = parse(subgraphYamlRaw);
 
   // Copy over the schema.graphql file.
-  const subgraphSchemaFilePath = path.join(
-    subgraphRootDirPath,
-    subgraphYaml.schema.file
+  const schemaRaw = readFileSync(
+    path.join(subgraphRootDirPath, subgraphYaml.schema.file),
+    {
+      encoding: "utf-8",
+    }
   );
-  const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
-  copyFileSync(subgraphSchemaFilePath, ponderSchemaFilePath);
+  const schemaCleaned = schemaRaw.replaceAll(": ID!", ": String!");
+  writeFileSync(
+    path.join(rootDir, "schema.graphql"),
+    prettier.format(schemaCleaned, { parser: "graphql" })
+  );
 
   // Build the ponder sources. Also copy over the ABI files for each source.
   ponderContracts = (subgraphYaml.dataSources as unknown[])

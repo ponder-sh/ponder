@@ -13,7 +13,7 @@ export const fromBasic = ({ rootDir }: { rootDir: string }) => {
 
   const schemaGraphqlFileContents = `
     type ExampleToken @entity {
-      id: ID!
+      id: String!
       tokenId: Int!
       trait: TokenTrait!
     }
