@@ -39,6 +39,24 @@
   background: #2e2e2e;
 }
 
+/* CODE COLUMNS STYLES */
+
+.code-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0rem 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.code-columns div {
+  flex: 1;
+  margin-top: 0rem;
+}
+
+.code-columns div pre {
+  height: calc(100% - 1rem);
+}
+
 /* EXCALIDRAW DIAGRAM STYLES */
 
 .excalidraw {
