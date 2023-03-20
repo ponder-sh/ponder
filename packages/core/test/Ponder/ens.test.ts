@@ -28,7 +28,7 @@ describe("Ponder", () => {
       rootDir: "./test/Ponder/ens",
       configFile: "ponder.config.ts",
       logType: "start",
-      silent: true,
+      silent: false,
     });
     const config = await buildPonderConfig(options);
 
@@ -71,9 +71,9 @@ describe("Ponder", () => {
       );
       expect(entity).toBeDefined();
 
-      const ensNfts = await ponder.resources.entityStore.getEntities(
-        entity!.id
-      );
+      const ensNfts = await ponder.resources.entityStore.getEntities({
+        entityName: "EnsNft",
+      });
       expect(ensNfts.length).toBe(58);
     });
   });
