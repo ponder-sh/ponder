@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/generated": ["./generated/index.ts"],
+      "@ponder/core": ["../../../"]
+    }
+  },
+  "include": ["src"]
+}

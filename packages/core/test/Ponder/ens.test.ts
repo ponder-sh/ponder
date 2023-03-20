@@ -16,7 +16,7 @@ beforeAll(async () => {
   });
 });
 
-describe("Ponder", () => {
+describe("ens", () => {
   let ponder: Ponder;
 
   beforeAll(async () => {
