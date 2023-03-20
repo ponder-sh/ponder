@@ -110,8 +110,8 @@ export class PostgresEntityStore implements EntityStore {
       Boolean: "integer",
       Int: "integer",
       String: "text",
-      BigInt: "text",
-      BigDecimal: "text",
+      BigInt: "numeric(78)", // Store BigInts as numerics large enough for Solidity's MAX_INT (2**256 - 1).
+      BigDecimal: "numeric(78)",
       Bytes: "text",
     };
 
