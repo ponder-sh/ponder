@@ -3,7 +3,7 @@
     "baseUrl": ".",
     "paths": {
       "@/generated": ["./generated/index.ts"],
-      "@ponder/core": ["../../../"]
+      "@ponder/core": ["../../../../core"]
     }
   },
   "include": ["src"]
