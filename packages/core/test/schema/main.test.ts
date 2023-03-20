@@ -8,6 +8,7 @@ import { describe, expect, test } from "vitest";
 import { schemaHeader } from "@/reload/readGraphqlSchema";
 import { buildSchema } from "@/schema/buildSchema";
 import {
+  DerivedField,
   EnumField,
   FieldKind,
   ListField,
@@ -134,6 +135,17 @@ describe("scalar fields", () => {
     const nonNullBytesField = entity?.fieldByName["nonNullBytes"];
     expect(nonNullBytesField).toBeDefined();
     expect(nonNullBytesField?.notNull).toBe(true);
+  });
+
+  test("custom scalars", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+    scalar CustomScalar
+  `);
+
+    expect(() => buildSchema(graphqlSchema))
+      .toThrowErrorMatchingInlineSnapshot(`
+    "Custom scalars are not supported: CustomScalar"
+  `);
   });
 });
 
@@ -382,5 +394,67 @@ describe("relationship fields", () => {
     expect(relationshipField?.notNull).toBe(false);
     expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
     expect(relationshipField?.relatedEntityIdType).toBe(GraphQLString);
+  });
+});
+
+describe("derivedFrom fields", () => {
+  test("related entity is missing id field", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      type Entity @entity {
+        relatedEntity: RelatedEntity!
+      }
+
+      type RelatedEntity @entity {
+        entities: [Entity!]! @derivedFrom(field: "relatedEntity")
+      }
+    `);
+
+    expect(() => buildSchema(graphqlSchema)).toThrowErrorMatchingInlineSnapshot(
+      `"Related entity is missing an id field: RelatedEntity"`
+    );
+  });
+
+  test("related entity id field is not a scalar", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      type Entity @entity {
+        relatedEntity: RelatedEntity!
+      }
+
+      enum Enum {
+        VALUE
+      }
+
+      type RelatedEntity @entity {
+        id: Enum!
+        entities: [Entity!]! @derivedFrom(field: "relatedEntity")
+      }
+    `);
+
+    expect(() => buildSchema(graphqlSchema)).toThrowErrorMatchingInlineSnapshot(
+      `"Related entity id field is not a scalar: RelatedEntity"`
+    );
+  });
+
+  test("related entity is valid", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      type Entity @entity {
+        relatedEntity: RelatedEntity!
+      }
+
+      type RelatedEntity @entity {
+        id: Int!
+        entities: [Entity!]! @derivedFrom(field: "relatedEntity")
+      }
+    `);
+
+    const schema = buildSchema(graphqlSchema);
+    const entity = schema.entities.find((e) => e.name === "RelatedEntity");
+    const derivedFromField = entity?.fields.find(
+      (f): f is DerivedField => f.name === "entities"
+    );
+    expect(derivedFromField?.kind).toBe(FieldKind.DERIVED);
+    expect(derivedFromField?.notNull).toBe(true);
+    expect(derivedFromField?.derivedFromEntityName).toBe("Entity");
+    expect(derivedFromField?.derivedFromFieldName).toBe("relatedEntity");
   });
 });

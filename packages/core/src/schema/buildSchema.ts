@@ -1,5 +1,4 @@
 import {
-  DirectiveNode,
   FieldDefinitionNode,
   GraphQLBoolean,
   GraphQLEnumType,
@@ -13,7 +12,6 @@ import {
   GraphQLString,
   Kind,
   StringValueNode,
-  TypeNode,
 } from "graphql";
 import { randomUUID } from "node:crypto";
 
@@ -48,7 +46,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
   const userDefinedScalars = getUserDefinedScalarTypes(graphqlSchema);
   if (userDefinedScalars.length > 0) {
     throw new Error(
-      `Custom scalars are not supported: "${userDefinedScalars[0]}"`
+      `Custom scalars are not supported: ${userDefinedScalars[0]}`
     );
   }
 
@@ -97,20 +95,40 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
             `Resolved type of a @derivedFrom field must be a list of entities`
           );
         }
-        return getDerivedField(
-          fieldName,
-          entityBaseType,
-          originalFieldType,
-          isNotNull,
-          derivedFromDirective
+
+        const derivedFromFieldArgument = derivedFromDirective.arguments?.find(
+          (arg) =>
+            arg.name.value === "field" && arg.value.kind === "StringValue"
         );
+        if (!derivedFromFieldArgument) {
+          throw new Error(
+            `The @derivedFrom directive requires an argument: field`
+          );
+        }
+
+        const derivedFromFieldName = (
+          derivedFromFieldArgument.value as StringValueNode
+        ).value;
+
+        const baseTypeAsInputType =
+          entityBaseType as unknown as GraphQLInputObjectType;
+
+        return <DerivedField>{
+          name: fieldName,
+          kind: FieldKind.DERIVED,
+          baseGqlType: baseTypeAsInputType,
+          originalFieldType,
+          notNull: isNotNull,
+          derivedFromEntityName: entityBaseType.name,
+          derivedFromFieldName: derivedFromFieldName,
+        };
       }
 
       // Handle relationship types.
       if (entityBaseType) {
         if (isList) {
           throw new Error(
-            `Invalid field: "${entityName}.${fieldName}". Lists of entities must use the @derivedFrom directive.`
+            `Invalid field: ${entityName}.${fieldName}. Lists of entities must use the @derivedFrom directive.`
           );
         }
 
@@ -119,7 +137,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         );
         if (!relatedEntityIdField) {
           throw new Error(
-            `Related entity is missing an "id" field: "${entityBaseType.name}"`
+            `Related entity is missing an id field: ${entityBaseType.name}`
           );
         }
 
@@ -127,7 +145,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         const relatedEntityIdType = gqlScalarTypeByName[fieldTypeName];
         if (!relatedEntityIdType) {
           throw new Error(
-            `Related entity "id" field is not a scalar: "${entityBaseType.name}"`
+            `Related entity id field is not a scalar: ${entityBaseType.name}`
           );
         }
 
@@ -240,41 +258,6 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
   };
 
   return schema;
-};
-
-const getDerivedField = (
-  fieldName: string,
-  baseType: GraphQLObjectType,
-  originalFieldType: TypeNode,
-  isNotNull: boolean,
-  derivedFromDirective: DirectiveNode
-) => {
-  const derivedFromFieldArgument = derivedFromDirective.arguments?.find(
-    (arg) => arg.name.value === "field" && arg.value.kind === "StringValue"
-  );
-
-  if (!derivedFromFieldArgument) {
-    throw new Error(`The @derivedFrom requires a "field" argument`);
-  }
-
-  const derivedFromFieldName = (
-    derivedFromFieldArgument.value as StringValueNode
-  ).value;
-
-  // See comment in getRelationshipField.
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  const baseTypeAsInputType = baseType as GraphQLInputObjectType;
-
-  return <DerivedField>{
-    name: fieldName,
-    kind: FieldKind.DERIVED,
-    baseGqlType: baseTypeAsInputType,
-    originalFieldType,
-    notNull: isNotNull,
-    derivedFromEntityName: baseType.name,
-    derivedFromFieldName: derivedFromFieldName,
-  };
 };
 
 // ------------------------------- UTILITIES -------------------------------- //
