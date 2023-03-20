@@ -185,7 +185,7 @@ export class Ponder {
 
       this.serverService.reload({ graphqlSchema });
 
-      await this.resources.entityStore.load(schema);
+      await this.resources.entityStore.load({ schema });
       this.eventHandlerService.resetEventQueue({ schema });
       await this.eventHandlerService.processEvents();
     });

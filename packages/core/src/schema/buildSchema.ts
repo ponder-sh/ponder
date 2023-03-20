@@ -13,7 +13,6 @@ import {
   Kind,
   StringValueNode,
 } from "graphql";
-import { randomUUID } from "node:crypto";
 
 import {
   DerivedField,
@@ -49,9 +48,6 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
       `Custom scalars are not supported: ${userDefinedScalars[0]}`
     );
   }
-
-  // The `id` field is used as a table name prefix in the EntityStore to avoid entity table name collisions.
-  const instanceId = randomUUID();
 
   const entities = gqlEntityTypes.map((entity) => {
     const entityName = entity.name;
@@ -243,7 +239,6 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
     });
 
     return <Entity>{
-      id: `${entityName}_${instanceId}`,
       name: entityName,
       gqlType: entity,
       isImmutable: entityIsImmutable,
@@ -253,7 +248,6 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
   });
 
   const schema: Schema = {
-    instanceId,
     entities,
   };
 

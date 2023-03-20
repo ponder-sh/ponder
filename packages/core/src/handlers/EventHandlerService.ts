@@ -147,18 +147,23 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     // Build entity models for event handler context.
     const entityModels: Record<string, unknown> = {};
     schema.entities.forEach((entity) => {
-      const { id: entityId, name: entityName } = entity;
+      const entityName = entity.name;
 
       entityModels[entityName] = {
-        get: (id: string) => this.resources.entityStore.getEntity(entityId, id),
+        get: (id: string) =>
+          this.resources.entityStore.getEntity({ entityName, id }),
         delete: (id: string) =>
-          this.resources.entityStore.deleteEntity(entityId, id),
-        insert: (id: string, obj: Record<string, unknown>) =>
-          this.resources.entityStore.insertEntity(entityId, id, obj),
-        update: (id: string, obj: Record<string, unknown>) =>
-          this.resources.entityStore.updateEntity(entityId, id, obj),
-        upsert: (id: string, obj: Record<string, unknown>) =>
-          this.resources.entityStore.upsertEntity(entityId, id, obj),
+          this.resources.entityStore.deleteEntity({ entityName, id }),
+        insert: (id: string, instance: Record<string, unknown>) =>
+          this.resources.entityStore.insertEntity({
+            entityName,
+            id,
+            instance,
+          }),
+        update: (id: string, instance: Record<string, unknown>) =>
+          this.resources.entityStore.updateEntity({ entityName, id, instance }),
+        upsert: (id: string, instance: Record<string, unknown>) =>
+          this.resources.entityStore.upsertEntity({ entityName, id, instance }),
       };
     });
 

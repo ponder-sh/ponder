@@ -55,10 +55,10 @@ export const buildEntityType = (
               // @ts-ignore
               const relatedInstanceId = parent[field.name];
 
-              return await store.getEntity(
-                field.relatedEntityId,
-                relatedInstanceId
-              );
+              return await store.getEntity({
+                entityName: field.relatedEntityName,
+                id: relatedInstanceId,
+              });
             };
 
             fieldConfigMap[field.name] = {
@@ -83,11 +83,14 @@ export const buildEntityType = (
               // @ts-ignore
               const entityId = parent.id;
 
-              return await store.getEntityDerivedField(
-                entity.id,
-                entityId,
-                field.name
-              );
+              return await store.getEntities({
+                entityName: field.derivedFromEntityName,
+                filter: {
+                  where: {
+                    [field.derivedFromFieldName]: entityId,
+                  },
+                },
+              });
             };
 
             fieldConfigMap[field.name] = {
