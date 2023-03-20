@@ -143,8 +143,10 @@ export class PostgresEntityStore implements EntityStore {
             const notNull = field.notNull ? "NOT NULL" : "";
             return `"${field.name}" TEXT ${notNull}`;
           }
-          default: {
-            return field.migrateUpStatement;
+          case FieldKind.RELATIONSHIP: {
+            const type = gqlScalarToSqlType[field.relatedEntityIdType.name];
+            const notNull = field.notNull ? "NOT NULL" : "";
+            return `"${field.name}" ${type} ${notNull}`;
           }
         }
       });

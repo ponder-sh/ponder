@@ -114,14 +114,37 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
           );
         }
 
-        const baseType = entityBaseType;
-        return getRelationshipField(
-          fieldName,
-          baseType,
-          originalFieldType,
-          isNotNull,
-          instanceId
+        const relatedEntityIdField = entityBaseType.astNode?.fields?.find(
+          (f) => f.name.value === "id"
         );
+        if (!relatedEntityIdField) {
+          throw new Error(
+            `Related entity is missing an "id" field: "${entityBaseType.name}"`
+          );
+        }
+
+        const { fieldTypeName } = unwrapFieldDefinition(relatedEntityIdField);
+        const relatedEntityIdType = gqlScalarTypeByName[fieldTypeName];
+        if (!relatedEntityIdType) {
+          throw new Error(
+            `Related entity "id" field is not a scalar: "${entityBaseType.name}"`
+          );
+        }
+
+        // Everything downstream requires the base type as a GraphQLInputObject type, but idk how to safely convert it.
+        // AFAICT, the GraphQLObjectType is a strict superset of GraphQLInputObject, so this should be fine.
+        const entityBaseTypeAsInputType =
+          entityBaseType as unknown as GraphQLInputObjectType;
+
+        return <RelationshipField>{
+          name: fieldName,
+          kind: FieldKind.RELATIONSHIP,
+          baseGqlType: entityBaseTypeAsInputType,
+          originalFieldType,
+          notNull: isNotNull,
+          relatedEntityName: entityBaseType.name,
+          relatedEntityIdType: relatedEntityIdType,
+        };
       }
 
       // Handle list types.
@@ -217,36 +240,6 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
   };
 
   return schema;
-};
-
-const getRelationshipField = (
-  fieldName: string,
-  baseType: GraphQLObjectType,
-  originalFieldType: TypeNode,
-  isNotNull: boolean,
-  instanceId: string
-) => {
-  let migrateUpStatement = `"${fieldName}" TEXT`;
-  if (isNotNull) {
-    migrateUpStatement += " NOT NULL";
-  }
-
-  // Everything downstream requires the base type as a GraphQLInputObject type, but idk how to safely convert it.
-  // AFAICT, the GraphQLObjectType is a strict superset of GraphQLInputObject, so this should be fine.
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  const baseTypeAsInputType = baseType as GraphQLInputObjectType;
-
-  return <RelationshipField>{
-    name: fieldName,
-    kind: FieldKind.RELATIONSHIP,
-    baseGqlType: baseTypeAsInputType,
-    originalFieldType,
-    notNull: isNotNull,
-    migrateUpStatement,
-    sqlType: "text", // foreign key
-    relatedEntityId: `${baseType.name}_${instanceId}`,
-  };
 };
 
 const getDerivedField = (

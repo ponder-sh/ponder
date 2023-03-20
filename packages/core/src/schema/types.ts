@@ -48,9 +48,8 @@ export type RelationshipField = {
   baseGqlType: GraphQLInputObjectType;
   originalFieldType: TypeNode;
   notNull: boolean;
-  migrateUpStatement: string;
-  sqlType: string;
-  relatedEntityId: string;
+  relatedEntityName: string;
+  relatedEntityIdType: GraphQLScalarType;
 };
 
 export type DerivedField = {

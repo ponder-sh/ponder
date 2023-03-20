@@ -1,9 +1,19 @@
-import { buildSchema as _buildGraphqlSchema } from "graphql";
+import {
+  buildSchema as _buildGraphqlSchema,
+  GraphQLInt,
+  GraphQLString,
+} from "graphql";
 import { describe, expect, test } from "vitest";
 
 import { schemaHeader } from "@/reload/readGraphqlSchema";
 import { buildSchema } from "@/schema/buildSchema";
-import { EnumField, FieldKind, ListField, ScalarField } from "@/schema/types";
+import {
+  EnumField,
+  FieldKind,
+  ListField,
+  RelationshipField,
+  ScalarField,
+} from "@/schema/types";
 
 const buildGraphqlSchema = (source: string) => {
   return _buildGraphqlSchema(schemaHeader + source);
@@ -260,5 +270,117 @@ describe("list fields", () => {
     expect(listField?.notNull).toBe(false);
     expect(listField?.isListElementNotNull).toBe(false);
     expect(listField?.baseGqlType.toString()).toBe("MultipleEnum");
+  });
+});
+
+describe("relationship fields", () => {
+  test("related entity has String id", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      type Entity @entity {
+        relatedEntity: RelatedEntity!
+      }
+
+      type RelatedEntity @entity {
+        id: String!
+      }
+    `);
+
+    const schema = buildSchema(graphqlSchema);
+    const entity = schema.entities.find((e) => e.name === "Entity");
+    const relationshipField = entity?.fields.find(
+      (f): f is RelationshipField => f.name === "relatedEntity"
+    );
+    expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
+    expect(relationshipField?.notNull).toBe(true);
+    expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
+    expect(relationshipField?.relatedEntityIdType).toBe(GraphQLString);
+  });
+
+  test("related entity has Int id", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      type Entity @entity {
+        relatedEntity: RelatedEntity!
+      }
+
+      type RelatedEntity @entity {
+        id: Int!
+      }
+    `);
+
+    const schema = buildSchema(graphqlSchema);
+    const entity = schema.entities.find((e) => e.name === "Entity");
+    const relationshipField = entity?.fields.find(
+      (f): f is RelationshipField => f.name === "relatedEntity"
+    );
+    expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
+    expect(relationshipField?.notNull).toBe(true);
+    expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
+    expect(relationshipField?.relatedEntityIdType).toBe(GraphQLInt);
+  });
+
+  test("related entity has BigInt id", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      type Entity @entity {
+        relatedEntity: RelatedEntity!
+      }
+
+      type RelatedEntity @entity {
+        id: BigInt!
+      }
+    `);
+
+    const schema = buildSchema(graphqlSchema);
+    const entity = schema.entities.find((e) => e.name === "Entity");
+    const relationshipField = entity?.fields.find(
+      (f): f is RelationshipField => f.name === "relatedEntity"
+    );
+    expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
+    expect(relationshipField?.notNull).toBe(true);
+    expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
+    expect(relationshipField?.relatedEntityIdType).toBe(GraphQLString);
+  });
+
+  test("related entity has Bytes id", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      type Entity @entity {
+        relatedEntity: RelatedEntity!
+      }
+
+      type RelatedEntity @entity {
+        id: Bytes!
+      }
+    `);
+
+    const schema = buildSchema(graphqlSchema);
+    const entity = schema.entities.find((e) => e.name === "Entity");
+    const relationshipField = entity?.fields.find(
+      (f): f is RelationshipField => f.name === "relatedEntity"
+    );
+    expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
+    expect(relationshipField?.notNull).toBe(true);
+    expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
+    expect(relationshipField?.relatedEntityIdType).toBe(GraphQLString);
+  });
+
+  test("related entity is nullable", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      type Entity @entity {
+        relatedEntity: RelatedEntity
+      }
+
+      type RelatedEntity @entity {
+        id: Bytes!
+      }
+    `);
+
+    const schema = buildSchema(graphqlSchema);
+    const entity = schema.entities.find((e) => e.name === "Entity");
+    const relationshipField = entity?.fields.find(
+      (f): f is RelationshipField => f.name === "relatedEntity"
+    );
+    expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
+    expect(relationshipField?.notNull).toBe(false);
+    expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
+    expect(relationshipField?.relatedEntityIdType).toBe(GraphQLString);
   });
 });
