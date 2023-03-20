@@ -139,6 +139,10 @@ export class PostgresEntityStore implements EntityStore {
               .map((v) => `'${v}'`)
               .join(", ")})) ${notNull}`;
           }
+          case FieldKind.LIST: {
+            const notNull = field.notNull ? "NOT NULL" : "";
+            return `"${field.name}" TEXT ${notNull}`;
+          }
           default: {
             return field.migrateUpStatement;
           }

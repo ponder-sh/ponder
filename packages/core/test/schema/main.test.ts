@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 
 import { schemaHeader } from "@/reload/readGraphqlSchema";
 import { buildSchema } from "@/schema/buildSchema";
-import { EnumField, FieldKind, ScalarField } from "@/schema/types";
+import { EnumField, FieldKind, ListField, ScalarField } from "@/schema/types";
 
 const buildGraphqlSchema = (source: string) => {
   return _buildGraphqlSchema(schemaHeader + source);
@@ -171,5 +171,94 @@ describe("enum fields", () => {
     expect(enumField?.notNull).toBe(true);
     expect(enumField?.enumGqlType.toString()).toBe("MultipleEnum");
     expect(enumField?.enumValues).toMatchObject(["VALUE", "ANOTHER_VALUE"]);
+  });
+});
+
+describe("list fields", () => {
+  test("list of scalars", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      type Entity @entity {
+        list: [String!]!
+      }
+    `);
+
+    const schema = buildSchema(graphqlSchema);
+    const entity = schema.entities.find((e) => e.name === "Entity");
+    const listField = entity?.fields.find(
+      (f): f is ListField => f.name === "list"
+    );
+    expect(listField?.kind).toBe(FieldKind.LIST);
+    expect(listField?.notNull).toBe(true);
+    expect(listField?.isListElementNotNull).toBe(true);
+    expect(listField?.baseGqlType.toString()).toBe("String");
+  });
+
+  test("list of enums", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      enum MultipleEnum {
+        VALUE
+        ANOTHER_VALUE
+      }
+
+      type Entity @entity {
+        list: [MultipleEnum!]!
+      }
+    `);
+
+    const schema = buildSchema(graphqlSchema);
+    const entity = schema.entities.find((e) => e.name === "Entity");
+    const listField = entity?.fields.find(
+      (f): f is ListField => f.name === "list"
+    );
+    expect(listField?.kind).toBe(FieldKind.LIST);
+    expect(listField?.notNull).toBe(true);
+    expect(listField?.isListElementNotNull).toBe(true);
+    expect(listField?.baseGqlType.toString()).toBe("MultipleEnum");
+  });
+
+  test("list of enums, element null", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      enum MultipleEnum {
+        VALUE
+        ANOTHER_VALUE
+      }
+
+      type Entity @entity {
+        list: [MultipleEnum]!
+      }
+    `);
+
+    const schema = buildSchema(graphqlSchema);
+    const entity = schema.entities.find((e) => e.name === "Entity");
+    const listField = entity?.fields.find(
+      (f): f is ListField => f.name === "list"
+    );
+    expect(listField?.kind).toBe(FieldKind.LIST);
+    expect(listField?.notNull).toBe(true);
+    expect(listField?.isListElementNotNull).toBe(false);
+    expect(listField?.baseGqlType.toString()).toBe("MultipleEnum");
+  });
+
+  test("list of enums, both null", () => {
+    const graphqlSchema = buildGraphqlSchema(`
+      enum MultipleEnum {
+        VALUE
+        ANOTHER_VALUE
+      }
+
+      type Entity @entity {
+        list: [MultipleEnum]
+      }
+    `);
+
+    const schema = buildSchema(graphqlSchema);
+    const entity = schema.entities.find((e) => e.name === "Entity");
+    const listField = entity?.fields.find(
+      (f): f is ListField => f.name === "list"
+    );
+    expect(listField?.kind).toBe(FieldKind.LIST);
+    expect(listField?.notNull).toBe(false);
+    expect(listField?.isListElementNotNull).toBe(false);
+    expect(listField?.baseGqlType.toString()).toBe("MultipleEnum");
   });
 });

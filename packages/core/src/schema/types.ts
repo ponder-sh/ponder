@@ -39,8 +39,6 @@ export type ListField = {
   baseGqlType: GraphQLInputType;
   originalFieldType: TypeNode;
   notNull: boolean;
-  migrateUpStatement: string;
-  sqlType: "text";
   isListElementNotNull: boolean;
 };
 

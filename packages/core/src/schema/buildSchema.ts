@@ -124,6 +124,31 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         );
       }
 
+      // Handle list types.
+      if (isList) {
+        if (scalarBaseType) {
+          return <ListField>{
+            name: fieldName,
+            kind: FieldKind.LIST,
+            baseGqlType: scalarBaseType,
+            originalFieldType,
+            notNull: isNotNull,
+            isListElementNotNull,
+          };
+        }
+
+        if (enumBaseType) {
+          return <ListField>{
+            name: fieldName,
+            kind: FieldKind.LIST,
+            baseGqlType: enumBaseType,
+            originalFieldType,
+            notNull: isNotNull,
+            isListElementNotNull,
+          };
+        }
+      }
+
       // Handle scalar types.
       if (scalarBaseType) {
         const baseType = scalarBaseType;
@@ -143,7 +168,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
           }
         }
 
-        const field: ScalarField = {
+        return <ScalarField>{
           name: fieldName,
           kind: FieldKind.SCALAR,
           notNull: isNotNull,
@@ -151,7 +176,6 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
           scalarTypeName: fieldTypeName,
           scalarGqlType: baseType,
         };
-        return field;
       }
 
       // Handle enum types.
@@ -167,29 +191,6 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
           notNull: isNotNull,
           enumValues,
         };
-      }
-
-      // Handle list types.
-      if (isList) {
-        if (scalarBaseType) {
-          return getListField(
-            fieldName,
-            scalarBaseType,
-            originalFieldType,
-            isNotNull,
-            isListElementNotNull
-          );
-        }
-
-        if (enumBaseType) {
-          return getListField(
-            fieldName,
-            enumBaseType,
-            originalFieldType,
-            isNotNull,
-            isListElementNotNull
-          );
-        }
       }
 
       throw new Error(`Unhandled field type: ${fieldTypeName}`);
@@ -216,30 +217,6 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
   };
 
   return schema;
-};
-
-const getListField = (
-  fieldName: string,
-  baseType: GraphQLEnumType | GraphQLScalarType,
-  originalFieldType: TypeNode,
-  isNotNull: boolean,
-  isListElementNotNull: boolean
-) => {
-  let migrateUpStatement = `"${fieldName}" TEXT`;
-  if (isNotNull) {
-    migrateUpStatement += " NOT NULL";
-  }
-
-  return <ListField>{
-    name: fieldName,
-    kind: FieldKind.LIST,
-    baseGqlType: baseType,
-    originalFieldType,
-    notNull: isNotNull,
-    migrateUpStatement,
-    sqlType: "text", // JSON
-    isListElementNotNull,
-  };
 };
 
 const getRelationshipField = (
