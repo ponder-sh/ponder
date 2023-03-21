@@ -7,5 +7,6 @@
       "@ponder/core": ["../../../../core"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": []
 }
