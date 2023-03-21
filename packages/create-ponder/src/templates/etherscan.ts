@@ -53,7 +53,7 @@ export const fromEtherscan = async ({
 
   const schemaGraphqlFileContents = `
     type ExampleEntity @entity {
-      id: ID!
+      id: String!
       name: String!
     }
   `;

@@ -2,7 +2,6 @@ import Emittery from "emittery";
 import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 
 import { createQueue, Queue, Worker } from "@/common/createQueue";
-import { MessageKind } from "@/common/LoggerService";
 import type { Log } from "@/common/types";
 import { Resources } from "@/Ponder";
 import { Handlers } from "@/reload/readHandlers";
@@ -147,18 +146,23 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     // Build entity models for event handler context.
     const entityModels: Record<string, unknown> = {};
     schema.entities.forEach((entity) => {
-      const { id: entityId, name: entityName } = entity;
+      const entityName = entity.name;
 
       entityModels[entityName] = {
-        get: (id: string) => this.resources.entityStore.getEntity(entityId, id),
+        get: (id: string) =>
+          this.resources.entityStore.getEntity({ entityName, id }),
         delete: (id: string) =>
-          this.resources.entityStore.deleteEntity(entityId, id),
-        insert: (id: string, obj: Record<string, unknown>) =>
-          this.resources.entityStore.insertEntity(entityId, id, obj),
-        update: (id: string, obj: Record<string, unknown>) =>
-          this.resources.entityStore.updateEntity(entityId, id, obj),
-        upsert: (id: string, obj: Record<string, unknown>) =>
-          this.resources.entityStore.upsertEntity(entityId, id, obj),
+          this.resources.entityStore.deleteEntity({ entityName, id }),
+        insert: (id: string, instance: Record<string, unknown>) =>
+          this.resources.entityStore.insertEntity({
+            entityName,
+            id,
+            instance,
+          }),
+        update: (id: string, instance: Record<string, unknown>) =>
+          this.resources.entityStore.updateEntity({ entityName, id, instance }),
+        upsert: (id: string, instance: Record<string, unknown>) =>
+          this.resources.entityStore.upsertEntity({ entityName, id, instance }),
       };
     });
 
@@ -263,14 +267,12 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
         const error = error_ as Error;
         const result = getStackTraceAndCodeFrame(error, this.resources.options);
         if (result) {
-          error.stack = `${result.stackTrace}\n` + result.codeFrame;
+          error.message =
+            `${error.message}\n` + `${result.stackTrace}\n` + result.codeFrame;
         }
 
         // TODO: Use the task arg to provide context to the user about the error.
-        this.resources.logger.logMessage(
-          MessageKind.ERROR,
-          "running event handlers" + ": " + error.message + `\n` + error.stack
-        );
+        this.resources.errors.submitHandlerError({ error });
       }
 
       this.emit("taskCompleted", { timestamp: Number(block.timestamp) });

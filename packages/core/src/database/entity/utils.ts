@@ -106,6 +106,8 @@ export const getColumnValuePairs = (instance: Record<string, unknown>) => {
       let persistedValue: number | string | null;
       if (typeof value === "boolean") {
         persistedValue = value ? 1 : 0;
+      } else if (typeof value === "bigint") {
+        persistedValue = value.toString();
       } else if (typeof value === "undefined") {
         persistedValue = null;
       } else if (Array.isArray(value)) {

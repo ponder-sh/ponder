@@ -28,39 +28,42 @@ type MaybePromise<T> = T | Promise<T>;
 export interface EntityStore {
   schema?: Schema;
 
-  load(schema: Schema): MaybePromise<void>;
+  load(arg: { schema: Schema }): MaybePromise<void>;
   reset(): MaybePromise<void>;
   teardown(): MaybePromise<void>;
 
-  getEntity(entityId: string, id: string): MaybePromise<Entity | null>;
+  getEntity(arg: {
+    entityName: string;
+    id: string | number;
+  }): MaybePromise<Entity | null>;
 
-  insertEntity(
-    entityId: string,
-    id: string,
-    instance: Entity
-  ): MaybePromise<Entity>;
+  insertEntity(arg: {
+    entityName: string;
+    id: string | number;
+    instance: Entity;
+  }): MaybePromise<Entity>;
 
-  upsertEntity(
-    entityId: string,
-    id: string,
-    instance: Entity
-  ): MaybePromise<Entity>;
+  upsertEntity(arg: {
+    entityName: string;
+    id: string | number;
+    instance: Entity;
+  }): MaybePromise<Entity>;
 
-  updateEntity(
-    entityId: string,
-    id: string,
-    instance: Partial<Entity>
-  ): MaybePromise<Entity>;
+  updateEntity(arg: {
+    entityName: string;
+    id: string | number;
+    instance: Partial<Entity>;
+  }): MaybePromise<Entity>;
 
-  deleteEntity(entityId: string, id: string): MaybePromise<boolean>;
+  deleteEntity(arg: {
+    entityName: string;
+    id: string | number;
+  }): MaybePromise<boolean>;
 
-  getEntities(entityId: string, filter?: EntityFilter): MaybePromise<Entity[]>;
-
-  getEntityDerivedField(
-    entityId: string,
-    id: string,
-    derivedFieldName: string
-  ): MaybePromise<unknown[]>;
+  getEntities(arg: {
+    entityName: string;
+    filter?: EntityFilter;
+  }): MaybePromise<Entity[]>;
 }
 
 export const buildEntityStore = ({

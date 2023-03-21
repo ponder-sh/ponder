@@ -1,6 +1,15 @@
 import type Sqlite from "better-sqlite3";
+import { randomUUID } from "node:crypto";
 
-import { DerivedField, FieldKind, ScalarField, Schema } from "@/schema/types";
+import {
+  Entity,
+  EnumField,
+  FieldKind,
+  ListField,
+  RelationshipField,
+  ScalarField,
+  Schema,
+} from "@/schema/types";
 
 import { EntityFilter, EntityStore } from "./entityStore";
 import {
@@ -12,30 +21,27 @@ import {
 export class SqliteEntityStore implements EntityStore {
   db: Sqlite.Database;
   schema?: Schema;
+  instanceId?: string;
 
   constructor({ db }: { db: Sqlite.Database }) {
     this.db = db;
   }
 
-  load(newSchema: Schema) {
+  load({ schema: newSchema }: { schema: Schema }) {
     if (this.schema) {
       this.schema.entities.forEach((entity) => {
-        this.db.prepare(`DROP TABLE IF EXISTS "${entity.id}"`).run();
+        this.db
+          .prepare(`DROP TABLE IF EXISTS "${entity.name}_${this.instanceId}"`)
+          .run();
       });
     }
 
-    newSchema.entities.forEach((entity) => {
-      const columnStatements = entity.fields
-        .filter(
-          // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
-          (field): field is ScalarField => field.kind !== FieldKind.DERIVED
-        )
-        .map((field) => field.migrateUpStatement);
+    this.instanceId = randomUUID();
 
-      this.db
-        .prepare(`CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`)
-        .run();
-    });
+    for (const entity of newSchema.entities) {
+      const createTableStatement = this.getCreateTableStatement(entity);
+      this.db.prepare(createTableStatement).run();
+    }
 
     this.schema = newSchema;
   }
@@ -44,43 +50,100 @@ export class SqliteEntityStore implements EntityStore {
     if (!this.schema) return;
 
     for (const entity of this.schema.entities) {
-      this.db.prepare(`DROP TABLE IF EXISTS "${entity.id}"`).run();
-
-      const columnStatements = entity.fields
-        .filter(
-          // This type guard is wrong, could actually be any FieldKind that's not derived (obvs)
-          (field): field is ScalarField => field.kind !== FieldKind.DERIVED
-        )
-        .map((field) => field.migrateUpStatement);
-
       this.db
-        .prepare(`CREATE TABLE "${entity.id}" (${columnStatements.join(", ")})`)
+        .prepare(`DROP TABLE IF EXISTS "${entity.name}_${this.instanceId}"`)
         .run();
+    }
+
+    this.instanceId = randomUUID();
+
+    for (const entity of this.schema.entities) {
+      const createTableStatement = this.getCreateTableStatement(entity);
+      this.db.prepare(createTableStatement).run();
     }
   }
 
   teardown() {
     if (!this.schema) return;
 
-    this.schema.entities.forEach((entity) => {
-      this.db.prepare(`DROP TABLE IF EXISTS "${entity.id}"`).run();
-    });
+    for (const entity of this.schema.entities) {
+      this.db
+        .prepare(`DROP TABLE IF EXISTS "${entity.name}_${this.instanceId}"`)
+        .run();
+    }
   }
 
-  getEntity = (entityId: string, id: string) => {
-    const statement = `SELECT "${entityId}".* FROM "${entityId}" WHERE "${entityId}"."id" = ?`;
+  private getCreateTableStatement(entity: Entity) {
+    const gqlScalarToSqlType: Record<string, string | undefined> = {
+      Boolean: "integer",
+      Int: "integer",
+      String: "text",
+      BigInt: "text",
+      Bytes: "text",
+    };
+
+    const columnStatements = entity.fields
+      .filter(
+        (
+          field
+        ): field is RelationshipField | ScalarField | ListField | EnumField =>
+          field.kind !== FieldKind.DERIVED
+      )
+      .map((field) => {
+        switch (field.kind) {
+          case FieldKind.SCALAR: {
+            const type = gqlScalarToSqlType[field.scalarTypeName];
+            const notNull = field.notNull ? "NOT NULL" : "";
+            const pk = field.name === "id" ? "PRIMARY KEY" : "";
+            return `"${field.name}" ${type} ${notNull} ${pk}`;
+          }
+          case FieldKind.ENUM: {
+            const notNull = field.notNull ? "NOT NULL" : "";
+
+            return `"${field.name}" TEXT CHECK ("${
+              field.name
+            }" IN (${field.enumValues
+              .map((v) => `'${v}'`)
+              .join(", ")})) ${notNull}`;
+          }
+          case FieldKind.LIST: {
+            const notNull = field.notNull ? "NOT NULL" : "";
+            return `"${field.name}" TEXT ${notNull}`;
+          }
+          case FieldKind.RELATIONSHIP: {
+            const type = gqlScalarToSqlType[field.relatedEntityIdType.name];
+            const notNull = field.notNull ? "NOT NULL" : "";
+            return `"${field.name}" ${type} ${notNull}`;
+          }
+        }
+      });
+
+    const tableName = `${entity.name}_${this.instanceId}`;
+    return `CREATE TABLE "${tableName}" (${columnStatements.join(", ")})`;
+  }
+
+  getEntity = ({ entityName, id }: { entityName: string; id: string }) => {
+    const tableName = `${entityName}_${this.instanceId}`;
+
+    const statement = `SELECT "${tableName}".* FROM "${tableName}" WHERE "${tableName}"."id" = ?`;
     const instance = this.db.prepare(statement).get(id);
 
     if (!instance) return null;
 
-    return this.deserialize(entityId, instance);
+    return this.deserialize({ entityName, instance });
   };
 
-  insertEntity = (
-    entityId: string,
-    id: string,
-    instance: Record<string, unknown>
-  ) => {
+  insertEntity = ({
+    entityName,
+    id,
+    instance,
+  }: {
+    entityName: string;
+    id: string;
+    instance: Record<string, unknown>;
+  }) => {
+    const tableName = `${entityName}_${this.instanceId}`;
+
     // If `instance.id` is defined, replace it with the id passed as a parameter.
     // Should also log a warning here.
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -94,18 +157,24 @@ export class SqliteEntityStore implements EntityStore {
       .map((s) => s.column)
       .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
 
-    const statement = `INSERT INTO "${entityId}" ${insertFragment} RETURNING *`;
+    const statement = `INSERT INTO "${tableName}" ${insertFragment} RETURNING *`;
 
     const insertedEntity = this.db.prepare(statement).get(...insertValues);
 
-    return this.deserialize(entityId, insertedEntity);
+    return this.deserialize({ entityName, instance: insertedEntity });
   };
 
-  updateEntity = (
-    entityId: string,
-    id: string,
-    instance: Record<string, unknown>
-  ) => {
+  updateEntity = ({
+    entityName,
+    id,
+    instance,
+  }: {
+    entityName: string;
+    id: string;
+    instance: Record<string, unknown>;
+  }) => {
+    const tableName = `${entityName}_${this.instanceId}`;
+
     const pairs = getColumnValuePairs(instance);
 
     const updatePairs = pairs.filter(({ column }) => column !== "id");
@@ -114,19 +183,25 @@ export class SqliteEntityStore implements EntityStore {
       .map(({ column }) => `${column} = ?`)
       .join(", ");
 
-    const statement = `UPDATE "${entityId}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
+    const statement = `UPDATE "${tableName}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
     updateValues.push(`${id}`);
 
     const updatedEntity = this.db.prepare(statement).get(...updateValues);
 
-    return this.deserialize(entityId, updatedEntity);
+    return this.deserialize({ entityName, instance: updatedEntity });
   };
 
-  upsertEntity = (
-    entityId: string,
-    id: string,
-    instance: Record<string, unknown>
-  ) => {
+  upsertEntity = ({
+    entityName,
+    id,
+    instance,
+  }: {
+    entityName: string;
+    id: string;
+    instance: Record<string, unknown>;
+  }) => {
+    const tableName = `${entityName}_${this.instanceId}`;
+
     // If `instance.id` is defined, replace it with the id passed as a parameter.
     // Should also log a warning here.
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -146,17 +221,19 @@ export class SqliteEntityStore implements EntityStore {
       .map(({ column }) => `${column} = ?`)
       .join(", ");
 
-    const statement = `INSERT INTO "${entityId}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
+    const statement = `INSERT INTO "${tableName}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
 
     const upsertedEntity = this.db
       .prepare(statement)
       .get(...insertValues, ...updateValues);
 
-    return this.deserialize(entityId, upsertedEntity);
+    return this.deserialize({ entityName, instance: upsertedEntity });
   };
 
-  deleteEntity = (entityId: string, id: string) => {
-    const statement = `DELETE FROM "${entityId}" WHERE "id" = ?`;
+  deleteEntity = ({ entityName, id }: { entityName: string; id: string }) => {
+    const tableName = `${entityName}_${this.instanceId}`;
+
+    const statement = `DELETE FROM "${tableName}" WHERE "id" = ?`;
 
     const { changes } = this.db.prepare(statement).run(id);
 
@@ -164,7 +241,15 @@ export class SqliteEntityStore implements EntityStore {
     return changes === 1;
   };
 
-  getEntities = (entityId: string, filter?: EntityFilter) => {
+  getEntities = ({
+    entityName,
+    filter,
+  }: {
+    entityName: string;
+    filter?: EntityFilter;
+  }) => {
+    const tableName = `${entityName}_${this.instanceId}`;
+
     const where = filter?.where;
     const first = filter?.first;
     const skip = filter?.skip;
@@ -195,7 +280,16 @@ export class SqliteEntityStore implements EntityStore {
     }
 
     if (orderBy) {
-      fragments.push(`ORDER BY "${orderBy}"`);
+      const entity = this.schema?.entities.find((e) => e.name === entityName);
+      const orderByField = entity?.fieldByName[orderBy] as ScalarField;
+      // Bigints are stored as strings in SQLite. This means when trying to
+      // order by a bigint field, the values are sorted as strings. This
+      // fixes the issue by casting them as REAL for the purposes of sorting.
+      if (orderByField.scalarTypeName === "BigInt") {
+        fragments.push(`ORDER BY CAST("${orderBy}" AS REAL)`);
+      } else {
+        fragments.push(`ORDER BY "${orderBy}"`);
+      }
     }
 
     if (orderDirection) {
@@ -213,56 +307,25 @@ export class SqliteEntityStore implements EntityStore {
       fragments.push(`OFFSET ${skip}`);
     }
 
-    const statement = `SELECT * FROM "${entityId}" ${fragments.join(" ")}`;
+    const statement = `SELECT * FROM "${tableName}" ${fragments.join(" ")}`;
 
     const instances = this.db.prepare(statement).all();
 
-    return instances.map((instance) => this.deserialize(entityId, instance));
+    return instances.map((instance) =>
+      this.deserialize({ entityName, instance })
+    );
   };
 
-  getEntityDerivedField = (
-    entityId: string,
-    instanceId: string,
-    derivedFieldName: string
-  ) => {
-    const entity = this.schema?.entities.find((e) => e.id === entityId);
+  deserialize = ({
+    entityName,
+    instance,
+  }: {
+    entityName: string;
+    instance: Record<string, unknown>;
+  }) => {
+    const entity = this.schema?.entities.find((e) => e.name === entityName);
     if (!entity) {
-      throw new Error(`Entity not found in schema for ID: ${entityId}`);
-    }
-
-    const derivedField = entity.fields.find(
-      (field): field is DerivedField =>
-        field.kind === FieldKind.DERIVED && field.name === derivedFieldName
-    );
-
-    if (!derivedField) {
-      throw new Error(
-        `Derived field not found: ${entity.name}.${derivedFieldName}`
-      );
-    }
-
-    const derivedFromEntity = this.schema?.entities.find(
-      (e) => e.name === derivedField.derivedFromEntityName
-    );
-    if (!derivedFromEntity) {
-      throw new Error(
-        `Entity not found in schema for name: ${derivedField.derivedFromEntityName}`
-      );
-    }
-
-    const derivedFieldInstances = this.getEntities(derivedFromEntity.id, {
-      where: {
-        [`${derivedField.derivedFromFieldName}`]: instanceId,
-      },
-    });
-
-    return derivedFieldInstances;
-  };
-
-  deserialize = (entityId: string, instance: Record<string, unknown>) => {
-    const entity = this.schema?.entities.find((e) => e.id === entityId);
-    if (!entity) {
-      throw new Error(`Entity not found in schema for ID: ${entityId}`);
+      throw new Error(`Entity not found in schema with name: ${entityName}`);
     }
 
     const deserializedInstance = { ...instance };
@@ -273,17 +336,23 @@ export class SqliteEntityStore implements EntityStore {
       const field = entity.fieldByName[fieldName];
       if (!field) return;
 
-      if (field.baseGqlType.toString() === "Boolean") {
-        deserializedInstance[fieldName] = value === 1 ? true : false;
-        return;
+      switch (field.kind) {
+        case FieldKind.SCALAR: {
+          if (field.scalarTypeName === "Boolean") {
+            deserializedInstance[fieldName] = value === 1 ? true : false;
+          } else {
+            deserializedInstance[fieldName] = value;
+          }
+          break;
+        }
+        case FieldKind.LIST: {
+          deserializedInstance[fieldName] = JSON.parse(value as string);
+          break;
+        }
+        default: {
+          deserializedInstance[fieldName] = value;
+        }
       }
-
-      if (field.kind === FieldKind.LIST) {
-        deserializedInstance[fieldName] = JSON.parse(value as string);
-        return;
-      }
-
-      deserializedInstance[fieldName] = value;
     });
 
     return deserializedInstance as Record<string, unknown>;

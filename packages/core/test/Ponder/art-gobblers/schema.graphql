@@ -1,0 +1,10 @@
+type Account @entity {
+  id: String!
+  tokens: [Token!]! @derivedFrom(field: "owner")
+}
+
+type Token @entity {
+  id: BigInt!
+  claimedBy: Account
+  owner: Account!
+}

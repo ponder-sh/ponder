@@ -12,12 +12,7 @@ import { buildEntityTypes } from "./buildEntityTypes";
 import { buildEventTypes } from "./buildEventTypes";
 import { formatPrettier } from "./utils";
 
-type CodegenServiceEvents = {
-  handlerError: { error: Error };
-  handlerErrorCleared: undefined;
-};
-
-export class CodegenService extends Emittery<CodegenServiceEvents> {
+export class CodegenService extends Emittery {
   resources: Resources;
 
   constructor({ resources }: { resources: Resources }) {

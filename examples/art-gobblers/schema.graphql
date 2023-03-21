@@ -1,4 +1,4 @@
 type GobbledArt @entity {
-  id: ID! # gobblerId
+  id: String! # gobblerId
   user: String! # user
 }

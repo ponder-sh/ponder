@@ -24,6 +24,22 @@ export const buildEntityType = (
       // Build resolvers for relationship fields on the entity.
       entity.fields.forEach((field) => {
         switch (field.kind) {
+          case FieldKind.SCALAR: {
+            fieldConfigMap[field.name] = {
+              type: field.notNull
+                ? new GraphQLNonNull(field.scalarGqlType)
+                : field.scalarGqlType,
+            };
+            break;
+          }
+          case FieldKind.ENUM: {
+            fieldConfigMap[field.name] = {
+              type: field.notNull
+                ? new GraphQLNonNull(field.enumGqlType)
+                : field.enumGqlType,
+            };
+            break;
+          }
           case FieldKind.RELATIONSHIP: {
             const resolver: GraphQLFieldResolver<Source, Context> = async (
               parent,
@@ -39,10 +55,10 @@ export const buildEntityType = (
               // @ts-ignore
               const relatedInstanceId = parent[field.name];
 
-              return await store.getEntity(
-                field.relatedEntityId,
-                relatedInstanceId
-              );
+              return await store.getEntity({
+                entityName: field.relatedEntityName,
+                id: relatedInstanceId,
+              });
             };
 
             fieldConfigMap[field.name] = {
@@ -67,11 +83,14 @@ export const buildEntityType = (
               // @ts-ignore
               const entityId = parent.id;
 
-              return await store.getEntityDerivedField(
-                entity.id,
-                entityId,
-                field.name
-              );
+              return await store.getEntities({
+                entityName: field.derivedFromEntityName,
+                filter: {
+                  where: {
+                    [field.derivedFromFieldName]: entityId,
+                  },
+                },
+              });
             };
 
             fieldConfigMap[field.name] = {
@@ -93,14 +112,6 @@ export const buildEntityType = (
             );
             fieldConfigMap[field.name] = {
               type: field.notNull ? new GraphQLNonNull(listType) : listType,
-            };
-            break;
-          }
-          default: {
-            fieldConfigMap[field.name] = {
-              type: field.notNull
-                ? new GraphQLNonNull(field.baseGqlType)
-                : field.baseGqlType,
             };
             break;
           }

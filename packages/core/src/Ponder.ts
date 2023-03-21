@@ -185,7 +185,7 @@ export class Ponder {
 
       this.serverService.reload({ graphqlSchema });
 
-      await this.resources.entityStore.load(schema);
+      await this.resources.entityStore.load({ schema });
       this.eventHandlerService.resetEventQueue({ schema });
       await this.eventHandlerService.processEvents();
     });
@@ -237,6 +237,10 @@ export class Ponder {
   }
 
   private registerUiHandlers() {
+    this.resources.errors.on("handlerError", ({ error }) => {
+      this.resources.logger.logMessage(MessageKind.ERROR, error.message);
+    });
+
     this.frontfillService.on("networkConnected", (e) => {
       this.uiService.ui.networks.push(e.network);
     });

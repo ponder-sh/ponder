@@ -25,7 +25,10 @@ const buildSingularField = (
 
     if (!id) return null;
 
-    const entityInstance = await store.getEntity(entity.name, id);
+    const entityInstance = await store.getEntity({
+      entityName: entity.name,
+      id,
+    });
 
     // // Build resolvers for relationship fields on the entity.
     // entity.fields

@@ -1,16 +1,16 @@
 import Emittery from "emittery";
 
 type ErrorServiceEvents = {
-  handlerError: { context: string; error: Error };
+  handlerError: { error: Error };
   handlerErrorCleared: undefined;
 };
 
 export class ErrorService extends Emittery<ErrorServiceEvents> {
   isHandlerError = false;
 
-  submitHandlerError({ context, error }: { context: string; error: Error }) {
+  submitHandlerError({ error }: { error: Error }) {
     this.isHandlerError = true;
-    this.emit("handlerError", { context, error });
+    this.emit("handlerError", { error });
   }
 
   clearHandlerError() {

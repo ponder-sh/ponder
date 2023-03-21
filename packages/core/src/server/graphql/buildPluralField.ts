@@ -62,48 +62,31 @@ const buildPluralField = (
 
   entity.fields.forEach((field) => {
     switch (field.kind) {
-      case FieldKind.ID: {
-        // ID fields => universal, singular, numeric
-        operators.universal.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
-        });
-
-        operators.singular.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: new GraphQLList(field.baseGqlType),
-          };
-        });
-
-        operators.numeric.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: field.baseGqlType,
-          };
-        });
-        break;
-      }
       case FieldKind.SCALAR: {
         // Scalar fields => universal, singular, numeric OR string depending on base type
         // Note: Booleans => universal and singular only.
         operators.universal.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+          filterFields[`${field.name}${suffix}`] = {
+            type: field.scalarGqlType,
+          };
         });
 
         operators.numeric.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
-            type: field.baseGqlType,
+            type: field.scalarGqlType,
           };
         });
 
         operators.singular.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
-            type: new GraphQLList(field.baseGqlType),
+            type: new GraphQLList(field.scalarGqlType),
           };
         });
 
-        if (["String"].includes(field.baseGqlType.name)) {
+        if (["String"].includes(field.scalarGqlType.name)) {
           operators.string.forEach((suffix) => {
             filterFields[`${field.name}${suffix}`] = {
-              type: field.baseGqlType,
+              type: field.scalarGqlType,
             };
           });
         }
@@ -113,12 +96,12 @@ const buildPluralField = (
       case FieldKind.ENUM: {
         // Enum fields => universal, singular
         operators.universal.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+          filterFields[`${field.name}${suffix}`] = { type: field.enumGqlType };
         });
 
         operators.singular.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
-            type: new GraphQLList(field.baseGqlType),
+            type: new GraphQLList(field.enumGqlType),
           };
         });
         break;
@@ -178,7 +161,7 @@ const buildPluralField = (
 
     const filter = args;
 
-    return await store.getEntities(entity.id, filter);
+    return await store.getEntities({ entityName: entity.name, filter });
   };
 
   return {

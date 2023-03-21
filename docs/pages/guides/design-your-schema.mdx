@@ -1,0 +1,273 @@
+---
+description: "A guide to defining a Ponder schema"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Design your schema
+
+Your project's `schema.graphql` file determines the shape of the data served by the GraphQL API.
+
+## Entity types
+
+Entity types are marked with the `@entity` directive. Internally, Ponder will create a database table for each entity type you define. Your event handler functions are responsible for creating and updating entities, which will then be served by the GraphQL API.
+
+```graphql filename="schema.graphql"
+type Account @entity {
+  id: String! # Could also be Int!, Bytes!, or BigInt!
+  # ...
+}
+```
+
+### The `id` field
+
+Every entity type _must_ have an `id` field typed as `String!`, `Int!`,
+`Bytes!` or `BigInt!`. The `id` field serves as a unique identifier for each
+instance of this entity.
+
+## Field types
+
+### Scalars
+
+In GraphQL, scalar types represent the "leaves" of a query, and each one corresponds to a JavaScript primitive data type.
+
+| type      | description                                 | example               | TypeScript type |
+| :-------- | :------------------------------------------ | :-------------------- | :-------------- |
+| `Boolean` | `true` or `false`                           | `true`                | `boolean`       |
+| `String`  | A UTF‐8 character sequence                  | `vitalik.eth`         | `string`        |
+| `Bytes`   | A UTF‐8 character sequence with `0x` prefix | `0xA5d28ee12f`        | `0x${string}`   |
+| `Int`     | A signed 32‐bit integer                     | `1679337733`, `-5`    | `number`        |
+| `Float`   | A signed floating-point value               | `17.79`               | `number`        |
+| `BigInt`  | An unsigned integer (solidity `uint256`)    | `7770000000000000000` | `bigint`        |
+
+Here's an example of how each might be used.
+
+```graphql filename="schema.graphql"
+type Account @entity {
+  id: Bytes! # Ethereum address
+  daiBalance: BigInt! # Token balance with 18 decimals
+  totalUsdValue: Float! # Dollars and cents
+  lastActiveAt: Int! # Unix timestamp
+  isAdmin: Boolean! # Boolean permission
+  graffiti: String! # Text message
+}
+```
+
+### Enums
+
+Enumeration types are a special kind of scalar that is restricted to a particular set of allowed values. Fields that use an enum type are stored and served as a string.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+enum Color {
+  ORANGE
+  BLACK
+}
+
+type Cat @entity {
+  id: String!
+  color: Color!
+}
+```
+
+```ts filename="src/index.ts"
+await Cat.insert({
+  id: "Fluffy",
+  color: "ORANGE"
+});
+```
+
+</div>
+
+### Basic lists
+
+Ponder also supports lists of scalars and enums. Lists should only be used for small collections or sets of data, and should not be used to define [relationships](/guides/design-your-schema#one-to-one-relationships) between entities.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+enum Color {
+  ORANGE
+  BLACK
+}
+
+type FancyCat @entity {
+  id: String!
+  colors: [Color!]!
+  favoriteNumbers: [Int!]!
+}
+```
+
+```ts filename="src/index.ts"
+await FancyCat.insert({
+  id: "Fluffy",
+  colors: ["ORANGE", "BLACK"],
+  favoriteNumbers: [7, 420, 69]
+});
+```
+
+</div>
+
+<Callout type="warning">
+  **Avoid nullable list elements.** Unless you have a good reason not to, it's
+  strongly recommended to mark list elements as non-null. Good: `[Color!]!`,
+  bad: `[Color]!`.
+</Callout>
+
+### One-to-one relationships
+
+One-to-one relationships are modeled by setting the type of a field to another entity type. Suppose every `Dog` has one owner that is a `Person`. When inserting a `Dog` entity, the `owner` field is set to the `id` of a `Person` entity. This establishes the relationship.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+type Dog @entity {
+  id: String!
+  owner: Person!
+}
+
+type Person @entity {
+  id: String!
+  age: Int!
+}
+```
+
+```ts filename="src/index.ts"
+await Person.insert({
+  id: "Bob"
+  age: 22,
+});
+
+await Dog.insert({
+  id: "Chip",
+  owner: "Bob"
+});
+```
+
+</div>
+
+Now, you can use GraphQL to query for information about a `Dog`'s owner.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  dog(id: "Chip") {
+    id
+    owner {
+      age
+    }
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "dog": {
+    "id": "Chip",
+    "owner": {
+      "age": 22,
+    },
+  },
+}
+```
+
+</div>
+
+### One-to-many relationships
+
+Now, suppose a `Person` can have many dogs. The `@derivedFrom` directive can be used to define a **reverse lookup** between two entities. In this case, we can add a `dogs` field on `Person` with the type `[Dog!]! @derivedFrom(field: "owner")`.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+type Dog @entity {
+  id: String!
+  owner: Person!
+}
+
+type Person @entity {
+  id: String!
+  dogs: [Dog!]! @derivedFrom(field: "owner")
+}
+```
+
+```ts filename="src/index.ts"
+await Person.insert({
+  id: "Bob"
+});
+
+await Dog.insert({
+  id: "Chip",
+  owner: "Bob"
+});
+
+await Dog.insert({
+  id: "Spike",
+  owner: "Bob"
+});
+```
+
+</div>
+
+Now, any `Dog` entities with `owner: "Bob"` will be present in Bob's `Person.dogs` field.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  person(id: "Bob") {
+    dogs {
+      id
+    }
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "person": {
+    "dogs": [
+      { "id": "Chip" },
+      { "id": "Spike" },
+    ]
+  },
+}
+```
+
+</div>
+
+Note that the `dogs` field on `Person` cannot be accessed directly within event handlers. Fields marked with the `@derivedFrom` directive are **virtual**, meaning they are only present when querying entities via the GraphQL API.
+
+<div className="code-columns">
+
+```ts filename="src/index.ts"
+await Person.insert({
+  id: "Bob"
+  dogs: ["Chip", "Bob"] // WRONG, will throw an error.
+});
+```
+
+```ts filename="src/index.ts"
+const bob = await Person.get("Bob");
+// {
+//   id: "Bob"
+// }
+```
+
+</div>
+
+## Schema design tips
+
+### Entities should generally be nouns
+
+Blockchain events describe an action that has taken place (a verb). Event handler funtions are most effective when they convert events into the nouns that represent the current state of your application. For example, prefer modeling an ERC721 collection using `Account` and `Token` entities rather than `TransferEvent` entities. (Unless you need the full transfer history of every account).
+
+### Use relationship types generously
+
+Your schema will be more flexible and powerful if it accurately models the logical relationships in your application's domain. Don't use the [basic list type](/guides/design-your-schema#lists) to store entity IDs or to model relationships.

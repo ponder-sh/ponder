@@ -1,5 +1,5 @@
 type EnsNft @entity {
-  id: ID!
+  id: String!
   labelHash: String!
   owner: Account!
   transferredAt: Int!
@@ -8,7 +8,7 @@ type EnsNft @entity {
 }
 
 type Account @entity {
-  id: ID!
+  id: String!
   tokens: [EnsNft!]! @derivedFrom(field: "owner")
   lastActive: Int!
 }

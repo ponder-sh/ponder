@@ -36,10 +36,13 @@ export const fromSubgraphId = async ({
   // Fetch and write the schema.graphql file.
   const schemaCid = manifest.schema.file["/"].slice(6);
   const schemaRaw = await fetchIpfsFile(schemaCid);
+  const schemaCleaned = schemaRaw
+    .replaceAll(": ID!", ": String!")
+    .replaceAll("BigDecimal", "Float");
   const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
   writeFileSync(
     ponderSchemaFilePath,
-    prettier.format(schemaRaw, { parser: "graphql" })
+    prettier.format(schemaCleaned, { parser: "graphql" })
   );
 
   const dataSources = (manifest.dataSources as unknown[]).map(

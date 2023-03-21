@@ -188,5 +188,62 @@ describe("create-ponder", () => {
         );
       });
     });
+
+    describe("usdc", () => {
+      const rootDir = path.join(tmpDir, randomUUID());
+
+      beforeAll(async () => {
+        await run(
+          {
+            projectName: "usdc",
+            rootDir,
+            template: {
+              kind: TemplateKind.SUBGRAPH_ID,
+              id: "QmU5V3jy56KnFbxX2uZagvMwocYZASzy1inX828W2XWtTd",
+            },
+          },
+          {
+            installCommand:
+              'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
+          }
+        );
+      });
+
+      test("creates project files and directories", async () => {
+        const root = fs.readdirSync(rootDir);
+        expect(root).toContain(".env.local");
+        expect(root).toContain(".gitignore");
+        expect(root).toContain("abis");
+        expect(root).toContain("generated");
+        expect(root).toContain("src");
+        expect(root).toContain("node_modules");
+        expect(root).toContain("package.json");
+        expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("schema.graphql");
+        expect(root).toContain("tsconfig.json");
+      });
+
+      test("downloads abi", async () => {
+        const abiString = fs.readFileSync(
+          path.join(rootDir, `abis/FiatTokenV1.json`),
+          { encoding: "utf8" }
+        );
+        const abi = JSON.parse(abiString);
+
+        expect(abi.length).toBeGreaterThan(0);
+      });
+
+      test("creates codegen files", async () => {
+        const generated = fs.readdirSync(path.join(rootDir, "generated"));
+        expect(generated.sort()).toEqual(
+          ["index.ts", "app.ts", "schema.graphql"].sort()
+        );
+      });
+
+      test("creates src files", async () => {
+        const src = fs.readdirSync(path.join(rootDir, "src"));
+        expect(src).toEqual(["FiatTokenV1.ts"]);
+      });
+    });
   });
 });

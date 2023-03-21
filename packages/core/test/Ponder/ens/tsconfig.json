@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "extends": "../../../tsconfig.json",
+    "baseUrl": ".",
+    "paths": {
+      "@/generated": ["./generated/index.ts"],
+      "@ponder/core": ["../../../../core"]
+    }
+  },
+  "include": ["src"],
+  "exclude": []
+}
