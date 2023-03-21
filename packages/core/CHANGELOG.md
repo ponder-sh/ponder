@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.47
+
+### Patch Changes
+
+- [#137](https://github.com/0xOlias/ponder/pull/137) [`5e59712`](https://github.com/0xOlias/ponder/commit/5e59712b50fc2e535ac83ad9acc24df2e305222d) Thanks [@0xOlias](https://github.com/0xOlias)! - Removed support for `ID` type in `schema.graphql`. Use `String`, `Int`, `BigInt`, or `Bytes` instead. Also removed support for `BigDecimal`, use `Float` instead.
+
 ## 0.0.46
 
 ### Patch Changes
