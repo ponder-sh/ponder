@@ -32,10 +32,8 @@ const gqlScalarTypeByName: Record<string, GraphQLScalarType | undefined> = {
   Float: GraphQLFloat,
   String: GraphQLString,
   Boolean: GraphQLBoolean,
-  // Custom scalars all use String.
   BigInt: GraphQLString,
   Bytes: GraphQLString,
-  BigDecimal: GraphQLString,
 };
 
 export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
@@ -319,7 +317,7 @@ const getUserDefinedScalarTypes = (schema: GraphQLSchema) => {
     (type) =>
       !!type.astNode &&
       type.astNode.kind === Kind.SCALAR_TYPE_DEFINITION &&
-      !["BigInt", "BigDecimal", "Bytes"].includes(type.name)
+      !["BigInt", "Bytes"].includes(type.name)
   ) as GraphQLScalarType[];
 };
 

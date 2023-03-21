@@ -79,7 +79,6 @@ export class SqliteEntityStore implements EntityStore {
       Int: "integer",
       String: "text",
       BigInt: "text",
-      BigDecimal: "text",
       Bytes: "text",
     };
 
@@ -286,7 +285,7 @@ export class SqliteEntityStore implements EntityStore {
       // Bigints are stored as strings in SQLite. This means when trying to
       // order by a bigint field, the values are sorted as strings. This
       // fixes the issue by casting them as REAL for the purposes of sorting.
-      if (["BigInt", "BigDecimal"].includes(orderByField.scalarTypeName)) {
+      if (orderByField.scalarTypeName === "BigInt") {
         fragments.push(`ORDER BY CAST("${orderBy}" AS REAL)`);
       } else {
         fragments.push(`ORDER BY "${orderBy}"`);
