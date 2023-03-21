@@ -59,7 +59,9 @@ export const fromSubgraphRepo = ({
       encoding: "utf-8",
     }
   );
-  const schemaCleaned = schemaRaw.replaceAll(": ID!", ": String!");
+  const schemaCleaned = schemaRaw
+    .replaceAll(": ID!", ": String!")
+    .replaceAll("BigDecimal", "Float");
   writeFileSync(
     path.join(rootDir, "schema.graphql"),
     prettier.format(schemaCleaned, { parser: "graphql" })

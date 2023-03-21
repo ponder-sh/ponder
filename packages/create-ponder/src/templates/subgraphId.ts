@@ -36,7 +36,9 @@ export const fromSubgraphId = async ({
   // Fetch and write the schema.graphql file.
   const schemaCid = manifest.schema.file["/"].slice(6);
   const schemaRaw = await fetchIpfsFile(schemaCid);
-  const schemaCleaned = schemaRaw.replaceAll(": ID!", ": String!");
+  const schemaCleaned = schemaRaw
+    .replaceAll(": ID!", ": String!")
+    .replaceAll("BigDecimal", "Float");
   const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
   writeFileSync(
     ponderSchemaFilePath,
