@@ -25,7 +25,7 @@ const buildSingularField = (
 
     if (!id) return null;
 
-    const entityInstance = await store.getEntity({
+    const entityInstance = await store.findUniqueEntity({
       entityName: entity.name,
       id,
     });

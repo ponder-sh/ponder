@@ -11,7 +11,7 @@ import {
   Schema,
 } from "@/schema/types";
 
-import type { EntityFilter, EntityStore } from "./entityStore";
+import type { EntityFilter, EntityInstance, EntityStore } from "./entityStore";
 import {
   getColumnValuePairs,
   getWhereValue,
@@ -112,6 +112,7 @@ export class PostgresEntityStore implements EntityStore {
       String: "text",
       BigInt: "numeric(78)", // Store BigInts as numerics large enough for Solidity's MAX_INT (2**256 - 1).
       Bytes: "text",
+      Float: "text",
     };
 
     const columnStatements = entity.fields
@@ -154,7 +155,7 @@ export class PostgresEntityStore implements EntityStore {
     return `CREATE TABLE "${tableName}" (${columnStatements.join(", ")})`;
   }
 
-  getEntity = async ({
+  findUniqueEntity = async ({
     entityName,
     id,
   }: {
@@ -170,25 +171,18 @@ export class PostgresEntityStore implements EntityStore {
     return this.deserialize({ entityName, instance: rows[0] });
   };
 
-  insertEntity = async ({
+  createEntity = async ({
     entityName,
     id,
-    instance,
+    data,
   }: {
     entityName: string;
-    id: string;
-    instance: Record<string, unknown>;
+    id: string | number | bigint;
+    data: Record<string, unknown>;
   }) => {
     const tableName = `${entityName}_${this.instanceId}`;
 
-    // If `instance.id` is defined, replace it with the id passed as a parameter.
-    // Should also log a warning here.
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    instance.id = id;
-
-    const pairs = getColumnValuePairs(instance);
-
+    const pairs = getColumnValuePairs({ ...data, id });
     const insertValues = pairs.map(({ value }) => value);
     const insertFragment = `(${pairs
       .map(({ column }) => column)
@@ -205,26 +199,25 @@ export class PostgresEntityStore implements EntityStore {
   updateEntity = async ({
     entityName,
     id,
-    instance,
+    data,
   }: {
     entityName: string;
-    id: string;
-    instance: Record<string, unknown>;
+    id: string | number | bigint;
+    data: Record<string, unknown>;
   }) => {
     const tableName = `${entityName}_${this.instanceId}`;
 
-    const pairs = getColumnValuePairs(instance);
-
-    const updatePairs = pairs.filter(({ column }) => column !== "id");
-    const updateValues = updatePairs.map(({ value }) => value);
-    const updateFragment = updatePairs
+    const pairs = getColumnValuePairs(data);
+    const updateValues = pairs.map(({ value }) => value);
+    const updateFragment = pairs
       .map(({ column }, idx) => `${column} = $${idx + 1}`)
       .join(", ");
 
     const statement = `UPDATE "${tableName}" SET ${updateFragment} WHERE "id" = $${
-      updatePairs.length + 1
+      pairs.length + 1
     } RETURNING *`;
-    updateValues.push(id);
+    updateValues.push(id.toString());
+
     const { rows } = await this.pool.query(statement, updateValues);
 
     return this.deserialize({ entityName, instance: rows[0] });
@@ -233,30 +226,25 @@ export class PostgresEntityStore implements EntityStore {
   upsertEntity = async ({
     entityName,
     id,
-    instance,
+    create,
+    update,
   }: {
     entityName: string;
-    id: string;
-    instance: Record<string, unknown>;
+    id: string | number | bigint;
+    create: Record<string, unknown>;
+    update: Record<string, unknown>;
   }) => {
     const tableName = `${entityName}_${this.instanceId}`;
 
-    // If `instance.id` is defined, replace it with the id passed as a parameter.
-    // Should also log a warning here.
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    instance.id = id;
-
-    const pairs = getColumnValuePairs(instance);
-
-    const insertValues = pairs.map(({ value }) => value);
-    const insertFragment = `(${pairs
+    const insertPairs = getColumnValuePairs({ ...create, id });
+    const insertValues = insertPairs.map(({ value }) => value);
+    const insertFragment = `(${insertPairs
       .map(({ column }) => column)
       .join(", ")}) VALUES (${insertValues
       .map((_, idx) => `$${idx + 1}`)
       .join(", ")})`;
 
-    const updatePairs = pairs.filter(({ column }) => column !== "id");
+    const updatePairs = getColumnValuePairs({ ...update, id });
     const updateValues = updatePairs.map(({ value }) => value);
     const updateFragment = updatePairs
       .map(({ column }, idx) => `${column} = $${idx + 1 + insertValues.length}`)
@@ -276,7 +264,7 @@ export class PostgresEntityStore implements EntityStore {
     id,
   }: {
     entityName: string;
-    id: string;
+    id: string | number | bigint;
   }) => {
     const tableName = `${entityName}_${this.instanceId}`;
 
@@ -388,6 +376,6 @@ export class PostgresEntityStore implements EntityStore {
       }
     });
 
-    return deserializedInstance as Record<string, unknown>;
+    return deserializedInstance as EntityInstance;
   };
 }

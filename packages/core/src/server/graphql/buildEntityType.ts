@@ -55,7 +55,7 @@ export const buildEntityType = (
               // @ts-ignore
               const relatedInstanceId = parent[field.name];
 
-              return await store.getEntity({
+              return await store.findUniqueEntity({
                 entityName: field.relatedEntityName,
                 id: relatedInstanceId,
               });
