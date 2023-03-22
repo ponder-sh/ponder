@@ -153,7 +153,7 @@ export class Ponder {
     const result = this.reloadService.loadSchema();
     if (result) {
       const { schema, graphqlSchema } = result;
-      this.codegenService.generateAppTypeFile({ schema });
+      this.codegenService.generateAppFile({ schema });
       this.codegenService.generateSchemaFile({ graphqlSchema });
     }
 
@@ -180,7 +180,7 @@ export class Ponder {
     });
 
     this.reloadService.on("newSchema", async ({ schema, graphqlSchema }) => {
-      this.codegenService.generateAppTypeFile({ schema });
+      this.codegenService.generateAppFile({ schema });
       this.codegenService.generateSchemaFile({ graphqlSchema });
 
       this.serverService.reload({ graphqlSchema });
