@@ -105,10 +105,13 @@ ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
   const { EnsName } = context.entities;
   const { name, owner } = event.params;
 
-  await EnsName.insert(`${name}-${owner}`, {
-    name: name,
-    owner: owner,
-    registeredAt: event.block.timestamp
+  await EnsName.create({
+    id: `${name}-${owner}`,
+    data: {
+      name: name,
+      owner: owner,
+      registeredAt: event.block.timestamp
+    }
   });
 });
 ```

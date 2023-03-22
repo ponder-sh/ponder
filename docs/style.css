@@ -8,6 +8,11 @@
   border-color: rgb(229 231 235/1);
   margin-bottom: 3rem;
 }
+@media (max-width: 768px) {
+  .steps-container {
+    margin-left: 6px;
+  }
+}
 .steps-container h3 {
   counter-increment: step;
 }
@@ -54,9 +59,10 @@
   margin-top: 0rem;
 }
 
-.code-columns div pre {
+/* On the fence about this! */
+/* .code-columns div pre {
   height: calc(100% - 1rem);
-}
+} */
 
 /* EXCALIDRAW DIAGRAM STYLES */
 
