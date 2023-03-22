@@ -11,7 +11,7 @@ import {
   Schema,
 } from "@/schema/types";
 
-import { EntityFilter, EntityStore } from "./entityStore";
+import { EntityFilter, EntityInstance, EntityStore } from "./entityStore";
 import {
   getColumnValuePairs,
   getWhereValue,
@@ -80,6 +80,7 @@ export class SqliteEntityStore implements EntityStore {
       String: "text",
       BigInt: "text",
       Bytes: "text",
+      Float: "text",
     };
 
     const columnStatements = entity.fields
@@ -122,7 +123,13 @@ export class SqliteEntityStore implements EntityStore {
     return `CREATE TABLE "${tableName}" (${columnStatements.join(", ")})`;
   }
 
-  getEntity = ({ entityName, id }: { entityName: string; id: string }) => {
+  findUniqueEntity = async ({
+    entityName,
+    id,
+  }: {
+    entityName: string;
+    id: string | number | bigint;
+  }) => {
     const tableName = `${entityName}_${this.instanceId}`;
 
     const statement = `SELECT "${tableName}".* FROM "${tableName}" WHERE "${tableName}"."id" = ?`;
@@ -133,25 +140,18 @@ export class SqliteEntityStore implements EntityStore {
     return this.deserialize({ entityName, instance });
   };
 
-  insertEntity = ({
+  createEntity = async ({
     entityName,
     id,
-    instance,
+    data,
   }: {
     entityName: string;
-    id: string;
-    instance: Record<string, unknown>;
+    id: string | number | bigint;
+    data: Record<string, unknown>;
   }) => {
     const tableName = `${entityName}_${this.instanceId}`;
 
-    // If `instance.id` is defined, replace it with the id passed as a parameter.
-    // Should also log a warning here.
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    instance.id = id;
-
-    const pairs = getColumnValuePairs(instance);
-
+    const pairs = getColumnValuePairs({ ...data, id });
     const insertValues = pairs.map((s) => s.value);
     const insertFragment = `(${pairs
       .map((s) => s.column)
@@ -164,18 +164,18 @@ export class SqliteEntityStore implements EntityStore {
     return this.deserialize({ entityName, instance: insertedEntity });
   };
 
-  updateEntity = ({
+  updateEntity = async ({
     entityName,
     id,
-    instance,
+    data,
   }: {
     entityName: string;
-    id: string;
-    instance: Record<string, unknown>;
+    id: string | number | bigint;
+    data: Record<string, unknown>;
   }) => {
     const tableName = `${entityName}_${this.instanceId}`;
 
-    const pairs = getColumnValuePairs(instance);
+    const pairs = getColumnValuePairs(data);
 
     const updatePairs = pairs.filter(({ column }) => column !== "id");
     const updateValues = updatePairs.map(({ value }) => value);
@@ -191,31 +191,27 @@ export class SqliteEntityStore implements EntityStore {
     return this.deserialize({ entityName, instance: updatedEntity });
   };
 
-  upsertEntity = ({
+  upsertEntity = async ({
     entityName,
     id,
-    instance,
+    create,
+    update,
   }: {
     entityName: string;
-    id: string;
-    instance: Record<string, unknown>;
+    id: string | number | bigint;
+    create: Record<string, unknown>;
+    update: Record<string, unknown>;
   }) => {
     const tableName = `${entityName}_${this.instanceId}`;
 
-    // If `instance.id` is defined, replace it with the id passed as a parameter.
-    // Should also log a warning here.
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    instance.id = id;
-
-    const pairs = getColumnValuePairs(instance);
-
-    const insertValues = pairs.map((s) => s.value);
-    const insertFragment = `(${pairs
+    // Add the passed `id` to the create object.
+    const insertPairs = getColumnValuePairs({ ...create, id });
+    const insertValues = insertPairs.map((s) => s.value);
+    const insertFragment = `(${insertPairs
       .map((s) => s.column)
       .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
 
-    const updatePairs = pairs.filter(({ column }) => column !== "id");
+    const updatePairs = getColumnValuePairs({ ...update, id });
     const updateValues = updatePairs.map(({ value }) => value);
     const updateFragment = updatePairs
       .map(({ column }) => `${column} = ?`)
@@ -230,7 +226,13 @@ export class SqliteEntityStore implements EntityStore {
     return this.deserialize({ entityName, instance: upsertedEntity });
   };
 
-  deleteEntity = ({ entityName, id }: { entityName: string; id: string }) => {
+  deleteEntity = async ({
+    entityName,
+    id,
+  }: {
+    entityName: string;
+    id: string;
+  }) => {
     const tableName = `${entityName}_${this.instanceId}`;
 
     const statement = `DELETE FROM "${tableName}" WHERE "id" = ?`;
@@ -241,7 +243,7 @@ export class SqliteEntityStore implements EntityStore {
     return changes === 1;
   };
 
-  getEntities = ({
+  getEntities = async ({
     entityName,
     filter,
   }: {
@@ -355,6 +357,6 @@ export class SqliteEntityStore implements EntityStore {
       }
     });
 
-    return deserializedInstance as Record<string, unknown>;
+    return deserializedInstance as EntityInstance;
   };
 }

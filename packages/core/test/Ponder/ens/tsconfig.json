@@ -1,6 +1,6 @@
 {
+  "extends": "../../../tsconfig.json",
   "compilerOptions": {
-    "extends": "../../../tsconfig.json",
     "baseUrl": ".",
     "paths": {
       "@/generated": ["./generated/index.ts"],

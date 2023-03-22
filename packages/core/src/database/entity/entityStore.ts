@@ -22,7 +22,10 @@ export type EntityFilter = {
   orderDirection?: "asc" | "desc";
 };
 
-type Entity = Record<string, unknown>;
+export type EntityInstance = Record<string, unknown> & {
+  id: string | number | bigint;
+};
+
 type MaybePromise<T> = T | Promise<T>;
 
 export interface EntityStore {
@@ -32,38 +35,39 @@ export interface EntityStore {
   reset(): MaybePromise<void>;
   teardown(): MaybePromise<void>;
 
-  getEntity(arg: {
+  findUniqueEntity(arg: {
     entityName: string;
-    id: string | number;
-  }): MaybePromise<Entity | null>;
+    id: string | number | bigint;
+  }): Promise<EntityInstance | null>;
 
-  insertEntity(arg: {
+  createEntity(arg: {
     entityName: string;
-    id: string | number;
-    instance: Entity;
-  }): MaybePromise<Entity>;
-
-  upsertEntity(arg: {
-    entityName: string;
-    id: string | number;
-    instance: Entity;
-  }): MaybePromise<Entity>;
+    id: string | number | bigint;
+    data: Omit<EntityInstance, "id">;
+  }): Promise<EntityInstance>;
 
   updateEntity(arg: {
     entityName: string;
-    id: string | number;
-    instance: Partial<Entity>;
-  }): MaybePromise<Entity>;
+    id: string | number | bigint;
+    data: Omit<Partial<EntityInstance>, "id">;
+  }): Promise<EntityInstance>;
+
+  upsertEntity(arg: {
+    entityName: string;
+    id: string | number | bigint;
+    create: Omit<EntityInstance, "id">;
+    update: Omit<Partial<EntityInstance>, "id">;
+  }): Promise<EntityInstance>;
 
   deleteEntity(arg: {
     entityName: string;
-    id: string | number;
-  }): MaybePromise<boolean>;
+    id: string | number | bigint;
+  }): Promise<boolean>;
 
   getEntities(arg: {
     entityName: string;
     filter?: EntityFilter;
-  }): MaybePromise<Entity[]>;
+  }): Promise<EntityInstance[]>;
 }
 
 export const buildEntityStore = ({

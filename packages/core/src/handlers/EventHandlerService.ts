@@ -2,7 +2,8 @@ import Emittery from "emittery";
 import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 
 import { createQueue, Queue, Worker } from "@/common/createQueue";
-import type { Log } from "@/common/types";
+import type { Log, Model } from "@/common/types";
+import { EntityInstance } from "@/database/entity/entityStore";
 import { Resources } from "@/Ponder";
 import { Handlers } from "@/reload/readHandlers";
 import { Schema } from "@/schema/types";
@@ -144,25 +145,26 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     schema: Schema;
   }) {
     // Build entity models for event handler context.
-    const entityModels: Record<string, unknown> = {};
+    const entityModels: Record<string, Model<EntityInstance>> = {};
     schema.entities.forEach((entity) => {
       const entityName = entity.name;
 
       entityModels[entityName] = {
-        get: (id: string) =>
-          this.resources.entityStore.getEntity({ entityName, id }),
-        delete: (id: string) =>
-          this.resources.entityStore.deleteEntity({ entityName, id }),
-        insert: (id: string, instance: Record<string, unknown>) =>
-          this.resources.entityStore.insertEntity({
+        findUnique: ({ id }) =>
+          this.resources.entityStore.findUniqueEntity({ entityName, id }),
+        create: ({ id, data }) =>
+          this.resources.entityStore.createEntity({ entityName, id, data }),
+        update: ({ id, data }) =>
+          this.resources.entityStore.updateEntity({ entityName, id, data }),
+        upsert: ({ id, create, update }) =>
+          this.resources.entityStore.upsertEntity({
             entityName,
             id,
-            instance,
+            create,
+            update,
           }),
-        update: (id: string, instance: Record<string, unknown>) =>
-          this.resources.entityStore.updateEntity({ entityName, id, instance }),
-        upsert: (id: string, instance: Record<string, unknown>) =>
-          this.resources.entityStore.upsertEntity({ entityName, id, instance }),
+        delete: ({ id }) =>
+          this.resources.entityStore.deleteEntity({ entityName, id }),
       };
     });
 

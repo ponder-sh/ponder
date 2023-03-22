@@ -94,7 +94,7 @@ ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
   const { MyNftContract } = context.contracts;
 
   // Get an entity object
-  const token = await Token.get(event.params.id);
+  const token = await Token.findUnique({ id: event.params.id });
 
   // Call a contract read function
   const tokenUri = await MyNftContract.tokenUri(token.id);

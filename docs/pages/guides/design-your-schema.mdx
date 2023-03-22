@@ -29,16 +29,16 @@ Every entity type _must_ have an `id` field that is a `String!`, `Int!`, `Bytes!
 
 ### Scalars
 
-In GraphQL, scalars are the most primitive types – they represent concrete data like strings and numbers. Each GraphQL scalar maps to a TypeScript type (used in event handler code) and a JSON response type (returned by the GraphQL API).
+In GraphQL, scalars are the most primitive types – they represent concrete data like strings and numbers. Each GraphQL scalar maps to a TypeScript type (used in event handler code) and a JSON data type (returned by the GraphQL API).
 
-| name      | description                                 | TypeScript type | JSON response type |
-| :-------- | :------------------------------------------ | :-------------- | :----------------- |
-| `Boolean` | `true` or `false`                           | `boolean`       | `boolean`          |
-| `String`  | A UTF‐8 character sequence                  | `string`        | `string`           |
-| `Bytes`   | A UTF‐8 character sequence with `0x` prefix | `0x${string}`   | `string`           |
-| `Int`     | A signed 32‐bit integer                     | `number`        | `number`           |
-| `Float`   | A signed floating-point value               | `number`        | `number`           |
-| `BigInt`  | An unsigned integer (solidity `uint256`)    | `bigint`        | `string`           |
+| name      | description                                 | TypeScript type | JSON data type |
+| :-------- | :------------------------------------------ | :-------------- | :------------- |
+| `String`  | A UTF‐8 character sequence                  | `string`        | `string`       |
+| `Int`     | A signed 32‐bit integer                     | `number`        | `number`       |
+| `Float`   | A signed floating-point value               | `number`        | `number`       |
+| `Boolean` | `true` or `false`                           | `boolean`       | `boolean`      |
+| `Bytes`   | A UTF‐8 character sequence with `0x` prefix | `0x${string}`   | `string`       |
+| `BigInt`  | An unsigned integer (solidity `uint256`)    | `bigint`        | `string`       |
 
 Here's an example `Account` entity type that has a field for every scalar type, and sample event handler code to insert an `Account` entity.
 
@@ -56,13 +56,15 @@ type Account @entity {
 ```
 
 ```ts filename="src/index.ts"
-await Account.insert({
+await Account.create({
   id: "0xabc",
-  daiBalance: 7770000000000000000n,
-  totalUsdValue: 17.38,
-  lastActiveAt: 1679337733,
-  isAdmin: true,
-  graffiti: "LGTM"
+  data: {
+    daiBalance: 7770000000000000000n,
+    totalUsdValue: 17.38,
+    lastActiveAt: 1679337733,
+    isAdmin: true,
+    graffiti: "LGTM"
+  }
 });
 ```
 
@@ -87,9 +89,11 @@ type Cat @entity {
 ```
 
 ```ts filename="src/index.ts"
-await Cat.insert({
+await Cat.create({
   id: "Fluffy",
-  color: "ORANGE"
+  data: {
+    color: "ORANGE"
+  }
 });
 ```
 
@@ -115,10 +119,12 @@ type FancyCat @entity {
 ```
 
 ```ts filename="src/index.ts"
-await FancyCat.insert({
+await FancyCat.create({
   id: "Fluffy",
-  colors: ["ORANGE", "BLACK"],
-  favoriteNumbers: [7, 420, 69]
+  data: {
+    colors: ["ORANGE", "BLACK"],
+    favoriteNumbers: [7, 420, 69]
+  }
 });
 ```
 
@@ -148,14 +154,14 @@ type Person @entity {
 ```
 
 ```ts filename="src/index.ts"
-await Person.insert({
-  id: "Bob"
-  age: 22,
+await Person.create({
+  id: "Bob",
+  data: { age: 22 }
 });
 
-await Dog.insert({
+await Dog.create({
   id: "Chip",
-  owner: "Bob"
+  data: { owner: "Bob" }
 });
 ```
 
@@ -210,18 +216,18 @@ type Person @entity {
 ```
 
 ```ts filename="src/index.ts"
-await Person.insert({
+await Person.create({
   id: "Bob"
 });
 
-await Dog.insert({
+await Dog.create({
   id: "Chip",
-  owner: "Bob"
+  data: { owner: "Bob" }
 });
 
-await Dog.insert({
+await Dog.create({
   id: "Spike",
-  owner: "Bob"
+  data: { owner: "Bob" }
 });
 ```
 
@@ -261,9 +267,11 @@ Note that the `dogs` field on `Person` cannot be accessed directly within event 
 <div className="code-columns">
 
 ```ts filename="src/index.ts"
-await Person.insert({
-  id: "Bob"
-  dogs: ["Chip", "Bob"] // WRONG, will throw an error.
+await Person.create({
+  id: "Bob",
+  data: {
+    dogs: ["Chip", "Bob"] // WRONG, will throw an error.
+  }
 });
 ```
 

@@ -14,9 +14,7 @@ const gqlScalarToTsType: Record<string, string | undefined> = {
 export const buildEntityTypes = (entities: Entity[]) => {
   const entityModelTypes = entities
     .map((entity) => {
-      let idType = "string";
-
-      const instanceType = `export type ${entity.name}Instance = {
+      return `export type ${entity.name} = {
         ${entity.fields
           .map((field) => {
             switch (field.kind) {
@@ -27,8 +25,6 @@ export const buildEntityTypes = (entities: Entity[]) => {
                     `TypeScript type not found for scalar: ${field.scalarTypeName}`
                   );
                 }
-                if (field.name === "id") idType = scalarTsType;
-
                 return `${field.name}${
                   field.notNull ? "" : "?"
                 }: ${scalarTsType};`;
@@ -82,25 +78,12 @@ export const buildEntityTypes = (entities: Entity[]) => {
                 }: ${tsBaseType}[];`;
               }
               case FieldKind.RELATIONSHIP: {
-                return `${field.name}: string;`;
+                return `${field.name}${field.notNull ? "" : "?"}: string;`;
               }
             }
           })
           .join("")}
         };`;
-
-      const modelType = `
-        export type ${entity.name}Model = {
-          get: (id: ${idType}) => Promise<${entity.name}Instance | null>;
-          insert: (id: ${idType}, obj: Omit<${entity.name}Instance, "id">) => Promise<${entity.name}Instance>;
-          update: (id: ${idType}, obj: Partial<Omit<${entity.name}Instance, "id">>) =>
-            Promise<${entity.name}Instance>;
-          delete: (id: ${idType}) => Promise<boolean>;
-          upsert: (id: ${idType}, obj: Omit<${entity.name}Instance, "id">) => Promise<${entity.name}Instance>;
-        };
-      `;
-
-      return instanceType + modelType;
     })
     .join("");
 

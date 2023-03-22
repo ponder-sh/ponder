@@ -15,20 +15,23 @@ ponder.on("FileStore:FileCreated", async ({ event, context }) => {
 
   const metadata = parseJson(fromHex(rawMetadata, "string"));
 
-  await context.entities.File.upsert(filename, {
-    name: filename,
-    size: Number(size),
-    contents: await context.contracts.FileStoreFrontend.readFile(
-      event.transaction.to as `0x{string}`,
-      filename
-    ),
-    createdAt: Number(event.block.timestamp),
-    type: metadata?.type,
-    compression: metadata?.compression,
-    encoding: metadata?.encoding,
+  await context.entities.File.create({
+    id: filename,
+    data: {
+      name: filename,
+      size: Number(size),
+      contents: await context.contracts.FileStoreFrontend.readFile(
+        event.transaction.to as `0x{string}`,
+        filename
+      ),
+      createdAt: Number(event.block.timestamp),
+      type: metadata?.type,
+      compression: metadata?.compression,
+      encoding: metadata?.encoding,
+    },
   });
 });
 
 ponder.on("FileStore:FileDeleted", async ({ event, context }) => {
-  await context.entities.File.delete(event.params.filename);
+  await context.entities.File.delete({ id: event.params.filename });
 });
