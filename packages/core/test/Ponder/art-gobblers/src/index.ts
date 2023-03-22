@@ -1,11 +1,19 @@
 import { ponder } from "@/generated";
 
 ponder.on("ArtGobblers:Transfer", async ({ event, context }) => {
-  await context.entities.Account.upsert(event.params.from, {});
+  const { Account, Token } = context.entities;
 
-  await context.entities.Account.upsert(event.params.to, {});
+  await Account.upsert({ id: event.params.from, create: {}, update: {} });
 
-  await context.entities.Token.upsert(event.params.id, {
-    owner: event.params.to,
+  await Account.upsert({ id: event.params.to, create: {}, update: {} });
+
+  await Token.upsert({
+    id: event.params.id,
+    create: {
+      owner: event.params.to,
+    },
+    update: {
+      owner: event.params.to,
+    },
   });
 });
