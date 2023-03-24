@@ -27,7 +27,7 @@ Ponder's entity store API is inspired by the [Prisma Client API](https://www.pri
 
 ### Returns
 
-`Promise<Entity>`
+`Promise<TEntity>`
 
 ### Example
 
@@ -71,7 +71,7 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 
 ### Returns
 
-`Promise<Entity>`
+`Promise<TEntity>`
 
 ### Example
 
@@ -115,7 +115,7 @@ ponder.on("Blitmap:MetadataUpdate", async ({ event, context }) => {
 
 ### Returns
 
-`Promise<Entity>`
+`Promise<TEntity>`
 
 ### Example
 
@@ -163,7 +163,7 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
 
 ### Returns
 
-`Promise<Entity | null>`
+`Promise<TEntity | null>`
 
 ### Example
 

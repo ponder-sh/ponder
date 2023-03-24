@@ -74,37 +74,68 @@ Open up `.env.local` and paste in RPC URLs for any networks that your project us
 PONDER_RPC_URL_1 = "https://eth-mainnet.g.alchemy.com/v2/..."
 ```
 
-### Define your schema
+### Design your schema
 
-The `schema.graphql` file defines the entity data that the GraphQL API will serve. Any types marked with the `@entity` directive will become available as entity models in your handler functions.
+The `schema.graphql` file contains a model of your application data. The **entity types** defined here can be thought of as database tables.
 
-Using `schema.graphql`, Ponder automatically generates a GraphQL API that serves entity data.
+```graphql filename="schema.graphql"
+type BlitmapToken @entity {
+  id: String!
+  owner: String! # Ethereum address
+}
+```
+
+See [Design your schema](/guides/design-your-schema) for a detailed guide on schema design.
 
 ### Write event handlers
 
-Files in the `src/` directory contain event handlers. Event handlers are TypeScript functions that accept a contract event and insert data into the entity store.
+Files in the `src/` directory contain event handlers. Event handlers are TypeScript functions that process a contract event. The purpose of event handler functions is to insert data into the entity store.
 
 Here's a sample event handler for an ERC721 `Transfer` event.
 
-```ts filename="src/MyNftContract.ts"
-import { ponder } from "../generated";
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
 
-ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
-  const { Token } = context.entities;
-  const { MyNftContract } = context.contracts;
+ponder.on("Blitmap:Transfer", async ({ event, context }) => {
+  const { BlitmapToken } = context.entities;
 
-  // Get an entity object
-  const token = await Token.findUnique({ id: event.params.id });
-
-  // Call a contract read function
-  const tokenUri = await MyNftContract.tokenUri(token.id);
-
-  // ...
+  await BlitmapToken.create({
+    id: event.params.tokenId,
+    data: {
+      owner: event.params.to
+    }
+  });
 });
 ```
+
+See [Create & update entities](/guides/create-update-entities) for a detailed guide on writing event handlers.
 
 ### Query the GraphQL API
 
 As you write your event handlers and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  blitmapTokens {
+    id
+    owner
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "blitmapTokens": [
+    { "id": 1452, "owner": "0xaf3d5..." },
+    { "id": 7164, "owner": "0x9cb3b..." },
+  ]
+}
+```
+
+</div>
 
 </div>

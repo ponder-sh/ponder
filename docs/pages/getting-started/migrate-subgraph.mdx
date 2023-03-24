@@ -118,10 +118,10 @@ export function handleTransfer(event) {
 
 With Ponder, entity models and contracts are injected as properties of `context`.
 
-Contracts injected this way are ready-to-go using the address and network specified in `ponder.config.ts`. (You don't need to call `Contract.bind(address)`. The contracts are `ReadOnlyContract` objects that are already connected to a `viem` client`.
+Contracts injected this way are ready-to-go using the address and network specified in `ponder.config.ts`. (You don't need to call `Contract.bind(address)`. The contracts are `ReadOnlyContract` objects that are already connected to a [viem](https://viem.sh) client.
 
 ```ts filename="src/MyNftContract.ts"
-import { ponder } from "../generated";
+import { ponder } from "@/generated";
 
 ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
   const { Token } = context.entities;

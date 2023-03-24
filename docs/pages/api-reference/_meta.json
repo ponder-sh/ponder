@@ -1,7 +1,6 @@
 {
   "create-ponder": "Create Ponder",
+  "event-handlers": "Event handlers",
   "ponder-config": "ponder.config.ts",
-  "schema-graphql": "schema.graphql",
-  "event": "event",
-  "context": "context"
+  "schema-graphql": "schema.graphql"
 }

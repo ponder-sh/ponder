@@ -7,9 +7,7 @@ import { Tabs, Tab } from "nextra-theme-docs";
 
 # `ponder.config.ts`
 
-The `ponder.config.ts` config file contains smart contract addresses, paths to ABIs, RPC URLs, and database config.
-
-Some things to know:
+Ponder's configuration file file contains smart contract addresses, paths to ABIs, RPC URLs, and database connection details.
 
 - `ponder.config.ts` must provide a **named export called `config`**, not a default export.
 - By default, `ponder {dev/start/codegen}` looks for `ponder.config.ts` in the current working directory, but you can specify a different path with the `--config-file` option to `ponder dev` or `ponder start`.
