@@ -2,7 +2,6 @@ import pico from "picocolors";
 
 import { BackfillService } from "@/backfill/BackfillService";
 import { CodegenService } from "@/codegen/CodegenService";
-import { ErrorService } from "@/common/ErrorService";
 import { LoggerService, MessageKind } from "@/common/LoggerService";
 import { formatEta, formatPercentage } from "@/common/utils";
 import { buildContracts, Contract, Network } from "@/config/contracts";
@@ -11,6 +10,7 @@ import { ResolvedPonderConfig } from "@/config/ponderConfig";
 import { buildCacheStore, CacheStore } from "@/database/cache/cacheStore";
 import { buildDb, PonderDatabase } from "@/database/db";
 import { buildEntityStore, EntityStore } from "@/database/entity/entityStore";
+import { ErrorService } from "@/errors/ErrorService";
 import { FrontfillService } from "@/frontfill/FrontfillService";
 import { EventHandlerService } from "@/handlers/EventHandlerService";
 import { ReloadService } from "@/reload/ReloadService";

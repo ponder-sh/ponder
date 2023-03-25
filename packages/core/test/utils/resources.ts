@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
-import { ErrorService } from "@/common/ErrorService";
 import { LoggerService } from "@/common/LoggerService";
 import { buildContracts } from "@/config/contracts";
 import { buildOptions } from "@/config/options";
@@ -10,6 +9,7 @@ import { ResolvedPonderConfig } from "@/config/ponderConfig";
 import { buildCacheStore } from "@/database/cache/cacheStore";
 import { buildDb } from "@/database/db";
 import { buildEntityStore } from "@/database/entity/entityStore";
+import { ErrorService } from "@/errors/ErrorService";
 import { Resources } from "@/Ponder";
 
 import { resetCacheStore } from "./resetCacheStore";

@@ -1,28 +1,68 @@
 import Sqlite from "better-sqlite3";
 import path from "node:path";
-import { Pool } from "pg";
+import { DatabaseError, Pool } from "pg";
 
 import { LoggerService } from "@/common/LoggerService";
 import { ensureDirExists } from "@/common/utils";
 import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
+import { PostgresError } from "@/errors/postgres";
+import { SqliteError } from "@/errors/sqlite";
 
-// Patch Pool.query to get more informative stack traces. I have no idea why this works.
+// Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114
 const originalPoolQuery = Pool.prototype.query;
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-Pool.prototype.query = async function query(...args) {
+Pool.prototype.query = async function query(
+  ...args: [queryText: string, values: any[], callback: () => void]
+) {
   try {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
     return await originalPoolQuery.apply(this, args);
-  } catch (e) {
-    // All magic is here. new Error will generate new stack, but message will copyid from e
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    throw new Error(e);
+  } catch (error) {
+    const [statement, parameters] = args;
+
+    if (error instanceof DatabaseError) {
+      throw new PostgresError({
+        statement,
+        parameters,
+        pgError: error,
+      });
+    }
+
+    throw error;
   }
+};
+
+const patchSqliteDatabase = ({ db }: { db: Sqlite.Database }) => {
+  return {
+    ...db,
+    prepare(source: string) {
+      const statement = db.prepare(source);
+
+      const wrapper =
+        (fn: (...args: any) => void) =>
+        (...args: any) => {
+          try {
+            return fn.apply(statement, args);
+          } catch (error) {
+            throw new SqliteError({
+              statement: source,
+              parameters: args,
+              sqliteError: error as Error,
+            });
+          }
+        };
+
+      for (const method of ["run", "get", "all"]) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        statement[method] = wrapper(statement[method]);
+      }
+
+      return statement;
+    },
+  } as Sqlite.Database;
 };
 
 export interface SqliteDb {
@@ -82,7 +122,9 @@ export const buildDb = ({
     });
     db.pragma("journal_mode = WAL");
 
-    return { kind: "sqlite", db };
+    const patchedDb = patchSqliteDatabase({ db });
+
+    return { kind: "sqlite", db: patchedDb };
   } else {
     const rawPool = new Pool({
       connectionString: resolvedDatabaseConfig.connectionString,
