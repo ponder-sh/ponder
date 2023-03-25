@@ -11,9 +11,10 @@ type BaseErrorParameters = {
     }
 );
 
+// Adapted from viem.
+// https://github.com/wagmi-dev/viem/blob/021ce8e5a3fb02db6139564345a91fc77cba08a6/src/errors/base.ts#L17
 export class BaseError extends Error {
   details?: string;
-  docsPath?: string;
   metaMessages?: string[];
   shortMessage: string;
 
