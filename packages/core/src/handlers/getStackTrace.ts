@@ -9,63 +9,74 @@ import type { MimeBuffer } from "data-uri-to-buffer";
 import dataUriToBuffer from "data-uri-to-buffer";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { parse as parseStackTrace } from "stacktrace-parser";
+import { parse as parseStackTrace, StackFrame } from "stacktrace-parser";
 
 import { PonderOptions } from "@/config/options";
 
 export const getStackTraceAndCodeFrame = (
-  error: Error,
+  stack: string | undefined,
   options: PonderOptions
 ) => {
-  if (!error.stack) return null;
+  if (!stack) return null;
 
   const buildDir = path.join(options.PONDER_DIR_PATH, "out");
 
-  const stackTrace = parseStackTrace(error.stack);
+  const stackTrace = parseStackTrace(stack);
 
-  let codeFrame: string | null = null;
+  let codeFrame: string | undefined;
 
-  const sourceMappedStackTrace = stackTrace.map((frame) => {
-    if (!frame.file || !frame.lineNumber) return frame;
+  const sourceMappedStackTrace = stackTrace
+    .map((frame) => {
+      if (!frame.file || !frame.lineNumber) return;
 
-    const sourceMappedStackFrame = getSourceMappedStackFrame(
-      frame.file,
-      frame.lineNumber,
-      frame.column
-    );
-
-    if (!sourceMappedStackFrame) return frame;
-
-    const { sourceFile, sourceLineNumber, sourceColumnNumber, sourceContent } =
-      sourceMappedStackFrame;
-
-    // If this is the first frame within the build directory, generate the code frame.
-    if (
-      frame.file.includes(buildDir) &&
-      codeFrame == null &&
-      sourceContent !== null
-    ) {
-      codeFrame = codeFrameColumns(
-        sourceContent,
-        {
-          start: {
-            line: sourceLineNumber,
-            column: sourceColumnNumber ?? undefined,
-          },
-        },
-        {
-          highlightCode: true,
-        }
+      const sourceMappedStackFrame = getSourceMappedStackFrame(
+        frame.file,
+        frame.lineNumber,
+        frame.column
       );
-    }
 
-    return {
-      ...frame,
-      file: sourceFile,
-      lineNumber: sourceLineNumber,
-      column: sourceColumnNumber,
-    };
-  });
+      // If this frame cannot be mapped to the user code build directory, skip it.
+      if (!sourceMappedStackFrame) return;
+
+      const {
+        sourceFile,
+        sourceLineNumber,
+        sourceColumnNumber,
+        sourceContent,
+      } = sourceMappedStackFrame;
+
+      // If this is the first frame within the build directory, generate the code frame.
+      if (
+        frame.file.includes(buildDir) &&
+        codeFrame == null &&
+        sourceContent !== null
+      ) {
+        codeFrame = codeFrameColumns(
+          sourceContent,
+          {
+            start: {
+              line: sourceLineNumber,
+              column: sourceColumnNumber ?? undefined,
+            },
+          },
+          {
+            highlightCode: true,
+          }
+        );
+      }
+
+      return {
+        ...frame,
+        file: sourceFile,
+        lineNumber: sourceLineNumber,
+        column: sourceColumnNumber,
+      } as StackFrame;
+    })
+    .filter((f): f is StackFrame => !!f);
+
+  if (sourceMappedStackTrace.length === 0 || !codeFrame) {
+    return null;
+  }
 
   const formattedStackTrace = sourceMappedStackTrace
     .map(

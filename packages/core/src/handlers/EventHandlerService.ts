@@ -4,6 +4,7 @@ import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 import { createQueue, Queue, Worker } from "@/common/createQueue";
 import type { Log, Model } from "@/common/types";
 import { EntityInstance } from "@/database/entity/entityStore";
+import { EventHandlerError } from "@/errors/eventHandler";
 import { Resources } from "@/Ponder";
 import { Handlers } from "@/reload/readHandlers";
 import { Schema } from "@/schema/types";
@@ -265,16 +266,30 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
         // Remove all remaining tasks from the queue.
         queue.clear();
 
-        // Log stack trace and message.
         const error = error_ as Error;
-        const result = getStackTraceAndCodeFrame(error, this.resources.options);
+
+        let stackTrace: string | undefined;
+        let codeFrame: string | undefined;
+
+        const result = getStackTraceAndCodeFrame(
+          error.stack,
+          this.resources.options
+        );
         if (result) {
-          error.message =
-            `${error.message}\n` + `${result.stackTrace}\n` + result.codeFrame;
+          stackTrace = result.stackTrace;
+          codeFrame = result.codeFrame;
         }
 
-        // TODO: Use the task arg to provide context to the user about the error.
-        this.resources.errors.submitHandlerError({ error });
+        this.resources.errors.submitHandlerError({
+          error: new EventHandlerError({
+            eventName: eventName,
+            blockNumber: block.number,
+            params: args as any,
+            stackTrace: stackTrace,
+            codeFrame: codeFrame,
+            cause: error,
+          }),
+        });
       }
 
       this.emit("taskCompleted", { timestamp: Number(block.timestamp) });
