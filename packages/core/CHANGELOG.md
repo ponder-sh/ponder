@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.49
+
+### Patch Changes
+
+- [#141](https://github.com/0xOlias/ponder/pull/141) [`da83257`](https://github.com/0xOlias/ponder/commit/da832579adcf4ee7540287e43c527e6f6ed2ac9d) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved error messages for event handler errors originating in `pg` and `better-sqlite3`
+
 ## 0.0.48
 
 ### Patch Changes
