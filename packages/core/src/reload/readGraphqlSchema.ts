@@ -15,7 +15,7 @@ scalar BigInt
 `;
 
 export const readGraphqlSchema = ({ options }: { options: PonderOptions }) => {
-  const schemaBody = readFileSync(options.SCHEMA_FILE_PATH);
+  const schemaBody = readFileSync(options.schemaFile);
   const schemaSource = schemaHeader + schemaBody.toString();
 
   const schema = buildSchema(schemaSource);

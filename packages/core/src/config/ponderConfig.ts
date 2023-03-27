@@ -4,7 +4,6 @@ import path from "path";
 import { z } from "zod";
 
 import { ensureDirExists } from "@/common/utils";
-import type { PonderOptions } from "@/config/options";
 
 const ponderConfigSchema = z.object({
   database: z.optional(
@@ -35,6 +34,9 @@ const ponderConfigSchema = z.object({
       isIndexed: z.optional(z.boolean()),
     })
   ),
+  options: z.optional(
+    z.object({ maxHealthcheckDuration: z.optional(z.number()) })
+  ),
 });
 
 export type ResolvedPonderConfig = z.infer<typeof ponderConfigSchema>;
@@ -48,26 +50,24 @@ const ponderConfigBuilderSchema = z.union([
 
 export type PonderConfig = z.infer<typeof ponderConfigBuilderSchema>;
 
-export const buildPonderConfig = async (options: PonderOptions) => {
-  if (!existsSync(options.PONDER_CONFIG_FILE_PATH)) {
-    throw new Error(
-      `Ponder config file not found, expected: ${options.PONDER_CONFIG_FILE_PATH}`
-    );
+export const buildPonderConfig = async ({
+  configFile,
+}: {
+  configFile: string;
+}) => {
+  if (!existsSync(configFile)) {
+    throw new Error(`Ponder config file not found, expected: ${configFile}`);
   }
 
-  const buildFile = path.join(
-    path.dirname(options.PONDER_DIR_PATH),
-    "__ponder__.js"
-  );
+  const buildFile = path.join(path.dirname(configFile), "__ponder__.js");
   ensureDirExists(buildFile);
 
-  // Delete the build file before attempted to write it. This fixes a bug where a file
-  // inside handlers/ gets renamed, the build fails, but the stale `handlers.js` file remains.
+  // Delete the build file before attempting to write it.
   rmSync(buildFile, { force: true });
 
   try {
     await build({
-      entryPoints: [options.PONDER_CONFIG_FILE_PATH],
+      entryPoints: [configFile],
       outfile: buildFile,
       platform: "node",
       format: "cjs",
@@ -82,13 +82,13 @@ export const buildPonderConfig = async (options: PonderOptions) => {
       if (rawDefault) {
         throw new Error(
           `Ponder config not found. ${path.basename(
-            options.PONDER_CONFIG_FILE_PATH
+            configFile
           )} must export a variable named "config" (Cannot be a default export)`
         );
       }
       throw new Error(
         `Ponder config not found. ${path.basename(
-          options.PONDER_CONFIG_FILE_PATH
+          configFile
         )} must export a variable named "config"`
       );
     }

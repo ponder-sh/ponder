@@ -35,9 +35,9 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
 
   watch() {
     const watchFiles = [
-      this.resources.options.PONDER_CONFIG_FILE_PATH,
-      this.resources.options.SCHEMA_FILE_PATH,
-      this.resources.options.SRC_DIR_PATH,
+      this.resources.options.configFile,
+      this.resources.options.schemaFile,
+      this.resources.options.srcDir,
     ];
 
     const watcher = chokidar.watch(watchFiles);
@@ -46,7 +46,7 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
     };
 
     watcher.on("change", async (filePath) => {
-      if (filePath === this.resources.options.PONDER_CONFIG_FILE_PATH) {
+      if (filePath === this.resources.options.configFile) {
         this.resources.logger.logMessage(
           MessageKind.ERROR,
           "detected change in ponder.config.ts. " +
@@ -66,7 +66,7 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
 
         this.resources.errors.clearHandlerError();
 
-        if (filePath === this.resources.options.SCHEMA_FILE_PATH) {
+        if (filePath === this.resources.options.schemaFile) {
           this.loadSchema();
         } else {
           await this.loadHandlers();

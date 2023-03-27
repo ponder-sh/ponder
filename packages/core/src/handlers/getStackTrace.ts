@@ -19,7 +19,7 @@ export const getStackTraceAndCodeFrame = (
 ) => {
   if (!stack) return null;
 
-  const buildDir = path.join(options.PONDER_DIR_PATH, "out");
+  const buildDir = path.join(options.ponderDir, "out");
 
   const stackTrace = parseStackTrace(stack);
 

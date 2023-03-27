@@ -109,7 +109,7 @@ export const buildDb = ({
         connectionString: process.env.DATABASE_URL,
       };
     } else {
-      const filePath = path.join(options.PONDER_DIR_PATH, "cache.db");
+      const filePath = path.join(options.ponderDir, "cache.db");
       ensureDirExists(filePath);
       resolvedDatabaseConfig = {
         kind: "sqlite",

@@ -2,25 +2,34 @@ import { MessageKind } from "@/common/LoggerService";
 import { formatEta } from "@/common/utils";
 import { Resources } from "@/Ponder";
 
-import { getUiState, hydrateUi, render, UiState, unmount } from "./app";
+import { buildUiState, setupInkApp, UiState } from "./app";
 
 export class UiService {
   resources: Resources;
 
   ui: UiState;
-  renderInterval: NodeJS.Timer;
-  etaInterval: NodeJS.Timer;
-  render: () => void;
+  renderInterval?: NodeJS.Timer;
+  etaInterval?: NodeJS.Timer;
+  render?: () => void;
+  unmount?: () => void;
 
   constructor({ resources }: { resources: Resources }) {
     this.resources = resources;
 
-    this.ui = getUiState(this.resources.options);
-    hydrateUi({ ui: this.ui, contracts: this.resources.contracts });
+    this.ui = buildUiState({
+      port: this.resources.options.port,
+      contracts: this.resources.contracts,
+    });
+
+    if (!this.resources.options.uiEnabled) return;
+
+    const { render, unmount } = setupInkApp(this.ui);
+
     this.render = () => render(this.ui);
+    this.unmount = unmount;
 
     this.renderInterval = setInterval(() => {
-      if (this.resources.options.LOG_TYPE === "dev") this.render();
+      this.render?.();
     }, 17);
 
     this.etaInterval = setInterval(() => {
@@ -30,7 +39,7 @@ export class UiService {
   }
 
   kill() {
-    unmount();
+    this.unmount?.();
     clearInterval(this.renderInterval);
     clearInterval(this.etaInterval);
   }
@@ -60,31 +69,28 @@ export class UiService {
   };
 
   private logBackfillProgress() {
-    if (
-      this.resources.options.LOG_TYPE === "start" &&
-      !this.ui.isBackfillComplete
-    ) {
-      this.resources.contracts
-        .filter((contract) => contract.isIndexed)
-        .forEach((contract) => {
-          const stat = this.ui.stats[contract.name];
+    if (this.ui.isBackfillComplete) return;
 
-          const current = stat.logCurrent + stat.blockCurrent;
-          const total = stat.logTotal + stat.blockTotal;
-          const isDone = current === total;
-          if (isDone) return;
-          const etaText =
-            stat.logCurrent > 5 && stat.eta > 0
-              ? `~${formatEta(stat.eta)}`
-              : "not started";
+    this.resources.contracts
+      .filter((contract) => contract.isIndexed)
+      .forEach((contract) => {
+        const stat = this.ui.stats[contract.name];
 
-          const countText = `${current}/${total}`;
+        const current = stat.logCurrent + stat.blockCurrent;
+        const total = stat.logTotal + stat.blockTotal;
+        const isDone = current === total;
+        if (isDone) return;
+        const etaText =
+          stat.logCurrent > 5 && stat.eta > 0
+            ? `~${formatEta(stat.eta)}`
+            : "not started";
 
-          this.resources.logger.logMessage(
-            MessageKind.BACKFILL,
-            `${contract.name}: ${`(${etaText + " | " + countText})`}`
-          );
-        });
-    }
+        const countText = `${current}/${total}`;
+
+        this.resources.logger.logMessage(
+          MessageKind.BACKFILL,
+          `${contract.name}: ${`(${etaText + " | " + countText})`}`
+        );
+      });
   }
 }

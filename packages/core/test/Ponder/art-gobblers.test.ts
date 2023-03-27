@@ -1,4 +1,5 @@
 import { rmSync } from "node:fs";
+import path from "node:path";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
@@ -28,17 +29,20 @@ describe("art-gobblers", () => {
       recursive: true,
       force: true,
     });
-    process.env.PORT = (await getFreePort()).toString();
+    process.env.port = (await getFreePort()).toString();
 
-    const options = buildOptions({
-      rootDir: "./test/Ponder/art-gobblers",
-      configFile: "ponder.config.ts",
-      logType: "start",
-      silent: false,
+    const config = await buildPonderConfig({
+      configFile: path.resolve("test/Ponder/art-gobblers/ponder.config.ts"),
     });
-    const config = await buildPonderConfig(options);
+    const options = buildOptions({
+      cliOptions: {
+        rootDir: "./test/Ponder/art-gobblers",
+        configFile: "ponder.config.ts",
+      },
+    });
+    const testOptions = { ...options, uiEnabled: false, logLevel: 0 };
 
-    ponder = new Ponder({ options, config });
+    ponder = new Ponder({ config, options: testOptions });
 
     await ponder.start();
   });

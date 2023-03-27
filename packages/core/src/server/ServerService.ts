@@ -23,7 +23,7 @@ export class ServerService {
   start() {
     this.app = express();
     this.app.use(cors());
-    this.server = this.app.listen(this.resources.options.PORT);
+    this.server = this.app.listen(this.resources.options.port);
 
     this.app.get("/", (req, res) => res.redirect(302, "/graphql"));
 
@@ -36,7 +36,7 @@ export class ServerService {
         return res.status(200).send();
       }
 
-      const max = this.resources.options.MAX_HEALTHCHECK_DURATION;
+      const max = this.resources.options.maxHealthcheckDuration;
       const elapsed = Math.floor(process.uptime());
 
       if (elapsed > max) {

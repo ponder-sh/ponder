@@ -4,6 +4,7 @@ import "@/common/setupFetchPolyfill";
 
 import { cac } from "cac";
 import dotenv from "dotenv";
+import path from "node:path";
 
 import { registerKilledProcessListener } from "@/common/utils";
 import { buildOptions } from "@/config/options";
@@ -18,21 +19,17 @@ const cli = cac("ponder")
   .version(packageJson.version)
   .usage("<command> [options]")
   .help()
-  .option("--config-file [path]", `Path to ponder config file`, {
+  .option("--config-file [path]", `Path to config file`, {
     default: "ponder.config.ts",
   })
   .option("--root-dir [path]", `Path to project root directory`, {
     default: ".",
-  })
-  .option("--silent [boolean]", `Command should not emit logs`, {
-    default: false,
   });
 
 export type PonderCliOptions = {
   help?: boolean;
   configFile: string;
   rootDir: string;
-  silent: boolean;
 };
 
 cli
@@ -40,9 +37,13 @@ cli
   .action(async (cliOptions: PonderCliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    const options = buildOptions({ ...cliOptions, logType: "dev" });
-    const config = await buildPonderConfig(options);
-    const ponder = new Ponder({ options, config });
+    const configFile = path.resolve(cliOptions.configFile);
+    const config = await buildPonderConfig({ configFile });
+    const options = buildOptions({ cliOptions, configOptions: config.options });
+
+    const devOptions = { ...options, uiEnabled: true };
+
+    const ponder = new Ponder({ config, options: devOptions });
     registerKilledProcessListener(() => ponder.kill());
     await ponder.dev();
   });
@@ -52,9 +53,13 @@ cli
   .action(async (cliOptions: PonderCliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    const options = buildOptions({ ...cliOptions, logType: "start" });
-    const config = await buildPonderConfig(options);
-    const ponder = new Ponder({ options, config });
+    const configFile = path.resolve(cliOptions.configFile);
+    const config = await buildPonderConfig({ configFile });
+    const options = buildOptions({ cliOptions, configOptions: config.options });
+
+    const startOptions = { ...options, uiEnabled: false };
+
+    const ponder = new Ponder({ config, options: startOptions });
     registerKilledProcessListener(() => ponder.kill());
     await ponder.start();
   });
@@ -64,9 +69,13 @@ cli
   .action(async (cliOptions: PonderCliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    const options = buildOptions({ ...cliOptions, logType: "codegen" });
-    const config = await buildPonderConfig(options);
-    const ponder = new Ponder({ options, config });
+    const configFile = path.resolve(cliOptions.configFile);
+    const config = await buildPonderConfig({ configFile });
+    const options = buildOptions({ cliOptions, configOptions: config.options });
+
+    const codegenOptions = { ...options, uiEnabled: false, logLevel: 0 };
+
+    const ponder = new Ponder({ config, options: codegenOptions });
     registerKilledProcessListener(() => ponder.kill());
     await ponder.codegen();
   });

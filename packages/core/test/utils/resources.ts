@@ -41,10 +41,10 @@ export const buildTestResources = async (
   const rootDir = path.join(tmpDir, randomUUID());
 
   const options = buildOptions({
-    rootDir,
-    configFile: "ponder.config.ts",
-    logType: "start",
-    silent: true,
+    cliOptions: {
+      rootDir,
+      configFile: "ponder.config.ts",
+    },
   });
 
   const config = {
