@@ -21,39 +21,26 @@ export enum MessageKind {
 }
 
 export class LoggerService {
-  isSilent: boolean;
+  logLevel: number;
 
   constructor({ options }: { options: PonderOptions }) {
-    this.isSilent = options.SILENT;
+    this.logLevel = options.logLevel;
   }
 
   error = (...args: Parameters<typeof console.log>) => {
-    if (!this.isSilent && this.getLogLevel() > LogLevel.Error)
-      console.log(...args);
+    if (this.logLevel > LogLevel.Error) console.log(...args);
   };
   info = (...args: Parameters<typeof console.log>) => {
-    if (!this.isSilent && this.getLogLevel() > LogLevel.Info)
-      console.log(...args);
+    if (this.logLevel > LogLevel.Info) console.log(...args);
   };
   warn = (...args: Parameters<typeof console.log>) => {
-    if (!this.isSilent && this.getLogLevel() > LogLevel.Warn)
-      console.log(...args);
+    if (this.logLevel > LogLevel.Warn) console.log(...args);
   };
   debug = (...args: Parameters<typeof console.log>) => {
-    if (!this.isSilent && this.getLogLevel() > LogLevel.Debug)
-      console.log(...args);
+    if (this.logLevel > LogLevel.Debug) console.log(...args);
   };
   trace = (...args: Parameters<typeof console.log>) => {
-    if (!this.isSilent && this.getLogLevel() > LogLevel.Trace)
-      console.log(...args);
-  };
-
-  private getLogLevel = () => {
-    // This is a hack for now because the options/config/etc approach is still
-    // a bit awkward. The only way to configure LOG_LEVEL is through the PONDER_LOG_LEVEL env var.
-    return process.env.PONDER_LOG_LEVEL != undefined
-      ? Number(process.env.PONDER_LOG_LEVEL)
-      : 2;
+    if (this.logLevel > LogLevel.Trace) console.log(...args);
   };
 
   private maxWidth = 0;

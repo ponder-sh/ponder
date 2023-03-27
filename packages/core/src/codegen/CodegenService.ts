@@ -76,10 +76,7 @@ export class CodegenService extends Emittery {
 
     const final = formatPrettier(raw);
 
-    const filePath = path.join(
-      this.resources.options.GENERATED_DIR_PATH,
-      "index.ts"
-    );
+    const filePath = path.join(this.resources.options.generatedDir, "index.ts");
     ensureDirExists(filePath);
     writeFileSync(filePath, final, "utf8");
   }
@@ -93,7 +90,7 @@ export class CodegenService extends Emittery {
     const final = header + body;
 
     const filePath = path.join(
-      this.resources.options.GENERATED_DIR_PATH,
+      this.resources.options.generatedDir,
       "schema.graphql"
     );
     ensureDirExists(filePath);

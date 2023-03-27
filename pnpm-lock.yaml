@@ -106,6 +106,7 @@ importers:
       '@types/react': ^18.0.25
       '@types/supertest': ^2.0.12
       abitype: ^0.6.7
+      async-mutex: ^0.4.0
       better-sqlite3: '7'
       cac: ^6.7.14
       chokidar: ^3.5.3
@@ -138,6 +139,7 @@ importers:
     dependencies:
       '@babel/code-frame': 7.18.6
       '@jridgewell/trace-mapping': 0.3.17
+      async-mutex: 0.4.0
       better-sqlite3: 7.6.2
       cac: 6.7.14
       chokidar: 3.5.3
@@ -3339,6 +3341,12 @@ packages:
   /astring/1.8.3:
     resolution: {integrity: sha512-sRpyiNrx2dEYIMmUXprS8nlpRg2Drs8m9ElX9vVEXaCB4XEAJhKfs7IcX0IwShjuOAjLR6wzIrgoptz1n19i1A==}
     hasBin: true
+    dev: false
+
+  /async-mutex/0.4.0:
+    resolution: {integrity: sha512-eJFZ1YhRR8UN8eBLoNzcDPcy/jqjsg6I1AP+KvWQX80BqOSW1oJPJXDylPUEeMr2ZQvHgnQ//Lp6f3RQ1zI7HA==}
+    dependencies:
+      tslib: 2.4.0
     dev: false
 
   /asynckit/0.4.0:

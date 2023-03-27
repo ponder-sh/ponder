@@ -2,13 +2,11 @@ import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
 import { Contract } from "@/config/contracts";
-import { PonderOptions } from "@/config/options";
 
 import { BackfillBar } from "./BackfillBar";
 import { HandlersBar } from "./HandlersBar";
 
 export type UiState = {
-  isSilent: boolean;
   port: number;
 
   stats: Record<
@@ -43,10 +41,15 @@ export type UiState = {
   networks: string[];
 };
 
-export const getUiState = (options: Partial<PonderOptions>): UiState => {
-  return {
-    isSilent: options.SILENT ?? false,
-    port: options.PORT ?? 0,
+export const buildUiState = ({
+  port,
+  contracts,
+}: {
+  port?: number;
+  contracts: Contract[];
+}) => {
+  const ui: UiState = {
+    port: port ?? 0,
 
     stats: {},
 
@@ -61,15 +64,7 @@ export const getUiState = (options: Partial<PonderOptions>): UiState => {
 
     networks: [],
   };
-};
 
-export const hydrateUi = ({
-  ui,
-  contracts,
-}: {
-  ui: UiState;
-  contracts: Contract[];
-}) => {
   contracts
     .filter((contract) => contract.isIndexed)
     .forEach((contract) => {
@@ -87,11 +82,12 @@ export const hydrateUi = ({
         eta: 0,
       };
     });
+
+  return ui;
 };
 
 const App = (ui: UiState) => {
   const {
-    isSilent,
     port,
     stats,
     isBackfillComplete,
@@ -100,8 +96,6 @@ const App = (ui: UiState) => {
     handlerError,
     networks,
   } = ui;
-
-  if (isSilent) return null;
 
   if (handlerError) {
     return (
@@ -165,17 +159,16 @@ const App = (ui: UiState) => {
   );
 };
 
-const {
-  rerender,
-  unmount: inkUnmount,
-  clear,
-} = inkRender(<App {...getUiState({ SILENT: true })} />);
+export const setupInkApp = (ui: UiState) => {
+  const { rerender, unmount: inkUnmount, clear } = inkRender(<App {...ui} />);
 
-export const render = (ui: UiState) => {
-  rerender(<App {...ui} />);
-};
+  const render = (ui: UiState) => {
+    rerender(<App {...ui} />);
+  };
 
-export const unmount = () => {
-  clear();
-  inkUnmount();
+  const unmount = () => {
+    clear();
+    inkUnmount();
+  };
+  return { render, unmount };
 };

@@ -50,10 +50,7 @@ export function buildContracts({
       // If it's a string, assume it's a file path.
       abiFilePath = path.isAbsolute(contract.abi)
         ? contract.abi
-        : path.join(
-            path.dirname(options.PONDER_CONFIG_FILE_PATH),
-            contract.abi
-          );
+        : path.join(path.dirname(options.configFile), contract.abi);
 
       const abiString = readFileSync(abiFilePath, "utf-8");
       abiObject = JSON.parse(abiString);

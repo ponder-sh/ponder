@@ -1,3 +1,4 @@
+import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
 import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 
@@ -43,7 +44,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
   isBackfillStarted = false;
 
-  private eventProcessingPromise?: Promise<void>;
+  private eventProcessingMutex: Mutex;
   private eventsHandledToTimestamp = 0;
 
   currentLogEventBlockNumber = 0n;
@@ -60,6 +61,9 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
         eventHandlerService: this,
       });
     });
+
+    // Setup the event processing mutex.
+    this.eventProcessingMutex = new Mutex();
   }
 
   killQueue() {
@@ -78,12 +82,14 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
     if (!this.handlers || !this.schema) return;
 
+    this.eventProcessingMutex.cancel();
+    this.eventProcessingMutex = new Mutex();
+    this.eventsHandledToTimestamp = 0;
+
     this.queue = this.createEventQueue({
       handlers: this.handlers,
       schema: this.schema,
     });
-    this.eventProcessingPromise = undefined;
-    this.eventsHandledToTimestamp = 0;
 
     this.emit("eventQueueReset");
   }
@@ -92,50 +98,46 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     if (!this.isBackfillStarted) return;
     if (this.resources.errors.isHandlerError) return;
 
-    // If there is already a call to processEvents() in progress, wait for that to be
-    // complete before kicking off another. This is likely buggy.
-    if (this.eventProcessingPromise) {
-      await this.eventProcessingPromise;
-    }
+    try {
+      await this.eventProcessingMutex.runExclusive(async () => {
+        if (!this.queue) return;
 
-    const eventProcessingPromise = async () => {
-      if (!this.queue) return;
+        const { hasNewLogs, toTimestamp, logs, totalLogCount } =
+          await this.getNewEvents({
+            fromTimestamp: this.eventsHandledToTimestamp,
+          });
 
-      const { hasNewLogs, toTimestamp, logs, totalLogCount } =
-        await this.getNewEvents({
+        if (!hasNewLogs) return;
+
+        // Add new events to the queue.
+        for (const log of logs) {
+          this.queue.addTask({ log });
+        }
+
+        this.emit("eventsAdded", {
+          handledCount: logs.length,
+          totalCount: totalLogCount ?? logs.length,
           fromTimestamp: this.eventsHandledToTimestamp,
+          toTimestamp: toTimestamp,
         });
 
-      if (!hasNewLogs) return;
+        // Process new events that were added to the queue.
+        this.queue.start();
+        await this.queue.onEmpty();
+        this.queue.pause();
 
-      // Add new events to the queue.
-      for (const log of logs) {
-        this.queue.addTask({ log });
-      }
+        this.eventsHandledToTimestamp = toTimestamp;
 
-      this.emit("eventsAdded", {
-        handledCount: logs.length,
-        totalCount: totalLogCount ?? logs.length,
-        fromTimestamp: this.eventsHandledToTimestamp,
-        toTimestamp: toTimestamp,
+        this.emit("eventsProcessed", {
+          count: logs.length,
+          toTimestamp: toTimestamp,
+        });
       });
-
-      // Process new events that were added to the queue.
-      this.queue.start();
-      await this.queue.onEmpty();
-      this.queue.pause();
-
-      this.eventsHandledToTimestamp = toTimestamp;
-
-      this.emit("eventsProcessed", {
-        count: logs.length,
-        toTimestamp: toTimestamp,
-      });
-    };
-
-    const promise = eventProcessingPromise();
-    this.eventProcessingPromise = promise;
-    await promise;
+    } catch (error) {
+      // Pending locks get cancelled in resetEventQueue. This is expected, so it's safe to
+      // ignore the error that is thrown when a pending lock is cancelled.
+      if (error !== E_CANCELED) throw error;
+    }
   }
 
   private createEventQueue({

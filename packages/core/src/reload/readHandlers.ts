@@ -62,17 +62,17 @@ export const readHandlers = async ({
   options: PonderOptions;
   logger: LoggerService;
 }) => {
-  const entryAppFilename = path.join(options.GENERATED_DIR_PATH, "index.ts");
+  const entryAppFilename = path.join(options.generatedDir, "index.ts");
   if (!existsSync(entryAppFilename)) {
     throw new Error(
       `generated/index.ts file not found, expected: ${entryAppFilename}`
     );
   }
 
-  const entryGlob = options.SRC_DIR_PATH + "/**/*.ts";
+  const entryGlob = options.srcDir + "/**/*.ts";
   const entryFilenames = [...glob.sync(entryGlob), entryAppFilename];
 
-  const buildDir = path.join(options.PONDER_DIR_PATH, "out");
+  const buildDir = path.join(options.ponderDir, "out");
   rmSync(buildDir, { recursive: true, force: true });
 
   try {
@@ -97,7 +97,7 @@ export const readHandlers = async ({
     throw error;
   }
 
-  const tsconfigPath = path.join(options.ROOT_DIR_PATH, "tsconfig.json");
+  const tsconfigPath = path.join(options.rootDir, "tsconfig.json");
   if (existsSync(tsconfigPath)) {
     await replaceTscAliasPaths({
       configFile: tsconfigPath,

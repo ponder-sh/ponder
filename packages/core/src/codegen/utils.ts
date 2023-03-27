@@ -5,9 +5,9 @@ let prettierConfig: prettier.Options = { parser: "typescript" };
 const loadPrettierConfig = async () => {
   if (prettierConfig) return prettierConfig;
 
-  const configFilePath = await prettier.resolveConfigFile();
-  if (configFilePath) {
-    const foundConfig = await prettier.resolveConfig(configFilePath);
+  const configFile = await prettier.resolveConfigFile();
+  if (configFile) {
+    const foundConfig = await prettier.resolveConfig(configFile);
     if (foundConfig) {
       prettierConfig = foundConfig;
     }

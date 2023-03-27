@@ -2,54 +2,52 @@ import path from "node:path";
 
 import { PonderCliOptions } from "@/bin/ponder";
 
+import { ResolvedPonderConfig } from "./ponderConfig";
+
 export type PonderOptions = {
-  PONDER_CONFIG_FILE_PATH: string;
-  SCHEMA_FILE_PATH: string;
-  PORT: number;
+  configFile: string;
+  schemaFile: string;
+  rootDir: string;
+  srcDir: string;
+  generatedDir: string;
+  ponderDir: string;
 
-  ROOT_DIR_PATH: string;
-  SRC_DIR_PATH: string;
-  HANDLERS_DIR_PATH: string;
-  GENERATED_DIR_PATH: string;
-  PONDER_DIR_PATH: string;
+  port: number;
+  maxHealthcheckDuration: number;
 
-  LOG_TYPE: "dev" | "start" | "codegen";
-  SILENT: boolean;
-  MAX_HEALTHCHECK_DURATION: number;
+  logLevel: number;
+  uiEnabled: boolean;
 };
 
-export const buildOptions = (
-  options: PonderCliOptions & { logType: "dev" | "start" | "codegen" }
-): PonderOptions => {
+export const buildOptions = ({
+  cliOptions,
+  configOptions = {},
+}: {
+  cliOptions: PonderCliOptions;
+  configOptions?: ResolvedPonderConfig["options"];
+}): PonderOptions => {
   const defaults = {
-    PONDER_CONFIG_FILE_PATH: options.configFile,
-    SCHEMA_FILE_PATH: "schema.graphql",
-    PORT: Number(process.env.PORT) || 42069,
+    rootDir: path.resolve(cliOptions.rootDir),
+    configFile: cliOptions.configFile,
+    schemaFile: "schema.graphql",
+    srcDir: "src",
+    generatedDir: "generated",
+    ponderDir: ".ponder",
 
-    SRC_DIR_PATH: "src",
-    HANDLERS_DIR_PATH: "handlers",
-    GENERATED_DIR_PATH: "generated",
-    PONDER_DIR_PATH: ".ponder",
+    port: Number(process.env.PORT ?? 42069),
+    maxHealthcheckDuration: configOptions?.maxHealthcheckDuration ?? 240,
 
-    LOG_TYPE: options.logType,
-    SILENT: options.silent,
-    MAX_HEALTHCHECK_DURATION: 240,
+    logLevel: Number(process.env.PONDER_LOG_LEVEL ?? 2),
+    uiEnabled: true,
   };
-
-  const rootDir = path.resolve(options.rootDir);
 
   return {
     ...defaults,
     // Resolve paths
-    ROOT_DIR_PATH: rootDir,
-    PONDER_CONFIG_FILE_PATH: path.join(
-      rootDir,
-      defaults.PONDER_CONFIG_FILE_PATH
-    ),
-    SCHEMA_FILE_PATH: path.join(rootDir, defaults.SCHEMA_FILE_PATH),
-    SRC_DIR_PATH: path.join(rootDir, defaults.SRC_DIR_PATH),
-    HANDLERS_DIR_PATH: path.join(rootDir, defaults.HANDLERS_DIR_PATH),
-    GENERATED_DIR_PATH: path.join(rootDir, defaults.GENERATED_DIR_PATH),
-    PONDER_DIR_PATH: path.join(rootDir, defaults.PONDER_DIR_PATH),
+    configFile: path.join(defaults.rootDir, defaults.configFile),
+    schemaFile: path.join(defaults.rootDir, defaults.schemaFile),
+    srcDir: path.join(defaults.rootDir, defaults.srcDir),
+    generatedDir: path.join(defaults.rootDir, defaults.generatedDir),
+    ponderDir: path.join(defaults.rootDir, defaults.ponderDir),
   };
 };
