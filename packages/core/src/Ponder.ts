@@ -338,7 +338,7 @@ export class Ponder {
     });
     this.eventHandlerService.on("taskCompleted", ({ timestamp }) => {
       this.uiService.ui.handlersToTimestamp = timestamp;
-      this.uiService.render?.();
+      this.uiService.render();
     });
 
     this.eventHandlerService.on(

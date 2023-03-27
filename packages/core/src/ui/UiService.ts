@@ -8,10 +8,10 @@ export class UiService {
   resources: Resources;
 
   ui: UiState;
-  renderInterval?: NodeJS.Timer;
-  etaInterval?: NodeJS.Timer;
-  render?: () => void;
-  unmount?: () => void;
+  renderInterval: NodeJS.Timer;
+  etaInterval: NodeJS.Timer;
+  render: () => void;
+  unmount: () => void;
 
   constructor({ resources }: { resources: Resources }) {
     this.resources = resources;
@@ -21,25 +21,27 @@ export class UiService {
       contracts: this.resources.contracts,
     });
 
-    if (!this.resources.options.uiEnabled) return;
-
-    const { render, unmount } = setupInkApp(this.ui);
-
-    this.render = () => render(this.ui);
-    this.unmount = unmount;
+    if (this.resources.options.uiEnabled) {
+      const { render, unmount } = setupInkApp(this.ui);
+      this.render = () => render(this.ui);
+      this.unmount = unmount;
+    } else {
+      this.render = () => undefined;
+      this.unmount = () => undefined;
+    }
 
     this.renderInterval = setInterval(() => {
-      this.render?.();
+      this.render();
     }, 17);
 
     this.etaInterval = setInterval(() => {
       this.updateBackfillEta();
-      this.logBackfillProgress();
+      if (!this.resources.options.uiEnabled) this.logBackfillProgress();
     }, 1000);
   }
 
   kill() {
-    this.unmount?.();
+    this.unmount();
     clearInterval(this.renderInterval);
     clearInterval(this.etaInterval);
   }
