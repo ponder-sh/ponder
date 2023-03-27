@@ -35,34 +35,36 @@ Pool.prototype.query = async function query(
 };
 
 const patchSqliteDatabase = ({ db }: { db: Sqlite.Database }) => {
-  return {
-    ...db,
-    prepare(source: string) {
-      const statement = db.prepare(source);
+  const oldPrepare = db.prepare;
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  db.prepare = (source: string) => {
+    const statement = oldPrepare.apply(db, [source]);
 
-      const wrapper =
-        (fn: (...args: any) => void) =>
-        (...args: any) => {
-          try {
-            return fn.apply(statement, args);
-          } catch (error) {
-            throw new SqliteError({
-              statement: source,
-              parameters: args,
-              sqliteError: error as Error,
-            });
-          }
-        };
+    const wrapper =
+      (fn: (...args: any) => void) =>
+      (...args: any) => {
+        try {
+          return fn.apply(statement, args);
+        } catch (error) {
+          throw new SqliteError({
+            statement: source,
+            parameters: args,
+            sqliteError: error as Error,
+          });
+        }
+      };
 
-      for (const method of ["run", "get", "all"]) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        statement[method] = wrapper(statement[method]);
-      }
+    for (const method of ["run", "get", "all"]) {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      statement[method] = wrapper(statement[method]);
+    }
 
-      return statement;
-    },
-  } as Sqlite.Database;
+    return statement;
+  };
+
+  return db;
 };
 
 export interface SqliteDb {
