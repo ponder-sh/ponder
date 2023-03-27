@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.0.50
+
+### Patch Changes
+
+- [#144](https://github.com/0xOlias/ponder/pull/144) [`a683344`](https://github.com/0xOlias/ponder/commit/a6833444f5110a711ba9a982cf7fb041caec8b5f) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `options` field to ponder config with support for `maxHealthcheckDuration`
+
+- [#144](https://github.com/0xOlias/ponder/pull/144) [`a683344`](https://github.com/0xOlias/ponder/commit/a6833444f5110a711ba9a982cf7fb041caec8b5f) Thanks [@0xOlias](https://github.com/0xOlias)! - Removed support for `--silent` flag for ponder dev/start/codegen, use PONDER_LOG_LEVEL=0 env var instead
+
+- [#144](https://github.com/0xOlias/ponder/pull/144) [`a683344`](https://github.com/0xOlias/ponder/commit/a6833444f5110a711ba9a982cf7fb041caec8b5f) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where Ponder would occasionally process the same event twice
+
 ## 0.0.49
 
 ### Patch Changes
@@ -298,8 +308,8 @@
       {
         name: "mainnet",
         chainId: 1,
-        rpcUrl: process.env.PONDER_RPC_URL_1
-      }
+        rpcUrl: process.env.PONDER_RPC_URL_1,
+      },
     ],
     sources: [
       {
@@ -307,10 +317,10 @@
         network: "mainnet",
         abi: "./abis/ArtGobblers.json",
         address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: 15863321
-      }
+        startBlock: 15863321,
+      },
     ],
-    plugins: [graphqlPlugin()]
+    plugins: [graphqlPlugin()],
   };
   ```
 
@@ -328,7 +338,7 @@
       ],
       sources: [
         /* ... */
-      ]
+      ],
     };
   };
   ```
