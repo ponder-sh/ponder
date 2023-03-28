@@ -23,7 +23,7 @@ From the Railway console:
 1. Click **New Project** → **Deploy from GitHub repo** and select your repo from the list
 2. Click **Add variables**, then add your project's RPC URL (e.g. `PONDER_RPC_URL_1`) and any other environment variables
 3. Expose your service to the public internet. Open the **Settings** tab and click **Generate Domain** under **Environment**
-4. Enable zero-downtime deployments by adding a healthcheck path. In the **Settings** tab, enter `/health` for **Healthcheck Path** under **Deploy**
+4. Set a healthcheck path. In the **Settings** tab, enter `/health` for **Healthcheck Path** under **Deploy**
 
 <Callout type="warning">
   _Monorepo users:_ You'll need to update your service's **Start Command**. This
@@ -36,9 +36,13 @@ From the Railway console:
 
 From your project's dashboard, click **New** → **Database** → **Add PostgreSQL**.
 
-After a moment, your Ponder service should redeploy successfully. Check the Build Logs and Deploy Logs tabs to debug any deployment issues.
+After a moment, your Ponder service should redeploy successfully. Check the **Build Logs** and **Deploy Logs** tabs to debug any issues.
 
 </div>
+
+### Zero-downtime deployments
+
+Ponder supports zero-downtime deployments by waiting until all events have been processed before responding as healthy. By default, Ponder apps will wait a maximum of 4 minutes for event processing to be complete. If 4 minutes have passed and event processing is still not complete, the Ponder app will begin responding as healthy and may serve incomplete data. This duration is configurable using the [`options.maxHealthcheckDuration`](/api-reference/ponder-config#options). Note that this value should _always_ be less than the **Healthcheck Timeout** of the cloud provider.
 
 ## Other cloud providers
 

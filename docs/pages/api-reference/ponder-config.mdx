@@ -59,6 +59,12 @@ See [Deploy to production](/guides/production) for more details.
 | **filename**         |  `string \| undefined`   | **Default: `.ponder/cache.db`**. Path to a SQLite database file. Only used if `kind: "sqlite"`.                |
 | **connectionString** |  `string \| undefined`   | **Default: `process.env.DATABASE_URL`**. Postgres database connection string. Only used if `kind: "postgres"`. |
 
+### Options
+
+| field                      |   type   |                                                                                        |
+| :------------------------- | :------: | :------------------------------------------------------------------------------------- |
+| **maxHealthcheckDuration** | `number` | **Default: `4 * 60`**. Maximum number of seconds to wait before responding as healthy. |
+
 ## Examples
 
 ### Basic example
