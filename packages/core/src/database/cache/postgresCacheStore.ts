@@ -16,7 +16,7 @@ import {
   encodeTransaction,
 } from "./mappers";
 
-export const POSTGRES_TABLE_PREFIX = "__ponder__v2__";
+export const POSTGRES_TABLE_PREFIX = "__ponder__v3__";
 
 const logCacheMetadataTableName = `${POSTGRES_TABLE_PREFIX}logCacheMetadata`;
 const logsTableName = `${POSTGRES_TABLE_PREFIX}logs`;

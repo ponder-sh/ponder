@@ -16,7 +16,7 @@ import {
   encodeTransaction,
 } from "./mappers";
 
-export const SQLITE_TABLE_PREFIX = "__ponder__v2__";
+export const SQLITE_TABLE_PREFIX = "__ponder__v3__";
 
 const logCacheMetadataTableName = `${SQLITE_TABLE_PREFIX}logCacheMetadata`;
 const logsTableName = `${SQLITE_TABLE_PREFIX}logs`;
