@@ -117,11 +117,13 @@ const logFrontfillWorker: Worker<
 
       await Promise.all(
         contractAddresses.map((contractAddress) =>
-          frontfillService.resources.cacheStore.insertCachedInterval({
-            contractAddress,
-            startBlock: fromBlockNumber,
-            endBlock: Number(endBlock.number),
-            endBlockTimestamp: Number(endBlock.timestamp),
+          frontfillService.resources.cacheStore.insertLogCacheMetadata({
+            metadata: {
+              filterKey: `${network.chainId}-${contractAddress}-${""}`,
+              startBlock: fromBlockNumber,
+              endBlock: Number(endBlock.number),
+              endBlockTimestamp: Number(endBlock.timestamp),
+            },
           })
         )
       );

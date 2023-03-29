@@ -115,7 +115,7 @@ const logBackfillWorker: Worker<
 > = async ({ task, context }) => {
   const { fromBlock, toBlock, isRetry } = task;
   const { backfillService, contract, blockBackfillQueue } = context;
-  const { client } = contract.network;
+  const { client, chainId } = contract.network;
 
   const [rawLogs, rawToBlock] = await Promise.all([
     client.getLogs({
@@ -165,11 +165,13 @@ const logBackfillWorker: Worker<
     if (blockHash) completedBlockHashes.push(blockHash);
 
     if (completedBlockHashes.length === requiredBlockHashes.length) {
-      await backfillService.resources.cacheStore.insertCachedInterval({
-        contractAddress: contract.address,
-        startBlock: fromBlock,
-        endBlock: toBlock,
-        endBlockTimestamp: Number(toBlockTimestamp),
+      await backfillService.resources.cacheStore.insertLogCacheMetadata({
+        metadata: {
+          filterKey: `${chainId}-${contract.address}-${""}`,
+          startBlock: fromBlock,
+          endBlock: toBlock,
+          endBlockTimestamp: Number(toBlockTimestamp),
+        },
       });
 
       // If there were logs in this batch, send an event to process them.

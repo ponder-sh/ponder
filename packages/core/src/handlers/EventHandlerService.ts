@@ -268,7 +268,9 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     const cachedToTimestamps = await Promise.all(
       contracts.map(async (contract) => {
         const cachedIntervals =
-          await this.resources.cacheStore.getCachedIntervals(contract.address);
+          await this.resources.cacheStore.getLogCacheMetadata({
+            filterKey: `${contract.network.chainId}-${contract.address}-${""}`,
+          });
 
         // Find the cached interval that includes the contract's startBlock.
         const startingCachedInterval = cachedIntervals.find(

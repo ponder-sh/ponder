@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
 
-import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
+import type { CacheStore, ContractCall, LogCacheMetadata } from "./cacheStore";
 import {
   DatabaseBlock,
   DatabaseLog,
@@ -18,7 +18,7 @@ import {
 
 export const POSTGRES_TABLE_PREFIX = "__ponder__v2__";
 
-const cachedIntervalsTableName = `${POSTGRES_TABLE_PREFIX}cachedIntervals`;
+const logCacheMetadataTableName = `${POSTGRES_TABLE_PREFIX}logCacheMetadata`;
 const logsTableName = `${POSTGRES_TABLE_PREFIX}logs`;
 const blocksTableName = `${POSTGRES_TABLE_PREFIX}blocks`;
 const transactionsTableName = `${POSTGRES_TABLE_PREFIX}transactions`;
@@ -38,17 +38,17 @@ export class PostgresCacheStore implements CacheStore {
       await client.query("BEGIN");
 
       await client.query(`
-        CREATE TABLE IF NOT EXISTS "${cachedIntervalsTableName}" (
+        CREATE TABLE IF NOT EXISTS "${logCacheMetadataTableName}" (
           "id" SERIAL PRIMARY KEY,
-          "contractAddress" TEXT NOT NULL,
+          "filterKey" TEXT NOT NULL,
           "startBlock" INTEGER NOT NULL,
           "endBlock" INTEGER NOT NULL,
           "endBlockTimestamp" INTEGER NOT NULL
         )
       `);
       await client.query(`
-        CREATE INDEX IF NOT EXISTS "${cachedIntervalsTableName}ContractAddress"
-        ON "${cachedIntervalsTableName}" ("contractAddress")
+        CREATE INDEX IF NOT EXISTS "${logCacheMetadataTableName}FilterKey"
+        ON "${logCacheMetadataTableName}" ("filterKey")
       `);
 
       await client.query(`
@@ -134,85 +134,64 @@ export class PostgresCacheStore implements CacheStore {
     }
   };
 
-  getCachedIntervals = async (contractAddress: string) => {
-    const result = await this.pool.query<CachedInterval>(
-      `
-      SELECT * FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = $1
-      `,
-      [contractAddress]
+  getLogCacheMetadata = async ({ filterKey }: { filterKey: string }) => {
+    const result = await this.pool.query<LogCacheMetadata>(
+      `SELECT * FROM "${logCacheMetadataTableName}" WHERE "filterKey" = $1`,
+      [filterKey]
     );
 
     return result.rows;
   };
 
-  insertCachedInterval = async (newInterval: CachedInterval) => {
-    const { contractAddress } = newInterval;
+  insertLogCacheMetadata = async ({
+    metadata,
+  }: {
+    metadata: LogCacheMetadata;
+  }) => {
     const client = await this.pool.connect();
+
     try {
       await client.query("BEGIN");
 
-      const { rows: existingIntervals } = await client.query<CachedInterval>(
-        `
-        DELETE FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = $1 RETURNING *
-        `,
-        [contractAddress]
+      const { rows: existingMetadata } = await client.query<LogCacheMetadata>(
+        `DELETE FROM "${logCacheMetadataTableName}" WHERE "filterKey" = $1 RETURNING *`,
+        [metadata.filterKey]
       );
 
-      // Handle the special case where there were no existing intervals.
-      if (existingIntervals.length === 0) {
-        await client.query(
-          `
-          INSERT INTO "${cachedIntervalsTableName}" (
-            "contractAddress",
-            "startBlock",
-            "endBlock",
-            "endBlockTimestamp"
-          ) VALUES ($1, $2, $3, $4)
-          `,
-          [
-            contractAddress,
-            newInterval.startBlock,
-            newInterval.endBlock,
-            newInterval.endBlockTimestamp,
-          ]
-        );
-        await client.query("COMMIT");
-        return;
-      }
+      const mergedMetadata: LogCacheMetadata[] = merge_intervals([
+        ...existingMetadata.map((m) => [m.startBlock, m.endBlock]),
+        [metadata.startBlock, metadata.endBlock],
+      ]).map((interval) => {
+        const [startBlock, endBlock] = interval;
 
-      const mergedIntervals = merge_intervals([
-        ...existingIntervals.map((row) => [row.startBlock, row.endBlock]),
-        [newInterval.startBlock, newInterval.endBlock],
-      ]);
+        // For each new merged interval, its endBlock will be found EITHER in the newly
+        // added interval OR among the endBlocks of the removed intervals.
+        // Find it so we can propogate the endBlockTimestamp correctly.
+        const endBlockTimestamp = [metadata, ...existingMetadata].find(
+          (old) => old.endBlock === endBlock
+        )?.endBlockTimestamp;
+        if (!endBlockTimestamp) {
+          throw new Error(`Old interval with endBlock: ${endBlock} not found`);
+        }
 
-      await Promise.all(
-        mergedIntervals.map(async (mergedInterval) => {
-          const startBlock = mergedInterval[0];
-          const endBlock = mergedInterval[1];
+        return {
+          filterKey: metadata.filterKey,
+          startBlock,
+          endBlock,
+          endBlockTimestamp,
+        };
+      });
 
-          // For each new merged interval, its endBlock will be found EITHER in the newly
-          // added interval OR among the endBlocks of the removed intervals.
-          // Find it so we can propogate the endBlockTimestamp correctly.
-          const endBlockInterval = [newInterval, ...existingIntervals].find(
-            (oldInterval) => oldInterval.endBlock === endBlock
-          );
-          if (!endBlockInterval) {
-            throw new Error(`Old interval with endBlock not found`);
-          }
-          const { endBlockTimestamp } = endBlockInterval;
-
-          await client.query(
-            `
-            INSERT INTO "${cachedIntervalsTableName}" (
-              "contractAddress",
-              "startBlock",
-              "endBlock",
-              "endBlockTimestamp"
-            ) VALUES ($1, $2, $3, $4)
-            `,
-            [contractAddress, startBlock, endBlock, endBlockTimestamp]
-          );
-        })
+      await client.query(
+        `
+        INSERT INTO "${logCacheMetadataTableName}" (
+          "filterKey",
+          "startBlock",
+          "endBlock",
+          "endBlockTimestamp"
+        ) VALUES ${this.buildInsertParams(4, mergedMetadata.length)}
+        `,
+        mergedMetadata.map(Object.values).flat()
       );
 
       await client.query("COMMIT");

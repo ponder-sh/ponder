@@ -3,7 +3,7 @@ import type Sqlite from "better-sqlite3";
 import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
 
-import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
+import type { CacheStore, ContractCall, LogCacheMetadata } from "./cacheStore";
 import {
   DatabaseBlock,
   DatabaseLog,
@@ -18,7 +18,7 @@ import {
 
 export const SQLITE_TABLE_PREFIX = "__ponder__v2__";
 
-const cachedIntervalsTableName = `${SQLITE_TABLE_PREFIX}cachedIntervals`;
+const logCacheMetadataTableName = `${SQLITE_TABLE_PREFIX}logCacheMetadata`;
 const logsTableName = `${SQLITE_TABLE_PREFIX}logs`;
 const blocksTableName = `${SQLITE_TABLE_PREFIX}blocks`;
 const transactionsTableName = `${SQLITE_TABLE_PREFIX}transactions`;
@@ -41,9 +41,9 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE TABLE IF NOT EXISTS "${cachedIntervalsTableName}" (
+        CREATE TABLE IF NOT EXISTS "${logCacheMetadataTableName}" (
           "id" INTEGER PRIMARY KEY,
-          "contractAddress" TEXT NOT NULL,
+          "filterKey" TEXT NOT NULL,
           "startBlock" INTEGER NOT NULL,
           "endBlock" INTEGER NOT NULL,
           "endBlockTimestamp" INTEGER NOT NULL
@@ -54,8 +54,8 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE INDEX IF NOT EXISTS "${cachedIntervalsTableName}ContractAddress"
-        ON "${cachedIntervalsTableName}" ("contractAddress")
+        CREATE INDEX IF NOT EXISTS "${logCacheMetadataTableName}FilterKey"
+        ON "${logCacheMetadataTableName}" ("filterKey")
         `
       )
       .run();
@@ -159,85 +159,75 @@ export class SqliteCacheStore implements CacheStore {
       .run();
   };
 
-  getCachedIntervals = async (contractAddress: string) => {
-    const cachedIntervalRows = this.db
+  getLogCacheMetadata = async ({ filterKey }: { filterKey: string }) => {
+    const rows = this.db
       .prepare(
-        `
-        SELECT * FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = @contractAddress
-        `
+        `SELECT * FROM "${logCacheMetadataTableName}" WHERE "filterKey" = @filterKey`
       )
-      .all({
-        contractAddress: contractAddress,
-      }) as CachedInterval[];
+      .all({ filterKey }) as LogCacheMetadata[];
 
-    return cachedIntervalRows;
+    return rows;
   };
 
-  insertCachedInterval = async (interval: CachedInterval) => {
-    const deleteIntervals = this.db.prepare(`
-      DELETE FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = @contractAddress RETURNING *  
+  insertLogCacheMetadata = async ({
+    metadata,
+  }: {
+    metadata: LogCacheMetadata;
+  }) => {
+    const deleteStatement = this.db.prepare<{ filterKey: string }>(`
+      DELETE FROM "${logCacheMetadataTableName}" WHERE "filterKey" = @filterKey RETURNING *  
     `);
 
-    const insertInterval = this.db.prepare(`
-      INSERT INTO "${cachedIntervalsTableName}" (
-        "contractAddress",
+    const insertStatement = this.db.prepare<LogCacheMetadata>(`
+      INSERT INTO "${logCacheMetadataTableName}" (
+        "filterKey",
         "startBlock",
         "endBlock",
         "endBlockTimestamp"
       ) VALUES (
-        @contractAddress,
+        @filterKey,
         @startBlock,
         @endBlock,
         @endBlockTimestamp
       )
     `);
 
-    const insertIntervalTxn = this.db.transaction(
-      (newInterval: CachedInterval) => {
-        const { contractAddress } = newInterval;
+    const txn = this.db.transaction((newMetadata: LogCacheMetadata) => {
+      const { filterKey } = newMetadata;
 
-        // Delete and return all intervals for this contract
-        const existingIntervals = deleteIntervals.all({
-          contractAddress: interval.contractAddress,
-        }) as CachedInterval[];
+      // Delete and return all intervals for this contract
+      const existingMetadata = deleteStatement.all({ filterKey });
 
-        // Handle the special case where there were no existing intervals.
-        if (existingIntervals.length === 0) {
-          insertInterval.run(newInterval);
-          return;
+      const mergedMetadata: LogCacheMetadata[] = merge_intervals([
+        ...existingMetadata.map((m) => [m.startBlock, m.endBlock]),
+        [metadata.startBlock, metadata.endBlock],
+      ]).map((interval) => {
+        const [startBlock, endBlock] = interval;
+
+        // For each new merged interval, its endBlock will be found EITHER in the newly
+        // added interval OR among the endBlocks of the removed intervals.
+        // Find it so we can propogate the endBlockTimestamp correctly.
+        const endBlockTimestamp = [metadata, ...existingMetadata].find(
+          (old) => old.endBlock === endBlock
+        )?.endBlockTimestamp;
+        if (!endBlockTimestamp) {
+          throw new Error(`Old interval with endBlock: ${endBlock} not found`);
         }
 
-        const mergedIntervals = merge_intervals([
-          ...existingIntervals.map((row) => [row.startBlock, row.endBlock]),
-          [newInterval.startBlock, newInterval.endBlock],
-        ]);
+        return {
+          filterKey: metadata.filterKey,
+          startBlock,
+          endBlock,
+          endBlockTimestamp,
+        };
+      });
 
-        mergedIntervals.forEach((mergedInterval) => {
-          const startBlock = mergedInterval[0];
-          const endBlock = mergedInterval[1];
+      mergedMetadata.forEach((m) => {
+        insertStatement.run(m);
+      });
+    });
 
-          // For each new merged interval, its endBlock will be found EITHER in the newly
-          // added interval OR among the endBlocks of the removed intervals.
-          // Find it so we can propogate the endBlockTimestamp correctly.
-          const endBlockInterval = [newInterval, ...existingIntervals].find(
-            (oldInterval) => oldInterval.endBlock === endBlock
-          );
-          if (!endBlockInterval) {
-            throw new Error(`Old interval with endBlock not found`);
-          }
-          const { endBlockTimestamp } = endBlockInterval;
-
-          insertInterval.run({
-            contractAddress,
-            startBlock,
-            endBlock,
-            endBlockTimestamp,
-          });
-        });
-      }
-    );
-
-    insertIntervalTxn(interval);
+    txn(metadata);
   };
 
   insertLogs = async (logs: Log[]) => {

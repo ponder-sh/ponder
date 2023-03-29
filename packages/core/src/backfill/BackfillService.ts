@@ -86,8 +86,8 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
       );
     }
 
-    const cachedIntervals = await this.resources.cacheStore.getCachedIntervals(
-      contract.address
+    const cachedIntervals = await this.resources.cacheStore.getLogCacheMetadata(
+      { filterKey: `${contract.network.chainId}-${contract.address}-${""}` }
     );
     const requiredBlockIntervals = p1_excluding_all(
       [contract.startBlock, contract.endBlock],
