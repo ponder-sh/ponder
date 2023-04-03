@@ -1,6 +1,6 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
-import { decodeEventLog, encodeEventTopics, Hex } from "viem";
+import { decodeEventLog, encodeEventTopics } from "viem";
 
 import { createQueue, Queue, Worker } from "@/common/createQueue";
 import type { Log, Model } from "@/common/types";

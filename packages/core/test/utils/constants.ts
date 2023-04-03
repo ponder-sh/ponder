@@ -1,5 +1,3 @@
-import { getAccount } from "viem";
-
 export const accounts = [
   {
     address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
@@ -47,7 +45,7 @@ export const accounts = [
 
 export const vitalik = {
   address: "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
-  account: getAccount("0xd8da6bf26964af9d7eed9e03e53415d37aa96045"),
+  account: "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
 } as const;
 
 export const usdcContractConfig = {
