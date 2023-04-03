@@ -3,7 +3,7 @@ import { Hash, Transaction as ViemTransaction } from "viem";
 import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
 import { Block, parseBlock, parseTransactions } from "@/common/types";
-import type { Network } from "@/config/contracts";
+import { Network } from "@/config/networks";
 
 import { FrontfillService } from "./FrontfillService";
 

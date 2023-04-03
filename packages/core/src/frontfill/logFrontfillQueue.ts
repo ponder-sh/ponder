@@ -2,10 +2,10 @@ import { Hash, Log as ViemLog } from "viem";
 
 import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
-import { Block, parseLogs } from "@/common/types";
-import { Network } from "@/config/contracts";
+import { parseLogs } from "@/common/types";
+import { Network } from "@/config/networks";
 
-import { BlockFrontfillQueue } from "./blockFrontfillQueue";
+import { BlockFrontfillQueue, BlockFrontfillTask } from "./blockFrontfillQueue";
 import { FrontfillService } from "./FrontfillService";
 
 export type LogFrontfillTask = {
@@ -17,7 +17,7 @@ type LogFrontfillTaskResult = Record<number, Record<string, number>>;
 export type LogFrontfillWorkerContext = {
   frontfillService: FrontfillService;
   network: Network;
-  contractAddresses: Hash[];
+  filterKeys: string[];
   blockFrontfillQueue: BlockFrontfillQueue;
 };
 
@@ -70,7 +70,7 @@ const logFrontfillWorker: Worker<
   LogFrontfillTaskResult
 > = async ({ task, context }) => {
   const { logs: rawLogs } = task;
-  const { frontfillService, network, contractAddresses, blockFrontfillQueue } =
+  const { frontfillService, network, filterKeys, blockFrontfillQueue } =
     context;
 
   const logs = parseLogs(rawLogs);
@@ -87,65 +87,97 @@ const logFrontfillWorker: Worker<
 
   await frontfillService.resources.cacheStore.insertLogs(logs);
 
-  const requiredBlockHashes = [...new Set(logs.map((l) => l.blockHash))];
-  const txHashesByBlockHash = logs.reduce<Record<Hash, Set<Hash>>>(
+  const requiredBlockNumbers = [
+    ...new Set(logs.map((l) => Number(l.blockNumber))),
+  ];
+  const txHashesByBlockNumber = logs.reduce<Record<number, Set<Hash>>>(
     (acc, log) => {
-      acc[log.blockHash] ||= new Set<Hash>();
-      acc[log.blockHash].add(log.transactionHash);
+      acc[Number(log.blockNumber)] ||= new Set<Hash>();
+      acc[Number(log.blockNumber)].add(log.transactionHash);
       return acc;
     },
     {}
   );
 
-  // The block request worker calls the `onSuccess` callback when it finishes. This serves as
-  // a hacky way to run some code when all "child" jobs are done. In this case,
-  // we want to update the contract metadata to store that this block range has been cached.
-  const completedBlocks: Block[] = [];
+  let blockFrontfillTasks: BlockFrontfillTask[];
 
-  const onSuccess = async ({ block }: { block: Block }) => {
-    completedBlocks.push(block);
+  // Handle the case where no logs were found. This is required to properly
+  // update the log cache metadata, which is handled in the block worker.
+  if (requiredBlockNumbers.length === 0) {
+    blockFrontfillTasks = [
+      {
+        blockNumber: toBlock,
+        previousBlockNumber: fromBlock,
+        requiredTxHashes: new Set(),
+      },
+    ];
+  } else {
+    blockFrontfillTasks = requiredBlockNumbers.reduce<BlockFrontfillTask[]>(
+      (acc, blockNumber, index) => {
+        acc.push({
+          blockNumber,
+          previousBlockNumber:
+            index === 0 ? fromBlock : acc[index - 1].blockNumber + 1,
+          requiredTxHashes: txHashesByBlockNumber[blockNumber],
+        });
 
-    if (completedBlocks.length === requiredBlockHashes.length) {
-      const endBlock = completedBlocks.sort((a, b) =>
-        a.number < b.number ? -1 : a.number > b.number ? 1 : 0
-      )[completedBlocks.length - 1];
+        return acc;
+      },
+      []
+    );
+  }
 
-      // Get the previous endBlock and set this as the startBlock for caching.
-      const fromBlockNumber = frontfillService.liveNetworks.find(
-        (n) => n.network.name === network.name
-      )!.currentBlockNumber;
+  blockFrontfillQueue.addTasks(blockFrontfillTasks);
 
-      await Promise.all(
-        contractAddresses.map((contractAddress) =>
-          frontfillService.resources.cacheStore.insertLogCacheMetadata({
-            metadata: {
-              filterKey: `${network.chainId}-${contractAddress}-${""}`,
-              startBlock: fromBlockNumber,
-              endBlock: Number(endBlock.number),
-              endBlockTimestamp: Number(endBlock.timestamp),
-            },
-          })
-        )
-      );
+  // // The block request worker calls the `onSuccess` callback when it finishes. This serves as
+  // // a hacky way to run some code when all "child" jobs are done. In this case,
+  // // we want to update the contract metadata to store that this block range has been cached.
+  // const completedBlocks: Block[] = [];
 
-      // Set new current block number to the endBlock from this batch.
-      frontfillService.liveNetworks[
-        frontfillService.liveNetworks.findIndex(
-          (n) => n.network.name === network.name
-        )
-      ].currentBlockNumber = Number(endBlock.number);
+  // const onSuccess = async ({ block }: { block: Block }) => {
+  //   completedBlocks.push(block);
 
-      // Send an event to process the logs fetched in this batch.
-      frontfillService.emit("eventsAdded", { count: logs.length });
-    }
-  };
+  //   if (completedBlocks.length === requiredBlockHashes.length) {
+  //     const endBlock = completedBlocks.sort((a, b) =>
+  //       a.number < b.number ? -1 : a.number > b.number ? 1 : 0
+  //     )[completedBlocks.length - 1];
 
-  const blockTasks = requiredBlockHashes.map((blockHash) => ({
-    blockHash,
-    requiredTxHashes: txHashesByBlockHash[blockHash],
-    onSuccess,
-  }));
-  blockFrontfillQueue.addTasks(blockTasks);
+  //     // Get the previous endBlock and set this as the startBlock for caching.
+  //     const fromBlockNumber = frontfillService.liveNetworks.find(
+  //       (n) => n.network.name === network.name
+  //     )!.currentBlockNumber;
+
+  //     await Promise.all(
+  //       contractAddresses.map((contractAddress) =>
+  //         frontfillService.resources.cacheStore.insertLogCacheMetadata({
+  //           metadata: {
+  //             filterKey: `${network.chainId}-${contractAddress}-${""}`,
+  //             startBlock: fromBlockNumber,
+  //             endBlock: Number(endBlock.number),
+  //             endBlockTimestamp: Number(endBlock.timestamp),
+  //           },
+  //         })
+  //       )
+  //     );
+
+  //     // Set new current block number to the endBlock from this batch.
+  //     frontfillService.liveNetworks[
+  //       frontfillService.liveNetworks.findIndex(
+  //         (n) => n.network.name === network.name
+  //       )
+  //     ].currentBlockNumber = Number(endBlock.number);
+
+  //     // Send an event to process the logs fetched in this batch.
+  //     frontfillService.emit("eventsAdded");
+  //   }
+  // };
+
+  // const blockTasks = requiredBlockHashes.map((blockHash) => ({
+  //   blockHash,
+  //   requiredTxHashes: txHashesByBlockHash[blockHash],
+  //   onSuccess,
+  // }));
+  // blockFrontfillQueue.addTasks(blockTasks);
 
   // Wait for the child tasks to be completed before returning from this task
   // and allowing the next log frontfill task to begin. This must be done because
