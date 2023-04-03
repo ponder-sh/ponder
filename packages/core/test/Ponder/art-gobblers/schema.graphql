@@ -8,3 +8,7 @@ type Token @entity {
   claimedBy: Account
   owner: Account!
 }
+
+type SetupEntity @entity {
+  id: String!
+}

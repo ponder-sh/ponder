@@ -75,6 +75,13 @@ describe("art-gobblers", () => {
   });
 
   describe("event processing", () => {
+    test("inserts data into the entity store from setup event", async () => {
+      const setupEntities = await ponder.resources.entityStore.getEntities({
+        entityName: "SetupEntity",
+      });
+      expect(setupEntities.length).toBe(1);
+    });
+
     test("inserts data into the entity store", async () => {
       const accounts = await ponder.resources.entityStore.getEntities({
         entityName: "Account",
