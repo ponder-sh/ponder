@@ -4,7 +4,9 @@ import { BackfillService } from "@/backfill/BackfillService";
 import { CodegenService } from "@/codegen/CodegenService";
 import { LoggerService, MessageKind } from "@/common/LoggerService";
 import { formatEta, formatPercentage } from "@/common/utils";
-import { buildContracts, Contract, Network } from "@/config/contracts";
+import { buildContracts, Contract } from "@/config/contracts";
+import { buildLogFilters, LogFilter } from "@/config/logFilters";
+import { Network } from "@/config/networks";
 import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
 import { buildCacheStore, CacheStore } from "@/database/cache/cacheStore";
@@ -23,6 +25,7 @@ export type Resources = {
   database: PonderDatabase;
   cacheStore: CacheStore;
   entityStore: EntityStore;
+  logFilters: LogFilter[];
   contracts: Contract[];
   logger: LoggerService;
   errors: ErrorService;
@@ -51,6 +54,7 @@ export class Ponder {
     const database = buildDb({ options, config, logger });
     const cacheStore = buildCacheStore({ database });
     const entityStore = buildEntityStore({ database });
+    const logFilters = buildLogFilters({ options, config });
     const contracts = buildContracts({ options, config });
 
     const resources: Resources = {
@@ -59,6 +63,7 @@ export class Ponder {
       database,
       cacheStore,
       entityStore,
+      logFilters,
       contracts,
       logger,
       errors,
@@ -83,9 +88,9 @@ export class Ponder {
     // `ponder codegen` should still be able to if an RPC url is missing. In fact,
     // that is part of the happy path for `create-ponder`.
     const networksMissingRpcUrl: Network[] = [];
-    this.resources.contracts.forEach((contract) => {
-      if (!contract.network.rpcUrl) {
-        networksMissingRpcUrl.push(contract.network);
+    this.resources.logFilters.forEach((logFilter) => {
+      if (!logFilter.network.rpcUrl) {
+        networksMissingRpcUrl.push(logFilter.network);
       }
     });
     if (networksMissingRpcUrl.length > 0) {
@@ -245,22 +250,22 @@ export class Ponder {
       this.uiService.ui.networks.push(e.network);
     });
 
-    this.backfillService.on("contractStarted", ({ contract, cacheRate }) => {
+    this.backfillService.on("logFilterStarted", ({ name, cacheRate }) => {
       this.resources.logger.logMessage(
         MessageKind.BACKFILL,
-        `started backfill for contract ${pico.bold(
-          contract
-        )} (${formatPercentage(cacheRate)} cached)`
+        `started backfill for ${pico.bold(name)} (${formatPercentage(
+          cacheRate
+        )} cached)`
       );
 
-      this.uiService.ui.stats[contract].cacheRate = cacheRate;
+      this.uiService.ui.stats[name].cacheRate = cacheRate;
     });
 
-    this.backfillService.on("logTasksAdded", ({ contract, count }) => {
-      this.uiService.ui.stats[contract].logTotal += count;
+    this.backfillService.on("logTasksAdded", ({ name, count }) => {
+      this.uiService.ui.stats[name].logTotal += count;
     });
-    this.backfillService.on("blockTasksAdded", ({ contract, count }) => {
-      this.uiService.ui.stats[contract].blockTotal += count;
+    this.backfillService.on("blockTasksAdded", ({ name, count }) => {
+      this.uiService.ui.stats[name].blockTotal += count;
     });
 
     this.backfillService.on("logTaskFailed", ({ error }) => {
@@ -276,33 +281,33 @@ export class Ponder {
       );
     });
 
-    this.backfillService.on("logTaskCompleted", ({ contract }) => {
-      if (this.uiService.ui.stats[contract].logCurrent === 0) {
-        this.uiService.ui.stats[contract].logStartTimestamp = Date.now();
+    this.backfillService.on("logTaskCompleted", ({ name }) => {
+      if (this.uiService.ui.stats[name].logCurrent === 0) {
+        this.uiService.ui.stats[name].logStartTimestamp = Date.now();
       }
 
-      this.uiService.ui.stats[contract] = {
-        ...this.uiService.ui.stats[contract],
-        logCurrent: this.uiService.ui.stats[contract].logCurrent + 1,
+      this.uiService.ui.stats[name] = {
+        ...this.uiService.ui.stats[name],
+        logCurrent: this.uiService.ui.stats[name].logCurrent + 1,
         logAvgDuration:
-          (Date.now() - this.uiService.ui.stats[contract].logStartTimestamp) /
-          this.uiService.ui.stats[contract].logCurrent,
+          (Date.now() - this.uiService.ui.stats[name].logStartTimestamp) /
+          this.uiService.ui.stats[name].logCurrent,
         logAvgBlockCount:
-          this.uiService.ui.stats[contract].blockTotal /
-          this.uiService.ui.stats[contract].logCurrent,
+          this.uiService.ui.stats[name].blockTotal /
+          this.uiService.ui.stats[name].logCurrent,
       };
     });
-    this.backfillService.on("blockTaskCompleted", ({ contract }) => {
-      if (this.uiService.ui.stats[contract].blockCurrent === 0) {
-        this.uiService.ui.stats[contract].blockStartTimestamp = Date.now();
+    this.backfillService.on("blockTaskCompleted", ({ name }) => {
+      if (this.uiService.ui.stats[name].blockCurrent === 0) {
+        this.uiService.ui.stats[name].blockStartTimestamp = Date.now();
       }
 
-      this.uiService.ui.stats[contract] = {
-        ...this.uiService.ui.stats[contract],
-        blockCurrent: this.uiService.ui.stats[contract].blockCurrent + 1,
+      this.uiService.ui.stats[name] = {
+        ...this.uiService.ui.stats[name],
+        blockCurrent: this.uiService.ui.stats[name].blockCurrent + 1,
         blockAvgDuration:
-          (Date.now() - this.uiService.ui.stats[contract].blockStartTimestamp) /
-          this.uiService.ui.stats[contract].blockCurrent,
+          (Date.now() - this.uiService.ui.stats[name].blockStartTimestamp) /
+          this.uiService.ui.stats[name].blockCurrent,
       };
     });
     this.backfillService.on("backfillCompleted", ({ duration }) => {
