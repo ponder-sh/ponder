@@ -8,7 +8,7 @@ import { LoggerService, MessageKind } from "@/common/LoggerService";
 import type { Block, Log, Transaction } from "@/common/types";
 import { PonderOptions } from "@/config/options";
 
-export interface HandlerEvent {
+export interface LogEvent {
   name: string;
   params: Record<string, any>;
   log: Log;
@@ -16,42 +16,51 @@ export interface HandlerEvent {
   transaction: Transaction;
 }
 
-export type Handler = ({
+export type SetupEventHandler = ({
+  context,
+}: {
+  context: unknown;
+}) => Promise<void> | void;
+export type LogEventHandler = ({
   event,
   context,
 }: {
-  event: HandlerEvent;
+  event: LogEvent;
   context: unknown;
 }) => Promise<void> | void;
-export type ContractHandlers = Record<string, Handler | undefined>;
-export type Handlers = Record<string, ContractHandlers | undefined>;
+export type LogEventHandlers = Record<string, LogEventHandler | undefined>;
+export type Handlers = Record<string, LogEventHandlers | undefined> & {
+  setup?: SetupEventHandler;
+};
 
 // @ponder/core creates an instance of this class called `ponder`
-export class PonderApp<HandlersType = Record<string, any>> {
-  private handlers: Record<string, Record<string, any>> = {};
+export class PonderApp<EventHandlers = Record<string, LogEventHandler>> {
+  private handlers: Handlers = {};
   private errors: Error[] = [];
 
-  on<HandlerName extends Extract<keyof HandlersType, string>>(
-    name: HandlerName,
-    handler: HandlersType[HandlerName]
+  on<EventName extends Extract<keyof EventHandlers, string>>(
+    name: EventName,
+    handler: EventHandlers[EventName]
   ) {
-    const [contractName, eventName] = name.split(":");
+    if (name === "setup") {
+      this.handlers.setup = handler as SetupEventHandler;
+      return;
+    }
 
+    const [contractName, eventName] = name.split(":");
     if (!contractName || !eventName) {
       this.errors.push(new Error(`Invalid event name: ${name}`));
       return;
     }
 
-    if (!this.handlers[contractName]) this.handlers[contractName] = {};
-
-    if (this.handlers[contractName][eventName]) {
+    this.handlers[contractName] ||= {};
+    if (this.handlers[contractName]![eventName]) {
       this.errors.push(
         new Error(`Cannot add multiple handlers for event: ${name}`)
       );
       return;
     }
-
-    this.handlers[contractName][eventName] = handler;
+    this.handlers[contractName]![eventName] = handler as LogEventHandler;
   }
 }
 

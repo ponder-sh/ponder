@@ -61,9 +61,9 @@ See [Deploy to production](/guides/production) for more details.
 
 ### Options
 
-| field                      |   type   |                                                                                        |
-| :------------------------- | :------: | :------------------------------------------------------------------------------------- |
-| **maxHealthcheckDuration** | `number` | **Default: `4 * 60`**. Maximum number of seconds to wait before responding as healthy. |
+| field                      |   type   |                                                                                                                                                                                                                                  |
+| :------------------------- | :------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **maxHealthcheckDuration** | `number` | **Default: `4 * 60`**. Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing takes longer than this amount of time, the GraphQL API may serve incomplete data. |
 
 ## Examples
 

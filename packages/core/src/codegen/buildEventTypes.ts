@@ -3,22 +3,21 @@ import { AbiEvent } from "abitype";
 import type { Contract } from "@/config/contracts";
 
 export const buildEventTypes = (contracts: Contract[]) => {
-  const allHandlers = contracts
-    .map((contract) => {
-      const abiEvents = contract.abi.filter(
-        (item): item is AbiEvent => item.type === "event"
-      );
+  const allHandlers = contracts.map((contract) => {
+    const abiEvents = contract.abi.filter(
+      (item): item is AbiEvent => item.type === "event"
+    );
 
-      return abiEvents
-        .map(({ name, inputs }) => {
-          const paramsType = `{${inputs
-            .map(
-              (input) => `${input.name}:
+    return abiEvents
+      .map(({ name, inputs }) => {
+        const paramsType = `{${inputs
+          .map(
+            (input) => `${input.name}:
                 AbiParameterToPrimitiveType<${JSON.stringify(input)}>`
-            )
-            .join(";")}}`;
+          )
+          .join(";")}}`;
 
-          return `["${contract.name}:${name}"]: ({
+        return `["${contract.name}:${name}"]: ({
             event, context
             }: {
               event: {
@@ -30,14 +29,17 @@ export const buildEventTypes = (contracts: Contract[]) => {
               };
               context: Context;
             }) => Promise<any> | any;`;
-        })
-        .join("");
-    })
-    .join("");
+      })
+      .join("");
+  });
+
+  allHandlers.unshift(
+    `["setup"]: ({ context }: { context: Context; }) => Promise<any> | any;`
+  );
 
   const final = `
     export type AppType = {
-      ${allHandlers}
+      ${allHandlers.join("")}
     }
   `;
 

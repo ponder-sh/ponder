@@ -14,14 +14,14 @@ import { parse as parseStackTrace, StackFrame } from "stacktrace-parser";
 import { PonderOptions } from "@/config/options";
 
 export const getStackTraceAndCodeFrame = (
-  stack: string | undefined,
+  error: Error,
   options: PonderOptions
 ) => {
-  if (!stack) return null;
+  if (!error.stack) return { stackTrace: undefined, codeFrame: undefined };
 
   const buildDir = path.join(options.ponderDir, "out");
 
-  const stackTrace = parseStackTrace(stack);
+  const stackTrace = parseStackTrace(error.stack);
 
   let codeFrame: string | undefined;
 
@@ -75,7 +75,7 @@ export const getStackTraceAndCodeFrame = (
     .filter((f): f is StackFrame => !!f);
 
   if (sourceMappedStackTrace.length === 0 || !codeFrame) {
-    return null;
+    return { stackTrace: undefined, codeFrame: undefined };
   }
 
   const formattedStackTrace = sourceMappedStackTrace
