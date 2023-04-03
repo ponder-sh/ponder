@@ -18,7 +18,7 @@ import { getStackTraceAndCodeFrame } from "./getStackTrace";
 
 type EventHandlerServiceEvents = {
   taskStarted: undefined;
-  taskCompleted: { timestamp: number };
+  taskCompleted: { timestamp?: number };
 
   eventsAdded: {
     handledCount: number;
@@ -30,7 +30,9 @@ type EventHandlerServiceEvents = {
   eventQueueReset: undefined;
 };
 
-type EventHandlerTask = { log: Log };
+type SetupTask = { kind: "SETUP" };
+type LogTask = { kind: "LOG"; log: Log };
+type EventHandlerTask = SetupTask | LogTask;
 type EventHandlerQueue = Queue<EventHandlerTask>;
 
 export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
@@ -92,6 +94,17 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     });
 
     this.emit("eventQueueReset");
+
+    // If the setup handler is present, add the setup event.
+    if (this.handlers.setup) {
+      this.queue.addTask({ kind: "SETUP" });
+      this.emit("eventsAdded", {
+        handledCount: 1,
+        totalCount: 1,
+        fromTimestamp: this.eventsHandledToTimestamp,
+        toTimestamp: this.eventsHandledToTimestamp,
+      });
+    }
   }
 
   async processEvents() {
@@ -111,7 +124,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
         // Add new events to the queue.
         for (const log of logs) {
-          this.queue.addTask({ log });
+          this.queue.addTask({ kind: "LOG", log });
         }
 
         this.emit("eventsAdded", {
@@ -147,34 +160,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     handlers: Handlers;
     schema: Schema;
   }) {
-    // Build entity models for event handler context.
-    const entityModels: Record<string, Model<EntityInstance>> = {};
-    schema.entities.forEach((entity) => {
-      const entityName = entity.name;
-
-      entityModels[entityName] = {
-        findUnique: ({ id }) =>
-          this.resources.entityStore.findUniqueEntity({ entityName, id }),
-        create: ({ id, data }) =>
-          this.resources.entityStore.createEntity({ entityName, id, data }),
-        update: ({ id, data }) =>
-          this.resources.entityStore.updateEntity({ entityName, id, data }),
-        upsert: ({ id, create, update }) =>
-          this.resources.entityStore.upsertEntity({
-            entityName,
-            id,
-            create,
-            update,
-          }),
-        delete: ({ id }) =>
-          this.resources.entityStore.deleteEntity({ entityName, id }),
-      };
-    });
-
-    const injectedContext = {
-      contracts: this.injectedContracts,
-      entities: entityModels,
-    };
+    const context = this.buildContext({ schema });
 
     const eventHandlerWorker: Worker<EventHandlerTask> = async ({
       task,
@@ -182,119 +168,81 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     }) => {
       this.emit("taskStarted");
 
-      const { log } = task;
+      switch (task.kind) {
+        case "SETUP": {
+          const setupHandler = handlers["setup"];
+          if (!setupHandler) {
+            this.resources.logger.warn(`Handler not found for event: setup`);
+            return;
+          }
 
-      const contract = this.resources.contracts.find(
-        (contract) => contract.address === log.address
-      );
-      if (!contract) {
-        this.resources.logger.warn(
-          `Contract not found for log with address: ${log.address}`
-        );
-        return;
-      }
+          try {
+            // Running user code here!
+            await setupHandler({ context });
+          } catch (error_) {
+            // Remove all remaining tasks from the queue.
+            queue.clear();
 
-      const contractHandlers = handlers[contract.name];
-      if (!contractHandlers) {
-        this.resources.logger.warn(
-          `Handlers not found for contract: ${contract.name}`
-        );
-        return;
-      }
+            const error = error_ as Error;
+            const { stackTrace, codeFrame } = getStackTraceAndCodeFrame(
+              error,
+              this.resources.options
+            );
+            this.resources.errors.submitHandlerError({
+              error: new EventHandlerError({
+                eventName: "setup",
+                stackTrace: stackTrace,
+                codeFrame: codeFrame,
+                cause: error,
+              }),
+            });
+          }
 
-      const decodedLog = decodeEventLog({
-        // TODO: Remove this filter once viem is fixed.
-        abi: contract.abi.filter((item) => item.type !== "constructor"),
-        data: log.data,
-        topics: [log.topic0 as Hex, log.topic1, log.topic2, log.topic3],
-      });
+          this.emit("taskCompleted", {});
 
-      if (!decodedLog) {
-        this.resources.logger.warn(
-          `Event log not found in ABI, data: ${log.data} topics: ${[
-            log.topic0,
-            log.topic1,
-            log.topic2,
-            log.topic3,
-          ]}`
-        );
-        return;
-      }
-      const { eventName, args } = decodedLog;
-
-      const handler = contractHandlers[eventName];
-      if (!handler) {
-        this.resources.logger.trace(
-          `Handler not found for event: ${contract.name}-${eventName}`
-        );
-        return;
-      }
-
-      this.resources.logger.trace(
-        `Handling event: ${contract.name}-${eventName}`
-      );
-
-      // Get block & transaction from the cache store and attach to the event.
-      const block = await this.resources.cacheStore.getBlock(log.blockHash);
-      if (!block) {
-        throw new Error(`Block with hash not found: ${log.blockHash}`);
-      }
-
-      const transaction = await this.resources.cacheStore.getTransaction(
-        log.transactionHash
-      );
-      if (!transaction) {
-        throw new Error(
-          `Transaction with hash not found: ${log.transactionHash}`
-        );
-      }
-
-      const event = {
-        name: eventName,
-        params: args as any,
-        log: log,
-        block,
-        transaction,
-      };
-
-      // This enables contract calls occurring within the
-      // handler code to use the event block number by default.
-      this.currentLogEventBlockNumber = block.number;
-
-      try {
-        // Running user code here!
-        await handler({ event, context: injectedContext });
-      } catch (error_) {
-        // Remove all remaining tasks from the queue.
-        queue.clear();
-
-        const error = error_ as Error;
-
-        let stackTrace: string | undefined;
-        let codeFrame: string | undefined;
-
-        const result = getStackTraceAndCodeFrame(
-          error.stack,
-          this.resources.options
-        );
-        if (result) {
-          stackTrace = result.stackTrace;
-          codeFrame = result.codeFrame;
+          break;
         }
+        case "LOG": {
+          const result = await this.buildLogEvent({ log: task.log, handlers });
+          if (!result) return;
 
-        this.resources.errors.submitHandlerError({
-          error: new EventHandlerError({
-            eventName: eventName,
-            blockNumber: block.number,
-            params: args as any,
-            stackTrace: stackTrace,
-            codeFrame: codeFrame,
-            cause: error,
-          }),
-        });
+          const { handler, event } = result;
+
+          // This enables contract calls occurring within the
+          // handler code to use the event block number by default.
+          this.currentLogEventBlockNumber = event.block.number;
+
+          try {
+            // Running user code here!
+            await handler({ event, context });
+          } catch (error_) {
+            // Remove all remaining tasks from the queue.
+            queue.clear();
+
+            const error = error_ as Error;
+            const { stackTrace, codeFrame } = getStackTraceAndCodeFrame(
+              error,
+              this.resources.options
+            );
+            this.resources.errors.submitHandlerError({
+              error: new EventHandlerError({
+                stackTrace: stackTrace,
+                codeFrame: codeFrame,
+                cause: error,
+                eventName: event.name,
+                blockNumber: event.block.number,
+                params: event.params,
+              }),
+            });
+          }
+
+          this.emit("taskCompleted", {
+            timestamp: Number(event.block.timestamp),
+          });
+
+          break;
+        }
       }
-
-      this.emit("taskCompleted", { timestamp: Number(block.timestamp) });
     };
 
     const queue = createQueue({
@@ -357,7 +305,6 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     const rawLogs = await Promise.all(
       contracts.map(async (contract) => {
         const handlers = this.handlers ?? {};
-
         const contractHandlers = handlers[contract.name] ?? {};
         const eventNames = Object.keys(contractHandlers);
 
@@ -398,5 +345,113 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
       );
 
     return { hasNewLogs: true, toTimestamp, logs, totalLogCount };
+  }
+
+  private buildContext({ schema }: { schema: Schema }) {
+    // Build entity models for event handler context.
+    const entityModels: Record<string, Model<EntityInstance>> = {};
+    schema.entities.forEach((entity) => {
+      const entityName = entity.name;
+
+      entityModels[entityName] = {
+        findUnique: ({ id }) =>
+          this.resources.entityStore.findUniqueEntity({ entityName, id }),
+        create: ({ id, data }) =>
+          this.resources.entityStore.createEntity({ entityName, id, data }),
+        update: ({ id, data }) =>
+          this.resources.entityStore.updateEntity({ entityName, id, data }),
+        upsert: ({ id, create, update }) =>
+          this.resources.entityStore.upsertEntity({
+            entityName,
+            id,
+            create,
+            update,
+          }),
+        delete: ({ id }) =>
+          this.resources.entityStore.deleteEntity({ entityName, id }),
+      };
+    });
+
+    return {
+      contracts: this.injectedContracts,
+      entities: entityModels,
+    };
+  }
+
+  private async buildLogEvent({
+    log,
+    handlers,
+  }: {
+    log: Log;
+    handlers: Handlers;
+  }) {
+    const contract = this.resources.contracts.find(
+      (contract) => contract.address === log.address
+    );
+    if (!contract) {
+      this.resources.logger.warn(
+        `Contract not found for log with address: ${log.address}`
+      );
+      return;
+    }
+
+    const contractHandlers = handlers[contract.name];
+    if (!contractHandlers) {
+      this.resources.logger.warn(
+        `Handlers not found for contract: ${contract.name}`
+      );
+      return;
+    }
+
+    const decodedLog = decodeEventLog({
+      // TODO: Remove this filter once viem is fixed.
+      abi: contract.abi.filter((item) => item.type !== "constructor"),
+      data: log.data,
+      topics: [log.topic0 as Hex, log.topic1, log.topic2, log.topic3],
+    });
+
+    if (!decodedLog) {
+      this.resources.logger.warn(
+        `Event log not found in ABI, data: ${log.data} topics: ${[
+          log.topic0,
+          log.topic1,
+          log.topic2,
+          log.topic3,
+        ]}`
+      );
+      return;
+    }
+    const { eventName, args } = decodedLog;
+    const params = args as any;
+
+    const handler = contractHandlers[eventName];
+    if (!handler) {
+      this.resources.logger.trace(
+        `Handler not found for event: ${contract.name}-${eventName}`
+      );
+      return;
+    }
+
+    this.resources.logger.trace(
+      `Handling event: ${contract.name}-${eventName}`
+    );
+
+    // Get block & transaction from the cache store and attach to the event.
+    const block = await this.resources.cacheStore.getBlock(log.blockHash);
+    if (!block) {
+      throw new Error(`Block with hash not found: ${log.blockHash}`);
+    }
+
+    const transaction = await this.resources.cacheStore.getTransaction(
+      log.transactionHash
+    );
+    if (!transaction) {
+      throw new Error(
+        `Transaction with hash not found: ${log.transactionHash}`
+      );
+    }
+
+    const event = { name: eventName, params, log, block, transaction };
+    return { handler, event };
   }
 }
