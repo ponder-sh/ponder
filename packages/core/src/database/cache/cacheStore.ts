@@ -4,7 +4,7 @@ import { PonderDatabase } from "../db";
 import { PostgresCacheStore } from "./postgresCacheStore";
 import { SqliteCacheStore } from "./sqliteCacheStore";
 
-export type LogCacheMetadata = {
+export type LogFilterCachedRange = {
   filterKey: string; // `${chainId}-${address}-${topics}`
   startBlock: number;
   endBlock: number;
@@ -19,8 +19,12 @@ export type ContractCall = {
 export interface CacheStore {
   migrate(): Promise<void>;
 
-  getLogCacheMetadata(arg: { filterKey: string }): Promise<LogCacheMetadata[]>;
-  insertLogCacheMetadata(arg: { metadata: LogCacheMetadata }): Promise<void>;
+  getLogFilterCachedRanges(arg: {
+    filterKey: string;
+  }): Promise<LogFilterCachedRange[]>;
+  insertLogFilterCachedRange(arg: {
+    range: LogFilterCachedRange;
+  }): Promise<void>;
 
   insertLogs(logs: Log[]): Promise<void>;
   insertBlock(block: Omit<Block, "transactions">): Promise<void>;

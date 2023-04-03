@@ -3,7 +3,11 @@ import type Sqlite from "better-sqlite3";
 import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
 
-import type { CacheStore, ContractCall, LogCacheMetadata } from "./cacheStore";
+import type {
+  CacheStore,
+  ContractCall,
+  LogFilterCachedRange,
+} from "./cacheStore";
 import {
   DatabaseBlock,
   DatabaseLog,
@@ -18,7 +22,7 @@ import {
 
 export const SQLITE_TABLE_PREFIX = "__ponder__v3__";
 
-const logCacheMetadataTableName = `${SQLITE_TABLE_PREFIX}logCacheMetadata`;
+const logFilterCachedRangesTableName = `${SQLITE_TABLE_PREFIX}logFilterCachedRanges`;
 const logsTableName = `${SQLITE_TABLE_PREFIX}logs`;
 const blocksTableName = `${SQLITE_TABLE_PREFIX}blocks`;
 const transactionsTableName = `${SQLITE_TABLE_PREFIX}transactions`;
@@ -41,7 +45,7 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE TABLE IF NOT EXISTS "${logCacheMetadataTableName}" (
+        CREATE TABLE IF NOT EXISTS "${logFilterCachedRangesTableName}" (
           "id" INTEGER PRIMARY KEY,
           "filterKey" TEXT NOT NULL,
           "startBlock" INTEGER NOT NULL,
@@ -54,8 +58,8 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE INDEX IF NOT EXISTS "${logCacheMetadataTableName}FilterKey"
-        ON "${logCacheMetadataTableName}" ("filterKey")
+        CREATE INDEX IF NOT EXISTS "${logFilterCachedRangesTableName}FilterKey"
+        ON "${logFilterCachedRangesTableName}" ("filterKey")
         `
       )
       .run();
@@ -159,27 +163,27 @@ export class SqliteCacheStore implements CacheStore {
       .run();
   };
 
-  getLogCacheMetadata = async ({ filterKey }: { filterKey: string }) => {
+  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
     const rows = this.db
       .prepare(
-        `SELECT * FROM "${logCacheMetadataTableName}" WHERE "filterKey" = @filterKey`
+        `SELECT * FROM "${logFilterCachedRangesTableName}" WHERE "filterKey" = @filterKey`
       )
-      .all({ filterKey }) as LogCacheMetadata[];
+      .all({ filterKey }) as LogFilterCachedRange[];
 
     return rows;
   };
 
-  insertLogCacheMetadata = async ({
-    metadata,
+  insertLogFilterCachedRange = async ({
+    range: newRange,
   }: {
-    metadata: LogCacheMetadata;
+    range: LogFilterCachedRange;
   }) => {
     const deleteStatement = this.db.prepare<{ filterKey: string }>(`
-      DELETE FROM "${logCacheMetadataTableName}" WHERE "filterKey" = @filterKey RETURNING *  
+      DELETE FROM "${logFilterCachedRangesTableName}" WHERE "filterKey" = @filterKey RETURNING *  
     `);
 
-    const insertStatement = this.db.prepare<LogCacheMetadata>(`
-      INSERT INTO "${logCacheMetadataTableName}" (
+    const insertStatement = this.db.prepare<LogFilterCachedRange>(`
+      INSERT INTO "${logFilterCachedRangesTableName}" (
         "filterKey",
         "startBlock",
         "endBlock",
@@ -192,42 +196,42 @@ export class SqliteCacheStore implements CacheStore {
       )
     `);
 
-    const txn = this.db.transaction((newMetadata: LogCacheMetadata) => {
-      const { filterKey } = newMetadata;
+    const txn = this.db.transaction((newRange: LogFilterCachedRange) => {
+      const { filterKey } = newRange;
 
-      // Delete and return all intervals for this contract
-      const existingMetadata = deleteStatement.all({ filterKey });
+      // Delete and return all ranges for this contract
+      const existingRanges = deleteStatement.all({ filterKey });
 
-      const mergedMetadata: LogCacheMetadata[] = merge_intervals([
-        ...existingMetadata.map((m) => [m.startBlock, m.endBlock]),
-        [metadata.startBlock, metadata.endBlock],
-      ]).map((interval) => {
-        const [startBlock, endBlock] = interval;
+      const mergedRanges: LogFilterCachedRange[] = merge_intervals([
+        ...existingRanges.map((r) => [r.startBlock, r.endBlock]),
+        [newRange.startBlock, newRange.endBlock],
+      ]).map((range) => {
+        const [startBlock, endBlock] = range;
 
-        // For each new merged interval, its endBlock will be found EITHER in the newly
-        // added interval OR among the endBlocks of the removed intervals.
+        // For each new merged range, its endBlock will be found EITHER in the newly
+        // added range OR among the endBlocks of the removed ranges.
         // Find it so we can propogate the endBlockTimestamp correctly.
-        const endBlockTimestamp = [metadata, ...existingMetadata].find(
+        const endBlockTimestamp = [newRange, ...existingRanges].find(
           (old) => old.endBlock === endBlock
         )?.endBlockTimestamp;
         if (!endBlockTimestamp) {
-          throw new Error(`Old interval with endBlock: ${endBlock} not found`);
+          throw new Error(`Old range with endBlock: ${endBlock} not found`);
         }
 
         return {
-          filterKey: metadata.filterKey,
+          filterKey: newRange.filterKey,
           startBlock,
           endBlock,
           endBlockTimestamp,
         };
       });
 
-      mergedMetadata.forEach((m) => {
+      mergedRanges.forEach((m) => {
         insertStatement.run(m);
       });
     });
 
-    txn(metadata);
+    txn(newRange);
   };
 
   insertLogs = async (logs: Log[]) => {

@@ -3,7 +3,11 @@ import type { Pool, PoolClient } from "pg";
 import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
 
-import type { CacheStore, ContractCall, LogCacheMetadata } from "./cacheStore";
+import type {
+  CacheStore,
+  ContractCall,
+  LogFilterCachedRange,
+} from "./cacheStore";
 import {
   DatabaseBlock,
   DatabaseLog,
@@ -18,7 +22,7 @@ import {
 
 export const POSTGRES_TABLE_PREFIX = "__ponder__v3__";
 
-const logCacheMetadataTableName = `${POSTGRES_TABLE_PREFIX}logCacheMetadata`;
+const logFilterCachedRangesTableName = `${POSTGRES_TABLE_PREFIX}logFilterCachedRanges`;
 const logsTableName = `${POSTGRES_TABLE_PREFIX}logs`;
 const blocksTableName = `${POSTGRES_TABLE_PREFIX}blocks`;
 const transactionsTableName = `${POSTGRES_TABLE_PREFIX}transactions`;
@@ -38,7 +42,7 @@ export class PostgresCacheStore implements CacheStore {
       await client.query("BEGIN");
 
       await client.query(`
-        CREATE TABLE IF NOT EXISTS "${logCacheMetadataTableName}" (
+        CREATE TABLE IF NOT EXISTS "${logFilterCachedRangesTableName}" (
           "id" SERIAL PRIMARY KEY,
           "filterKey" TEXT NOT NULL,
           "startBlock" INTEGER NOT NULL,
@@ -47,8 +51,8 @@ export class PostgresCacheStore implements CacheStore {
         )
       `);
       await client.query(`
-        CREATE INDEX IF NOT EXISTS "${logCacheMetadataTableName}FilterKey"
-        ON "${logCacheMetadataTableName}" ("filterKey")
+        CREATE INDEX IF NOT EXISTS "${logFilterCachedRangesTableName}FilterKey"
+        ON "${logFilterCachedRangesTableName}" ("filterKey")
       `);
 
       await client.query(`
@@ -134,48 +138,48 @@ export class PostgresCacheStore implements CacheStore {
     }
   };
 
-  getLogCacheMetadata = async ({ filterKey }: { filterKey: string }) => {
-    const result = await this.pool.query<LogCacheMetadata>(
-      `SELECT * FROM "${logCacheMetadataTableName}" WHERE "filterKey" = $1`,
+  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
+    const result = await this.pool.query<LogFilterCachedRange>(
+      `SELECT * FROM "${logFilterCachedRangesTableName}" WHERE "filterKey" = $1`,
       [filterKey]
     );
 
     return result.rows;
   };
 
-  insertLogCacheMetadata = async ({
-    metadata,
+  insertLogFilterCachedRange = async ({
+    range: newRange,
   }: {
-    metadata: LogCacheMetadata;
+    range: LogFilterCachedRange;
   }) => {
     const client = await this.pool.connect();
 
     try {
       await client.query("BEGIN");
 
-      const { rows: existingMetadata } = await client.query<LogCacheMetadata>(
-        `DELETE FROM "${logCacheMetadataTableName}" WHERE "filterKey" = $1 RETURNING *`,
-        [metadata.filterKey]
+      const { rows: existingRanges } = await client.query<LogFilterCachedRange>(
+        `DELETE FROM "${logFilterCachedRangesTableName}" WHERE "filterKey" = $1 RETURNING *`,
+        [newRange.filterKey]
       );
 
-      const mergedMetadata: LogCacheMetadata[] = merge_intervals([
-        ...existingMetadata.map((m) => [m.startBlock, m.endBlock]),
-        [metadata.startBlock, metadata.endBlock],
-      ]).map((interval) => {
-        const [startBlock, endBlock] = interval;
+      const mergedRanges: LogFilterCachedRange[] = merge_intervals([
+        ...existingRanges.map((r) => [r.startBlock, r.endBlock]),
+        [newRange.startBlock, newRange.endBlock],
+      ]).map((range) => {
+        const [startBlock, endBlock] = range;
 
-        // For each new merged interval, its endBlock will be found EITHER in the newly
-        // added interval OR among the endBlocks of the removed intervals.
+        // For each new merged range, its endBlock will be found EITHER in the newly
+        // added range OR among the endBlocks of the removed range.
         // Find it so we can propogate the endBlockTimestamp correctly.
-        const endBlockTimestamp = [metadata, ...existingMetadata].find(
+        const endBlockTimestamp = [newRange, ...mergedRanges].find(
           (old) => old.endBlock === endBlock
         )?.endBlockTimestamp;
         if (!endBlockTimestamp) {
-          throw new Error(`Old interval with endBlock: ${endBlock} not found`);
+          throw new Error(`Old range with endBlock: ${endBlock} not found`);
         }
 
         return {
-          filterKey: metadata.filterKey,
+          filterKey: newRange.filterKey,
           startBlock,
           endBlock,
           endBlockTimestamp,
@@ -184,14 +188,14 @@ export class PostgresCacheStore implements CacheStore {
 
       await client.query(
         `
-        INSERT INTO "${logCacheMetadataTableName}" (
+        INSERT INTO "${logFilterCachedRangesTableName}" (
           "filterKey",
           "startBlock",
           "endBlock",
           "endBlockTimestamp"
-        ) VALUES ${this.buildInsertParams(4, mergedMetadata.length)}
+        ) VALUES ${this.buildInsertParams(4, mergedRanges.length)}
         `,
-        mergedMetadata.map(Object.values).flat()
+        mergedRanges.map(Object.values).flat()
       );
 
       await client.query("COMMIT");
