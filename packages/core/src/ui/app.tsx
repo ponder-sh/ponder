@@ -1,7 +1,7 @@
 import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
-import { Contract } from "@/config/contracts";
+import { LogFilter } from "@/config/logFilters";
 
 import { BackfillBar } from "./BackfillBar";
 import { HandlersBar } from "./HandlersBar";
@@ -43,10 +43,10 @@ export type UiState = {
 
 export const buildUiState = ({
   port,
-  contracts,
+  logFilters,
 }: {
   port?: number;
-  contracts: Contract[];
+  logFilters: LogFilter[];
 }) => {
   const ui: UiState = {
     port: port ?? 0,
@@ -65,23 +65,21 @@ export const buildUiState = ({
     networks: [],
   };
 
-  contracts
-    .filter((contract) => contract.isIndexed)
-    .forEach((contract) => {
-      ui.stats[contract.name] = {
-        cacheRate: 0,
-        logStartTimestamp: 0,
-        logTotal: 0,
-        logCurrent: 0,
-        logAvgDuration: 0,
-        logAvgBlockCount: 0,
-        blockStartTimestamp: 0,
-        blockTotal: 0,
-        blockCurrent: 0,
-        blockAvgDuration: 0,
-        eta: 0,
-      };
-    });
+  logFilters.forEach((logFilter) => {
+    ui.stats[logFilter.name] = {
+      cacheRate: 0,
+      logStartTimestamp: 0,
+      logTotal: 0,
+      logCurrent: 0,
+      logAvgDuration: 0,
+      logAvgBlockCount: 0,
+      blockStartTimestamp: 0,
+      blockTotal: 0,
+      blockCurrent: 0,
+      blockAvgDuration: 0,
+      eta: 0,
+    };
+  });
 
   return ui;
 };

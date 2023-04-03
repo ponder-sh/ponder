@@ -1,6 +1,6 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
-import { decodeEventLog, encodeEventTopics, Hex } from "viem";
+import { Address, decodeEventLog, encodeEventTopics, Hex } from "viem";
 
 import { createQueue, Queue, Worker } from "@/common/createQueue";
 import type { Log, Model } from "@/common/types";
@@ -258,40 +258,36 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
   }
 
   private async getNewEvents({ fromTimestamp }: { fromTimestamp: number }) {
-    const contracts = this.resources.contracts.filter(
-      (contract) => contract.isIndexed
-    );
-
-    // Check the cached metadata for all contracts. If the minimum cached block across
-    // all contracts is greater than the lastHandledLogTimestamp, fetch the newly available
+    // Check the cached metadata for all filters. If the minimum cached block across
+    // all filters is greater than the lastHandledLogTimestamp, fetch the newly available
     // logs and add them to the queue.
     const cachedToTimestamps = await Promise.all(
-      contracts.map(async (contract) => {
-        const cachedIntervals =
-          await this.resources.cacheStore.getLogCacheMetadata({
-            filterKey: `${contract.network.chainId}-${contract.address}-${""}`,
+      this.resources.logFilters.map(async (logFilter) => {
+        const cachedRanges =
+          await this.resources.cacheStore.getLogFilterCachedRanges({
+            filterKey: logFilter.filterKey,
           });
 
-        // Find the cached interval that includes the contract's startBlock.
-        const startingCachedInterval = cachedIntervals.find(
-          (interval) =>
-            interval.startBlock <= contract.startBlock &&
-            interval.endBlock >= contract.startBlock
+        // Find the cached interval that includes the filter's startBlock.
+        const startingCachedRange = cachedRanges.find(
+          (range) =>
+            range.startBlock <= logFilter.startBlock &&
+            range.endBlock >= logFilter.startBlock
         );
 
         // If there is no cached data that includes the start block, return -1.
-        if (!startingCachedInterval) return -1;
+        if (!startingCachedRange) return -1;
 
-        return startingCachedInterval.endBlockTimestamp;
+        return startingCachedRange.endBlockTimestamp;
       })
     );
 
-    // If any of the contracts have no cached data yet, return early
+    // If any of the filters have no cached data yet, return early
     if (cachedToTimestamps.includes(-1)) {
       return { hasNewLogs: false, logs: [], toTimestamp: fromTimestamp };
     }
 
-    // If the minimum cached timestamp across all contracts is less than the
+    // If the minimum cached timestamp across all filters is less than the
     // latest processed timestamp, we can't process any new logs.
     const toTimestamp = Math.min(...cachedToTimestamps);
     if (toTimestamp <= fromTimestamp) {
@@ -305,15 +301,21 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     // NOTE: cacheStore.getLogs is exclusive to the left and inclusive to the right.
     // This is fine because this.latestProcessedTimestamp starts at zero.
     const rawLogs = await Promise.all(
+<<<<<<< HEAD
       contracts.map(async (contract) => {
         const handlers = this.handlers ?? {};
         const contractHandlers = handlers[contract.name] ?? {};
         const eventNames = Object.keys(contractHandlers);
 
+=======
+      this.resources.logFilters.map(async (logFilter) => {
+        const handlers = (this.handlers ?? {})[logFilter.name] ?? {};
+        const eventNames = Object.keys(handlers);
+>>>>>>> ab1268e (chore: update contracts dependents to use log filters)
         const eventSigHashes = eventNames.map((eventName) => {
           // TODO: Disambiguate overloaded ABI event signatures BEFORE getting here.
           const eventTopics = encodeEventTopics({
-            abi: contract.abi,
+            abi: logFilter.abi,
             eventName,
           });
           const eventSignatureTopic = eventTopics[0];
@@ -322,13 +324,13 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
         const [logs, totalLogs] = await Promise.all([
           this.resources.cacheStore.getLogs({
-            contractAddress: contract.address,
+            contractAddress: logFilter.filter.address as Address,
             fromBlockTimestamp: fromTimestamp,
             toBlockTimestamp: toTimestamp,
             eventSigHashes,
           }),
           this.resources.cacheStore.getLogs({
-            contractAddress: contract.address,
+            contractAddress: logFilter.filter.address as Address,
             fromBlockTimestamp: fromTimestamp,
             toBlockTimestamp: toTimestamp,
           }),
