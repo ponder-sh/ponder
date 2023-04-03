@@ -89,12 +89,25 @@ export const fromEtherscan = async ({
 };
 
 const fetchEtherscan = async (url: string) => {
-  const response = await fetch(url);
-  const data = await response.json();
-  if (data.status === "0") {
-    throw new Error(`Etherscan API error: ${data.result}`);
+  const maxRetries = 5;
+  let retryCount = 0;
+
+  while (retryCount <= maxRetries) {
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.status === "0") {
+        throw new Error(`Etherscan API error: ${data.result}`);
+      }
+      return data;
+    } catch (error) {
+      retryCount++;
+      if (retryCount > maxRetries) {
+        throw new Error(`Max retries reached: ${(error as Error).message}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
-  return data;
 };
 
 const getContractCreationTxn = async (

@@ -25,8 +25,6 @@ export class ServerService {
     this.app.use(cors());
     this.server = this.app.listen(this.resources.options.port);
 
-    this.app.get("/", (req, res) => res.redirect(302, "/graphql"));
-
     // By default, the server will respond as unhealthy until the backfill events have
     // been processed OR 4.5 minutes have passed since the app was created. This
     // enables zero-downtime deployments on PaaS platforms like Railway and Render.
@@ -61,7 +59,7 @@ export class ServerService {
       graphiql: true,
     });
 
-    this.app?.use("/graphql", (...args) => this.graphqlMiddleware?.(...args));
+    this.app?.use("/", (...args) => this.graphqlMiddleware?.(...args));
   }
 
   teardown() {

@@ -151,7 +151,7 @@ const App = (ui: UiState) => {
         <Box flexDirection="column">
           <Text bold={true}>GraphQL </Text>
           <Box flexDirection="row">
-            <Text>Server live at http://localhost:{port}/graphql</Text>
+            <Text>Server live at http://localhost:{port}</Text>
           </Box>
         </Box>
       )}
