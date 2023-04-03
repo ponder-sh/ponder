@@ -1,27 +1,27 @@
 import Emittery from "emittery";
 
 import { endBenchmark, p1_excluding_all, startBenchmark } from "@/common/utils";
-import { Contract } from "@/config/contracts";
+import { LogFilter } from "@/config/logFilters";
 import { Resources } from "@/Ponder";
 
 import { createBlockBackfillQueue } from "./blockBackfillQueue";
 import { createLogBackfillQueue } from "./logBackfillQueue";
 
 export type BackfillServiceEvents = {
-  contractStarted: { contract: string; cacheRate: number };
+  logFilterStarted: { name: string; cacheRate: number };
 
-  logTasksAdded: { contract: string; count: number };
-  blockTasksAdded: { contract: string; count: number };
+  logTasksAdded: { name: string; count: number };
+  blockTasksAdded: { name: string; count: number };
 
-  logTaskFailed: { contract: string; error: Error };
-  blockTaskFailed: { contract: string; error: Error };
+  logTaskFailed: { name: string; error: Error };
+  blockTaskFailed: { name: string; error: Error };
 
-  logTaskCompleted: { contract: string };
-  blockTaskCompleted: { contract: string };
+  logTaskCompleted: { name: string };
+  blockTaskCompleted: { name: string };
 
-  eventsAdded: { count: number };
+  eventsAdded: undefined;
 
-  backfillStarted: { contractCount: number };
+  backfillStarted: { logFilterCount: number };
   backfillCompleted: { duration: number };
 };
 
@@ -39,17 +39,15 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
   async backfill() {
     const backfillStartedAt = startBenchmark();
 
-    const indexedContracts = this.resources.contracts.filter(
-      (contract) => contract.isIndexed
-    );
-
     await Promise.all(
-      indexedContracts.map(async (contract) => {
-        await this.startBackfillForContract({ contract });
+      this.resources.logFilters.map(async (logFilter) => {
+        await this.startBackfillForLogFilter({ logFilter });
       })
     );
 
-    this.emit("backfillStarted", { contractCount: indexedContracts.length });
+    this.emit("backfillStarted", {
+      logFilterCount: this.resources.logFilters.length,
+    });
 
     await Promise.all(this.drainFunctions.map((f) => f()));
 
@@ -61,63 +59,72 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
     await Promise.all(this.killFunctions.map((f) => f()));
   }
 
-  private async startBackfillForContract({ contract }: { contract: Contract }) {
-    if (!contract.endBlock) {
-      throw new Error(`Contract does not have an end block: ${contract.name}`);
+  private async startBackfillForLogFilter({
+    logFilter,
+  }: {
+    logFilter: LogFilter;
+  }) {
+    if (!logFilter.endBlock) {
+      throw new Error(
+        `Log filter does not have an end block: ${logFilter.name}`
+      );
     }
 
     // Create queues.
     const blockBackfillQueue = createBlockBackfillQueue({
       backfillService: this,
-      contract,
+      logFilter,
     });
 
     const logBackfillQueue = createLogBackfillQueue({
       backfillService: this,
-      contract,
+      logFilter,
       blockBackfillQueue,
     });
 
-    if (contract.startBlock > contract.endBlock) {
+    const { startBlock, endBlock } = logFilter;
+
+    if (startBlock > endBlock) {
       throw new Error(
-        `Start block number (${contract.startBlock}) is greater than latest block number (${contract.endBlock}).
+        `Start block number (${startBlock}) is greater than end block number (${endBlock}).
          Are you sure the RPC endpoint is for the correct network?
         `
       );
     }
 
-    const cachedIntervals = await this.resources.cacheStore.getLogCacheMetadata(
-      { filterKey: `${contract.network.chainId}-${contract.address}-${""}` }
-    );
-    const requiredBlockIntervals = p1_excluding_all(
-      [contract.startBlock, contract.endBlock],
-      cachedIntervals.map((i) => [i.startBlock, i.endBlock])
+    const cachedRanges =
+      await this.resources.cacheStore.getLogFilterCachedRanges({
+        filterKey: logFilter.filterKey,
+      });
+    const requiredBlockRanges = p1_excluding_all(
+      [logFilter.startBlock, logFilter.endBlock],
+      cachedRanges.map((r) => [r.startBlock, r.endBlock])
     );
 
-    const requiredBlockCount = requiredBlockIntervals.reduce((acc, cur) => {
+    const requiredBlockCount = requiredBlockRanges.reduce((acc, cur) => {
       return acc + (cur[1] + 1 - cur[0]);
     }, 0);
     const cacheRate = Math.max(
       0,
-      1 - requiredBlockCount / (contract.endBlock - contract.startBlock)
+      1 - requiredBlockCount / (logFilter.endBlock - logFilter.startBlock)
     );
 
-    this.emit("contractStarted", {
-      contract: contract.name,
+    this.emit("logFilterStarted", {
+      name: logFilter.name,
       cacheRate: cacheRate,
     });
 
-    for (const blockInterval of requiredBlockIntervals) {
-      const [startBlock, endBlock] = blockInterval;
+    for (const blockRange of requiredBlockRanges) {
+      const [startBlock, endBlock] = blockRange;
 
       let fromBlock = startBlock;
-      let toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
+      let toBlock = Math.min(fromBlock + logFilter.blockLimit - 1, endBlock);
 
       while (fromBlock <= endBlock) {
         logBackfillQueue.addTask({ fromBlock, toBlock, isRetry: false });
 
         fromBlock = toBlock + 1;
-        toBlock = Math.min(fromBlock + contract.blockLimit - 1, endBlock);
+        toBlock = Math.min(fromBlock + logFilter.blockLimit - 1, endBlock);
       }
     }
 
