@@ -103,7 +103,7 @@ describe("art-gobblers", () => {
 
       gql = async (query) => {
         const response = await app
-          .post("/graphql")
+          .post("/")
           .send({ query: `query { ${query} }` });
 
         expect(response.body.errors).toBe(undefined);
