@@ -76,7 +76,7 @@ describe("InvalidParamsRpcError", () => {
       await backfillService.backfill();
 
       await expectEvents(eventIterator, {
-        contractStarted: 1,
+        logFilterStarted: 1,
         backfillStarted: 1,
         logTasksAdded: 8, // 2 more than normal
         logTaskCompleted: 7, // 1 more than normal
@@ -85,7 +85,7 @@ describe("InvalidParamsRpcError", () => {
         blockTaskCompleted: 52, // 1 more than normal
         blockTaskFailed: 0,
         backfillCompleted: 1,
-        eventsAdded: 7, // 1 more than normal
+        eventsAdded: 52, // 1 more than normal
       });
     });
 

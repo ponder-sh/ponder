@@ -52,7 +52,7 @@ describe("normal", () => {
       await backfillService.backfill();
 
       await expectEvents(eventIterator, {
-        contractStarted: 1,
+        logFilterStarted: 1,
         backfillStarted: 1,
         logTasksAdded: 6,
         logTaskCompleted: 6,
@@ -61,7 +61,7 @@ describe("normal", () => {
         blockTaskCompleted: 51,
         blockTaskFailed: 0,
         backfillCompleted: 1,
-        eventsAdded: 6,
+        eventsAdded: 51,
       });
     });
 
@@ -93,14 +93,15 @@ describe("normal", () => {
     test("cached interval is written to cache store", async () => {
       await backfillService.backfill();
 
-      const cachedIntervals =
-        await backfillService.resources.cacheStore.getCachedIntervals(
-          usdcContractConfig.address
-        );
+      const filterKey = `1-"${usdcContractConfig.address}"-undefined`;
+      const metadata =
+        await backfillService.resources.cacheStore.getLogFilterCachedRanges({
+          filterKey,
+        });
 
-      expect(cachedIntervals.length).toBe(1);
-      expect(cachedIntervals[0]).toMatchObject({
-        contractAddress: usdcContractConfig.address,
+      expect(metadata.length).toBe(1);
+      expect(metadata[0]).toMatchObject({
+        filterKey,
         startBlock: 16369950,
         endBlock: 16370000,
         endBlockTimestamp: 1673276423,

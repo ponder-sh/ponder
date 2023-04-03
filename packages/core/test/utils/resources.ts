@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { LoggerService } from "@/common/LoggerService";
 import { buildContracts } from "@/config/contracts";
+import { buildLogFilters } from "@/config/logFilters";
 import { buildOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
 import { buildCacheStore } from "@/database/cache/cacheStore";
@@ -58,6 +59,7 @@ export const buildTestResources = async (
   const cacheStore = buildCacheStore({ database });
   const entityStore = buildEntityStore({ database });
   const contracts = buildContracts({ options, config });
+  const logFilters = buildLogFilters({ options, config });
 
   const resources: Resources = {
     options,
@@ -66,6 +68,7 @@ export const buildTestResources = async (
     cacheStore,
     entityStore,
     contracts,
+    logFilters,
     logger,
     errors,
   };
