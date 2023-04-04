@@ -26,6 +26,10 @@ export const buildOptions = ({
   cliOptions: PonderCliOptions;
   configOptions?: ResolvedPonderConfig["options"];
 }): PonderOptions => {
+  const railwayHealthcheckTimeout = process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC
+    ? Math.max(Number(process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC) - 5, 0) // Add 5 seconds of buffer.
+    : undefined;
+
   const defaults = {
     rootDir: path.resolve(cliOptions.rootDir),
     configFile: cliOptions.configFile,
@@ -35,7 +39,8 @@ export const buildOptions = ({
     ponderDir: ".ponder",
 
     port: Number(process.env.PORT ?? 42069),
-    maxHealthcheckDuration: configOptions?.maxHealthcheckDuration ?? 240,
+    maxHealthcheckDuration:
+      configOptions?.maxHealthcheckDuration ?? railwayHealthcheckTimeout ?? 240,
 
     logLevel: Number(process.env.PONDER_LOG_LEVEL ?? 2),
     uiEnabled: true,
