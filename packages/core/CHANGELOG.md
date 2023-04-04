@@ -1,5 +1,28 @@
 # @ponder/core
 
+## 0.0.51
+
+### Patch Changes
+
+- [#153](https://github.com/0xOlias/ponder/pull/153) [`64fd31e`](https://github.com/0xOlias/ponder/commit/64fd31e00317e97a83cb6c1e930cc8c5578694e2) Thanks [@0xOlias](https://github.com/0xOlias)! - Changed graphql API path from `/graphql` to `/`
+
+- [#151](https://github.com/0xOlias/ponder/pull/151) [`ace6a36`](https://github.com/0xOlias/ponder/commit/ace6a3664c2e1354701e2225d0f5c92c3eae9a28) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for a "setup" event which is processed before all log events. The "setup" event handler argument only includes `context` (no `event` property). Example:
+
+  ```ts
+  import { ponder } from "@/generated";
+
+  ponder.on("setup", async ({ context }) => {
+    const { MyEntity } = context.entities;
+
+    const setupData = await fetch("https://...");
+
+    await MyEntity.create({
+      id: setupData.id,
+      data: { ...setupData },
+    });
+  });
+  ```
+
 ## 0.0.50
 
 ### Patch Changes
