@@ -81,13 +81,13 @@ importers:
       "@ponder/core": workspace:latest
       abitype: ^0.6.7
       typescript: ^4.9.5
-      viem: 0.1.6
+      viem: 0.2.1
     dependencies:
       "@ponder/core": link:../../packages/core
     devDependencies:
       abitype: 0.6.7_typescript@4.9.5
       typescript: 4.9.5
-      viem: 0.1.6_typescript@4.9.5
+      viem: 0.2.1_typescript@4.9.5
 
   packages/core:
     specifiers:
@@ -2118,7 +2118,6 @@ packages:
       nano-base32: 1.0.1
       ripemd160: 2.0.2
       sha3: 2.1.4
-    dev: false
 
   /@esbuild/android-arm/0.16.17:
     resolution:
@@ -4127,7 +4126,6 @@ packages:
         optional: true
     dependencies:
       typescript: 4.9.5
-    dev: false
 
   /abitype/0.6.7_p5jgycp7euppyerdfacwyih2x4:
     resolution:
@@ -4174,6 +4172,18 @@ packages:
       typescript: 4.9.5
       zod: 3.20.2
     dev: false
+
+  /abitype/0.7.1_typescript@4.9.5:
+    resolution: {integrity: sha512-VBkRHTDZf9Myaek/dO3yMmOzB/y2s3Zo6nVU7yaw1G+TvCHAjwaJzNGN9yo4K5D8bU/VZXKP1EJpRhFr862PlQ==}
+    peerDependencies:
+      typescript: '>=4.9.4'
+      zod: ^3 >=3.19.1
+    peerDependenciesMeta:
+      zod:
+        optional: true
+    dependencies:
+      typescript: 4.9.5
+    dev: true
 
   /accepts/1.3.8:
     resolution:
@@ -4564,7 +4574,6 @@ packages:
       }
     dependencies:
       safe-buffer: 5.2.1
-    dev: false
 
   /base64-js/1.5.1:
     resolution:
@@ -4738,7 +4747,6 @@ packages:
       }
     dependencies:
       base-x: 3.0.9
-    dev: false
 
   /buffer-writer/2.0.0:
     resolution:
@@ -4766,7 +4774,6 @@ packages:
     dependencies:
       base64-js: 1.5.1
       ieee754: 1.2.1
-    dev: false
 
   /bundle-require/4.0.1_esbuild@0.17.11:
     resolution:
@@ -5315,7 +5322,6 @@ packages:
       ripemd160-min: 0.0.6
       safe-buffer: 5.2.1
       sha3: 2.1.4
-    dev: false
 
   /css-select/4.3.0:
     resolution:
@@ -7608,7 +7614,6 @@ packages:
       inherits: 2.0.4
       readable-stream: 3.6.1
       safe-buffer: 5.2.1
-    dev: false
 
   /hast-util-to-estree/2.1.0:
     resolution:
@@ -10756,7 +10761,6 @@ packages:
       inherits: 2.0.4
       string_decoder: 1.3.0
       util-deprecate: 1.0.2
-    dev: false
 
   /readdirp/3.6.0:
     resolution:
@@ -11066,7 +11070,6 @@ packages:
     dependencies:
       hash-base: 3.1.0
       inherits: 2.0.4
-    dev: false
 
   /rollup/3.18.0:
     resolution:
@@ -11253,7 +11256,6 @@ packages:
       }
     dependencies:
       buffer: 6.0.3
-    dev: false
 
   /shebang-command/1.2.0:
     resolution:
@@ -11640,7 +11642,6 @@ packages:
       }
     dependencies:
       safe-buffer: 5.2.1
-    dev: false
 
   /stringify-entities/4.0.3:
     resolution:
@@ -12697,6 +12698,26 @@ packages:
       - utf-8-validate
       - zod
     dev: false
+
+  /viem/0.2.1_typescript@4.9.5:
+    resolution: {integrity: sha512-L1kQrh7n0xayAirlVvIB7HfrTVrIZwC2Xv+N4QhtLz0Sa9Ss+YI98AdvMyC2rDCGRtJ0EF9j2UWfDc+PVYEgaw==}
+    dependencies:
+      '@ensdomains/address-encoder': 0.2.21
+      '@noble/curves': 0.9.1
+      '@noble/hashes': 1.3.0
+      '@scure/bip32': 1.2.0
+      '@scure/bip39': 1.2.0
+      '@wagmi/chains': 0.2.16_typescript@4.9.5
+      abitype: 0.7.1_typescript@4.9.5
+      idna-uts46-hx: 4.1.2
+      isomorphic-ws: 5.0.0_ws@8.12.1
+      ws: 8.12.1
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
+    dev: true
 
   /vite-node/0.29.2_@types+node@18.7.8:
     resolution:

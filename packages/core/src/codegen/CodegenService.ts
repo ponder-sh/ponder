@@ -7,7 +7,6 @@ import { ensureDirExists } from "@/common/utils";
 import { Resources } from "@/Ponder";
 import { Schema } from "@/schema/types";
 
-import { buildContractTypes } from "./buildContractTypes";
 import { buildEntityTypes } from "./buildEntityTypes";
 import { buildEventTypes } from "./buildEventTypes";
 import { formatPrettier } from "./utils";
@@ -28,8 +27,8 @@ export class CodegenService extends Emittery {
   
       import { PonderApp } from "@ponder/core";
       import type { Block, Log, Transaction, Model } from "@ponder/core";
-      import type { AbiParameterToPrimitiveType } from "abitype";
-      import type { BlockTag, Hash } from "viem";
+      import type { AbiParameterToPrimitiveType, Abi } from "abitype";
+      import type { Hash, GetContractReturnType, PublicClient } from "viem";
 
       /* ENTITY TYPES */
 
@@ -37,26 +36,29 @@ export class CodegenService extends Emittery {
   
       /* CONTRACT TYPES */
 
-      type CallOverrides =
-      | {
-          /** The block number at which to execute the contract call. */
-          blockNumber?: bigint
-          blockTag?: never
-        }
-      | {
-          blockNumber?: never
-          /** The block tag at which to execute the contract call. */
-          blockTag?: BlockTag
-        }
+      ${this.resources.contracts
+        .map(
+          (contract) =>
+            `const ${contract.name}Abi = ${JSON.stringify(
+              contract.abi
+            )} as const`
+        )
+        .join("\n")}
 
-      ${buildContractTypes(this.resources.contracts)}
+      type ReadOnlyContract<TAbi extends readonly unknown[] | Abi = Abi> = Pick<
+        GetContractReturnType<TAbi, PublicClient> & { read: {} },
+        "read"
+      >;
 
       /* CONTEXT TYPES */
 
       export type Context = {
         contracts: {
           ${this.resources.contracts
-            .map((contract) => `${contract.name}: ${contract.name};`)
+            .map(
+              (contract) =>
+                `${contract.name}: ReadOnlyContract<typeof ${contract.name}Abi>;`
+            )
             .join("")}
         },
         entities: {

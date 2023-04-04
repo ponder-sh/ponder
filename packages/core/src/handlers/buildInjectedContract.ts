@@ -1,33 +1,42 @@
-import { AbiParameter } from "abitype";
-import { BlockTag, encodeFunctionData } from "viem";
+import { Abi, AbiParameter } from "abitype";
+import {
+  BlockTag,
+  createPublicClient,
+  custom,
+  encodeFunctionData,
+  getContract,
+  GetContractReturnType,
+  http,
+  PublicClient,
+  TransactionRequest,
+} from "viem";
 
 import { Contract } from "@/config/contracts";
 
 import { EventHandlerService } from "./EventHandlerService";
 
-export type ReadOnlyContract = {
-  [key: string]: (...args: any[]) => Promise<any>;
-};
+export type ReadOnlyContract<TAbi extends readonly unknown[] | Abi = Abi> =
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  Pick<GetContractReturnType<TAbi, PublicClient> & { read: {} }, "read">;
 
-type AbiReadFunction = {
-  type: "function";
-  stateMutability: "pure" | "view";
-  inputs: readonly AbiParameter[];
-  name: string;
-  outputs: readonly AbiParameter[];
-};
-
-type CallOverrides =
-  | {
-      /** The block number at which to execute the contract call. */
-      blockNumber?: bigint;
-      blockTag?: never;
-    }
-  | {
-      blockNumber?: never;
-      /** The block tag at which to execute the contract call. */
-      blockTag?: BlockTag;
-    };
+// {
+//   method: 'eth_call',
+//   params: [
+//     {
+//       from: undefined,
+//       accessList: undefined,
+//       data: '0x35fae7a60000000000000000000000009746fd0a77829e12f8a9dbe70d7a322412325b910000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000001667756e7a6970536372697074732d302e302e312e6a7300000000000000000000',
+//       gas: undefined,
+//       gasPrice: undefined,
+//       maxFeePerGas: undefined,
+//       maxPriorityFeePerGas: undefined,
+//       nonce: undefined,
+//       to: '0xbc66c61bcf49cc3fe4e321aecea307f61ec57c0b',
+//       value: undefined
+//     },
+//     'latest'
+//   ]
+// }
 
 export function buildInjectedContract({
   contract,
@@ -35,53 +44,56 @@ export function buildInjectedContract({
 }: {
   contract: Contract;
   eventHandlerService: EventHandlerService;
-}) {
-  const injectedContract: ReadOnlyContract = {};
+}): ReadOnlyContract {
+  const httpTransport = http(contract.network.rpcUrl)({});
 
-  const readFunctions = contract.abi.filter(
-    (item): item is AbiReadFunction =>
-      item.type === "function" &&
-      (item.stateMutability === "pure" || item.stateMutability === "view")
-  );
-
-  readFunctions.forEach((readFunction) => {
-    injectedContract[readFunction.name] = async (...args) => {
-      let overrides: CallOverrides;
-
-      // If the length of the args is one greater than the length of the inputs,
-      // an overrides argument was provided.
-      if (args.length === readFunction.inputs.length + 1) {
-        overrides = args.pop();
-      } else {
-        overrides = {
-          blockNumber: eventHandlerService.currentLogEventBlockNumber,
-        };
+  const cachedTransport = custom({
+    async request({
+      method,
+      params,
+    }: {
+      method: "eth_call";
+      params: [request: TransactionRequest, blockTag: BlockTag];
+    }) {
+      if (method !== "eth_call") {
+        eventHandlerService.resources.logger.warn(
+          "Unexpected RPC request in cachedTransport. Expected eth_call, received:",
+          { method, params }
+        );
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        return httpTransport.request({ method, params });
       }
+
+      console.log({ method, params });
+
+      const [request, blockTag] = params;
+      console.log({ request, blockTag });
+
+      // // If the length of the args is one greater than the length of the inputs,
+      // // an overrides argument was provided.
+      // if (args.length === readFunction.inputs.length + 1) {
+      //   overrides = args.pop();
+      // } else {
+      //   overrides = {
+      //     blockNumber: eventHandlerService.currentLogEventBlockNumber,
+      //   };
+      // }
 
       // If `overrides` uses a blockNumber (either provided by the user or using the)
       // default of currentLogEventBlockNumber, enable caching.
-      const isCachingEnabled = overrides.blockNumber !== undefined;
+      const isCachingEnabled = typeof blockTag === "number";
+      console.log({ isCachingEnabled });
 
       let result: any;
 
       if (!isCachingEnabled) {
-        result = await contract.network.client.readContract({
-          address: contract.address,
-          abi: contract.abi,
-          functionName: readFunction.name as never,
-          args: args,
-          ...overrides,
-        });
+        return httpTransport.request({ method, params });
       }
 
       if (isCachingEnabled) {
-        const calldata = encodeFunctionData({
-          abi: contract.abi,
-          args: args,
-          functionName: readFunction.name as never,
-        });
-
-        const contractCallCacheKey = `${contract.network.chainId}-${overrides.blockNumber}-${contract.address}-${calldata}`;
+        const calldata = request.data;
+        const contractCallCacheKey = `${contract.network.chainId}-${overrides.blockNumber}-${contract.address}-${request.data}`;
 
         const cachedContractCall =
           await eventHandlerService.resources.cacheStore.getContractCall(
@@ -91,11 +103,9 @@ export function buildInjectedContract({
         if (cachedContractCall) {
           result = JSON.parse(cachedContractCall.result, reviveJsonBigInt);
         } else {
-          result = await contract.network.client.readContract({
-            address: contract.address,
-            abi: contract.abi,
-            functionName: readFunction.name as never,
-            args: args,
+          result = httpTransport.request({
+            method,
+            params: [request, blockTag],
           });
 
           await eventHandlerService.resources.cacheStore.upsertContractCall({
@@ -117,7 +127,15 @@ export function buildInjectedContract({
       }
 
       return resultObject;
-    };
+    },
+  });
+
+  const injectedContract = getContract({
+    abi: contract.abi,
+    address: contract.address,
+    publicClient: createPublicClient({
+      transport: cachedTransport,
+    }),
   });
 
   return injectedContract;

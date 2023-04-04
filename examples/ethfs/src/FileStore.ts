@@ -11,19 +11,24 @@ const parseJson = (encodedJson: string, defaultValue: any = null) => {
 };
 
 ponder.on("FileStore:FileCreated", async ({ event, context }) => {
+  const { FileStoreFrontend } = context.contracts;
   const { filename, size, metadata: rawMetadata } = event.params;
 
   const metadata = parseJson(fromHex(rawMetadata, "string"));
+
+  const contents = await FileStoreFrontend.read.readFile(
+    [event.transaction.to!, filename]
+    // {
+    //   blockTag: "latest",
+    // }
+  );
 
   await context.entities.File.create({
     id: filename,
     data: {
       name: filename,
       size: Number(size),
-      contents: await context.contracts.FileStoreFrontend.readFile(
-        event.transaction.to as `0x{string}`,
-        filename
-      ),
+      contents,
       createdAt: Number(event.block.timestamp),
       type: metadata?.type,
       compression: metadata?.compression,
