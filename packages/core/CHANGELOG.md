@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.52
+
+### Patch Changes
+
+- [#154](https://github.com/0xOlias/ponder/pull/154) [`e3f949c`](https://github.com/0xOlias/ponder/commit/e3f949ca16ea06ad2ba92b9304a591c8210d3a21) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated `maxHealthcheckDuration` resolution to honor Railway's env var `RAILWAY_HEALTHCHECK_TIMEOUT_SEC`
+
 ## 0.0.51
 
 ### Patch Changes
