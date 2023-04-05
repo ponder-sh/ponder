@@ -1,26 +1,29 @@
 import { Abi, Address } from "abitype";
-import { Hex } from "viem";
+import { encodeEventTopics } from "viem";
 
 import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
 
 import { buildAbi } from "./abi";
+import {
+  encodeLogFilterKey,
+  FilterAddress,
+  FilterTopics,
+} from "./encodeLogFilterKey";
 import { buildNetwork, Network } from "./networks";
-
-// type LogFilterArgument = Parameters<PublicClient["createEventFilter"]>[0];
 
 export type LogFilter = {
   name: string;
   network: Network;
   abi: Abi;
-  filterKey: string;
   filter: {
-    address: Address | Address[];
-    topics: (Hex | Hex[] | null)[] | undefined;
+    key: string; // `${chainId}-${address}-${topics}`
+    address: FilterAddress;
+    topics: FilterTopics;
   };
   startBlock: number;
   endBlock: number | undefined;
-  blockLimit: number;
+  maxBlockRange: number;
 };
 
 export function buildLogFilters({
@@ -30,11 +33,9 @@ export function buildLogFilters({
   config: ResolvedPonderConfig;
   options: PonderOptions;
 }) {
-  const contractLogFilters = config.contracts
-    .filter((contract) => contract.isIndexed ?? true)
+  const contractLogFilters = (config.contracts ?? [])
+    .filter((contract) => contract.isLogEventSource ?? true)
     .map((contract) => {
-      const address = contract.address.toLowerCase() as Address;
-
       const { abi } = buildAbi({ abiConfig: contract.abi, options });
 
       // Get the contract network/provider.
@@ -49,30 +50,82 @@ export function buildLogFilters({
 
       const network = buildNetwork({ network: rawNetwork });
 
-      const topics = undefined;
-      const filterKey = `${network.chainId}-${JSON.stringify(
-        address
-      )}-${JSON.stringify(topics)}`;
+      const address = contract.address.toLowerCase() as Address;
+      const topics = null;
+      const key = encodeLogFilterKey({
+        chainId: network.chainId,
+        address,
+        topics,
+      });
 
       const logFilter: LogFilter = {
         name: contract.name,
         network,
         abi,
-        filterKey,
         filter: {
+          key,
           address,
           topics,
         },
         startBlock: contract.startBlock ?? 0,
         endBlock: contract.endBlock,
-        blockLimit: contract.blockLimit ?? network.defaultBlockLimit,
+        maxBlockRange: contract.maxBlockRange ?? network.defaultMaxBlockRange,
       };
 
       return logFilter;
     });
 
-  // TODO: Add arbitrary log filters.
-  const logFilters = contractLogFilters;
+  const filterLogFilters = (config.filters ?? []).map((filter) => {
+    const { abi } = buildAbi({ abiConfig: filter.abi, options });
+
+    // Get the contract network/provider.
+    const rawNetwork = config.networks.find((n) => n.name === filter.network);
+    if (!rawNetwork) {
+      throw new Error(
+        `Network [${filter.network}] not found for filter: ${filter.name}`
+      );
+    }
+
+    const network = buildNetwork({ network: rawNetwork });
+
+    const address = Array.isArray(filter.filter.address)
+      ? filter.filter.address.map((a) => a.toLowerCase() as Address)
+      : typeof filter.filter.address === "string"
+      ? (filter.filter.address.toLowerCase() as Address)
+      : null;
+
+    const topics = filter.filter.event
+      ? encodeEventTopics({
+          abi: [filter.filter.event],
+          eventName: filter.filter.event.name,
+          args: filter.filter.args as any,
+        })
+      : null;
+
+    const key = encodeLogFilterKey({
+      chainId: network.chainId,
+      address,
+      topics,
+    });
+
+    const logFilter: LogFilter = {
+      name: filter.name,
+      network,
+      abi,
+      filter: {
+        key,
+        address,
+        topics,
+      },
+      startBlock: filter.startBlock ?? 0,
+      endBlock: filter.endBlock,
+      maxBlockRange: filter.maxBlockRange ?? network.defaultMaxBlockRange,
+    };
+
+    return logFilter;
+  });
+
+  const logFilters = contractLogFilters.concat(filterLogFilters);
 
   return logFilters;
 }

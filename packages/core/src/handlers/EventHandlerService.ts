@@ -265,7 +265,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
       this.resources.logFilters.map(async (logFilter) => {
         const cachedRanges =
           await this.resources.cacheStore.getLogFilterCachedRanges({
-            filterKey: logFilter.filterKey,
+            filterKey: logFilter.filter.key,
           });
 
         // Find the cached interval that includes the filter's startBlock.
@@ -301,17 +301,9 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     // NOTE: cacheStore.getLogs is exclusive to the left and inclusive to the right.
     // This is fine because this.latestProcessedTimestamp starts at zero.
     const rawLogs = await Promise.all(
-<<<<<<< HEAD
-      contracts.map(async (contract) => {
-        const handlers = this.handlers ?? {};
-        const contractHandlers = handlers[contract.name] ?? {};
-        const eventNames = Object.keys(contractHandlers);
-
-=======
       this.resources.logFilters.map(async (logFilter) => {
         const handlers = (this.handlers ?? {})[logFilter.name] ?? {};
         const eventNames = Object.keys(handlers);
->>>>>>> ab1268e (chore: update contracts dependents to use log filters)
         const eventSigHashes = eventNames.map((eventName) => {
           // TODO: Disambiguate overloaded ABI event signatures BEFORE getting here.
           const eventTopics = encodeEventTopics({

@@ -94,7 +94,7 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
 
     const cachedRanges =
       await this.resources.cacheStore.getLogFilterCachedRanges({
-        filterKey: logFilter.filterKey,
+        filterKey: logFilter.filter.key,
       });
     const requiredBlockRanges = p1_excluding_all(
       [logFilter.startBlock, logFilter.endBlock],
@@ -118,13 +118,13 @@ export class BackfillService extends Emittery<BackfillServiceEvents> {
       const [startBlock, endBlock] = blockRange;
 
       let fromBlock = startBlock;
-      let toBlock = Math.min(fromBlock + logFilter.blockLimit - 1, endBlock);
+      let toBlock = Math.min(fromBlock + logFilter.maxBlockRange - 1, endBlock);
 
       while (fromBlock <= endBlock) {
         logBackfillQueue.addTask({ fromBlock, toBlock, isRetry: false });
 
         fromBlock = toBlock + 1;
-        toBlock = Math.min(fromBlock + logFilter.blockLimit - 1, endBlock);
+        toBlock = Math.min(fromBlock + logFilter.maxBlockRange - 1, endBlock);
       }
     }
 

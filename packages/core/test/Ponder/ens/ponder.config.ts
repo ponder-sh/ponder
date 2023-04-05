@@ -10,7 +10,7 @@ export const config = {
       address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
       startBlock: 16370000,
       endBlock: 16370200,
-      blockLimit: 100,
+      maxBlockRange: 100,
     },
   ],
 };

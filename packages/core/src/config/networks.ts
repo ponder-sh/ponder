@@ -9,7 +9,7 @@ export type Network = {
   client: PublicClient;
   rpcUrl?: string;
   pollingInterval: number;
-  defaultBlockLimit: number;
+  defaultMaxBlockRange: number;
 };
 
 const clients: Record<number, PublicClient | undefined> = {};
@@ -40,13 +40,13 @@ export function buildNetwork({
     client,
     rpcUrl: network.rpcUrl,
     pollingInterval: network.pollingInterval ?? 1_000,
-    defaultBlockLimit: getDefaultBlockLimitForNetwork(network),
+    defaultMaxBlockRange: getDefaultMaxBlockRange(network),
   };
 
   return resolvedNetwork;
 }
 
-function getDefaultBlockLimitForNetwork(network: {
+function getDefaultMaxBlockRange(network: {
   rpcUrl?: string;
   chainId: number;
 }) {
@@ -58,7 +58,7 @@ function getDefaultBlockLimitForNetwork(network: {
   // Otherwise (e.g. Alchemy) use an optimistically high block limit and lean
   // on the error handler to resolve failures.
 
-  let blockLimit: number;
+  let maxBlockRange: number;
   switch (network.chainId) {
     // Mainnet.
     case 1:
@@ -67,26 +67,26 @@ function getDefaultBlockLimitForNetwork(network: {
     case 5:
     case 42:
     case 11155111:
-      blockLimit = 2_000;
+      maxBlockRange = 2_000;
       break;
     // Optimism.
     case 10:
     case 420:
-      blockLimit = 50_000;
+      maxBlockRange = 50_000;
       break;
     // Polygon.
     case 137:
     case 80001:
-      blockLimit = 50_000;
+      maxBlockRange = 50_000;
       break;
     // Arbitrum.
     case 42161:
     case 421613:
-      blockLimit = 50_000;
+      maxBlockRange = 50_000;
       break;
     default:
-      blockLimit = 50_000;
+      maxBlockRange = 50_000;
   }
 
-  return blockLimit;
+  return maxBlockRange;
 }

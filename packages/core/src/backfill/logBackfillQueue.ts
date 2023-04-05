@@ -1,4 +1,9 @@
-import { Hash, HttpRequestError, InvalidParamsRpcError } from "viem";
+import {
+  Hash,
+  HttpRequestError,
+  InvalidParamsRpcError,
+  numberToHex,
+} from "viem";
 
 import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
@@ -120,10 +125,30 @@ const logBackfillWorker: Worker<
   const { backfillService, logFilter, blockBackfillQueue } = context;
   const { client } = logFilter.network;
 
-  const rawLogs = await client.getLogs({
-    address: logFilter.filter.address,
-    fromBlock: BigInt(fromBlock),
-    toBlock: BigInt(toBlock),
+  // const rawLogs = await client.getLogs({
+  //   address:
+  //     logFilter.filter.address !== null ? logFilter.filter.address : undefined,
+  //   event: logFilter.filter.event,
+  //   fromBlock: BigInt(fromBlock),
+  //   toBlock: BigInt(toBlock),
+  // });
+
+  const result = await client.transport.request({
+    method: "eth_getLogs",
+    params: [
+      {
+        address:
+          logFilter.filter.address !== null
+            ? logFilter.filter.address
+            : undefined,
+        topics:
+          logFilter.filter.topics !== null
+            ? logFilter.filter.topics
+            : undefined,
+        fromBlock: numberToHex(fromBlock),
+        toBlock: numberToHex(toBlock),
+      },
+    ],
   });
 
   const logs = parseLogs(rawLogs);

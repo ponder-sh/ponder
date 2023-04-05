@@ -33,7 +33,7 @@ describe("normal", () => {
           ...usdcContractConfig,
           startBlock: 16369950,
           endBlock: 16370000,
-          blockLimit: 10,
+          maxBlockRange: 10,
         },
       ],
     });

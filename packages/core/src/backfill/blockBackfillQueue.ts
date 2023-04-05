@@ -109,7 +109,7 @@ const blockBackfillWorker: Worker<
     backfillService.resources.cacheStore.insertTransactions(transactions),
     backfillService.resources.cacheStore.insertLogFilterCachedRange({
       range: {
-        filterKey: logFilter.filterKey,
+        filterKey: logFilter.filter.key,
         startBlock: previousBlockNumber,
         endBlock: blockNumber,
         endBlockTimestamp: Number(block.timestamp),
