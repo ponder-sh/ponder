@@ -31,14 +31,13 @@ export type FrontfillServiceEvents = {
   eventsAdded: undefined;
 };
 
-type LogFilterGroup = {
+export type LogFilterGroup = {
   id: string;
   filterKeys: string[];
-  filter: LogFilter["filter"];
+  filter: Omit<LogFilter["filter"], "key">;
   network: Network;
   startBlockNumber: number;
   startBlockTimestamp: number;
-  currentBlockNumber: number;
 };
 
 export class FrontfillService extends Emittery<FrontfillServiceEvents> {
@@ -48,6 +47,7 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
   private nextBatchIdleFunctions: (() => Promise<void>)[] = [];
 
   logFilterGroups: LogFilterGroup[] = [];
+  currentBlockNumbers: Record<string, number> = {};
 
   backfillCutoffTimestamp = Number.POSITIVE_INFINITY;
 
@@ -95,19 +95,18 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
             typeof f.filter.address === "string" && // Is a single contract.
             f.filter.topics === undefined // Is simple.
         );
-
-        this.logFilterGroups.push({
+        const simpleGroup = {
           id: `${network.name}-simple`,
-          filterKeys: simpleLogFilters.map((f) => f.filterKey),
+          filterKeys: simpleLogFilters.map((f) => f.filter.key),
           filter: {
             address: simpleLogFilters.map((f) => f.filter.address as Address),
-            topics: undefined,
           },
           network,
           startBlockNumber: latestBlockData.blockNumber,
           startBlockTimestamp: latestBlockData.blockTimestamp,
-          currentBlockNumber: latestBlockData.blockNumber,
-        });
+        };
+        this.logFilterGroups.push(simpleGroup);
+        this.currentBlockNumbers[simpleGroup.id] = latestBlockData.blockNumber;
 
         // Create a live log filter group for each "complex" log filter on this network.
         // This includes any log filters that specify topics, or don't specify a single address.
@@ -118,17 +117,17 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
             (typeof f.filter.address !== "string" || // Is not a single contract.
               f.filter.topics !== undefined) // Is not simple.
         );
-
         complexLogFilters.forEach((logFilter, index) => {
-          this.logFilterGroups.push({
+          const group = {
             id: `${network.name}-complex-${index}`,
-            filterKeys: [logFilter.filterKey],
+            filterKeys: [logFilter.filter.key],
             filter: logFilter.filter,
             network,
             startBlockNumber: latestBlockData.blockNumber,
             startBlockTimestamp: latestBlockData.blockTimestamp,
-            currentBlockNumber: latestBlockData.blockNumber,
-          });
+          };
+          this.logFilterGroups.push(group);
+          this.currentBlockNumbers[group.id] = latestBlockData.blockNumber;
         });
 
         // Set `endBlock` to the latest block number for any log filters that did not specify one.
@@ -158,32 +157,30 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
     if (this.logFilterGroups.length === 0) return;
 
     this.logFilterGroups.forEach((group) => {
-      const { filterKeys, network } = group;
-      const { pollingInterval } = network;
-
       const blockFrontfillQueue = createBlockFrontfillQueue({
         frontfillService: this,
-        network,
+        group,
       });
 
       const logFrontfillQueue = createLogFrontfillQueue({
         frontfillService: this,
-        network,
-        filterKeys,
+        group,
         blockFrontfillQueue,
       });
 
       const handleLogs = async (logs: ViemLog[]) => {
-        this.emit("nextLogBatch", { network: network.name });
+        this.emit("nextLogBatch", { network: group.network.name });
         if (logs.length === 0) return;
 
         await logFrontfillQueue.addTask({ logs });
       };
 
-      const unwatch = network.client.watchEvent({
-        address: contractAddresses,
+      const unwatch = group.network.client.watchEvent({
+        address: group.filter.address,
+        event: group.filter.event,
+        args: group.filter.args as unknown as undefined,
         onLogs: handleLogs,
-        pollingInterval,
+        pollingInterval: group.network.pollingInterval,
         batch: true,
       });
 
@@ -206,14 +203,14 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
               reject(
                 new Error(
                   `Did not receive event "newLogBatch" within timeout (${
-                    pollingInterval * 2
+                    group.network.pollingInterval * 2
                   }ms)`
                 )
               ),
-            pollingInterval * 10
+            group.network.pollingInterval * 10
           );
           listener = ({ network: _network }) => {
-            if (_network === network.name) {
+            if (_network === group.network.name) {
               clearTimeout(timeout);
               resolve();
             }
@@ -229,7 +226,7 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
     });
 
     this.emit("frontfillStarted", {
-      logFilterGroupCount: this.liveLogFilterGroups.length,
+      logFilterGroupCount: this.logFilterGroups.length,
     });
   }
 

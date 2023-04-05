@@ -1,21 +1,17 @@
+import { Address, Hex } from "viem";
 import { describe, expect, test } from "vitest";
 
-import {
-  decodeLogFilterKey,
-  encodeLogFilterKey,
-  FilterAddress,
-  FilterTopics,
-} from "./encodeLogFilterKey";
+import { decodeLogFilterKey, encodeLogFilterKey } from "./encodeLogFilterKey";
 
 describe("encodeLogFilterKey", () => {
   const chainId = 1;
-  let address: FilterAddress = null;
-  let topics: FilterTopics = null;
+  let address: Address | Address[] | undefined = undefined;
+  let topics: (Hex | Hex[] | null)[] | undefined = undefined;
 
   describe("null address", () => {
     test("null topics", () => {
-      address = null;
-      topics = null;
+      address = undefined;
+      topics = undefined;
 
       const options = { chainId, address, topics };
       const key = encodeLogFilterKey(options);
@@ -24,7 +20,7 @@ describe("encodeLogFilterKey", () => {
     });
 
     test("empty topics", () => {
-      address = null;
+      address = undefined;
       topics = [];
 
       const options = { chainId, address, topics };
@@ -34,7 +30,7 @@ describe("encodeLogFilterKey", () => {
     });
 
     test("one topic, one value", () => {
-      address = null;
+      address = undefined;
       topics = ["0x1" as const];
 
       const options = { chainId, address, topics };
@@ -44,7 +40,7 @@ describe("encodeLogFilterKey", () => {
     });
 
     test("one topic, multiple values", () => {
-      address = null;
+      address = undefined;
       topics = [["0x1" as const, "0x2" as const]];
 
       const options = { chainId, address, topics };
@@ -54,7 +50,7 @@ describe("encodeLogFilterKey", () => {
     });
 
     test("multiple topics, one value", () => {
-      address = null;
+      address = undefined;
       topics = ["0x1" as const, "0x2" as const];
 
       const options = { chainId, address, topics };
@@ -64,7 +60,7 @@ describe("encodeLogFilterKey", () => {
     });
 
     test("multiple topics, some multiple values", () => {
-      address = null;
+      address = undefined;
       topics = ["0x1" as const, ["0x2" as const, "0x3" as const]];
 
       const options = { chainId, address, topics };
@@ -74,7 +70,7 @@ describe("encodeLogFilterKey", () => {
     });
 
     test("multiple topics, some null", () => {
-      address = null;
+      address = undefined;
       topics = ["0x1" as const, null, "0x3" as const];
 
       const options = { chainId, address, topics };
@@ -87,7 +83,7 @@ describe("encodeLogFilterKey", () => {
   describe("value address", () => {
     test("null topics", () => {
       address = "0xa" as const;
-      topics = null;
+      topics = undefined;
 
       const options = { chainId, address, topics };
       const key = encodeLogFilterKey(options);
@@ -159,7 +155,7 @@ describe("encodeLogFilterKey", () => {
   describe("multiple address", () => {
     test("null topics", () => {
       address = ["0xa" as const, "0xb" as const];
-      topics = null;
+      topics = undefined;
 
       const options = { chainId, address, topics };
       const key = encodeLogFilterKey(options);

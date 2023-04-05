@@ -20,7 +20,7 @@ export function buildContracts({
   config: ResolvedPonderConfig;
   options: PonderOptions;
 }): Contract[] {
-  return config.contracts.map((contract) => {
+  return (config.contracts ?? []).map((contract) => {
     const address = contract.address.toLowerCase() as Address;
 
     const { abi } = buildAbi({ abiConfig: contract.abi, options });

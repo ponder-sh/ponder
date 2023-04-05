@@ -90,6 +90,8 @@ export const buildDb = ({
 }): PonderDatabase => {
   let resolvedDatabaseConfig: NonNullable<ResolvedPonderConfig["database"]>;
 
+  const defaultSqliteFilename = path.join(options.ponderDir, "cache.db");
+
   if (config.database) {
     if (config.database.kind === "postgres") {
       resolvedDatabaseConfig = {
@@ -99,7 +101,7 @@ export const buildDb = ({
     } else {
       resolvedDatabaseConfig = {
         kind: "sqlite",
-        filename: config.database.filename,
+        filename: config.database.filename ?? defaultSqliteFilename,
       };
     }
   } else {
@@ -109,17 +111,16 @@ export const buildDb = ({
         connectionString: process.env.DATABASE_URL,
       };
     } else {
-      const filePath = path.join(options.ponderDir, "cache.db");
-      ensureDirExists(filePath);
       resolvedDatabaseConfig = {
         kind: "sqlite",
-        filename: filePath,
+        filename: defaultSqliteFilename,
       };
     }
   }
 
   if (resolvedDatabaseConfig.kind === "sqlite") {
-    const db = Sqlite(resolvedDatabaseConfig.filename, {
+    ensureDirExists(resolvedDatabaseConfig.filename!);
+    const db = Sqlite(resolvedDatabaseConfig.filename!, {
       verbose: logger.trace,
     });
     db.pragma("journal_mode = WAL");

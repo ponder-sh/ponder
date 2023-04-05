@@ -3,13 +3,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { PonderOptions } from "@/config/options";
-import { ResolvedPonderConfig } from "@/config/ponderConfig";
 
 export const buildAbi = ({
   abiConfig,
   options,
 }: {
-  abiConfig: ResolvedPonderConfig["contracts"][number]["abi"];
+  abiConfig: string | any[] | object;
   options: PonderOptions;
 }) => {
   let filePath: string | undefined = undefined;

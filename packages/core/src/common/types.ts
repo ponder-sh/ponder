@@ -93,6 +93,7 @@ export type Log = Omit<
   | "logIndex"
   | "transactionHash"
   | "transactionIndex"
+  | "topics"
 > & {
   /** Hash of block containing this log */
   blockHash: Hash;
@@ -104,6 +105,8 @@ export type Log = Omit<
   transactionHash: Hash;
   /** Index of the transaction that created this log */
   transactionIndex: number;
+  /** List of order-dependent topics */
+  topics: Hex[];
 
   /** Globally unique identifier for this log */
   logId: `${Hash}-${number}`;
@@ -111,8 +114,6 @@ export type Log = Omit<
   logSortKey: bigint;
   /** Unix timestamp of when the block containing this log was collated */
   blockTimestamp: bigint | null;
-  /** List of order-dependent topics */
-  topics: string[];
 
   // TODO: remove these from the public type.
   topic0: Hex | null;

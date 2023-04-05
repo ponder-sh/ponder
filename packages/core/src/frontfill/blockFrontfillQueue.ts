@@ -2,20 +2,19 @@ import { Hash, Transaction as ViemTransaction } from "viem";
 
 import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
-import { Block, parseBlock, parseTransactions } from "@/common/types";
-import { Network } from "@/config/networks";
+import { parseBlock, parseTransactions } from "@/common/types";
 
-import { FrontfillService } from "./FrontfillService";
+import { FrontfillService, LogFilterGroup } from "./FrontfillService";
 
 export type BlockFrontfillTask = {
-  blockHash: Hash;
+  blockNumber: number;
+  previousBlockNumber: number;
   requiredTxHashes: Set<Hash>;
-  onSuccess: (args: { block: Block }) => Promise<void>;
 };
 
 export type BlockFrontfillWorkerContext = {
   frontfillService: FrontfillService;
-  network: Network;
+  group: LogFilterGroup;
 };
 
 export type BlockFrontfillQueue = Queue<BlockFrontfillTask>;
@@ -34,21 +33,21 @@ export const createBlockFrontfillQueue = (
   // Pass queue events on to service layer.
   queue.on("add", () => {
     context.frontfillService.emit("blockTasksAdded", {
-      network: context.network.name,
+      network: context.group.network.name,
       count: 1,
     });
   });
 
   queue.on("error", ({ error }) => {
     context.frontfillService.emit("blockTaskFailed", {
-      network: context.network.name,
+      network: context.group.network.name,
       error,
     });
   });
 
   queue.on("completed", () => {
     context.frontfillService.emit("blockTaskCompleted", {
-      network: context.network.name,
+      network: context.group.network.name,
     });
   });
 
@@ -64,12 +63,12 @@ const blockFrontfillWorker: Worker<
   BlockFrontfillTask,
   BlockFrontfillWorkerContext
 > = async ({ task, context }) => {
-  const { blockHash, requiredTxHashes, onSuccess } = task;
-  const { frontfillService, network } = context;
-  const { client } = network;
+  const { blockNumber, previousBlockNumber, requiredTxHashes } = task;
+  const { frontfillService, group } = context;
+  const { client } = group.network;
 
   const rawBlock = await client.getBlock({
-    blockHash: blockHash,
+    blockNumber: BigInt(blockNumber),
     includeTransactions: true,
   });
 
@@ -79,7 +78,7 @@ const blockFrontfillWorker: Worker<
   if (!block) {
     frontfillService.resources.logger.logMessage(
       MessageKind.WARNING,
-      `Received unexpected pending block (hash: ${blockHash})`
+      `Received unexpected pending block (number: ${blockNumber})`
     );
     return;
   }
@@ -92,7 +91,7 @@ const blockFrontfillWorker: Worker<
   if (allTransactions.length !== block.transactions.length) {
     frontfillService.resources.logger.logMessage(
       MessageKind.WARNING,
-      `Received unexpected pending transactions in block (hash: ${blockHash}, count: ${
+      `Received unexpected pending transactions in block (number: ${blockNumber}, count: ${
         block.transactions.length - allTransactions.length
       })`
     );
@@ -107,7 +106,15 @@ const blockFrontfillWorker: Worker<
   await Promise.all([
     frontfillService.resources.cacheStore.insertBlock(block),
     frontfillService.resources.cacheStore.insertTransactions(transactions),
+    ...group.filterKeys.map((filterKey) =>
+      frontfillService.resources.cacheStore.insertLogFilterCachedRange({
+        range: {
+          filterKey,
+          startBlock: previousBlockNumber,
+          endBlock: blockNumber,
+          endBlockTimestamp: Number(block.timestamp),
+        },
+      })
+    ),
   ]);
-
-  await onSuccess({ block });
 };
