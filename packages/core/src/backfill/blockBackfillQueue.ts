@@ -4,6 +4,7 @@ import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
 import { parseBlock, parseTransactions } from "@/common/types";
 import { LogFilter } from "@/config/logFilters";
+import { QueueError } from "@/errors/queue";
 
 import { BackfillService } from "./BackfillService";
 
@@ -53,7 +54,17 @@ export const createBlockBackfillQueue = (
   });
 
   // Default to a simple retry.
-  queue.on("error", ({ task }) => {
+  queue.on("error", ({ task, error }) => {
+    const queueError = new QueueError({
+      queueName: "Block backfill queue",
+      task: task,
+      cause: error,
+    });
+    context.backfillService.resources.logger.logMessage(
+      MessageKind.ERROR,
+      queueError.message
+    );
+
     queue.addTask(task);
   });
 

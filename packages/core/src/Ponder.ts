@@ -268,19 +268,6 @@ export class Ponder {
       this.uiService.ui.stats[name].blockTotal += count;
     });
 
-    this.backfillService.on("logTaskFailed", ({ error }) => {
-      this.resources.logger.logMessage(
-        MessageKind.WARNING,
-        `log backfill task failed with error: ${error.message}`
-      );
-    });
-    this.backfillService.on("blockTaskFailed", ({ error }) => {
-      this.resources.logger.logMessage(
-        MessageKind.WARNING,
-        `block backfill task failed with error: ${error.message}`
-      );
-    });
-
     this.backfillService.on("logTaskCompleted", ({ name }) => {
       if (this.uiService.ui.stats[name].logCurrent === 0) {
         this.uiService.ui.stats[name].logStartTimestamp = Date.now();
