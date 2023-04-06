@@ -1,6 +1,6 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
-import { Address, decodeEventLog, encodeEventTopics, Hex } from "viem";
+import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 
 import { createQueue, Queue, Worker } from "@/common/createQueue";
 import type { Log, Model } from "@/common/types";
@@ -31,7 +31,7 @@ type EventHandlerServiceEvents = {
 };
 
 type SetupTask = { kind: "SETUP" };
-type LogTask = { kind: "LOG"; log: Log };
+type LogTask = { kind: "LOG"; logFilterName: string; log: Log };
 type EventHandlerTask = SetupTask | LogTask;
 type EventHandlerQueue = Queue<EventHandlerTask>;
 
@@ -115,7 +115,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
       await this.eventProcessingMutex.runExclusive(async () => {
         if (!this.queue) return;
 
-        const { hasNewLogs, toTimestamp, logs, totalLogCount } =
+        const { hasNewLogs, toTimestamp, events, totalLogCount } =
           await this.getNewEvents({
             fromTimestamp: this.eventsHandledToTimestamp,
           });
@@ -123,13 +123,17 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
         if (!hasNewLogs) return;
 
         // Add new events to the queue.
-        for (const log of logs) {
-          this.queue.addTask({ kind: "LOG", log });
+        for (const event of events) {
+          this.queue.addTask({
+            kind: "LOG",
+            logFilterName: event.logFilterName,
+            log: event.log,
+          });
         }
 
         this.emit("eventsAdded", {
-          handledCount: logs.length,
-          totalCount: totalLogCount ?? logs.length,
+          handledCount: events.length,
+          totalCount: totalLogCount ?? events.length,
           fromTimestamp: this.eventsHandledToTimestamp,
           toTimestamp: toTimestamp,
         });
@@ -142,7 +146,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
         this.eventsHandledToTimestamp = toTimestamp;
 
         this.emit("eventsProcessed", {
-          count: logs.length,
+          count: events.length,
           toTimestamp: toTimestamp,
         });
       });
@@ -203,10 +207,67 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
           break;
         }
         case "LOG": {
-          const result = await this.buildLogEvent({ log: task.log, handlers });
-          if (!result) return;
+          const { logFilterName, log } = task;
 
-          const { handler, event } = result;
+          const logFilter = this.resources.logFilters.find(
+            (f) => f.name === logFilterName
+          );
+          if (!logFilter) {
+            this.resources.logger.warn(
+              `Filter not found for log with address: ${log.address}`
+            );
+            return;
+          }
+
+          const decodedLog = decodeEventLog({
+            // TODO: Remove this filter once viem is fixed.
+            abi: logFilter.abi.filter((item) => item.type !== "constructor"),
+            data: log.data,
+            topics: [log.topic0 as Hex, log.topic1, log.topic2, log.topic3],
+          });
+
+          if (!decodedLog) {
+            this.resources.logger.warn(
+              `Event log not found in ABI, data: ${log.data} topics: ${[
+                log.topic0,
+                log.topic1,
+                log.topic2,
+                log.topic3,
+              ]}`
+            );
+            return;
+          }
+          const { eventName, args } = decodedLog;
+          const params = args as any;
+
+          const handler = handlers[logFilterName]?.[eventName];
+          if (!handler) {
+            this.resources.logger.warn(
+              `Handler not found for log event: ${logFilterName}:${eventName}`
+            );
+            return;
+          }
+
+          this.resources.logger.trace(
+            `Handling event: ${logFilterName}:${eventName}`
+          );
+
+          // Get block & transaction from the cache store and attach to the event.
+          const block = await this.resources.cacheStore.getBlock(log.blockHash);
+          if (!block) {
+            throw new Error(`Block with hash not found: ${log.blockHash}`);
+          }
+
+          const transaction = await this.resources.cacheStore.getTransaction(
+            log.transactionHash
+          );
+          if (!transaction) {
+            throw new Error(
+              `Transaction with hash not found: ${log.transactionHash}`
+            );
+          }
+
+          const event = { name: eventName, params, log, block, transaction };
 
           // This enables contract calls occurring within the
           // handler code to use the event block number by default.
@@ -284,14 +345,14 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
     // If any of the filters have no cached data yet, return early
     if (cachedToTimestamps.includes(-1)) {
-      return { hasNewLogs: false, logs: [], toTimestamp: fromTimestamp };
+      return { hasNewLogs: false, events: [], toTimestamp: fromTimestamp };
     }
 
     // If the minimum cached timestamp across all filters is less than the
     // latest processed timestamp, we can't process any new logs.
     const toTimestamp = Math.min(...cachedToTimestamps);
     if (toTimestamp <= fromTimestamp) {
-      return { hasNewLogs: false, logs: [], toTimestamp: fromTimestamp };
+      return { hasNewLogs: false, events: [], toTimestamp: fromTimestamp };
     }
 
     // For UI/reporting purposes, also keep track of the total number of logs
@@ -300,47 +361,56 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
     // NOTE: cacheStore.getLogs is exclusive to the left and inclusive to the right.
     // This is fine because this.latestProcessedTimestamp starts at zero.
-    const rawLogs = await Promise.all(
+    const events = await Promise.all(
       this.resources.logFilters.map(async (logFilter) => {
-        const handlers = (this.handlers ?? {})[logFilter.name] ?? {};
-        const eventNames = Object.keys(handlers);
-        const eventSigHashes = eventNames.map((eventName) => {
-          // TODO: Disambiguate overloaded ABI event signatures BEFORE getting here.
-          const eventTopics = encodeEventTopics({
-            abi: logFilter.abi,
-            eventName,
+        // If this is a "simple" log filter (no topics defined), only query for
+        // events that the user has defined a handler for.
+        let topics = logFilter.filter.topics;
+        if (topics === undefined) {
+          const handledEventNames = Object.keys(
+            (this.handlers ?? {})[logFilter.name] ?? {}
+          );
+          const handledTopics = handledEventNames.map((eventName) => {
+            // TODO: Disambiguate overloaded ABI event signatures BEFORE getting here.
+            const topics = encodeEventTopics({
+              abi: logFilter.abi,
+              eventName,
+            });
+            return topics[0];
           });
-          const eventSignatureTopic = eventTopics[0];
-          return eventSignatureTopic;
+          topics = handledTopics;
+        }
+
+        const logs = await this.resources.cacheStore.getLogs({
+          fromBlockTimestamp: fromTimestamp,
+          toBlockTimestamp: toTimestamp,
+          chainId: logFilter.network.chainId,
+          address: logFilter.filter.address,
+          topics: logFilter.filter.topics,
         });
 
-        const [logs, totalLogs] = await Promise.all([
-          this.resources.cacheStore.getLogs({
-            contractAddress: logFilter.filter.address as Address,
-            fromBlockTimestamp: fromTimestamp,
-            toBlockTimestamp: toTimestamp,
-            eventSigHashes,
-          }),
-          this.resources.cacheStore.getLogs({
-            contractAddress: logFilter.filter.address as Address,
-            fromBlockTimestamp: fromTimestamp,
-            toBlockTimestamp: toTimestamp,
-          }),
-        ]);
+        totalLogCount += logs.length;
 
-        totalLogCount += totalLogs.length;
-
-        return logs;
+        return logs.map((log) => ({ logFilterName: logFilter.name, log }));
       })
     );
 
-    const logs = rawLogs
+    const sortedEvents = events
       .flat()
       .sort((a, b) =>
-        a.logSortKey < b.logSortKey ? -1 : a.logSortKey > b.logSortKey ? 1 : 0
+        a.log.logSortKey < b.log.logSortKey
+          ? -1
+          : a.log.logSortKey > b.log.logSortKey
+          ? 1
+          : 0
       );
 
-    return { hasNewLogs: true, toTimestamp, logs, totalLogCount };
+    return {
+      hasNewLogs: true,
+      toTimestamp,
+      events: sortedEvents,
+      totalLogCount,
+    };
   }
 
   private buildContext({ schema }: { schema: Schema }) {
@@ -372,82 +442,5 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
       contracts: this.injectedContracts,
       entities: entityModels,
     };
-  }
-
-  private async buildLogEvent({
-    log,
-    handlers,
-  }: {
-    log: Log;
-    handlers: Handlers;
-  }) {
-    const contract = this.resources.contracts.find(
-      (contract) => contract.address === log.address
-    );
-    if (!contract) {
-      this.resources.logger.warn(
-        `Contract not found for log with address: ${log.address}`
-      );
-      return;
-    }
-
-    const contractHandlers = handlers[contract.name];
-    if (!contractHandlers) {
-      this.resources.logger.warn(
-        `Handlers not found for contract: ${contract.name}`
-      );
-      return;
-    }
-
-    const decodedLog = decodeEventLog({
-      // TODO: Remove this filter once viem is fixed.
-      abi: contract.abi.filter((item) => item.type !== "constructor"),
-      data: log.data,
-      topics: [log.topic0 as Hex, log.topic1, log.topic2, log.topic3],
-    });
-
-    if (!decodedLog) {
-      this.resources.logger.warn(
-        `Event log not found in ABI, data: ${log.data} topics: ${[
-          log.topic0,
-          log.topic1,
-          log.topic2,
-          log.topic3,
-        ]}`
-      );
-      return;
-    }
-    const { eventName, args } = decodedLog;
-    const params = args as any;
-
-    const handler = contractHandlers[eventName];
-    if (!handler) {
-      this.resources.logger.trace(
-        `Handler not found for event: ${contract.name}-${eventName}`
-      );
-      return;
-    }
-
-    this.resources.logger.trace(
-      `Handling event: ${contract.name}-${eventName}`
-    );
-
-    // Get block & transaction from the cache store and attach to the event.
-    const block = await this.resources.cacheStore.getBlock(log.blockHash);
-    if (!block) {
-      throw new Error(`Block with hash not found: ${log.blockHash}`);
-    }
-
-    const transaction = await this.resources.cacheStore.getTransaction(
-      log.transactionHash
-    );
-    if (!transaction) {
-      throw new Error(
-        `Transaction with hash not found: ${log.transactionHash}`
-      );
-    }
-
-    const event = { name: eventName, params, log, block, transaction };
-    return { handler, event };
   }
 }

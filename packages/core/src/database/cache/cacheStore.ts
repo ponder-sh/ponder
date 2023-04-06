@@ -1,3 +1,5 @@
+import { Address, Hex } from "viem";
+
 import type { Block, Log, Transaction } from "@/common/types";
 
 import { PonderDatabase } from "../db";
@@ -34,10 +36,11 @@ export interface CacheStore {
   getContractCall(contractCallKey: string): Promise<ContractCall | null>;
 
   getLogs(arg: {
-    contractAddress: string;
     fromBlockTimestamp: number;
     toBlockTimestamp: number;
-    eventSigHashes?: string[];
+    chainId: number;
+    address?: Address | Address[];
+    topics?: (Hex | Hex[] | null)[];
   }): Promise<Log[]>;
 
   getBlock(hash: string): Promise<Omit<Block, "transactions"> | null>;

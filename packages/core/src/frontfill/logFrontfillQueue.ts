@@ -70,7 +70,7 @@ const logFrontfillWorker: Worker<
   const { logs: rawLogs } = task;
   const { frontfillService, group, blockFrontfillQueue } = context;
 
-  const logs = parseLogs(rawLogs);
+  const logs = parseLogs(rawLogs, { chainId: group.network.chainId });
 
   // If any pending logs were present in the response, log a warning.
   if (logs.length !== rawLogs.length) {

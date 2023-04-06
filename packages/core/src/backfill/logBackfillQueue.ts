@@ -140,7 +140,7 @@ const logBackfillWorker: Worker<
     args: logFilter.filter.args as unknown as undefined,
   });
 
-  const logs = parseLogs(rawLogs);
+  const logs = parseLogs(rawLogs, { chainId: logFilter.network.chainId });
 
   // If any pending logs were present in the response, log a warning.
   if (logs.length !== rawLogs.length) {

@@ -1,4 +1,6 @@
+import { Address } from "abitype";
 import type Sqlite from "better-sqlite3";
+import { Hex } from "viem";
 
 import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
@@ -78,12 +80,30 @@ export class SqliteCacheStore implements CacheStore {
           "topic3" TEXT,
           "blockHash" TEXT NOT NULL,
           "blockNumber" INTEGER NOT NULL,
-          "blockTimestamp" INTEGER,
           "logIndex" INTEGER NOT NULL,
           "transactionHash" TEXT NOT NULL,
           "transactionIndex" INTEGER NOT NULL,
-          "removed" INTEGER NOT NULL
+          "removed" INTEGER NOT NULL,
+          "blockTimestamp" INTEGER,
+          "chainId" INT NOT NULL
         )
+        `
+      )
+      .run();
+
+    this.db
+      .prepare(
+        `
+        CREATE INDEX IF NOT EXISTS "${logsTableName}Address"
+        ON "${logsTableName}" ("address")
+        `
+      )
+      .run();
+    this.db
+      .prepare(
+        `
+        CREATE INDEX IF NOT EXISTS "${logsTableName}Topic0"
+        ON "${logsTableName}" ("topic0")
         `
       )
       .run();
@@ -98,8 +118,8 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE INDEX IF NOT EXISTS "${logsTableName}Topic0"
-        ON "${logsTableName}" ("topic0")
+        CREATE INDEX IF NOT EXISTS "${logsTableName}ChainId"
+        ON "${logsTableName}" ("chainId")
         `
       )
       .run();
@@ -251,7 +271,8 @@ export class SqliteCacheStore implements CacheStore {
         "logIndex",
         "transactionHash",
         "transactionIndex",
-        "removed"
+        "removed",
+        "chainId"
       ) VALUES (
         @logId,
         @logSortKey,
@@ -266,7 +287,8 @@ export class SqliteCacheStore implements CacheStore {
         @logIndex,
         @transactionHash,
         @transactionIndex,
-        @removed
+        @removed,
+        @chainId
       ) ON CONFLICT("logId") DO NOTHING
       `
     );
@@ -384,37 +406,61 @@ export class SqliteCacheStore implements CacheStore {
   };
 
   getLogs = async ({
-    contractAddress,
     fromBlockTimestamp,
     toBlockTimestamp,
-    eventSigHashes,
+    chainId,
+    address,
+    topics,
   }: {
-    contractAddress: string;
     fromBlockTimestamp: number;
     toBlockTimestamp: number;
-    eventSigHashes?: string[];
+    chainId: number;
+    address?: Address | Address[];
+    topics?: (Hex | Hex[] | null)[];
   }) => {
-    let topicStatement = "";
-    let topicParams: string[] = [];
-    if (eventSigHashes !== undefined) {
-      topicStatement = `AND "topic0" IN (${[
-        ...Array(eventSigHashes.length).keys(),
-      ].map(() => `?`)})`;
-      topicParams = eventSigHashes;
+    let filterStatement = "";
+    const filterParams: string[] = [];
+
+    if (address) {
+      filterStatement += `AND "address"`;
+      if (typeof address === "string") {
+        filterStatement += `= ?`;
+        filterParams.push(address);
+      } else {
+        filterStatement += `IN (${[...Array(address.length).keys()].map(
+          () => `?`
+        )})`;
+        filterParams.push(...address);
+      }
     }
+
+    (topics ?? []).forEach((topic, index) => {
+      filterStatement += `AND "topic${index}"`;
+      if (typeof topic === "string") {
+        filterStatement += `= ?`;
+        filterParams.push(topic);
+      } else if (Array.isArray(topic)) {
+        filterStatement += `IN (${[...Array(topic.length).keys()].map(
+          () => `?`
+        )})`;
+        filterParams.push(...topic);
+      } else {
+        filterStatement += `= NULL`;
+      }
+    });
 
     const logs: DatabaseLog[] = this.db
       .prepare(
         `
           SELECT * FROM "${logsTableName}"
-          WHERE "address" = @contractAddress
-          AND "blockTimestamp" > @fromBlockTimestamp
+          WHERE "blockTimestamp" > @fromBlockTimestamp
           AND "blockTimestamp" <= @toBlockTimestamp
-          ${topicStatement}
+          AND "chainId" = @chainId
+          ${filterStatement}
           `
       )
-      .all(...topicParams, {
-        contractAddress,
+      .all(...filterParams, {
+        chainId,
         fromBlockTimestamp,
         toBlockTimestamp,
       });

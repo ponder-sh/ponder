@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { Address, Hex } from "viem";
 
 import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
@@ -67,20 +68,29 @@ export class PostgresCacheStore implements CacheStore {
           "topic3" TEXT,
           "blockHash" TEXT NOT NULL,
           "blockNumber" INTEGER NOT NULL,
-          "blockTimestamp" INTEGER,
           "logIndex" INTEGER NOT NULL,
           "transactionHash" TEXT NOT NULL,
           "transactionIndex" INTEGER NOT NULL,
-          "removed" INTEGER NOT NULL
+          "removed" INTEGER NOT NULL,
+          "blockTimestamp" INTEGER,
+          "chainId" INTEGER NOT NULL
         )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS "${logsTableName}Address"
+        ON "${logsTableName}" ("address")
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS "${logsTableName}Topic0"
+        ON "${logsTableName}" ("topic0")
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS "${logsTableName}BlockTimestamp"
         ON "${logsTableName}" ("blockTimestamp")
       `);
       await client.query(`
-        CREATE INDEX IF NOT EXISTS "${logsTableName}Topic0"
-        ON "${logsTableName}" ("topic0")
+        CREATE INDEX IF NOT EXISTS "${logsTableName}ChainId"
+        ON "${logsTableName}" ("chainId")
       `);
 
       await client.query(`
@@ -249,6 +259,7 @@ export class PostgresCacheStore implements CacheStore {
           log.transactionHash,
           log.transactionIndex,
           log.removed,
+          log.chainId,
         ];
       })
       .flat();
@@ -268,8 +279,9 @@ export class PostgresCacheStore implements CacheStore {
         "logIndex",
         "transactionHash",
         "transactionIndex",
-        "removed"
-      ) VALUES ${this.buildInsertParams(14, logs.length)}
+        "removed",
+        "chainId"
+      ) VALUES ${this.buildInsertParams(15, logs.length)}
       ON CONFLICT("logId") DO NOTHING
     `;
 
@@ -388,40 +400,58 @@ export class PostgresCacheStore implements CacheStore {
   };
 
   getLogs = async ({
-    contractAddress,
     fromBlockTimestamp,
     toBlockTimestamp,
-    eventSigHashes,
+    chainId,
+    address,
+    topics,
   }: {
-    contractAddress: string;
     fromBlockTimestamp: number;
     toBlockTimestamp: number;
-    eventSigHashes?: string[];
+    chainId: number;
+    address?: Address | Address[];
+    topics?: (Hex | Hex[] | null)[];
   }) => {
-    let topicStatement = "";
-    let topicParams: string[] = [];
-    if (eventSigHashes !== undefined) {
-      if (eventSigHashes.length === 0) {
-        // Postgres raises an error for `AND "col" IN ()`, this is a workaround.
-        // https://stackoverflow.com/questions/63905200/postgresql-in-empty-array-syntax
-        topicStatement = `AND "topic0" = ANY (ARRAY[]::text[])`;
+    let filterStatement = "";
+    const filterParams: string[] = [];
+
+    if (address) {
+      filterStatement += `AND "address"`;
+      if (typeof address === "string") {
+        filterStatement += `= $${filterParams.length + 4}`;
+        filterParams.push(address);
       } else {
-        topicStatement = `AND "topic0" IN (${[
-          ...Array(eventSigHashes.length).keys(),
-        ].map((index) => `$${index + 4}`)})`;
+        filterStatement += `IN (${[...Array(address.length).keys()].map(
+          () => `$${filterParams.length + 4}`
+        )})`;
+        filterParams.push(...address);
       }
-      topicParams = eventSigHashes;
     }
+
+    (topics ?? []).forEach((topic, index) => {
+      filterStatement += `AND "topic${index}"`;
+      if (typeof topic === "string") {
+        filterStatement += `= $${filterParams.length + 4}`;
+        filterParams.push(topic);
+      } else if (Array.isArray(topic)) {
+        filterStatement += `IN (${[...Array(topic.length).keys()].map(
+          (index) => `$${index + filterParams.length + 4}`
+        )})`;
+        filterParams.push(...topic);
+      } else {
+        filterStatement += `= NULL`;
+      }
+    });
 
     const { rows } = await this.pool.query<DatabaseLog>(
       `
       SELECT * FROM "${logsTableName}"
-      WHERE "address" = $1
-      AND "blockTimestamp" > $2
-      AND "blockTimestamp" <= $3
-      ${topicStatement}
+      WHERE "blockTimestamp" > $1
+      AND "blockTimestamp" <= $2
+      AND "chainId" = $3
+      ${filterStatement}
       `,
-      [contractAddress, fromBlockTimestamp, toBlockTimestamp, ...topicParams]
+      [fromBlockTimestamp, toBlockTimestamp, chainId, ...filterParams]
     );
 
     return rows.map(decodeLog);

@@ -117,4 +117,6 @@ const blockFrontfillWorker: Worker<
       })
     ),
   ]);
+
+  context.frontfillService.emit("eventsAdded");
 };
