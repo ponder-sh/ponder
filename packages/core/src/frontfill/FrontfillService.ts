@@ -95,18 +95,21 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
             typeof f.filter.address === "string" && // Is a single contract.
             f.filter.topics === undefined // Is simple.
         );
-        const simpleGroup = {
-          id: `${network.name}-simple`,
-          filterKeys: simpleLogFilters.map((f) => f.filter.key),
-          filter: {
-            address: simpleLogFilters.map((f) => f.filter.address as Address),
-          },
-          network,
-          startBlockNumber: latestBlockData.blockNumber,
-          startBlockTimestamp: latestBlockData.blockTimestamp,
-        };
-        this.logFilterGroups.push(simpleGroup);
-        this.currentBlockNumbers[simpleGroup.id] = latestBlockData.blockNumber;
+        if (simpleLogFilters.length > 0) {
+          const simpleGroup = {
+            id: `${network.name}-simple`,
+            filterKeys: simpleLogFilters.map((f) => f.filter.key),
+            filter: {
+              address: simpleLogFilters.map((f) => f.filter.address as Address),
+            },
+            network,
+            startBlockNumber: latestBlockData.blockNumber,
+            startBlockTimestamp: latestBlockData.blockTimestamp,
+          };
+          this.logFilterGroups.push(simpleGroup);
+          this.currentBlockNumbers[simpleGroup.id] =
+            latestBlockData.blockNumber;
+        }
 
         // Create a live log filter group for each "complex" log filter on this network.
         // This includes any log filters that specify topics, or don't specify a single address.
