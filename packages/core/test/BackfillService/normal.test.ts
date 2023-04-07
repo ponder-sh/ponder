@@ -8,6 +8,7 @@ import {
 } from "vitest";
 
 import { BackfillService } from "@/backfill/BackfillService";
+import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
 
 import { testClient } from "../utils/clients";
 import { usdcContractConfig } from "../utils/constants";
@@ -69,7 +70,8 @@ describe("normal", () => {
       await backfillService.backfill();
 
       const logs = await backfillService.resources.cacheStore.getLogs({
-        contractAddress: usdcContractConfig.address,
+        chainId: 1,
+        address: usdcContractConfig.address,
         fromBlockTimestamp: 0,
         toBlockTimestamp: 1673276423,
       });
@@ -93,14 +95,19 @@ describe("normal", () => {
     test("cached interval is written to cache store", async () => {
       await backfillService.backfill();
 
-      const filterKey = `1-"${usdcContractConfig.address}"-undefined`;
-      const metadata =
+      const filterKey = encodeLogFilterKey({
+        chainId: 1,
+        address: usdcContractConfig.address.toLowerCase() as `0x${string}`,
+        topics: undefined,
+      });
+
+      const ranges =
         await backfillService.resources.cacheStore.getLogFilterCachedRanges({
           filterKey,
         });
 
-      expect(metadata.length).toBe(1);
-      expect(metadata[0]).toMatchObject({
+      expect(ranges.length).toBe(1);
+      expect(ranges[0]).toMatchObject({
         filterKey,
         startBlock: 16369950,
         endBlock: 16370000,
