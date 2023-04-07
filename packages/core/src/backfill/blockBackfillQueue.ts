@@ -9,8 +9,8 @@ import { QueueError } from "@/errors/queue";
 import { BackfillService } from "./BackfillService";
 
 export type BlockBackfillTask = {
+  blockNumberToCacheFrom: number;
   blockNumber: number;
-  previousBlockNumber: number;
   requiredTxHashes: Set<Hash>;
 };
 
@@ -75,7 +75,7 @@ const blockBackfillWorker: Worker<
   BlockBackfillTask,
   BlockBackfillWorkerContext
 > = async ({ task, context }) => {
-  const { blockNumber, previousBlockNumber, requiredTxHashes } = task;
+  const { blockNumber, requiredTxHashes, blockNumberToCacheFrom } = task;
   const { backfillService, logFilter } = context;
   const { client } = logFilter.network;
 
@@ -121,7 +121,7 @@ const blockBackfillWorker: Worker<
     backfillService.resources.cacheStore.insertLogFilterCachedRange({
       range: {
         filterKey: logFilter.filter.key,
-        startBlock: previousBlockNumber,
+        startBlock: blockNumberToCacheFrom,
         endBlock: blockNumber,
         endBlockTimestamp: Number(block.timestamp),
       },

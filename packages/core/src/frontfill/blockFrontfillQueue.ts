@@ -7,8 +7,8 @@ import { parseBlock, parseTransactions } from "@/common/types";
 import { FrontfillService, LogFilterGroup } from "./FrontfillService";
 
 export type BlockFrontfillTask = {
+  blockNumberToCacheFrom: number;
   blockNumber: number;
-  previousBlockNumber: number;
   requiredTxHashes: Set<Hash>;
 };
 
@@ -63,7 +63,7 @@ const blockFrontfillWorker: Worker<
   BlockFrontfillTask,
   BlockFrontfillWorkerContext
 > = async ({ task, context }) => {
-  const { blockNumber, previousBlockNumber, requiredTxHashes } = task;
+  const { blockNumber, requiredTxHashes, blockNumberToCacheFrom } = task;
   const { frontfillService, group } = context;
   const { client } = group.network;
 
@@ -110,7 +110,7 @@ const blockFrontfillWorker: Worker<
       frontfillService.resources.cacheStore.insertLogFilterCachedRange({
         range: {
           filterKey,
-          startBlock: previousBlockNumber,
+          startBlock: blockNumberToCacheFrom,
           endBlock: blockNumber,
           endBlockTimestamp: Number(block.timestamp),
         },

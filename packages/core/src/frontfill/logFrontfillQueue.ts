@@ -87,41 +87,41 @@ const logFrontfillWorker: Worker<
 
   await frontfillService.resources.cacheStore.insertLogs(logs);
 
-  const requiredBlockNumbers = [
-    ...new Set(logs.map((l) => Number(l.blockNumber))),
-  ];
   const txHashesByBlockNumber = logs.reduce<Record<number, Set<Hash>>>(
     (acc, log) => {
-      acc[Number(log.blockNumber)] ||= new Set<Hash>();
-      acc[Number(log.blockNumber)].add(log.transactionHash);
+      const blockNumber = Number(log.blockNumber);
+      acc[blockNumber] ||= new Set<Hash>();
+      acc[blockNumber].add(log.transactionHash);
       return acc;
     },
     {}
   );
+  const requiredBlockNumbers = Object.keys(txHashesByBlockNumber)
+    .map(Number)
+    .sort((a, b) => a - b);
 
-  // Get the latest block number for this log group.
+  // Get the previous current block number for this log group.
   const fromBlock = frontfillService.currentBlockNumbers[group.id];
+  // Calculate the new current block number from the received logs.
+  const toBlock = Math.max(...requiredBlockNumbers);
 
-  const blockFrontfillTasks = requiredBlockNumbers.reduce<BlockFrontfillTask[]>(
-    (acc, blockNumber, index) => {
-      acc.push({
-        blockNumber,
-        previousBlockNumber:
-          index === 0 ? fromBlock : acc[index - 1].blockNumber + 1,
-        requiredTxHashes: txHashesByBlockNumber[blockNumber],
-      });
-      return acc;
-    },
-    []
-  );
+  let blockNumberToCacheFrom = fromBlock;
+  const blockFrontfillTasks: BlockFrontfillTask[] = [];
+
+  for (const blockNumber of requiredBlockNumbers) {
+    blockFrontfillTasks.push({
+      blockNumberToCacheFrom,
+      blockNumber,
+      requiredTxHashes: txHashesByBlockNumber[blockNumber],
+    });
+    blockNumberToCacheFrom = blockNumber + 1;
+  }
 
   // Wait for child tasks to be done.
   await blockFrontfillQueue.addTasks(blockFrontfillTasks);
 
-  // Set the new current block number for this log group equal to to highest
-  // block number from the new set of logs.
-  const newLatestBlock = Math.max(...logs.map((l) => Number(l.blockNumber)));
-  frontfillService.currentBlockNumbers[group.id] = newLatestBlock;
+  // Store the new current block number for this log group.
+  frontfillService.currentBlockNumbers[group.id] = toBlock;
 
   await blockFrontfillQueue.onIdle();
 

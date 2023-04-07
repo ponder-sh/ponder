@@ -154,44 +154,40 @@ const logBackfillWorker: Worker<
 
   await backfillService.resources.cacheStore.insertLogs(logs);
 
-  const requiredBlockNumbers = [
-    ...new Set(logs.map((l) => Number(l.blockNumber))),
-  ];
   const txHashesByBlockNumber = logs.reduce<Record<number, Set<Hash>>>(
     (acc, log) => {
-      acc[Number(log.blockNumber)] ||= new Set<Hash>();
-      acc[Number(log.blockNumber)].add(log.transactionHash);
+      const blockNumber = Number(log.blockNumber);
+      acc[blockNumber] ||= new Set<Hash>();
+      acc[blockNumber].add(log.transactionHash);
       return acc;
     },
     {}
   );
+  const requiredBlockNumbers = Object.keys(txHashesByBlockNumber)
+    .map(Number)
+    .sort((a, b) => a - b);
 
-  let blockBackfillTasks: BlockBackfillTask[];
+  let blockNumberToCacheFrom = fromBlock;
+  const blockBackfillTasks: BlockBackfillTask[] = [];
 
-  // Handle the case where no logs were found. This is required to properly
-  // update the log cache metadata, which is handled in the block worker.
-  if (requiredBlockNumbers.length === 0) {
-    blockBackfillTasks = [
-      {
-        blockNumber: toBlock,
-        previousBlockNumber: fromBlock,
-        requiredTxHashes: new Set(),
-      },
-    ];
-  } else {
-    blockBackfillTasks = requiredBlockNumbers.reduce<BlockBackfillTask[]>(
-      (acc, blockNumber, index) => {
-        acc.push({
-          blockNumber,
-          previousBlockNumber:
-            index === 0 ? fromBlock : acc[index - 1].blockNumber + 1,
-          requiredTxHashes: txHashesByBlockNumber[blockNumber],
-        });
+  for (const blockNumber of requiredBlockNumbers) {
+    blockBackfillTasks.push({
+      blockNumberToCacheFrom,
+      blockNumber,
+      requiredTxHashes: txHashesByBlockNumber[blockNumber],
+    });
+    blockNumberToCacheFrom = blockNumber + 1;
+  }
 
-        return acc;
-      },
-      []
-    );
+  // If there is a gap between the last required block and the toBlock
+  // of the log batch, add another task to cover the gap. This is necessary
+  // to properly updates the log filter cached range data.
+  if (blockNumberToCacheFrom <= toBlock) {
+    blockBackfillTasks.push({
+      blockNumberToCacheFrom,
+      blockNumber: toBlock,
+      requiredTxHashes: new Set(),
+    });
   }
 
   blockBackfillQueue.addTasks(blockBackfillTasks, {
