@@ -142,7 +142,7 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
         });
 
         // Update the max timestamp.
-        this.backfillCutoffTimestamp = Math.max(
+        this.backfillCutoffTimestamp = Math.min(
           this.backfillCutoffTimestamp,
           latestBlockData.blockTimestamp
         );
