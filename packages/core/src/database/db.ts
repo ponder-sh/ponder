@@ -25,7 +25,7 @@ Pool.prototype.query = async function query(
     if (error instanceof DatabaseError) {
       throw new PostgresError({
         statement,
-        parameters,
+        parameters: parameters ?? [],
         pgError: error,
       });
     }
@@ -120,19 +120,19 @@ export const buildDb = ({
 
   if (resolvedDatabaseConfig.kind === "sqlite") {
     ensureDirExists(resolvedDatabaseConfig.filename!);
-    const db = Sqlite(resolvedDatabaseConfig.filename!, {
+    const rawDb = Sqlite(resolvedDatabaseConfig.filename!, {
       verbose: logger.trace,
     });
-    db.pragma("journal_mode = WAL");
+    rawDb.pragma("journal_mode = WAL");
 
-    const patchedDb = patchSqliteDatabase({ db });
+    const db = patchSqliteDatabase({ db: rawDb });
 
-    return { kind: "sqlite", db: patchedDb };
+    return { kind: "sqlite", db };
   } else {
-    const rawPool = new Pool({
+    const pool = new Pool({
       connectionString: resolvedDatabaseConfig.connectionString,
     });
 
-    return { kind: "postgres", pool: rawPool };
+    return { kind: "postgres", pool };
   }
 };

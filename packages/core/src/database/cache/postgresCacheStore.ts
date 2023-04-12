@@ -181,7 +181,7 @@ export class PostgresCacheStore implements CacheStore {
         // For each new merged range, its endBlock will be found EITHER in the newly
         // added range OR among the endBlocks of the removed range.
         // Find it so we can propogate the endBlockTimestamp correctly.
-        const endBlockTimestamp = [newRange, ...mergedRanges].find(
+        const endBlockTimestamp = [newRange, ...existingRanges].find(
           (old) => old.endBlock === endBlock
         )?.endBlockTimestamp;
         if (!endBlockTimestamp) {
@@ -205,7 +205,14 @@ export class PostgresCacheStore implements CacheStore {
           "endBlockTimestamp"
         ) VALUES ${this.buildInsertParams(4, mergedRanges.length)}
         `,
-        mergedRanges.map(Object.values).flat()
+        mergedRanges
+          .map((r) => [
+            r.filterKey,
+            r.startBlock,
+            r.endBlock,
+            r.endBlockTimestamp,
+          ])
+          .flat()
       );
 
       await client.query("COMMIT");
