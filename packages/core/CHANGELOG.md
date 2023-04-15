@@ -1,5 +1,64 @@
 # @ponder/core
 
+## 0.0.53
+
+### Patch Changes
+
+- [#158](https://github.com/0xOlias/ponder/pull/158) [`feb3379`](https://github.com/0xOlias/ponder/commit/feb3379b8d2e9f8ddecce7a213215d80b91ff30a) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for custom log filters.
+
+  ```ts
+  // ponder.config.ts
+  import type { PonderConfig } from "@ponder/core";
+  import { parseAbiItem } from "abitype";
+
+  export const config: PonderConfig = {
+    networks: [
+      /* ... */
+    ],
+    contracts: [
+      {
+        name: "AllTransfers",
+        network: "mainnet",
+        abi: "./abis/ERC20.json",
+        filter: {
+          event: parseAbiItem(
+            "event Transfer(address indexed, address indexed, uint256)"
+          )
+        }
+        fromBlock: 17030328
+      }
+    ]
+  };
+  ```
+
+- [#158](https://github.com/0xOlias/ponder/pull/158) [`feb3379`](https://github.com/0xOlias/ponder/commit/feb3379b8d2e9f8ddecce7a213215d80b91ff30a) Thanks [@0xOlias](https://github.com/0xOlias)! - Renamed config fields `contracts.blockLimit` -> `contracts.maxBlockRange` and `contracts.isIndexed` -> `contracts.isLogEventSource`.
+
+  ```diff
+  // ponder.config.ts
+  import type { PonderConfig } from "@ponder/core";
+  export const config: PonderConfig = {
+    networks: [ /* ... */ ],
+    contracts: [
+      {
+        name: "Contract",
+        network: "mainnet",
+        abi: "./abis/ArtGobblers.json",
+        address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+  -     blockLimit: 50,
+  +     maxBlockRange: 50,
+      },
+      {
+        name: "StaticReadOnlyContract",
+        network: "mainnet",
+        abi: "./abis/ArtGobblers.json",
+        address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+  -     isIndexed: false,
+  +     isLogEventSource: false,
+      }
+    ],
+  };
+  ```
+
 ## 0.0.52
 
 ### Patch Changes
