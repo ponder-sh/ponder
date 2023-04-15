@@ -381,7 +381,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
             toBlockTimestamp: toTimestamp,
             chainId: logFilter.network.chainId,
             address: logFilter.filter.address,
-            topics: handledTopics,
+            topics: [handledTopics],
           }),
           this.resources.cacheStore.getLogs({
             fromBlockTimestamp: fromTimestamp,
