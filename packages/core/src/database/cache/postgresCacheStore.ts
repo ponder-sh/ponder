@@ -423,30 +423,30 @@ export class PostgresCacheStore implements CacheStore {
     const filterParams: string[] = [];
 
     if (address) {
-      filterStatement += `AND "address"`;
+      filterStatement += ` AND "address"`;
       if (typeof address === "string") {
         filterStatement += `= $${filterParams.length + 4}`;
         filterParams.push(address);
       } else {
-        filterStatement += `IN (${[...Array(address.length).keys()].map(
-          () => `$${filterParams.length + 4}`
-        )})`;
+        filterStatement += ` IN (${[...Array(address.length).keys()]
+          .map(() => `$${filterParams.length + 4}`)
+          .join(",")})`;
         filterParams.push(...address);
       }
     }
 
     (topics ?? []).forEach((topic, index) => {
-      filterStatement += `AND "topic${index}"`;
+      filterStatement += ` AND "topic${index}"`;
       if (typeof topic === "string") {
-        filterStatement += `= $${filterParams.length + 4}`;
+        filterStatement += ` = $${filterParams.length + 4}`;
         filterParams.push(topic);
       } else if (Array.isArray(topic)) {
-        filterStatement += `IN (${[...Array(topic.length).keys()].map(
-          (index) => `$${index + filterParams.length + 4}`
-        )})`;
+        filterStatement += ` IN (${[...Array(topic.length).keys()]
+          .map((i) => `$${i + filterParams.length + 4}`)
+          .join(",")})`;
         filterParams.push(...topic);
       } else {
-        filterStatement += `= NULL`;
+        filterStatement += ` = NULL`;
       }
     });
 

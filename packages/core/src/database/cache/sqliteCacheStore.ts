@@ -422,30 +422,30 @@ export class SqliteCacheStore implements CacheStore {
     const filterParams: string[] = [];
 
     if (address) {
-      filterStatement += `AND "address"`;
+      filterStatement += ` AND "address"`;
       if (typeof address === "string") {
-        filterStatement += `= ?`;
+        filterStatement += ` = ?`;
         filterParams.push(address);
       } else {
-        filterStatement += `IN (${[...Array(address.length).keys()].map(
-          () => `?`
-        )})`;
+        filterStatement += ` IN (${[...Array(address.length).keys()]
+          .map(() => `?`)
+          .join(",")})`;
         filterParams.push(...address);
       }
     }
 
     (topics ?? []).forEach((topic, index) => {
-      filterStatement += `AND "topic${index}"`;
+      filterStatement += ` AND "topic${index}"`;
       if (typeof topic === "string") {
-        filterStatement += `= ?`;
+        filterStatement += ` = ?`;
         filterParams.push(topic);
       } else if (Array.isArray(topic)) {
-        filterStatement += `IN (${[...Array(topic.length).keys()].map(
-          () => `?`
-        )})`;
+        filterStatement += ` IN (${[...Array(topic.length).keys()]
+          .map(() => `?`)
+          .join(",")})`;
         filterParams.push(...topic);
       } else {
-        filterStatement += `= NULL`;
+        filterStatement += ` = NULL`;
       }
     });
 
