@@ -10,6 +10,7 @@ import { buildLogFilters } from "@/config/logFilters";
 import { buildOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
 import { buildCacheStore } from "@/database/cache/cacheStore";
+import { POSTGRES_TABLE_PREFIX } from "@/database/cache/postgresCacheStore";
 import { PonderDatabase } from "@/database/db";
 import { buildEntityStore } from "@/database/entity/entityStore";
 import { ErrorService } from "@/errors/ErrorService";
@@ -44,6 +45,25 @@ export const buildTestResources = async (
   if (process.env.DATABASE_URL) {
     // TODO: properly implement isolation when testing with Postgres.
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+    const client = await pool.connect();
+    try {
+      const prefix = POSTGRES_TABLE_PREFIX;
+      await client.query("BEGIN");
+      await client.query(
+        `DROP TABLE IF EXISTS "${prefix}logFilterCachedRanges"`
+      );
+      await client.query(`DROP TABLE IF EXISTS "${prefix}logs"`);
+      await client.query(`DROP TABLE IF EXISTS "${prefix}blocks"`);
+      await client.query(`DROP TABLE IF EXISTS "${prefix}transactions"`);
+      await client.query(`DROP TABLE IF EXISTS "${prefix}contractCalls"`);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
 
     database = { kind: "postgres", pool };
   } else {
