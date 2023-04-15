@@ -86,8 +86,8 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
           blockTimestamp: Number(block.timestamp),
         };
 
-        // Create a live log filter groups for all "simple" log filters on this network.
-        // A "simple" log filter group has just one contract address and no topics.
+        // Create a live log filter group for all "simple" log filters on this network.
+        // A "simple" log filter has just one contract address and no topics.
         const simpleLogFilters = this.resources.logFilters.filter(
           (f): f is LogFilter & { address: Address } =>
             f.network.name === network.name && // Is on this network.
@@ -96,8 +96,9 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
             f.filter.topics === undefined // Is simple.
         );
         if (simpleLogFilters.length > 0) {
-          const simpleGroup = {
-            id: `${network.name}-simple`,
+          const groupId = `${network.name}-simple`;
+          this.logFilterGroups.push({
+            id: groupId,
             filterKeys: simpleLogFilters.map((f) => f.filter.key),
             filter: {
               address: simpleLogFilters.map((f) => f.filter.address as Address),
@@ -105,10 +106,8 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
             network,
             startBlockNumber: latestBlockData.blockNumber,
             startBlockTimestamp: latestBlockData.blockTimestamp,
-          };
-          this.logFilterGroups.push(simpleGroup);
-          this.currentBlockNumbers[simpleGroup.id] =
-            latestBlockData.blockNumber;
+          });
+          this.currentBlockNumbers[groupId] = latestBlockData.blockNumber;
         }
 
         // Create a live log filter group for each "complex" log filter on this network.
@@ -121,16 +120,16 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
               f.filter.topics !== undefined) // Is not simple.
         );
         complexLogFilters.forEach((logFilter, index) => {
-          const group = {
-            id: `${network.name}-complex-${index}`,
+          const groupId = `${network.name}-complex-${index}`;
+          this.logFilterGroups.push({
+            id: groupId,
             filterKeys: [logFilter.filter.key],
             filter: logFilter.filter,
             network,
             startBlockNumber: latestBlockData.blockNumber,
             startBlockTimestamp: latestBlockData.blockTimestamp,
-          };
-          this.logFilterGroups.push(group);
-          this.currentBlockNumbers[group.id] = latestBlockData.blockNumber;
+          });
+          this.currentBlockNumbers[groupId] = latestBlockData.blockNumber;
         });
 
         // Set `endBlock` to the latest block number for any log filters that did not specify one.

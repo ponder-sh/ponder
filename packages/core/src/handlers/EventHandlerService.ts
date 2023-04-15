@@ -363,35 +363,41 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     // This is fine because this.latestProcessedTimestamp starts at zero.
     const events = await Promise.all(
       this.resources.logFilters.map(async (logFilter) => {
-        // If this is a "simple" log filter (no topics defined), only query for
-        // events that the user has defined a handler for.
-        let topics = logFilter.filter.topics;
-        if (topics === undefined) {
-          const handledEventNames = Object.keys(
-            (this.handlers ?? {})[logFilter.name] ?? {}
-          );
-          const handledTopics = handledEventNames.map((eventName) => {
-            // TODO: Disambiguate overloaded ABI event signatures BEFORE getting here.
-            const topics = encodeEventTopics({
-              abi: logFilter.abi,
-              eventName,
-            });
-            return topics[0];
+        const handledEventNames = Object.keys(
+          (this.handlers ?? {})[logFilter.name] ?? {}
+        );
+        const handledTopics = handledEventNames.map((eventName) => {
+          // TODO: Disambiguate overloaded ABI event signatures BEFORE getting here.
+          const topics = encodeEventTopics({
+            abi: logFilter.abi,
+            eventName,
           });
-          topics = handledTopics;
-        }
-
-        const logs = await this.resources.cacheStore.getLogs({
-          fromBlockTimestamp: fromTimestamp,
-          toBlockTimestamp: toTimestamp,
-          chainId: logFilter.network.chainId,
-          address: logFilter.filter.address,
-          topics: topics,
+          return topics[0];
         });
 
-        totalLogCount += logs.length;
+        const [handledLogs, totalLogs] = await Promise.all([
+          this.resources.cacheStore.getLogs({
+            fromBlockTimestamp: fromTimestamp,
+            toBlockTimestamp: toTimestamp,
+            chainId: logFilter.network.chainId,
+            address: logFilter.filter.address,
+            topics: handledTopics,
+          }),
+          this.resources.cacheStore.getLogs({
+            fromBlockTimestamp: fromTimestamp,
+            toBlockTimestamp: toTimestamp,
+            chainId: logFilter.network.chainId,
+            address: logFilter.filter.address,
+            topics: logFilter.filter.topics,
+          }),
+        ]);
 
-        return logs.map((log) => ({ logFilterName: logFilter.name, log }));
+        totalLogCount += totalLogs.length;
+
+        return handledLogs.map((log) => ({
+          logFilterName: logFilter.name,
+          log,
+        }));
       })
     );
 
