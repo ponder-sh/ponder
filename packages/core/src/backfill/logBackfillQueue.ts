@@ -3,10 +3,14 @@ import { Hash, HttpRequestError, InvalidParamsRpcError } from "viem";
 import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
 import { parseLogs } from "@/common/types";
-import type { Contract } from "@/config/contracts";
+import { LogFilter } from "@/config/logFilters";
+import { QueueError } from "@/errors/queue";
 
 import { BackfillService } from "./BackfillService";
-import type { BlockBackfillQueue } from "./blockBackfillQueue";
+import type {
+  BlockBackfillQueue,
+  BlockBackfillTask,
+} from "./blockBackfillQueue";
 
 export type LogBackfillTask = {
   fromBlock: number;
@@ -16,7 +20,7 @@ export type LogBackfillTask = {
 
 export type LogBackfillWorkerContext = {
   backfillService: BackfillService;
-  contract: Contract;
+  logFilter: LogFilter;
   blockBackfillQueue: BlockBackfillQueue;
 };
 
@@ -36,21 +40,21 @@ export const createLogBackfillQueue = (
   // Pass queue events on to service layer.
   queue.on("add", () => {
     context.backfillService.emit("logTasksAdded", {
-      contract: context.contract.name,
+      name: context.logFilter.name,
       count: 1,
     });
   });
 
   queue.on("error", ({ error }) => {
     context.backfillService.emit("logTaskFailed", {
-      contract: context.contract.name,
+      name: context.logFilter.name,
       error,
     });
   });
 
   queue.on("completed", () => {
     context.backfillService.emit("logTaskCompleted", {
-      contract: context.contract.name,
+      name: context.logFilter.name,
     });
   });
 
@@ -102,6 +106,16 @@ export const createLogBackfillQueue = (
       return;
     }
 
+    const queueError = new QueueError({
+      queueName: "Log backfill queue",
+      task: task,
+      cause: error,
+    });
+    context.backfillService.resources.logger.logMessage(
+      MessageKind.ERROR,
+      queueError.message
+    );
+
     // Default to a simple retry.
     queue.addTask(task);
   });
@@ -114,25 +128,19 @@ const logBackfillWorker: Worker<
   LogBackfillWorkerContext
 > = async ({ task, context }) => {
   const { fromBlock, toBlock, isRetry } = task;
-  const { backfillService, contract, blockBackfillQueue } = context;
-  const { client } = contract.network;
+  const { backfillService, logFilter, blockBackfillQueue } = context;
+  const { client } = logFilter.network;
 
-  const [rawLogs, rawToBlock] = await Promise.all([
-    client.getLogs({
-      address: [contract.address],
-      fromBlock: BigInt(fromBlock),
-      toBlock: BigInt(toBlock),
-    }),
-    client.getBlock({
-      blockNumber: BigInt(toBlock),
-      includeTransactions: false,
-    }),
-  ]);
+  const rawLogs = await client.getLogs({
+    address:
+      logFilter.filter.address !== null ? logFilter.filter.address : undefined,
+    fromBlock: BigInt(fromBlock),
+    toBlock: BigInt(toBlock),
+    event: logFilter.filter.event,
+    args: logFilter.filter.args as unknown as undefined,
+  });
 
-  // The timestamp of the toBlock is required to properly update the cached intervals below.
-  const toBlockTimestamp = rawToBlock.timestamp;
-
-  const logs = parseLogs(rawLogs);
+  const logs = parseLogs(rawLogs, { chainId: logFilter.network.chainId });
 
   // If any pending logs were present in the response, log a warning.
   if (logs.length !== rawLogs.length) {
@@ -146,51 +154,41 @@ const logBackfillWorker: Worker<
 
   await backfillService.resources.cacheStore.insertLogs(logs);
 
-  const requiredBlockHashes = [...new Set(logs.map((l) => l.blockHash))];
-  const txHashesByBlockHash = logs.reduce<Record<Hash, Set<Hash>>>(
+  const txHashesByBlockNumber = logs.reduce<Record<number, Set<Hash>>>(
     (acc, log) => {
-      acc[log.blockHash] ||= new Set<Hash>();
-      acc[log.blockHash].add(log.transactionHash);
+      const blockNumber = Number(log.blockNumber);
+      acc[blockNumber] ||= new Set<Hash>();
+      acc[blockNumber].add(log.transactionHash);
       return acc;
     },
     {}
   );
+  const requiredBlockNumbers = Object.keys(txHashesByBlockNumber)
+    .map(Number)
+    .sort((a, b) => a - b);
 
-  // The block request worker calls the `onSuccess` callback when it finishes. This serves as
-  // a hacky way to run some code when all "child" jobs are done. In this case,
-  // we want to update the contract metadata to store that this block range has been cached.
-  const completedBlockHashes: Hash[] = [];
+  let blockNumberToCacheFrom = fromBlock;
+  const blockBackfillTasks: BlockBackfillTask[] = [];
 
-  const onSuccess = async ({ blockHash }: { blockHash?: Hash } = {}) => {
-    if (blockHash) completedBlockHashes.push(blockHash);
-
-    if (completedBlockHashes.length === requiredBlockHashes.length) {
-      await backfillService.resources.cacheStore.insertCachedInterval({
-        contractAddress: contract.address,
-        startBlock: fromBlock,
-        endBlock: toBlock,
-        endBlockTimestamp: Number(toBlockTimestamp),
-      });
-
-      // If there were logs in this batch, send an event to process them.
-      const logCount = logs.length;
-      if (logCount > 0) {
-        backfillService.emit("eventsAdded", { count: logCount });
-      }
-    }
-  };
-
-  // If there are no required blocks, call the batch success callback manually
-  // so we make sure to update the contract metadata accordingly.
-  if (requiredBlockHashes.length === 0) {
-    await onSuccess();
+  for (const blockNumber of requiredBlockNumbers) {
+    blockBackfillTasks.push({
+      blockNumberToCacheFrom,
+      blockNumber,
+      requiredTxHashes: txHashesByBlockNumber[blockNumber],
+    });
+    blockNumberToCacheFrom = blockNumber + 1;
   }
 
-  const blockBackfillTasks = requiredBlockHashes.map((blockHash) => ({
-    blockHash,
-    requiredTxHashes: txHashesByBlockHash[blockHash],
-    onSuccess,
-  }));
+  // If there is a gap between the last required block and the toBlock
+  // of the log batch, add another task to cover the gap. This is necessary
+  // to properly updates the log filter cached range data.
+  if (blockNumberToCacheFrom <= toBlock) {
+    blockBackfillTasks.push({
+      blockNumberToCacheFrom,
+      blockNumber: toBlock,
+      requiredTxHashes: new Set(),
+    });
+  }
 
   blockBackfillQueue.addTasks(blockBackfillTasks, {
     priority: isRetry ? 1 : 0,

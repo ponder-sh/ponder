@@ -18,7 +18,7 @@ export class UiService {
 
     this.ui = buildUiState({
       port: this.resources.options.port,
-      contracts: this.resources.contracts,
+      logFilters: this.resources.logFilters,
     });
 
     if (this.resources.options.uiEnabled) {
@@ -47,52 +47,48 @@ export class UiService {
   }
 
   private updateBackfillEta = () => {
-    this.resources.contracts
-      .filter((contract) => contract.isIndexed)
-      .forEach((contract) => {
-        const stats = this.ui.stats[contract.name];
+    this.resources.logFilters.forEach((contract) => {
+      const stats = this.ui.stats[contract.name];
 
-        const logTime =
-          (stats.logTotal - stats.logCurrent) * stats.logAvgDuration;
+      const logTime =
+        (stats.logTotal - stats.logCurrent) * stats.logAvgDuration;
 
-        const blockTime =
-          (stats.blockTotal - stats.blockCurrent) * stats.blockAvgDuration;
+      const blockTime =
+        (stats.blockTotal - stats.blockCurrent) * stats.blockAvgDuration;
 
-        const estimatedAdditionalBlocks =
-          (stats.logTotal - stats.logCurrent) * stats.logAvgBlockCount;
+      const estimatedAdditionalBlocks =
+        (stats.logTotal - stats.logCurrent) * stats.logAvgBlockCount;
 
-        const estimatedAdditionalBlockTime =
-          estimatedAdditionalBlocks * stats.blockAvgDuration;
+      const estimatedAdditionalBlockTime =
+        estimatedAdditionalBlocks * stats.blockAvgDuration;
 
-        const eta = Math.max(logTime, blockTime + estimatedAdditionalBlockTime);
+      const eta = Math.max(logTime, blockTime + estimatedAdditionalBlockTime);
 
-        this.ui.stats[contract.name].eta = Number.isNaN(eta) ? 0 : eta;
-      });
+      this.ui.stats[contract.name].eta = Number.isNaN(eta) ? 0 : eta;
+    });
   };
 
   private logBackfillProgress() {
     if (this.ui.isBackfillComplete) return;
 
-    this.resources.contracts
-      .filter((contract) => contract.isIndexed)
-      .forEach((contract) => {
-        const stat = this.ui.stats[contract.name];
+    this.resources.logFilters.forEach((contract) => {
+      const stat = this.ui.stats[contract.name];
 
-        const current = stat.logCurrent + stat.blockCurrent;
-        const total = stat.logTotal + stat.blockTotal;
-        const isDone = current === total;
-        if (isDone) return;
-        const etaText =
-          stat.logCurrent > 5 && stat.eta > 0
-            ? `~${formatEta(stat.eta)}`
-            : "not started";
+      const current = stat.logCurrent + stat.blockCurrent;
+      const total = stat.logTotal + stat.blockTotal;
+      const isDone = current === total;
+      if (isDone) return;
+      const etaText =
+        stat.logCurrent > 5 && stat.eta > 0
+          ? `~${formatEta(stat.eta)}`
+          : "not started";
 
-        const countText = `${current}/${total}`;
+      const countText = `${current}/${total}`;
 
-        this.resources.logger.logMessage(
-          MessageKind.BACKFILL,
-          `${contract.name}: ${`(${etaText + " | " + countText})`}`
-        );
-      });
+      this.resources.logger.logMessage(
+        MessageKind.BACKFILL,
+        `${contract.name}: ${`(${etaText + " | " + countText})`}`
+      );
+    });
   }
 }

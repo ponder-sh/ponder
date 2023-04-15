@@ -54,8 +54,9 @@ describe("art-gobblers", () => {
   describe("backfill", () => {
     test("inserts backfill data into the cache store", async () => {
       const logs = await ponder.resources.cacheStore.getLogs({
-        contractAddress:
-          "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769".toLowerCase(),
+        chainId: 1,
+        address:
+          "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769".toLowerCase() as `0x${string}`,
         fromBlockTimestamp: 0,
         toBlockTimestamp: 1667247995, // mainnet 15870420
       });

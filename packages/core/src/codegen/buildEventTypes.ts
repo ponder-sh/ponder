@@ -1,10 +1,10 @@
 import { AbiEvent } from "abitype";
 
-import type { Contract } from "@/config/contracts";
+import { LogFilter } from "@/config/logFilters";
 
-export const buildEventTypes = (contracts: Contract[]) => {
-  const allHandlers = contracts.map((contract) => {
-    const abiEvents = contract.abi.filter(
+export const buildEventTypes = (logFilters: LogFilter[]) => {
+  const allHandlers = logFilters.map((logFilter) => {
+    const abiEvents = logFilter.abi.filter(
       (item): item is AbiEvent => item.type === "event"
     );
 
@@ -17,7 +17,7 @@ export const buildEventTypes = (contracts: Contract[]) => {
           )
           .join(";")}}`;
 
-        return `["${contract.name}:${name}"]: ({
+        return `["${logFilter.name}:${name}"]: ({
             event, context
             }: {
               event: {

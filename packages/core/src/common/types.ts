@@ -93,6 +93,7 @@ export type Log = Omit<
   | "logIndex"
   | "transactionHash"
   | "transactionIndex"
+  | "topics"
 > & {
   /** Hash of block containing this log */
   blockHash: Hash;
@@ -104,15 +105,17 @@ export type Log = Omit<
   transactionHash: Hash;
   /** Index of the transaction that created this log */
   transactionIndex: number;
+  /** List of order-dependent topics */
+  topics: Hex[];
 
   /** Globally unique identifier for this log */
   logId: `${Hash}-${number}`;
   /** Value used internally by Ponder to sort logs across networks */
   logSortKey: bigint;
+  /** Chain ID */
+  chainId: number;
   /** Unix timestamp of when the block containing this log was collated */
   blockTimestamp: bigint | null;
-  /** List of order-dependent topics */
-  topics: string[];
 
   // TODO: remove these from the public type.
   topic0: Hex | null;
@@ -131,7 +134,10 @@ function isFinalizedLog(log: ViemLog): log is Log {
   );
 }
 
-export function parseLogs(rawLogs: ViemLog[]): Log[] {
+export function parseLogs(
+  rawLogs: ViemLog[],
+  { chainId }: { chainId: number }
+): Log[] {
   return rawLogs.reduce<Log[]>((logs, rawLog) => {
     if (isFinalizedLog(rawLog)) {
       logs.push({
@@ -143,6 +149,7 @@ export function parseLogs(rawLogs: ViemLog[]): Log[] {
         topic1: rawLog.topics[1] ? (rawLog.topics[1] as Hex) : null,
         topic2: rawLog.topics[2] ? (rawLog.topics[2] as Hex) : null,
         topic3: rawLog.topics[3] ? (rawLog.topics[3] as Hex) : null,
+        chainId: chainId,
       });
     }
     return logs;

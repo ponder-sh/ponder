@@ -130,7 +130,7 @@ describe("FrontfillService", () => {
         blockTasksAdded: 2,
         blockTaskCompleted: 2,
         blockTaskFailed: 0,
-        eventsAdded: 1,
+        eventsAdded: 2,
       });
 
       expect(emitSpy).toHaveBeenCalledWith("logTaskCompleted", {

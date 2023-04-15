@@ -45,8 +45,7 @@
     "react": "17",
     "stacktrace-parser": "^0.1.10",
     "tsc-alias": "^1.8.2",
-    "viem": "0.1.8",
-    "zod": "^3.20.2"
+    "viem": "0.1.8"
   },
   "devDependencies": {
     "@types/babel__code-frame": "^7.0.3",

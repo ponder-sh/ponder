@@ -1,54 +1,96 @@
+import { AbiEvent } from "abitype";
 import { build } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
 import path from "path";
-import { z } from "zod";
 
 import { ensureDirExists } from "@/common/utils";
 
-const ponderConfigSchema = z.object({
-  database: z.optional(
-    z.union([
-      z.object({ kind: z.literal("sqlite"), filename: z.string() }),
-      z.object({ kind: z.literal("postgres"), connectionString: z.string() }),
-    ])
-  ),
-  networks: z.array(
-    z.object({
-      kind: z.optional(z.string()),
-      name: z.string(),
-      chainId: z.number(),
-      rpcUrl: z.optional(z.string()),
-      pollingInterval: z.optional(z.number()),
-    })
-  ),
-  contracts: z.array(
-    z.object({
-      kind: z.optional(z.string()),
-      name: z.string(),
-      network: z.string(),
-      abi: z.union([z.string(), z.array(z.any()), z.object({})]),
-      address: z.string(),
-      startBlock: z.optional(z.number()),
-      endBlock: z.optional(z.number()),
-      blockLimit: z.optional(z.number()),
-      isIndexed: z.optional(z.boolean()),
-    })
-  ),
-  options: z.optional(
-    z.object({ maxHealthcheckDuration: z.optional(z.number()) })
-  ),
-});
+export type ResolvedPonderConfig = {
+  /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
+  database?:
+    | {
+        kind: "sqlite";
+        /** Path to SQLite database file. Default: `"./.ponder/cache.db"`. */
+        filename?: string;
+      }
+    | {
+        kind: "postgres";
+        /** PostgreSQL database connection string. Default: `process.env.DATABASE_URL`. */
+        connectionString?: string;
+      };
+  /** List of blockchain networks. */
+  networks: {
+    /** Network name. Must be unique across all networks. */
+    name: string;
+    /** Chain ID of the network. */
+    chainId: number;
+    /** RPC URL. Default: if available, a public RPC provider. */
+    rpcUrl?: string;
+    /** Polling frequency (in ms). Default: `1_000`. */
+    pollingInterval?: number;
+  }[];
+  /** List of contracts to fetch & handle events from. Contracts defined here will be present in `context.contracts`. */
+  contracts?: {
+    /** Contract name. Must be unique across `contracts` and `filters`. */
+    name: string;
+    /** Network that this contract is deployed to. Must match a network name in `networks`. */
+    network: string; // TODO: narrow this type to TNetworks[number]['name']
+    /** Contract ABI. Can be a path to file (relative or absolute), or the ABI itself as an object. */
+    abi: string | any[] | object;
+    /** Contract address. */
+    address: `0x${string}`;
+    /** Block number at which to start processing events (inclusive). Default: `0`. */
+    startBlock?: number;
+    /** Block number at which to stop processing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
+    endBlock?: number;
+    /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
+    maxBlockRange?: number;
+    /** Whether to fetch & process event logs for this contract. If `false`, this contract will still be present in `context.contracts`. Default: `true`. */
+    isLogEventSource?: boolean;
+  }[];
+  /** List of log filters from which to fetch & handle event logs. */
+  filters?: {
+    /** Filter name. Must be unique across `contracts` and `filters`. */
+    name: string;
+    /** Network that this filter is deployed to. Must match a network name in `networks`. */
+    network: string; // TODO: narrow this type to TNetworks[number]['name']
+    /** Log filter ABI. Can be a path to file (relative or absolute), or the ABI itself as an object. */
+    abi: string | any[] | object;
+    /** Log filter options. */
+    filter: {
+      /** Contract addresses to include. If `undefined`, no filter will be applied. Default: `undefined`. */
+      address?: `0x${string}` | `0x${string}`[];
+    } & (
+      | {
+          /** Event signature to include. If `undefined`, no filter will be applied. Default: `undefined`. */
+          event?: AbiEvent;
+          /** Event arguments to include. If `undefined`, no filter will be applied. Default: `undefined`. */
+          args?: any[];
+        }
+      | {
+          event?: never;
+          args?: never;
+        }
+    );
+    /** Block number at which to start processing events (inclusive). Default: `0`. */
+    startBlock?: number;
+    /** Block number at which to stop processing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
+    endBlock?: number;
+    /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
+    maxBlockRange?: number;
+  }[];
+  /** Configuration for Ponder internals. */
+  options?: {
+    /** Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
+    maxHealthcheckDuration?: number;
+  };
+};
 
-export type ResolvedPonderConfig = z.infer<typeof ponderConfigSchema>;
-
-const ponderConfigBuilderSchema = z.union([
-  ponderConfigSchema,
-  z.promise(ponderConfigSchema),
-  z.function().returns(ponderConfigSchema),
-  z.function().returns(z.promise(ponderConfigSchema)),
-]);
-
-export type PonderConfig = z.infer<typeof ponderConfigBuilderSchema>;
+export type PonderConfig =
+  | ResolvedPonderConfig
+  | Promise<ResolvedPonderConfig>
+  | (() => ResolvedPonderConfig)
+  | (() => Promise<ResolvedPonderConfig>);
 
 export const buildPonderConfig = async ({
   configFile,
@@ -101,19 +143,7 @@ export const buildPonderConfig = async ({
       resolvedConfig = await rawConfig;
     }
 
-    // TODO: Improve displaying errors zod schema errors, especially for common
-    // issues like a missing RPC URL.
-    const result = ponderConfigSchema.safeParse(resolvedConfig);
-    if (!result.success) {
-      throw new Error(
-        `Invalid ponder config: ${JSON.stringify(
-          result.error.flatten().fieldErrors,
-          null,
-          2
-        )}`
-      );
-    }
-    return result.data;
+    return resolvedConfig;
   } catch (err) {
     rmSync(buildFile, { force: true });
     throw err;

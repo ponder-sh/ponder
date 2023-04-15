@@ -22,7 +22,7 @@ export const config: PonderConfig = {
       network: "mainnet",
       address: "0xBc66C61BCF49Cc3fe4E321aeCEa307F61EC57C0b",
       abi: "./abis/FileStoreFrontend.json",
-      isIndexed: false,
+      isLogEventSource: false,
     },
   ],
 };

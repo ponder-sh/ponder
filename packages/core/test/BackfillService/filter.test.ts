@@ -1,3 +1,4 @@
+import { parseAbiItem } from "abitype";
 import {
   afterEach,
   beforeAll,
@@ -8,11 +9,9 @@ import {
 } from "vitest";
 
 import { BackfillService } from "@/backfill/BackfillService";
-import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
 
 import { testClient } from "../utils/clients";
 import { usdcContractConfig } from "../utils/constants";
-import { expectEvents } from "../utils/expectEvents";
 import { buildTestResources } from "../utils/resources";
 
 beforeAll(async () => {
@@ -22,19 +21,23 @@ beforeAll(async () => {
   });
 });
 
-describe("normal", () => {
+describe("filter", () => {
   let backfillService: BackfillService;
 
   beforeEach(async () => {
     const resources = await buildTestResources({
-      contracts: [
+      filters: [
         {
           name: "USDC",
           network: "mainnet",
-          ...usdcContractConfig,
-          startBlock: 16369950,
-          endBlock: 16370000,
-          maxBlockRange: 10,
+          abi: usdcContractConfig.abi,
+          filter: {
+            event: parseAbiItem(
+              "event Transfer(address indexed, address indexed, uint256)"
+            ),
+          },
+          startBlock: 16370000,
+          endBlock: 16370001,
         },
       ],
     });
@@ -47,36 +50,18 @@ describe("normal", () => {
   });
 
   describe("backfill()", () => {
-    test("events are emitted", async () => {
-      const eventIterator = backfillService.anyEvent();
-
-      await backfillService.backfill();
-
-      await expectEvents(eventIterator, {
-        logFilterStarted: 1,
-        backfillStarted: 1,
-        logTasksAdded: 6,
-        logTaskCompleted: 6,
-        logTaskFailed: 0,
-        blockTasksAdded: 51,
-        blockTaskCompleted: 51,
-        blockTaskFailed: 0,
-        backfillCompleted: 1,
-        eventsAdded: 51,
-      });
-    });
-
     test("logs, blocks, and transactions are written to cache store", async () => {
       await backfillService.backfill();
 
+      const logFilter = backfillService.resources.logFilters[0];
       const logs = await backfillService.resources.cacheStore.getLogs({
         chainId: 1,
-        address: usdcContractConfig.address,
+        topics: logFilter.filter.topics,
         fromBlockTimestamp: 0,
-        toBlockTimestamp: 1673276423,
+        toBlockTimestamp: 1673276435, // 16370001 mainnet timestamp
       });
 
-      expect(logs).toHaveLength(726);
+      expect(logs).toHaveLength(576);
 
       for (const log of logs) {
         const block = await backfillService.resources.cacheStore.getBlock(
@@ -95,23 +80,19 @@ describe("normal", () => {
     test("cached interval is written to cache store", async () => {
       await backfillService.backfill();
 
-      const filterKey = encodeLogFilterKey({
-        chainId: 1,
-        address: usdcContractConfig.address.toLowerCase() as `0x${string}`,
-        topics: undefined,
-      });
+      const logFilter = backfillService.resources.logFilters[0];
 
       const ranges =
         await backfillService.resources.cacheStore.getLogFilterCachedRanges({
-          filterKey,
+          filterKey: logFilter.filter.key,
         });
 
       expect(ranges.length).toBe(1);
       expect(ranges[0]).toMatchObject({
-        filterKey,
-        startBlock: 16369950,
-        endBlock: 16370000,
-        endBlockTimestamp: 1673276423,
+        filterKey: logFilter.filter.key,
+        startBlock: 16370000,
+        endBlock: 16370001,
+        endBlockTimestamp: 1673276435,
       });
     });
   });

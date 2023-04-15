@@ -3,6 +3,7 @@ import path from "node:path";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
+import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
@@ -48,8 +49,9 @@ describe("ens", () => {
   describe("backfill", () => {
     test("inserts backfill data into the cache store", async () => {
       const logs = await ponder.resources.cacheStore.getLogs({
-        contractAddress:
-          "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85".toLowerCase(),
+        chainId: 1,
+        address:
+          "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85".toLowerCase() as `0x${string}`,
         fromBlockTimestamp: 0,
         toBlockTimestamp: 1673278823, // mainnet 16370200
       });
@@ -65,6 +67,29 @@ describe("ens", () => {
         );
         expect(transaction).toBeTruthy();
       }
+    });
+
+    test("inserts cached range data into the cache store", async () => {
+      const filterKey = encodeLogFilterKey({
+        chainId: 1,
+        address:
+          "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85".toLowerCase() as `0x${string}`,
+        topics: undefined,
+      });
+
+      const ranges = await ponder.resources.cacheStore.getLogFilterCachedRanges(
+        {
+          filterKey,
+        }
+      );
+
+      expect(ranges[0]).toMatchObject({
+        filterKey,
+        startBlock: 16370000,
+        endBlock: 16370200,
+        endBlockTimestamp: 1673278823,
+      });
+      expect(ranges.length).toBe(1);
     });
   });
 

@@ -1,7 +1,8 @@
 import Emittery from "emittery";
-import { Log as ViemLog } from "viem";
+import { Address, Log as ViemLog } from "viem";
 
-import { Contract, Network } from "@/config/contracts";
+import { LogFilter } from "@/config/logFilters";
+import { Network } from "@/config/networks";
 import { Resources } from "@/Ponder";
 
 import { createBlockFrontfillQueue } from "./blockFrontfillQueue";
@@ -13,7 +14,7 @@ export type FrontfillServiceEvents = {
     blockNumber: number;
     blockTimestamp: number;
   };
-  frontfillStarted: { networkCount: number };
+  frontfillStarted: { logFilterGroupCount: number };
 
   logTasksAdded: { network: string; count: number };
   logTaskFailed: { network: string; error: Error };
@@ -27,7 +28,16 @@ export type FrontfillServiceEvents = {
   blockTaskCompleted: { network: string };
 
   nextLogBatch: { network: string };
-  eventsAdded: { count: number };
+  eventsAdded: undefined;
+};
+
+export type LogFilterGroup = {
+  id: string;
+  filterKeys: string[];
+  filter: Omit<LogFilter["filter"], "key">;
+  network: Network;
+  startBlockNumber: number;
+  startBlockTimestamp: number;
 };
 
 export class FrontfillService extends Emittery<FrontfillServiceEvents> {
@@ -36,12 +46,8 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
   private killFunctions: (() => Promise<void>)[] = [];
   private nextBatchIdleFunctions: (() => Promise<void>)[] = [];
 
-  liveNetworks: {
-    network: Network;
-    startBlockNumber: number;
-    startBlockTimestamp: number;
-    currentBlockNumber: number;
-  }[] = [];
+  logFilterGroups: LogFilterGroup[] = [];
+  currentBlockNumbers: Record<string, number> = {};
 
   backfillCutoffTimestamp = Number.POSITIVE_INFINITY;
 
@@ -51,98 +57,132 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
   }
 
   async getLatestBlockNumbers() {
-    const liveContracts = this.resources.contracts.filter(
-      (contract) => contract.endBlock === undefined && contract.isIndexed
+    const liveLogFilters = this.resources.logFilters.filter(
+      (f) => f.endBlock === undefined
     );
 
-    // If there are no live contracts, set backfillCutoffTimestamp to the
-    // greatest timestamp among all the end blocks of all historical contracts.
-    // Then return early.
-    if (liveContracts.length === 0) {
-      const maxEndBlockTimestamp = await this.getMaxEndBlockTimestamp();
-      this.backfillCutoffTimestamp = maxEndBlockTimestamp;
+    // If there are no live log filters, set backfillCutoffTimestamp to the
+    // greatest timestamp among all the end blocks of all historical log filters.
+    if (liveLogFilters.length === 0) {
+      this.backfillCutoffTimestamp = await this.getMaxEndBlockTimestamp();
       return;
     }
 
-    const uniqueLiveNetworks = [
+    const liveNetworks = [
       ...new Map(
-        liveContracts.map((c) => [c.network.name, c.network])
+        liveLogFilters.map((f) => [f.network.name, f.network])
       ).values(),
     ];
 
     await Promise.all(
-      uniqueLiveNetworks.map(async (network) => {
+      liveNetworks.map(async (network) => {
         const block = await network.client.getBlock({
           blockTag: "latest",
           includeTransactions: false,
         });
 
-        this.emit("networkConnected", {
-          network: network.name,
+        const latestBlockData = {
           blockNumber: Number(block.number),
           blockTimestamp: Number(block.timestamp),
+        };
+
+        // Create a live log filter group for all "simple" log filters on this network.
+        // A "simple" log filter has just one contract address and no topics.
+        const simpleLogFilters = this.resources.logFilters.filter(
+          (f): f is LogFilter & { address: Address } =>
+            f.network.name === network.name && // Is on this network.
+            f.endBlock === undefined && // Is a live filter.
+            typeof f.filter.address === "string" && // Is a single contract.
+            f.filter.topics === undefined // Is simple.
+        );
+        if (simpleLogFilters.length > 0) {
+          const groupId = `${network.name}-simple`;
+          this.logFilterGroups.push({
+            id: groupId,
+            filterKeys: simpleLogFilters.map((f) => f.filter.key),
+            filter: {
+              address: simpleLogFilters.map((f) => f.filter.address as Address),
+            },
+            network,
+            startBlockNumber: latestBlockData.blockNumber,
+            startBlockTimestamp: latestBlockData.blockTimestamp,
+          });
+          this.currentBlockNumbers[groupId] = latestBlockData.blockNumber;
+        }
+
+        // Create a live log filter group for each "complex" log filter on this network.
+        // This includes any log filters that specify topics, or don't specify a single address.
+        const complexLogFilters = this.resources.logFilters.filter(
+          (f) =>
+            f.network.name === network.name && // Is on this network.
+            f.endBlock === undefined && // Is a live filter.
+            (typeof f.filter.address !== "string" || // Is not a single contract.
+              f.filter.topics !== undefined) // Is not simple.
+        );
+        complexLogFilters.forEach((logFilter, index) => {
+          const groupId = `${network.name}-complex-${index}`;
+          this.logFilterGroups.push({
+            id: groupId,
+            filterKeys: [logFilter.filter.key],
+            filter: logFilter.filter,
+            network,
+            startBlockNumber: latestBlockData.blockNumber,
+            startBlockTimestamp: latestBlockData.blockTimestamp,
+          });
+          this.currentBlockNumbers[groupId] = latestBlockData.blockNumber;
         });
 
-        this.liveNetworks.push({
-          network,
-          startBlockNumber: Number(block.number),
-          startBlockTimestamp: Number(block.timestamp),
-          currentBlockNumber: Number(block.number),
+        // Set `endBlock` to the latest block number for any log filters that did not specify one.
+        // This dangerously mutates `resources.logFilters`, and should be reconsidered.
+        this.resources.logFilters.forEach((logFilter) => {
+          if (logFilter.network.name === network.name) {
+            logFilter.endBlock = latestBlockData.blockNumber;
+          }
+        });
+
+        // Update the max timestamp.
+        this.backfillCutoffTimestamp = Math.min(
+          this.backfillCutoffTimestamp,
+          latestBlockData.blockTimestamp
+        );
+
+        this.emit("networkConnected", {
+          network: network.name,
+          ...latestBlockData,
         });
       })
     );
-
-    // Set `endBlock` to the latest block number for any contract
-    // that did not specify one.
-    liveContracts.forEach((contract) => {
-      const liveNetwork = this.liveNetworks.find(
-        (n) => n.network.name === contract.network.name
-      );
-      contract.endBlock = liveNetwork?.startBlockNumber;
-    });
-
-    // Store the latest timestamp among all connected networks.
-    // This is used to determine when backfill event processing is complete.
-    const maxLatestBlockTimestamp = Math.max(
-      ...this.liveNetworks.map((n) => n.startBlockTimestamp)
-    );
-    this.backfillCutoffTimestamp = maxLatestBlockTimestamp;
   }
 
   startFrontfill() {
     // If there are no live networks, return early.
-    if (this.liveNetworks.length === 0) return;
+    if (this.logFilterGroups.length === 0) return;
 
-    this.liveNetworks.forEach(({ network }) => {
-      const pollingInterval = network.pollingInterval ?? 1_000;
-
-      const contractAddresses = this.resources.contracts
-        .filter((contract) => contract.network.name === network.name)
-        .map((contract) => contract.address);
-
+    this.logFilterGroups.forEach((group) => {
       const blockFrontfillQueue = createBlockFrontfillQueue({
         frontfillService: this,
-        network,
+        group,
       });
 
       const logFrontfillQueue = createLogFrontfillQueue({
         frontfillService: this,
-        network,
-        contractAddresses,
+        group,
         blockFrontfillQueue,
       });
 
-      const handleLogs = (logs: ViemLog[]) => {
-        if (logs.length > 0) {
-          logFrontfillQueue.addTask({ logs });
-        }
-        this.emit("nextLogBatch", { network: network.name });
+      const handleLogs = async (logs: ViemLog[]) => {
+        this.emit("nextLogBatch", { network: group.network.name });
+        if (logs.length === 0) return;
+
+        await logFrontfillQueue.addTask({ logs });
       };
 
-      const unwatch = network.client.watchEvent({
-        address: contractAddresses,
+      const unwatch = group.network.client.watchEvent({
+        address: group.filter.address,
+        event: group.filter.event,
+        args: group.filter.args as unknown as undefined,
         onLogs: handleLogs,
-        pollingInterval: pollingInterval,
+        pollingInterval: group.network.pollingInterval,
         batch: true,
       });
 
@@ -157,8 +197,7 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
       this.nextBatchIdleFunctions.push(async () => {
         let listener: (
           event: FrontfillServiceEvents["nextLogBatch"]
-          // eslint-disable-next-line @typescript-eslint/no-empty-function
-        ) => void = () => {};
+        ) => void = () => undefined;
 
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(
@@ -166,14 +205,14 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
               reject(
                 new Error(
                   `Did not receive event "newLogBatch" within timeout (${
-                    pollingInterval * 2
+                    group.network.pollingInterval * 2
                   }ms)`
                 )
               ),
-            pollingInterval * 10
+            group.network.pollingInterval * 10
           );
           listener = ({ network: _network }) => {
-            if (_network === network.name) {
+            if (_network === group.network.name) {
               clearTimeout(timeout);
               resolve();
             }
@@ -188,7 +227,9 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
       });
     });
 
-    this.emit("frontfillStarted", { networkCount: this.liveNetworks.length });
+    this.emit("frontfillStarted", {
+      logFilterGroupCount: this.logFilterGroups.length,
+    });
   }
 
   async kill() {
@@ -204,18 +245,15 @@ export class FrontfillService extends Emittery<FrontfillServiceEvents> {
   }
 
   private async getMaxEndBlockTimestamp() {
-    const historicalContracts = this.resources.contracts.filter(
-      (contract): contract is Required<Contract> =>
-        contract.endBlock !== undefined && contract.isIndexed
-    );
-
     const blocks = await Promise.all(
-      historicalContracts.map(async (contract) => {
-        return await contract.network.client.getBlock({
-          blockNumber: BigInt(contract.endBlock),
-          includeTransactions: false,
-        });
-      })
+      this.resources.logFilters
+        .filter((logFilter) => logFilter.endBlock !== undefined)
+        .map(async (logFilter) => {
+          return await logFilter.network.client.getBlock({
+            blockNumber: BigInt(logFilter.endBlock!),
+            includeTransactions: false,
+          });
+        })
     );
 
     const maxEndBlockTimestamp = Math.max(

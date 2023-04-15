@@ -3,19 +3,20 @@ import { Hash, Transaction as ViemTransaction } from "viem";
 import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
 import { parseBlock, parseTransactions } from "@/common/types";
-import type { Contract } from "@/config/contracts";
+import { LogFilter } from "@/config/logFilters";
+import { QueueError } from "@/errors/queue";
 
 import { BackfillService } from "./BackfillService";
 
 export type BlockBackfillTask = {
-  blockHash: Hash;
+  blockNumberToCacheFrom: number;
+  blockNumber: number;
   requiredTxHashes: Set<Hash>;
-  onSuccess: (arg: { blockHash: Hash }) => Promise<void>;
 };
 
 export type BlockBackfillWorkerContext = {
   backfillService: BackfillService;
-  contract: Contract;
+  logFilter: LogFilter;
 };
 
 export type BlockBackfillQueue = Queue<BlockBackfillTask>;
@@ -34,26 +35,36 @@ export const createBlockBackfillQueue = (
   // Pass queue events on to service layer.
   queue.on("add", () => {
     context.backfillService.emit("blockTasksAdded", {
-      contract: context.contract.name,
+      name: context.logFilter.name,
       count: 1,
     });
   });
 
   queue.on("error", ({ error }) => {
     context.backfillService.emit("blockTaskFailed", {
-      contract: context.contract.name,
+      name: context.logFilter.name,
       error,
     });
   });
 
   queue.on("completed", () => {
     context.backfillService.emit("blockTaskCompleted", {
-      contract: context.contract.name,
+      name: context.logFilter.name,
     });
   });
 
   // Default to a simple retry.
-  queue.on("error", ({ task }) => {
+  queue.on("error", ({ task, error }) => {
+    const queueError = new QueueError({
+      queueName: "Block backfill queue",
+      task: task,
+      cause: error,
+    });
+    context.backfillService.resources.logger.logMessage(
+      MessageKind.ERROR,
+      queueError.message
+    );
+
     queue.addTask(task);
   });
 
@@ -64,12 +75,12 @@ const blockBackfillWorker: Worker<
   BlockBackfillTask,
   BlockBackfillWorkerContext
 > = async ({ task, context }) => {
-  const { blockHash, requiredTxHashes, onSuccess } = task;
-  const { backfillService, contract } = context;
-  const { client } = contract.network;
+  const { blockNumber, requiredTxHashes, blockNumberToCacheFrom } = task;
+  const { backfillService, logFilter } = context;
+  const { client } = logFilter.network;
 
   const rawBlock = await client.getBlock({
-    blockHash: blockHash,
+    blockNumber: BigInt(blockNumber),
     includeTransactions: true,
   });
 
@@ -79,7 +90,7 @@ const blockBackfillWorker: Worker<
   if (!block) {
     backfillService.resources.logger.logMessage(
       MessageKind.WARNING,
-      `Received unexpected pending block (hash: ${blockHash})`
+      `Received unexpected pending block (blockNumber: ${blockNumber})`
     );
     return;
   }
@@ -92,7 +103,7 @@ const blockBackfillWorker: Worker<
   if (allTransactions.length !== block.transactions.length) {
     backfillService.resources.logger.logMessage(
       MessageKind.WARNING,
-      `Received unexpected pending transactions in block (hash: ${blockHash}, count: ${
+      `Received unexpected pending transactions in block (blockNumber: ${blockNumber}, count: ${
         block.transactions.length - allTransactions.length
       })`
     );
@@ -107,7 +118,15 @@ const blockBackfillWorker: Worker<
   await Promise.all([
     backfillService.resources.cacheStore.insertBlock(block),
     backfillService.resources.cacheStore.insertTransactions(transactions),
+    backfillService.resources.cacheStore.insertLogFilterCachedRange({
+      range: {
+        filterKey: logFilter.filter.key,
+        startBlock: blockNumberToCacheFrom,
+        endBlock: blockNumber,
+        endBlockTimestamp: Number(block.timestamp),
+      },
+    }),
   ]);
 
-  await onSuccess({ blockHash });
+  backfillService.emit("eventsAdded");
 };

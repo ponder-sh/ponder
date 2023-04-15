@@ -112,7 +112,6 @@ export function decodeLog(log: DatabaseLog): Log {
     topics: [log.topic0, log.topic1, log.topic2, log.topic3].filter(
       (t): t is Hex => t !== null
     ),
-
     logSortKey: BigInt(log.logSortKey),
     blockNumber: BigInt(log.blockNumber),
     blockTimestamp:

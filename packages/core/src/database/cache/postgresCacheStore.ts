@@ -1,9 +1,14 @@
 import type { Pool, PoolClient } from "pg";
+import { Address, Hex } from "viem";
 
 import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
 
-import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
+import type {
+  CacheStore,
+  ContractCall,
+  LogFilterCachedRange,
+} from "./cacheStore";
 import {
   DatabaseBlock,
   DatabaseLog,
@@ -16,9 +21,9 @@ import {
   encodeTransaction,
 } from "./mappers";
 
-export const POSTGRES_TABLE_PREFIX = "__ponder__v2__";
+export const POSTGRES_TABLE_PREFIX = "__ponder__v3__";
 
-const cachedIntervalsTableName = `${POSTGRES_TABLE_PREFIX}cachedIntervals`;
+const logFilterCachedRangesTableName = `${POSTGRES_TABLE_PREFIX}logFilterCachedRanges`;
 const logsTableName = `${POSTGRES_TABLE_PREFIX}logs`;
 const blocksTableName = `${POSTGRES_TABLE_PREFIX}blocks`;
 const transactionsTableName = `${POSTGRES_TABLE_PREFIX}transactions`;
@@ -38,17 +43,17 @@ export class PostgresCacheStore implements CacheStore {
       await client.query("BEGIN");
 
       await client.query(`
-        CREATE TABLE IF NOT EXISTS "${cachedIntervalsTableName}" (
+        CREATE TABLE IF NOT EXISTS "${logFilterCachedRangesTableName}" (
           "id" SERIAL PRIMARY KEY,
-          "contractAddress" TEXT NOT NULL,
+          "filterKey" TEXT NOT NULL,
           "startBlock" INTEGER NOT NULL,
           "endBlock" INTEGER NOT NULL,
           "endBlockTimestamp" INTEGER NOT NULL
         )
       `);
       await client.query(`
-        CREATE INDEX IF NOT EXISTS "${cachedIntervalsTableName}ContractAddress"
-        ON "${cachedIntervalsTableName}" ("contractAddress")
+        CREATE INDEX IF NOT EXISTS "${logFilterCachedRangesTableName}FilterKey"
+        ON "${logFilterCachedRangesTableName}" ("filterKey")
       `);
 
       await client.query(`
@@ -63,20 +68,29 @@ export class PostgresCacheStore implements CacheStore {
           "topic3" TEXT,
           "blockHash" TEXT NOT NULL,
           "blockNumber" INTEGER NOT NULL,
-          "blockTimestamp" INTEGER,
           "logIndex" INTEGER NOT NULL,
           "transactionHash" TEXT NOT NULL,
           "transactionIndex" INTEGER NOT NULL,
-          "removed" INTEGER NOT NULL
+          "removed" INTEGER NOT NULL,
+          "blockTimestamp" INTEGER,
+          "chainId" INTEGER NOT NULL
         )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS "${logsTableName}Address"
+        ON "${logsTableName}" ("address")
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS "${logsTableName}Topic0"
+        ON "${logsTableName}" ("topic0")
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS "${logsTableName}BlockTimestamp"
         ON "${logsTableName}" ("blockTimestamp")
       `);
       await client.query(`
-        CREATE INDEX IF NOT EXISTS "${logsTableName}Topic0"
-        ON "${logsTableName}" ("topic0")
+        CREATE INDEX IF NOT EXISTS "${logsTableName}ChainId"
+        ON "${logsTableName}" ("chainId")
       `);
 
       await client.query(`
@@ -134,85 +148,71 @@ export class PostgresCacheStore implements CacheStore {
     }
   };
 
-  getCachedIntervals = async (contractAddress: string) => {
-    const result = await this.pool.query<CachedInterval>(
-      `
-      SELECT * FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = $1
-      `,
-      [contractAddress]
+  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
+    const result = await this.pool.query<LogFilterCachedRange>(
+      `SELECT * FROM "${logFilterCachedRangesTableName}" WHERE "filterKey" = $1`,
+      [filterKey]
     );
 
     return result.rows;
   };
 
-  insertCachedInterval = async (newInterval: CachedInterval) => {
-    const { contractAddress } = newInterval;
+  insertLogFilterCachedRange = async ({
+    range: newRange,
+  }: {
+    range: LogFilterCachedRange;
+  }) => {
     const client = await this.pool.connect();
+
     try {
       await client.query("BEGIN");
 
-      const { rows: existingIntervals } = await client.query<CachedInterval>(
-        `
-        DELETE FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = $1 RETURNING *
-        `,
-        [contractAddress]
+      const { rows: existingRanges } = await client.query<LogFilterCachedRange>(
+        `DELETE FROM "${logFilterCachedRangesTableName}" WHERE "filterKey" = $1 RETURNING *`,
+        [newRange.filterKey]
       );
 
-      // Handle the special case where there were no existing intervals.
-      if (existingIntervals.length === 0) {
-        await client.query(
-          `
-          INSERT INTO "${cachedIntervalsTableName}" (
-            "contractAddress",
-            "startBlock",
-            "endBlock",
-            "endBlockTimestamp"
-          ) VALUES ($1, $2, $3, $4)
-          `,
-          [
-            contractAddress,
-            newInterval.startBlock,
-            newInterval.endBlock,
-            newInterval.endBlockTimestamp,
-          ]
-        );
-        await client.query("COMMIT");
-        return;
-      }
+      const mergedRanges: LogFilterCachedRange[] = merge_intervals([
+        ...existingRanges.map((r) => [r.startBlock, r.endBlock]),
+        [newRange.startBlock, newRange.endBlock],
+      ]).map((range) => {
+        const [startBlock, endBlock] = range;
 
-      const mergedIntervals = merge_intervals([
-        ...existingIntervals.map((row) => [row.startBlock, row.endBlock]),
-        [newInterval.startBlock, newInterval.endBlock],
-      ]);
+        // For each new merged range, its endBlock will be found EITHER in the newly
+        // added range OR among the endBlocks of the removed range.
+        // Find it so we can propogate the endBlockTimestamp correctly.
+        const endBlockTimestamp = [newRange, ...existingRanges].find(
+          (old) => old.endBlock === endBlock
+        )?.endBlockTimestamp;
+        if (!endBlockTimestamp) {
+          throw new Error(`Old range with endBlock: ${endBlock} not found`);
+        }
 
-      await Promise.all(
-        mergedIntervals.map(async (mergedInterval) => {
-          const startBlock = mergedInterval[0];
-          const endBlock = mergedInterval[1];
+        return {
+          filterKey: newRange.filterKey,
+          startBlock,
+          endBlock,
+          endBlockTimestamp,
+        };
+      });
 
-          // For each new merged interval, its endBlock will be found EITHER in the newly
-          // added interval OR among the endBlocks of the removed intervals.
-          // Find it so we can propogate the endBlockTimestamp correctly.
-          const endBlockInterval = [newInterval, ...existingIntervals].find(
-            (oldInterval) => oldInterval.endBlock === endBlock
-          );
-          if (!endBlockInterval) {
-            throw new Error(`Old interval with endBlock not found`);
-          }
-          const { endBlockTimestamp } = endBlockInterval;
-
-          await client.query(
-            `
-            INSERT INTO "${cachedIntervalsTableName}" (
-              "contractAddress",
-              "startBlock",
-              "endBlock",
-              "endBlockTimestamp"
-            ) VALUES ($1, $2, $3, $4)
-            `,
-            [contractAddress, startBlock, endBlock, endBlockTimestamp]
-          );
-        })
+      await client.query(
+        `
+        INSERT INTO "${logFilterCachedRangesTableName}" (
+          "filterKey",
+          "startBlock",
+          "endBlock",
+          "endBlockTimestamp"
+        ) VALUES ${this.buildInsertParams(4, mergedRanges.length)}
+        `,
+        mergedRanges
+          .map((r) => [
+            r.filterKey,
+            r.startBlock,
+            r.endBlock,
+            r.endBlockTimestamp,
+          ])
+          .flat()
       );
 
       await client.query("COMMIT");
@@ -266,6 +266,7 @@ export class PostgresCacheStore implements CacheStore {
           log.transactionHash,
           log.transactionIndex,
           log.removed,
+          log.chainId,
         ];
       })
       .flat();
@@ -285,8 +286,9 @@ export class PostgresCacheStore implements CacheStore {
         "logIndex",
         "transactionHash",
         "transactionIndex",
-        "removed"
-      ) VALUES ${this.buildInsertParams(14, logs.length)}
+        "removed",
+        "chainId"
+      ) VALUES ${this.buildInsertParams(15, logs.length)}
       ON CONFLICT("logId") DO NOTHING
     `;
 
@@ -405,40 +407,58 @@ export class PostgresCacheStore implements CacheStore {
   };
 
   getLogs = async ({
-    contractAddress,
     fromBlockTimestamp,
     toBlockTimestamp,
-    eventSigHashes,
+    chainId,
+    address,
+    topics,
   }: {
-    contractAddress: string;
     fromBlockTimestamp: number;
     toBlockTimestamp: number;
-    eventSigHashes?: string[];
+    chainId: number;
+    address?: Address | Address[];
+    topics?: (Hex | Hex[] | null)[];
   }) => {
-    let topicStatement = "";
-    let topicParams: string[] = [];
-    if (eventSigHashes !== undefined) {
-      if (eventSigHashes.length === 0) {
-        // Postgres raises an error for `AND "col" IN ()`, this is a workaround.
-        // https://stackoverflow.com/questions/63905200/postgresql-in-empty-array-syntax
-        topicStatement = `AND "topic0" = ANY (ARRAY[]::text[])`;
+    let filterStatement = "";
+    const filterParams: string[] = [];
+
+    if (address) {
+      filterStatement += ` AND "address"`;
+      if (typeof address === "string") {
+        filterStatement += `= $${filterParams.length + 4}`;
+        filterParams.push(address);
       } else {
-        topicStatement = `AND "topic0" IN (${[
-          ...Array(eventSigHashes.length).keys(),
-        ].map((index) => `$${index + 4}`)})`;
+        filterStatement += ` IN (${[...Array(address.length).keys()]
+          .map(() => `$${filterParams.length + 4}`)
+          .join(",")})`;
+        filterParams.push(...address);
       }
-      topicParams = eventSigHashes;
     }
+
+    (topics ?? []).forEach((topic, index) => {
+      filterStatement += ` AND "topic${index}"`;
+      if (typeof topic === "string") {
+        filterStatement += ` = $${filterParams.length + 4}`;
+        filterParams.push(topic);
+      } else if (Array.isArray(topic)) {
+        filterStatement += ` IN (${[...Array(topic.length).keys()]
+          .map((i) => `$${i + filterParams.length + 4}`)
+          .join(",")})`;
+        filterParams.push(...topic);
+      } else {
+        filterStatement += ` = NULL`;
+      }
+    });
 
     const { rows } = await this.pool.query<DatabaseLog>(
       `
       SELECT * FROM "${logsTableName}"
-      WHERE "address" = $1
-      AND "blockTimestamp" > $2
-      AND "blockTimestamp" <= $3
-      ${topicStatement}
+      WHERE "blockTimestamp" > $1
+      AND "blockTimestamp" <= $2
+      AND "chainId" = $3
+      ${filterStatement}
       `,
-      [contractAddress, fromBlockTimestamp, toBlockTimestamp, ...topicParams]
+      [fromBlockTimestamp, toBlockTimestamp, chainId, ...filterParams]
     );
 
     return rows.map(decodeLog);

@@ -69,7 +69,7 @@ export class CodegenService extends Emittery {
   
       /* HANDLER TYPES */
     
-      ${buildEventTypes(this.resources.contracts)}
+      ${buildEventTypes(this.resources.logFilters)}
 
       export const ponder = new PonderApp<AppType>();
     `;

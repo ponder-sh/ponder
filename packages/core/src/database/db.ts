@@ -25,7 +25,7 @@ Pool.prototype.query = async function query(
     if (error instanceof DatabaseError) {
       throw new PostgresError({
         statement,
-        parameters,
+        parameters: parameters ?? [],
         pgError: error,
       });
     }
@@ -90,6 +90,8 @@ export const buildDb = ({
 }): PonderDatabase => {
   let resolvedDatabaseConfig: NonNullable<ResolvedPonderConfig["database"]>;
 
+  const defaultSqliteFilename = path.join(options.ponderDir, "cache.db");
+
   if (config.database) {
     if (config.database.kind === "postgres") {
       resolvedDatabaseConfig = {
@@ -99,7 +101,7 @@ export const buildDb = ({
     } else {
       resolvedDatabaseConfig = {
         kind: "sqlite",
-        filename: config.database.filename,
+        filename: config.database.filename ?? defaultSqliteFilename,
       };
     }
   } else {
@@ -109,29 +111,28 @@ export const buildDb = ({
         connectionString: process.env.DATABASE_URL,
       };
     } else {
-      const filePath = path.join(options.ponderDir, "cache.db");
-      ensureDirExists(filePath);
       resolvedDatabaseConfig = {
         kind: "sqlite",
-        filename: filePath,
+        filename: defaultSqliteFilename,
       };
     }
   }
 
   if (resolvedDatabaseConfig.kind === "sqlite") {
-    const db = Sqlite(resolvedDatabaseConfig.filename, {
+    ensureDirExists(resolvedDatabaseConfig.filename!);
+    const rawDb = Sqlite(resolvedDatabaseConfig.filename!, {
       verbose: logger.trace,
     });
-    db.pragma("journal_mode = WAL");
+    rawDb.pragma("journal_mode = WAL");
 
-    const patchedDb = patchSqliteDatabase({ db });
+    const db = patchSqliteDatabase({ db: rawDb });
 
-    return { kind: "sqlite", db: patchedDb };
+    return { kind: "sqlite", db };
   } else {
-    const rawPool = new Pool({
+    const pool = new Pool({
       connectionString: resolvedDatabaseConfig.connectionString,
     });
 
-    return { kind: "postgres", pool: rawPool };
+    return { kind: "postgres", pool };
   }
 };

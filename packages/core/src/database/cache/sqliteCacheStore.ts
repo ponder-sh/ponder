@@ -1,9 +1,15 @@
+import { Address } from "abitype";
 import type Sqlite from "better-sqlite3";
+import { Hex } from "viem";
 
 import type { Block, Log, Transaction } from "@/common/types";
 import { merge_intervals } from "@/common/utils";
 
-import type { CachedInterval, CacheStore, ContractCall } from "./cacheStore";
+import type {
+  CacheStore,
+  ContractCall,
+  LogFilterCachedRange,
+} from "./cacheStore";
 import {
   DatabaseBlock,
   DatabaseLog,
@@ -16,9 +22,9 @@ import {
   encodeTransaction,
 } from "./mappers";
 
-export const SQLITE_TABLE_PREFIX = "__ponder__v2__";
+export const SQLITE_TABLE_PREFIX = "__ponder__v3__";
 
-const cachedIntervalsTableName = `${SQLITE_TABLE_PREFIX}cachedIntervals`;
+const logFilterCachedRangesTableName = `${SQLITE_TABLE_PREFIX}logFilterCachedRanges`;
 const logsTableName = `${SQLITE_TABLE_PREFIX}logs`;
 const blocksTableName = `${SQLITE_TABLE_PREFIX}blocks`;
 const transactionsTableName = `${SQLITE_TABLE_PREFIX}transactions`;
@@ -41,9 +47,9 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE TABLE IF NOT EXISTS "${cachedIntervalsTableName}" (
+        CREATE TABLE IF NOT EXISTS "${logFilterCachedRangesTableName}" (
           "id" INTEGER PRIMARY KEY,
-          "contractAddress" TEXT NOT NULL,
+          "filterKey" TEXT NOT NULL,
           "startBlock" INTEGER NOT NULL,
           "endBlock" INTEGER NOT NULL,
           "endBlockTimestamp" INTEGER NOT NULL
@@ -54,8 +60,8 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE INDEX IF NOT EXISTS "${cachedIntervalsTableName}ContractAddress"
-        ON "${cachedIntervalsTableName}" ("contractAddress")
+        CREATE INDEX IF NOT EXISTS "${logFilterCachedRangesTableName}FilterKey"
+        ON "${logFilterCachedRangesTableName}" ("filterKey")
         `
       )
       .run();
@@ -74,12 +80,30 @@ export class SqliteCacheStore implements CacheStore {
           "topic3" TEXT,
           "blockHash" TEXT NOT NULL,
           "blockNumber" INTEGER NOT NULL,
-          "blockTimestamp" INTEGER,
           "logIndex" INTEGER NOT NULL,
           "transactionHash" TEXT NOT NULL,
           "transactionIndex" INTEGER NOT NULL,
-          "removed" INTEGER NOT NULL
+          "removed" INTEGER NOT NULL,
+          "blockTimestamp" INTEGER,
+          "chainId" INT NOT NULL
         )
+        `
+      )
+      .run();
+
+    this.db
+      .prepare(
+        `
+        CREATE INDEX IF NOT EXISTS "${logsTableName}Address"
+        ON "${logsTableName}" ("address")
+        `
+      )
+      .run();
+    this.db
+      .prepare(
+        `
+        CREATE INDEX IF NOT EXISTS "${logsTableName}Topic0"
+        ON "${logsTableName}" ("topic0")
         `
       )
       .run();
@@ -94,8 +118,8 @@ export class SqliteCacheStore implements CacheStore {
     this.db
       .prepare(
         `
-        CREATE INDEX IF NOT EXISTS "${logsTableName}Topic0"
-        ON "${logsTableName}" ("topic0")
+        CREATE INDEX IF NOT EXISTS "${logsTableName}ChainId"
+        ON "${logsTableName}" ("chainId")
         `
       )
       .run();
@@ -159,85 +183,75 @@ export class SqliteCacheStore implements CacheStore {
       .run();
   };
 
-  getCachedIntervals = async (contractAddress: string) => {
-    const cachedIntervalRows = this.db
+  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
+    const rows = this.db
       .prepare(
-        `
-        SELECT * FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = @contractAddress
-        `
+        `SELECT * FROM "${logFilterCachedRangesTableName}" WHERE "filterKey" = @filterKey`
       )
-      .all({
-        contractAddress: contractAddress,
-      }) as CachedInterval[];
+      .all({ filterKey }) as LogFilterCachedRange[];
 
-    return cachedIntervalRows;
+    return rows;
   };
 
-  insertCachedInterval = async (interval: CachedInterval) => {
-    const deleteIntervals = this.db.prepare(`
-      DELETE FROM "${cachedIntervalsTableName}" WHERE "contractAddress" = @contractAddress RETURNING *  
+  insertLogFilterCachedRange = async ({
+    range: newRange,
+  }: {
+    range: LogFilterCachedRange;
+  }) => {
+    const deleteStatement = this.db.prepare<{ filterKey: string }>(`
+      DELETE FROM "${logFilterCachedRangesTableName}" WHERE "filterKey" = @filterKey RETURNING *  
     `);
 
-    const insertInterval = this.db.prepare(`
-      INSERT INTO "${cachedIntervalsTableName}" (
-        "contractAddress",
+    const insertStatement = this.db.prepare<LogFilterCachedRange>(`
+      INSERT INTO "${logFilterCachedRangesTableName}" (
+        "filterKey",
         "startBlock",
         "endBlock",
         "endBlockTimestamp"
       ) VALUES (
-        @contractAddress,
+        @filterKey,
         @startBlock,
         @endBlock,
         @endBlockTimestamp
       )
     `);
 
-    const insertIntervalTxn = this.db.transaction(
-      (newInterval: CachedInterval) => {
-        const { contractAddress } = newInterval;
+    const txn = this.db.transaction((newRange: LogFilterCachedRange) => {
+      const { filterKey } = newRange;
 
-        // Delete and return all intervals for this contract
-        const existingIntervals = deleteIntervals.all({
-          contractAddress: interval.contractAddress,
-        }) as CachedInterval[];
+      // Delete and return all ranges for this contract
+      const existingRanges = deleteStatement.all({ filterKey });
 
-        // Handle the special case where there were no existing intervals.
-        if (existingIntervals.length === 0) {
-          insertInterval.run(newInterval);
-          return;
+      const mergedRanges: LogFilterCachedRange[] = merge_intervals([
+        ...existingRanges.map((r) => [r.startBlock, r.endBlock]),
+        [newRange.startBlock, newRange.endBlock],
+      ]).map((range) => {
+        const [startBlock, endBlock] = range;
+
+        // For each new merged range, its endBlock will be found EITHER in the newly
+        // added range OR among the endBlocks of the removed ranges.
+        // Find it so we can propogate the endBlockTimestamp correctly.
+        const endBlockTimestamp = [newRange, ...existingRanges].find(
+          (old) => old.endBlock === endBlock
+        )?.endBlockTimestamp;
+        if (!endBlockTimestamp) {
+          throw new Error(`Old range with endBlock: ${endBlock} not found`);
         }
 
-        const mergedIntervals = merge_intervals([
-          ...existingIntervals.map((row) => [row.startBlock, row.endBlock]),
-          [newInterval.startBlock, newInterval.endBlock],
-        ]);
+        return {
+          filterKey: newRange.filterKey,
+          startBlock,
+          endBlock,
+          endBlockTimestamp,
+        };
+      });
 
-        mergedIntervals.forEach((mergedInterval) => {
-          const startBlock = mergedInterval[0];
-          const endBlock = mergedInterval[1];
+      mergedRanges.forEach((m) => {
+        insertStatement.run(m);
+      });
+    });
 
-          // For each new merged interval, its endBlock will be found EITHER in the newly
-          // added interval OR among the endBlocks of the removed intervals.
-          // Find it so we can propogate the endBlockTimestamp correctly.
-          const endBlockInterval = [newInterval, ...existingIntervals].find(
-            (oldInterval) => oldInterval.endBlock === endBlock
-          );
-          if (!endBlockInterval) {
-            throw new Error(`Old interval with endBlock not found`);
-          }
-          const { endBlockTimestamp } = endBlockInterval;
-
-          insertInterval.run({
-            contractAddress,
-            startBlock,
-            endBlock,
-            endBlockTimestamp,
-          });
-        });
-      }
-    );
-
-    insertIntervalTxn(interval);
+    txn(newRange);
   };
 
   insertLogs = async (logs: Log[]) => {
@@ -257,7 +271,8 @@ export class SqliteCacheStore implements CacheStore {
         "logIndex",
         "transactionHash",
         "transactionIndex",
-        "removed"
+        "removed",
+        "chainId"
       ) VALUES (
         @logId,
         @logSortKey,
@@ -272,7 +287,8 @@ export class SqliteCacheStore implements CacheStore {
         @logIndex,
         @transactionHash,
         @transactionIndex,
-        @removed
+        @removed,
+        @chainId
       ) ON CONFLICT("logId") DO NOTHING
       `
     );
@@ -390,37 +406,61 @@ export class SqliteCacheStore implements CacheStore {
   };
 
   getLogs = async ({
-    contractAddress,
     fromBlockTimestamp,
     toBlockTimestamp,
-    eventSigHashes,
+    chainId,
+    address,
+    topics,
   }: {
-    contractAddress: string;
     fromBlockTimestamp: number;
     toBlockTimestamp: number;
-    eventSigHashes?: string[];
+    chainId: number;
+    address?: Address | Address[];
+    topics?: (Hex | Hex[] | null)[];
   }) => {
-    let topicStatement = "";
-    let topicParams: string[] = [];
-    if (eventSigHashes !== undefined) {
-      topicStatement = `AND "topic0" IN (${[
-        ...Array(eventSigHashes.length).keys(),
-      ].map(() => `?`)})`;
-      topicParams = eventSigHashes;
+    let filterStatement = "";
+    const filterParams: string[] = [];
+
+    if (address) {
+      filterStatement += ` AND "address"`;
+      if (typeof address === "string") {
+        filterStatement += ` = ?`;
+        filterParams.push(address);
+      } else {
+        filterStatement += ` IN (${[...Array(address.length).keys()]
+          .map(() => `?`)
+          .join(",")})`;
+        filterParams.push(...address);
+      }
     }
+
+    (topics ?? []).forEach((topic, index) => {
+      filterStatement += ` AND "topic${index}"`;
+      if (typeof topic === "string") {
+        filterStatement += ` = ?`;
+        filterParams.push(topic);
+      } else if (Array.isArray(topic)) {
+        filterStatement += ` IN (${[...Array(topic.length).keys()]
+          .map(() => `?`)
+          .join(",")})`;
+        filterParams.push(...topic);
+      } else {
+        filterStatement += ` = NULL`;
+      }
+    });
 
     const logs: DatabaseLog[] = this.db
       .prepare(
         `
           SELECT * FROM "${logsTableName}"
-          WHERE "address" = @contractAddress
-          AND "blockTimestamp" > @fromBlockTimestamp
+          WHERE "blockTimestamp" > @fromBlockTimestamp
           AND "blockTimestamp" <= @toBlockTimestamp
-          ${topicStatement}
+          AND "chainId" = @chainId
+          ${filterStatement}
           `
       )
-      .all(...topicParams, {
-        contractAddress,
+      .all(...filterParams, {
+        chainId,
         fromBlockTimestamp,
         toBlockTimestamp,
       });
