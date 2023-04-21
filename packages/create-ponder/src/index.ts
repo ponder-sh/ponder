@@ -175,6 +175,7 @@ export const run = async (
         "target": "ESNext",
         "module": "ESNext",
         "moduleResolution": "node",
+        "resolveJsonModule": true,
         "esModuleInterop": true,
         "strict": true,
         "rootDir": ".",
