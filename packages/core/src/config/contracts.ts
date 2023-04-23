@@ -23,7 +23,10 @@ export function buildContracts({
   return (config.contracts ?? []).map((contract) => {
     const address = contract.address.toLowerCase() as Address;
 
-    const { abi } = buildAbi({ abiConfig: contract.abi, options });
+    const { abi } = buildAbi({
+      abiConfig: contract.abi,
+      configFilePath: options.configFile,
+    });
 
     // Get the contract network/provider.
     const rawNetwork = config.networks.find((n) => n.name === contract.network);
