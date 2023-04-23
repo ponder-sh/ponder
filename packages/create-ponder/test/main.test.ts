@@ -124,7 +124,7 @@ describe("create-ponder", () => {
       });
     });
 
-    describe.only("mainnet EIP-1967 proxy", () => {
+    describe("mainnet EIP-1967 proxy", () => {
       const rootDir = path.join(tmpDir, randomUUID());
 
       beforeAll(async () => {
