@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.54
+
+### Patch Changes
+
+- [#165](https://github.com/0xOlias/ponder/pull/165) [`21d06c0`](https://github.com/0xOlias/ponder/commit/21d06c0fbee082f6233d3ab4487caed8ea501f6c) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for EIP-1967 proxies (Transparent and UUPS) when using the Etherscan template
+
 ## 0.0.53
 
 ## 0.0.52
