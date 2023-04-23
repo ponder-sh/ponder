@@ -86,10 +86,19 @@ export const run = async (
 
   // Write the handler ts files.
   ponderConfig.contracts.forEach((contract) => {
-    const abiString = readFileSync(path.join(rootDir, contract.abi), {
-      encoding: "utf-8",
-    });
-    const abi: Abi = JSON.parse(abiString);
+    let abi: Abi;
+    if (Array.isArray(contract.abi)) {
+      // If it's an array of ABIs, use the 2nd one (the implementation ABI).
+      const abiString = readFileSync(path.join(rootDir, contract.abi[1]), {
+        encoding: "utf-8",
+      });
+      abi = JSON.parse(abiString);
+    } else {
+      const abiString = readFileSync(path.join(rootDir, contract.abi), {
+        encoding: "utf-8",
+      });
+      abi = JSON.parse(abiString);
+    }
 
     const abiEvents = abi.filter(
       (item): item is AbiEvent => item.type === "event"

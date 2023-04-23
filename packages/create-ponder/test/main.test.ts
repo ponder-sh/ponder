@@ -123,6 +123,65 @@ describe("create-ponder", () => {
         expect(src.sort()).toEqual(["Collector.ts"].sort());
       });
     });
+
+    describe.only("mainnet EIP-1967 proxy", () => {
+      const rootDir = path.join(tmpDir, randomUUID());
+
+      beforeAll(async () => {
+        await run(
+          {
+            projectName: "proxy",
+            rootDir,
+            template: {
+              kind: TemplateKind.ETHERSCAN,
+              link: "https://etherscan.io/address/0x394997b586c925d90642e28899729f0f7cd36bdb", // ethfs
+            },
+          },
+          {
+            installCommand:
+              'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
+          }
+        );
+      });
+
+      test("creates project files and directories", async () => {
+        const root = fs.readdirSync(rootDir);
+        expect(root).toContain(".env.local");
+        expect(root).toContain(".gitignore");
+        expect(root).toContain("abis");
+        expect(root).toContain("generated");
+        expect(root).toContain("src");
+        expect(root).toContain("node_modules");
+        expect(root).toContain("package.json");
+        expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("schema.graphql");
+        expect(root).toContain("tsconfig.json");
+      });
+
+      test("downloads abis", async () => {
+        const proxyAbiString = fs.readFileSync(
+          path.join(rootDir, `abis/Zora1155.json`),
+          { encoding: "utf8" }
+        );
+        expect(JSON.parse(proxyAbiString).length).toBeGreaterThan(0);
+
+        const implementationAbiString = fs.readFileSync(
+          path.join(rootDir, `abis/ZoraCreator1155Impl.json`),
+          { encoding: "utf8" }
+        );
+        expect(JSON.parse(implementationAbiString).length).toBeGreaterThan(0);
+      });
+
+      test("creates codegen files", async () => {
+        const generated = fs.readdirSync(path.join(rootDir, "generated"));
+        expect(generated.sort()).toEqual(["index.ts", "schema.graphql"].sort());
+      });
+
+      test("creates src files", async () => {
+        const src = fs.readdirSync(path.join(rootDir, "src"));
+        expect(src.sort()).toEqual(["Zora1155.ts"].sort());
+      });
+    });
   });
 
   describe("from subgraph id", () => {
