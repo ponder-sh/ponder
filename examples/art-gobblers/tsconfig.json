@@ -5,6 +5,7 @@
     "esModuleInterop": true,
     "strict": true,
     "moduleResolution": "node",
+    "resolveJsonModule": true,
     "rootDir": ".",
     "paths": {
       "@/generated": ["./generated/index.ts"]

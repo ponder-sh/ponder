@@ -34,7 +34,10 @@ export function buildLogFilters({
   const contractLogFilters = (config.contracts ?? [])
     .filter((contract) => contract.isLogEventSource ?? true)
     .map((contract) => {
-      const { abi } = buildAbi({ abiConfig: contract.abi, options });
+      const { abi } = buildAbi({
+        abiConfig: contract.abi,
+        configFilePath: options.configFile,
+      });
 
       // Get the contract network/provider.
       const rawNetwork = config.networks.find(
@@ -81,7 +84,10 @@ export function buildLogFilters({
     });
 
   const filterLogFilters = (config.filters ?? []).map((filter) => {
-    const { abi } = buildAbi({ abiConfig: filter.abi, options });
+    const { abi } = buildAbi({
+      abiConfig: filter.abi,
+      configFilePath: options.configFile,
+    });
 
     // Get the contract network/provider.
     const rawNetwork = config.networks.find((n) => n.name === filter.network);

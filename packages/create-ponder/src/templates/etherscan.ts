@@ -40,16 +40,78 @@ export const fromEtherscan = async ({
     console.log("(2/2) Waiting 5 seconds for Etherscan API rate limit");
     await wait(5000);
   }
+  const abis: { abi: string; contractName: string }[] = [];
   const { abi, contractName } = await getContractAbiAndName(
     contractAddress,
     apiUrl,
     apiKey
   );
+  abis.push({ abi, contractName });
 
-  // Write contract ABI file.
-  const abiRelativePath = `./abis/${contractName}.json`;
-  const abiAbsolutePath = path.join(rootDir, abiRelativePath);
-  writeFileSync(abiAbsolutePath, prettier.format(abi, { parser: "json" }));
+  // If the contract is an EIP-1967 proxy, get the implementation contract ABIs.
+  if (
+    (JSON.parse(abi) as any[]).find(
+      (item) =>
+        item.type === "event" &&
+        item.name === "Upgraded" &&
+        item.inputs[0].name === "implementation"
+    )
+  ) {
+    console.log(
+      "Detected EIP-1967 proxy, fetching implementation contract ABIs"
+    );
+    if (!apiKey) {
+      console.log("\n(3/X) Waiting 5 seconds for Etherscan API rate limit");
+      await wait(5000);
+    }
+    const { implAddresses } = await getProxyImplementationAddresses(
+      contractAddress,
+      blockNumber,
+      apiUrl,
+      apiKey
+    );
+
+    for (const [index, implAddress] of implAddresses.entries()) {
+      console.log(`Fetching ABI for implementation contract: ${implAddress}`);
+      if (!apiKey) {
+        console.log(
+          `\n(${4 + index}/${
+            4 + implAddresses.length - 1
+          }) Waiting 5 seconds for Etherscan API rate limit`
+        );
+        await wait(5000);
+      }
+      const { abi, contractName } = await getContractAbiAndName(
+        implAddress,
+        apiUrl,
+        apiKey
+      );
+      // If there is already an ABI with the same name, add an address suffix.
+      if (abis.find((item) => item.contractName === contractName)) {
+        abis.push({
+          abi,
+          contractName: `${contractName}_${implAddress.slice(0, 6)}`,
+        });
+      } else {
+        abis.push({ abi, contractName });
+      }
+    }
+  }
+
+  // Write ABI files.
+  let abiConfig: any;
+  abis.forEach(({ abi, contractName }) => {
+    const abiRelativePath = `./abis/${contractName}.json`;
+    const abiAbsolutePath = path.join(rootDir, abiRelativePath);
+    writeFileSync(abiAbsolutePath, prettier.format(abi, { parser: "json" }));
+
+    if (abis.length === 1) {
+      abiConfig = abiRelativePath;
+    } else {
+      abiConfig ||= [];
+      abiConfig.push(abiRelativePath);
+    }
+  });
 
   const schemaGraphqlFileContents = `
     type ExampleEntity @entity {
@@ -78,7 +140,7 @@ export const fromEtherscan = async ({
       {
         name: contractName,
         network: name,
-        abi: abiRelativePath,
+        abi: abiConfig,
         address: contractAddress,
         startBlock: blockNumber,
       },
@@ -160,4 +222,30 @@ const getContractAbiAndName = async (
   const contractName = data.result[0].ContractName as string;
 
   return { abi, contractName };
+};
+
+const getProxyImplementationAddresses = async (
+  contractAddress: string,
+  fromBlock: number,
+  apiUrl: string,
+  apiKey?: string
+) => {
+  const searchParams = new URLSearchParams({
+    module: "logs",
+    action: "getLogs",
+    address: contractAddress,
+    fromBlock: String(fromBlock),
+    toBlock: "latest",
+    topic0:
+      "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+  });
+  if (apiKey) searchParams.append("apikey", apiKey);
+  const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
+
+  const logs = data.result;
+  const implAddresses = logs.map(
+    (log: any) => `0x${log.topics[1].slice(26)}`
+  ) as string[];
+
+  return { implAddresses };
 };
