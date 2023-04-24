@@ -61,7 +61,7 @@ export const fromEtherscan = async ({
       "Detected EIP-1967 proxy, fetching implementation contract ABIs"
     );
     if (!apiKey) {
-      console.log("\n(3/X) Waiting 5 seconds for Etherscan API rate limit");
+      console.log("(3/X) Waiting 5 seconds for Etherscan API rate limit");
       await wait(5000);
     }
     const { implAddresses } = await getProxyImplementationAddresses(
@@ -75,7 +75,7 @@ export const fromEtherscan = async ({
       console.log(`Fetching ABI for implementation contract: ${implAddress}`);
       if (!apiKey) {
         console.log(
-          `\n(${4 + index}/${
+          `(${4 + index}/${
             4 + implAddresses.length - 1
           }) Waiting 5 seconds for Etherscan API rate limit`
         );
@@ -86,15 +86,11 @@ export const fromEtherscan = async ({
         apiUrl,
         apiKey
       );
-      // If there is already an ABI with the same name, add an address suffix.
-      if (abis.find((item) => item.contractName === contractName)) {
-        abis.push({
-          abi,
-          contractName: `${contractName}_${implAddress.slice(0, 6)}`,
-        });
-      } else {
-        abis.push({ abi, contractName });
-      }
+
+      abis.push({
+        abi,
+        contractName: `${contractName}_${implAddress.slice(0, 6)}`,
+      });
     }
   }
 
