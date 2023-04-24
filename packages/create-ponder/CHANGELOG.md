@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.55
+
+### Patch Changes
+
+- [`869e286`](https://github.com/0xOlias/ponder/commit/869e286db146dabfbbad642d208f72f67dcd79c2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed proxy contract logs and file naming
+
 ## 0.0.54
 
 ### Patch Changes

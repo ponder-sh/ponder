@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.0.54",
+  "version": "0.0.55",
   "description": "API builder for blockchain apps",
   "license": "MIT",
   "author": "olias.eth",
