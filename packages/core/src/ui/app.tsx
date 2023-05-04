@@ -41,15 +41,9 @@ export type UiState = {
   networks: string[];
 };
 
-export const buildUiState = ({
-  port,
-  logFilters,
-}: {
-  port?: number;
-  logFilters: LogFilter[];
-}) => {
+export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
   const ui: UiState = {
-    port: port ?? 0,
+    port: 0,
 
     stats: {},
 

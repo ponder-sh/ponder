@@ -17,7 +17,6 @@ export class UiService {
     this.resources = resources;
 
     this.ui = buildUiState({
-      port: this.resources.options.port,
       logFilters: this.resources.logFilters,
     });
 

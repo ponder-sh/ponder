@@ -350,6 +350,21 @@ export class Ponder {
       this.uiService.ui.handlersToTimestamp = 0;
     });
 
+    this.serverService.on("serverStarted", ({ desiredPort, port }) => {
+      if (desiredPort !== port) {
+        this.resources.logger.logMessage(
+          MessageKind.EVENT,
+          `port ${desiredPort} unavailable, server listening on port ${port}`
+        );
+      } else {
+        this.resources.logger.logMessage(
+          MessageKind.EVENT,
+          `server listening on port ${port}`
+        );
+      }
+      this.uiService.ui.port = port;
+    });
+
     this.resources.errors.on("handlerError", () => {
       this.uiService.ui.handlerError = true;
     });
