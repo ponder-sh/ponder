@@ -8,7 +8,6 @@ import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
 
 import { testClient } from "../utils/clients";
-import { getFreePort } from "../utils/getFreePort";
 
 beforeAll(async () => {
   await testClient.reset({
@@ -29,7 +28,6 @@ describe("art-gobblers", () => {
       recursive: true,
       force: true,
     });
-    process.env.port = (await getFreePort()).toString();
 
     const config = await buildPonderConfig({
       configFile: path.resolve("test/Ponder/art-gobblers/ponder.config.ts"),

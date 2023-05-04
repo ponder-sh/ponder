@@ -9,7 +9,6 @@ import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
 
 import { testClient } from "../utils/clients";
-import { getFreePort } from "../utils/getFreePort";
 
 beforeAll(async () => {
   await testClient.reset({
@@ -24,7 +23,6 @@ describe("ens", () => {
   beforeAll(async () => {
     rmSync("./test/Ponder/ens/.ponder", { recursive: true, force: true });
     rmSync("./test/Ponder/ens/generated", { recursive: true, force: true });
-    process.env.port = (await getFreePort()).toString();
 
     const config = await buildPonderConfig({
       configFile: path.resolve("test/Ponder/ens/ponder.config.ts"),
