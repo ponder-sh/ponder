@@ -1,4 +1,12 @@
-import { getAccount } from "viem";
+if (!process.env.ANVIL_FORK_URL) {
+  throw new Error('Missing environment variable "ANVIL_FORK_URL"');
+}
+export const FORK_URL = process.env.ANVIL_FORK_URL;
+
+if (!process.env.ANVIL_BLOCK_NUMBER) {
+  throw new Error('Missing environment variable "ANVIL_BLOCK_NUMBER"');
+}
+export const FORK_BLOCK_NUMBER = BigInt(Number(process.env.ANVIL_BLOCK_NUMBER));
 
 export const accounts = [
   {
@@ -47,7 +55,7 @@ export const accounts = [
 
 export const vitalik = {
   address: "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
-  account: getAccount("0xd8da6bf26964af9d7eed9e03e53415d37aa96045"),
+  account: "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
 } as const;
 
 export const usdcContractConfig = {

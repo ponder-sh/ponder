@@ -16,13 +16,14 @@
   "scripts": {
     "anvil": "export $(grep -v '^#' .env.local | xargs) && anvil --fork-url $ANVIL_FORK_URL --fork-block-number $ANVIL_BLOCK_NUMBER --block-time 1",
     "build": "tsup-node",
-    "test": "export $(grep -v '^#' .env.local | xargs) && vitest --threads=false",
-    "test:ci": "CI=true vitest --threads=false",
+    "test": "export $(grep -v '^#' .env.local | xargs) && vitest",
+    "test:ci": "CI=true vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@babel/code-frame": "^7.18.6",
     "@jridgewell/trace-mapping": "^0.3.17",
+    "@viem/anvil": "^0.0.5",
     "async-mutex": "^0.4.0",
     "better-sqlite3": "7",
     "cac": "^6.7.14",
@@ -46,7 +47,7 @@
     "react": "17",
     "stacktrace-parser": "^0.1.10",
     "tsc-alias": "^1.8.2",
-    "viem": "0.1.8"
+    "viem": "0.3.17"
   },
   "devDependencies": {
     "@types/babel__code-frame": "^7.0.3",

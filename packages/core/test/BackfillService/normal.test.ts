@@ -1,26 +1,11 @@
-import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { BackfillService } from "@/backfill/BackfillService";
 import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
 
-import { testClient } from "../utils/clients";
 import { usdcContractConfig } from "../utils/constants";
 import { expectEvents } from "../utils/expectEvents";
 import { buildTestResources } from "../utils/resources";
-
-beforeAll(async () => {
-  await testClient.reset({
-    blockNumber: BigInt(parseInt(process.env.ANVIL_BLOCK_NUMBER!)),
-    jsonRpcUrl: process.env.ANVIL_FORK_URL,
-  });
-});
 
 describe("normal", () => {
   let backfillService: BackfillService;

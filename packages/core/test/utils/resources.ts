@@ -16,14 +16,10 @@ import { buildEntityStore } from "@/database/entity/entityStore";
 import { ErrorService } from "@/errors/ErrorService";
 import { Resources } from "@/Ponder";
 
+import { testNetwork } from "./utils";
+
 const defaultConfig: ResolvedPonderConfig = {
-  networks: [
-    {
-      name: "mainnet",
-      chainId: 1,
-      rpcUrl: "http://127.0.0.1:8545",
-    },
-  ],
+  networks: [testNetwork],
   contracts: [],
 };
 

@@ -1,32 +1,24 @@
 import { rmSync } from "node:fs";
 import path from "node:path";
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { testNetwork } from "test/utils/utils";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
 
-import { testClient } from "../utils/clients";
-
-beforeAll(async () => {
-  await testClient.reset({
-    blockNumber: BigInt(parseInt(process.env.ANVIL_BLOCK_NUMBER!)),
-    jsonRpcUrl: process.env.ANVIL_FORK_URL,
-  });
-});
-
 describe("ens", () => {
   let ponder: Ponder;
 
-  beforeAll(async () => {
-    rmSync("./test/Ponder/ens/.ponder", { recursive: true, force: true });
-    rmSync("./test/Ponder/ens/generated", { recursive: true, force: true });
-
+  beforeEach(async () => {
     const config = await buildPonderConfig({
       configFile: path.resolve("test/Ponder/ens/ponder.config.ts"),
     });
+    // Inject proxied anvil chain.
+    const testConfig = { ...config, networks: [testNetwork] };
+
     const options = buildOptions({
       cliOptions: {
         rootDir: "./test/Ponder/ens",
@@ -35,13 +27,15 @@ describe("ens", () => {
     });
     const testOptions = { ...options, uiEnabled: false, logLevel: 0 };
 
-    ponder = new Ponder({ config, options: testOptions });
+    ponder = new Ponder({ config: testConfig, options: testOptions });
 
     await ponder.start();
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await ponder.kill();
+    rmSync("./test/Ponder/ens/.ponder", { recursive: true, force: true });
+    rmSync("./test/Ponder/ens/generated", { recursive: true, force: true });
   });
 
   describe("backfill", () => {
@@ -108,7 +102,7 @@ describe("ens", () => {
   describe("graphql", () => {
     let gql: (query: string) => Promise<any>;
 
-    beforeAll(() => {
+    beforeEach(() => {
       const app = request(ponder.serverService.app);
 
       gql = async (query) => {

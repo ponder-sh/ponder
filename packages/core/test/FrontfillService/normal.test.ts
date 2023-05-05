@@ -1,38 +1,17 @@
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { FrontfillService } from "@/frontfill/FrontfillService";
 
-import { testClient, walletClient } from "../utils/clients";
 import { accounts, usdcContractConfig, vitalik } from "../utils/constants";
 import { expectEvents } from "../utils/expectEvents";
 import { buildTestResources } from "../utils/resources";
+import { testClient, walletClient } from "../utils/utils";
 
-beforeAll(async () => {
-  await testClient.reset({
-    blockNumber: BigInt(parseInt(process.env.ANVIL_BLOCK_NUMBER!)),
-    jsonRpcUrl: process.env.ANVIL_FORK_URL,
-  });
-
+beforeEach(async () => {
   await testClient.impersonateAccount({
     address: vitalik.address,
   });
   await testClient.setAutomine(true);
-});
-
-afterAll(async () => {
-  await testClient.stopImpersonatingAccount({
-    address: vitalik.address,
-  });
-  await testClient.setAutomine(false);
 });
 
 describe("FrontfillService", () => {
@@ -40,14 +19,6 @@ describe("FrontfillService", () => {
 
   beforeEach(async () => {
     const resources = await buildTestResources({
-      networks: [
-        {
-          name: "mainnet",
-          chainId: 1,
-          rpcUrl: "http://127.0.0.1:8545",
-          pollingInterval: 500,
-        },
-      ],
       contracts: [
         {
           name: "USDC",
