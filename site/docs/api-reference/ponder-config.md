@@ -1,0 +1,136 @@
+---
+description: "API reference for the ponder.config.ts file"
+---
+
+# `ponder.config.ts`
+
+Ponder's configuration file file contains smart contract addresses, paths to ABIs, RPC URLs, and database connection details.
+
+- `ponder.config.ts` must provide a **named export called `config`**, not a default export.
+- By default, `ponder {dev/start/codegen}` looks for `ponder.config.ts` in the current working directory, but you can specify a different path with the `--config-file` option to `ponder dev` or `ponder start`.
+- The `config` variable exported by `ponder.config.ts` can be an object, a function, or a function returning a Promise (you can do async stuff to determine your config).
+
+## Fields
+
+### Networks
+
+Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundry's local Anvil node. Each network has a `name`, `chainId`, and `rpcUrl`.
+
+::: warning
+  The `rpcUrl` field is optional, but you will need to provide an RPC URL from a
+  provider like Alchemy or Infura in order to use Ponder effectively in
+  development or production.
+:::
+
+| field               |         type          |                                                                                                                                    |
+| :------------------ | :-------------------: | :--------------------------------------------------------------------------------------------------------------------------------- |
+| **name**            |       `string`        | A unique name for the blockchain. Must be unique across all networks.                                                              |
+| **chainId**         |       `number`        | The [chain ID](https://chainlist.org) for the network.                                                                             |
+| **rpcUrl**          | `string \| undefined` | An optional RPC URL for the network. If not provided, a public (heavily rate-limited) RPC provider will be used (not recommended). |
+| **pollingInterval** | `number \| undefined` | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this network.                                          |
+
+### Contracts
+
+Contracts are smart contracts deployed to a network. All contracts defined here will become available as `ReadOnlyContract` objects in the event context. Ponder will fetch and handle event logs emitted by all contracts with `isLogEventSource: true` (the default).
+
+| field                |          type          |                                                                                                                                                                                                                                  |
+| :------------------- | :--------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **name**             |        `string`        | A unique name for the smart contract. Must be unique across all contracts & filters.                                                                                                                                             |
+| **network**          |        `string`        | The name of the network this contract is deployed to. References the `networks.name` field.                                                                                                                                      |
+| **abi**              |   `string \| any[]`    | The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html). Can be a path to a JSON file, the ABI as a string, or the ABI as a JavaScript Array.                                                                 |
+| **address**          |        `string`        | The contract address.                                                                                                                                                                                                            |
+| **startBlock**       | `number \| undefined`  | **Default: `0`**. Block number to start handling events. Usually set to the contract deployment block number. **Default: `0`**                                                                                                   |
+| **endBlock**         | `number \| undefined`  | **Default: `undefined`**. Block number to stop handling events. If this field is specified, Ponder will not listen to "live" events. This field can be used alongside `startBlock` to only process events for a range of blocks. |
+| **maxBlockRange**    | `number \| undefined`  | The maximum block range that Ponder will use when calling `eth_getLogs`. If not provided, Ponder uses a sane default for the network.                                                                                            |
+| **isLogEventSource** | `boolean \| undefined` | **Default: `true`**. Specifies if events should be handled for this contract. If `false`, this contrat will still be available on the event handler `context.contracts`.                                                         |
+
+### Filters
+
+Filters are custom event log filters. Ponder will fetch and handle event logs that match the `filter` field.
+| field | type | |
+| :------------- | :--------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **name** | `string` | A unique name for the custom filter. Must be unique across all contracts & filters. |
+| **network** | `string` | The name of the network for this filter. References the `networks.name` field. |
+| **abi** | `string \| any[]` | An [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html) containing all events matched by this filter. Can be a path to a JSON file, the ABI as a string, or the ABI as a JavaScript Array. |
+| **filter** | `Filter` | The filter object, see [Filter](#filter). |
+| **startBlock** | `number \| undefined` | **Default: `0`**. Block number to start handling events. **Default: `0`** |
+| **endBlock** | `number \| undefined` | **Default: `undefined`**. Block number to stop handling events. If this field is specified, Ponder will not listen to "live" events. This field can be used alongside `startBlock` to only process events for a range of blocks. |
+| **maxBlockRange** | `number \| undefined` | The maximum block range that Ponder will use when calling `eth_getLogs`. If not provided, Ponder uses a sane default for the network. |
+
+#### Filter
+
+| field       |               type                |                                                                                                                                                                                                                        |
+| :---------- | :-------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **address** | `string \| string[] \| undefined` | **Default: `undefined`**. A contract address or array of contract addresses to filter for.                                                                                                                             |
+| **event**   |      `AbiEvent \| undefined`      | **Default: `undefined`**. An ABIType [`AbiEvent`](https://abitype.dev/api/types.html#abievent) object. Can be constructed using the [`parseAbiItem`](https://abitype.dev/api/human.html#parseabiitem) helper function. |
+| **args**    |       `any[] \| undefined`        | **Default: `undefined`**. An array of indexed argument values to filter for.                                                                                                                                           |
+
+### Database
+
+Ponder uses a SQL database to cache blockchain data and store entity data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder needs a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
+
+See [Deploy to production](/guides/production) for more details.
+
+| field                |           type           |                                                                                                                |
+| :------------------- | :----------------------: | :------------------------------------------------------------------------------------------------------------- |
+| **kind**             | `"sqlite" \| "postgres"` | Database connector to be used.                                                                                 |
+| **filename**         |  `string \| undefined`   | **Default: `.ponder/cache.db`**. Path to a SQLite database file. Only used if `kind: "sqlite"`.                |
+| **connectionString** |  `string \| undefined`   | **Default: `process.env.DATABASE_URL`**. Postgres database connection string. Only used if `kind: "postgres"`. |
+
+### Options
+
+| field                      |   type   |                                                                                                                                                                                                                                  |
+| :------------------------- | :------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **maxHealthcheckDuration** | `number` | **Default: `4 * 60`**. Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing takes longer than this amount of time, the GraphQL API may serve incomplete data. |
+
+## Examples
+
+### Basic example
+
+```ts filename="ponder.config.ts"
+import type { PonderConfig } from "@ponder/core";
+
+export const config: PonderConfig = {
+  networks: [
+    {
+      name: "mainnet",
+      chainId: 1,
+      rpcUrl: process.env.PONDER_RPC_URL_1
+    }
+  ],
+  contracts: [
+    {
+      name: "ArtGobblers",
+      network: "mainnet",
+      abi: "./abis/ArtGobblers.json",
+      address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+      startBlock: 15863321
+    }
+  ]
+};
+```
+
+### Async function
+
+```ts filename="ponder.config.ts"
+import type { PonderConfig } from "@ponder/core";
+
+export const config: PonderConfig = async () => {
+  const startBlock = await fetch("http://...");
+
+  return {
+    networks: [
+      /* ... */
+    ],
+    contracts: [
+      {
+        name: "ArtGobblers",
+        network: "mainnet",
+        abi: "./abis/ArtGobblers.json",
+        address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+        startBlock: startBlock
+      }
+    ]
+  };
+};
+```

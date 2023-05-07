@@ -1,0 +1,21 @@
+{
+  "name": "@ponder/site",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "serve": "vitepress serve"
+  },
+  "devDependencies": {
+    "unocss": "^0.51.12",
+    "vite": "^4.1.4",
+    "vitepress": "1.0.0-alpha.75",
+    "vue": "^3.2.47"
+  },
+  "prettier": {
+    "singleQuote": true,
+    "semi": false
+  }
+}

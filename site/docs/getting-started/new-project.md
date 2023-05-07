@@ -1,0 +1,135 @@
+---
+description: "A guide for creating a new Ponder project"
+---
+
+# Quickstart
+
+<div className="steps-container">
+
+### Run the `create-ponder` CLI tool
+
+::: code-group
+
+```sh [pnpm]
+pnpm create ponder {...options}
+```
+
+```sh [npm]
+npm create ponder {...options}
+```
+
+```sh [yarn]
+yarn create ponder {...options}
+```
+
+:::
+
+You will be asked for a project name, and if you are using a [template](/api-reference/create-ponder#templates) (recommended). The tool will then create a project directory, install dependencies, and initialize a git repository.
+
+::: tip
+  If you're building a Ponder app for a contract that has already been deployed,
+  use the [Etherscan contract link
+  template](/api-reference/create-ponder#etherscan-contract-link).
+:::
+
+### Start the development server
+
+Just like Next.js and Vite, Ponder has a development server that automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
+
+First, `cd` into your project directory, then start the server.
+
+::: code-group
+
+```sh [pnpm]
+pnpm dev
+```
+
+```sh [npm]
+npm run dev
+```
+
+```sh [yarn]
+yarn dev
+```
+
+:::
+
+### Add an RPC URL
+
+Ponder fetches data using the standard Ethereum RPC API. To get started, you'll need an RPC URL from a provider like Alchemy or Infura.
+
+Open up `.env.local` and paste in RPC URLs for any networks that your project uses:
+
+{/*prettier-ignore*/}
+
+```js filename=".env.local"
+PONDER_RPC_URL_1 = "https://eth-mainnet.g.alchemy.com/v2/..."
+```
+
+### Design your schema
+
+The `schema.graphql` file contains a model of your application data. The **entity types** defined here can be thought of as database tables.
+
+```graphql filename="schema.graphql"
+type BlitmapToken @entity {
+  id: String!
+  owner: String! # Ethereum address
+}
+```
+
+See [Design your schema](/guides/design-your-schema) for a detailed guide on schema design.
+
+### Write event handlers
+
+Files in the `src/` directory contain event handlers. Event handlers are TypeScript functions that process a contract event. The purpose of event handler functions is to insert data into the entity store.
+
+Here's a sample event handler for an ERC721 `Transfer` event.
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("Blitmap:Transfer", async ({ event, context }) => {
+  const { BlitmapToken } = context.entities;
+
+  await BlitmapToken.create({
+    id: event.params.tokenId,
+    data: {
+      owner: event.params.to
+    }
+  });
+});
+```
+
+See [Create & update entities](/guides/create-update-entities) for a detailed guide on writing event handlers.
+
+### Query the GraphQL API
+
+As you write your event handlers and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
+
+<div className="code-columns">
+
+{/*prettier-ignore*/}
+
+```graphql filename="Query"
+query {
+  blitmapTokens {
+    id
+    owner
+  }
+}
+```
+
+{/*prettier-ignore*/}
+
+```json filename="Result"
+{
+  "blitmapTokens": [
+    { "id": 1452, "owner": "0xaf3d5..." },
+    { "id": 7164, "owner": "0x9cb3b..." },
+  ]
+}
+```
+
+</div>
+
+</div>

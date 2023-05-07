@@ -8,5 +8,8 @@
     {
       "mode": "auto"
     }
-  ]
+  ],
+  "[vue]": {
+    "editor.defaultFormatter": "Vue.volar"
+  }
 }

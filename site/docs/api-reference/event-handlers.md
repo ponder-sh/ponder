@@ -1,0 +1,209 @@
+---
+description: "API reference for Ponder event handlers"
+---
+
+# Event handler API
+
+Event handlers are user-defined functions that process blockchain data. They can be registered within any `.ts` file inside the `src/` directory. There are two kinds of events: **log events** and the **`"setup"` event**.
+
+## Log events
+
+Log events correspond to a smart contract event log that has occurred. The Ponder engine fetches event logs for all contracts defined in `ponder.config.ts`, then passes that data to the corresponding handler function.
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("ContractName:EventName", async ({ event, context }) => {
+  const { params, log, block, transaction } = event;
+  const { entities, contracts } = context;
+
+  // ...
+});
+```
+
+### Options
+
+| name                                               | description                                                      |
+| :------------------------------------------------- | :--------------------------------------------------------------- |
+| [`event`](/api-reference/event-handlers#event)     | Event-specific data (log arguments, log, block, and transaction) |
+| [`context`](/api-reference/event-handlers#context) | Global resources (entity objects, read-only contract objects)    |
+
+::: info
+  The value returned by event handler functions is ignored.
+:::
+
+### `Event`
+
+The `event` object contains the log arguments, the transaction that produced the log, and the block containing that transaction. `Log`, `Block`, and `Transaction` are similar to the corresponding types from [viem](https://viem.sh), but are adapted to represent only the finalized blockchain state.
+
+```ts
+type Event = {
+  name: string;
+  params: {
+    /* Event-specific ABI parameters typed using AbiParameterToPrimitiveType */
+  };
+  log: Log;
+  block: Block;
+  transaction: Transaction;
+};
+```
+
+#### `Log`
+
+The raw log object.
+
+```ts
+type Log = {
+  /** Globally unique identifier for this log (used internally by Ponder) */
+  logId: `${Hash}-${number}`;
+  /** Value used to sort logs across networks (used internally by Ponder) */
+  logSortKey: bigint;
+  /** Unix timestamp of when the block containing this log was collated (used internally by Ponder) */
+  blockTimestamp: bigint;
+  /** The contract address from which this log originated */
+  address: Address;
+  /** Hash of block containing this log */
+  blockHash: Hash;
+  /** Number of block containing this log */
+  blockNumber: bigint;
+  /** Contains the non-indexed arguments of the log */
+  data: Hex;
+  /** Index of this log within its block */
+  logIndex: number;
+  /** Hash of the transaction that created this log */
+  transactionHash: Hash;
+  /** Index of the transaction that created this log */
+  transactionIndex: number;
+  /** List of order-dependent topics */
+  topics: string[];
+  /** `true` if this filter has been destroyed and is invalid */
+  removed: boolean;
+};
+```
+
+#### `Block`
+
+The block containing the transaction that emitted this log.
+
+```ts
+type Block = {
+  /** Base fee per gas */
+  baseFeePerGas: bigint | null;
+  /** "Extra data" field of this block */
+  extraData: Hex;
+  /** Maximum gas allowed in this block */
+  gasLimit: bigint;
+  /** Total used gas by all transactions in this block */
+  gasUsed: bigint;
+  /** Block hash */
+  hash: Hash;
+  /** Logs bloom filter */
+  logsBloom: Hex;
+  /** Address that received this block’s mining rewards */
+  miner: Address;
+  /** Block number */
+  number: bigint;
+  /** Parent block hash */
+  parentHash: Hash;
+  /** Root of the this block’s receipts trie */
+  receiptsRoot: Hex;
+  /** Size of this block in bytes */
+  size: bigint;
+  /** Root of this block’s final state trie */
+  stateRoot: Hash;
+  /** Unix timestamp of when this block was collated */
+  timestamp: bigint;
+  /** Total difficulty of the chain until this block */
+  totalDifficulty: bigint | null;
+  /** Root of this block’s transaction trie */
+  transactionsRoot: Hash;
+};
+```
+
+#### `Transaction`
+
+The transaction that emitted this log.
+
+```ts
+type Transaction = {
+  /** Hash of block containing this transaction */
+  blockHash: Hash;
+  /** Number of block containing this transaction */
+  blockNumber: bigint;
+  /** Chain ID. */
+  chainId: number;
+  /** Transaction sender */
+  from: Address;
+  /** Gas provided for transaction execution */
+  gas: bigint;
+  /** Base fee per gas. */
+  gasPrice?: bigint | undefined;
+  /** Hash of this transaction */
+  hash: Hash;
+  /** Contract code or a hashed method call */
+  input: Hex;
+  /** Total fee per gas in wei (gasPrice/baseFeePerGas + maxPriorityFeePerGas). */
+  maxFeePerGas?: bigint | undefined;
+  /** Max priority fee per gas (in wei). */
+  maxPriorityFeePerGas?: bigint | undefined;
+  /** Unique number identifying this transaction */
+  nonce: number;
+  /** Transaction recipient or `null` if deploying a contract */
+  to: Address | null;
+  /** Index of this transaction in the block */
+  transactionIndex: number;
+  /** Value in wei sent with this transaction */
+  value: bigint;
+};
+```
+
+### `Context`
+
+This object contains a CRUD interface for the entities defined in `schema.graphql`, and a read-only contract object for each contract specified in `ponder.config.ts`.
+
+```ts
+type Context = {
+  // Keyed by entity type names from schema.graphql
+  entities: Record<string, Entity>;
+  // Keyed by contract names from ponder.config.ts
+  contracts: Record<string, ReadOnlyContract>;
+};
+```
+
+#### `Entity`
+
+These objects are used to create, read, update, and delete entity instances. `context.entities` contains an `Entity` object for each entity type defined in `schema.graphql`.
+
+See [Create & update entities](/guides/create-update-entities) for a complete API reference.
+
+#### `ReadOnlyContract`
+
+::: warning
+  **Avoid using contract calls.** Reading data directly from contracts is slow
+  and expensive. If you're designing smart contracts that will be indexed by
+  Ponder, try to emit event logs that include all the data you need.
+:::
+
+`ReadOnlyContract` objects are used to read data directly from a contract. These objects have a method for each read-only function present in the contract's ABI (functions with state mutability of `"pure"` or `"view"`). `context.contracts` contains a `ReadOnlyContract` object for each contract defined in [ponder.config.ts](/api-reference/ponder-config#contracts).
+
+By default, contract calls use the `eth_call` RPC method with `blockTag` set to the block timestamp of the event being handled (aka `event.block.timestamp`). Sometimes, you may need to read the contract at a different block height, such as the contract deployment block number or `"latest"`.
+
+## The `"setup"` event
+
+You can also define a handler for a special event called `"setup"` that runs before all other event handlers.
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("setup", async ({ context }) => {
+  const { entities, contracts } = context;
+
+  // ...
+});
+```
+
+### Options
+
+| name                                               | description                                                   |
+| :------------------------------------------------- | :------------------------------------------------------------ |
+| [`context`](/api-reference/event-handlers#context) | Global resources (entity objects, read-only contract objects) |
