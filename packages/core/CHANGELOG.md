@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.56
+
+### Patch Changes
+
+- [#169](https://github.com/0xOlias/ponder/pull/169) [`2085703`](https://github.com/0xOlias/ponder/commit/208570358d4a895855109bc0eca0822b9ee8bfc2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed bug where the server would fail to start if the desired port was in use. The server will not use the next available port via `detect-port`.
+
 ## 0.0.55
 
 ## 0.0.54
