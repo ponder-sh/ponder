@@ -111,7 +111,7 @@ export function decodeLog(log: DatabaseLog): Log {
     removed: log.removed === 1 ? true : false,
     topics: [log.topic0, log.topic1, log.topic2, log.topic3].filter(
       (t): t is Hex => t !== null
-    ),
+    ) as [Hex, ...Hex[]] | [],
     logSortKey: BigInt(log.logSortKey),
     blockNumber: BigInt(log.blockNumber),
     blockTimestamp:
