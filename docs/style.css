@@ -1,4 +1,4 @@
-/* STEPS CONTAINER STYLES */
+/* STEPS CONTAINER */
 
 .steps-container {
   margin-left: 1rem;
@@ -45,14 +45,12 @@
 }
 
 /* CODE COLUMNS STYLES */
-
 .code-columns {
   display: flex;
   flex-wrap: wrap;
   gap: 0rem 1.5rem;
   margin-top: 1.5rem;
 }
-
 .code-columns div {
   flex: 1;
   max-width: 100%;
@@ -64,8 +62,7 @@
   height: calc(100% - 1rem);
 } */
 
-/* EXCALIDRAW DIAGRAM STYLES */
-
+/* EXCALIDRAW DIAGRAM */
 .excalidraw {
   width: 100%;
   height: unset;
@@ -79,11 +76,26 @@
   fill: #eee;
 }
 
+/* TELEGRAM LOGO */
+.dark .telegram path:first-of-type {
+  fill: #fff;
+}
+
+/* CAPTION */
 .caption {
   color: #6b7280;
   font-size: smaller;
 }
-
 .dark .caption {
   color: #737373;
+}
+
+/* SEARCHBAR SPACING */
+.nextra-search {
+  margin-right: 8px;
+}
+@media (max-width: 768px) {
+  .nextra-search {
+    margin-right: 0px;
+  }
 }

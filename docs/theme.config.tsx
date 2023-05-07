@@ -2,13 +2,16 @@ import { useRouter } from "next/router";
 import type { DocsThemeConfig } from "nextra-theme-docs";
 import { useConfig } from "nextra-theme-docs";
 
+import TelegramLogo from "./public/telegram.svg";
+
 const config: DocsThemeConfig = {
   logo: <span style={{ fontWeight: 700, fontSize: 22 }}>Ponder</span>,
   project: {
     link: "https://github.com/0xOlias/ponder",
   },
   chat: {
-    icon: null,
+    link: "https://t.me/ponder_sh",
+    icon: <TelegramLogo className="telegram" />,
   },
   docsRepositoryBase: "https://github.com/0xOlias/ponder/tree/main/docs",
   editLink: {

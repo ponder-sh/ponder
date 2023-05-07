@@ -166,7 +166,7 @@ describe("create-ponder", () => {
         expect(JSON.parse(proxyAbiString).length).toBeGreaterThan(0);
 
         const implementationAbiString = fs.readFileSync(
-          path.join(rootDir, `abis/ZoraCreator1155Impl.json`),
+          path.join(rootDir, `abis/ZoraCreator1155Impl_0xd056.json`),
           { encoding: "utf8" }
         );
         expect(JSON.parse(implementationAbiString).length).toBeGreaterThan(0);

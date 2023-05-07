@@ -1,4 +1,6 @@
 import cors from "cors";
+import detectPort from "detect-port";
+import Emittery from "emittery";
 import express from "express";
 import { graphqlHTTP } from "express-graphql";
 import type { GraphQLSchema } from "graphql";
@@ -7,7 +9,11 @@ import type http from "node:http";
 import { MessageKind } from "@/common/LoggerService";
 import { Resources } from "@/Ponder";
 
-export class ServerService {
+export type ServerServiceEvents = {
+  serverStarted: { desiredPort: number; port: number };
+};
+
+export class ServerService extends Emittery<ServerServiceEvents> {
   resources: Resources;
 
   app?: express.Express;
@@ -17,13 +23,23 @@ export class ServerService {
   isBackfillEventProcessingComplete = false;
 
   constructor({ resources }: { resources: Resources }) {
+    super();
     this.resources = resources;
   }
 
-  start() {
+  async start() {
     this.app = express();
     this.app.use(cors());
-    this.server = this.app.listen(this.resources.options.port);
+
+    // If the desired port is unavailable, detect-port will find the next available port.
+    const resolvedPort = await detectPort(this.resources.options.port);
+
+    this.server = this.app.listen(resolvedPort);
+
+    this.emit("serverStarted", {
+      desiredPort: this.resources.options.port,
+      port: resolvedPort,
+    });
 
     // By default, the server will respond as unhealthy until the backfill events have
     // been processed OR 4.5 minutes have passed since the app was created. This

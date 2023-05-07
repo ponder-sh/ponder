@@ -223,7 +223,9 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
             // TODO: Remove this filter once viem is fixed.
             abi: logFilter.abi.filter((item) => item.type !== "constructor"),
             data: log.data,
-            topics: [log.topic0 as Hex, log.topic1, log.topic2, log.topic3],
+            topics: [log.topic0, log.topic1, log.topic2, log.topic3].filter(
+              (t) => !!t
+            ) as [signature: Hex, ...args: Hex[]] | [],
           });
 
           if (!decodedLog) {

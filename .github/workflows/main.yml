@@ -53,14 +53,10 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup
         uses: ./.github/actions/setup
-      - name: Launch Anvil
-        run: anvil --fork-url $ANVIL_FORK_URL --fork-block-number $ANVIL_BLOCK_NUMBER --block-time 1 &
-        env:
-          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-          ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}
       - name: Test
         run: pnpm test:ci
         env:
+          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
+          ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}
           DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql://postgres:postgres@localhost:5432/postgres' || '' }}
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-          ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}

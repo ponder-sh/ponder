@@ -13,7 +13,8 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "abitype": ["node_modules/abitype/dist"]
     }
   },
   "include": ["src", "test"],

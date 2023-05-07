@@ -8,9 +8,7 @@ export default defineConfig({
     },
   },
   test: {
-    setupFiles: [
-      "src/common/setupFetchPolyfill.ts",
-      "test/utils/setupPackageAlias.ts",
-    ],
+    globalSetup: ["test/utils/globalSetup.ts"],
+    setupFiles: ["test/utils/setup.ts"],
   },
 });

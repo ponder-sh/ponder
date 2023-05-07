@@ -93,7 +93,6 @@ export type Log = Omit<
   | "logIndex"
   | "transactionHash"
   | "transactionIndex"
-  | "topics"
 > & {
   /** Hash of block containing this log */
   blockHash: Hash;
@@ -105,8 +104,6 @@ export type Log = Omit<
   transactionHash: Hash;
   /** Index of the transaction that created this log */
   transactionIndex: number;
-  /** List of order-dependent topics */
-  topics: Hex[];
 
   /** Globally unique identifier for this log */
   logId: `${Hash}-${number}`;

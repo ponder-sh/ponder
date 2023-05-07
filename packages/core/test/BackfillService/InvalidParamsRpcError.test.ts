@@ -1,19 +1,11 @@
-import { InvalidParamsRpcError, PublicClientConfig, RpcError } from "viem";
-import { afterEach, beforeAll, beforeEach, describe, test, vi } from "vitest";
+import { InvalidParamsRpcError, PublicClientConfig } from "viem";
+import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { BackfillService } from "@/backfill/BackfillService";
 
-import { testClient } from "../utils/clients";
 import { usdcContractConfig } from "../utils/constants";
 import { expectEvents } from "../utils/expectEvents";
 import { buildTestResources } from "../utils/resources";
-
-beforeAll(async () => {
-  await testClient.reset({
-    blockNumber: BigInt(parseInt(process.env.ANVIL_BLOCK_NUMBER!)),
-    jsonRpcUrl: process.env.ANVIL_FORK_URL,
-  });
-});
 
 // This will throw the error only the first time publicClient.getLogs()
 // is called. Ideally this would be controlled more granularly, but
@@ -28,16 +20,10 @@ vi.mock("viem", async (importActual) => {
         ...publicClient,
         getLogs: vi.fn(publicClient.getLogs).mockRejectedValueOnce(
           new InvalidParamsRpcError(
-            new RpcError({
-              body: {},
-              error: {
-                code: -32602,
-                // The suggested block range is 16369950 to 16369955.
-                message:
-                  "Log response size exceeded. this block range should work: [0xf9c91e, 0xf9c923]",
-              },
-              url: "",
-            })
+            new Error(
+              // The suggested block range is 16369950 to 16369955.
+              "Log response size exceeded. this block range should work: [0xf9c91e, 0xf9c923]"
+            )
           )
         ),
       };
