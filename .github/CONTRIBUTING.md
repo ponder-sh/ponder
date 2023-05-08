@@ -8,7 +8,7 @@ If you want to contribute, but aren't sure where to start, reach out in Ponder's
 
 This guide is intended to help you get started with contributing. By following these steps, you will understand the development process and workflow.
 
-1. [Clone the repository](#clone-the-repository)
+1. [Fork the repository](#fork-the-repository)
 2. [Install Node.js and pnpm](#install-nodejs-and-pnpm)
 3. [Install Foundry](#install-foundry)
 4. [Install dependencies](#install-dependencies)
@@ -23,7 +23,7 @@ This guide is intended to help you get started with contributing. By following t
 
 <br>
 
-## Clone the repository
+## Fork the repository
 
 To start contributing to the project, use the [GitHub CLI](https://cli.github.com) to create a fork and clone it to your local machine:
 
