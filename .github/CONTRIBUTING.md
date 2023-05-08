@@ -71,6 +71,10 @@ Install Foundry (and Anvil) using the following command:
 curl -L https://foundry.paradigm.xyz | bash
 ```
 
+<div align="right">
+  <a href="#get-started">&uarr; back to top</a></b>
+</div>
+
 ## Install dependencies
 
 In the project's root directory, run the following command to install the project's dependencies:
@@ -141,8 +145,6 @@ When you submit a pull request, a GitHub Action will automatically lint, build, 
   <a href="#get-started">&uarr; back to top</a></b>
 </div>
 
-<br>
-
 ## Versioning and releases
 
 Ponder uses [changesets](https://github.com/changesets/changesets) to manage package versioning and NPM releases.
@@ -161,8 +163,12 @@ Ponder is still in alpha, so all changes should be marked as a patch.
 
 When you're ready to release, merge the `"chore: version packages"` PR into `main`. This will trigger the changesets Github Action workflow to build packages, publish to NPM, and create a new GitHub release.
 
-This guide was adapted from [viem](https://github.com/wagmi-dev/viem/blob/main/.github/CONTRIBUTING.md)'s contribution guide.
-
 <div align="right">
   <a href="#get-started">&uarr; back to top</a></b>
 </div>
+
+### That's it!
+
+If you still have questions, please reach out in Ponder's [public telegram group](https://t.me/ponder_sh) or create a [new discussion](https://github.com/0xOlias/ponder/discussions).
+
+This guide was adapted from [viem](https://github.com/wagmi-dev/viem/blob/main/.github/CONTRIBUTING.md)'s contribution guide. ❤️
