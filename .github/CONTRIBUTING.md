@@ -25,17 +25,13 @@ This guide is intended to help you get started with contributing. By following t
 
 ## Clone the repository
 
-To start contributing to the project, clone it to your local machine using git:
+To start contributing to the project, use the [GitHub CLI](https://cli.github.com) to create a fork and clone it to your local machine:
 
 ```bash
-git clone https://github.com/0xOlias/ponder.git
+gh fork --clone 0xOlias/ponder
 ```
 
-Or the [GitHub CLI](https://cli.github.com):
-
-```bash
-gh repo clone 0xOlias/ponder
-```
+Or, manually create a fork using the button at the top of the repo on GitHub, then clone it to your local machine using `git clone {your-fork-url}`.
 
 <div align="right">
   <a href="#get-started">&uarr; back to top</a></b>
@@ -167,7 +163,7 @@ When you're ready to release, merge the `"chore: version packages"` PR into `mai
   <a href="#get-started">&uarr; back to top</a></b>
 </div>
 
-### That's it!
+## That's it!
 
 If you still have questions, please reach out in Ponder's [public telegram group](https://t.me/ponder_sh) or create a [new discussion](https://github.com/0xOlias/ponder/discussions).
 
