@@ -143,7 +143,7 @@ That's it! Visit [ponder.sh](https://ponder.sh) for documentation, guides for de
 
 ## Contributing
 
-If you're interested in contributing to Ponder, reach out via Twitter DM or open a GitHub issue.
+If you're interested in contributing to Ponder, please read the [contribution guide](/.github/CONTRIBUTING.md).
 
 ## Packages
 
