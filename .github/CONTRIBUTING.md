@@ -28,7 +28,7 @@ This guide is intended to help you get started with contributing. By following t
 To start contributing to the project, use the [GitHub CLI](https://cli.github.com) to create a fork and clone it to your local machine:
 
 ```bash
-gh fork --clone 0xOlias/ponder
+gh repo fork 0xOlias/ponder --clone
 ```
 
 Or, manually create a fork using the button at the top of the repo on GitHub, then clone it to your local machine using `git clone {your-fork-url}`.
