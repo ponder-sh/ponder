@@ -1,6 +1,6 @@
 import { expect } from "vitest";
 
-import { wait } from "./wait";
+import { wait } from "@/utils/wait";
 
 export async function expectEvents<TEventNames extends string>(
   iterator: AsyncIterableIterator<[TEventNames, any]>,
