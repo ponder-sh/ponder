@@ -125,6 +125,7 @@ importers:
       ink: ^3.2.0
       module-alias: ^2.2.2
       node-fetch: ^2.6.7
+      p-limit: ^4.0.0
       p-queue: ^6.6.2
       pg: ^8.9.0
       picocolors: ^1.0.0
@@ -158,6 +159,7 @@ importers:
       graphql: 15.8.0_qb2u6q36ugvr6swjr2i3rg76ty
       ink: 3.2.0_qnxonbsml5syl42mqdnwkqq4yu
       node-fetch: 2.6.7
+      p-limit: 4.0.0
       p-queue: 6.6.2
       pg: 8.9.0
       picocolors: 1.0.0
@@ -7349,7 +7351,6 @@ packages:
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     dependencies:
       yocto-queue: 1.0.0
-    dev: true
 
   /p-locate/2.0.0:
     resolution: {integrity: sha512-nQja7m7gSKuewoVRen45CtVfODR3crN3goVQ0DDZ9N3yHxgpkuBhZqsaiotSQRrADUrne346peY7kT3TSACykg==}
@@ -9599,7 +9600,6 @@ packages:
   /yocto-queue/1.0.0:
     resolution: {integrity: sha512-9bnSc/HEW2uRy67wc+T8UwauLuPJVn28jb+GtJY16iiKWyvmYJRXVT4UamsAEGQfPohgr2q4Tq0sQbQlxTfi1g==}
     engines: {node: '>=12.20'}
-    dev: true
 
   /yoga-layout-prebuilt/1.10.0:
     resolution: {integrity: sha512-YnOmtSbv4MTf7RGJMK0FvZ+KD8OEe/J5BNnR0GHhD8J/XcG/Qvxgszm0Un6FTHWW4uHlTgP0IztiXQnGyIR45g==}
