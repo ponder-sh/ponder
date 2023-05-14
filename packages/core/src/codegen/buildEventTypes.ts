@@ -11,10 +11,11 @@ export const buildEventTypes = (logFilters: LogFilter[]) => {
     return abiEvents
       .map(({ name, inputs }) => {
         const paramsType = `{${inputs
-          .map(
-            (input) => `${input.name}:
-                AbiParameterToPrimitiveType<${JSON.stringify(input)}>`
-          )
+          .map((input, index) => {
+            const inputName = input.name ? input.name : `param_${index}`;
+            return `${inputName}:
+              AbiParameterToPrimitiveType<${JSON.stringify(input)}>`;
+          })
           .join(";")}}`;
 
         return `["${logFilter.name}:${name}"]: ({
