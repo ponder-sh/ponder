@@ -6,7 +6,10 @@ type BlocksTable = Prettify<
   RequiredBy<
     Omit<Block, "transactions" | "uncles" | "sealFields">,
     "hash" | "logsBloom" | "nonce" | "number" | "totalDifficulty"
-  > & { chainId: number }
+  > & {
+    chainId: number;
+    finalized: number; // Boolean (0 or 1).
+  }
 >;
 
 export type InsertableBlock = Insertable<BlocksTable>;
@@ -21,7 +24,10 @@ type TransactionsTable = Prettify<
     maxPriorityFeePerGas: bigint | null;
     accessList: string | null; // Stringified JSON
     type: "legacy" | "eip2930" | "eip1559";
-  } & { chainId: number }
+  } & {
+    chainId: number;
+    finalized: number; // Boolean (0 or 1).
+  }
 >;
 
 export type InsertableTransaction = Insertable<TransactionsTable>;
@@ -46,16 +52,22 @@ type LogsTable = Prettify<
     topic3: string | null;
   } & {
     chainId: number;
+    finalized: number; // Boolean (0 or 1).
   }
 >;
 
 export type InsertableLog = Insertable<LogsTable>;
 
 interface ContractCallsTable {
-  key: string;
-  result: string;
+  address: string;
+  blockNumber: bigint;
   chainId: number;
+  data: string;
+  finalized: number; // Boolean (0 or 1).
+  id: string; // Primary key from `${chainId}-${blockNumber}-${address}-${data}`
+  result: string;
 }
+
 interface LogFilterCachedRangesTable {
   id: Generated<number>;
   filterKey: string;

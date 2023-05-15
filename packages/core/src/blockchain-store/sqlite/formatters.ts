@@ -11,16 +11,9 @@ import {
   InsertableTransaction,
 } from "./schema";
 
-export function formatRpcBlock({
-  block,
-  chainId,
-}: {
-  block: RpcBlock;
-  chainId: number;
-}) {
-  const block_: InsertableBlock = {
+export function formatRpcBlock({ block }: { block: RpcBlock }) {
+  const block_: Omit<InsertableBlock, "chainId" | "finalized"> = {
     baseFeePerGas: block.baseFeePerGas ? BigInt(block.baseFeePerGas) : null,
-    chainId,
     difficulty: BigInt(block.difficulty),
     extraData: block.extraData,
     gasLimit: BigInt(block.gasLimit),
@@ -45,15 +38,12 @@ export function formatRpcBlock({
 
 export function formatRpcTransaction({
   transaction,
-  chainId,
 }: {
   transaction: RpcTransaction;
-  chainId: number;
 }) {
-  const transaction_: InsertableTransaction = {
+  const transaction_: Omit<InsertableTransaction, "chainId" | "finalized"> = {
     blockHash: transaction.blockHash!,
     blockNumber: BigInt(transaction.blockNumber!),
-    chainId,
     from: transaction.from,
     gas: BigInt(transaction.gas),
     gasPrice: transaction.gasPrice ? BigInt(transaction.gasPrice) : undefined,
@@ -77,18 +67,11 @@ export function formatRpcTransaction({
   return transaction_;
 }
 
-export function formatRpcLog({
-  log,
-  chainId,
-}: {
-  log: RpcLog;
-  chainId: number;
-}) {
-  const log_: InsertableLog = {
+export function formatRpcLog({ log }: { log: RpcLog }) {
+  const log_: Omit<InsertableLog, "chainId" | "finalized"> = {
     address: log.address,
     blockHash: log.blockHash!,
     blockNumber: BigInt(log.blockNumber!),
-    chainId: chainId,
     data: log.data,
     id: `${log.blockHash}-${log.logIndex}`,
     logIndex: Number(log.logIndex!),

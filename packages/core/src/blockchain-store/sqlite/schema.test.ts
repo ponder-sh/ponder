@@ -76,7 +76,9 @@ const rpcBlock: RpcBlock = {
 test("insert block", async () => {
   const { db } = await setup();
 
-  const block = formatRpcBlock({ block: rpcBlock, chainId: 1 });
+  const block = formatRpcBlock({ block: rpcBlock }) as InsertableBlock;
+  block.chainId = 1;
+  block.finalized = 1;
 
   await db.insertInto("blocks").values(block).execute();
 
@@ -92,6 +94,7 @@ test("insert block", async () => {
       "chainId": 1n,
       "difficulty": 12730590371363483n,
       "extraData": "0x",
+      "finalized": 1n,
       "gasLimit": 29999943n,
       "gasUsed": 0n,
       "hash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",

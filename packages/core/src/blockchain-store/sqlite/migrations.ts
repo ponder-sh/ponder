@@ -9,6 +9,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("difficulty", "integer", (col) => col.notNull())
         .addColumn("extraData", "text", (col) => col.notNull())
+        .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
         .addColumn("gasLimit", "integer", (col) => col.notNull())
         .addColumn("gasUsed", "integer", (col) => col.notNull())
         .addColumn("hash", "text", (col) => col.notNull().primaryKey())
@@ -32,6 +33,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("blockHash", "text", (col) => col.notNull())
         .addColumn("blockNumber", "integer", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
         .addColumn("from", "text", (col) => col.notNull())
         .addColumn("gas", "integer", (col) => col.notNull())
         .addColumn("gasPrice", "integer")
@@ -57,6 +59,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("blockTimestamp", "integer")
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("data", "text", (col) => col.notNull())
+        .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
         .addColumn("id", "text", (col) => col.notNull().primaryKey())
         .addColumn("logIndex", "integer", (col) => col.notNull())
         .addColumn("topic0", "text")
@@ -68,14 +71,18 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       await db.schema
-        .createTable("contract_calls")
-        .addColumn("key", "text", (col) => col.notNull().primaryKey())
-        .addColumn("result", "text", (col) => col.notNull())
+        .createTable("contractCalls")
+        .addColumn("address", "text", (col) => col.notNull())
+        .addColumn("blockNumber", "integer", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("data", "text", (col) => col.notNull())
+        .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // Primary key from `${chainId}-${blockNumber}-${address}-${data}`
+        .addColumn("result", "text", (col) => col.notNull())
         .execute();
 
       await db.schema
-        .createTable("log_filter_cached_ranges")
+        .createTable("logFilterCachedRanges")
         // The `id` column should not be included in INSERT statements.
         // This column uses SQLite's ROWID() function (simple autoincrement).
         .addColumn("id", "integer", (col) => col.notNull().primaryKey())
@@ -89,8 +96,8 @@ const migrations: Record<string, Migration> = {
       await db.schema.dropTable("blocks").execute();
       await db.schema.dropTable("logs").execute();
       await db.schema.dropTable("transactions").execute();
-      await db.schema.dropTable("contract_calls").execute();
-      await db.schema.dropTable("log_filter_cached_ranges").execute();
+      await db.schema.dropTable("contractCalls").execute();
+      await db.schema.dropTable("logFilterCachedRanges").execute();
     },
   },
 };
