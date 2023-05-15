@@ -13,23 +13,22 @@ export interface BlockchainStore {
   // }): Promise<Log[]>;
 
   // Unfinalized sync methods.
-  insertUnfinalizedBlock({
-    chainId,
-    block,
-    transactions,
-    logs,
-  }: {
+  insertUnfinalizedBlock(options: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logs: RpcLog[];
   }): Promise<void>;
-  deleteUnfinalizedData({
-    fromBlockNumber,
-  }: {
+
+  deleteUnfinalizedData(options: {
+    chainId: number;
     fromBlockNumber: number;
   }): Promise<void>;
-  finalizeData({ toBlockNumber }: { toBlockNumber: number }): Promise<void>;
+
+  finalizeData(options: {
+    chainId: number;
+    toBlockNumber: number;
+  }): Promise<void>;
 
   // // Finalized sync methods.
   // getLogFilterCachedRanges(arg: {

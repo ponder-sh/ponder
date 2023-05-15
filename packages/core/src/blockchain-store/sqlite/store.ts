@@ -76,8 +76,10 @@ export class SqliteBlockchainStore implements BlockchainStore {
   };
 
   deleteUnfinalizedData = async ({
+    chainId,
     fromBlockNumber,
   }: {
+    chainId: number;
     fromBlockNumber: number;
   }) => {
     await this.db.transaction().execute(async (tx) => {
@@ -85,46 +87,60 @@ export class SqliteBlockchainStore implements BlockchainStore {
         .deleteFrom("blocks")
         .where("number", ">=", BigInt(fromBlockNumber))
         .where("finalized", "=", 0)
+        .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("transactions")
         .where("blockNumber", ">=", BigInt(fromBlockNumber))
         .where("finalized", "=", 0)
+        .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("logs")
         .where("blockNumber", ">=", BigInt(fromBlockNumber))
         .where("finalized", "=", 0)
+        .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("contractCalls")
         .where("blockNumber", ">=", BigInt(fromBlockNumber))
         .where("finalized", "=", 0)
+        .where("chainId", "=", chainId)
         .execute();
     });
   };
 
-  finalizeData = async ({ toBlockNumber }: { toBlockNumber: number }) => {
+  finalizeData = async ({
+    chainId,
+    toBlockNumber,
+  }: {
+    chainId: number;
+    toBlockNumber: number;
+  }) => {
     await this.db.transaction().execute(async (tx) => {
       await tx
         .updateTable("blocks")
         .set({ finalized: 1 })
         .where("number", "<=", BigInt(toBlockNumber))
+        .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("transactions")
         .set({ finalized: 1 })
         .where("blockNumber", "<=", BigInt(toBlockNumber))
+        .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("logs")
         .set({ finalized: 1 })
         .where("blockNumber", "<=", BigInt(toBlockNumber))
+        .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("contractCalls")
         .set({ finalized: 1 })
         .where("blockNumber", "<=", BigInt(toBlockNumber))
+        .where("chainId", "=", chainId)
         .execute();
     });
   };
