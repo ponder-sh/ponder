@@ -56,7 +56,6 @@ const migrations: Record<string, Migration> = {
         .addColumn("address", "text", (col) => col.notNull())
         .addColumn("blockHash", "text", (col) => col.notNull())
         .addColumn("blockNumber", "integer", (col) => col.notNull())
-        .addColumn("blockTimestamp", "integer")
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("data", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).

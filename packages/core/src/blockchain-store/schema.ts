@@ -46,7 +46,6 @@ type LogsTable = Prettify<
     | "logIndex"
   > & {
     id: string;
-    blockTimestamp: bigint | null;
     topic0: string | null;
     topic1: string | null;
     topic2: string | null;

@@ -92,8 +92,6 @@ export type InternalLog = Prettify<
     id: string;
     /** Chain ID */
     chainId: number;
-    /** Unix timestamp of when the block containing this log was collated */
-    blockTimestamp: bigint | null;
 
     topic0: Hex | null;
     topic1: Hex | null;
@@ -108,10 +106,7 @@ export type InternalLog = Prettify<
  * @link https://docs.soliditylang.org/en/v0.8.20/abi-spec.html#events
  */
 export type Log = Prettify<
-  Omit<
-    InternalLog,
-    "chainId" | "blockTimestamp" | "topic0" | "topic1" | "topic2" | "topic3"
-  > & {
+  Omit<InternalLog, "chainId" | "topic0" | "topic1" | "topic2" | "topic3"> & {
     /** List of order-dependent topics */
     topics: [Hex, ...Hex[]] | [];
   }

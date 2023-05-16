@@ -77,7 +77,6 @@ export class SqliteBlockchainStore implements BlockchainStore {
       }) as InsertableLog;
       log.chainId = chainId;
       log.finalized = 0;
-      log.blockTimestamp = block.timestamp;
       return log;
     });
 
@@ -183,7 +182,6 @@ export class SqliteBlockchainStore implements BlockchainStore {
         "logs.address as log_address",
         "logs.blockHash as log_blockHash",
         "logs.blockNumber as log_blockNumber",
-        // "logs.blockTimestamp as log_blockTimestamp",
         // "logs.chainId as log_chainId",
         "logs.data as log_data",
         // "logs.finalized as log_finalized",

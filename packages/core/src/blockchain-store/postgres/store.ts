@@ -10,7 +10,6 @@ import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import { NonNull } from "@/types/utils";
 
-import type { BlockchainStore } from "../store";
 import {
   formatRpcBlock,
   formatRpcLog,
@@ -22,6 +21,7 @@ import type {
   InsertableLog,
   InsertableTransaction,
 } from "../schema";
+import type { BlockchainStore } from "../store";
 import type { Block, Log, Transaction } from "../types";
 import { migrationProvider } from "./migrations";
 
@@ -93,7 +93,6 @@ export class PostgresBlockchainStore implements BlockchainStore {
       }) as InsertableLog;
       log.chainId = chainId;
       log.finalized = 0;
-      log.blockTimestamp = block.timestamp;
       return log;
     });
 
@@ -199,7 +198,6 @@ export class PostgresBlockchainStore implements BlockchainStore {
         "logs.address as log_address",
         "logs.blockHash as log_blockHash",
         "logs.blockNumber as log_blockNumber",
-        // "logs.blockTimestamp as log_blockTimestamp",
         // "logs.chainId as log_chainId",
         "logs.data as log_data",
         // "logs.finalized as log_finalized",
