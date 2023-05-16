@@ -1,16 +1,18 @@
 import { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
+import type { Block, Log, Transaction } from "./types";
+
 export interface BlockchainStore {
   setup(): Promise<void>;
 
-  // // Event source service method.
-  // getLogs(arg: {
-  //   fromBlockTimestamp: number;
-  //   toBlockTimestamp: number;
-  //   chainId: number;
-  //   address?: Address | Address[];
-  //   topics?: (Hex | Hex[] | null)[];
-  // }): Promise<Log[]>;
+  // Event source service method.
+  getLogEvents(arg: {
+    chainId: number;
+    fromTimestamp: number;
+    toTimestamp: number;
+    address?: Address | Address[];
+    topics?: (Hex | Hex[] | null)[];
+  }): Promise<{ log: Log; block: Block; transaction: Transaction }[]>;
 
   // Unfinalized sync methods.
   insertUnfinalizedBlock(options: {

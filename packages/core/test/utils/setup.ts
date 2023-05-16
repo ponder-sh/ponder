@@ -24,17 +24,17 @@ if (!globalThis.fetch) {
 const ponderCoreDir = path.resolve(__dirname, "../../");
 moduleAlias.addAlias("@ponder/core", ponderCoreDir);
 
-afterAll(async () => {
-  // This resets the anvil instance to the initial fork block.
-  await testClient.reset({
-    jsonRpcUrl: FORK_URL,
-    blockNumber: FORK_BLOCK_NUMBER,
-  });
-});
+// afterAll(async () => {
+//   // This resets the anvil instance to the initial fork block.
+//   await testClient.reset({
+//     jsonRpcUrl: FORK_URL,
+//     blockNumber: FORK_BLOCK_NUMBER,
+//   });
+// });
 
-afterEach(async (context) => {
-  context.onTestFailed(async () => {
-    const logs = await fetchLogs("http://localhost:8545", poolId);
-    console.log(...logs.slice(-20));
-  });
-});
+// afterEach(async (context) => {
+//   context.onTestFailed(async () => {
+//     const logs = await fetchLogs("http://localhost:8545", poolId);
+//     console.log(...logs.slice(-20));
+//   });
+// });

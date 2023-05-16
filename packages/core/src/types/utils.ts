@@ -20,3 +20,10 @@ export type Prettify<T> = {
 export type RequiredBy<T, K extends keyof T> = Omit<T, K> & {
   [P in keyof Pick<T, K>]: NonNullable<T[P]>;
 };
+
+/**
+ * @description Creates a type with all keys K from T as non-null.
+ */
+export type NonNull<T> = {
+  [P in keyof T]-?: NonNullable<T[P]>;
+};

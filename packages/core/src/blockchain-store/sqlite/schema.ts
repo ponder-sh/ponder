@@ -1,6 +1,7 @@
 import { Generated, Insertable } from "kysely";
 import { Block, Log, TransactionBase } from "viem";
-import { Prettify, RequiredBy } from "./utils";
+
+import { Prettify, RequiredBy } from "@/types/utils";
 
 type BlocksTable = Prettify<
   RequiredBy<

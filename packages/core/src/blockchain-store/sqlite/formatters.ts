@@ -1,11 +1,12 @@
 import {
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
   hexToNumber,
-  RpcBlock,
-  RpcLog,
-  RpcTransaction,
   transactionType,
 } from "viem";
-import {
+
+import type {
   InsertableBlock,
   InsertableLog,
   InsertableTransaction,
