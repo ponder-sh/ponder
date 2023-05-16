@@ -1,11 +1,14 @@
+import { Kysely } from "kysely";
 import { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type { Block, Log, Transaction } from "./types";
 
 export interface BlockchainStore {
-  setup(): Promise<void>;
+  db: Kysely<any>;
 
-  // Event source service method.
+  migrateUp(): Promise<void>;
+  migrateDown(): Promise<void>;
+
   getLogEvents(arg: {
     chainId: number;
     fromTimestamp: number;
@@ -14,7 +17,6 @@ export interface BlockchainStore {
     topics?: (Hex | Hex[] | null)[];
   }): Promise<{ log: Log; block: Block; transaction: Transaction }[]>;
 
-  // Unfinalized sync methods.
   insertUnfinalizedBlock(options: {
     chainId: number;
     block: RpcBlock;

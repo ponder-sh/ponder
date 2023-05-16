@@ -1,27 +1,22 @@
-import SqliteDatabase from "better-sqlite3";
 import { hexToNumber, RpcBlock, RpcLog, RpcTransaction } from "viem";
 import { expect, test } from "vitest";
 
-import { SqliteBlockchainStore } from "./store";
+/**
+ * This test suite uses the `store` object injected during setup.
+ * At the moment, this could be either a PostgresBlockchainStore or a
+ * SqliteBlockchainStore; the tests run as expected either way.
+ */
 
-const buildStore = () => {
-  const database = SqliteDatabase(":memory:");
-  return new SqliteBlockchainStore({ sqliteDb: database });
-};
-
-test("setup creates tables", async () => {
-  const store = buildStore();
-
-  await store.setup();
+test("setup creates tables", async (context) => {
+  const { store } = context;
 
   const tables = await store.db.introspection.getTables();
-  expect(tables.map((t) => t.name)).toMatchObject([
-    "blocks",
-    "contractCalls",
-    "logFilterCachedRanges",
-    "logs",
-    "transactions",
-  ]);
+  const tableNames = tables.map((t) => t.name);
+  expect(tableNames).toContain("blocks");
+  expect(tableNames).toContain("contractCalls");
+  expect(tableNames).toContain("logFilterCachedRanges");
+  expect(tableNames).toContain("logs");
+  expect(tableNames).toContain("transactions");
 });
 
 const blockOne: RpcBlock = {
@@ -192,9 +187,8 @@ const blockTwoLogs: RpcLog[] = [
   },
 ];
 
-test("insertUnfinalizedBlock inserts block", async () => {
-  const store = buildStore();
-  await store.setup();
+test("insertUnfinalizedBlock inserts block", async (context) => {
+  const { store } = context;
 
   await store.insertUnfinalizedBlock({
     chainId: 1,
@@ -207,9 +201,8 @@ test("insertUnfinalizedBlock inserts block", async () => {
   expect(blocks).toHaveLength(1);
 });
 
-test("insertUnfinalizedBlock inserts transactions", async () => {
-  const store = buildStore();
-  await store.setup();
+test("insertUnfinalizedBlock inserts transactions", async (context) => {
+  const { store } = context;
 
   await store.insertUnfinalizedBlock({
     chainId: 1,
@@ -225,9 +218,8 @@ test("insertUnfinalizedBlock inserts transactions", async () => {
   expect(transactions).toHaveLength(2);
 });
 
-test("insertUnfinalizedBlock inserts logs", async () => {
-  const store = buildStore();
-  await store.setup();
+test("insertUnfinalizedBlock inserts logs", async (context) => {
+  const { store } = context;
 
   await store.insertUnfinalizedBlock({
     chainId: 1,
@@ -240,9 +232,8 @@ test("insertUnfinalizedBlock inserts logs", async () => {
   expect(logs).toHaveLength(2);
 });
 
-test("getLogEvents returns log events", async () => {
-  const store = buildStore();
-  await store.setup();
+test("getLogEvents returns log events", async (context) => {
+  const { store } = context;
 
   await store.insertUnfinalizedBlock({
     chainId: 1,
@@ -323,9 +314,8 @@ test("getLogEvents returns log events", async () => {
   `);
 });
 
-test("getLogEvents filters on log address", async () => {
-  const store = buildStore();
-  await store.setup();
+test("getLogEvents filters on log address", async (context) => {
+  const { store } = context;
 
   await store.insertUnfinalizedBlock({
     chainId: 1,
@@ -345,9 +335,8 @@ test("getLogEvents filters on log address", async () => {
   expect(logEvents).toHaveLength(1);
 });
 
-test("getLogEvents filters on multiple log addresses", async () => {
-  const store = buildStore();
-  await store.setup();
+test("getLogEvents filters on multiple log addresses", async (context) => {
+  const { store } = context;
 
   await store.insertUnfinalizedBlock({
     chainId: 1,
@@ -377,9 +366,8 @@ test("getLogEvents filters on multiple log addresses", async () => {
   expect(logEvents).toHaveLength(2);
 });
 
-test("getLogEvents filters on single topic", async () => {
-  const store = buildStore();
-  await store.setup();
+test("getLogEvents filters on single topic", async (context) => {
+  const { store } = context;
 
   await store.insertUnfinalizedBlock({
     chainId: 1,
@@ -409,9 +397,8 @@ test("getLogEvents filters on single topic", async () => {
   expect(logEvents).toHaveLength(2);
 });
 
-test("getLogEvents filters on multiple topics", async () => {
-  const store = buildStore();
-  await store.setup();
+test("getLogEvents filters on multiple topics", async (context) => {
+  const { store } = context;
 
   await store.insertUnfinalizedBlock({
     chainId: 1,
@@ -441,9 +428,8 @@ test("getLogEvents filters on multiple topics", async () => {
   expect(logEvents).toHaveLength(1);
 });
 
-test("getLogEvents filters on fromTimestamp (inclusive)", async () => {
-  const store = buildStore();
-  await store.setup();
+test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
+  const { store } = context;
 
   await store.insertUnfinalizedBlock({
     chainId: 1,
@@ -469,9 +455,8 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async () => {
   expect(logEvents).toHaveLength(1);
 });
 
-test("getLogEvents filters on toTimestamp (inclusive)", async () => {
-  const store = buildStore();
-  await store.setup();
+test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
+  const { store } = context;
 
   await store.insertUnfinalizedBlock({
     chainId: 1,

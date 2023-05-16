@@ -1,9 +1,16 @@
-import type Sqlite from "better-sqlite3";
-import { Kysely, Migrator, NO_MIGRATIONS, SqliteDialect } from "kysely";
+import {
+  CompiledQuery,
+  Kysely,
+  Migrator,
+  NO_MIGRATIONS,
+  PostgresDialect,
+} from "kysely";
+import { Pool } from "pg";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import { NonNull } from "@/types/utils";
 
+import type { BlockchainStore } from "../store";
 import {
   formatRpcBlock,
   formatRpcLog,
@@ -15,25 +22,34 @@ import type {
   InsertableLog,
   InsertableTransaction,
 } from "../schema";
-import type { BlockchainStore } from "../store";
 import type { Block, Log, Transaction } from "../types";
 import { migrationProvider } from "./migrations";
 
-export class SqliteBlockchainStore implements BlockchainStore {
+export class PostgresBlockchainStore implements BlockchainStore {
   db: Kysely<Database>;
   private migrator: Migrator;
 
-  constructor({ sqliteDb }: { sqliteDb: Sqlite.Database }) {
-    sqliteDb.pragma("journal_mode = WAL");
-    sqliteDb.defaultSafeIntegers(true);
-
+  constructor({ pool, schema }: { pool: Pool; schema?: string }) {
     this.db = new Kysely<Database>({
-      dialect: new SqliteDialect({ database: sqliteDb }),
+      dialect: new PostgresDialect({
+        pool,
+        onCreateConnection: schema
+          ? async (connection) => {
+              await connection.executeQuery(
+                CompiledQuery.raw(`CREATE SCHEMA IF NOT EXISTS ${schema}`)
+              );
+              await connection.executeQuery(
+                CompiledQuery.raw(`SET search_path = ${schema}`)
+              );
+            }
+          : undefined,
+      }),
     });
 
     this.migrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
+      migrationTableSchema: schema,
     });
   }
 
