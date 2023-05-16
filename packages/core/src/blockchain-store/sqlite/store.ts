@@ -165,7 +165,7 @@ export class SqliteBlockchainStore implements BlockchainStore {
     address?: Address | Address[];
     topics?: (Hex | Hex[] | null)[];
   }) => {
-    const results = await this.db
+    let query = this.db
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
@@ -228,7 +228,25 @@ export class SqliteBlockchainStore implements BlockchainStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
-      .execute();
+      .where("logs.chainId", "=", chainId)
+      .where("blocks.timestamp", ">=", BigInt(fromTimestamp))
+      .where("blocks.timestamp", "<=", BigInt(toTimestamp));
+
+    if (address) {
+      const addressArray = typeof address === "string" ? [address] : address;
+      query = query.where("logs.address", "in", addressArray);
+    }
+
+    if (topics) {
+      topics.forEach((topic, topicIndex) => {
+        if (topic === null) return;
+        const columnName = `logs.topic${topicIndex as 0 | 1 | 2 | 3}` as const;
+        const topicArray = typeof topic === "string" ? [topic] : topic;
+        query = query.where(columnName, "in", topicArray);
+      });
+    }
+
+    const results = await query.execute();
 
     const logEvents = results.map((result_) => {
       // Without this cast, the block_ and tx_ fields are all nullable
