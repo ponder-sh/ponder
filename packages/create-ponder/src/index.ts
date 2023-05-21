@@ -159,7 +159,8 @@ export const run = async (
       "scripts": {
         "dev": "ponder dev",
         "start": "ponder start",
-        "codegen": "ponder codegen"
+        "codegen": "ponder codegen",
+        "docker:dev": "docker-compose up --build"
       },
       "dependencies": {
         "@ponder/core": "latest"
@@ -176,6 +177,90 @@ export const run = async (
     path.join(rootDir, "package.json"),
     prettier.format(packageJson, { parser: "json" })
   );
+
+  // TODO need to pass in env variables
+  // TODO need to set host to 0.0.0.0 instead of localhost
+  //    the port mapping won't work til it's 0.0.0.0
+  const dockerfile = `# A slim node image that is easy to maintain
+FROM node:18.16.0-bullseye-slim
+
+WORKDIR /ponder
+
+# install pnpm package manager
+RUN curl -f https://get.pnpm.io/v6.16.js | node - add --global pnpm
+
+# copy only pnpm-lock.yaml so docker caches
+# the installation of deps when it's unchanged
+COPY pnpm-lock.yaml ./
+
+# TODO ask user to configure env variables
+
+# install deps into pnpm store
+RUN pnpm fetch --prod
+
+COPY . ./
+RUN pnpm install -r --offline --prod
+
+EXPOSE 42069
+# TODO we need to pass in env variable to make host 0.0.0.0 instead of localhost
+CMD [ "pnpm", "start" ]
+`;
+
+  const dockerIgnore = `.git
+.github
+.vscode
+lib
+node_modules
+.env
+**/.env
+forge-artifacts
+cache
+`;
+
+  // TODO need to fill out env variables
+  const dockerCompose = `version: "3.8"  
+services:
+  ponder:
+    build: .
+    ports:
+      - "42069:42069"
+    command: pnpm dev
+    # mount the current directory into container so server
+    # can reload
+    volumes:
+      - .:/ponder
+    healthcheck:
+      test: curl http://0.0.0.0:42069
+    environment:
+      # TODO fill this out
+      # TODO how do I pass in a DATABASE_URL
+      - DATABASE_URL=\${DATABASE_URL:-postgresql://db_username:db_password@postgres:5432/db_name}
+    depends_on:
+      postgres:
+        condition: service_health
+
+  postgres:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=db_username
+      - POSTGRES_PASSWORD=db_password
+      - POSTGRES_DB=db_name
+      - PGDATA=/data/postgres
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -q -U db_username -d db_name" ]
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/data/postgres
+
+volumes:
+  postgres_data:
+`;
+
+  writeFileSync(path.join(rootDir, "Dockerfile"), dockerfile);
+  writeFileSync(path.join(rootDir, ".dockerIgnore"), dockerIgnore);
+  writeFileSync(path.join(rootDir, "docker-compose.yaml"), dockerCompose);
 
   // Write the tsconfig.json file.
   const tsConfig = `
