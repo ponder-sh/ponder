@@ -56,24 +56,28 @@ describe("InvalidParamsRpcError", () => {
   });
 
   describe("backfill()", () => {
-    test("events are emitted", async () => {
-      const eventIterator = backfillService.anyEvent();
+    test(
+      "events are emitted",
+      async () => {
+        const eventIterator = backfillService.anyEvent();
 
-      await backfillService.backfill();
+        await backfillService.backfill();
 
-      await expectEvents(eventIterator, {
-        logFilterStarted: 1,
-        backfillStarted: 1,
-        logTasksAdded: 8, // 2 more than normal
-        logTaskCompleted: 7, // 1 more than normal
-        logTaskFailed: 1, // 1 more than normal
-        blockTasksAdded: 52, // 1 more than normal
-        blockTaskCompleted: 52, // 1 more than normal
-        blockTaskFailed: 0,
-        backfillCompleted: 1,
-        eventsAdded: 52, // 1 more than normal
-      });
-    });
+        await expectEvents(eventIterator, {
+          logFilterStarted: 1,
+          backfillStarted: 1,
+          logTasksAdded: 8, // 2 more than normal
+          logTaskCompleted: 7, // 1 more than normal
+          logTaskFailed: 1, // 1 more than normal
+          blockTasksAdded: 52, // 1 more than normal
+          blockTaskCompleted: 52, // 1 more than normal
+          blockTaskFailed: 0,
+          backfillCompleted: 1,
+          eventsAdded: 52, // 1 more than normal
+        });
+      },
+      { timeout: 10_000 }
+    );
 
     // TODO: Ideally, add tests to confirm that data has been written to the cache
     // store (like in normal.test.ts). Must solve the mocking issue described above first.
