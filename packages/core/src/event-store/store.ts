@@ -4,7 +4,6 @@ import { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 import type {
   Block,
   EventStoreTables,
-  InsertableLogFilterCachedRange,
   Log,
   LogFilterCachedRange,
   Transaction,
@@ -41,17 +40,17 @@ export interface EventStore {
     toBlockNumber: number;
   }): Promise<void>;
 
-  insertLogFilterCachedRange(options: {
-    range: InsertableLogFilterCachedRange;
-  }): Promise<void>;
-
   getLogFilterCachedRanges(options: {
     filterKey: string;
   }): Promise<LogFilterCachedRange[]>;
 
-  insertFinalizedLogs(options: { logs: RpcLog[] }): Promise<void>;
+  insertFinalizedLogs(options: {
+    chainId: number;
+    logs: RpcLog[];
+  }): Promise<void>;
 
   insertFinalizedBlock(options: {
+    chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logFilterRange: {

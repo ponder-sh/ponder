@@ -19,6 +19,7 @@ import type {
   Log,
   Transaction,
 } from "../types";
+import { merge_intervals } from "../utils";
 import { migrationProvider } from "./migrations";
 
 export class SqliteEventStore implements EventStore {
@@ -346,5 +347,103 @@ export class SqliteEventStore implements EventStore {
     });
 
     return logEvents;
+  };
+
+  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
+    const results = await this.db
+      .selectFrom("logFilterCachedRanges")
+      .selectAll()
+      .where("filterKey", "==", filterKey)
+      .execute();
+
+    return results;
+  };
+
+  insertFinalizedLogs = async ({
+    chainId,
+    logs: rpcLogs,
+  }: {
+    chainId: number;
+    logs: RpcLog[];
+  }) => {
+    const logs: InsertableLog[] = rpcLogs.map((log) => ({
+      ...formatRpcLog({ log }),
+      chainId,
+      finalized: 1,
+    }));
+
+    await this.db.insertInto("logs").values(logs).execute();
+  };
+
+  insertFinalizedBlock = async ({
+    chainId,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    logFilterRange: { blockNumberToCacheFrom, logFilterKey },
+  }: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logFilterRange: {
+      blockNumberToCacheFrom: number;
+      logFilterKey: string;
+    };
+  }) => {
+    const block: InsertableBlock = {
+      ...formatRpcBlock({ block: rpcBlock }),
+      chainId,
+      finalized: 1,
+    };
+
+    const transactions: InsertableTransaction[] = rpcTransactions.map(
+      (transaction) => ({
+        ...formatRpcTransaction({ transaction }),
+        chainId,
+        finalized: 1,
+      })
+    );
+
+    await this.db.transaction().execute(async (tx) => {
+      await tx.insertInto("blocks").values(block).execute();
+      await tx.insertInto("transactions").values(transactions).execute();
+
+      const existingRanges = await tx
+        .deleteFrom("logFilterCachedRanges")
+        .where("filterKey", "==", logFilterKey)
+        .returningAll()
+        .execute();
+
+      const newRange = {
+        startBlock: blockNumberToCacheFrom,
+        endBlock: Number(block.number),
+        endBlockTimestamp: Number(block.timestamp),
+      };
+
+      const mergedRanges = merge_intervals([
+        ...existingRanges.map((r) => [r.startBlock, r.endBlock]),
+        [newRange.startBlock, newRange.endBlock],
+      ]).map((range) => {
+        const [startBlock, endBlock] = range;
+
+        // For each new merged range, its endBlock will be found EITHER in the newly
+        // added range OR among the endBlocks of the removed ranges.
+        // Find it so we can propogate the endBlockTimestamp correctly.
+        const endBlockTimestamp = [newRange, ...existingRanges].find(
+          (old) => old.endBlock === endBlock
+        )!.endBlockTimestamp;
+
+        return {
+          filterKey: logFilterKey,
+          startBlock,
+          endBlock,
+          endBlockTimestamp,
+        };
+      });
+
+      await tx
+        .insertInto("logFilterCachedRanges")
+        .values(mergedRanges)
+        .execute();
+    });
   };
 }

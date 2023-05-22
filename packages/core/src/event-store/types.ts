@@ -209,8 +209,6 @@ type LogFilterCachedRangesTable = {
   endBlockTimestamp: number;
 };
 
-export type InsertableLogFilterCachedRange =
-  Insertable<LogFilterCachedRangesTable>;
 export type LogFilterCachedRange = Selectable<LogFilterCachedRangesTable>;
 
 export type EventStoreTables = {
