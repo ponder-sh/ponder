@@ -17,7 +17,8 @@
     "import/newline-after-import": "error",
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/no-explicit-any": "off",
-    "@typescript-eslint/no-non-null-assertion": "off"
+    "@typescript-eslint/no-non-null-assertion": "off",
+    "@typescript-eslint/ban-types": "off"
   },
   "ignorePatterns": ["dist", "node_modules", "generated"]
 }

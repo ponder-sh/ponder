@@ -123,6 +123,7 @@ importers:
       glob: ^8.1.0
       graphql: ^15.3.0
       ink: ^3.2.0
+      kysely: ^0.24.2
       module-alias: ^2.2.2
       node-fetch: ^2.6.7
       p-limit: ^4.0.0
@@ -158,6 +159,7 @@ importers:
       glob: 8.1.0
       graphql: 15.8.0_qb2u6q36ugvr6swjr2i3rg76ty
       ink: 3.2.0_qnxonbsml5syl42mqdnwkqq4yu
+      kysely: 0.24.2
       node-fetch: 2.6.7
       p-limit: 4.0.0
       p-queue: 6.6.2
@@ -6182,6 +6184,11 @@ packages:
   /kleur/4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
+
+  /kysely/0.24.2:
+    resolution: {integrity: sha512-+7eaTJNUYm2yRq1x+lEOZc+78TO35dTZ9b0dh49+Z9CTt2byMSbMiOKpwPlOyCAaHD4kILkAYWYZNywFlmBwRA==}
+    engines: {node: '>=14.0.0'}
+    dev: false
 
   /language-subtag-registry/0.3.22:
     resolution: {integrity: sha512-tN0MCzyWnoz/4nHS6uxdlFWoUZT7ABptwKPQ52Ea7URk6vll88bWBVhodtnlfEuCcKWNGoc+uGbw1cwa9IKh/w==}
