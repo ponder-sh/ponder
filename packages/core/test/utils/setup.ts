@@ -1,15 +1,14 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-import { fetchLogs } from "@viem/anvil";
 import SqliteDatabase from "better-sqlite3";
 import moduleAlias from "module-alias";
 import path from "node:path";
 import fetch, { Headers, Request, Response } from "node-fetch";
-import pg, { Pool } from "pg";
-import { afterAll, afterEach, beforeEach } from "vitest";
+import { Pool } from "pg";
+import { afterAll, beforeEach } from "vitest";
 
-import { PostgresBlockchainStore } from "@/blockchain-store/postgres/store";
-import { SqliteBlockchainStore } from "@/blockchain-store/sqlite/store";
-import { BlockchainStore } from "@/blockchain-store/store";
+import { PostgresEventStore } from "@/event-store/postgres/store";
+import { SqliteEventStore } from "@/event-store/sqlite/store";
+import { EventStore } from "@/event-store/store";
 
 import { FORK_BLOCK_NUMBER, FORK_URL } from "./constants";
 import { poolId, testClient } from "./utils";
@@ -38,26 +37,24 @@ moduleAlias.addAlias("@ponder/core", ponderCoreDir);
  * Inject a blockchain store into the test context.
  *
  * If `process.env.DATABASE_URL` is set, assume it's a Postgres connection string
- * and run tests against it. If passed a `schema`, PostgresBlockchainStore will create
+ * and run tests against it. If passed a `schema`, PostgresEventStore will create
  * it if it doesn't exist, then use for all connections. We use the Vitest pool ID as
  * the schema key which enables test isolation (same approach as Anvil.js).
  */
 declare module "vitest" {
   export interface TestContext {
-    store: BlockchainStore;
+    store: EventStore;
   }
 }
 
 beforeEach(async (context) => {
   if (process.env.DATABASE_URL) {
-    // TODO: Figure out how to set this type parser within PostgresBlockchainStore.
-    pg.types.setTypeParser(20, BigInt);
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const schema = `vitest_pool_${poolId}`;
-    context.store = new PostgresBlockchainStore({ pool, schema });
+    context.store = new PostgresEventStore({ pool, schema });
   } else {
     const sqliteDb = SqliteDatabase(":memory:");
-    context.store = new SqliteBlockchainStore({ sqliteDb });
+    context.store = new SqliteEventStore({ sqliteDb });
   }
 
   await context.store.migrateUp();
@@ -81,13 +78,13 @@ afterAll(async () => {
  *
  * Also recommended by Anvil.js, but I've not yet found it useful.
  */
-afterEach(async (context) => {
-  context.onTestFailed(async () => {
-    try {
-      const logs = await fetchLogs("http://localhost:8545", poolId);
-      console.log("Anvil instance logs:");
-      console.log(...logs.slice(-5));
-      // eslint-disable-next-line no-empty
-    } catch (e) {}
-  });
-});
+// afterEach(async (context) => {
+//   context.onTestFailed(async () => {
+//     try {
+//       const logs = await fetchLogs("http://localhost:8545", poolId);
+//       console.log("Anvil instance logs:");
+//       console.log(...logs.slice(-5));
+//       // eslint-disable-next-line no-empty
+//     } catch (e) {}
+//   });
+// });

@@ -30,6 +30,7 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("transactions")
+        .addColumn("accessList", "text")
         .addColumn("blockHash", "text", (col) => col.notNull())
         .addColumn("blockNumber", "bigint", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())

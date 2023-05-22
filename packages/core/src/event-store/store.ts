@@ -1,10 +1,10 @@
 import { Kysely } from "kysely";
 import { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type { Block, Log, Transaction } from "./types";
+import type { Block, EventStoreTables, Log, Transaction } from "./types";
 
-export interface BlockchainStore {
-  db: Kysely<any>;
+export interface EventStore {
+  db: Kysely<EventStoreTables>;
 
   migrateUp(): Promise<void>;
   migrateDown(): Promise<void>;

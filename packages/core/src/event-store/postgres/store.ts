@@ -5,7 +5,7 @@ import {
   NO_MIGRATIONS,
   PostgresDialect,
 } from "kysely";
-import { Pool } from "pg";
+import pg, { type Pool } from "pg";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import { NonNull } from "@/types/utils";
@@ -15,22 +15,25 @@ import {
   formatRpcLog,
   formatRpcTransaction,
 } from "../formatters";
+import type { EventStore } from "../store";
 import type {
-  Database,
+  Block,
+  EventStoreTables,
   InsertableBlock,
   InsertableLog,
   InsertableTransaction,
-} from "../schema";
-import type { BlockchainStore } from "../store";
-import type { Block, Log, Transaction } from "../types";
+  Log,
+  Transaction,
+} from "../types";
 import { migrationProvider } from "./migrations";
 
-export class PostgresBlockchainStore implements BlockchainStore {
-  db: Kysely<Database>;
+export class PostgresEventStore implements EventStore {
+  db: Kysely<EventStoreTables>;
   private migrator: Migrator;
 
   constructor({ pool, schema }: { pool: Pool; schema?: string }) {
-    this.db = new Kysely<Database>({
+    pg.types.setTypeParser(20, BigInt);
+    this.db = new Kysely<EventStoreTables>({
       dialect: new PostgresDialect({
         pool,
         onCreateConnection: schema
@@ -232,6 +235,7 @@ export class PostgresBlockchainStore implements BlockchainStore {
         "blocks.totalDifficulty as block_totalDifficulty",
         "blocks.transactionsRoot as block_transactionsRoot",
 
+        "transactions.accessList as tx_accessList",
         "transactions.blockHash as tx_blockHash",
         "transactions.blockNumber as tx_blockNumber",
         // "transactions.chainId as tx_chainId",
@@ -278,9 +282,9 @@ export class PostgresBlockchainStore implements BlockchainStore {
       // that those fields are indeed present before continuing here.
       const result = result_ as NonNull<(typeof results)[number]>;
 
-      // Note that because we use the `better-sqlite3` defaultSafeIntegers option,
-      // _all_ numbers returned from the database are bigints. So, we must convert
-      // the index fields back to numbers here to match the viem types.
+      // Note that because we set the `number` type parser to use BigInt in the
+      // constructor, _all_ numbers returned from the database are bigints.
+      // So, we must convert the index fields back to numbers here to match the viem types.
       const event: {
         log: Log;
         block: Block;
@@ -329,19 +333,31 @@ export class PostgresBlockchainStore implements BlockchainStore {
           blockNumber: result.tx_blockNumber,
           from: result.tx_from,
           gas: result.tx_gas,
-          gasPrice: result.tx_gasPrice,
           hash: result.tx_hash,
           input: result.tx_input,
-          maxFeePerGas: result.tx_maxFeePerGas,
-          maxPriorityFeePerGas: result.tx_maxPriorityFeePerGas,
           nonce: Number(result.tx_nonce),
           r: result.tx_r,
           s: result.tx_s,
           to: result.tx_to,
           transactionIndex: Number(result.tx_transactionIndex),
-          type: result.tx_type,
           value: result.tx_value,
           v: result.tx_v,
+          ...(result.tx_type === "legacy"
+            ? {
+                type: result.tx_type,
+                gasPrice: result.tx_gasPrice,
+              }
+            : result.tx_type === "eip1559"
+            ? {
+                type: result.tx_type,
+                maxFeePerGas: result.tx_maxFeePerGas,
+                maxPriorityFeePerGas: result.tx_maxPriorityFeePerGas,
+              }
+            : {
+                type: result.tx_type,
+                gasPrice: result.tx_gasPrice,
+                accessList: JSON.parse(result.tx_accessList),
+              }),
         },
       };
 

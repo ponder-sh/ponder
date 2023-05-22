@@ -3,8 +3,8 @@ import { expect, test } from "vitest";
 
 /**
  * This test suite uses the `store` object injected during setup.
- * At the moment, this could be either a PostgresBlockchainStore or a
- * SqliteBlockchainStore; the tests run as expected either way.
+ * At the moment, this could be either a PostgresEventStore or a
+ * SqliteEventStore; the tests run as expected either way.
  */
 
 test("setup creates tables", async (context) => {
@@ -300,14 +300,79 @@ test("getLogEvents returns log events", async (context) => {
       "gasPrice": 69n,
       "hash": "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
       "input": "0x1",
-      "maxFeePerGas": null,
-      "maxPriorityFeePerGas": null,
       "nonce": 1,
       "r": "0x1",
       "s": "0x1",
       "to": "0x1",
       "transactionIndex": 1,
       "type": "legacy",
+      "v": 1n,
+      "value": 1n,
+    }
+  `);
+
+  expect(logEvents[1].log).toMatchInlineSnapshot(`
+    {
+      "address": "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+      "blockNumber": 15131999n,
+      "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
+      "id": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd-0x6d",
+      "logIndex": 109,
+      "removed": false,
+      "topics": [],
+      "transactionHash": "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+      "transactionIndex": 70,
+    }
+  `);
+
+  expect(logEvents[1].block).toMatchInlineSnapshot(`
+    {
+      "baseFeePerGas": 0n,
+      "difficulty": 12730590371363483n,
+      "extraData": "0x",
+      "gasLimit": 29999943n,
+      "gasUsed": 0n,
+      "hash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "miner": "0x0000000000000000000000000000000000000000",
+      "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "nonce": "0x0000000000000000",
+      "number": 15495110n,
+      "parentHash": "0xe55516ad8029e53cd32087f14653d851401b05245abb1b2d6ed4ddcc597ac5a6",
+      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+      "size": 520n,
+      "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": 1662619503n,
+      "totalDifficulty": 1n,
+      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+    }
+  `);
+
+  expect(logEvents[1].transaction).toMatchInlineSnapshot(`
+    {
+      "accessList": [
+        {
+          "address": "0x1",
+          "storageKeys": [
+            "0x1",
+          ],
+        },
+      ],
+      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+      "blockNumber": 69420n,
+      "from": "0x1",
+      "gas": 69420420n,
+      "gasPrice": 69n,
+      "hash": "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+      "input": "0x1",
+      "nonce": 1,
+      "r": "0x1",
+      "s": "0x1",
+      "to": "0x1",
+      "transactionIndex": 1,
+      "type": "eip2930",
       "v": 1n,
       "value": 1n,
     }

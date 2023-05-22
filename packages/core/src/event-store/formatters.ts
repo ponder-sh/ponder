@@ -6,14 +6,8 @@ import {
   transactionType,
 } from "viem";
 
-import type {
-  InsertableBlock,
-  InsertableLog,
-  InsertableTransaction,
-} from "./schema";
-
 export function formatRpcBlock({ block }: { block: RpcBlock }) {
-  const block_: Omit<InsertableBlock, "chainId" | "finalized"> = {
+  return {
     baseFeePerGas: block.baseFeePerGas ? BigInt(block.baseFeePerGas) : null,
     difficulty: BigInt(block.difficulty),
     extraData: block.extraData,
@@ -34,7 +28,6 @@ export function formatRpcBlock({ block }: { block: RpcBlock }) {
     totalDifficulty: BigInt(block.totalDifficulty!),
     transactionsRoot: block.transactionsRoot,
   };
-  return block_;
 }
 
 export function formatRpcTransaction({
@@ -42,7 +35,10 @@ export function formatRpcTransaction({
 }: {
   transaction: RpcTransaction;
 }) {
-  const transaction_: Omit<InsertableTransaction, "chainId" | "finalized"> = {
+  return {
+    accessList: transaction.accessList
+      ? JSON.stringify(transaction.accessList)
+      : undefined,
     blockHash: transaction.blockHash!,
     blockNumber: BigInt(transaction.blockNumber!),
     from: transaction.from,
@@ -65,11 +61,10 @@ export function formatRpcTransaction({
     value: BigInt(transaction.value),
     v: BigInt(transaction.v),
   };
-  return transaction_;
 }
 
 export function formatRpcLog({ log }: { log: RpcLog }) {
-  const log_: Omit<InsertableLog, "chainId" | "finalized"> = {
+  return {
     address: log.address,
     blockHash: log.blockHash!,
     blockNumber: BigInt(log.blockNumber!),
@@ -83,5 +78,4 @@ export function formatRpcLog({ log }: { log: RpcLog }) {
     transactionHash: log.transactionHash!,
     transactionIndex: Number(log.transactionIndex!),
   };
-  return log_;
 }
