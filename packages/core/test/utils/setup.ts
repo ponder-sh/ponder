@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
+import { fetchLogs } from "@viem/anvil";
 import SqliteDatabase from "better-sqlite3";
 import moduleAlias from "module-alias";
 import path from "node:path";
 import fetch, { Headers, Request, Response } from "node-fetch";
 import pg, { Pool } from "pg";
-import { afterAll, beforeEach } from "vitest";
+import { afterAll, afterEach, beforeEach } from "vitest";
 
 import { PostgresBlockchainStore } from "@/blockchain-store/postgres/store";
 import { SqliteBlockchainStore } from "@/blockchain-store/sqlite/store";
@@ -80,9 +81,13 @@ afterAll(async () => {
  *
  * Also recommended by Anvil.js, but I've not yet found it useful.
  */
-// afterEach(async (context) => {
-//   context.onTestFailed(async () => {
-//     const logs = await fetchLogs("http://localhost:8545", poolId);
-//     console.log(...logs.slice(-20));
-//   });
-// });
+afterEach(async (context) => {
+  context.onTestFailed(async () => {
+    try {
+      const logs = await fetchLogs("http://localhost:8545", poolId);
+      console.log("Anvil instance logs:");
+      console.log(...logs.slice(-5));
+      // eslint-disable-next-line no-empty
+    } catch (e) {}
+  });
+});
