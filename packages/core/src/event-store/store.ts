@@ -1,7 +1,14 @@
 import { Kysely } from "kysely";
 import { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type { Block, EventStoreTables, Log, Transaction } from "./types";
+import type {
+  Block,
+  EventStoreTables,
+  InsertableLogFilterCachedRange,
+  Log,
+  LogFilterCachedRange,
+  Transaction,
+} from "./types";
 
 export interface EventStore {
   db: Kysely<EventStoreTables>;
@@ -34,21 +41,24 @@ export interface EventStore {
     toBlockNumber: number;
   }): Promise<void>;
 
-  // // Finalized sync methods.
-  // getLogFilterCachedRanges(arg: {
-  //   filterKey: string;
-  // }): Promise<LogFilterCachedRange[]>;
-  // insertLogFilterCachedRange(arg: {
-  //   range: LogFilterCachedRange;
-  // }): Promise<void>;
-  // insertFinalizedLogs({ logs }: { logs: RpcLog[] }): Promise<void>;
-  // insertFinalizedBlock({
-  //   block,
-  //   transactions,
-  // }: {
-  //   block: RpcBlock;
-  //   transactions: RpcTransaction;
-  // }): Promise<void>;
+  insertLogFilterCachedRange(options: {
+    range: InsertableLogFilterCachedRange;
+  }): Promise<void>;
+
+  getLogFilterCachedRanges(options: {
+    filterKey: string;
+  }): Promise<LogFilterCachedRange[]>;
+
+  insertFinalizedLogs(options: { logs: RpcLog[] }): Promise<void>;
+
+  insertFinalizedBlock(options: {
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logFilterRange: {
+      blockNumberToCacheFrom: number;
+      logFilterKey: string;
+    };
+  }): Promise<void>;
 
   // // Injected contract call methods.
   // upsertContractCall(contractCall: ContractCall): Promise<void>;

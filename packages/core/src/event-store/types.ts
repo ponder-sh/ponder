@@ -1,4 +1,4 @@
-import { Generated, Insertable } from "kysely";
+import { Generated, Insertable, Selectable } from "kysely";
 import { AccessList, Address, Hash, Hex } from "viem";
 
 import { Prettify } from "@/types/utils";
@@ -191,7 +191,7 @@ export type Log = Prettify<
   }
 >;
 
-interface ContractCallsTable {
+type ContractCallsTable = {
   address: string;
   blockNumber: bigint;
   chainId: number;
@@ -199,20 +199,24 @@ interface ContractCallsTable {
   finalized: number; // Boolean (0 or 1).
   id: string; // Primary key from `${chainId}-${blockNumber}-${address}-${data}`
   result: string;
-}
+};
 
-interface LogFilterCachedRangesTable {
+type LogFilterCachedRangesTable = {
   id: Generated<number>;
   filterKey: string;
   startBlock: number;
   endBlock: number;
   endBlockTimestamp: number;
-}
+};
 
-export interface EventStoreTables {
+export type InsertableLogFilterCachedRange =
+  Insertable<LogFilterCachedRangesTable>;
+export type LogFilterCachedRange = Selectable<LogFilterCachedRangesTable>;
+
+export type EventStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
   logs: LogsTable;
   contractCalls: ContractCallsTable;
   logFilterCachedRanges: LogFilterCachedRangesTable;
-}
+};

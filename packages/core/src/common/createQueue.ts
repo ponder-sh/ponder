@@ -8,7 +8,7 @@ export type Queue<TTask, TReturn = void> = PQueue & {
   addTasks: (tasks: TTask[], options?: { priority?: number }) => Promise<void>;
 } & Pick<
     Emittery<{
-      completed: { result: TReturn };
+      completed: { result: TReturn; task: TTask };
       error: { error: Error; task: TTask };
     }>,
     "on" | "emit"
@@ -41,7 +41,7 @@ export function createQueue<TTask, TContext, TReturn>({
   queue.addTask = async (task, options) => {
     try {
       const result = await queue.add(buildTask(task, queue), options);
-      queue.emit("completed", { result });
+      queue.emit("completed", { result, task });
     } catch (error_) {
       queue.emit("error", { error: error_ as Error, task });
     }
@@ -52,7 +52,7 @@ export function createQueue<TTask, TContext, TReturn>({
       tasks.map(async (task) => {
         try {
           const result = await queue.add(buildTask(task, queue), options);
-          queue.emit("completed", { result });
+          queue.emit("completed", { result, task });
         } catch (error_) {
           queue.emit("error", { error: error_ as Error, task });
         }
