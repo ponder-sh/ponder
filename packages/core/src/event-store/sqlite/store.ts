@@ -82,8 +82,8 @@ export class SqliteEventStore implements EventStore {
     }));
 
     await this.db.transaction().execute(async (tx) => {
-      await tx.insertInto("blocks").values(block).execute();
       await Promise.all([
+        tx.insertInto("blocks").values(block).execute(),
         ...transactions.map(async (transaction) =>
           tx.insertInto("transactions").values(transaction).execute()
         ),
@@ -372,7 +372,9 @@ export class SqliteEventStore implements EventStore {
       finalized: 1,
     }));
 
-    await this.db.insertInto("logs").values(logs).execute();
+    await Promise.all(
+      logs.map(async (log) => this.db.insertInto("logs").values(log).execute())
+    );
   };
 
   insertFinalizedBlock = async ({
@@ -404,9 +406,6 @@ export class SqliteEventStore implements EventStore {
     );
 
     await this.db.transaction().execute(async (tx) => {
-      await tx.insertInto("blocks").values(block).execute();
-      await tx.insertInto("transactions").values(transactions).execute();
-
       const existingRanges = await tx
         .deleteFrom("logFilterCachedRanges")
         .where("filterKey", "=", logFilterKey)
@@ -443,10 +442,15 @@ export class SqliteEventStore implements EventStore {
         };
       });
 
-      await tx
-        .insertInto("logFilterCachedRanges")
-        .values(mergedRanges)
-        .execute();
+      await Promise.all([
+        tx.insertInto("blocks").values(block).execute(),
+        ...transactions.map(async (transaction) =>
+          tx.insertInto("transactions").values(transaction).execute()
+        ),
+        ...mergedRanges.map(async (range) =>
+          tx.insertInto("logFilterCachedRanges").values(range).execute()
+        ),
+      ]);
     });
   };
 }

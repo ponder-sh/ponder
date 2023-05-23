@@ -101,8 +101,8 @@ export class PostgresEventStore implements EventStore {
     });
 
     await this.db.transaction().execute(async (tx) => {
-      await tx.insertInto("blocks").values(block).execute();
       await Promise.all([
+        tx.insertInto("blocks").values(block).execute(),
         ...transactions.map(async (transaction) =>
           tx.insertInto("transactions").values(transaction).execute()
         ),
@@ -423,9 +423,6 @@ export class PostgresEventStore implements EventStore {
     );
 
     await this.db.transaction().execute(async (tx) => {
-      await tx.insertInto("blocks").values(block).execute();
-      await tx.insertInto("transactions").values(transactions).execute();
-
       const existingRanges = await tx
         .deleteFrom("logFilterCachedRanges")
         .where("filterKey", "=", logFilterKey)
@@ -462,10 +459,11 @@ export class PostgresEventStore implements EventStore {
         };
       });
 
-      await tx
-        .insertInto("logFilterCachedRanges")
-        .values(mergedRanges)
-        .execute();
+      await Promise.all([
+        tx.insertInto("blocks").values(block).execute(),
+        tx.insertInto("transactions").values(transactions).execute(),
+        tx.insertInto("logFilterCachedRanges").values(mergedRanges).execute(),
+      ]);
     });
   };
 }
