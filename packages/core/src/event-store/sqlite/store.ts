@@ -103,32 +103,28 @@ export class SqliteEventStore implements EventStore {
     chainId: number;
     fromBlockNumber: number;
   }) => {
-    // SQLite gracefully compares hex strings and integers, so it's fine to
-    // pass a number (even though Kysely expects a hex string).
-    const fromBlock = fromBlockNumber as unknown as Hex;
-
     await this.db.transaction().execute(async (tx) => {
       await tx
         .deleteFrom("blocks")
-        .where("number", ">=", fromBlock)
+        .where("number", ">=", toHex(fromBlockNumber))
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("transactions")
-        .where("blockNumber", ">=", fromBlock)
+        .where("blockNumber", ">=", toHex(fromBlockNumber))
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("logs")
-        .where("blockNumber", ">=", fromBlock)
+        .where("blockNumber", ">=", toHex(fromBlockNumber))
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("contractCalls")
-        .where("blockNumber", ">=", fromBlock)
+        .where("blockNumber", ">=", toHex(fromBlockNumber))
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
@@ -142,33 +138,29 @@ export class SqliteEventStore implements EventStore {
     chainId: number;
     toBlockNumber: number;
   }) => {
-    // SQLite gracefully compares hex strings and integers, so it's fine to
-    // pass a number (even though Kysely expects a hex string).
-    const toBlock = toBlockNumber as unknown as Hex;
-
     await this.db.transaction().execute(async (tx) => {
       await tx
         .updateTable("blocks")
         .set({ finalized: 1 })
-        .where("number", "<=", toBlock)
+        .where("number", "<=", toHex(toBlockNumber))
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("transactions")
         .set({ finalized: 1 })
-        .where("blockNumber", "<=", toBlock)
+        .where("blockNumber", "<=", toHex(toBlockNumber))
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("logs")
         .set({ finalized: 1 })
-        .where("blockNumber", "<=", toBlock)
+        .where("blockNumber", "<=", toHex(toBlockNumber))
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("contractCalls")
         .set({ finalized: 1 })
-        .where("blockNumber", "<=", toBlock)
+        .where("blockNumber", "<=", toHex(toBlockNumber))
         .where("chainId", "=", chainId)
         .execute();
     });
