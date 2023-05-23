@@ -7,10 +7,10 @@ import {
   toHex,
 } from "viem";
 
-import { type Queue, createQueue } from "@/common/createQueue";
+import { type Queue, createQueue } from "@/common/queue";
 import { endBenchmark, startBenchmark } from "@/common/utils";
 import type { LogFilter } from "@/config/logFilters";
-import { Network } from "@/config/networks";
+import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
 
 import { p1_excluding_all } from "./utils";
@@ -174,8 +174,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private buildQueue = () => {
     const worker = async ({ task }: { task: LogSyncTask | BlockSyncTask }) => {
-      // console.log("in worker with task:", { task });
-
       switch (task.kind) {
         case "LOG_SYNC": {
           return this.logTaskWorker({ task });
@@ -188,82 +186,76 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     const queue = createQueue<LogSyncTask | BlockSyncTask, unknown, any>({
       worker,
-      context: {},
-      options: { concurrency: 10 },
-    });
+      options: { concurrency: 10, autoStart: false },
+      onError: ({ error, task, queue }) => {
+        const { logFilter } = task;
+        if (task.kind === "LOG_SYNC") {
+          this.metrics.logFilters[logFilter.name].logTaskErrorCount += 1;
+        } else {
+          this.metrics.logFilters[logFilter.name].blockTaskErrorCount += 1;
+        }
 
-    queue.pause();
+        // Handle Alchemy response size error.
+        if (
+          task.kind === "LOG_SYNC" &&
+          error instanceof InvalidParamsRpcError &&
+          error.details.startsWith("Log response size exceeded.")
+        ) {
+          const safe = error.details.split("this block range should work: ")[1];
+          const safeStart = Number(safe.split(", ")[0].slice(1));
+          const safeEnd = Number(safe.split(", ")[1].slice(0, -1));
 
-    queue.on("completed", ({ task }) => {
-      const { logFilter } = task;
-      if (task.kind === "LOG_SYNC") {
-        this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
-      } else {
-        this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
-      }
-    });
+          queue.addTask(
+            { ...task, fromBlock: safeStart, toBlock: safeEnd },
+            { front: true }
+          );
+          queue.addTask({ ...task, fromBlock: safeEnd + 1 }, { front: true });
+          return;
+        }
 
-    queue.on("idle", () => {
-      if (this.metrics.startedAt) {
-        this.metrics.duration = endBenchmark(this.metrics.startedAt);
-        this.emit("syncCompleted");
-      }
-    });
+        // Handle Quicknode block range limit error (should never happen).
+        if (
+          task.kind === "LOG_SYNC" &&
+          error instanceof HttpRequestError &&
+          error.details.includes(
+            "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range"
+          )
+        ) {
+          const midpoint = Math.floor(
+            (task.toBlock - task.fromBlock) / 2 + task.fromBlock
+          );
+          queue.addTask({ ...task, toBlock: midpoint }, { front: true });
+          queue.addTask({ ...task, fromBlock: midpoint + 1 }, { front: true });
+          return;
+        }
 
-    queue.on("error", ({ error, task }) => {
-      const { logFilter } = task;
-      if (task.kind === "LOG_SYNC") {
-        this.metrics.logFilters[logFilter.name].logTaskErrorCount += 1;
-      } else {
-        this.metrics.logFilters[logFilter.name].blockTaskErrorCount += 1;
-      }
+        // const queueError = new QueueError({
+        //   queueName: "Log backfill queue",
+        //   task: task,
+        //   cause: error,
+        // });
+        // context.backfillService.resources.logger.logMessage(
+        //   MessageKind.ERROR,
+        //   queueError.message
+        // );
 
-      console.log("in error handler:", { error });
-
-      // Handle Alchemy response size error.
-      if (
-        task.kind === "LOG_SYNC" &&
-        error instanceof InvalidParamsRpcError &&
-        error.details.startsWith("Log response size exceeded.")
-      ) {
-        const safe = error.details.split("this block range should work: ")[1];
-        const safeStart = Number(safe.split(", ")[0].slice(1));
-        const safeEnd = Number(safe.split(", ")[1].slice(0, -1));
-
-        queue.addTask({ ...task, fromBlock: safeStart, toBlock: safeEnd });
-        queue.addTask({ ...task, fromBlock: safeEnd });
-        return;
-      }
-
-      // Handle Quicknode block range limit error (should never happen).
-      if (
-        task.kind === "LOG_SYNC" &&
-        error instanceof HttpRequestError &&
-        error.details.includes(
-          "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range"
-        )
-      ) {
-        const midpoint = Math.floor(
-          (task.toBlock - task.fromBlock) / 2 + task.fromBlock
-        );
-        queue.addTask({ ...task, toBlock: midpoint });
-        queue.addTask({ ...task, fromBlock: midpoint + 1 });
-
-        return;
-      }
-
-      // const queueError = new QueueError({
-      //   queueName: "Log backfill queue",
-      //   task: task,
-      //   cause: error,
-      // });
-      // context.backfillService.resources.logger.logMessage(
-      //   MessageKind.ERROR,
-      //   queueError.message
-      // );
-
-      // Default to a simple retry.
-      queue.addTask(task);
+        // Default to a retry (uses the retry options passed to the queue).
+        queue.addTask(task, { retry: true });
+      },
+      onComplete: ({ task }) => {
+        const { logFilter } = task;
+        if (task.kind === "LOG_SYNC") {
+          this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
+        } else {
+          this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
+        }
+      },
+      onIdle: () => {
+        if (this.metrics.startedAt) {
+          this.metrics.duration = endBenchmark(this.metrics.startedAt);
+          this.emit("syncCompleted");
+        }
+      },
     });
 
     return queue;

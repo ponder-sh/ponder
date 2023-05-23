@@ -1,4 +1,3 @@
-import Emittery from "emittery";
 import PQueue, { DefaultAddOptions, Options, Queue as TPQueue } from "p-queue";
 import retry, { type CreateTimeoutOptions } from "retry";
 import { setTimeout } from "timers/promises";
@@ -16,9 +15,7 @@ export type Queue<TTask> = PQueue & {
     tasks: (TTask & { _retryCount?: number })[],
     options?: TaskOptions
   ) => Promise<void>;
-  // Note that PQueue is actually an EventEmitter3 (not an Emittery).
-  // But it follows the Emittery types for "on" and "emit", so this works.
-} & Pick<Emittery<{}>, "on" | "emit">;
+};
 
 type QueueOptions = Prettify<
   Options<
@@ -62,14 +59,20 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
   options,
   onError,
   onComplete,
+  onIdle,
 }: {
   worker: Worker<TTask, TContext, TReturn>;
   context?: TContext;
   options?: QueueOptions;
   onError?: OnError<TTask, TContext>;
   onComplete?: OnComplete<TTask, TContext, TReturn>;
+  onIdle?: () => unknown;
 }): Queue<TTask> {
   const queue = new PQueue(options) as Queue<TTask>;
+
+  if (onIdle) {
+    queue.on("idle", () => onIdle());
+  }
 
   const controller = new AbortController();
   const signal = controller.signal;
