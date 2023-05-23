@@ -1,7 +1,7 @@
 import { Hash, Log as ViemLog } from "viem";
 
-import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
+import { createQueue, Queue, Worker } from "@/common/queue";
 import { parseLogs } from "@/common/types";
 
 import { BlockFrontfillQueue, BlockFrontfillTask } from "./blockFrontfillQueue";

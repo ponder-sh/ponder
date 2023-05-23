@@ -47,6 +47,7 @@
     "picocolors": "^1.0.0",
     "prettier": "^2.6.2",
     "react": "17",
+    "retry": "^0.13.1",
     "stacktrace-parser": "^0.1.10",
     "tsc-alias": "^1.8.2",
     "viem": "0.3.17"
@@ -63,6 +64,7 @@
     "@types/node-fetch": "2",
     "@types/pg": "^8.6.6",
     "@types/react": "^18.0.25",
+    "@types/retry": "^0.12.2",
     "@types/supertest": "^2.0.12",
     "abitype": "^0.6.7",
     "module-alias": "^2.2.2",
