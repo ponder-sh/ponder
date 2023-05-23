@@ -16,10 +16,10 @@ import { buildEntityStore } from "@/database/entity/entityStore";
 import { ErrorService } from "@/errors/ErrorService";
 import { Resources } from "@/Ponder";
 
-import { testNetwork } from "./utils";
+import { testNetworkConfig } from "./utils";
 
 const defaultConfig: ResolvedPonderConfig = {
-  networks: [testNetwork],
+  networks: [testNetworkConfig],
   contracts: [],
 };
 
