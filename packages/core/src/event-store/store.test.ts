@@ -46,7 +46,7 @@ const blockOne: RpcBlock = {
   stateRoot:
     "0x0000000000000000000000000000000000000000000000000000000000000000",
   timestamp: "0x63198f6f",
-  totalDifficulty: "0x1",
+  totalDifficulty: "0xc70d815d562d3cfa955",
   transactions: [],
   transactionsRoot:
     "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
@@ -286,7 +286,7 @@ test("getLogEvents returns log events", async (context) => {
       "size": 520n,
       "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "timestamp": 1662619503n,
-      "totalDifficulty": 1n,
+      "totalDifficulty": 58750003716598352816469n,
       "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
     }
   `);
@@ -345,7 +345,7 @@ test("getLogEvents returns log events", async (context) => {
       "size": 520n,
       "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "timestamp": 1662619503n,
-      "totalDifficulty": 1n,
+      "totalDifficulty": 58750003716598352816469n,
       "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
     }
   `);
@@ -548,4 +548,153 @@ test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
     blockOne.hash,
   ]);
   expect(logEvents).toHaveLength(2);
+});
+
+test("insertFinalizedLogs inserts logs as finalized", async (context) => {
+  const { store } = context;
+
+  await store.insertFinalizedLogs({
+    chainId: 1,
+    logs: blockOneLogs,
+  });
+
+  const logs = await store.db
+    .selectFrom("logs")
+    .select(["address", "finalized"])
+    .execute();
+
+  expect(
+    logs.map((l) => ({ ...l, finalized: Number(l.finalized) }))
+  ).toMatchObject([
+    {
+      address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      finalized: 1,
+    },
+    {
+      address: "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      finalized: 1,
+    },
+  ]);
+});
+
+test("insertFinalizedBlock inserts block as finalized", async (context) => {
+  const { store } = context;
+
+  await store.insertFinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logFilterRange: {
+      blockNumberToCacheFrom: 15131900,
+      logFilterKey: "test-filter-key",
+    },
+  });
+
+  const blocks = await store.db
+    .selectFrom("blocks")
+    .select(["hash", "finalized"])
+    .execute();
+
+  expect(
+    blocks.map((b) => ({ ...b, finalized: Number(b.finalized) }))
+  ).toMatchObject([
+    {
+      finalized: 1,
+      hash: "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+    },
+  ]);
+});
+
+test("insertFinalizedBlock inserts transactions as finalized", async (context) => {
+  const { store } = context;
+
+  await store.insertFinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logFilterRange: {
+      blockNumberToCacheFrom: 15131900,
+      logFilterKey: "test-filter-key",
+    },
+  });
+
+  const transactions = await store.db
+    .selectFrom("transactions")
+    .select(["hash", "finalized"])
+    .execute();
+
+  expect(
+    transactions.map((t) => ({ ...t, finalized: Number(t.finalized) }))
+  ).toMatchObject([
+    {
+      finalized: 1,
+      hash: "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+    },
+    {
+      finalized: 1,
+      hash: "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+    },
+  ]);
+});
+
+test("insertFinalizedBlock inserts a log filter cached interval", async (context) => {
+  const { store } = context;
+
+  await store.insertFinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logFilterRange: {
+      blockNumberToCacheFrom: 15131900,
+      logFilterKey: "test-filter-key",
+    },
+  });
+
+  const logFilterCachedRanges = await store.getLogFilterCachedRanges({
+    filterKey: "test-filter-key",
+  });
+
+  expect(logFilterCachedRanges[0]).toMatchObject({
+    endBlock: 15495110n,
+    endBlockTimestamp: 1662619503n,
+    filterKey: "test-filter-key",
+    startBlock: 15131900n,
+  });
+  expect(logFilterCachedRanges).toHaveLength(1);
+});
+
+test("insertFinalizedBlock merges cached intervals", async (context) => {
+  const { store } = context;
+
+  await store.insertFinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logFilterRange: {
+      blockNumberToCacheFrom: 15131900,
+      logFilterKey: "test-filter-key",
+    },
+  });
+
+  await store.insertFinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logFilterRange: {
+      blockNumberToCacheFrom: 15495110,
+      logFilterKey: "test-filter-key",
+    },
+  });
+
+  const logFilterCachedRanges = await store.getLogFilterCachedRanges({
+    filterKey: "test-filter-key",
+  });
+
+  expect(logFilterCachedRanges[0]).toMatchObject({
+    endBlock: 15495111n,
+    endBlockTimestamp: 1662619504n,
+    filterKey: "test-filter-key",
+    startBlock: 15131900n,
+  });
+  expect(logFilterCachedRanges).toHaveLength(1);
 });

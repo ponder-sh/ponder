@@ -6,6 +6,7 @@ import fetch, { Headers, Request, Response } from "node-fetch";
 import { Pool } from "pg";
 import { afterAll, beforeEach } from "vitest";
 
+import { patchSqliteDatabase } from "@/database/db";
 import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import { EventStore } from "@/event-store/store";
@@ -53,7 +54,8 @@ beforeEach(async (context) => {
     const schema = `vitest_pool_${poolId}`;
     context.store = new PostgresEventStore({ pool, schema });
   } else {
-    const sqliteDb = SqliteDatabase(":memory:");
+    const rawSqliteDb = SqliteDatabase(":memory:");
+    const sqliteDb = patchSqliteDatabase({ db: rawSqliteDb });
     context.store = new SqliteEventStore({ sqliteDb });
   }
 

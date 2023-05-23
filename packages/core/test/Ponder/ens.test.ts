@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import path from "node:path";
 import request from "supertest";
-import { testNetwork } from "test/utils/utils";
+import { testNetworkConfig } from "test/utils/utils";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
@@ -17,7 +17,7 @@ describe("ens", () => {
       configFile: path.resolve("test/Ponder/ens/ponder.config.ts"),
     });
     // Inject proxied anvil chain.
-    const testConfig = { ...config, networks: [testNetwork] };
+    const testConfig = { ...config, networks: [testNetworkConfig] };
 
     const options = buildOptions({
       cliOptions: {

@@ -1,24 +1,29 @@
 import type Sqlite from "better-sqlite3";
 import { Kysely, Migrator, NO_MIGRATIONS, SqliteDialect } from "kysely";
-import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
-
-import { NonNull } from "@/types/utils";
-
 import {
-  formatRpcBlock,
-  formatRpcLog,
-  formatRpcTransaction,
-} from "../formatters";
+  type Address,
+  type Hex,
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+  hexToNumber,
+  toHex,
+} from "viem";
+
+import type { NonNull } from "@/types/utils";
+
 import type { EventStore } from "../store";
-import type {
-  Block,
-  EventStoreTables,
-  InsertableBlock,
-  InsertableLog,
-  InsertableTransaction,
-  Log,
-  Transaction,
-} from "../types";
+import type { Block, Log, Transaction } from "../types";
+import { merge_intervals } from "../utils";
+import {
+  type EventStoreTables,
+  type InsertableBlock,
+  type InsertableLog,
+  type InsertableTransaction,
+  rpcToSqliteBlock,
+  rpcToSqliteLog,
+  rpcToSqliteTransaction,
+} from "./format";
 import { migrationProvider } from "./migrations";
 
 export class SqliteEventStore implements EventStore {
@@ -61,28 +66,28 @@ export class SqliteEventStore implements EventStore {
     logs: RpcLog[];
   }) => {
     const block: InsertableBlock = {
-      ...formatRpcBlock({ block: rpcBlock }),
+      ...rpcToSqliteBlock(rpcBlock),
       chainId,
       finalized: 0,
     };
 
     const transactions: InsertableTransaction[] = rpcTransactions.map(
       (transaction) => ({
-        ...formatRpcTransaction({ transaction }),
+        ...rpcToSqliteTransaction(transaction),
         chainId,
         finalized: 0,
       })
     );
 
     const logs: InsertableLog[] = rpcLogs.map((log) => ({
-      ...formatRpcLog({ log }),
+      ...rpcToSqliteLog({ log }),
       chainId,
       finalized: 0,
     }));
 
     await this.db.transaction().execute(async (tx) => {
-      await tx.insertInto("blocks").values(block).execute();
       await Promise.all([
+        tx.insertInto("blocks").values(block).execute(),
         ...transactions.map(async (transaction) =>
           tx.insertInto("transactions").values(transaction).execute()
         ),
@@ -101,25 +106,25 @@ export class SqliteEventStore implements EventStore {
     await this.db.transaction().execute(async (tx) => {
       await tx
         .deleteFrom("blocks")
-        .where("number", ">=", BigInt(fromBlockNumber))
+        .where("number", ">=", toHex(fromBlockNumber))
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("transactions")
-        .where("blockNumber", ">=", BigInt(fromBlockNumber))
+        .where("blockNumber", ">=", toHex(fromBlockNumber))
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("logs")
-        .where("blockNumber", ">=", BigInt(fromBlockNumber))
+        .where("blockNumber", ">=", toHex(fromBlockNumber))
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("contractCalls")
-        .where("blockNumber", ">=", BigInt(fromBlockNumber))
+        .where("blockNumber", ">=", toHex(fromBlockNumber))
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
@@ -137,25 +142,25 @@ export class SqliteEventStore implements EventStore {
       await tx
         .updateTable("blocks")
         .set({ finalized: 1 })
-        .where("number", "<=", BigInt(toBlockNumber))
+        .where("number", "<=", toHex(toBlockNumber))
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("transactions")
         .set({ finalized: 1 })
-        .where("blockNumber", "<=", BigInt(toBlockNumber))
+        .where("blockNumber", "<=", toHex(toBlockNumber))
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("logs")
         .set({ finalized: 1 })
-        .where("blockNumber", "<=", BigInt(toBlockNumber))
+        .where("blockNumber", "<=", toHex(toBlockNumber))
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("contractCalls")
         .set({ finalized: 1 })
-        .where("blockNumber", "<=", BigInt(toBlockNumber))
+        .where("blockNumber", "<=", toHex(toBlockNumber))
         .where("chainId", "=", chainId)
         .execute();
     });
@@ -238,8 +243,10 @@ export class SqliteEventStore implements EventStore {
         "transactions.v as tx_v",
       ])
       .where("logs.chainId", "=", chainId)
-      .where("blocks.timestamp", ">=", BigInt(fromTimestamp))
-      .where("blocks.timestamp", "<=", BigInt(toTimestamp));
+      .where("blocks.timestamp", ">=", fromTimestamp)
+      .where("blocks.timestamp", "<=", toTimestamp)
+      .orderBy("blocks.timestamp", "asc")
+      .orderBy("logs.logIndex", "asc");
 
     if (address) {
       const addressArray = typeof address === "string" ? [address] : address;
@@ -274,7 +281,7 @@ export class SqliteEventStore implements EventStore {
         log: {
           address: result.log_address,
           blockHash: result.log_blockHash,
-          blockNumber: result.log_blockNumber,
+          blockNumber: BigInt(result.log_blockNumber),
           data: result.log_data,
           id: result.log_id,
           logIndex: Number(result.log_logIndex),
@@ -289,31 +296,31 @@ export class SqliteEventStore implements EventStore {
           transactionIndex: Number(result.log_transactionIndex),
         },
         block: {
-          baseFeePerGas: result.block_baseFeePerGas,
-          difficulty: result.block_difficulty,
+          baseFeePerGas: BigInt(result.block_baseFeePerGas),
+          difficulty: BigInt(result.block_difficulty),
           extraData: result.block_extraData,
-          gasLimit: result.block_gasLimit,
-          gasUsed: result.block_gasUsed,
+          gasLimit: BigInt(result.block_gasLimit),
+          gasUsed: BigInt(result.block_gasUsed),
           hash: result.block_hash,
           logsBloom: result.block_logsBloom,
           miner: result.block_miner,
           mixHash: result.block_mixHash,
           nonce: result.block_nonce,
-          number: result.block_number,
+          number: BigInt(result.block_number),
           parentHash: result.block_parentHash,
           receiptsRoot: result.block_receiptsRoot,
           sha3Uncles: result.block_sha3Uncles,
-          size: result.block_size,
+          size: BigInt(result.block_size),
           stateRoot: result.block_stateRoot,
-          timestamp: result.block_timestamp,
-          totalDifficulty: result.block_totalDifficulty,
+          timestamp: BigInt(Number(result.block_timestamp)),
+          totalDifficulty: BigInt(result.block_totalDifficulty),
           transactionsRoot: result.block_transactionsRoot,
         },
         transaction: {
           blockHash: result.tx_blockHash,
-          blockNumber: result.tx_blockNumber,
+          blockNumber: BigInt(result.tx_blockNumber),
           from: result.tx_from,
-          gas: result.tx_gas,
+          gas: BigInt(result.tx_gas),
           hash: result.tx_hash,
           input: result.tx_input,
           nonce: Number(result.tx_nonce),
@@ -321,22 +328,22 @@ export class SqliteEventStore implements EventStore {
           s: result.tx_s,
           to: result.tx_to,
           transactionIndex: Number(result.tx_transactionIndex),
-          value: result.tx_value,
-          v: result.tx_v,
+          value: BigInt(result.tx_value),
+          v: BigInt(result.tx_v),
           ...(result.tx_type === "legacy"
             ? {
                 type: result.tx_type,
-                gasPrice: result.tx_gasPrice,
+                gasPrice: BigInt(result.tx_gasPrice),
               }
             : result.tx_type === "eip1559"
             ? {
                 type: result.tx_type,
-                maxFeePerGas: result.tx_maxFeePerGas,
-                maxPriorityFeePerGas: result.tx_maxPriorityFeePerGas,
+                maxFeePerGas: BigInt(result.tx_maxFeePerGas),
+                maxPriorityFeePerGas: BigInt(result.tx_maxPriorityFeePerGas),
               }
             : {
                 type: result.tx_type,
-                gasPrice: result.tx_gasPrice,
+                gasPrice: BigInt(result.tx_gasPrice),
                 accessList: JSON.parse(result.tx_accessList),
               }),
         },
@@ -346,5 +353,129 @@ export class SqliteEventStore implements EventStore {
     });
 
     return logEvents;
+  };
+
+  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
+    const results = await this.db
+      .selectFrom("logFilterCachedRanges")
+      .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
+      .where("filterKey", "=", filterKey)
+      .execute();
+
+    return results.map((range) => ({
+      ...range,
+      startBlock: BigInt(range.startBlock),
+      endBlock: BigInt(range.endBlock),
+      endBlockTimestamp: BigInt(range.endBlockTimestamp),
+    }));
+  };
+
+  insertFinalizedLogs = async ({
+    chainId,
+    logs: rpcLogs,
+  }: {
+    chainId: number;
+    logs: RpcLog[];
+  }) => {
+    const logs: InsertableLog[] = rpcLogs.map((log) => ({
+      ...rpcToSqliteLog({ log }),
+      chainId,
+      finalized: 1,
+    }));
+
+    await Promise.all(
+      logs.map(async (log) => this.db.insertInto("logs").values(log).execute())
+    );
+  };
+
+  insertFinalizedBlock = async ({
+    chainId,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    logFilterRange: { blockNumberToCacheFrom, logFilterKey },
+  }: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logFilterRange: {
+      blockNumberToCacheFrom: number;
+      logFilterKey: string;
+    };
+  }) => {
+    const block: InsertableBlock = {
+      ...rpcToSqliteBlock(rpcBlock),
+      chainId,
+      finalized: 1,
+    };
+
+    const transactions: InsertableTransaction[] = rpcTransactions.map(
+      (transaction) => ({
+        ...rpcToSqliteTransaction(transaction),
+        chainId,
+        finalized: 1,
+      })
+    );
+
+    const logFilterCachedRange = {
+      filterKey: logFilterKey,
+      startBlock: toHex(blockNumberToCacheFrom),
+      endBlock: block.number,
+      endBlockTimestamp: toHex(block.timestamp),
+    };
+
+    await this.db.transaction().execute(async (tx) => {
+      await Promise.all([
+        tx.insertInto("blocks").values(block).execute(),
+        ...transactions.map(async (transaction) =>
+          tx.insertInto("transactions").values(transaction).execute()
+        ),
+        tx
+          .insertInto("logFilterCachedRanges")
+          .values(logFilterCachedRange)
+          .execute(),
+      ]);
+    });
+
+    // After inserting the new cached range record, execute a transaction to merge
+    // all adjacent cached ranges.
+    await this.db.transaction().execute(async (tx) => {
+      const existingRanges = await tx
+        .deleteFrom("logFilterCachedRanges")
+        .where("filterKey", "=", logFilterKey)
+        .returningAll()
+        .execute();
+
+      if (existingRanges.length === 0) return;
+
+      const mergedIntervals = merge_intervals(
+        existingRanges.map((r) => [
+          hexToNumber(r.startBlock),
+          hexToNumber(r.endBlock),
+        ])
+      );
+
+      const mergedRanges = mergedIntervals.map((interval) => {
+        const [startBlock, endBlock] = interval;
+        // For each new merged range, its endBlock will be found EITHER in the newly
+        // added range OR among the endBlocks of the removed ranges.
+        // Find it so we can propogate the endBlockTimestamp correctly.
+        const endBlockTimestamp = existingRanges.find(
+          (r) => hexToNumber(r.endBlock) === endBlock
+        )!.endBlockTimestamp;
+
+        return {
+          filterKey: logFilterKey,
+          startBlock: toHex(startBlock),
+          endBlock: toHex(endBlock),
+          endBlockTimestamp: endBlockTimestamp,
+        };
+      });
+
+      await Promise.all(
+        mergedRanges.map(async (range) =>
+          tx.insertInto("logFilterCachedRanges").values(range).execute()
+        )
+      );
+    });
   };
 }

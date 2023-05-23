@@ -28,7 +28,7 @@ export const anvil = {
   },
 } as Chain;
 
-export const testNetwork = {
+export const testNetworkConfig = {
   name: "mainnet",
   chainId: anvil.id,
   rpcUrl: anvil.rpcUrls.default.http[0],
