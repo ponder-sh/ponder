@@ -17,13 +17,13 @@ const migrations: Record<string, Migration> = {
         .addColumn("miner", "text", (col) => col.notNull())
         .addColumn("mixHash", "text", (col) => col.notNull())
         .addColumn("nonce", "text", (col) => col.notNull())
-        .addColumn("number", "integer", (col) => col.notNull())
+        .addColumn("number", "text", (col) => col.notNull()) // BigInt
         .addColumn("parentHash", "text", (col) => col.notNull())
         .addColumn("receiptsRoot", "text", (col) => col.notNull())
         .addColumn("sha3Uncles", "text", (col) => col.notNull())
         .addColumn("size", "text", (col) => col.notNull()) // BigInt
         .addColumn("stateRoot", "text", (col) => col.notNull())
-        .addColumn("timestamp", "text", (col) => col.notNull()) // BigInt
+        .addColumn("timestamp", "integer", (col) => col.notNull()) // BigInt
         .addColumn("totalDifficulty", "text", (col) => col.notNull()) // BigInt
         .addColumn("transactionsRoot", "text", (col) => col.notNull())
         .execute();
@@ -37,7 +37,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
         .addColumn("from", "text", (col) => col.notNull())
         .addColumn("gas", "text", (col) => col.notNull()) // BigInt
-        .addColumn("gasPrice", "integer") // BigInt
+        .addColumn("gasPrice", "text") // BigInt
         .addColumn("hash", "text", (col) => col.notNull().primaryKey())
         .addColumn("input", "text", (col) => col.notNull())
         .addColumn("maxFeePerGas", "text") // BigInt
@@ -90,7 +90,6 @@ const migrations: Record<string, Migration> = {
         // This column uses SQLite's ROWID() function (simple autoincrement).
         .addColumn("id", "integer", (col) => col.notNull().primaryKey())
         .addColumn("startBlock", "text", (col) => col.notNull()) // BigInt
-
         .execute();
     },
     async down(db: Kysely<any>) {
