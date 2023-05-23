@@ -4,7 +4,6 @@ import {
   Migrator,
   NO_MIGRATIONS,
   PostgresDialect,
-  Transaction as KyselyTransaction,
 } from "kysely";
 import pg, { type Pool } from "pg";
 import {
@@ -374,16 +373,6 @@ export class PostgresEventStore implements EventStore {
   };
 
   getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
-    // It's possible for some adjacent cached ranges to not get properly merged during
-    // the insertion process. As a workaround, run a transaction to merge all cached ranges
-    // for this log filter before fetching the final result.
-    await this.db.transaction().execute(async (tx) => {
-      await this.mergeCachedRanges({
-        tx,
-        logFilterKey: filterKey,
-      });
-    });
-
     const results = await this.db
       .selectFrom("logFilterCachedRanges")
       .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
@@ -442,75 +431,63 @@ export class PostgresEventStore implements EventStore {
       })
     );
 
+    const logFilterCachedRange = {
+      filterKey: logFilterKey,
+      startBlock: toHex(blockNumberToCacheFrom),
+      endBlock: block.number,
+      endBlockTimestamp: toHex(block.timestamp),
+    };
+
     await this.db.transaction().execute(async (tx) => {
       await Promise.all([
         tx.insertInto("blocks").values(block).execute(),
         tx.insertInto("transactions").values(transactions).execute(),
-        this.mergeCachedRanges({
-          tx,
-          logFilterKey,
-          newRange: {
-            startBlock: blockNumberToCacheFrom,
-            endBlock: Number(block.number),
-            endBlockTimestamp: block.timestamp,
-          },
-        }),
+        tx
+          .insertInto("logFilterCachedRanges")
+          .values(logFilterCachedRange)
+          .execute(),
       ]);
     });
-  };
 
-  private mergeCachedRanges = async ({
-    tx,
-    logFilterKey,
-    newRange,
-  }: {
-    tx: KyselyTransaction<EventStoreTables>;
-    logFilterKey: string;
-    newRange?: {
-      startBlock: number;
-      endBlock: number;
-      endBlockTimestamp: number;
-    };
-  }) => {
-    const existingRanges = (
-      await tx
+    // After inserting the new cached range record, execute a transaction to merge
+    // all adjacent cached ranges.
+    await this.db.transaction().execute(async (tx) => {
+      const existingRanges = await tx
         .deleteFrom("logFilterCachedRanges")
         .where("filterKey", "=", logFilterKey)
         .returningAll()
-        .execute()
-    ).map((r) => ({
-      startBlock: hexToNumber(r.startBlock),
-      endBlock: hexToNumber(r.endBlock),
-      endBlockTimestamp: hexToNumber(r.endBlockTimestamp),
-    }));
+        .execute();
 
-    const allRanges = [...existingRanges, ...(newRange ? [newRange] : [])];
+      if (existingRanges.length === 0) return;
 
-    const mergedRanges = merge_intervals(
-      allRanges.map((r) => [r.startBlock, r.endBlock])
-    ).map((range) => {
-      const [startBlock, endBlock] = range;
+      const mergedIntervals = merge_intervals(
+        existingRanges.map((r) => [
+          hexToNumber(r.startBlock),
+          hexToNumber(r.endBlock),
+        ])
+      );
 
-      // For each new merged range, its endBlock will be found EITHER in the newly
-      // added range OR among the endBlocks of the removed ranges.
-      // Find it so we can propogate the endBlockTimestamp correctly.
-      const endBlockTimestamp = allRanges.find(
-        (r) => r.endBlock === endBlock
-      )!.endBlockTimestamp;
+      const mergedRanges = mergedIntervals.map((interval) => {
+        const [startBlock, endBlock] = interval;
+        // For each new merged range, its endBlock will be found EITHER in the newly
+        // added range OR among the endBlocks of the removed ranges.
+        // Find it so we can propogate the endBlockTimestamp correctly.
+        const endBlockTimestamp = existingRanges.find(
+          (r) => hexToNumber(r.endBlock) === endBlock
+        )!.endBlockTimestamp;
 
-      return {
-        filterKey: logFilterKey,
-        startBlock: toHex(startBlock),
-        endBlock: toHex(endBlock),
-        endBlockTimestamp: toHex(endBlockTimestamp),
-      };
-    });
+        return {
+          filterKey: logFilterKey,
+          startBlock: toHex(startBlock),
+          endBlock: toHex(endBlock),
+          endBlockTimestamp: endBlockTimestamp,
+        };
+      });
 
-    if (mergedRanges.length > 0) {
       await tx
         .insertInto("logFilterCachedRanges")
         .values(mergedRanges)
         .execute();
-    }
+    });
   };
 }
