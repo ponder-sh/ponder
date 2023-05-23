@@ -286,7 +286,7 @@ test("getLogEvents returns log events", async (context) => {
       "size": 520n,
       "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "timestamp": 1662619503n,
-      "totalDifficulty": 1n,
+      "totalDifficulty": 58750003716598352816469n,
       "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
     }
   `);
@@ -345,7 +345,7 @@ test("getLogEvents returns log events", async (context) => {
       "size": 520n,
       "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "timestamp": 1662619503n,
-      "totalDifficulty": 1n,
+      "totalDifficulty": 58750003716598352816469n,
       "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
     }
   `);
@@ -650,21 +650,17 @@ test("insertFinalizedBlock inserts a log filter cached interval", async (context
     },
   });
 
-  const logFilterCachedRanges = await store.db
-    .selectFrom("logFilterCachedRanges")
-    .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
-    .execute();
+  const logFilterCachedRanges = await store.getLogFilterCachedRanges({
+    filterKey: "test-filter-key",
+  });
 
-  expect(logFilterCachedRanges).toMatchInlineSnapshot(`
-    [
-      {
-        "endBlock": 15495110n,
-        "endBlockTimestamp": 1662619503n,
-        "filterKey": "test-filter-key",
-        "startBlock": 15131900n,
-      },
-    ]
-  `);
+  expect(logFilterCachedRanges[0]).toMatchObject({
+    endBlock: 15495110n,
+    endBlockTimestamp: 1662619503n,
+    filterKey: "test-filter-key",
+    startBlock: 15131900n,
+  });
+  expect(logFilterCachedRanges).toHaveLength(1);
 });
 
 test("insertFinalizedBlock merges cached intervals", async (context) => {
@@ -690,19 +686,15 @@ test("insertFinalizedBlock merges cached intervals", async (context) => {
     },
   });
 
-  const logFilterCachedRanges = await store.db
-    .selectFrom("logFilterCachedRanges")
-    .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
-    .execute();
+  const logFilterCachedRanges = await store.getLogFilterCachedRanges({
+    filterKey: "test-filter-key",
+  });
 
-  expect(logFilterCachedRanges).toMatchInlineSnapshot(`
-    [
-      {
-        "endBlock": 15495111n,
-        "endBlockTimestamp": 1662619504n,
-        "filterKey": "test-filter-key",
-        "startBlock": 15131900n,
-      },
-    ]
-  `);
+  expect(logFilterCachedRanges[0]).toMatchObject({
+    endBlock: 15495111n,
+    endBlockTimestamp: 1662619504n,
+    filterKey: "test-filter-key",
+    startBlock: 15131900n,
+  });
+  expect(logFilterCachedRanges).toHaveLength(1);
 });

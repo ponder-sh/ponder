@@ -1,16 +1,10 @@
 import { Kysely } from "kysely";
 import { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type {
-  Block,
-  EventStoreTables,
-  Log,
-  LogFilterCachedRange,
-  Transaction,
-} from "./types";
+import type { Block, Log, LogFilterCachedRange, Transaction } from "./types";
 
 export interface EventStore {
-  db: Kysely<EventStoreTables>;
+  db: Kysely<any>;
 
   migrateUp(): Promise<void>;
   migrateDown(): Promise<void>;

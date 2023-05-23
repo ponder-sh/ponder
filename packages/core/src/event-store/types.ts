@@ -204,9 +204,9 @@ type ContractCallsTable = {
 type LogFilterCachedRangesTable = {
   id: Generated<number>;
   filterKey: string;
-  startBlock: number;
-  endBlock: number;
-  endBlockTimestamp: number;
+  startBlock: bigint;
+  endBlock: bigint;
+  endBlockTimestamp: bigint;
 };
 
 export type LogFilterCachedRange = Omit<

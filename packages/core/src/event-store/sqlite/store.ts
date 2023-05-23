@@ -1,25 +1,29 @@
 import type Sqlite from "better-sqlite3";
 import { Kysely, Migrator, NO_MIGRATIONS, SqliteDialect } from "kysely";
-import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
-
-import { NonNull } from "@/types/utils";
-
 import {
-  formatRpcBlock,
-  formatRpcLog,
-  formatRpcTransaction,
-} from "../formatters";
+  type Address,
+  type Hex,
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+  hexToNumber,
+  toHex,
+} from "viem";
+
+import type { NonNull } from "@/types/utils";
+
 import type { EventStore } from "../store";
-import type {
-  Block,
-  EventStoreTables,
-  InsertableBlock,
-  InsertableLog,
-  InsertableTransaction,
-  Log,
-  Transaction,
-} from "../types";
+import type { Block, Log, Transaction } from "../types";
 import { merge_intervals } from "../utils";
+import {
+  type EventStoreTables,
+  type InsertableBlock,
+  type InsertableLog,
+  type InsertableTransaction,
+  rpcToSqliteBlock,
+  rpcToSqliteLog,
+  rpcToSqliteTransaction,
+} from "./format";
 import { migrationProvider } from "./migrations";
 
 export class SqliteEventStore implements EventStore {
@@ -62,21 +66,21 @@ export class SqliteEventStore implements EventStore {
     logs: RpcLog[];
   }) => {
     const block: InsertableBlock = {
-      ...formatRpcBlock({ block: rpcBlock }),
+      ...rpcToSqliteBlock(rpcBlock),
       chainId,
       finalized: 0,
     };
 
     const transactions: InsertableTransaction[] = rpcTransactions.map(
       (transaction) => ({
-        ...formatRpcTransaction({ transaction }),
+        ...rpcToSqliteTransaction(transaction),
         chainId,
         finalized: 0,
       })
     );
 
     const logs: InsertableLog[] = rpcLogs.map((log) => ({
-      ...formatRpcLog({ log }),
+      ...rpcToSqliteLog({ log }),
       chainId,
       finalized: 0,
     }));
@@ -99,28 +103,32 @@ export class SqliteEventStore implements EventStore {
     chainId: number;
     fromBlockNumber: number;
   }) => {
+    // SQLite gracefully compares hex strings and integers, so it's fine to
+    // pass a number (even though Kysely expects a hex string).
+    const fromBlock = fromBlockNumber as unknown as Hex;
+
     await this.db.transaction().execute(async (tx) => {
       await tx
         .deleteFrom("blocks")
-        .where("number", ">=", BigInt(fromBlockNumber))
+        .where("number", ">=", fromBlock)
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("transactions")
-        .where("blockNumber", ">=", BigInt(fromBlockNumber))
+        .where("blockNumber", ">=", fromBlock)
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("logs")
-        .where("blockNumber", ">=", BigInt(fromBlockNumber))
+        .where("blockNumber", ">=", fromBlock)
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .deleteFrom("contractCalls")
-        .where("blockNumber", ">=", BigInt(fromBlockNumber))
+        .where("blockNumber", ">=", fromBlock)
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
         .execute();
@@ -134,29 +142,33 @@ export class SqliteEventStore implements EventStore {
     chainId: number;
     toBlockNumber: number;
   }) => {
+    // SQLite gracefully compares hex strings and integers, so it's fine to
+    // pass a number (even though Kysely expects a hex string).
+    const toBlock = toBlockNumber as unknown as Hex;
+
     await this.db.transaction().execute(async (tx) => {
       await tx
         .updateTable("blocks")
         .set({ finalized: 1 })
-        .where("number", "<=", BigInt(toBlockNumber))
+        .where("number", "<=", toBlock)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("transactions")
         .set({ finalized: 1 })
-        .where("blockNumber", "<=", BigInt(toBlockNumber))
+        .where("blockNumber", "<=", toBlock)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("logs")
         .set({ finalized: 1 })
-        .where("blockNumber", "<=", BigInt(toBlockNumber))
+        .where("blockNumber", "<=", toBlock)
         .where("chainId", "=", chainId)
         .execute();
       await tx
         .updateTable("contractCalls")
         .set({ finalized: 1 })
-        .where("blockNumber", "<=", BigInt(toBlockNumber))
+        .where("blockNumber", "<=", toBlock)
         .where("chainId", "=", chainId)
         .execute();
     });
@@ -239,8 +251,8 @@ export class SqliteEventStore implements EventStore {
         "transactions.v as tx_v",
       ])
       .where("logs.chainId", "=", chainId)
-      .where("blocks.timestamp", ">=", BigInt(fromTimestamp))
-      .where("blocks.timestamp", "<=", BigInt(toTimestamp));
+      .where("blocks.timestamp", ">=", fromTimestamp)
+      .where("blocks.timestamp", "<=", toTimestamp);
 
     if (address) {
       const addressArray = typeof address === "string" ? [address] : address;
@@ -275,7 +287,7 @@ export class SqliteEventStore implements EventStore {
         log: {
           address: result.log_address,
           blockHash: result.log_blockHash,
-          blockNumber: result.log_blockNumber,
+          blockNumber: BigInt(result.log_blockNumber),
           data: result.log_data,
           id: result.log_id,
           logIndex: Number(result.log_logIndex),
@@ -290,31 +302,31 @@ export class SqliteEventStore implements EventStore {
           transactionIndex: Number(result.log_transactionIndex),
         },
         block: {
-          baseFeePerGas: result.block_baseFeePerGas,
-          difficulty: result.block_difficulty,
+          baseFeePerGas: BigInt(result.block_baseFeePerGas),
+          difficulty: BigInt(result.block_difficulty),
           extraData: result.block_extraData,
-          gasLimit: result.block_gasLimit,
-          gasUsed: result.block_gasUsed,
+          gasLimit: BigInt(result.block_gasLimit),
+          gasUsed: BigInt(result.block_gasUsed),
           hash: result.block_hash,
           logsBloom: result.block_logsBloom,
           miner: result.block_miner,
           mixHash: result.block_mixHash,
           nonce: result.block_nonce,
-          number: result.block_number,
+          number: BigInt(result.block_number),
           parentHash: result.block_parentHash,
           receiptsRoot: result.block_receiptsRoot,
           sha3Uncles: result.block_sha3Uncles,
-          size: result.block_size,
+          size: BigInt(result.block_size),
           stateRoot: result.block_stateRoot,
-          timestamp: result.block_timestamp,
-          totalDifficulty: result.block_totalDifficulty,
+          timestamp: BigInt(Number(result.block_timestamp)),
+          totalDifficulty: BigInt(result.block_totalDifficulty),
           transactionsRoot: result.block_transactionsRoot,
         },
         transaction: {
           blockHash: result.tx_blockHash,
-          blockNumber: result.tx_blockNumber,
+          blockNumber: BigInt(result.tx_blockNumber),
           from: result.tx_from,
-          gas: result.tx_gas,
+          gas: BigInt(result.tx_gas),
           hash: result.tx_hash,
           input: result.tx_input,
           nonce: Number(result.tx_nonce),
@@ -322,22 +334,22 @@ export class SqliteEventStore implements EventStore {
           s: result.tx_s,
           to: result.tx_to,
           transactionIndex: Number(result.tx_transactionIndex),
-          value: result.tx_value,
-          v: result.tx_v,
+          value: BigInt(result.tx_value),
+          v: BigInt(result.tx_v),
           ...(result.tx_type === "legacy"
             ? {
                 type: result.tx_type,
-                gasPrice: result.tx_gasPrice,
+                gasPrice: BigInt(result.tx_gasPrice),
               }
             : result.tx_type === "eip1559"
             ? {
                 type: result.tx_type,
-                maxFeePerGas: result.tx_maxFeePerGas,
-                maxPriorityFeePerGas: result.tx_maxPriorityFeePerGas,
+                maxFeePerGas: BigInt(result.tx_maxFeePerGas),
+                maxPriorityFeePerGas: BigInt(result.tx_maxPriorityFeePerGas),
               }
             : {
                 type: result.tx_type,
-                gasPrice: result.tx_gasPrice,
+                gasPrice: BigInt(result.tx_gasPrice),
                 accessList: JSON.parse(result.tx_accessList),
               }),
         },
@@ -356,7 +368,12 @@ export class SqliteEventStore implements EventStore {
       .where("filterKey", "=", filterKey)
       .execute();
 
-    return results;
+    return results.map((range) => ({
+      ...range,
+      startBlock: BigInt(range.startBlock),
+      endBlock: BigInt(range.endBlock),
+      endBlockTimestamp: BigInt(range.endBlockTimestamp),
+    }));
   };
 
   insertFinalizedLogs = async ({
@@ -367,7 +384,7 @@ export class SqliteEventStore implements EventStore {
     logs: RpcLog[];
   }) => {
     const logs: InsertableLog[] = rpcLogs.map((log) => ({
-      ...formatRpcLog({ log }),
+      ...rpcToSqliteLog({ log }),
       chainId,
       finalized: 1,
     }));
@@ -392,14 +409,14 @@ export class SqliteEventStore implements EventStore {
     };
   }) => {
     const block: InsertableBlock = {
-      ...formatRpcBlock({ block: rpcBlock }),
+      ...rpcToSqliteBlock(rpcBlock),
       chainId,
       finalized: 1,
     };
 
     const transactions: InsertableTransaction[] = rpcTransactions.map(
       (transaction) => ({
-        ...formatRpcTransaction({ transaction }),
+        ...rpcToSqliteTransaction(transaction),
         chainId,
         finalized: 1,
       })
@@ -414,14 +431,14 @@ export class SqliteEventStore implements EventStore {
 
       const newRange = {
         startBlock: blockNumberToCacheFrom,
-        endBlock: Number(block.number),
-        endBlockTimestamp: Number(block.timestamp),
+        endBlock: hexToNumber(block.number),
+        endBlockTimestamp: block.timestamp,
       };
 
       const mergedRanges = merge_intervals([
         ...existingRanges.map((r) => [
-          Number(r.startBlock),
-          Number(r.endBlock),
+          hexToNumber(r.startBlock),
+          hexToNumber(r.endBlock),
         ]),
         [newRange.startBlock, newRange.endBlock],
       ]).map((range) => {
@@ -436,9 +453,9 @@ export class SqliteEventStore implements EventStore {
 
         return {
           filterKey: logFilterKey,
-          startBlock,
-          endBlock,
-          endBlockTimestamp,
+          startBlock: toHex(startBlock),
+          endBlock: toHex(endBlock),
+          endBlockTimestamp: toHex(endBlockTimestamp),
         };
       });
 
