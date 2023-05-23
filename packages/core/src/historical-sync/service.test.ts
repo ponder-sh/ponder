@@ -13,7 +13,7 @@ const network: Network = {
   chainId: 1,
   client: publicClient,
   pollingInterval: 1_000,
-  defaultMaxBlockRange: 10,
+  defaultMaxBlockRange: 3,
 };
 
 const logFilters: LogFilter[] = [
@@ -60,8 +60,8 @@ test("start() runs log tasks and block tasks", async (context) => {
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
     blockTaskCompletedCount: 6,
     blockTaskStartedCount: 6,
-    logTaskCompletedCount: 1,
-    logTaskStartedCount: 1,
+    logTaskCompletedCount: 2,
+    logTaskStartedCount: 2,
   });
 });
 
@@ -96,7 +96,7 @@ test("start() adds events to event store", async (context) => {
   });
 
   expect(logEvents[0].log).toMatchObject({
-    address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    address: usdcContractConfig.address,
     blockHash:
       "0x0d8710de44b1b42ef86da0e9bebeaacb6d1cb5603f8014dec82e429f0cbf2fe0",
     blockNumber: 16369950n,
@@ -127,6 +127,5 @@ test("start() inserts cached ranges", async (context) => {
     endBlock: 16369955n,
     endBlockTimestamp: 1673275859n,
   });
-
   expect(logFilterCachedRanges).toHaveLength(1);
 });

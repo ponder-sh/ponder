@@ -250,7 +250,9 @@ export class SqliteEventStore implements EventStore {
       ])
       .where("logs.chainId", "=", chainId)
       .where("blocks.timestamp", ">=", fromTimestamp)
-      .where("blocks.timestamp", "<=", toTimestamp);
+      .where("blocks.timestamp", "<=", toTimestamp)
+      .orderBy("blocks.timestamp", "asc")
+      .orderBy("logs.logIndex", "asc");
 
     if (address) {
       const addressArray = typeof address === "string" ? [address] : address;
