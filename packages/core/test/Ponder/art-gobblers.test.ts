@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import path from "node:path";
 import request from "supertest";
-import { testNetwork } from "test/utils/utils";
+import { testNetworkConfig } from "test/utils/utils";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { buildOptions } from "@/config/options";
@@ -16,7 +16,7 @@ describe("art-gobblers", () => {
       configFile: path.resolve("test/Ponder/art-gobblers/ponder.config.ts"),
     });
     // Inject proxied anvil chain.
-    const testConfig = { ...config, networks: [testNetwork] };
+    const testConfig = { ...config, networks: [testNetworkConfig] };
 
     const options = buildOptions({
       cliOptions: {

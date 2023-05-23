@@ -3,7 +3,7 @@ import type Sqlite from "better-sqlite3";
 import { Hex } from "viem";
 
 import type { Block, Log, Transaction } from "@/common/types";
-import { merge_intervals } from "@/common/utils";
+import { merge_intervals } from "@/event-store/utils";
 
 import type {
   CacheStore,

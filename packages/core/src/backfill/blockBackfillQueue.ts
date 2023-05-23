@@ -1,7 +1,7 @@
 import { Hash, Transaction as ViemTransaction } from "viem";
 
-import { createQueue, Queue, Worker } from "@/common/createQueue";
 import { MessageKind } from "@/common/LoggerService";
+import { createQueue, Queue, Worker } from "@/common/queue";
 import { parseBlock, parseTransactions } from "@/common/types";
 import { LogFilter } from "@/config/logFilters";
 import { QueueError } from "@/errors/queue";

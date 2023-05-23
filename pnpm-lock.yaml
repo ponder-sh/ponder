@@ -105,6 +105,7 @@ importers:
       '@types/node-fetch': '2'
       '@types/pg': ^8.6.6
       '@types/react': ^18.0.25
+      '@types/retry': ^0.12.2
       '@types/supertest': ^2.0.12
       '@viem/anvil': ^0.0.5
       abitype: ^0.6.7
@@ -132,6 +133,7 @@ importers:
       picocolors: ^1.0.0
       prettier: ^2.6.2
       react: '17'
+      retry: ^0.13.1
       stacktrace-parser: ^0.1.10
       supertest: ^6.3.3
       tsc-alias: ^1.8.2
@@ -167,6 +169,7 @@ importers:
       picocolors: 1.0.0
       prettier: 2.8.2
       react: 17.0.2
+      retry: 0.13.1
       stacktrace-parser: 0.1.10
       tsc-alias: 1.8.2
       viem: 0.3.17_typescript@4.9.5
@@ -182,6 +185,7 @@ importers:
       '@types/node-fetch': 2.6.2
       '@types/pg': 8.6.6
       '@types/react': 18.0.25
+      '@types/retry': 0.12.2
       '@types/supertest': 2.0.12
       abitype: 0.6.7_typescript@4.9.5
       module-alias: 2.2.2
@@ -2971,6 +2975,10 @@ packages:
       '@types/prop-types': 15.7.5
       '@types/scheduler': 0.16.2
       csstype: 3.1.1
+
+  /@types/retry/0.12.2:
+    resolution: {integrity: sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==}
+    dev: true
 
   /@types/scheduler/0.16.2:
     resolution: {integrity: sha512-hppQEBDmlwhFAXKJX2KnWLYu5yMfi91yazPb2l+lbJiwW+wdo1gNeRA+3RgNSO39WYX2euey41KEwnqesU2Jew==}
@@ -8103,6 +8111,11 @@ packages:
     dependencies:
       onetime: 5.1.2
       signal-exit: 3.0.7
+    dev: false
+
+  /retry/0.13.1:
+    resolution: {integrity: sha512-XQBQ3I8W1Cge0Seh+6gjj03LbmRFWuoszgK9ooCpwYIrhhoO80pfq4cUkU5DkknwfOfFteRwlZ56PYOGYyFWdg==}
+    engines: {node: '>= 4'}
     dev: false
 
   /reusify/1.0.4:

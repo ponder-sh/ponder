@@ -2,7 +2,7 @@ import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
 import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 
-import { createQueue, Queue, Worker } from "@/common/createQueue";
+import { createQueue, Queue, Worker } from "@/common/queue";
 import type { Log, Model } from "@/common/types";
 import { EntityInstance } from "@/database/entity/entityStore";
 import { EventHandlerError } from "@/errors/eventHandler";

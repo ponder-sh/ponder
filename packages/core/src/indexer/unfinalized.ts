@@ -2,7 +2,7 @@ import Emittery from "emittery";
 import pLimit from "p-limit";
 import { hexToNumber, numberToHex, PublicClient, RpcBlock, RpcLog } from "viem";
 
-import { createQueue, Queue } from "@/common/createQueue";
+import { createQueue, Queue } from "@/common/queue";
 import { FullBlock, LightBlock, rpcBlockToLightBlock } from "@/types/block";
 import { LogFilter } from "@/types/filter";
 import { poll } from "@/utils/poll";
