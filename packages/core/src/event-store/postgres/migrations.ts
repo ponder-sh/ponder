@@ -73,7 +73,7 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("contractCalls")
         .addColumn("address", "text", (col) => col.notNull())
-        .addColumn("blockNumber", "integer", (col) => col.notNull())
+        .addColumn("blockNumber", "bigint", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("data", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
@@ -83,13 +83,13 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("logFilterCachedRanges")
-        // The `id` column should not be included in INSERT statements.
-        // This column uses SQLite's ROWID() function (simple autoincrement).
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey())
+        .addColumn("endBlock", "bigint", (col) => col.notNull())
+        .addColumn("endBlockTimestamp", "bigint", (col) => col.notNull())
         .addColumn("filterKey", "text", (col) => col.notNull())
-        .addColumn("startBlock", "integer", (col) => col.notNull())
-        .addColumn("endBlock", "integer", (col) => col.notNull())
-        .addColumn("endBlockTimestamp", "integer", (col) => col.notNull())
+        // The `id` column should not be included in INSERT statements.
+        // This column uses Postgres SERIAL type which autoincrements.
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey())
+        .addColumn("startBlock", "bigint", (col) => col.notNull())
         .execute();
     },
     async down(db: Kysely<any>) {

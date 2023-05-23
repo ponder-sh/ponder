@@ -209,7 +209,10 @@ type LogFilterCachedRangesTable = {
   endBlockTimestamp: number;
 };
 
-export type LogFilterCachedRange = Selectable<LogFilterCachedRangesTable>;
+export type LogFilterCachedRange = Omit<
+  Selectable<LogFilterCachedRangesTable>,
+  "id"
+>;
 
 export type EventStoreTables = {
   blocks: BlocksTable;

@@ -371,8 +371,8 @@ export class PostgresEventStore implements EventStore {
   getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
     const results = await this.db
       .selectFrom("logFilterCachedRanges")
-      .selectAll()
-      .where("filterKey", "==", filterKey)
+      .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
+      .where("filterKey", "=", filterKey)
       .execute();
 
     return results;
@@ -411,14 +411,14 @@ export class PostgresEventStore implements EventStore {
     const block: InsertableBlock = {
       ...formatRpcBlock({ block: rpcBlock }),
       chainId,
-      finalized: 0,
+      finalized: 1,
     };
 
     const transactions: InsertableTransaction[] = rpcTransactions.map(
       (transaction) => ({
         ...formatRpcTransaction({ transaction }),
         chainId,
-        finalized: 0,
+        finalized: 1,
       })
     );
 
@@ -428,7 +428,7 @@ export class PostgresEventStore implements EventStore {
 
       const existingRanges = await tx
         .deleteFrom("logFilterCachedRanges")
-        .where("filterKey", "==", logFilterKey)
+        .where("filterKey", "=", logFilterKey)
         .returningAll()
         .execute();
 
@@ -439,7 +439,10 @@ export class PostgresEventStore implements EventStore {
       };
 
       const mergedRanges = merge_intervals([
-        ...existingRanges.map((r) => [r.startBlock, r.endBlock]),
+        ...existingRanges.map((r) => [
+          Number(r.startBlock),
+          Number(r.endBlock),
+        ]),
         [newRange.startBlock, newRange.endBlock],
       ]).map((range) => {
         const [startBlock, endBlock] = range;

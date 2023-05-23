@@ -560,21 +560,21 @@ test("insertFinalizedLogs inserts logs as finalized", async (context) => {
 
   const logs = await store.db
     .selectFrom("logs")
-    .select(["transactionIndex", "finalized"])
+    .select(["address", "finalized"])
     .execute();
 
-  expect(logs).toMatchInlineSnapshot(`
-    [
-      {
-        "finalized": 1n,
-        "transactionIndex": 69n,
-      },
-      {
-        "finalized": 1n,
-        "transactionIndex": 70n,
-      },
-    ]
-  `);
+  expect(
+    logs.map((l) => ({ ...l, finalized: Number(l.finalized) }))
+  ).toMatchObject([
+    {
+      address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      finalized: 1,
+    },
+    {
+      address: "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      finalized: 1,
+    },
+  ]);
 });
 
 test("insertFinalizedBlock inserts block as finalized", async (context) => {
@@ -595,14 +595,14 @@ test("insertFinalizedBlock inserts block as finalized", async (context) => {
     .select(["hash", "finalized"])
     .execute();
 
-  expect(blocks).toMatchInlineSnapshot(`
-    [
-      {
-        "finalized": 1n,
-        "hash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      },
-    ]
-  `);
+  expect(
+    blocks.map((b) => ({ ...b, finalized: Number(b.finalized) }))
+  ).toMatchObject([
+    {
+      finalized: 1,
+      hash: "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+    },
+  ]);
 });
 
 test("insertFinalizedBlock inserts transactions as finalized", async (context) => {
@@ -623,18 +623,18 @@ test("insertFinalizedBlock inserts transactions as finalized", async (context) =
     .select(["hash", "finalized"])
     .execute();
 
-  expect(transactions).toMatchInlineSnapshot(`
-    [
-      {
-        "finalized": 1n,
-        "hash": "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-      },
-      {
-        "finalized": 1n,
-        "hash": "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-      },
-    ]
-  `);
+  expect(
+    transactions.map((t) => ({ ...t, finalized: Number(t.finalized) }))
+  ).toMatchObject([
+    {
+      finalized: 1,
+      hash: "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+    },
+    {
+      finalized: 1,
+      hash: "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+    },
+  ]);
 });
 
 test("insertFinalizedBlock inserts a log filter cached interval", async (context) => {
@@ -652,7 +652,7 @@ test("insertFinalizedBlock inserts a log filter cached interval", async (context
 
   const logFilterCachedRanges = await store.db
     .selectFrom("logFilterCachedRanges")
-    .selectAll()
+    .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
     .execute();
 
   expect(logFilterCachedRanges).toMatchInlineSnapshot(`
@@ -661,7 +661,46 @@ test("insertFinalizedBlock inserts a log filter cached interval", async (context
         "endBlock": 15495110n,
         "endBlockTimestamp": 1662619503n,
         "filterKey": "test-filter-key",
-        "id": 1n,
+        "startBlock": 15131900n,
+      },
+    ]
+  `);
+});
+
+test("insertFinalizedBlock merges cached intervals", async (context) => {
+  const { store } = context;
+
+  await store.insertFinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logFilterRange: {
+      blockNumberToCacheFrom: 15131900,
+      logFilterKey: "test-filter-key",
+    },
+  });
+
+  await store.insertFinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logFilterRange: {
+      blockNumberToCacheFrom: 15495110,
+      logFilterKey: "test-filter-key",
+    },
+  });
+
+  const logFilterCachedRanges = await store.db
+    .selectFrom("logFilterCachedRanges")
+    .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
+    .execute();
+
+  expect(logFilterCachedRanges).toMatchInlineSnapshot(`
+    [
+      {
+        "endBlock": 15495111n,
+        "endBlockTimestamp": 1662619504n,
+        "filterKey": "test-filter-key",
         "startBlock": 15131900n,
       },
     ]
