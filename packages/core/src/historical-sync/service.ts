@@ -1,7 +1,6 @@
 import Emittery from "emittery";
 import {
   type Hash,
-  type PublicClient,
   type RpcTransaction,
   HttpRequestError,
   InvalidParamsRpcError,
@@ -11,6 +10,7 @@ import {
 import { type Queue, createQueue } from "@/common/createQueue";
 import { endBenchmark, startBenchmark } from "@/common/utils";
 import type { LogFilter } from "@/config/logFilters";
+import { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
 
 import { p1_excluding_all } from "./utils";
@@ -61,7 +61,7 @@ type HistoricalSyncEvents = {
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private store: EventStore;
   private logFilters: LogFilter[];
-  private client: PublicClient;
+  private network: Network;
 
   private queue: HistoricalSyncQueue;
   metrics: HistoricalSyncMetrics;
@@ -69,17 +69,17 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   constructor({
     store,
     logFilters,
-    client,
+    network,
   }: {
     store: EventStore;
     logFilters: LogFilter[];
-    client: PublicClient;
+    network: Network;
   }) {
     super();
 
     this.store = store;
     this.logFilters = logFilters;
-    this.client = client;
+    this.network = network;
 
     this.queue = this.buildQueue();
     this.metrics = { logFilters: {} };
@@ -117,14 +117,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
         const requiredBlockRanges = p1_excluding_all(
           [startBlock, endBlock],
-          cachedRanges.map((r) => [r.startBlock, r.endBlock])
+          cachedRanges.map((r) => [Number(r.startBlock), Number(r.endBlock)])
         );
 
         this.metrics.logFilters[logFilter.name].totalBlockCount =
-          endBlock - startBlock;
+          endBlock - startBlock + 1;
         this.metrics.logFilters[logFilter.name].cachedBlockCount =
-          requiredBlockRanges.reduce(
-            (acc, cur) => acc + (cur[1] + 1 - cur[0]),
+          cachedRanges.reduce(
+            (acc, cur) =>
+              acc + (Number(cur.endBlock) + 1 - Number(cur.startBlock)),
             0
           );
 
@@ -156,7 +157,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     );
   }
 
-  async start() {
+  start() {
     this.metrics.startedAt = startBenchmark();
     this.queue.start();
     this.emit("syncStarted");
@@ -173,6 +174,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private buildQueue = () => {
     const worker = async ({ task }: { task: LogSyncTask | BlockSyncTask }) => {
+      // console.log("in worker with task:", { task });
+
       switch (task.kind) {
         case "LOG_SYNC": {
           return this.logTaskWorker({ task });
@@ -188,6 +191,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       context: {},
       options: { concurrency: 10 },
     });
+
+    queue.pause();
 
     queue.on("completed", ({ task }) => {
       const { logFilter } = task;
@@ -212,6 +217,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       } else {
         this.metrics.logFilters[logFilter.name].blockTaskErrorCount += 1;
       }
+
+      console.log("in error handler:", { error });
 
       // Handle Alchemy response size error.
       if (
@@ -267,7 +274,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     this.metrics.logFilters[logFilter.name].logTaskStartedCount += 1;
 
-    const logs = await this.client.request({
+    const logs = await this.network.client.request({
       method: "eth_getLogs",
       params: [
         {
@@ -279,7 +286,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       ],
     });
 
-    await this.store.insertFinalizedLogs({ logs });
+    await this.store.insertFinalizedLogs({
+      chainId: this.network.chainId,
+      logs,
+    });
 
     const txHashesByBlockNumber = logs.reduce<Record<number, Set<Hash>>>(
       (acc, log) => {
@@ -330,7 +340,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     this.metrics.logFilters[logFilter.name].blockTaskStartedCount += 1;
 
-    const block = await this.client.request({
+    const block = await this.network.client.request({
       method: "eth_getBlockByNumber",
       params: [toHex(blockNumber), true],
     });
@@ -343,6 +353,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     );
 
     await this.store.insertFinalizedBlock({
+      chainId: this.network.chainId,
       block,
       transactions,
       logFilterRange: {
