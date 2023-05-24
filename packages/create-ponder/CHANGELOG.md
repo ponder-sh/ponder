@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.57
+
+### Patch Changes
+
+- [`b6c55c1`](https://github.com/0xOlias/ponder/commit/b6c55c185180f0efd50666b09efbdb20074f8906) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed bug where `create-ponder` Etherscan template would not work for old (non-compliant) EIP-1967 proxies
+
 ## 0.0.56
 
 ## 0.0.55
