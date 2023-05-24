@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.57
+
+### Patch Changes
+
+- [#180](https://github.com/0xOlias/ponder/pull/180) [`f2d88c8`](https://github.com/0xOlias/ponder/commit/f2d88c8462cf94b8e430dfcc9df9d68812525f4f) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where codegen broke if an ABI included an event with an anonymous input.
+
 ## 0.0.56
 
 ### Patch Changes
