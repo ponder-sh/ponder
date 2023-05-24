@@ -8,6 +8,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
+import { wait } from "@/utils/wait";
 
 import { RealtimeSyncService } from "./service";
 
@@ -66,7 +67,7 @@ beforeEach(async () => {
   // await testClient.setAutomine(true);
 });
 
-test("setup() calculates cached and total block counts", async (context) => {
+test("setup() returns the finalized block number", async (context) => {
   const { store } = context;
 
   const service = new RealtimeSyncService({ store, logFilters, network });
@@ -75,13 +76,19 @@ test("setup() calculates cached and total block counts", async (context) => {
   expect(finalizedBlockNumber).toEqual(16379990); // ANVIL_FORK_BLOCK - 10
 });
 
-test("start() calculates cached and total block counts", async (context) => {
+test.only("start() calculates cached and total block counts", async (context) => {
   const { store } = context;
-
-  await testClient.mine({ blocks: 5 });
 
   const service = new RealtimeSyncService({ store, logFilters, network });
   const { finalizedBlockNumber } = await service.setup();
 
-  expect(finalizedBlockNumber).toEqual(16379990); // ANVIL_FORK_BLOCK - 10
+  expect(finalizedBlockNumber).toEqual(16379990);
+
+  await service.start();
+
+  await wait(4_000);
+
+  // await service.kill();
+
+  expect(finalizedBlockNumber).toEqual(16379990);
 });

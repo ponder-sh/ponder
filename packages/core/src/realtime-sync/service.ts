@@ -15,11 +15,9 @@ import {
   rpcBlockToLightBlock,
 } from "./format";
 
-type BlockTask = {
-  block: BlockWithTransactions;
-};
+type RealtimeBlockTask = BlockWithTransactions;
 
-type RealtimeSyncQueue = Queue<BlockTask>;
+type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 type RealtimeSyncMetrics = {
   startedAt?: [number, number];
@@ -62,7 +60,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   // Local representation of the unfinalized portion of the chain.
   private blocks: LightBlock[] = [];
   // Function to stop polling for new blocks.
-  private unwatch?: () => any | Promise<any>;
+  private unpoll?: () => any | Promise<any>;
 
   constructor({
     store,
@@ -110,7 +108,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // Add the latest block to the unfinalized block queue.
     // The queue won't start immediately; see syncUnfinalizedData for details.
-    this.queue.addTask({ block: latestBlock }, { front: true });
+    this.queue.addTask(latestBlock);
 
     return { finalizedBlockNumber };
   };
@@ -137,72 +135,72 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // so here all we need to do is start the queue.
     this.queue.start();
 
-    // Fetch the latest block on the network on an interval, and add it to the queue.
+    // Add an empty task the queue (the worker will fetch the latest block).
     // TODO: optimistically optimize latency here using filters or subscriptions.
-    this.unwatch = poll(
+    this.unpoll = poll(
       async () => {
+        console.log("in poll function");
         const block = await this.getLatestBlock();
-        this.queue.addTask({ block }, { front: true });
+        this.queue.addTask(block);
       },
       {
-        emitOnBegin: true,
-        interval: this.network.pollingInterval,
+        emitOnBegin: false,
+        interval: 10_000,
       }
     );
   };
 
   async kill() {
-    this.unwatch?.();
+    console.log("in kill");
+    this.unpoll?.();
+    console.log("called unpoll");
+
     this.queue.clear();
+    console.log("called clear");
+
     await this.queue.onIdle();
+    console.log("called onIdle");
   }
 
   private buildQueue = () => {
-    const worker = async ({ task }: { task: BlockTask }) => {
-      await this.blockTaskWorker(task);
-    };
-
-    const queue = createQueue<BlockTask>({
-      worker,
-      options: { concurrency: 10, autoStart: false },
+    const queue = createQueue<RealtimeBlockTask>({
+      worker: async ({ task }: { task: RealtimeBlockTask }) => {
+        await this.blockTaskWorker(task);
+      },
+      options: { concurrency: 1, autoStart: false },
       onError: ({ error, task, queue }) => {
+        console.log("in error handler");
+        console.log({ error });
         // Default to a retry (uses the retry options passed to the queue).
-        queue.addTask(task, { retry: true });
+        // queue.addTask(task, { retry: true });
       },
-      onComplete: ({ task }) => {
-        // const { logFilter } = task;
-        // if (task.kind === "LOG_SYNC") {
-        //   this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
-        // } else {
-        //   this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
-        // }
-      },
+      // onComplete: ({}) => {
+      // const { logFilter } = task;
+      // if (task.kind === "LOG_SYNC") {
+      //   this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
+      // } else {
+      //   this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
+      // }
+      // },
     });
 
     return queue;
   };
 
-  private fetchLatestBlockTaskWorker = async () => {
+  private blockTaskWorker = async (block: BlockWithTransactions) => {
     const previousHeadBlock = this.blocks[this.blocks.length - 1];
 
-    const block = await this.getLatestBlock();
-    const lightBlock = rpcBlockToLightBlock(block);
+    // console.log(
+    //   "starting task for block with number: ",
+    //   block ? hexToNumber(block.number) : "no block"
+    // );
 
-    // If we already saw and handled this block, it's a no-op.
-    if (this.blocks.find((b) => b.hash === lightBlock.hash)) return;
-  };
-
-  private blockTaskWorker = async ({
-    block,
-  }: {
-    block: BlockWithTransactions;
-  }) => {
-    const newBlockFull = block;
-    const headBlock = this.blocks[this.blocks.length - 1];
-    const newBlock = rpcBlockToLightBlock(block);
+    // If no block is passed, fetch the latest block.
+    const newBlockWithTransactions = block ?? (await this.getLatestBlock());
+    const newBlock = rpcBlockToLightBlock(newBlockWithTransactions);
 
     console.log("in block worker with:", {
-      newBlock,
+      newBlock: block ? hexToNumber(block.number) : "no block",
       blocks: this.blocks,
     });
 
@@ -211,45 +209,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return;
     }
 
-    // 2) At least one block is missing. Note that this is the happy path for the first task after setup.
-    if (newBlock.number > headBlock.number + 1) {
-      const requiredBlockNumbers = range(headBlock.number + 1, newBlock.number);
-
-      console.log("in 2)", { requiredBlockNumbers });
-
-      // Fetch all missing blocks using a request concurrency limit of 10.
-      const limit = pLimit(10);
-
-      const blockRequests = requiredBlockNumbers.map((number) => {
-        return limit(async () => {
-          const block = await this.network.client.request({
-            method: "eth_getBlockByNumber",
-            params: [numberToHex(number), true],
-          });
-          if (!block)
-            throw new Error(`Failed to fetch block number: ${number}`);
-          return block as BlockWithTransactions;
-        });
-      });
-
-      const blocks = await Promise.all(blockRequests);
-
-      // Add all blocks to the queue, prioritizing oldest blocks first.
-      // Include the block currently being handled.
-      for (const block of [...blocks, newBlockFull]) {
-        this.queue.addTask({ block }, { front: true });
-      }
-
-      return;
-    }
-
-    // 3) This is the new head block (happy path). Yay! Fetch logs that match the
+    // 2) This is the new head block (happy path). Yay! Fetch logs that match the
     // registered log filters, then emit the `unfinalizedBlock`.
     if (
-      newBlock.number == headBlock.number + 1 &&
-      newBlock.parentHash == headBlock.hash
+      newBlock.number == previousHeadBlock.number + 1 &&
+      newBlock.parentHash == previousHeadBlock.hash
     ) {
-      console.log("in 3)");
+      console.log("2) happy path");
 
       // TODO: Check if newBlock.logsBloom matches the registered log filters before fetching logs.
       const logs = await this.network.client.request({
@@ -264,14 +230,18 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       // TODO: filter for the logs we care about client-side using registered log filters.
       await this.store.insertUnfinalizedBlock({
         chainId: this.network.chainId,
-        block: newBlockFull,
-        transactions: newBlockFull.transactions,
+        block: newBlockWithTransactions,
+        transactions: newBlockWithTransactions.transactions,
         logs,
       });
       this.emit("newBlock");
 
+      console.log("inserted to db");
+
       // Add this block the local chain.
       this.blocks.push(newBlock);
+
+      console.log("pushed new block to local chain");
 
       // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
       // and mark data as finalized in the store.
@@ -297,6 +267,60 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return;
     }
 
+    // 3) At least one block is missing. Note that this is the happy path for the first task after setup.
+    if (newBlock.number > previousHeadBlock.number + 1) {
+      const requiredBlockNumbers = range(
+        previousHeadBlock.number + 1,
+        newBlock.number
+      );
+
+      console.log("3) need to backfill blocks");
+
+      // Fetch all missing blocks using a request concurrency limit of 10.
+      const limit = pLimit(10);
+
+      const blockRequests = requiredBlockNumbers.map((number) => {
+        return limit(async () => {
+          const block = await this.network.client.request({
+            method: "eth_getBlockByNumber",
+            params: [numberToHex(number), true],
+          });
+          if (!block)
+            throw new Error(`Failed to fetch block number: ${number}`);
+          return block as BlockWithTransactions;
+        });
+      });
+
+      const rawBlocks = await Promise.all(blockRequests);
+
+      const blocks = [...rawBlocks, newBlockWithTransactions].sort(
+        (a, b) => hexToNumber(a.number) - hexToNumber(b.number)
+      );
+
+      console.log(blocks.map((t) => hexToNumber(t.number)));
+
+      // Add all blocks to the queue, prioritizing oldest blocks first.
+      // Include the block currently being handled.
+      // for (const block of blocks) {
+      //   console.log(
+      //     "adding task for block with number: ",
+      //     hexToNumber(block.number)
+      //   );
+      //   this.queue.addTask({ block }, { front: true });
+      // }
+      // this.queue.pause();
+      for (const block of blocks) {
+        console.log(
+          "adding task for block with number: ",
+          hexToNumber(block.number)
+        );
+        this.queue.addTask(block);
+      }
+      // this.queue.start();
+
+      return;
+    }
+
     // 4) There has been a reorg, because:
     //   a) newBlock.number <= headBlock + 1.
     //   b) newBlock.hash is not found in our local chain.
@@ -307,7 +331,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // Store the block objects as we fetch them.
     // Once we find the common ancestor, we will add these blocks to the queue.
-    const canonicalFullBlocks = [newBlockFull];
+    const canonicalBlocksWithTransactions = [newBlockWithTransactions];
 
     // Keep track of the current canonical block
     let canonicalBlock = newBlock;
@@ -326,11 +350,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         );
 
         // Clear the queue of all blocks (some might be from the non-canonical chain).
+        console.log('calling clear from "short reorg"');
         this.queue.clear();
 
         // Add blocks from the canonical chain (they've already been fetched).
-        for (const block of canonicalFullBlocks) {
-          this.queue.addTask({ block }, { front: true });
+        for (const block of canonicalBlocksWithTransactions) {
+          this.queue.addTask(block);
         }
 
         this.store.deleteUnfinalizedData({
@@ -351,7 +376,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           `Failed to fetch parent block with hash: ${canonicalBlock.parentHash}`
         );
 
-      canonicalFullBlocks.unshift(parentBlock_ as BlockWithTransactions);
+      canonicalBlocksWithTransactions.unshift(
+        parentBlock_ as BlockWithTransactions
+      );
       depth += 1;
       canonicalBlock = rpcBlockToLightBlock(parentBlock_);
     }
