@@ -119,6 +119,7 @@ importers:
       dotenv: ^16.0.1
       emittery: ^0.13.1
       esbuild: ^0.15.2
+      ethereum-bloom-filters: ^1.0.10
       express: ^4.18.1
       express-graphql: ^0.12.0
       glob: ^8.1.0
@@ -156,6 +157,7 @@ importers:
       dotenv: 16.0.1
       emittery: 0.13.1
       esbuild: 0.15.4
+      ethereum-bloom-filters: 1.0.10
       express: 4.18.1
       express-graphql: 0.12.0_graphql@15.8.0
       glob: 8.1.0
@@ -5090,6 +5092,12 @@ packages:
     engines: {node: '>= 0.6'}
     dev: false
 
+  /ethereum-bloom-filters/1.0.10:
+    resolution: {integrity: sha512-rxJ5OFN3RwjQxDcFP2Z5+Q9ho4eIdEmSc2ht0fCu8Se9nbXjZ7/031uXoUYJ87KHCOdVeiUuwSnoS7hmYAGVHA==}
+    dependencies:
+      js-sha3: 0.8.0
+    dev: false
+
   /eventemitter3/4.0.7:
     resolution: {integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==}
     dev: false
@@ -6110,6 +6118,10 @@ packages:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
     engines: {node: '>=10'}
     dev: true
+
+  /js-sha3/0.8.0:
+    resolution: {integrity: sha512-gF1cRrHhIzNfToc802P800N8PpXS+evLLXfsVpowqmAFR9uwbi89WvXg2QspOmXL8QL86J4T1EpFu+yUkwJY3Q==}
+    dev: false
 
   /js-tokens/4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}

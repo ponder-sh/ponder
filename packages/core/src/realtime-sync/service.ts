@@ -6,6 +6,7 @@ import { type Queue, createQueue } from "@/common/queue";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
+import { isMatchedLogInBloomFilter } from "@/utils/isMatchedLogInBloomFilter";
 import { poll } from "@/utils/poll";
 import { range } from "@/utils/range";
 
@@ -203,24 +204,30 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       newBlock.number == previousHeadBlock.number + 1 &&
       newBlock.parentHash == previousHeadBlock.hash
     ) {
-      // TODO: Check if newBlock.logsBloom matches the registered log filters before fetching logs.
-      const logs = await this.network.client.request({
-        method: "eth_getLogs",
-        params: [
-          {
-            blockHash: newBlock.hash,
-          },
-        ],
+      const isMatchedLogPresentInBlock = isMatchedLogInBloomFilter({
+        bloom: newBlockWithTransactions.logsBloom!,
+        logFilters: this.logFilters.map((l) => l.filter),
       });
 
-      // TODO: filter for the logs we care about client-side using registered log filters.
-      await this.store.insertUnfinalizedBlock({
-        chainId: this.network.chainId,
-        block: newBlockWithTransactions,
-        transactions: newBlockWithTransactions.transactions,
-        logs,
-      });
-      this.emit("newBlock");
+      if (isMatchedLogPresentInBlock) {
+        const logs = await this.network.client.request({
+          method: "eth_getLogs",
+          params: [
+            {
+              blockHash: newBlock.hash,
+            },
+          ],
+        });
+
+        // TODO: filter for the logs we care about client-side using registered log filters.
+        await this.store.insertUnfinalizedBlock({
+          chainId: this.network.chainId,
+          block: newBlockWithTransactions,
+          transactions: newBlockWithTransactions.transactions,
+          logs,
+        });
+        this.emit("newBlock");
+      }
 
       // Add this block the local chain.
       this.blocks.push(newBlock);
