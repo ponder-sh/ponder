@@ -11,7 +11,7 @@ import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import { EventStore } from "@/event-store/store";
 
-import { FORK_BLOCK_NUMBER, FORK_URL } from "./constants";
+import { FORK_BLOCK_NUMBER, FORK_URL, vitalik } from "./constants";
 import { poolId, testClient } from "./utils";
 
 /**
@@ -62,6 +62,14 @@ beforeEach(async (context) => {
   await context.store.migrateUp();
 
   return async () => await context.store.migrateDown();
+});
+
+/**
+ * Set reasonable defaults for tests using the Anvil test client.
+ */
+beforeEach(async () => {
+  await testClient.impersonateAccount({ address: vitalik.address });
+  await testClient.setAutomine(false);
 });
 
 /**

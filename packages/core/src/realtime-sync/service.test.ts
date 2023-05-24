@@ -3,12 +3,12 @@ import { expectEvents } from "test/utils/expectEvents";
 import { publicClient, testClient, walletClient } from "test/utils/utils";
 import { PublicClient, RpcBlock } from "viem";
 import { PublicRequests } from "viem/dist/types/types/eip1193";
-import { beforeEach, expect, test, vi } from "vitest";
+import { expect, test, vi } from "vitest";
 
 import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
-import { wait } from "@/utils/wait";
+import { range } from "@/utils/range";
 
 import { RealtimeSyncService } from "./service";
 
@@ -63,10 +63,14 @@ const logFilters: LogFilter[] = [
 
 // spy.mockImplementationOnce(impl);
 
-beforeEach(async () => {
-  await testClient.impersonateAccount({ address: vitalik.address });
-  // await testClient.setAutomine(true);
-});
+const sendUsdcTransferTransaction = async () => {
+  await walletClient.writeContract({
+    ...usdcContractConfig,
+    functionName: "transfer",
+    args: [accounts[0].address, 1n],
+    account: vitalik.account,
+  });
+};
 
 test("setup() returns the finalized block number", async (context) => {
   const { store } = context;
@@ -77,7 +81,7 @@ test("setup() returns the finalized block number", async (context) => {
   expect(finalizedBlockNumber).toEqual(16379995); // ANVIL_FORK_BLOCK - finalityBlockCount
 });
 
-test("start() backfills blocks", async (context) => {
+test("backfills blocks from finalized to latest", async (context) => {
   const { store } = context;
 
   const service = new RealtimeSyncService({ store, logFilters, network });
@@ -87,12 +91,10 @@ test("start() backfills blocks", async (context) => {
 
   const blocks = await store.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(5);
-  blocks.forEach((block) => {
-    expect(Number(block.finalized)).toEqual(0);
-  });
+  blocks.forEach((block) => expect(Number(block.finalized)).toEqual(0));
 });
 
-test("start() backfills transactions", async (context) => {
+test("backfills transactions from finalized to latest", async (context) => {
   const { store } = context;
 
   const service = new RealtimeSyncService({ store, logFilters, network });
@@ -116,7 +118,7 @@ test("start() backfills transactions", async (context) => {
   });
 });
 
-test("start() backfills logs", async (context) => {
+test("backfills logs from finalized to latest", async (context) => {
   const { store } = context;
 
   const service = new RealtimeSyncService({ store, logFilters, network });
@@ -125,11 +127,26 @@ test("start() backfills logs", async (context) => {
   await service.onIdle();
 
   expect(service.metrics.blocks).toMatchObject({
-    16379996: { matchedLogCount: 18 },
-    16379997: { matchedLogCount: 32 },
-    16379998: { matchedLogCount: 7 },
-    16379999: { matchedLogCount: 9 },
-    16380000: { matchedLogCount: 13 },
+    16379996: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 18,
+    },
+    16379997: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 32,
+    },
+    16379998: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 7,
+    },
+    16379999: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 9,
+    },
+    16380000: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 13,
+    },
   });
 
   const logs = await store.db.selectFrom("logs").selectAll().execute();
@@ -137,5 +154,78 @@ test("start() backfills logs", async (context) => {
   logs.forEach((log) => {
     expect(Number(log.finalized)).toEqual(0);
     expect(log.address).toEqual(usdcContractConfig.address);
+  });
+});
+
+test("handles new blocks", async (context) => {
+  const { store } = context;
+
+  const service = new RealtimeSyncService({ store, logFilters, network });
+  await service.setup();
+  await service.start();
+
+  await sendUsdcTransferTransaction();
+  await testClient.mine({ blocks: 1 });
+  await service.addNewLatestBlock();
+
+  await testClient.mine({ blocks: 1 });
+  await service.addNewLatestBlock();
+
+  await sendUsdcTransferTransaction();
+  await sendUsdcTransferTransaction();
+  await testClient.mine({ blocks: 1 });
+  await service.addNewLatestBlock();
+
+  await service.onIdle();
+
+  expect(service.metrics.blocks).toMatchObject({
+    // ... previous blocks omitted for brevity
+    16380000: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 13,
+    },
+    16380001: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 1,
+    },
+    16380002: {
+      bloom: { hit: false, falsePositive: false },
+      matchedLogCount: 0,
+    },
+    16380003: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 2,
+    },
+  });
+
+  const blocks = await store.db.selectFrom("blocks").selectAll().execute();
+  expect(blocks).toHaveLength(7);
+  blocks.forEach((block) => expect(Number(block.finalized)).toEqual(0));
+});
+
+test("marks block data as finalized", async (context) => {
+  const { store } = context;
+
+  const service = new RealtimeSyncService({ store, logFilters, network });
+  const { finalizedBlockNumber: originalFinalizedBlockNumber } =
+    await service.setup();
+  await service.start();
+
+  // Mine 8 blocks, which should trigger the finality checkpoint (after 5).
+  for (const _ in range(0, 8)) {
+    await sendUsdcTransferTransaction();
+    await testClient.mine({ blocks: 1 });
+  }
+
+  await service.addNewLatestBlock();
+  await service.onIdle();
+
+  const blocks = await store.db.selectFrom("blocks").selectAll().execute();
+  blocks.forEach((block) => {
+    if (Number(block.number) <= originalFinalizedBlockNumber + 5) {
+      expect(Number(block.finalized)).toEqual(1);
+    } else {
+      expect(Number(block.finalized)).toEqual(0);
+    }
   });
 });

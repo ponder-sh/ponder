@@ -27,8 +27,11 @@ type RealtimeSyncMetrics = {
   blocks: Record<
     number,
     {
+      bloom: {
+        hit: boolean;
+        falsePositive: boolean;
+      };
       matchedLogCount: number;
-      falsePositiveBloomFilter: boolean;
     }
   >;
 };
@@ -50,7 +53,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   // Queue of unprocessed blocks.
   private queue: RealtimeSyncQueue;
   // Block number of the current finalized block.
-  private finalizedBlockNumber = 0;
+  finalizedBlockNumber = 0;
   // Local representation of the unfinalized portion of the chain.
   private blocks: LightBlock[] = [];
   // Function to stop polling for new blocks.
@@ -120,9 +123,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // TODO: optimistically optimize latency here using filters or subscriptions.
     this.unpoll = poll(
       async () => {
-        console.log("in poll function");
-        const block = await this.getLatestBlock();
-        this.queue.addTask(block);
+        await this.addNewLatestBlock();
       },
       {
         emitOnBegin: false,
@@ -140,6 +141,21 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   async onIdle() {
     await this.queue.onIdle();
   }
+
+  private getLatestBlock = async () => {
+    // Fetch the latest block for the network.
+    const latestBlock_ = await this.network.client.request({
+      method: "eth_getBlockByNumber",
+      params: ["latest", true],
+    });
+    if (!latestBlock_) throw new Error(`Unable to fetch latest block`);
+    return latestBlock_ as BlockWithTransactions;
+  };
+
+  addNewLatestBlock = async () => {
+    const block = await this.getLatestBlock();
+    this.queue.addTask(block);
+  };
 
   private buildQueue = () => {
     const queue = createQueue<RealtimeBlockTask>({
@@ -235,9 +251,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       this.blocks.push(newBlock);
 
       this.metrics.blocks[newBlock.number] = {
+        bloom: {
+          hit: isMatchedLogPresentInBlock,
+          falsePositive: isMatchedLogPresentInBlock && matchedLogCount === 0,
+        },
         matchedLogCount,
-        falsePositiveBloomFilter:
-          isMatchedLogPresentInBlock && matchedLogCount === 0,
       };
 
       // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
@@ -265,6 +283,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           chainId: this.network.chainId,
           toBlockNumber: newFinalizedBlockNumber,
         });
+
+        this.finalizedBlockNumber = newFinalizedBlockNumber;
         this.emit("finalityCheckpoint", { newFinalizedBlockNumber });
       }
 
@@ -382,14 +402,4 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // 5) If the common ancestor was not found in our local chain, this is a deep reorg.
     this.emit("deepReorg", { minimumDepth: depth });
   };
-
-  private async getLatestBlock() {
-    // Fetch the latest block for the network.
-    const latestBlock_ = await this.network.client.request({
-      method: "eth_getBlockByNumber",
-      params: ["latest", true],
-    });
-    if (!latestBlock_) throw new Error(`Unable to fetch latest block`);
-    return latestBlock_ as BlockWithTransactions;
-  }
 }
