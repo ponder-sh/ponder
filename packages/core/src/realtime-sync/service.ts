@@ -151,15 +151,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   async kill() {
-    console.log("in kill");
     this.unpoll?.();
-    console.log("called unpoll");
-
     this.queue.clear();
-    console.log("called clear");
-
     await this.queue.onIdle();
-    console.log("called onIdle");
+  }
+
+  async onIdle() {
+    await this.queue.onIdle();
   }
 
   private buildQueue = () => {
@@ -190,19 +188,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private blockTaskWorker = async (block: BlockWithTransactions) => {
     const previousHeadBlock = this.blocks[this.blocks.length - 1];
 
-    // console.log(
-    //   "starting task for block with number: ",
-    //   block ? hexToNumber(block.number) : "no block"
-    // );
-
     // If no block is passed, fetch the latest block.
-    const newBlockWithTransactions = block ?? (await this.getLatestBlock());
+    const newBlockWithTransactions = block;
     const newBlock = rpcBlockToLightBlock(newBlockWithTransactions);
-
-    console.log("in block worker with:", {
-      newBlock: block ? hexToNumber(block.number) : "no block",
-      blocks: this.blocks,
-    });
 
     // 1) We already saw and handled this block. No-op.
     if (this.blocks.find((b) => b.hash === newBlock.hash)) {
@@ -215,8 +203,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       newBlock.number == previousHeadBlock.number + 1 &&
       newBlock.parentHash == previousHeadBlock.hash
     ) {
-      console.log("2) happy path");
-
       // TODO: Check if newBlock.logsBloom matches the registered log filters before fetching logs.
       const logs = await this.network.client.request({
         method: "eth_getLogs",
@@ -236,12 +222,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       });
       this.emit("newBlock");
 
-      console.log("inserted to db");
-
       // Add this block the local chain.
       this.blocks.push(newBlock);
-
-      console.log("pushed new block to local chain");
 
       // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
       // and mark data as finalized in the store.
@@ -274,8 +256,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         newBlock.number
       );
 
-      console.log("3) need to backfill blocks");
-
       // Fetch all missing blocks using a request concurrency limit of 10.
       const limit = pLimit(10);
 
@@ -297,7 +277,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         (a, b) => hexToNumber(a.number) - hexToNumber(b.number)
       );
 
-      console.log(blocks.map((t) => hexToNumber(t.number)));
+      // console.log(blocks.map((t) => hexToNumber(t.number)));
 
       // Add all blocks to the queue, prioritizing oldest blocks first.
       // Include the block currently being handled.
@@ -308,15 +288,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       //   );
       //   this.queue.addTask({ block }, { front: true });
       // }
-      // this.queue.pause();
+
       for (const block of blocks) {
-        console.log(
-          "adding task for block with number: ",
-          hexToNumber(block.number)
-        );
         this.queue.addTask(block);
       }
-      // this.queue.start();
 
       return;
     }
@@ -350,7 +325,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         );
 
         // Clear the queue of all blocks (some might be from the non-canonical chain).
-        console.log('calling clear from "short reorg"');
         this.queue.clear();
 
         // Add blocks from the canonical chain (they've already been fetched).
