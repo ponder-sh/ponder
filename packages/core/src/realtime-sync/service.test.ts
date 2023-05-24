@@ -35,6 +35,7 @@ const logFilters: LogFilter[] = [
         chainId: network.chainId,
         address: usdcContractConfig.address,
       }),
+      address: usdcContractConfig.address,
     },
   },
 ];
@@ -76,17 +77,65 @@ test("setup() returns the finalized block number", async (context) => {
   expect(finalizedBlockNumber).toEqual(16379995); // ANVIL_FORK_BLOCK - finalityBlockCount
 });
 
-test.only("start() backfills blocks from finalized to latest", async (context) => {
+test("start() backfills blocks", async (context) => {
   const { store } = context;
 
   const service = new RealtimeSyncService({ store, logFilters, network });
-  const { finalizedBlockNumber } = await service.setup();
-
-  expect(finalizedBlockNumber).toEqual(16379995);
-
+  await service.setup();
   await service.start();
   await service.onIdle();
 
   const blocks = await store.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(5);
+  blocks.forEach((block) => {
+    expect(Number(block.finalized)).toEqual(0);
+  });
+});
+
+test("start() backfills transactions", async (context) => {
+  const { store } = context;
+
+  const service = new RealtimeSyncService({ store, logFilters, network });
+  await service.setup();
+  await service.start();
+  await service.onIdle();
+
+  const logs = await store.db.selectFrom("logs").selectAll().execute();
+  const requiredTransactionHashes = new Set(logs.map((l) => l.transactionHash));
+
+  const transactions = await store.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+
+  expect(transactions.length).toEqual(requiredTransactionHashes.size);
+
+  transactions.forEach((transaction) => {
+    expect(Number(transaction.finalized)).toEqual(0);
+    expect(requiredTransactionHashes.has(transaction.hash)).toEqual(true);
+  });
+});
+
+test("start() backfills logs", async (context) => {
+  const { store } = context;
+
+  const service = new RealtimeSyncService({ store, logFilters, network });
+  await service.setup();
+  await service.start();
+  await service.onIdle();
+
+  expect(service.metrics.blocks).toMatchObject({
+    16379996: { matchedLogCount: 18 },
+    16379997: { matchedLogCount: 32 },
+    16379998: { matchedLogCount: 7 },
+    16379999: { matchedLogCount: 9 },
+    16380000: { matchedLogCount: 13 },
+  });
+
+  const logs = await store.db.selectFrom("logs").selectAll().execute();
+  expect(logs).toHaveLength(79);
+  logs.forEach((log) => {
+    expect(Number(log.finalized)).toEqual(0);
+    expect(log.address).toEqual(usdcContractConfig.address);
+  });
 });

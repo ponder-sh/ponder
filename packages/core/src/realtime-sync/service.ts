@@ -6,10 +6,11 @@ import { type Queue, createQueue } from "@/common/queue";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
-import { isMatchedLogInBloomFilter } from "@/utils/isMatchedLogInBloomFilter";
 import { poll } from "@/utils/poll";
 import { range } from "@/utils/range";
 
+import { isMatchedLogInBloomFilter } from "./bloom";
+import { filterLogs } from "./filter";
 import {
   type BlockWithTransactions,
   type LightBlock,
@@ -21,21 +22,13 @@ type RealtimeBlockTask = BlockWithTransactions;
 type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 type RealtimeSyncMetrics = {
-  startedAt?: [number, number];
-  duration?: number;
-  logFilters: Record<
-    string,
+  // Block number -> log filter name -> matched log count.
+  // Note that finalized blocks are removed from this object.
+  blocks: Record<
+    number,
     {
-      totalBlockCount: number;
-      cachedBlockCount: number;
-
-      logTaskStartedCount: number;
-      logTaskErrorCount: number;
-      logTaskCompletedCount: number;
-
-      blockTaskStartedCount: number;
-      blockTaskErrorCount: number;
-      blockTaskCompletedCount: number;
+      matchedLogCount: number;
+      falsePositiveBloomFilter: boolean;
     }
   >;
 };
@@ -79,20 +72,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.network = network;
 
     this.queue = this.buildQueue();
-    this.metrics = { logFilters: {} };
-
-    logFilters.forEach((logFilter) => {
-      this.metrics.logFilters[logFilter.name] = {
-        totalBlockCount: 0,
-        cachedBlockCount: 0,
-        logTaskStartedCount: 0,
-        logTaskErrorCount: 0,
-        logTaskCompletedCount: 0,
-        blockTaskStartedCount: 0,
-        blockTaskErrorCount: 0,
-        blockTaskCompletedCount: 0,
-      };
-    });
+    this.metrics = { blocks: {} };
   }
 
   setup = async () => {
@@ -167,7 +147,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         await this.blockTaskWorker(task);
       },
       options: { concurrency: 1, autoStart: false },
-      onError: ({ error, task, queue }) => {
+      onError: ({ error }) => {
         console.log("in error handler");
         console.log({ error });
         // Default to a retry (uses the retry options passed to the queue).
@@ -198,18 +178,21 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return;
     }
 
-    // 2) This is the new head block (happy path). Yay! Fetch logs that match the
-    // registered log filters, then emit the `unfinalizedBlock`.
+    // 2) This is the new head block (happy path). Yay!
     if (
       newBlock.number == previousHeadBlock.number + 1 &&
       newBlock.parentHash == previousHeadBlock.hash
     ) {
+      // First, check if the new block _might_ contain any logs that match the registered filters.
       const isMatchedLogPresentInBlock = isMatchedLogInBloomFilter({
         bloom: newBlockWithTransactions.logsBloom!,
         logFilters: this.logFilters.map((l) => l.filter),
       });
 
+      let matchedLogCount = 0;
+
       if (isMatchedLogPresentInBlock) {
+        // If there's a potential match, fetch the logs from the block.
         const logs = await this.network.client.request({
           method: "eth_getLogs",
           params: [
@@ -219,18 +202,43 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           ],
         });
 
-        // TODO: filter for the logs we care about client-side using registered log filters.
-        await this.store.insertUnfinalizedBlock({
-          chainId: this.network.chainId,
-          block: newBlockWithTransactions,
-          transactions: newBlockWithTransactions.transactions,
+        // Filter logs down to those that actually match the registered filters.
+        const filteredLogs = filterLogs({
           logs,
+          logFilters: this.logFilters.map((l) => l.filter),
         });
-        this.emit("newBlock");
+        matchedLogCount = filteredLogs.length;
+
+        // Filter transactions down to those that are required by the matched logs.
+        const requiredTransactionHashes = new Set(
+          filteredLogs.map((l) => l.transactionHash)
+        );
+        const filteredTransactions =
+          newBlockWithTransactions.transactions.filter((t) =>
+            requiredTransactionHashes.has(t.hash)
+          );
+
+        // If there are indeed any matched logs, insert them into the store.
+        if (filteredLogs.length > 0) {
+          await this.store.insertUnfinalizedBlock({
+            chainId: this.network.chainId,
+            block: newBlockWithTransactions,
+            transactions: filteredTransactions,
+            logs: filteredLogs,
+          });
+        }
       }
+
+      this.emit("newBlock");
 
       // Add this block the local chain.
       this.blocks.push(newBlock);
+
+      this.metrics.blocks[newBlock.number] = {
+        matchedLogCount,
+        falsePositiveBloomFilter:
+          isMatchedLogPresentInBlock && matchedLogCount === 0,
+      };
 
       // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
       // and mark data as finalized in the store.
@@ -245,6 +253,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.blocks = this.blocks.filter(
           (block) => block.number >= newFinalizedBlockNumber
         );
+
+        // Clean up metrics for now-finalized blocks.
+        for (const n in this.metrics.blocks) {
+          if (Number(n) < newFinalizedBlockNumber) {
+            delete this.metrics.blocks[n];
+          }
+        }
 
         await this.store.finalizeData({
           chainId: this.network.chainId,
