@@ -124,7 +124,7 @@ describe("create-ponder", () => {
       });
     });
 
-    describe("mainnet EIP-1967 proxy", () => {
+    describe("mainnet EIP-1967 proxy (Zora)", () => {
       const rootDir = path.join(tmpDir, randomUUID());
 
       beforeAll(async () => {
@@ -134,7 +134,7 @@ describe("create-ponder", () => {
             rootDir,
             template: {
               kind: TemplateKind.ETHERSCAN,
-              link: "https://etherscan.io/address/0x394997b586c925d90642e28899729f0f7cd36bdb", // ethfs
+              link: "https://etherscan.io/address/0x394997b586c925d90642e28899729f0f7cd36bdb", // zora
             },
           },
           {
@@ -180,6 +180,41 @@ describe("create-ponder", () => {
       test("creates src files", async () => {
         const src = fs.readdirSync(path.join(rootDir, "src"));
         expect(src.sort()).toEqual(["Zora1155.ts"].sort());
+      });
+    });
+
+    describe.only("mainnet EIP-1967 proxy (USDC)", () => {
+      const rootDir = path.join(tmpDir, randomUUID());
+
+      beforeAll(async () => {
+        await run(
+          {
+            projectName: "usdc",
+            rootDir,
+            template: {
+              kind: TemplateKind.ETHERSCAN,
+              link: "https://etherscan.io/address/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+            },
+          },
+          {
+            installCommand:
+              'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
+          }
+        );
+      });
+
+      test("downloads abis", async () => {
+        const proxyAbiString = fs.readFileSync(
+          path.join(rootDir, `abis/FiatTokenProxy.json`),
+          { encoding: "utf8" }
+        );
+        expect(JSON.parse(proxyAbiString).length).toBeGreaterThan(0);
+
+        const implementationAbiString = fs.readFileSync(
+          path.join(rootDir, `abis/FiatTokenV2_0xb727.json`),
+          { encoding: "utf8" }
+        );
+        expect(JSON.parse(implementationAbiString).length).toBeGreaterThan(0);
       });
     });
   });

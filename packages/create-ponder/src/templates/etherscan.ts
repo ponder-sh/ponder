@@ -239,9 +239,17 @@ const getProxyImplementationAddresses = async (
   const data = await fetchEtherscan(`${apiUrl}?${searchParams.toString()}`);
 
   const logs = data.result;
-  const implAddresses = logs.map(
-    (log: any) => `0x${log.topics[1].slice(26)}`
-  ) as string[];
+
+  const implAddresses = logs.map((log: any) => {
+    if (log.topics.length === 2) {
+      // If there are two topics, this is a compliant EIP-1967 proxy and the address is indexed.
+      return `0x${log.topics[1].slice(26)}`;
+    } else {
+      // If there's only one topic, this might be a non-compliant proxy and the address is not indexed.
+      // USDC is an example of this: https://etherscan.io/address/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48#code#L118
+      return `0x${log.data.slice(26)}`;
+    }
+  }) as string[];
 
   return { implAddresses };
 };
