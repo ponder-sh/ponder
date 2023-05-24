@@ -1,8 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { accounts, usdcContractConfig, vitalik } from "test/utils/constants";
 import { expectEvents } from "test/utils/expectEvents";
 import { publicClient, testClient, walletClient } from "test/utils/utils";
-import { PublicClient, RpcBlock } from "viem";
-import { PublicRequests } from "viem/dist/types/types/eip1193";
 import { expect, test, vi } from "vitest";
 
 import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
@@ -212,6 +211,7 @@ test("marks block data as finalized", async (context) => {
   await service.start();
 
   // Mine 8 blocks, which should trigger the finality checkpoint (after 5).
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   for (const _ in range(0, 8)) {
     await sendUsdcTransferTransaction();
     await testClient.mine({ blocks: 1 });
@@ -227,5 +227,138 @@ test("marks block data as finalized", async (context) => {
     } else {
       expect(Number(block.finalized)).toEqual(0);
     }
+  });
+});
+
+test("handles 1 block shallow reorg", async (context) => {
+  const { store } = context;
+
+  const service = new RealtimeSyncService({ store, logFilters, network });
+  await service.setup();
+  await service.start();
+
+  // Take a snapshot of the chain at the original block height.
+  const originalSnapshotId = await testClient.snapshot();
+
+  // Mine 3 blocks, each containing a transaction.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for (const _ in range(0, 3)) {
+    await sendUsdcTransferTransaction();
+    await testClient.mine({ blocks: 1 });
+  }
+  // Allow the service to process the new blocks.
+  await service.addNewLatestBlock();
+  await service.onIdle();
+
+  expect(service.metrics.blocks).toMatchObject({
+    // ... previous blocks omitted for brevity
+    16380001: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 1,
+    },
+    16380002: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 1,
+    },
+    16380003: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 1,
+    },
+  });
+
+  // Now, revert to the original snapshot and mine one empty block.
+  await testClient.revert({ id: originalSnapshotId });
+  await testClient.mine({ blocks: 1 });
+
+  // Allow the service to process the new block, detecting a reorg.
+  await service.addNewLatestBlock();
+  await service.onIdle();
+
+  expect(service.metrics.blocks).toMatchObject({
+    // ... previous blocks omitted for brevity
+    16380001: {
+      bloom: { hit: false, falsePositive: false },
+      matchedLogCount: 0,
+    },
+  });
+});
+
+test.only("handles 3 block shallow reorg", async (context) => {
+  const { store } = context;
+
+  const service = new RealtimeSyncService({ store, logFilters, network });
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await service.setup();
+  await service.start();
+
+  // Take a snapshot of the chain at the original block height.
+  const originalSnapshotId = await testClient.snapshot();
+
+  // Mine 3 blocks, each containing a transaction.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for (const _ in range(0, 3)) {
+    await sendUsdcTransferTransaction();
+    await testClient.mine({ blocks: 1 });
+  }
+  // Allow the service to process the new blocks.
+  await service.addNewLatestBlock();
+  await service.onIdle();
+
+  expect(service.metrics.blocks).toMatchObject({
+    // ... previous blocks omitted for brevity
+    16380001: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 1,
+    },
+    16380002: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 1,
+    },
+    16380003: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 1,
+    },
+  });
+
+  // Now, revert to the original snapshot and mine 5 blocks, each containing 2 transactions.
+  await testClient.revert({ id: originalSnapshotId });
+  for (const _ in range(0, 5)) {
+    await sendUsdcTransferTransaction();
+    await sendUsdcTransferTransaction();
+    await testClient.mine({ blocks: 1 });
+  }
+
+  // Allow the service to process the new block, detecting a reorg.
+  await service.addNewLatestBlock();
+  await service.onIdle();
+
+  expect(service.metrics.blocks).toMatchObject({
+    // ... previous blocks omitted for brevity
+    16380001: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 2,
+    },
+    16380002: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 2,
+    },
+    16380003: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 2,
+    },
+    16380004: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 2,
+    },
+    16380005: {
+      bloom: { hit: true, falsePositive: false },
+      matchedLogCount: 2,
+    },
+  });
+
+  expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
+    commonAncestorBlockNumber: 16380000,
+    depth: 3,
   });
 });

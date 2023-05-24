@@ -189,6 +189,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const newBlockWithTransactions = block;
     const newBlock = rpcBlockToLightBlock(newBlockWithTransactions);
 
+    console.log({
+      ...newBlock,
+      transactionCount: newBlockWithTransactions.transactions.length,
+    });
+
     // 1) We already saw and handled this block. No-op.
     if (this.blocks.find((b) => b.hash === newBlock.hash)) {
       return;
@@ -273,9 +278,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         );
 
         // Clean up metrics for now-finalized blocks.
-        for (const n in this.metrics.blocks) {
-          if (Number(n) < newFinalizedBlockNumber) {
-            delete this.metrics.blocks[n];
+        for (const blockNumber in this.metrics.blocks) {
+          if (Number(blockNumber) < newFinalizedBlockNumber) {
+            delete this.metrics.blocks[blockNumber];
           }
         }
 
@@ -293,7 +298,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // 3) At least one block is missing. Note that this is the happy path for the first task after setup.
     if (newBlock.number > previousHeadBlock.number + 1) {
-      const requiredBlockNumbers = range(
+      const missingBlockNumbers = range(
         previousHeadBlock.number + 1,
         newBlock.number
       );
@@ -301,7 +306,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       // Fetch all missing blocks using a request concurrency limit of 10.
       const limit = pLimit(10);
 
-      const blockRequests = requiredBlockNumbers.map((number) => {
+      const missingBlockRequests = missingBlockNumbers.map((number) => {
         return limit(async () => {
           const block = await this.network.client.request({
             method: "eth_getBlockByNumber",
@@ -313,30 +318,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         });
       });
 
-      const rawBlocks = await Promise.all(blockRequests);
+      const missingBlocks = await Promise.all(missingBlockRequests);
 
-      const blocks = [...rawBlocks, newBlockWithTransactions].sort(
+      // Add blocks to the queue from oldest to newest. Include the current block.
+      for (const block of [...missingBlocks, newBlockWithTransactions].sort(
         (a, b) => hexToNumber(a.number) - hexToNumber(b.number)
-      );
-
-      // console.log(blocks.map((t) => hexToNumber(t.number)));
-
-      // Add all blocks to the queue, prioritizing oldest blocks first.
-      // Include the block currently being handled.
-      // for (const block of blocks) {
-      //   console.log(
-      //     "adding task for block with number: ",
-      //     hexToNumber(block.number)
-      //   );
-      //   this.queue.addTask({ block }, { front: true });
-      // }
-
-      for (const block of blocks) {
+      )) {
         this.queue.addTask(block);
       }
 
       return;
     }
+
+    console.log("reorg time motherfucker");
 
     // 4) There has been a reorg, because:
     //   a) newBlock.number <= headBlock + 1.
@@ -354,19 +348,37 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     let canonicalBlock = newBlock;
     let depth = 0;
 
+    console.log("before while loop", {
+      canonicalBlock,
+      finalizedBlockNumber: this.finalizedBlockNumber,
+      blocks: this.blocks,
+    });
+
     while (canonicalBlock.number > this.finalizedBlockNumber) {
       const commonAncestorBlockNumber = this.blocks.find(
         (b) => b.hash === canonicalBlock.parentHash
       )?.number;
 
+      console.log("in while loop with commonAncestorBlockNumber", {
+        commonAncestorBlockNumber,
+      });
+
       // If the common ancestor block is present in our local chain, this is a short reorg.
       if (commonAncestorBlockNumber) {
         // Remove all non-canonical blocks from the local chain.
         this.blocks = this.blocks.filter(
-          (block) => block.number > commonAncestorBlockNumber
+          (block) => block.number <= commonAncestorBlockNumber
         );
 
+        await this.store.deleteUnfinalizedData({
+          chainId: this.network.chainId,
+          fromBlockNumber: commonAncestorBlockNumber + 1,
+        });
+
+        console.log("filtered blocks down to:", { blocks: this.blocks });
+
         // Clear the queue of all blocks (some might be from the non-canonical chain).
+        // TODO: Figure out if this is indeed required by some edge case.
         this.queue.clear();
 
         // Add blocks from the canonical chain (they've already been fetched).
@@ -374,12 +386,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           this.queue.addTask(block);
         }
 
-        this.store.deleteUnfinalizedData({
-          chainId: this.network.chainId,
-          fromBlockNumber: commonAncestorBlockNumber + 1,
-        });
+        // Also add a new latest block, so we don't have to wait for the next poll to
+        // start fetching any newer blocks on the canonical chain.
+        await this.addNewLatestBlock();
 
+        console.log("emitting shallowReorg");
         this.emit("shallowReorg", { commonAncestorBlockNumber, depth });
+
         return;
       }
 

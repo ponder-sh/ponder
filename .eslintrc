@@ -15,8 +15,6 @@
     "simple-import-sort/exports": "error",
     "import/first": "error",
     "import/newline-after-import": "error",
-    "no-unused-vars": ["warn", { "varsIgnorePattern": "_" }],
-    "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-non-null-assertion": "off",
