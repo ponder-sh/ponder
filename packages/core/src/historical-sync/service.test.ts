@@ -3,7 +3,7 @@ import { publicClient } from "test/utils/utils";
 import { HttpRequestError, InvalidParamsRpcError } from "viem";
 import { expect, test, vi } from "vitest";
 
-import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
+import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
 

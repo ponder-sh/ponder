@@ -1,7 +1,7 @@
 import { Address, Hex } from "viem";
 import { describe, expect, test } from "vitest";
 
-import { decodeLogFilterKey, encodeLogFilterKey } from "./encodeLogFilterKey";
+import { decodeLogFilterKey, encodeLogFilterKey } from "./logFilterKey";
 
 describe("encodeLogFilterKey", () => {
   const chainId = 1;

@@ -3,7 +3,7 @@ import { accounts, usdcContractConfig, vitalik } from "test/utils/constants";
 import { publicClient, testClient, walletClient } from "test/utils/utils";
 import { expect, test, vi } from "vitest";
 
-import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
+import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
 import { range } from "@/utils/range";

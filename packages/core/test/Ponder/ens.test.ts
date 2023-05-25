@@ -4,7 +4,7 @@ import request from "supertest";
 import { testNetworkConfig } from "test/utils/utils";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
+import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
