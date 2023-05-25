@@ -212,7 +212,6 @@ export class Ponder {
     });
 
     this.frontfillService.on("eventsAdded", async () => {
-      console.log("Events added so processing them now");
       await this.eventHandlerService.processEvents();
     });
     this.backfillService.on("eventsAdded", async () => {
