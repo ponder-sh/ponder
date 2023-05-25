@@ -8,7 +8,7 @@ import pico from "picocolors";
 
 import { MessageKind } from "@/common/LoggerService";
 import { Resources } from "@/Ponder";
-import { buildSchema } from "@/schema/buildSchema";
+import { buildSchema } from "@/schema/schema";
 import { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
 

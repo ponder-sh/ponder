@@ -11,14 +11,14 @@ import {
   Schema,
 } from "@/schema/types";
 
-import type { EntityFilter, EntityInstance, EntityStore } from "./entityStore";
+import type { EntityFilter, EntityInstance, UserStore } from "../store";
 import {
   getColumnValuePairs,
   getWhereValue,
   sqlSymbolsForFilterType,
-} from "./utils";
+} from "../utils";
 
-export class PostgresEntityStore implements EntityStore {
+export class PostgresUserStore implements UserStore {
   pool: Pool;
   schema?: Schema;
   instanceId?: string;

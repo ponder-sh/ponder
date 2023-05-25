@@ -11,14 +11,14 @@ import {
   Schema,
 } from "@/schema/types";
 
-import { EntityFilter, EntityInstance, EntityStore } from "./entityStore";
+import { EntityFilter, EntityInstance, UserStore } from "../store";
 import {
   getColumnValuePairs,
   getWhereValue,
   sqlSymbolsForFilterType,
-} from "./utils";
+} from "../utils";
 
-export class SqliteEntityStore implements EntityStore {
+export class SqliteUserStore implements UserStore {
   db: Sqlite.Database;
   schema?: Schema;
   instanceId?: string;

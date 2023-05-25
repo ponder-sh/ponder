@@ -1,9 +1,5 @@
 import type { Schema } from "@/schema/types";
 
-import { PonderDatabase } from "../db";
-import { PostgresEntityStore } from "./postgresEntityStore";
-import { SqliteEntityStore } from "./sqliteEntityStore";
-
 export type EntityFilter = {
   where?: {
     [key: string]:
@@ -28,59 +24,44 @@ export type EntityInstance = Record<string, unknown> & {
 
 type MaybePromise<T> = T | Promise<T>;
 
-export interface EntityStore {
+export interface UserStore {
   schema?: Schema;
 
-  load(arg: { schema: Schema }): MaybePromise<void>;
+  load(options: { schema: Schema }): MaybePromise<void>;
   reset(): MaybePromise<void>;
   teardown(): MaybePromise<void>;
 
-  findUniqueEntity(arg: {
+  findUniqueEntity(options: {
     entityName: string;
     id: string | number | bigint;
   }): Promise<EntityInstance | null>;
 
-  createEntity(arg: {
+  createEntity(options: {
     entityName: string;
     id: string | number | bigint;
     data: Omit<EntityInstance, "id">;
   }): Promise<EntityInstance>;
 
-  updateEntity(arg: {
+  updateEntity(options: {
     entityName: string;
     id: string | number | bigint;
     data: Omit<Partial<EntityInstance>, "id">;
   }): Promise<EntityInstance>;
 
-  upsertEntity(arg: {
+  upsertEntity(options: {
     entityName: string;
     id: string | number | bigint;
     create: Omit<EntityInstance, "id">;
     update: Omit<Partial<EntityInstance>, "id">;
   }): Promise<EntityInstance>;
 
-  deleteEntity(arg: {
+  deleteEntity(options: {
     entityName: string;
     id: string | number | bigint;
   }): Promise<boolean>;
 
-  getEntities(arg: {
+  getEntities(options: {
     entityName: string;
     filter?: EntityFilter;
   }): Promise<EntityInstance[]>;
 }
-
-export const buildEntityStore = ({
-  database,
-}: {
-  database: PonderDatabase;
-}) => {
-  switch (database.kind) {
-    case "sqlite": {
-      return new SqliteEntityStore({ db: database.db });
-    }
-    case "postgres": {
-      return new PostgresEntityStore({ pool: database.pool });
-    }
-  }
-};

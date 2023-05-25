@@ -6,15 +6,16 @@ import {
 import { describe, expect, test } from "vitest";
 
 import { schemaHeader } from "@/reload/readGraphqlSchema";
-import { buildSchema } from "@/schema/buildSchema";
+
+import { buildSchema } from "./schema";
 import {
-  DerivedField,
-  EnumField,
+  type DerivedField,
+  type EnumField,
+  type ListField,
+  type RelationshipField,
+  type ScalarField,
   FieldKind,
-  ListField,
-  RelationshipField,
-  ScalarField,
-} from "@/schema/types";
+} from "./types";
 
 const buildGraphqlSchema = (source: string) => {
   return _buildGraphqlSchema(schemaHeader + source);

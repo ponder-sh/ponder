@@ -11,14 +11,6 @@ export const ensureDirExists = (filePath: string) => {
   mkdirSync(dirname, { recursive: true });
 };
 
-export const groupBy = <T>(array: T[], fn: (item: T) => string | number) => {
-  return array.reduce<{ [k: string | number]: T[] }>((acc, item) => {
-    const key = fn(item);
-    (acc[key] = acc[key] || []).push(item);
-    return acc;
-  }, {});
-};
-
 export const registerKilledProcessListener = (fn: () => Promise<unknown>) => {
   let isKillListenerInProgress = false;
 
