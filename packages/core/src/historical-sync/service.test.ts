@@ -16,6 +16,7 @@ const network: Network = {
   client: publicClient,
   pollingInterval: 1_000,
   defaultMaxBlockRange: 3,
+  finalityBlockCount: 10,
 };
 
 const logFilters: LogFilter[] = [

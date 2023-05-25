@@ -13,7 +13,7 @@ import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
 
-import { p1_excluding_all } from "./utils";
+import { findMissingIntervals } from "./intervals";
 
 type LogSyncTask = {
   kind: "LOG_SYNC";
@@ -115,7 +115,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           filterKey: logFilter.filter.key,
         });
 
-        const requiredBlockRanges = p1_excluding_all(
+        const requiredBlockRanges = findMissingIntervals(
           [startBlock, endBlock],
           cachedRanges.map((r) => [Number(r.startBlock), Number(r.endBlock)])
         );
