@@ -1,5 +1,6 @@
 import Emittery from "emittery";
 
+import { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
 
@@ -13,6 +14,7 @@ type EventAggregatorMetrics = {};
 
 export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   private store: EventStore;
+  private logFilters: LogFilter[];
   private networks: Network[];
 
   // Minimum timestamp that historical events are available for (across all networks).
@@ -34,10 +36,19 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
 
   metrics: EventAggregatorMetrics;
 
-  constructor({ store, networks }: { store: EventStore; networks: Network[] }) {
+  constructor({
+    store,
+    networks,
+    logFilters,
+  }: {
+    store: EventStore;
+    networks: Network[];
+    logFilters: LogFilter[];
+  }) {
     super();
 
     this.store = store;
+    this.logFilters = logFilters;
     this.networks = networks;
     this.metrics = {};
 
@@ -66,8 +77,10 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     const events = await this.store.getLogEvents({
       fromTimestamp,
       toTimestamp,
-      filters: this.networks.map((network) => ({
-        chainId: network.chainId,
+      filters: this.logFilters.map((logFilter) => ({
+        chainId: logFilter.network.chainId,
+        address: logFilter.filter.address,
+        topics: logFilter.filter.topics,
       })),
     });
 

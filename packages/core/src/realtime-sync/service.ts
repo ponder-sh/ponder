@@ -45,7 +45,7 @@ type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private store: EventStore;
   private logFilters: LogFilter[];
-  private network: Network;
+  network: Network;
 
   metrics: RealtimeSyncMetrics;
 

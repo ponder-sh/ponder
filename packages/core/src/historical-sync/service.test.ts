@@ -239,7 +239,7 @@ test("start() emits sync started and completed events", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("syncCompleted");
 });
 
-test.only("start() emits newCheckpoint event", async (context) => {
+test.only("start() emits historicalCheckpoint event", async (context) => {
   const { store } = context;
 
   const service = new HistoricalSyncService({ store, logFilters, network });
@@ -250,7 +250,7 @@ test.only("start() emits newCheckpoint event", async (context) => {
 
   await service.onIdle();
 
-  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", {
+  expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     timestamp: 1673275859, // Block timestamp of block 16369955
   });
 });

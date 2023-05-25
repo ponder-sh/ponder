@@ -11,7 +11,7 @@ import { buildOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
 import { buildCacheStore } from "@/database/cache/cacheStore";
 import { POSTGRES_TABLE_PREFIX } from "@/database/cache/postgresCacheStore";
-import { PonderDatabase } from "@/database/db";
+import { PonderDatabase } from "@/config/database";
 import { buildEntityStore } from "@/database/entity/entityStore";
 import { ErrorService } from "@/errors/ErrorService";
 import { Resources } from "@/Ponder";

@@ -18,7 +18,7 @@ import { findMissingIntervals } from "./intervals";
 type HistoricalSyncEvents = {
   syncStarted: undefined;
   syncCompleted: undefined;
-  newCheckpoint: { timestamp: number };
+  historicalCheckpoint: { timestamp: number };
 };
 
 type HistoricalSyncMetrics = {
@@ -61,7 +61,7 @@ type HistoricalSyncQueue = Queue<LogSyncTask | BlockSyncTask>;
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private store: EventStore;
   private logFilters: LogFilter[];
-  private network: Network;
+  network: Network;
 
   private queue: HistoricalSyncQueue;
   metrics: HistoricalSyncMetrics;
@@ -368,10 +368,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       startingRangeEndTimestamp
     );
 
-    const newCheckpoint = Math.min(...Object.values(this.logFilterCheckpoints));
-    if (newCheckpoint > this.minimumLogFilterCheckpoint) {
-      this.minimumLogFilterCheckpoint = newCheckpoint;
-      this.emit("newCheckpoint", {
+    const historicalCheckpoint = Math.min(
+      ...Object.values(this.logFilterCheckpoints)
+    );
+    if (historicalCheckpoint > this.minimumLogFilterCheckpoint) {
+      this.minimumLogFilterCheckpoint = historicalCheckpoint;
+      this.emit("historicalCheckpoint", {
         timestamp: this.minimumLogFilterCheckpoint,
       });
     }

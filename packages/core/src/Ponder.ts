@@ -1,30 +1,31 @@
 import pico from "picocolors";
 
-import { BackfillService } from "@/backfill/BackfillService";
 import { CodegenService } from "@/codegen/CodegenService";
 import { LoggerService, MessageKind } from "@/common/LoggerService";
 import { formatEta, formatPercentage } from "@/common/utils";
 import { buildContracts, Contract } from "@/config/contracts";
+import { buildDatabase } from "@/config/database";
 import { buildLogFilters, LogFilter } from "@/config/logFilters";
-import { Network } from "@/config/networks";
+import { buildNetwork, Network } from "@/config/networks";
 import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
-import { buildCacheStore, CacheStore } from "@/database/cache/cacheStore";
-import { buildDb, PonderDatabase } from "@/database/db";
-import { buildEntityStore, EntityStore } from "@/database/entity/entityStore";
 import { ErrorService } from "@/errors/ErrorService";
-import { FrontfillService } from "@/frontfill/FrontfillService";
 import { EventHandlerService } from "@/handlers/EventHandlerService";
 import { ReloadService } from "@/reload/ReloadService";
 import { ServerService } from "@/server/ServerService";
 import { UiService } from "@/ui/UiService";
 
+import { EventAggregatorService } from "./event-aggregator/service";
+import { PostgresEventStore } from "./event-store/postgres/store";
+import { SqliteEventStore } from "./event-store/sqlite/store";
+import { HistoricalSyncService } from "./historical-sync/service";
+import { RealtimeSyncService } from "./realtime-sync/service";
+import { PostgresUserStore } from "./user-store/postgres/store";
+import { SqliteUserStore } from "./user-store/sqlite/store";
+
 export type Resources = {
   options: PonderOptions;
   config: ResolvedPonderConfig;
-  database: PonderDatabase;
-  cacheStore: CacheStore;
-  entityStore: EntityStore;
   logFilters: LogFilter[];
   contracts: Contract[];
   logger: LoggerService;
@@ -32,10 +33,6 @@ export type Resources = {
 };
 
 export class Ponder {
-  resources: Resources;
-
-  frontfillService: FrontfillService;
-  backfillService: BackfillService;
   serverService: ServerService;
   reloadService: ReloadService;
   eventHandlerService: EventHandlerService;
@@ -51,32 +48,82 @@ export class Ponder {
   }) {
     const logger = new LoggerService({ options });
     const errors = new ErrorService();
-    const database = buildDb({ options, config, logger });
-    const cacheStore = buildCacheStore({ database });
-    const entityStore = buildEntityStore({ database });
+
     const logFilters = buildLogFilters({ options, config });
     const contracts = buildContracts({ options, config });
+    const database = buildDatabase({ options, config });
+    const networks = config.networks.map((network) =>
+      buildNetwork({ network })
+    );
 
-    const resources: Resources = {
-      options,
-      config,
-      database,
-      cacheStore,
-      entityStore,
+    const eventStore =
+      database.kind === "sqlite"
+        ? new SqliteEventStore({ sqliteDb: database.db })
+        : new PostgresEventStore({ pool: database.pool });
+
+    const userStore =
+      database.kind === "sqlite"
+        ? new SqliteUserStore({ db: database.db })
+        : new PostgresUserStore({ pool: database.pool });
+
+    const eventAggregatorService = new EventAggregatorService({
+      store: eventStore,
+      networks,
       logFilters,
-      contracts,
-      logger,
-      errors,
-    };
-    this.resources = resources;
+    });
 
-    this.frontfillService = new FrontfillService({ resources });
-    this.backfillService = new BackfillService({ resources });
-    this.serverService = new ServerService({ resources });
-    this.reloadService = new ReloadService({ resources });
-    this.eventHandlerService = new EventHandlerService({ resources });
-    this.codegenService = new CodegenService({ resources });
-    this.uiService = new UiService({ resources });
+    const historicalSyncServices = networks.map((network) => {
+      return new HistoricalSyncService({
+        store: eventStore,
+        network,
+        logFilters: logFilters.filter((lf) => lf.network.name === network.name),
+      });
+    });
+
+    const realtimeSyncServices = networks.map((network) => {
+      return new RealtimeSyncService({
+        store: eventStore,
+        network,
+        logFilters: logFilters.filter((lf) => lf.network.name === network.name),
+      });
+    });
+
+    for (const service of historicalSyncServices) {
+      service.on("historicalCheckpoint", ({ timestamp }) => {
+        eventAggregatorService.handleNewHistoricalCheckpoint({
+          chainId: service.network.chainId,
+          timestamp,
+        });
+      });
+    }
+
+    for (const service of realtimeSyncServices) {
+      service.on("realtimeCheckpoint", ({ timestamp }) => {
+        eventAggregatorService.handleNewRealtimeCheckpoint({
+          chainId: service.network.chainId,
+          timestamp,
+        });
+      });
+
+      service.on("finalityCheckpoint", ({ timestamp }) => {
+        eventAggregatorService.handleNewFinalityCheckpoint({
+          chainId: service.network.chainId,
+          timestamp,
+        });
+      });
+
+      service.on("shallowReorg", ({ commonAncestorTimestamp }) => {
+        eventAggregatorService.handleReorg({
+          timestamp: commonAncestorTimestamp,
+        });
+      });
+    }
+
+    // this.serverService = new ServerService({ resources });
+    // this.reloadService = new ReloadService({ resources });
+    // this.eventHandlerService = new EventHandlerService({ resources });
+    // this.codegenService = new CodegenService({ resources });
+    // this.uiService = new UiService({ resources });
   }
 
   async setup() {
