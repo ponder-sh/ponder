@@ -105,10 +105,8 @@ export class PostgresEventStore implements EventStore {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all([
         tx.insertInto("blocks").values(block).execute(),
-        ...transactions.map(async (transaction) =>
-          tx.insertInto("transactions").values(transaction).execute()
-        ),
-        ...logs.map(async (log) => tx.insertInto("logs").values(log).execute()),
+        tx.insertInto("transactions").values(transactions).execute(),
+        tx.insertInto("logs").values(logs).execute(),
       ]);
     });
   };

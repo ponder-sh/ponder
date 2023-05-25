@@ -4,14 +4,14 @@ import moduleAlias from "module-alias";
 import path from "node:path";
 import fetch, { Headers, Request, Response } from "node-fetch";
 import { Pool } from "pg";
-import { afterAll, beforeEach } from "vitest";
+import { beforeEach } from "vitest";
 
 import { patchSqliteDatabase } from "@/database/db";
 import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
-import { EventStore } from "@/event-store/store";
+import type { EventStore } from "@/event-store/store";
 
-import { FORK_BLOCK_NUMBER, FORK_URL } from "./constants";
+import { FORK_BLOCK_NUMBER, FORK_URL, vitalik } from "./constants";
 import { poolId, testClient } from "./utils";
 
 /**
@@ -35,7 +35,7 @@ const ponderCoreDir = path.resolve(__dirname, "../../");
 moduleAlias.addAlias("@ponder/core", ponderCoreDir);
 
 /**
- * Inject a blockchain store into the test context.
+ * Inject an isolated event store into the test context.
  *
  * If `process.env.DATABASE_URL` is set, assume it's a Postgres connection string
  * and run tests against it. If passed a `schema`, PostgresEventStore will create
@@ -54,39 +54,29 @@ beforeEach(async (context) => {
     const schema = `vitest_pool_${poolId}`;
     context.store = new PostgresEventStore({ pool, schema });
   } else {
-    const rawSqliteDb = SqliteDatabase(":memory:");
+    const rawSqliteDb = new SqliteDatabase(":memory:");
     const sqliteDb = patchSqliteDatabase({ db: rawSqliteDb });
     context.store = new SqliteEventStore({ sqliteDb });
   }
 
   await context.store.migrateUp();
 
-  return async () => await context.store.migrateDown();
+  return async () => {
+    await context.store.migrateDown();
+  };
 });
 
 /**
- * Reset the test client after each test suite (this is basically Anvil.js boilerplate).
+ * Reset the Anvil instance and set defaults shared by all tests.
  */
-afterAll(async () => {
-  // This resets the anvil instance to the initial fork block.
-  await testClient.reset({
-    jsonRpcUrl: FORK_URL,
-    blockNumber: FORK_BLOCK_NUMBER,
-  });
-});
+beforeEach(async () => {
+  await testClient.impersonateAccount({ address: vitalik.address });
+  await testClient.setAutomine(false);
 
-/**
- * Print logs from the Anvil instance whenever a test fails.
- *
- * Also recommended by Anvil.js, but I've not yet found it useful.
- */
-// afterEach(async (context) => {
-//   context.onTestFailed(async () => {
-//     try {
-//       const logs = await fetchLogs("http://localhost:8545", poolId);
-//       console.log("Anvil instance logs:");
-//       console.log(...logs.slice(-5));
-//       // eslint-disable-next-line no-empty
-//     } catch (e) {}
-//   });
-// });
+  return async () => {
+    await testClient.reset({
+      jsonRpcUrl: FORK_URL,
+      blockNumber: FORK_BLOCK_NUMBER,
+    });
+  };
+});

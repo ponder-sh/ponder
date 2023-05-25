@@ -77,9 +77,11 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
   const controller = new AbortController();
   const signal = controller.signal;
 
+  // Override clear to also abort any pending tasks.
+  const superClear = queue.clear.bind(queue);
   queue.clear = () => {
     controller.abort();
-    queue.clear();
+    superClear();
   };
 
   const retryTimeouts: number[] = retry.timeouts(

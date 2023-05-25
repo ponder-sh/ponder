@@ -49,12 +49,14 @@ function points_excluding_p2(points: number[][], p2: number[]) {
   return results;
 }
 
-/* this method performs the same operation only this time it takes one point
+/**
+ * Previously called p1_excluding_all.
+ * this method performs the same operation only this time it takes one point
  * and multiple exclusion points and returns an array of the results.
  * this is the important method of: given 1 point and many
  * exclusion points, return the remaining new ranges
  */
-export function p1_excluding_all(p1: number[], exclude: number[][]) {
+export function findMissingIntervals(p1: number[], exclude: number[][]) {
   let checking = [p1];
   for (let i = 0; i < exclude.length; i++) {
     checking = points_excluding_p2(checking, exclude[i]);
