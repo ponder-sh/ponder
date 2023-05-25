@@ -78,6 +78,8 @@ test("setup() returns the finalized block number", async (context) => {
   const { finalizedBlockNumber } = await service.setup();
 
   expect(finalizedBlockNumber).toEqual(16379995); // ANVIL_FORK_BLOCK - finalityBlockCount
+
+  await service.kill();
 });
 
 test("backfills blocks from finalized to latest", async (context) => {
@@ -91,6 +93,8 @@ test("backfills blocks from finalized to latest", async (context) => {
   const blocks = await store.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(5);
   blocks.forEach((block) => expect(Number(block.finalized)).toEqual(0));
+
+  await service.kill();
 });
 
 test("backfills transactions from finalized to latest", async (context) => {
@@ -115,6 +119,8 @@ test("backfills transactions from finalized to latest", async (context) => {
     expect(Number(transaction.finalized)).toEqual(0);
     expect(requiredTransactionHashes.has(transaction.hash)).toEqual(true);
   });
+
+  await service.kill();
 });
 
 test("backfills logs from finalized to latest", async (context) => {
@@ -154,6 +160,8 @@ test("backfills logs from finalized to latest", async (context) => {
     expect(Number(log.finalized)).toEqual(0);
     expect(log.address).toEqual(usdcContractConfig.address);
   });
+
+  await service.kill();
 });
 
 test("handles new blocks", async (context) => {
@@ -200,18 +208,21 @@ test("handles new blocks", async (context) => {
   const blocks = await store.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(7);
   blocks.forEach((block) => expect(Number(block.finalized)).toEqual(0));
+
+  await service.kill();
 });
 
 test("marks block data as finalized", async (context) => {
   const { store } = context;
 
   const service = new RealtimeSyncService({ store, logFilters, network });
+  const emitSpy = vi.spyOn(service, "emit");
+
   const { finalizedBlockNumber: originalFinalizedBlockNumber } =
     await service.setup();
   await service.start();
 
   // Mine 8 blocks, which should trigger the finality checkpoint (after 5).
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   for (const _ in range(0, 8)) {
     await sendUsdcTransferTransaction();
     await testClient.mine({ blocks: 1 });
@@ -228,6 +239,12 @@ test("marks block data as finalized", async (context) => {
       expect(Number(block.finalized)).toEqual(0);
     }
   });
+
+  expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
+    newFinalizedBlockNumber: 16380000,
+  });
+
+  await service.kill();
 });
 
 test("handles 1 block shallow reorg", async (context) => {
@@ -241,7 +258,6 @@ test("handles 1 block shallow reorg", async (context) => {
   const originalSnapshotId = await testClient.snapshot();
 
   // Mine 3 blocks, each containing a transaction.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   for (const _ in range(0, 3)) {
     await sendUsdcTransferTransaction();
     await testClient.mine({ blocks: 1 });
@@ -281,9 +297,11 @@ test("handles 1 block shallow reorg", async (context) => {
       matchedLogCount: 0,
     },
   });
+
+  await service.kill();
 });
 
-test.only("handles 3 block shallow reorg", async (context) => {
+test("handles 3 block shallow reorg", async (context) => {
   const { store } = context;
 
   const service = new RealtimeSyncService({ store, logFilters, network });
@@ -296,7 +314,6 @@ test.only("handles 3 block shallow reorg", async (context) => {
   const originalSnapshotId = await testClient.snapshot();
 
   // Mine 3 blocks, each containing a transaction.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   for (const _ in range(0, 3)) {
     await sendUsdcTransferTransaction();
     await testClient.mine({ blocks: 1 });
@@ -361,4 +378,52 @@ test.only("handles 3 block shallow reorg", async (context) => {
     commonAncestorBlockNumber: 16380000,
     depth: 3,
   });
+
+  await service.kill();
+});
+
+test("handles deep reorg", async (context) => {
+  const { store } = context;
+
+  const service = new RealtimeSyncService({ store, logFilters, network });
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await service.setup();
+  await service.start();
+
+  // Take a snapshot of the chain at the original block height.
+  const originalSnapshotId = await testClient.snapshot();
+
+  // Mine 13 blocks, each containing a transaction.
+  for (const _ in range(0, 13)) {
+    await sendUsdcTransferTransaction();
+    await testClient.mine({ blocks: 1 });
+  }
+  // Allow the service to process the new blocks.
+  await service.addNewLatestBlock();
+  await service.onIdle();
+
+  // Confirm that the service has finalized blocks.
+  expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
+    newFinalizedBlockNumber: 16380005,
+  });
+
+  // Now, revert to the original snapshot and mine 13 blocks, each containing 2 transactions.
+  await testClient.revert({ id: originalSnapshotId });
+  for (const _ in range(0, 13)) {
+    await sendUsdcTransferTransaction();
+    await sendUsdcTransferTransaction();
+    await testClient.mine({ blocks: 1 });
+  }
+
+  // Allow the service to process the new block, detecting a reorg.
+  await service.addNewLatestBlock();
+  await service.onIdle();
+
+  // The current finalized block number is 16380005, so the reorg is at least 8 blocks deep.
+  expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
+    minimumDepth: 8,
+  });
+
+  await service.kill();
 });

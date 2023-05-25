@@ -132,15 +132,15 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     );
   };
 
-  async kill() {
+  kill = async () => {
     this.unpoll?.();
     this.queue.clear();
     await this.queue.onIdle();
-  }
+  };
 
-  async onIdle() {
+  onIdle = async () => {
     await this.queue.onIdle();
-  }
+  };
 
   private getLatestBlock = async () => {
     // Fetch the latest block for the network.
@@ -163,9 +163,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         await this.blockTaskWorker(task);
       },
       options: { concurrency: 1, autoStart: false },
-      onError: ({ error }) => {
-        console.log("in error handler");
-        console.log({ error });
+      onError: ({ error, task }) => {
+        console.log({
+          taskBlockNumber: hexToNumber(task.number),
+          error,
+        });
         // Default to a retry (uses the retry options passed to the queue).
         // queue.addTask(task, { retry: true });
       },
@@ -188,11 +190,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // If no block is passed, fetch the latest block.
     const newBlockWithTransactions = block;
     const newBlock = rpcBlockToLightBlock(newBlockWithTransactions);
-
-    console.log({
-      ...newBlock,
-      transactionCount: newBlockWithTransactions.transactions.length,
-    });
 
     // 1) We already saw and handled this block. No-op.
     if (this.blocks.find((b) => b.hash === newBlock.hash)) {
@@ -330,8 +327,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return;
     }
 
-    console.log("reorg time motherfucker");
-
     // 4) There has been a reorg, because:
     //   a) newBlock.number <= headBlock + 1.
     //   b) newBlock.hash is not found in our local chain.
@@ -348,20 +343,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     let canonicalBlock = newBlock;
     let depth = 0;
 
-    console.log("before while loop", {
-      canonicalBlock,
-      finalizedBlockNumber: this.finalizedBlockNumber,
-      blocks: this.blocks,
-    });
-
     while (canonicalBlock.number > this.finalizedBlockNumber) {
       const commonAncestorBlockNumber = this.blocks.find(
         (b) => b.hash === canonicalBlock.parentHash
       )?.number;
-
-      console.log("in while loop with commonAncestorBlockNumber", {
-        commonAncestorBlockNumber,
-      });
 
       // If the common ancestor block is present in our local chain, this is a short reorg.
       if (commonAncestorBlockNumber) {
@@ -374,8 +359,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           chainId: this.network.chainId,
           fromBlockNumber: commonAncestorBlockNumber + 1,
         });
-
-        console.log("filtered blocks down to:", { blocks: this.blocks });
 
         // Clear the queue of all blocks (some might be from the non-canonical chain).
         // TODO: Figure out if this is indeed required by some edge case.
@@ -390,7 +373,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // start fetching any newer blocks on the canonical chain.
         await this.addNewLatestBlock();
 
-        console.log("emitting shallowReorg");
         this.emit("shallowReorg", { commonAncestorBlockNumber, depth });
 
         return;

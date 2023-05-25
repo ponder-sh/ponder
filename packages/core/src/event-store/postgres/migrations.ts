@@ -73,7 +73,7 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("contractCalls")
         .addColumn("address", "text", (col) => col.notNull())
-        .addColumn("blockNumber", "integer", (col) => col.notNull())
+        .addColumn("blockNumber", "text", (col) => col.notNull()) // BigInt
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("data", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
