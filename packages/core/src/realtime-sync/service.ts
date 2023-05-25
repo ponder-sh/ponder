@@ -17,9 +17,12 @@ import {
   rpcBlockToLightBlock,
 } from "./format";
 
-type RealtimeBlockTask = BlockWithTransactions;
-
-type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
+type RealtimeSyncEvents = {
+  newBlock: undefined;
+  finalityCheckpoint: { newFinalizedBlockNumber: number };
+  shallowReorg: { commonAncestorBlockNumber: number; depth: number };
+  deepReorg: { minimumDepth: number };
+};
 
 type RealtimeSyncMetrics = {
   // Block number -> log filter name -> matched log count.
@@ -35,13 +38,9 @@ type RealtimeSyncMetrics = {
     }
   >;
 };
+type RealtimeBlockTask = BlockWithTransactions;
 
-type RealtimeSyncEvents = {
-  newBlock: undefined;
-  finalityCheckpoint: { newFinalizedBlockNumber: number };
-  shallowReorg: { commonAncestorBlockNumber: number; depth: number };
-  deepReorg: { minimumDepth: number };
-};
+type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private store: EventStore;

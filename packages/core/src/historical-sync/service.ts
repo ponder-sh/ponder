@@ -15,22 +15,11 @@ import type { EventStore } from "@/event-store/store";
 
 import { findMissingIntervals } from "./intervals";
 
-type LogSyncTask = {
-  kind: "LOG_SYNC";
-  logFilter: LogFilter;
-  fromBlock: number;
-  toBlock: number;
+type HistoricalSyncEvents = {
+  syncStarted: undefined;
+  syncCompleted: undefined;
+  newEvents: undefined;
 };
-
-type BlockSyncTask = {
-  kind: "BLOCK_SYNC";
-  logFilter: LogFilter;
-  blockNumberToCacheFrom: number;
-  blockNumber: number;
-  requiredTxHashes: Set<Hash>;
-};
-
-type HistoricalSyncQueue = Queue<LogSyncTask | BlockSyncTask>;
 
 type HistoricalSyncMetrics = {
   startedAt?: [number, number];
@@ -52,11 +41,22 @@ type HistoricalSyncMetrics = {
   >;
 };
 
-type HistoricalSyncEvents = {
-  syncStarted: undefined;
-  syncCompleted: undefined;
-  newEvents: undefined;
+type LogSyncTask = {
+  kind: "LOG_SYNC";
+  logFilter: LogFilter;
+  fromBlock: number;
+  toBlock: number;
 };
+
+type BlockSyncTask = {
+  kind: "BLOCK_SYNC";
+  logFilter: LogFilter;
+  blockNumberToCacheFrom: number;
+  blockNumber: number;
+  requiredTxHashes: Set<Hash>;
+};
+
+type HistoricalSyncQueue = Queue<LogSyncTask | BlockSyncTask>;
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private store: EventStore;
