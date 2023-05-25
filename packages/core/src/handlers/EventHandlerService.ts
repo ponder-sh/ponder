@@ -45,6 +45,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
   private injectedContracts: Record<string, ReadOnlyContract | undefined> = {};
 
   isBackfillStarted = false;
+  backfillCutoffTimestamp = Number.POSITIVE_INFINITY;
 
   private eventProcessingMutex: Mutex;
   private eventsHandledToTimestamp = 0;
@@ -350,9 +351,15 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
       return { hasNewLogs: false, events: [], toTimestamp: fromTimestamp };
     }
 
+    // If we've reached beyond cutoff timestamp already then
+    // we can safely process all block
+    let toTimestamp = Math.min(...cachedToTimestamps);
+    if (toTimestamp >= this.backfillCutoffTimestamp) {
+      toTimestamp = Math.max(...cachedToTimestamps);
+    }
+
     // If the minimum cached timestamp across all filters is less than the
     // latest processed timestamp, we can't process any new logs.
-    const toTimestamp = Math.min(...cachedToTimestamps);
     if (toTimestamp <= fromTimestamp) {
       return { hasNewLogs: false, events: [], toTimestamp: fromTimestamp };
     }
