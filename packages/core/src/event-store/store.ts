@@ -10,11 +10,13 @@ export interface EventStore {
   migrateDown(): Promise<void>;
 
   getLogEvents(arg: {
-    chainId: number;
     fromTimestamp: number;
     toTimestamp: number;
-    address?: Address | Address[];
-    topics?: (Hex | Hex[] | null)[];
+    filters: {
+      chainId: number;
+      address?: Address | Address[];
+      topics?: (Hex | Hex[] | null)[];
+    }[];
   }): Promise<{ log: Log; block: Block; transaction: Transaction }[]>;
 
   insertUnfinalizedBlock(options: {

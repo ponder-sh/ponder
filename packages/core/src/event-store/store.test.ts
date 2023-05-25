@@ -243,9 +243,9 @@ test("getLogEvents returns log events", async (context) => {
   });
 
   const logEvents = await store.getLogEvents({
-    chainId: 1,
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [{ chainId: 1 }],
   });
 
   expect(logEvents[0].log).toMatchInlineSnapshot(`
@@ -390,10 +390,9 @@ test("getLogEvents filters on log address", async (context) => {
   });
 
   const logEvents = await store.getLogEvents({
-    chainId: 1,
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
-    address: blockOneLogs[0].address,
+    filters: [{ chainId: 1, address: blockOneLogs[0].address }],
   });
 
   expect(logEvents[0].log.address).toBe(blockOneLogs[0].address);
@@ -418,10 +417,14 @@ test("getLogEvents filters on multiple log addresses", async (context) => {
   });
 
   const logEvents = await store.getLogEvents({
-    chainId: 1,
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
-    address: [blockOneLogs[0].address, blockOneLogs[1].address],
+    filters: [
+      {
+        chainId: 1,
+        address: [blockOneLogs[0].address, blockOneLogs[1].address],
+      },
+    ],
   });
 
   expect(logEvents.map((e) => e.log.address)).toMatchObject([
@@ -449,10 +452,14 @@ test("getLogEvents filters on single topic", async (context) => {
   });
 
   const logEvents = await store.getLogEvents({
-    chainId: 1,
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
-    topics: [blockOneLogs[0].topics[0] as `0x${string}`],
+    filters: [
+      {
+        chainId: 1,
+        topics: [blockOneLogs[0].topics[0] as `0x${string}`],
+      },
+    ],
   });
 
   expect(logEvents.map((e) => e.log.topics)).toMatchObject([
@@ -480,17 +487,58 @@ test("getLogEvents filters on multiple topics", async (context) => {
   });
 
   const logEvents = await store.getLogEvents({
-    chainId: 1,
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
-    topics: [
-      blockOneLogs[0].topics[0] as `0x${string}`,
-      blockOneLogs[0].topics[1] as `0x${string}`,
+    filters: [
+      {
+        chainId: 1,
+        topics: [
+          blockOneLogs[0].topics[0] as `0x${string}`,
+          blockOneLogs[0].topics[1] as `0x${string}`,
+        ],
+      },
     ],
   });
 
   expect(logEvents[0].log.topics).toMatchObject(blockOneLogs[0].topics);
   expect(logEvents).toHaveLength(1);
+});
+
+test("getLogEvents filters on multiple filters", async (context) => {
+  const { store } = context;
+
+  await store.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await store.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  const logEvents = await store.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [
+      {
+        chainId: 1,
+        address: blockOneLogs[0].address,
+      },
+      {
+        chainId: 1,
+        topics: [blockTwoLogs[0].topics[0] as `0x${string}`],
+      },
+    ],
+  });
+
+  expect(logEvents[0].log.topics).toMatchObject(blockOneLogs[0].topics);
+  expect(logEvents[1].log.topics).toMatchObject(blockTwoLogs[0].topics);
+  expect(logEvents).toHaveLength(2);
 });
 
 test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
@@ -511,9 +559,9 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
   });
 
   const logEvents = await store.getLogEvents({
-    chainId: 1,
     fromTimestamp: hexToNumber(blockTwo.timestamp!),
     toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [{ chainId: 1 }],
   });
 
   expect(logEvents[0].block.hash).toBe(blockTwo.hash);
@@ -538,9 +586,9 @@ test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
   });
 
   const logEvents = await store.getLogEvents({
-    chainId: 1,
     fromTimestamp: 0,
     toTimestamp: hexToNumber(blockOne.timestamp!),
+    filters: [{ chainId: 1 }],
   });
 
   expect(logEvents.map((e) => e.block.hash)).toMatchObject([

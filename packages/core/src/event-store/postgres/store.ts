@@ -103,11 +103,13 @@ export class PostgresEventStore implements EventStore {
     }));
 
     await this.db.transaction().execute(async (tx) => {
-      await Promise.all([
-        tx.insertInto("blocks").values(block).execute(),
-        tx.insertInto("transactions").values(transactions).execute(),
-        tx.insertInto("logs").values(logs).execute(),
-      ]);
+      await tx.insertInto("blocks").values(block).execute();
+      if (transactions.length > 0) {
+        await tx.insertInto("transactions").values(transactions).execute();
+      }
+      if (logs.length > 0) {
+        await tx.insertInto("logs").values(logs).execute();
+      }
     });
   };
 
@@ -182,17 +184,17 @@ export class PostgresEventStore implements EventStore {
   };
 
   getLogEvents = async ({
-    chainId,
     fromTimestamp,
     toTimestamp,
-    address,
-    topics,
+    filters,
   }: {
-    chainId: number;
     fromTimestamp: number;
     toTimestamp: number;
-    address?: Address | Address[];
-    topics?: (Hex | Hex[] | null)[];
+    filters: {
+      chainId: number;
+      address?: Address | Address[];
+      topics?: (Hex | Hex[] | null)[];
+    }[];
   }) => {
     let query = this.db
       .selectFrom("logs")
@@ -257,26 +259,40 @@ export class PostgresEventStore implements EventStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
-      .where("logs.chainId", "=", chainId)
       .where("blocks.timestamp", ">=", fromTimestamp)
       .where("blocks.timestamp", "<=", toTimestamp)
       .orderBy("blocks.timestamp", "asc")
+      .orderBy("logs.chainId", "asc")
       .orderBy("logs.logIndex", "asc");
 
-    if (address) {
-      const addressArray = typeof address === "string" ? [address] : address;
-      query = query.where("logs.address", "in", addressArray);
-    }
+    query = query.where(({ and, or, cmpr }) =>
+      or(
+        filters.map((filter) => {
+          const { chainId, address, topics } = filter;
 
-    if (topics) {
-      topics.forEach((topic, topicIndex) => {
-        if (topic === null) return;
-        const columnName = `logs.topic${topicIndex as 0 | 1 | 2 | 3}` as const;
-        const topicArray = typeof topic === "string" ? [topic] : topic;
-        query = query.where(columnName, "in", topicArray);
-      });
-    }
+          const conditions = [cmpr("logs.chainId", "=", chainId)];
 
+          if (address) {
+            const addressArray =
+              typeof address === "string" ? [address] : address;
+            conditions.push(cmpr("logs.address", "in", addressArray));
+          }
+
+          if (topics) {
+            topics.forEach((topic, topicIndex) => {
+              if (topic === null) return;
+              const columnName = `logs.topic${
+                topicIndex as 0 | 1 | 2 | 3
+              }` as const;
+              const topicArray = typeof topic === "string" ? [topic] : topic;
+              conditions.push(cmpr(columnName, "in", topicArray));
+            });
+          }
+
+          return and(conditions);
+        })
+      )
+    );
     const results = await query.execute();
 
     const logEvents = results.map((result_) => {
@@ -398,7 +414,9 @@ export class PostgresEventStore implements EventStore {
       finalized: 1,
     }));
 
-    await this.db.insertInto("logs").values(logs).execute();
+    if (logs.length > 0) {
+      await this.db.insertInto("logs").values(logs).execute();
+    }
   };
 
   insertFinalizedBlock = async ({
@@ -437,14 +455,14 @@ export class PostgresEventStore implements EventStore {
     };
 
     await this.db.transaction().execute(async (tx) => {
-      await Promise.all([
-        tx.insertInto("blocks").values(block).execute(),
-        tx.insertInto("transactions").values(transactions).execute(),
-        tx
-          .insertInto("logFilterCachedRanges")
-          .values(logFilterCachedRange)
-          .execute(),
-      ]);
+      await tx.insertInto("blocks").values(block).execute();
+      if (transactions.length > 0) {
+        await tx.insertInto("transactions").values(transactions).execute();
+      }
+      await tx
+        .insertInto("logFilterCachedRanges")
+        .values(logFilterCachedRange)
+        .execute();
     });
 
     // After inserting the new cached range record, execute a transaction to merge
@@ -455,8 +473,6 @@ export class PostgresEventStore implements EventStore {
         .where("filterKey", "=", logFilterKey)
         .returningAll()
         .execute();
-
-      if (existingRanges.length === 0) return;
 
       const mergedIntervals = merge_intervals(
         existingRanges.map((r) => [
@@ -482,10 +498,12 @@ export class PostgresEventStore implements EventStore {
         };
       });
 
-      await tx
-        .insertInto("logFilterCachedRanges")
-        .values(mergedRanges)
-        .execute();
+      if (mergedRanges.length > 0) {
+        await tx
+          .insertInto("logFilterCachedRanges")
+          .values(mergedRanges)
+          .execute();
+      }
     });
   };
 }
