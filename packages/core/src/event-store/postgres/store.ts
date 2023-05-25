@@ -423,14 +423,19 @@ export class PostgresEventStore implements EventStore {
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
-    logFilterRange: { blockNumberToCacheFrom, logFilterKey },
+    logFilterRange: {
+      logFilterKey,
+      blockNumberToCacheFrom,
+      logFilterStartBlockNumber,
+    },
   }: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logFilterRange: {
-      blockNumberToCacheFrom: number;
       logFilterKey: string;
+      blockNumberToCacheFrom: number;
+      logFilterStartBlockNumber: number;
     };
   }) => {
     const block: InsertableBlock = {
@@ -466,44 +471,64 @@ export class PostgresEventStore implements EventStore {
     });
 
     // After inserting the new cached range record, execute a transaction to merge
-    // all adjacent cached ranges.
-    await this.db.transaction().execute(async (tx) => {
-      const existingRanges = await tx
-        .deleteFrom("logFilterCachedRanges")
-        .where("filterKey", "=", logFilterKey)
-        .returningAll()
-        .execute();
+    // all adjacent cached ranges. Return the end block timestamp of the cached interval
+    // that contains the start block number of the log filter.
+    const startingRangeEndTimestamp = await this.db
+      .transaction()
+      .execute(async (tx) => {
+        const existingRanges = await tx
+          .deleteFrom("logFilterCachedRanges")
+          .where("filterKey", "=", logFilterKey)
+          .returningAll()
+          .execute();
 
-      const mergedIntervals = merge_intervals(
-        existingRanges.map((r) => [
-          hexToNumber(r.startBlock),
-          hexToNumber(r.endBlock),
-        ])
-      );
+        const mergedIntervals = merge_intervals(
+          existingRanges.map((r) => [
+            hexToNumber(r.startBlock),
+            hexToNumber(r.endBlock),
+          ])
+        );
 
-      const mergedRanges = mergedIntervals.map((interval) => {
-        const [startBlock, endBlock] = interval;
-        // For each new merged range, its endBlock will be found EITHER in the newly
-        // added range OR among the endBlocks of the removed ranges.
-        // Find it so we can propogate the endBlockTimestamp correctly.
-        const endBlockTimestamp = existingRanges.find(
-          (r) => hexToNumber(r.endBlock) === endBlock
-        )!.endBlockTimestamp;
+        const mergedRanges = mergedIntervals.map((interval) => {
+          const [startBlock, endBlock] = interval;
+          // For each new merged range, its endBlock will be found EITHER in the newly
+          // added range OR among the endBlocks of the removed ranges.
+          // Find it so we can propogate the endBlockTimestamp correctly.
+          const endBlockTimestamp = existingRanges.find(
+            (r) => hexToNumber(r.endBlock) === endBlock
+          )!.endBlockTimestamp;
 
-        return {
-          filterKey: logFilterKey,
-          startBlock: toHex(startBlock),
-          endBlock: toHex(endBlock),
-          endBlockTimestamp: endBlockTimestamp,
-        };
+          return {
+            filterKey: logFilterKey,
+            startBlock: toHex(startBlock),
+            endBlock: toHex(endBlock),
+            endBlockTimestamp: endBlockTimestamp,
+          };
+        });
+
+        if (mergedRanges.length > 0) {
+          await tx
+            .insertInto("logFilterCachedRanges")
+            .values(mergedRanges)
+            .execute();
+        }
+
+        // After we've inserted the new ranges, find the range that contains the log filter start block number.
+        // We need this to determine the new latest available event timestamp for the log filter.
+        const startingRange = mergedRanges.find(
+          (range) =>
+            hexToNumber(range.startBlock) <= logFilterStartBlockNumber &&
+            hexToNumber(range.endBlock) >= logFilterStartBlockNumber
+        );
+
+        if (!startingRange) {
+          // If there is no range containing the log filter start block number, return 0. This really should not happen.
+          return 0;
+        } else {
+          return hexToNumber(startingRange.endBlockTimestamp);
+        }
       });
 
-      if (mergedRanges.length > 0) {
-        await tx
-          .insertInto("logFilterCachedRanges")
-          .values(mergedRanges)
-          .execute();
-      }
-    });
+    return { startingRangeEndTimestamp };
   };
 }

@@ -50,10 +50,11 @@ export interface EventStore {
     block: RpcBlock;
     transactions: RpcTransaction[];
     logFilterRange: {
-      blockNumberToCacheFrom: number;
       logFilterKey: string;
+      blockNumberToCacheFrom: number;
+      logFilterStartBlockNumber: number;
     };
-  }): Promise<void>;
+  }): Promise<{ startingRangeEndTimestamp: number }>;
 
   // // Injected contract call methods.
   // upsertContractCall(contractCall: ContractCall): Promise<void>;

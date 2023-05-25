@@ -635,6 +635,7 @@ test("insertFinalizedBlock inserts block as finalized", async (context) => {
     logFilterRange: {
       blockNumberToCacheFrom: 15131900,
       logFilterKey: "test-filter-key",
+      logFilterStartBlockNumber: 15131900,
     },
   });
 
@@ -663,6 +664,7 @@ test("insertFinalizedBlock inserts transactions as finalized", async (context) =
     logFilterRange: {
       blockNumberToCacheFrom: 15131900,
       logFilterKey: "test-filter-key",
+      logFilterStartBlockNumber: 15131900,
     },
   });
 
@@ -695,6 +697,7 @@ test("insertFinalizedBlock inserts a log filter cached interval", async (context
     logFilterRange: {
       blockNumberToCacheFrom: 15131900,
       logFilterKey: "test-filter-key",
+      logFilterStartBlockNumber: 15131900,
     },
   });
 
@@ -721,6 +724,7 @@ test("insertFinalizedBlock merges cached intervals", async (context) => {
     logFilterRange: {
       blockNumberToCacheFrom: 15131900,
       logFilterKey: "test-filter-key",
+      logFilterStartBlockNumber: 15131900,
     },
   });
 
@@ -731,6 +735,7 @@ test("insertFinalizedBlock merges cached intervals", async (context) => {
     logFilterRange: {
       blockNumberToCacheFrom: 15495110,
       logFilterKey: "test-filter-key",
+      logFilterStartBlockNumber: 15131900,
     },
   });
 
@@ -745,4 +750,35 @@ test("insertFinalizedBlock merges cached intervals", async (context) => {
     startBlock: 15131900n,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
+});
+
+test("insertFinalizedBlock returns the startingRangeEndTimestamp", async (context) => {
+  const { store } = context;
+
+  const { startingRangeEndTimestamp } = await store.insertFinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logFilterRange: {
+      blockNumberToCacheFrom: 15131900,
+      logFilterKey: "test-filter-key",
+      logFilterStartBlockNumber: 15131900,
+    },
+  });
+
+  expect(startingRangeEndTimestamp).toBe(hexToNumber(blockOne.timestamp));
+
+  const { startingRangeEndTimestamp: startingRangeEndTimestamp2 } =
+    await store.insertFinalizedBlock({
+      chainId: 1,
+      block: blockTwo,
+      transactions: blockTwoTransactions,
+      logFilterRange: {
+        blockNumberToCacheFrom: 15495110,
+        logFilterKey: "test-filter-key",
+        logFilterStartBlockNumber: 15131900,
+      },
+    });
+
+  expect(startingRangeEndTimestamp2).toBe(hexToNumber(blockTwo.timestamp));
 });
