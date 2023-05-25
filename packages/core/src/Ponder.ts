@@ -202,14 +202,18 @@ export class Ponder {
     });
 
     this.frontfillService.on("frontfillStarted", async () => {
+      this.eventHandlerService.backfillCutoffTimestamp =
+        this.frontfillService.backfillCutoffTimestamp;
       await this.eventHandlerService.processEvents();
     });
     this.backfillService.on("backfillStarted", async () => {
+      this.frontfillService.backfillCutoffTimestamp;
       this.eventHandlerService.isBackfillStarted = true;
       await this.eventHandlerService.processEvents();
     });
 
     this.frontfillService.on("eventsAdded", async () => {
+      console.log("Events added so processing them now");
       await this.eventHandlerService.processEvents();
     });
     this.backfillService.on("eventsAdded", async () => {
