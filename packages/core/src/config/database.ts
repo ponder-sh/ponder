@@ -2,7 +2,6 @@ import Sqlite from "better-sqlite3";
 import path from "node:path";
 import { DatabaseError, Pool } from "pg";
 
-import { LoggerService } from "@/common/LoggerService";
 import { ensureDirExists } from "@/common/utils";
 import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
@@ -77,17 +76,15 @@ export interface PostgresDb {
   pool: Pool;
 }
 
-export type PonderDatabase = SqliteDb | PostgresDb;
+export type Database = SqliteDb | PostgresDb;
 
-export const buildDb = ({
+export const buildDatabase = ({
   options,
   config,
-  logger,
 }: {
   options: PonderOptions;
   config: ResolvedPonderConfig;
-  logger: LoggerService;
-}): PonderDatabase => {
+}): Database => {
   let resolvedDatabaseConfig: NonNullable<ResolvedPonderConfig["database"]>;
 
   const defaultSqliteFilename = path.join(options.ponderDir, "cache.db");
@@ -120,9 +117,7 @@ export const buildDb = ({
 
   if (resolvedDatabaseConfig.kind === "sqlite") {
     ensureDirExists(resolvedDatabaseConfig.filename!);
-    const rawDb = Sqlite(resolvedDatabaseConfig.filename!, {
-      verbose: logger.trace,
-    });
+    const rawDb = Sqlite(resolvedDatabaseConfig.filename!);
     rawDb.pragma("journal_mode = WAL");
 
     const db = patchSqliteDatabase({ db: rawDb });

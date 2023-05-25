@@ -6,7 +6,7 @@ import fetch, { Headers, Request, Response } from "node-fetch";
 import { Pool } from "pg";
 import { beforeEach } from "vitest";
 
-import { patchSqliteDatabase } from "@/database/db";
+import { patchSqliteDatabase } from "@/config/database";
 import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import type { EventStore } from "@/event-store/store";

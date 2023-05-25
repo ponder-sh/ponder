@@ -31,7 +31,6 @@ export class SqliteEventStore implements EventStore {
   private migrator: Migrator;
 
   constructor({ sqliteDb }: { sqliteDb: Sqlite.Database }) {
-    sqliteDb.pragma("journal_mode = WAL");
     sqliteDb.defaultSafeIntegers(true);
 
     this.db = new Kysely<EventStoreTables>({
