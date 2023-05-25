@@ -507,7 +507,8 @@ export class SqliteEventStore implements EventStore {
         );
 
         if (!startingRange) {
-          // If there is no range containing the log filter start block number, return 0. This really should not happen.
+          // If there is no range containing the log filter start block number, return 0. This could happen if
+          // many block tasks run concurrently and the one containing the log filter start block number is late.
           return 0;
         } else {
           return hexToNumber(startingRange.endBlockTimestamp);

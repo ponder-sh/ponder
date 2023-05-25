@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { accounts, usdcContractConfig, vitalik } from "test/utils/constants";
-import { expectEvents } from "test/utils/expectEvents";
 import { publicClient, testClient, walletClient } from "test/utils/utils";
 import { expect, test, vi } from "vitest";
 

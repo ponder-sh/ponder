@@ -18,7 +18,7 @@ import { findMissingIntervals } from "./intervals";
 type HistoricalSyncEvents = {
   syncStarted: undefined;
   syncCompleted: undefined;
-  newEvents: undefined;
+  newCheckpoint: { timestamp: number };
 };
 
 type HistoricalSyncMetrics = {
@@ -66,6 +66,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private queue: HistoricalSyncQueue;
   metrics: HistoricalSyncMetrics;
 
+  private minimumLogFilterCheckpoint = 0;
+  private logFilterCheckpoints: Record<string, number>;
+
   constructor({
     store,
     logFilters,
@@ -83,6 +86,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     this.queue = this.buildQueue();
     this.metrics = { logFilters: {} };
+    this.logFilterCheckpoints = {};
 
     logFilters.forEach((logFilter) => {
       this.metrics.logFilters[logFilter.name] = {
@@ -95,6 +99,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         blockTaskErrorCount: 0,
         blockTaskCompletedCount: 0,
       };
+
+      this.logFilterCheckpoints[logFilter.name] = 0;
     });
   }
 
@@ -344,18 +350,30 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       requiredTxHashes.has(tx.hash)
     );
 
-    await this.store.insertFinalizedBlock({
-      chainId: this.network.chainId,
-      block,
-      transactions,
-      logFilterRange: {
-        blockNumberToCacheFrom,
-        logFilterKey: logFilter.filter.key,
-      },
-    });
+    const { startingRangeEndTimestamp } = await this.store.insertFinalizedBlock(
+      {
+        chainId: this.network.chainId,
+        block,
+        transactions,
+        logFilterRange: {
+          logFilterKey: logFilter.filter.key,
+          blockNumberToCacheFrom,
+          logFilterStartBlockNumber: logFilter.startBlock,
+        },
+      }
+    );
 
-    if (requiredTxHashes.size > 0) {
-      this.emit("newEvents");
+    this.logFilterCheckpoints[logFilter.name] = Math.max(
+      this.logFilterCheckpoints[logFilter.name],
+      startingRangeEndTimestamp
+    );
+
+    const newCheckpoint = Math.min(...Object.values(this.logFilterCheckpoints));
+    if (newCheckpoint > this.minimumLogFilterCheckpoint) {
+      this.minimumLogFilterCheckpoint = newCheckpoint;
+      this.emit("newCheckpoint", {
+        timestamp: this.minimumLogFilterCheckpoint,
+      });
     }
   };
 }

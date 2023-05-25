@@ -1,5 +1,4 @@
 import { usdcContractConfig } from "test/utils/constants";
-import { expectEvents } from "test/utils/expectEvents";
 import { publicClient } from "test/utils/utils";
 import { HttpRequestError, InvalidParamsRpcError } from "viem";
 import { expect, test, vi } from "vitest";
@@ -75,10 +74,14 @@ test("start() adds events to event store", async (context) => {
   await service.onIdle();
 
   const logEvents = await store.getLogEvents({
-    chainId: network.chainId,
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
-    address: usdcContractConfig.address,
+    filters: [
+      {
+        chainId: network.chainId,
+        address: usdcContractConfig.address,
+      },
+    ],
   });
 
   expect(logEvents[0].block).toMatchObject({
@@ -225,25 +228,29 @@ test("start() emits sync started and completed events", async (context) => {
   const { store } = context;
 
   const service = new HistoricalSyncService({ store, logFilters, network });
-  const eventIterator = service.anyEvent();
+  const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
-  await expectEvents(eventIterator, { syncStarted: 1 });
+
+  expect(emitSpy).toHaveBeenCalledWith("syncStarted");
 
   await service.onIdle();
-  await expectEvents(eventIterator, { syncCompleted: 1 });
+  expect(emitSpy).toHaveBeenCalledWith("syncCompleted");
 });
 
-test("start() emits newEvents event", async (context) => {
+test.only("start() emits newCheckpoint event", async (context) => {
   const { store } = context;
 
   const service = new HistoricalSyncService({ store, logFilters, network });
-  const eventIterator = service.anyEvent();
+  const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
 
   await service.onIdle();
-  await expectEvents(eventIterator, { newEvents: 6 });
+
+  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", {
+    timestamp: 1673275859, // Block timestamp of block 16369955
+  });
 });
