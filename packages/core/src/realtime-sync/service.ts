@@ -18,9 +18,9 @@ import {
 } from "./format";
 
 type RealtimeSyncEvents = {
-  newBlock: undefined;
-  finalityCheckpoint: { newFinalizedBlockNumber: number };
-  shallowReorg: { commonAncestorBlockNumber: number; depth: number };
+  realtimeCheckpoint: { timestamp: number };
+  finalityCheckpoint: { timestamp: number };
+  shallowReorg: { commonAncestorTimestamp: number };
   deepReorg: { minimumDepth: number };
 };
 
@@ -246,7 +246,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         }
       }
 
-      this.emit("newBlock");
+      this.emit("realtimeCheckpoint", {
+        timestamp: hexToNumber(newBlockWithTransactions.timestamp),
+      });
 
       // Add this block the local chain.
       this.blocks.push(newBlock);
@@ -265,28 +267,34 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         newBlock.number >
         this.finalizedBlockNumber + 2 * this.network.finalityBlockCount
       ) {
-        const newFinalizedBlockNumber =
-          this.finalizedBlockNumber + this.network.finalityBlockCount;
+        const newFinalizedBlock = this.blocks.find(
+          (block) =>
+            block.number ===
+            this.finalizedBlockNumber + this.network.finalityBlockCount
+        )!;
 
         // Remove now-finalized blocks from the local chain (except for the block at newFinalizedBlockNumber).
         this.blocks = this.blocks.filter(
-          (block) => block.number >= newFinalizedBlockNumber
+          (block) => block.number >= newFinalizedBlock.number
         );
 
         // Clean up metrics for now-finalized blocks.
         for (const blockNumber in this.metrics.blocks) {
-          if (Number(blockNumber) < newFinalizedBlockNumber) {
+          if (Number(blockNumber) < newFinalizedBlock.number) {
             delete this.metrics.blocks[blockNumber];
           }
         }
 
         await this.store.finalizeData({
           chainId: this.network.chainId,
-          toBlockNumber: newFinalizedBlockNumber,
+          toBlockNumber: newFinalizedBlock.number,
         });
 
-        this.finalizedBlockNumber = newFinalizedBlockNumber;
-        this.emit("finalityCheckpoint", { newFinalizedBlockNumber });
+        this.finalizedBlockNumber = newFinalizedBlock.number;
+
+        this.emit("finalityCheckpoint", {
+          timestamp: newFinalizedBlock.timestamp,
+        });
       }
 
       return;
@@ -343,20 +351,20 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     let depth = 0;
 
     while (canonicalBlock.number > this.finalizedBlockNumber) {
-      const commonAncestorBlockNumber = this.blocks.find(
+      const commonAncestorBlock = this.blocks.find(
         (b) => b.hash === canonicalBlock.parentHash
-      )?.number;
+      );
 
       // If the common ancestor block is present in our local chain, this is a short reorg.
-      if (commonAncestorBlockNumber) {
+      if (commonAncestorBlock) {
         // Remove all non-canonical blocks from the local chain.
         this.blocks = this.blocks.filter(
-          (block) => block.number <= commonAncestorBlockNumber
+          (block) => block.number <= commonAncestorBlock.number
         );
 
         await this.store.deleteUnfinalizedData({
           chainId: this.network.chainId,
-          fromBlockNumber: commonAncestorBlockNumber + 1,
+          fromBlockNumber: commonAncestorBlock.number + 1,
         });
 
         // Clear the queue of all blocks (some might be from the non-canonical chain).
@@ -372,7 +380,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // start fetching any newer blocks on the canonical chain.
         await this.addNewLatestBlock();
 
-        this.emit("shallowReorg", { commonAncestorBlockNumber, depth });
+        this.emit("shallowReorg", {
+          commonAncestorTimestamp: commonAncestorBlock.timestamp,
+        });
 
         return;
       }

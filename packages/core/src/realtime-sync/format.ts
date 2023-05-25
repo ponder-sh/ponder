@@ -6,6 +6,7 @@ export type LightBlock = {
   hash: Hash;
   parentHash: Hash;
   number: number;
+  timestamp: number;
 };
 
 export function rpcBlockToLightBlock(block: RpcBlock): LightBlock {
@@ -13,6 +14,7 @@ export function rpcBlockToLightBlock(block: RpcBlock): LightBlock {
     hash: block.hash!,
     parentHash: block.parentHash,
     number: hexToNumber(block.number!),
+    timestamp: hexToNumber(block.timestamp),
   };
 }
 
