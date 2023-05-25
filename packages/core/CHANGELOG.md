@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.58
+
+### Patch Changes
+
+- [#188](https://github.com/0xOlias/ponder/pull/188) [`e1bddf1`](https://github.com/0xOlias/ponder/commit/e1bddf1963b6ad2b1332bfdb26816e272e128dfc) Thanks [@saribmah](https://github.com/saribmah)! - Fixes a bug where event handler was always using the minimum value for toTimestamp from all block timestamps, resulting in new events not being added for event handling.
+
 ## 0.0.57
 
 ### Patch Changes
