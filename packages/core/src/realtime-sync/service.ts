@@ -53,7 +53,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   // Queue of unprocessed blocks.
   private queue: RealtimeSyncQueue;
   // Block number of the current finalized block.
-  finalizedBlockNumber = 0;
+  private finalizedBlockNumber = 0;
   // Local representation of the unfinalized portion of the chain.
   private blocks: LightBlock[] = [];
   // Function to stop polling for new blocks.
