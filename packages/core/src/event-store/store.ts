@@ -16,6 +16,11 @@ export type LogFilterCachedRange = {
   endBlockTimestamp: bigint;
 };
 
+// /**
+//  * A record representing a call to a contract made at a specific block height.
+//  */
+// export type ContractCall = {};
+
 export interface EventStore {
   db: Kysely<any>;
 
@@ -70,6 +75,6 @@ export interface EventStore {
   }): Promise<{ startingRangeEndTimestamp: number }>;
 
   // // Injected contract call methods.
-  // upsertContractCall(contractCall: ContractCall): Promise<void>;
-  // getContractCall(contractCallKey: string): Promise<ContractCall | null>;
+  // insertContractCall(options: { key: string; result: string }): Promise<void>;
+  // getContractCall(options: { key: string }): Promise<ContractCall | null>;
 }

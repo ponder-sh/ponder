@@ -5,7 +5,7 @@ import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
 
 import { buildAbi } from "./abi";
-import { encodeLogFilterKey } from "./encodeLogFilterKey";
+import { encodeLogFilterKey } from "./logFilterKey";
 import { buildNetwork, Network } from "./networks";
 
 export type LogFilter = {

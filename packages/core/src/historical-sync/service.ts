@@ -7,11 +7,14 @@ import {
   toHex,
 } from "viem";
 
+import { MessageKind } from "@/common/LoggerService";
 import { type Queue, createQueue } from "@/common/queue";
 import { endBenchmark, startBenchmark } from "@/common/utils";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
+import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
+import { Resources } from "@/Ponder";
 
 import { findMissingIntervals } from "./intervals";
 
@@ -59,6 +62,7 @@ type BlockSyncTask = {
 type HistoricalSyncQueue = Queue<LogSyncTask | BlockSyncTask>;
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
+  private resources: Resources;
   private store: EventStore;
   private logFilters: LogFilter[];
   network: Network;
@@ -70,16 +74,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logFilterCheckpoints: Record<string, number>;
 
   constructor({
+    resources,
     store,
     logFilters,
     network,
   }: {
+    resources: Resources;
     store: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
+    this.resources = resources;
     this.store = store;
     this.logFilters = logFilters;
     this.network = network;
@@ -235,15 +242,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           return;
         }
 
-        // const queueError = new QueueError({
-        //   queueName: "Log backfill queue",
-        //   task: task,
-        //   cause: error,
-        // });
-        // context.backfillService.resources.logger.logMessage(
-        //   MessageKind.ERROR,
-        //   queueError.message
-        // );
+        const queueError = new QueueError({
+          queueName: "Historical sync queue",
+          task: task,
+          cause: error,
+        });
+        this.resources.logger.logMessage(MessageKind.ERROR, queueError.message);
 
         // Default to a retry (uses the retry options passed to the queue).
         queue.addTask(task, { retry: true });

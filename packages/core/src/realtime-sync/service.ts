@@ -25,6 +25,7 @@ type RealtimeSyncEvents = {
 };
 
 type RealtimeSyncMetrics = {
+  isConnected: boolean;
   // Block number -> log filter name -> matched log count.
   // Note that finalized blocks are removed from this object.
   blocks: Record<
@@ -74,12 +75,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.network = network;
 
     this.queue = this.buildQueue();
-    this.metrics = { blocks: {} };
+    this.metrics = { isConnected: false, blocks: {} };
   }
 
   setup = async () => {
     // Fetch the latest block for the network.
     const latestBlock = await this.getLatestBlock();
+
+    this.metrics.isConnected = true;
 
     // Set the finalized block number according to the network's finality threshold.
     // If the finality block count is greater than the latest block number, set to zero.
