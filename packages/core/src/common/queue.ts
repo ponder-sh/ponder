@@ -30,6 +30,12 @@ export type Worker<TTask, TContext = undefined, TReturn = void> = (arg: {
   queue: Queue<TTask>;
 }) => Promise<TReturn>;
 
+type OnAdd<TTask, TContext = undefined> = (arg: {
+  task: TTask;
+  context: TContext | undefined;
+  queue: Queue<TTask>;
+}) => unknown;
+
 type OnError<TTask, TContext = undefined> = (arg: {
   error: Error;
   task: TTask;
@@ -57,15 +63,17 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
   worker,
   context,
   options,
-  onError,
+  onAdd,
   onComplete,
+  onError,
   onIdle,
 }: {
   worker: Worker<TTask, TContext, TReturn>;
   context?: TContext;
   options?: QueueOptions;
-  onError?: OnError<TTask, TContext>;
+  onAdd?: OnAdd<TTask, TContext>;
   onComplete?: OnComplete<TTask, TContext, TReturn>;
+  onError?: OnError<TTask, TContext>;
   onIdle?: () => unknown;
 }): Queue<TTask> {
   const queue = new PQueue(options) as Queue<TTask>;
@@ -107,6 +115,8 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
       }
     }
 
+    onAdd?.({ task, context, queue });
+
     await queue.add(
       async () => {
         let result: TReturn;
@@ -139,6 +149,8 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
             retryTimeout = retryTimeouts[task._retryCount];
           }
         }
+
+        onAdd?.({ task, context, queue });
 
         await queue.add(
           async () => {

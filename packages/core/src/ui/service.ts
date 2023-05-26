@@ -37,6 +37,26 @@ export class UiService {
     }
 
     this.renderInterval = setInterval(() => {
+      Object.keys(this.ui.stats).forEach((name) => {
+        this.ui.stats[name] = {
+          ...this.ui.stats[name],
+          logCurrent: this.ui.stats[name].logCurrent + 1,
+          logAvgDuration:
+            (Date.now() - this.ui.stats[name].logStartTimestamp) /
+            this.ui.stats[name].logCurrent,
+          logAvgBlockCount:
+            this.ui.stats[name].blockTotal / this.ui.stats[name].logCurrent,
+        };
+
+        this.ui.stats[name] = {
+          ...this.ui.stats[name],
+          blockCurrent: this.ui.stats[name].blockCurrent + 1,
+          blockAvgDuration:
+            (Date.now() - this.ui.stats[name].blockStartTimestamp) /
+            this.ui.stats[name].blockCurrent,
+        };
+      });
+
       this.render();
     }, 17);
 

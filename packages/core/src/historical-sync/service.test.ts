@@ -43,8 +43,8 @@ test("setup() calculates cached and total block counts", async (context) => {
   await service.setup({ finalizedBlockNumber: 16369955 });
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
-    cachedBlockCount: 0,
     totalBlockCount: 6,
+    cacheRate: 0,
   });
 });
 
@@ -58,10 +58,10 @@ test("start() runs log tasks and block tasks", async (context) => {
   await service.onIdle();
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
+    blockTaskTotalCount: 6,
     blockTaskCompletedCount: 6,
-    blockTaskStartedCount: 6,
+    logTaskTotalCount: 2,
     logTaskCompletedCount: 2,
-    logTaskStartedCount: 2,
   });
 });
 
@@ -142,7 +142,7 @@ test("start() retries errors", async (context) => {
   await service.onIdle();
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
-    logTaskStartedCount: 2,
+    logTaskTotalCount: 2,
     logTaskErrorCount: 1,
     logTaskCompletedCount: 1,
   });
@@ -176,7 +176,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   await service.onIdle();
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
-    logTaskStartedCount: 4,
+    logTaskTotalCount: 4,
     logTaskErrorCount: 1,
     logTaskCompletedCount: 3,
   });
@@ -209,7 +209,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   await service.onIdle();
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
-    logTaskStartedCount: 4,
+    logTaskTotalCount: 4,
     logTaskErrorCount: 1,
     logTaskCompletedCount: 3,
   });
@@ -236,7 +236,7 @@ test("start() emits sync started and completed events", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("syncStarted");
 
   await service.onIdle();
-  expect(emitSpy).toHaveBeenCalledWith("syncCompleted");
+  expect(emitSpy).toHaveBeenCalledWith("syncComplete");
 });
 
 test("start() emits historicalCheckpoint event", async (context) => {

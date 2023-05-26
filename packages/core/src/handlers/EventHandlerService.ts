@@ -136,6 +136,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.eventProcessingMutex = new Mutex();
     this.eventsHandledToTimestamp = 0;
 
+    this.metrics = {
+      error: false,
+      handledEventCount: 0,
+      unhandledEventCount: 0,
+      matchedEventCount: 0,
+      latestHandledEventTimestamp: 0,
+    };
+
     this.queue = this.createEventQueue({
       handlers: this.handlers,
       schema: this.schema,

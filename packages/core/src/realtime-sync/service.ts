@@ -136,8 +136,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   kill = async () => {
     this.unpoll?.();
+    this.queue.pause();
     this.queue.clear();
-    await this.queue.onIdle();
+    // TODO: Figure out if it's necessary to wait for the queue to be idle before killing it.
+    // await this.onIdle();
   };
 
   onIdle = async () => {

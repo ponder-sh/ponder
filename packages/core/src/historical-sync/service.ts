@@ -31,15 +31,15 @@ type HistoricalSyncMetrics = {
     string,
     {
       totalBlockCount: number;
-      cachedBlockCount: number;
+      cacheRate: number;
 
-      logTaskStartedCount: number;
-      logTaskErrorCount: number;
+      logTaskTotalCount: number;
       logTaskCompletedCount: number;
+      logTaskErrorCount: number;
 
-      blockTaskStartedCount: number;
-      blockTaskErrorCount: number;
+      blockTaskTotalCount: number;
       blockTaskCompletedCount: number;
+      blockTaskErrorCount: number;
     }
   >;
 };
@@ -98,13 +98,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     logFilters.forEach((logFilter) => {
       this.metrics.logFilters[logFilter.name] = {
         totalBlockCount: 0,
-        cachedBlockCount: 0,
-        logTaskStartedCount: 0,
-        logTaskErrorCount: 0,
+        cacheRate: 0,
+        logTaskTotalCount: 0,
         logTaskCompletedCount: 0,
-        blockTaskStartedCount: 0,
-        blockTaskErrorCount: 0,
+        logTaskErrorCount: 0,
+        blockTaskTotalCount: 0,
         blockTaskCompletedCount: 0,
+        blockTaskErrorCount: 0,
       };
 
       this.logFilterCheckpoints[logFilter.name] = 0;
@@ -133,14 +133,17 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           cachedRanges.map((r) => [Number(r.startBlock), Number(r.endBlock)])
         );
 
+        const totalBlockCount = endBlock - startBlock + 1;
+        const cachedBlockCount = cachedRanges.reduce(
+          (acc, cur) =>
+            acc + (Number(cur.endBlock) + 1 - Number(cur.startBlock)),
+          0
+        );
+
         this.metrics.logFilters[logFilter.name].totalBlockCount =
-          endBlock - startBlock + 1;
-        this.metrics.logFilters[logFilter.name].cachedBlockCount =
-          cachedRanges.reduce(
-            (acc, cur) =>
-              acc + (Number(cur.endBlock) + 1 - Number(cur.startBlock)),
-            0
-          );
+          totalBlockCount;
+        this.metrics.logFilters[logFilter.name].cacheRate =
+          cachedBlockCount / (totalBlockCount || 1);
 
         for (const blockRange of requiredBlockRanges) {
           const [startBlock, endBlock] = blockRange;
@@ -175,14 +178,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.emit("syncStarted");
   }
 
-  async onIdle() {
-    await this.queue.onIdle();
-  }
-
-  async kill() {
+  kill = async () => {
+    this.queue.pause();
     this.queue.clear();
+    // TODO: Figure out if it's necessary to wait for the queue to be idle before killing it.
+    // await this.onIdle();
+  };
+
+  onIdle = async () => {
     await this.queue.onIdle();
-  }
+  };
 
   private buildQueue = () => {
     const worker = async ({ task }: { task: LogSyncTask | BlockSyncTask }) => {
@@ -199,6 +204,21 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const queue = createQueue<LogSyncTask | BlockSyncTask, unknown, any>({
       worker,
       options: { concurrency: 10, autoStart: false },
+      onAdd: ({ task }) => {
+        if (task.kind === "LOG_SYNC") {
+          this.metrics.logFilters[task.logFilter.name].logTaskTotalCount += 1;
+        } else {
+          this.metrics.logFilters[task.logFilter.name].blockTaskTotalCount += 1;
+        }
+      },
+      onComplete: ({ task }) => {
+        const { logFilter } = task;
+        if (task.kind === "LOG_SYNC") {
+          this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
+        } else {
+          this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
+        }
+      },
       onError: ({ error, task, queue }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
@@ -251,20 +271,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         // Default to a retry (uses the retry options passed to the queue).
         queue.addTask(task, { retry: true });
       },
-      onComplete: ({ task }) => {
-        const { logFilter } = task;
-        if (task.kind === "LOG_SYNC") {
-          this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
-        } else {
-          this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
-        }
-      },
       onIdle: () => {
-        if (this.metrics.startedAt) {
-          this.metrics.duration = endBenchmark(this.metrics.startedAt);
-          this.metrics.isComplete = true;
-          this.emit("syncComplete");
-        }
+        this.metrics.duration = endBenchmark(this.metrics.startedAt);
+        this.metrics.isComplete = true;
+        this.emit("syncComplete");
       },
     });
 
@@ -273,8 +283,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private logTaskWorker = async ({ task }: { task: LogSyncTask }) => {
     const { logFilter, fromBlock, toBlock } = task;
-
-    this.metrics.logFilters[logFilter.name].logTaskStartedCount += 1;
 
     const logs = await this.network.client.request({
       method: "eth_getLogs",
@@ -333,14 +341,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
     }
 
-    this.queue.addTasks(blockTasks);
+    this.queue.addTasks(blockTasks, { front: true });
   };
 
   private blockTaskWorker = async ({ task }: { task: BlockSyncTask }) => {
     const { logFilter, blockNumber, blockNumberToCacheFrom, requiredTxHashes } =
       task;
-
-    this.metrics.logFilters[logFilter.name].blockTaskStartedCount += 1;
 
     const block = await this.network.client.request({
       method: "eth_getBlockByNumber",

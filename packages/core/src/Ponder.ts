@@ -1,3 +1,5 @@
+import pico from "picocolors";
+
 import { CodegenService } from "@/codegen/service";
 import { LoggerService, MessageKind } from "@/common/LoggerService";
 import { buildContracts } from "@/config/contracts";
@@ -12,7 +14,7 @@ import { ReloadService } from "@/reload/service";
 import { ServerService } from "@/server/service";
 import { UiService } from "@/ui/service";
 
-import { formatEta } from "./common/utils";
+import { formatEta, formatPercentage } from "./common/utils";
 import { EventAggregatorService } from "./event-aggregator/service";
 import { PostgresEventStore } from "./event-store/postgres/store";
 import { SqliteEventStore } from "./event-store/sqlite/store";
@@ -333,28 +335,24 @@ export class Ponder {
     // });
 
     this.networks.forEach((network) => {
-      const {
-        historicalSyncService,
-        // realtimeSyncService
-      } = network;
+      const { historicalSyncService, realtimeSyncService } = network;
 
       historicalSyncService.on("error", ({ error }) => {
         this.resources.logger.logMessage(MessageKind.ERROR, error.message);
       });
 
-      // historicalSyncService.on("syncStarted", () => {
-      //   this.logFilters.forEach(({ name }) => {
-      //     const metrics = historicalSyncService.metrics.logFilters[name];
+      historicalSyncService.on("syncStarted", () => {
+        this.logFilters.forEach(({ name }) => {
+          const metrics = historicalSyncService.metrics.logFilters[name];
 
-      //     this.uiService.ui.stats[name].blockCurrent =
-      //       metrics.blockTaskCompletedCount;
-
-      //     this.uiService.ui.stats[name].logCurrent =
-      //       metrics.logTaskCompletedCount;
-      //   });
-      //   // historicalSyncService.metrics.logFilters[]
-      //   // this.uiService.ui.stats[name].cacheRate = cacheRate;
-      // });
+          this.resources.logger.logMessage(
+            MessageKind.BACKFILL,
+            `started backfill for ${pico.bold(name)} (${formatPercentage(
+              metrics.cacheRate
+            )} cached)`
+          );
+        });
+      });
     });
 
     setInterval(() => {
@@ -369,13 +367,18 @@ export class Ponder {
         }
 
         this.logFilters.forEach(({ name }) => {
-          const metrics = historicalSyncService.metrics.logFilters[name];
+          const historicalMetrics =
+            historicalSyncService.metrics.logFilters[name];
 
           this.uiService.ui.stats[name].blockCurrent =
-            metrics.blockTaskCompletedCount;
+            historicalMetrics.blockTaskCompletedCount;
+          this.uiService.ui.stats[name].blockTotal =
+            historicalMetrics.blockTaskTotalCount;
 
           this.uiService.ui.stats[name].logCurrent =
-            metrics.logTaskCompletedCount;
+            historicalMetrics.logTaskCompletedCount;
+          this.uiService.ui.stats[name].logTotal =
+            historicalMetrics.logTaskTotalCount;
         });
       });
 
@@ -406,100 +409,6 @@ export class Ponder {
         this.eventHandlerService.metrics.matchedEventCount;
     }, 17);
 
-    // this.backfillService.on("logFilterStarted", ({ name, cacheRate }) => {
-    //   this.resources.logger.logMessage(
-    //     MessageKind.BACKFILL,
-    //     `started backfill for ${pico.bold(name)} (${formatPercentage(
-    //       cacheRate
-    //     )} cached)`
-    //   );
-
-    //   this.uiService.ui.stats[name].cacheRate = cacheRate;
-    // });
-
-    // this.backfillService.on("logTasksAdded", ({ name, count }) => {
-    //   this.uiService.ui.stats[name].logTotal += count;
-    // });
-    // this.backfillService.on("blockTasksAdded", ({ name, count }) => {
-    //   this.uiService.ui.stats[name].blockTotal += count;
-    // });
-
-    // this.backfillService.on("logTaskCompleted", ({ name }) => {
-    //   if (this.uiService.ui.stats[name].logCurrent === 0) {
-    //     this.uiService.ui.stats[name].logStartTimestamp = Date.now();
-    //   }
-
-    //   this.uiService.ui.stats[name] = {
-    //     ...this.uiService.ui.stats[name],
-    //     logCurrent: this.uiService.ui.stats[name].logCurrent + 1,
-    //     logAvgDuration:
-    //       (Date.now() - this.uiService.ui.stats[name].logStartTimestamp) /
-    //       this.uiService.ui.stats[name].logCurrent,
-    //     logAvgBlockCount:
-    //       this.uiService.ui.stats[name].blockTotal /
-    //       this.uiService.ui.stats[name].logCurrent,
-    //   };
-    // });
-    // this.backfillService.on("blockTaskCompleted", ({ name }) => {
-    //   if (this.uiService.ui.stats[name].blockCurrent === 0) {
-    //     this.uiService.ui.stats[name].blockStartTimestamp = Date.now();
-    //   }
-
-    //   this.uiService.ui.stats[name] = {
-    //     ...this.uiService.ui.stats[name],
-    //     blockCurrent: this.uiService.ui.stats[name].blockCurrent + 1,
-    //     blockAvgDuration:
-    //       (Date.now() - this.uiService.ui.stats[name].blockStartTimestamp) /
-    //       this.uiService.ui.stats[name].blockCurrent,
-    //   };
-    // });
-    // this.backfillService.on("backfillCompleted", ({ duration }) => {
-    //   this.uiService.ui.isBackfillComplete = true;
-    //   this.uiService.ui.backfillDuration = formatEta(duration);
-    // });
-
-    // this.frontfillService.on("logTaskCompleted", ({ network, logData }) => {
-    //   Object.entries(logData).forEach(([blockNumber, logInfo]) => {
-    //     const total = Object.values(logInfo).reduce((sum, a) => sum + a, 0);
-    //     this.resources.logger.logMessage(
-    //       MessageKind.FRONTFILL,
-    //       `${network} @ ${blockNumber} (${total} matched events)`
-    //     );
-    //   });
-    // });
-
-    // this.frontfillService.on("logTaskFailed", ({ network, error }) => {
-    //   this.resources.logger.logMessage(
-    //     MessageKind.WARNING,
-    //     `(${network}) log frontfill task failed with error: ${error.message}`
-    //   );
-    // });
-    // this.frontfillService.on("blockTaskFailed", ({ network, error }) => {
-    //   this.resources.logger.logMessage(
-    //     MessageKind.WARNING,
-    //     `(${network}) block frontfill task failed with error: ${error.message}`
-    //   );
-    // });
-
-    this.eventHandlerService.on("taskStarted", () => {
-      this.uiService.ui.handlersCurrent += 1;
-    });
-    this.eventHandlerService.on("taskCompleted", ({ timestamp }) => {
-      if (timestamp) this.uiService.ui.handlersToTimestamp = timestamp;
-      this.uiService.render();
-    });
-
-    // this.eventHandlerService.on(
-    //   "eventsAdded",
-    //   ({ totalCount, handledCount }) => {
-    //     this.uiService.ui.handlersTotal += totalCount;
-    //     this.uiService.ui.handlersHandledTotal += handledCount;
-    //   }
-    // );
-    // this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
-    //   this.uiService.ui.handlersToTimestamp = toTimestamp;
-    // });
-
     this.eventHandlerService.on("reset", () => {
       this.uiService.ui.handlersCurrent = 0;
       this.uiService.ui.handlersTotal = 0;
@@ -525,8 +434,32 @@ export class Ponder {
     this.resources.errors.on("handlerError", () => {
       this.uiService.ui.handlerError = true;
     });
+
     this.resources.errors.on("handlerErrorCleared", () => {
       this.uiService.ui.handlerError = false;
     });
+
+    // this.frontfillService.on("logTaskCompleted", ({ network, logData }) => {
+    //   Object.entries(logData).forEach(([blockNumber, logInfo]) => {
+    //     const total = Object.values(logInfo).reduce((sum, a) => sum + a, 0);
+    //     this.resources.logger.logMessage(
+    //       MessageKind.FRONTFILL,
+    //       `${network} @ ${blockNumber} (${total} matched events)`
+    //     );
+    //   });
+    // });
+
+    // this.frontfillService.on("logTaskFailed", ({ network, error }) => {
+    //   this.resources.logger.logMessage(
+    //     MessageKind.WARNING,
+    //     `(${network}) log frontfill task failed with error: ${error.message}`
+    //   );
+    // });
+    // this.frontfillService.on("blockTaskFailed", ({ network, error }) => {
+    //   this.resources.logger.logMessage(
+    //     MessageKind.WARNING,
+    //     `(${network}) block frontfill task failed with error: ${error.message}`
+    //   );
+    // });
   }
 }
