@@ -330,10 +330,6 @@ export class Ponder {
       this.resources.logger.logMessage(MessageKind.ERROR, error.message);
     });
 
-    // this.frontfillService.on("networkConnected", (e) => {
-    //   this.uiService.ui.networks.push(e.network);
-    // });
-
     this.networks.forEach((network) => {
       const { historicalSyncService, realtimeSyncService } = network;
 

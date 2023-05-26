@@ -171,6 +171,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         }
       })
     );
+
+    // If, after adding tasks to the queue, there are no tasks in the queue,
+    // this means everything we need was cached and we can complete early.
+    if (this.queue.size === 0) {
+      this.metrics.duration = endBenchmark(this.metrics.startedAt);
+      this.metrics.isComplete = true;
+      this.emit("syncComplete");
+    }
   }
 
   start() {
@@ -272,6 +280,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         queue.addTask(task, { retry: true });
       },
       onIdle: () => {
+        if (this.metrics.isComplete) return;
         this.metrics.duration = endBenchmark(this.metrics.startedAt);
         this.metrics.isComplete = true;
         this.emit("syncComplete");
