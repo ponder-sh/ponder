@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { accounts, usdcContractConfig, vitalik } from "test/utils/constants";
-import { publicClient, testClient, walletClient } from "test/utils/utils";
 import { expect, test, vi } from "vitest";
 
+import { accounts, usdcContractConfig, vitalik } from "@/_test/constants";
+import { publicClient, testClient, walletClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";

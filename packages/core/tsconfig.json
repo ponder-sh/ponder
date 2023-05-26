@@ -17,6 +17,6 @@
       "abitype": ["node_modules/abitype/dist"]
     }
   },
-  "include": ["src", "test"],
-  "exclude": ["node_modules", "test/**/src/*", "test/**/generated/*"]
+  "include": ["src"],
+  "exclude": ["node_modules", "src/_test/**/app/*"]
 }

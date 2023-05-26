@@ -1,7 +1,7 @@
-import { usdcContractConfig } from "test/utils/constants";
-import { publicClient } from "test/utils/utils";
 import { expect, test, vi } from "vitest";
 
+import { usdcContractConfig } from "@/_test/constants";
+import { publicClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";

@@ -1,9 +1,9 @@
 import { rmSync } from "node:fs";
 import path from "node:path";
 import request from "supertest";
-import { testNetworkConfig } from "test/utils/utils";
 import { afterEach, expect, test } from "vitest";
 
+import { testNetworkConfig } from "@/_test/utils";
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
