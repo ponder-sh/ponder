@@ -4,20 +4,34 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { ensureDirExists } from "@/common/utils";
+import { Contract } from "@/config/contracts";
+import { LogFilter } from "@/config/logFilters";
 import { Resources } from "@/Ponder";
 import { Schema } from "@/schema/types";
 
 import { buildContractTypes } from "./buildContractTypes";
 import { buildEntityTypes } from "./buildEntityTypes";
 import { buildEventTypes } from "./buildEventTypes";
-import { formatPrettier } from "./utils";
+import { formatPrettier } from "./prettier";
 
 export class CodegenService extends Emittery {
-  resources: Resources;
+  private resources: Resources;
+  private contracts: Contract[];
+  private logFilters: LogFilter[];
 
-  constructor({ resources }: { resources: Resources }) {
+  constructor({
+    resources,
+    contracts,
+    logFilters,
+  }: {
+    resources: Resources;
+    contracts: Contract[];
+    logFilters: LogFilter[];
+  }) {
     super();
     this.resources = resources;
+    this.contracts = contracts;
+    this.logFilters = logFilters;
   }
 
   generateAppFile({ schema }: { schema?: Schema } = {}) {
@@ -49,13 +63,13 @@ export class CodegenService extends Emittery {
           blockTag?: BlockTag
         }
 
-      ${buildContractTypes(this.resources.contracts)}
+      ${buildContractTypes(this.contracts)}
 
       /* CONTEXT TYPES */
 
       export type Context = {
         contracts: {
-          ${this.resources.contracts
+          ${this.contracts
             .map((contract) => `${contract.name}: ${contract.name};`)
             .join("")}
         },
@@ -69,7 +83,7 @@ export class CodegenService extends Emittery {
   
       /* HANDLER TYPES */
     
-      ${buildEventTypes(this.resources.logFilters)}
+      ${buildEventTypes(this.logFilters)}
 
       export const ponder = new PonderApp<AppType>();
     `;

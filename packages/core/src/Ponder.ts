@@ -1,6 +1,6 @@
 import pico from "picocolors";
 
-import { CodegenService } from "@/codegen/CodegenService";
+import { CodegenService } from "@/codegen/service";
 import { LoggerService, MessageKind } from "@/common/LoggerService";
 import { formatEta, formatPercentage } from "@/common/utils";
 import { buildContracts, Contract } from "@/config/contracts";
@@ -11,8 +11,8 @@ import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
 import { ErrorService } from "@/errors/ErrorService";
 import { EventHandlerService } from "@/handlers/EventHandlerService";
-import { ReloadService } from "@/reload/ReloadService";
-import { ServerService } from "@/server/ServerService";
+import { ReloadService } from "@/reload/service";
+import { ServerService } from "@/server/service";
 import { UiService } from "@/ui/UiService";
 
 import { EventAggregatorService } from "./event-aggregator/service";
@@ -25,9 +25,6 @@ import { SqliteUserStore } from "./user-store/sqlite/store";
 
 export type Resources = {
   options: PonderOptions;
-  config: ResolvedPonderConfig;
-  logFilters: LogFilter[];
-  contracts: Contract[];
   logger: LoggerService;
   errors: ErrorService;
 };
@@ -48,6 +45,8 @@ export class Ponder {
   }) {
     const logger = new LoggerService({ options });
     const errors = new ErrorService();
+
+    const resources = { options, logger, errors };
 
     const logFilters = buildLogFilters({ options, config });
     const contracts = buildContracts({ options, config });
@@ -119,11 +118,17 @@ export class Ponder {
       });
     }
 
-    // this.serverService = new ServerService({ resources });
-    // this.reloadService = new ReloadService({ resources });
-    // this.eventHandlerService = new EventHandlerService({ resources });
-    // this.codegenService = new CodegenService({ resources });
-    // this.uiService = new UiService({ resources });
+    this.serverService = new ServerService({ resources, userStore });
+    this.reloadService = new ReloadService({ resources });
+    this.codegenService = new CodegenService({
+      resources,
+      contracts,
+      logFilters,
+    });
+
+    this.eventHandlerService = new EventHandlerService({ resources });
+
+    this.uiService = new UiService({ resources });
   }
 
   async setup() {

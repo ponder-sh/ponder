@@ -8,6 +8,7 @@ import type http from "node:http";
 
 import { MessageKind } from "@/common/LoggerService";
 import { Resources } from "@/Ponder";
+import { UserStore } from "@/user-store/store";
 
 export type ServerServiceEvents = {
   serverStarted: { desiredPort: number; port: number };
@@ -15,6 +16,7 @@ export type ServerServiceEvents = {
 
 export class ServerService extends Emittery<ServerServiceEvents> {
   resources: Resources;
+  userStore: UserStore;
 
   app?: express.Express;
   server?: http.Server;
@@ -22,9 +24,16 @@ export class ServerService extends Emittery<ServerServiceEvents> {
 
   isBackfillEventProcessingComplete = false;
 
-  constructor({ resources }: { resources: Resources }) {
+  constructor({
+    resources,
+    userStore,
+  }: {
+    resources: Resources;
+    userStore: UserStore;
+  }) {
     super();
     this.resources = resources;
+    this.userStore = userStore;
   }
 
   async start() {
@@ -70,7 +79,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
     this.graphqlMiddleware = graphqlHTTP({
       schema: graphqlSchema,
       context: {
-        store: this.resources.entityStore,
+        store: this.userStore,
       },
       graphiql: true,
     });
