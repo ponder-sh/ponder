@@ -1,18 +1,24 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
-import { decodeEventLog, encodeEventTopics, Hex } from "viem";
 
 import { createQueue, Queue, Worker } from "@/common/queue";
-import type { Log, Model } from "@/common/types";
-import { EntityInstance } from "@/database/entity/entityStore";
+import type { Model } from "@/common/types";
+import type { Contract } from "@/config/contracts";
 import { EventHandlerError } from "@/errors/eventHandler";
-import { Resources } from "@/Ponder";
-import { Handlers } from "@/reload/readHandlers";
-import { Schema } from "@/schema/types";
+import type {
+  EventAggregatorService,
+  LogEvent,
+} from "@/event-aggregator/service";
+import type { EventStore } from "@/event-store/store";
+import type { Resources } from "@/Ponder";
+import type { Handlers } from "@/reload/readHandlers";
+import type { Schema } from "@/schema/types";
+import type { EntityInstance, UserStore } from "@/user-store/store";
 
 import {
+  type ReadOnlyContract,
   buildInjectedContract,
-  ReadOnlyContract,
 } from "./buildInjectedContract";
 import { getStackTraceAndCodeFrame } from "./getStackTrace";
 
@@ -31,12 +37,19 @@ type EventHandlerServiceEvents = {
 };
 
 type SetupTask = { kind: "SETUP" };
-type LogTask = { kind: "LOG"; logFilterName: string; log: Log };
-type EventHandlerTask = SetupTask | LogTask;
+type LogEventTask = {
+  kind: "LOG";
+  event: LogEvent;
+};
+type EventHandlerTask = SetupTask | LogEventTask;
 type EventHandlerQueue = Queue<EventHandlerTask>;
 
 export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
-  resources: Resources;
+  private resources: Resources;
+  eventStore: EventStore;
+  private userStore: UserStore;
+  private eventAggregatorService: EventAggregatorService;
+  private contracts: Contract[];
 
   private handlers?: Handlers;
   private schema?: Schema;
@@ -51,34 +64,51 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
   currentLogEventBlockNumber = 0n;
 
-  constructor({ resources }: { resources: Resources }) {
+  constructor({
+    resources,
+    eventStore,
+    userStore,
+    eventAggregatorService,
+    contracts,
+  }: {
+    resources: Resources;
+    eventStore: EventStore;
+    userStore: UserStore;
+    eventAggregatorService: EventAggregatorService;
+    contracts: Contract[];
+  }) {
     super();
     this.resources = resources;
+    this.eventStore = eventStore;
+    this.userStore = userStore;
+    this.eventAggregatorService = eventAggregatorService;
+    this.contracts = contracts;
 
     // Build the injected contract objects. They depend only on contract config,
     // so they can't be hot reloaded.
-    this.resources.contracts.forEach((contract) => {
-      this.injectedContracts[contract.name] = buildInjectedContract({
-        contract,
-        eventHandlerService: this,
-      });
+    this.contracts.forEach((contract) => {
+      this.injectedContracts[contract.name] = {};
+      // buildInjectedContract({
+      //   contract,
+      //   eventHandlerService: this,
+      // });
     });
 
     // Setup the event processing mutex.
     this.eventProcessingMutex = new Mutex();
   }
 
-  killQueue() {
+  killQueue = () => {
     this.queue?.clear();
-  }
+  };
 
-  resetEventQueue({
+  resetEventQueue = ({
     handlers: newHandlers,
     schema: newSchema,
   }: {
     handlers?: Handlers;
     schema?: Schema;
-  } = {}) {
+  } = {}) => {
     if (newHandlers) this.handlers = newHandlers;
     if (newSchema) this.schema = newSchema;
 
@@ -105,9 +135,9 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
         toTimestamp: this.eventsHandledToTimestamp,
       });
     }
-  }
+  };
 
-  async processEvents() {
+  processEvents = async ({ toTimestamp }: { toTimestamp: number }) => {
     if (!this.isBackfillStarted) return;
     if (this.resources.errors.isHandlerError) return;
 
@@ -115,28 +145,27 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
       await this.eventProcessingMutex.runExclusive(async () => {
         if (!this.queue) return;
 
-        const { hasNewLogs, toTimestamp, events, totalLogCount } =
-          await this.getNewEvents({
-            fromTimestamp: this.eventsHandledToTimestamp,
-          });
-
-        if (!hasNewLogs) return;
+        const events = await this.eventAggregatorService.getEvents({
+          fromTimestamp: this.eventsHandledToTimestamp,
+          toTimestamp,
+        });
 
         // Add new events to the queue.
         for (const event of events) {
           this.queue.addTask({
             kind: "LOG",
-            logFilterName: event.logFilterName,
-            log: event.log,
+            event,
+            // logFilterName: event.logFilterName,
+            // log: event.log,
           });
         }
 
-        this.emit("eventsAdded", {
-          handledCount: events.length,
-          totalCount: totalLogCount ?? events.length,
-          fromTimestamp: this.eventsHandledToTimestamp,
-          toTimestamp: toTimestamp,
-        });
+        // this.emit("eventsAdded", {
+        //   handledCount: events.length,
+        //   totalCount: totalLogCount ?? events.length,
+        //   fromTimestamp: this.eventsHandledToTimestamp,
+        //   toTimestamp: toTimestamp,
+        // });
 
         // Process new events that were added to the queue.
         this.queue.start();
@@ -155,15 +184,15 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
       // ignore the error that is thrown when a pending lock is cancelled.
       if (error !== E_CANCELED) throw error;
     }
-  }
+  };
 
-  private createEventQueue({
+  private createEventQueue = ({
     handlers,
     schema,
   }: {
     handlers: Handlers;
     schema: Schema;
-  }) {
+  }) => {
     const context = this.buildContext({ schema });
 
     const eventHandlerWorker: Worker<EventHandlerTask> = async ({
@@ -207,69 +236,19 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
           break;
         }
         case "LOG": {
-          const { logFilterName, log } = task;
+          const event = task.event;
 
-          const logFilter = this.resources.logFilters.find(
-            (f) => f.name === logFilterName
-          );
-          if (!logFilter) {
-            this.resources.logger.warn(
-              `Filter not found for log with address: ${log.address}`
-            );
-            return;
-          }
-
-          const decodedLog = decodeEventLog({
-            // TODO: Remove this filter once viem is fixed.
-            abi: logFilter.abi.filter((item) => item.type !== "constructor"),
-            data: log.data,
-            topics: [log.topic0, log.topic1, log.topic2, log.topic3].filter(
-              (t) => !!t
-            ) as [signature: Hex, ...args: Hex[]] | [],
-          });
-
-          if (!decodedLog) {
-            this.resources.logger.warn(
-              `Event log not found in ABI, data: ${log.data} topics: ${[
-                log.topic0,
-                log.topic1,
-                log.topic2,
-                log.topic3,
-              ]}`
-            );
-            return;
-          }
-          const { eventName, args } = decodedLog;
-          const params = args as any;
-
-          const handler = handlers[logFilterName]?.[eventName];
+          const handler = handlers[event.logFilterName]?.[event.eventName];
           if (!handler) {
             this.resources.logger.warn(
-              `Handler not found for log event: ${logFilterName}:${eventName}`
+              `Handler not found for log event: ${event}`
             );
             return;
           }
 
           this.resources.logger.trace(
-            `Handling event: ${logFilterName}:${eventName}`
+            `Handling event: ${event.logFilterName}:${event.eventName}`
           );
-
-          // Get block & transaction from the cache store and attach to the event.
-          const block = await this.resources.cacheStore.getBlock(log.blockHash);
-          if (!block) {
-            throw new Error(`Block with hash not found: ${log.blockHash}`);
-          }
-
-          const transaction = await this.resources.cacheStore.getTransaction(
-            log.transactionHash
-          );
-          if (!transaction) {
-            throw new Error(
-              `Transaction with hash not found: ${log.transactionHash}`
-            );
-          }
-
-          const event = { name: eventName, params, log, block, transaction };
 
           // This enables contract calls occurring within the
           // handler code to use the event block number by default.
@@ -277,7 +256,13 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
           try {
             // Running user code here!
-            await handler({ event, context });
+            await handler({
+              event: {
+                ...event,
+                name: event.eventName,
+              },
+              context,
+            });
           } catch (error_) {
             // Remove all remaining tasks from the queue.
             queue.clear();
@@ -292,7 +277,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
                 stackTrace: stackTrace,
                 codeFrame: codeFrame,
                 cause: error,
-                eventName: event.name,
+                eventName: event.eventName,
                 blockNumber: event.block.number,
                 params: event.params,
               }),
@@ -318,108 +303,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     });
 
     return queue;
-  }
-
-  private async getNewEvents({ fromTimestamp }: { fromTimestamp: number }) {
-    // Check the cached metadata for all filters. If the minimum cached block across
-    // all filters is greater than the lastHandledLogTimestamp, fetch the newly available
-    // logs and add them to the queue.
-    const cachedToTimestamps = await Promise.all(
-      this.resources.logFilters.map(async (logFilter) => {
-        const cachedRanges =
-          await this.resources.cacheStore.getLogFilterCachedRanges({
-            filterKey: logFilter.filter.key,
-          });
-
-        // Find the cached interval that includes the filter's startBlock.
-        const startingCachedRange = cachedRanges.find(
-          (range) =>
-            range.startBlock <= logFilter.startBlock &&
-            range.endBlock >= logFilter.startBlock
-        );
-
-        // If there is no cached data that includes the start block, return -1.
-        if (!startingCachedRange) return -1;
-
-        return startingCachedRange.endBlockTimestamp;
-      })
-    );
-
-    // If any of the filters have no cached data yet, return early
-    if (cachedToTimestamps.includes(-1)) {
-      return { hasNewLogs: false, events: [], toTimestamp: fromTimestamp };
-    }
-
-    // If the minimum cached timestamp across all filters is less than the
-    // latest processed timestamp, we can't process any new logs.
-    const toTimestamp = Math.min(...cachedToTimestamps);
-    if (toTimestamp <= fromTimestamp) {
-      return { hasNewLogs: false, events: [], toTimestamp: fromTimestamp };
-    }
-
-    // For UI/reporting purposes, also keep track of the total number of logs
-    // found (not just those being handled)
-    let totalLogCount = 0;
-
-    // NOTE: cacheStore.getLogs is exclusive to the left and inclusive to the right.
-    // This is fine because this.latestProcessedTimestamp starts at zero.
-    const events = await Promise.all(
-      this.resources.logFilters.map(async (logFilter) => {
-        const handledEventNames = Object.keys(
-          (this.handlers ?? {})[logFilter.name] ?? {}
-        );
-        const handledTopics = handledEventNames.map((eventName) => {
-          // TODO: Disambiguate overloaded ABI event signatures BEFORE getting here.
-          const topics = encodeEventTopics({
-            abi: logFilter.abi,
-            eventName,
-          });
-          return topics[0];
-        });
-
-        const [handledLogs, totalLogs] = await Promise.all([
-          this.resources.cacheStore.getLogs({
-            fromBlockTimestamp: fromTimestamp,
-            toBlockTimestamp: toTimestamp,
-            chainId: logFilter.network.chainId,
-            address: logFilter.filter.address,
-            topics: [handledTopics],
-          }),
-          this.resources.cacheStore.getLogs({
-            fromBlockTimestamp: fromTimestamp,
-            toBlockTimestamp: toTimestamp,
-            chainId: logFilter.network.chainId,
-            address: logFilter.filter.address,
-            topics: logFilter.filter.topics,
-          }),
-        ]);
-
-        totalLogCount += totalLogs.length;
-
-        return handledLogs.map((log) => ({
-          logFilterName: logFilter.name,
-          log,
-        }));
-      })
-    );
-
-    const sortedEvents = events
-      .flat()
-      .sort((a, b) =>
-        a.log.logSortKey < b.log.logSortKey
-          ? -1
-          : a.log.logSortKey > b.log.logSortKey
-          ? 1
-          : 0
-      );
-
-    return {
-      hasNewLogs: true,
-      toTimestamp,
-      events: sortedEvents,
-      totalLogCount,
-    };
-  }
+  };
 
   private buildContext({ schema }: { schema: Schema }) {
     // Build entity models for event handler context.
@@ -429,20 +313,19 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
       entityModels[entityName] = {
         findUnique: ({ id }) =>
-          this.resources.entityStore.findUniqueEntity({ entityName, id }),
+          this.userStore.findUniqueEntity({ entityName, id }),
         create: ({ id, data }) =>
-          this.resources.entityStore.createEntity({ entityName, id, data }),
+          this.userStore.createEntity({ entityName, id, data }),
         update: ({ id, data }) =>
-          this.resources.entityStore.updateEntity({ entityName, id, data }),
+          this.userStore.updateEntity({ entityName, id, data }),
         upsert: ({ id, create, update }) =>
-          this.resources.entityStore.upsertEntity({
+          this.userStore.upsertEntity({
             entityName,
             id,
             create,
             update,
           }),
-        delete: ({ id }) =>
-          this.resources.entityStore.deleteEntity({ entityName, id }),
+        delete: ({ id }) => this.userStore.deleteEntity({ entityName, id }),
       };
     });
 
