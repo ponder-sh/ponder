@@ -13,7 +13,7 @@ import { ErrorService } from "@/errors/ErrorService";
 import { EventHandlerService } from "@/handlers/EventHandlerService";
 import { ReloadService } from "@/reload/service";
 import { ServerService } from "@/server/service";
-import { UiService } from "@/ui/UiService";
+import { UiService } from "@/ui/service";
 
 import { EventAggregatorService } from "./event-aggregator/service";
 import { PostgresEventStore } from "./event-store/postgres/store";
@@ -118,6 +118,14 @@ export class Ponder {
       });
     }
 
+    this.eventHandlerService = new EventHandlerService({
+      resources,
+      userStore,
+      eventAggregatorService,
+      contracts,
+      logFilters,
+    });
+
     this.serverService = new ServerService({ resources, userStore });
     this.reloadService = new ReloadService({ resources });
     this.codegenService = new CodegenService({
@@ -125,10 +133,7 @@ export class Ponder {
       contracts,
       logFilters,
     });
-
-    this.eventHandlerService = new EventHandlerService({ resources });
-
-    this.uiService = new UiService({ resources });
+    this.uiService = new UiService({ resources, logFilters });
   }
 
   async setup() {

@@ -1,11 +1,13 @@
 import { MessageKind } from "@/common/LoggerService";
 import { formatEta } from "@/common/utils";
+import { LogFilter } from "@/config/logFilters";
 import { Resources } from "@/Ponder";
 
 import { buildUiState, setupInkApp, UiState } from "./app";
 
 export class UiService {
-  resources: Resources;
+  private resources: Resources;
+  private logFilters: LogFilter[];
 
   ui: UiState;
   renderInterval: NodeJS.Timer;
@@ -13,12 +15,17 @@ export class UiService {
   render: () => void;
   unmount: () => void;
 
-  constructor({ resources }: { resources: Resources }) {
+  constructor({
+    resources,
+    logFilters,
+  }: {
+    resources: Resources;
+    logFilters: LogFilter[];
+  }) {
     this.resources = resources;
+    this.logFilters = logFilters;
 
-    this.ui = buildUiState({
-      logFilters: this.resources.logFilters,
-    });
+    this.ui = buildUiState({ logFilters: this.logFilters });
 
     if (this.resources.options.uiEnabled) {
       const { render, unmount } = setupInkApp(this.ui);
@@ -46,7 +53,7 @@ export class UiService {
   }
 
   private updateBackfillEta = () => {
-    this.resources.logFilters.forEach((contract) => {
+    this.logFilters.forEach((contract) => {
       const stats = this.ui.stats[contract.name];
 
       const logTime =
@@ -70,7 +77,7 @@ export class UiService {
   private logBackfillProgress() {
     if (this.ui.isBackfillComplete) return;
 
-    this.resources.logFilters.forEach((contract) => {
+    this.logFilters.forEach((contract) => {
       const stat = this.ui.stats[contract.name];
 
       const current = stat.logCurrent + stat.blockCurrent;
