@@ -41,13 +41,15 @@ export const buildContractTypes = (contracts: Contract[]) => {
                   }: AbiParameterToPrimitiveType<${JSON.stringify(output)}>`
               )
               .join(",")}}`;
-          } else {
+          } else if (outputs.length === 1) {
             returnType = `${outputs
               .map(
                 (output) =>
                   `AbiParameterToPrimitiveType<${JSON.stringify(output)}>`
               )
               .join(",")}`;
+          } else {
+            returnType = "void";
           }
 
           return `${name}: (${argsType}) => Promise<${returnType}>`;
