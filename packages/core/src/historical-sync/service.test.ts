@@ -239,7 +239,7 @@ test("start() emits sync started and completed events", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("syncCompleted");
 });
 
-test.only("start() emits historicalCheckpoint event", async (context) => {
+test("start() emits historicalCheckpoint event", async (context) => {
   const { store } = context;
 
   const service = new HistoricalSyncService({ store, logFilters, network });
