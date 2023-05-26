@@ -138,7 +138,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
   };
 
   processEvents = async ({ toTimestamp }: { toTimestamp: number }) => {
-    if (!this.isBackfillStarted) return;
+    // if (!this.isBackfillStarted) return;
     if (this.resources.errors.isHandlerError) return;
 
     try {

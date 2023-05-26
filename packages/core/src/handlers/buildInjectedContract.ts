@@ -84,7 +84,7 @@ export function buildInjectedContract({
         const contractCallCacheKey = `${contract.network.chainId}-${overrides.blockNumber}-${contract.address}-${calldata}`;
 
         const cachedContractCall =
-          await eventHandlerService.resources.cacheStore.getContractCall(
+          await eventHandlerService.eventStore.getContractCall(
             contractCallCacheKey
           );
 
@@ -98,7 +98,7 @@ export function buildInjectedContract({
             args: args,
           });
 
-          await eventHandlerService.resources.cacheStore.upsertContractCall({
+          await eventHandlerService.eventStore.insertContractCall({
             key: contractCallCacheKey,
             result: JSON.stringify(result, serializeJsonBigInt),
           });
