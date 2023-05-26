@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.59
+
+### Patch Changes
+
+- [`869b920`](https://github.com/0xOlias/ponder/commit/869b920968108ecbcd93b96a10bdb537006fd0b9) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the type generated for contract functions that return no outputs was invalid
+
 ## 0.0.58
 
 ### Patch Changes
