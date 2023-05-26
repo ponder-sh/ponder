@@ -248,14 +248,12 @@ export class Ponder {
       this.serverService.reload({ graphqlSchema });
 
       await this.userStore.load({ schema });
-      this.eventHandlerService.resetEventQueue({ schema });
-      // await this.eventHandlerService.processEvents();
+      this.eventHandlerService.reset({ schema });
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
       await this.userStore.reset();
-      this.eventHandlerService.resetEventQueue({ handlers });
-      // await this.eventHandlerService.processEvents();
+      this.eventHandlerService.reset({ handlers });
     });
 
     this.networks.forEach((network) => {
@@ -298,21 +296,6 @@ export class Ponder {
     this.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
       this.eventHandlerService.processEvents({ toTimestamp: timestamp });
     });
-
-    // this.frontfillService.on("frontfillStarted", async () => {
-    //   await this.eventHandlerService.processEvents();
-    // });
-    // this.backfillService.on("backfillStarted", async () => {
-    //   this.eventHandlerService.isBackfillStarted = true;
-    //   await this.eventHandlerService.processEvents();
-    // });
-
-    // this.frontfillService.on("eventsAdded", async () => {
-    //   await this.eventHandlerService.processEvents();
-    // });
-    // this.backfillService.on("eventsAdded", async () => {
-    //   await this.eventHandlerService.processEvents();
-    // });
 
     // this.backfillService.on("backfillCompleted", async () => {
     //   this.resources.logger.logMessage(

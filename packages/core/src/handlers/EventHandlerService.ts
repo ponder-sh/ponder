@@ -102,7 +102,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
     this.queue?.clear();
   };
 
-  resetEventQueue = ({
+  reset = ({
     handlers: newHandlers,
     schema: newSchema,
   }: {
@@ -135,10 +135,11 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
         toTimestamp: this.eventsHandledToTimestamp,
       });
     }
+
+    this.processEvents({ toTimestamp: this.eventAggregatorService.checkpoint });
   };
 
   processEvents = async ({ toTimestamp }: { toTimestamp: number }) => {
-    // if (!this.isBackfillStarted) return;
     if (this.resources.errors.isHandlerError) return;
 
     try {
@@ -150,13 +151,17 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
           toTimestamp,
         });
 
+        console.log("adding events to queue:", {
+          count: events.length,
+          fromTimestamp: this.eventsHandledToTimestamp,
+          toTimestamp,
+        });
+
         // Add new events to the queue.
         for (const event of events) {
           this.queue.addTask({
             kind: "LOG",
             event,
-            // logFilterName: event.logFilterName,
-            // log: event.log,
           });
         }
 

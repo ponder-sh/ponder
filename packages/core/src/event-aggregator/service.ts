@@ -32,9 +32,9 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   private networks: Network[];
 
   // Minimum timestamp at which events are available (across all networks).
-  private checkpoint: number;
+  checkpoint: number;
   // Minimum finalized timestamp (across all networks).
-  private finalityCheckpoint: number;
+  finalityCheckpoint: number;
 
   // Per-network event timestamp checkpoints.
   private networkCheckpoints: Record<
