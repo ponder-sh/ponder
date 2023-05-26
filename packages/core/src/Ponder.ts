@@ -87,7 +87,6 @@ export class Ponder {
       this.networks.push({
         name: network.name,
         historicalSyncService: new HistoricalSyncService({
-          resources,
           store: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
@@ -338,25 +337,30 @@ export class Ponder {
     //   this.uiService.ui.networks.push(e.network);
     // });
 
-    // this.networks.forEach((network) => {
-    //   const { historicalSyncService, realtimeSyncService } = network;
+    this.networks.forEach((network) => {
+      const {
+        historicalSyncService,
+        // realtimeSyncService
+      } = network;
 
-    //   historicalSyncService.on("syncStarted", () => {
-    //     this.logFilters.forEach(({ name }) => {
-    //       const metrics = historicalSyncService.metrics.logFilters[name];
+      historicalSyncService.on("error", ({ error }) => {
+        this.resources.logger.logMessage(MessageKind.ERROR, error.message);
+      });
 
-    //       this.uiService.ui.stats[name].blockCurrent =
-    //         metrics.blockTaskCompletedCount;
+      // historicalSyncService.on("syncStarted", () => {
+      //   this.logFilters.forEach(({ name }) => {
+      //     const metrics = historicalSyncService.metrics.logFilters[name];
 
-    //       this.uiService.ui.stats[name].logCurrent =
-    //         metrics.logTaskCompletedCount;
-    //     });
-    //     // historicalSyncService.metrics.logFilters[]
-    //     // this.uiService.ui.stats[name].cacheRate = cacheRate;
-    //   });
+      //     this.uiService.ui.stats[name].blockCurrent =
+      //       metrics.blockTaskCompletedCount;
 
-    //   realtimeSyncService.on("");
-    // });
+      //     this.uiService.ui.stats[name].logCurrent =
+      //       metrics.logTaskCompletedCount;
+      //   });
+      //   // historicalSyncService.metrics.logFilters[]
+      //   // this.uiService.ui.stats[name].cacheRate = cacheRate;
+      // });
+    });
 
     setInterval(() => {
       this.networks.forEach((network) => {

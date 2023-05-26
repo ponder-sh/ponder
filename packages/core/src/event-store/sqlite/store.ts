@@ -178,6 +178,8 @@ export class SqliteEventStore implements EventStore {
       chainId: number;
       address?: Address | Address[];
       topics?: (Hex | Hex[] | null)[];
+      fromBlock?: number;
+      toBlock?: number;
     }[];
   }) => {
     let query = this.db
@@ -252,7 +254,7 @@ export class SqliteEventStore implements EventStore {
     query = query.where(({ and, or, cmpr }) =>
       or(
         filters.map((filter) => {
-          const { chainId, address, topics } = filter;
+          const { chainId, address, topics, fromBlock, toBlock } = filter;
 
           const conditions = [cmpr("logs.chainId", "=", chainId)];
 
@@ -271,6 +273,13 @@ export class SqliteEventStore implements EventStore {
               const topicArray = typeof topic === "string" ? [topic] : topic;
               conditions.push(cmpr(columnName, "in", topicArray));
             });
+          }
+
+          if (fromBlock) {
+            conditions.push(cmpr("blocks.number", ">=", toHex(fromBlock)));
+          }
+          if (toBlock) {
+            conditions.push(cmpr("blocks.number", "<=", toHex(toBlock)));
           }
 
           return and(conditions);

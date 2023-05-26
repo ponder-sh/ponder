@@ -34,6 +34,8 @@ export interface EventStore {
       chainId: number;
       address?: Address | Address[];
       topics?: (Hex | Hex[] | null)[];
+      fromBlock?: number;
+      toBlock?: number;
     }[];
   }): Promise<{ log: Log; block: Block; transaction: Transaction }[]>;
 

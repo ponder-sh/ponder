@@ -7,14 +7,12 @@ import {
   toHex,
 } from "viem";
 
-import { MessageKind } from "@/common/LoggerService";
 import { type Queue, createQueue } from "@/common/queue";
 import { endBenchmark, startBenchmark } from "@/common/utils";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
-import { Resources } from "@/Ponder";
 
 import { findMissingIntervals } from "./intervals";
 
@@ -22,6 +20,7 @@ type HistoricalSyncEvents = {
   syncStarted: undefined;
   syncCompleted: undefined;
   historicalCheckpoint: { timestamp: number };
+  error: { error: Error };
 };
 
 type HistoricalSyncMetrics = {
@@ -62,7 +61,6 @@ type BlockSyncTask = {
 type HistoricalSyncQueue = Queue<LogSyncTask | BlockSyncTask>;
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
-  private resources: Resources;
   private store: EventStore;
   private logFilters: LogFilter[];
   network: Network;
@@ -74,19 +72,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logFilterCheckpoints: Record<string, number>;
 
   constructor({
-    resources,
     store,
     logFilters,
     network,
   }: {
-    resources: Resources;
     store: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
-    this.resources = resources;
     this.store = store;
     this.logFilters = logFilters;
     this.network = network;
@@ -114,7 +109,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   async setup({ finalizedBlockNumber }: { finalizedBlockNumber: number }) {
     await Promise.all(
       this.logFilters.map(async (logFilter) => {
-        const { startBlock, endBlock: userDefinedEndBlock } = logFilter;
+        const { startBlock, endBlock: userDefinedEndBlock } = logFilter.filter;
         const endBlock = userDefinedEndBlock ?? finalizedBlockNumber;
 
         if (startBlock > endBlock) {
@@ -247,7 +242,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           task: task,
           cause: error,
         });
-        this.resources.logger.logMessage(MessageKind.ERROR, queueError.message);
+        this.emit("error", { error: queueError });
 
         // Default to a retry (uses the retry options passed to the queue).
         queue.addTask(task, { retry: true });
@@ -362,7 +357,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         logFilterRange: {
           logFilterKey: logFilter.filter.key,
           blockNumberToCacheFrom,
-          logFilterStartBlockNumber: logFilter.startBlock,
+          logFilterStartBlockNumber: logFilter.filter.startBlock,
         },
       }
     );

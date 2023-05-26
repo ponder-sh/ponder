@@ -94,6 +94,8 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         chainId: logFilter.network.chainId,
         address: logFilter.filter.address,
         topics: logFilter.filter.topics,
+        fromBlock: logFilter.filter.startBlock,
+        toBlock: logFilter.filter.endBlock,
       })),
     });
 
