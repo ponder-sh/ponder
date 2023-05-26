@@ -1,7 +1,20 @@
-import { Kysely } from "kysely";
-import { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import type { Kysely } from "kysely";
+import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type { Block, Log, LogFilterCachedRange, Transaction } from "./types";
+import type { Block } from "@/types/block";
+import type { Log } from "@/types/log";
+import type { Transaction } from "@/types/transaction";
+
+/**
+ * A record representing a range of blocks that have been added
+ * to the event store for a given log filter.
+ */
+export type LogFilterCachedRange = {
+  filterKey: string;
+  startBlock: bigint;
+  endBlock: bigint;
+  endBlockTimestamp: bigint;
+};
 
 export interface EventStore {
   db: Kysely<any>;

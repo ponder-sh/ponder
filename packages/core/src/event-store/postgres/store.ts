@@ -16,10 +16,12 @@ import {
   toHex,
 } from "viem";
 
+import type { Block } from "@/types/block";
+import type { Log } from "@/types/log";
+import type { Transaction } from "@/types/transaction";
 import { NonNull } from "@/types/utils";
 
 import type { EventStore } from "../store";
-import type { Block, Log, Transaction } from "../types";
 import { merge_intervals } from "../utils";
 import {
   type EventStoreTables,
