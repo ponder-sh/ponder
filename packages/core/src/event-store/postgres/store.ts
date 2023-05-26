@@ -105,12 +105,24 @@ export class PostgresEventStore implements EventStore {
     }));
 
     await this.db.transaction().execute(async (tx) => {
-      await tx.insertInto("blocks").values(block).execute();
+      await tx
+        .insertInto("blocks")
+        .values(block)
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
       if (transactions.length > 0) {
-        await tx.insertInto("transactions").values(transactions).execute();
+        await tx
+          .insertInto("transactions")
+          .values(transactions)
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
       }
       if (logs.length > 0) {
-        await tx.insertInto("logs").values(logs).execute();
+        await tx
+          .insertInto("logs")
+          .values(logs)
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
       }
     });
   };
@@ -426,7 +438,11 @@ export class PostgresEventStore implements EventStore {
     }));
 
     if (logs.length > 0) {
-      await this.db.insertInto("logs").values(logs).execute();
+      await this.db
+        .insertInto("logs")
+        .values(logs)
+        .onConflict((oc) => oc.column("id").doNothing())
+        .execute();
     }
   };
 
@@ -471,9 +487,17 @@ export class PostgresEventStore implements EventStore {
     };
 
     await this.db.transaction().execute(async (tx) => {
-      await tx.insertInto("blocks").values(block).execute();
+      await tx
+        .insertInto("blocks")
+        .values(block)
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
       if (transactions.length > 0) {
-        await tx.insertInto("transactions").values(transactions).execute();
+        await tx
+          .insertInto("transactions")
+          .values(transactions)
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
       }
       await tx
         .insertInto("logFilterCachedRanges")

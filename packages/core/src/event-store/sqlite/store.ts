@@ -88,11 +88,25 @@ export class SqliteEventStore implements EventStore {
 
     await this.db.transaction().execute(async (tx) => {
       await Promise.all([
-        tx.insertInto("blocks").values(block).execute(),
+        tx
+          .insertInto("blocks")
+          .values(block)
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute(),
         ...transactions.map((transaction) =>
-          tx.insertInto("transactions").values(transaction).execute()
+          tx
+            .insertInto("transactions")
+            .values(transaction)
+            .onConflict((oc) => oc.column("hash").doNothing())
+            .execute()
         ),
-        ...logs.map((log) => tx.insertInto("logs").values(log).execute()),
+        ...logs.map((log) =>
+          tx
+            .insertInto("logs")
+            .values(log)
+            .onConflict((oc) => oc.column("id").doNothing())
+            .execute()
+        ),
       ]);
     });
   };
@@ -409,7 +423,13 @@ export class SqliteEventStore implements EventStore {
     }));
 
     await Promise.all(
-      logs.map((log) => this.db.insertInto("logs").values(log).execute())
+      logs.map((log) =>
+        this.db
+          .insertInto("logs")
+          .values(log)
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute()
+      )
     );
   };
 
@@ -455,9 +475,17 @@ export class SqliteEventStore implements EventStore {
 
     await this.db.transaction().execute(async (tx) => {
       await Promise.all([
-        tx.insertInto("blocks").values(block).execute(),
+        tx
+          .insertInto("blocks")
+          .values(block)
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute(),
         ...transactions.map((transaction) =>
-          tx.insertInto("transactions").values(transaction).execute()
+          tx
+            .insertInto("transactions")
+            .values(transaction)
+            .onConflict((oc) => oc.column("hash").doNothing())
+            .execute()
         ),
         tx
           .insertInto("logFilterCachedRanges")
