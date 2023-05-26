@@ -39,8 +39,8 @@ type RealtimeSyncMetrics = {
     }
   >;
 };
-type RealtimeBlockTask = BlockWithTransactions;
 
+type RealtimeBlockTask = BlockWithTransactions;
 type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {

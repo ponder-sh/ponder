@@ -24,8 +24,9 @@ type HistoricalSyncEvents = {
 };
 
 type HistoricalSyncMetrics = {
-  startedAt?: [number, number];
-  duration?: number;
+  startedAt: [number, number];
+  isComplete: boolean;
+  duration: number;
   logFilters: Record<
     string,
     {
@@ -66,7 +67,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   network: Network;
 
   private queue: HistoricalSyncQueue;
-  metrics: HistoricalSyncMetrics;
+  metrics: HistoricalSyncMetrics = {
+    startedAt: startBenchmark(),
+    duration: 0,
+    isComplete: false,
+    logFilters: {},
+  };
 
   private minimumLogFilterCheckpoint = 0;
   private logFilterCheckpoints: Record<string, number>;
@@ -87,7 +93,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.network = network;
 
     this.queue = this.buildQueue();
-    this.metrics = { logFilters: {} };
     this.logFilterCheckpoints = {};
 
     logFilters.forEach((logFilter) => {
@@ -166,7 +171,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }
 
   start() {
-    this.metrics.startedAt = startBenchmark();
     this.queue.start();
     this.emit("syncStarted");
   }
@@ -258,6 +262,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onIdle: () => {
         if (this.metrics.startedAt) {
           this.metrics.duration = endBenchmark(this.metrics.startedAt);
+          this.metrics.isComplete = true;
           this.emit("syncComplete");
         }
       },

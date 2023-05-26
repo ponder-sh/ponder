@@ -22,7 +22,7 @@ import {
 } from "./buildInjectedContract";
 import { getStackTraceAndCodeFrame } from "./getStackTrace";
 
-type EventHandlerServiceEvents = {
+type EventHandlerEvents = {
   taskStarted: undefined;
   taskCompleted: { timestamp?: number };
 
@@ -33,7 +33,17 @@ type EventHandlerServiceEvents = {
     toTimestamp: number;
   };
   eventsProcessed: { count: number; toTimestamp: number };
-  eventQueueReset: undefined;
+  reset: undefined;
+};
+
+type EventHandlerMetrics = {
+  error: boolean;
+
+  handledEventCount: number;
+  unhandledEventCount: number;
+  matchedEventCount: number;
+
+  latestHandledEventTimestamp: number;
 };
 
 type SetupTask = { kind: "SETUP" };
@@ -44,12 +54,20 @@ type LogEventTask = {
 type EventHandlerTask = SetupTask | LogEventTask;
 type EventHandlerQueue = Queue<EventHandlerTask>;
 
-export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
+export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private resources: Resources;
   eventStore: EventStore;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
   private contracts: Contract[];
+
+  metrics: EventHandlerMetrics = {
+    error: false,
+    handledEventCount: 0,
+    unhandledEventCount: 0,
+    matchedEventCount: 0,
+    latestHandledEventTimestamp: 0,
+  };
 
   private handlers?: Handlers;
   private schema?: Schema;
@@ -123,7 +141,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
       schema: this.schema,
     });
 
-    this.emit("eventQueueReset");
+    this.emit("reset");
 
     // If the setup handler is present, add the setup event.
     if (this.handlers.setup) {
@@ -151,11 +169,7 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
           toTimestamp,
         });
 
-        console.log("adding events to queue:", {
-          count: events.length,
-          fromTimestamp: this.eventsHandledToTimestamp,
-          toTimestamp,
-        });
+        this.metrics.matchedEventCount += events.length;
 
         // Add new events to the queue.
         for (const event of events) {
@@ -164,13 +178,6 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
             event,
           });
         }
-
-        // this.emit("eventsAdded", {
-        //   handledCount: events.length,
-        //   totalCount: totalLogCount ?? events.length,
-        //   fromTimestamp: this.eventsHandledToTimestamp,
-        //   toTimestamp: toTimestamp,
-        // });
 
         // Process new events that were added to the queue.
         this.queue.start();
@@ -210,9 +217,11 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
         case "SETUP": {
           const setupHandler = handlers["setup"];
           if (!setupHandler) {
-            this.resources.logger.warn(`Handler not found for event: setup`);
+            this.metrics.unhandledEventCount += 1;
             return;
           }
+
+          this.metrics.handledEventCount += 1;
 
           try {
             // Running user code here!
@@ -245,14 +254,13 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
 
           const handler = handlers[event.logFilterName]?.[event.eventName];
           if (!handler) {
-            this.resources.logger.warn(
-              `Handler not found for log event: ${event}`
-            );
+            this.metrics.unhandledEventCount += 1;
             return;
           }
 
-          this.resources.logger.trace(
-            `Handling event: ${event.logFilterName}:${event.eventName}`
+          this.metrics.handledEventCount += 1;
+          this.metrics.latestHandledEventTimestamp = Number(
+            event.block.timestamp
           );
 
           // This enables contract calls occurring within the
@@ -271,6 +279,8 @@ export class EventHandlerService extends Emittery<EventHandlerServiceEvents> {
           } catch (error_) {
             // Remove all remaining tasks from the queue.
             queue.clear();
+
+            this.metrics.error = true;
 
             const error = error_ as Error;
             const { stackTrace, codeFrame } = getStackTraceAndCodeFrame(

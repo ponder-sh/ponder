@@ -12,6 +12,7 @@ import { ReloadService } from "@/reload/service";
 import { ServerService } from "@/server/service";
 import { UiService } from "@/ui/service";
 
+import { formatEta } from "./common/utils";
 import { EventAggregatorService } from "./event-aggregator/service";
 import { PostgresEventStore } from "./event-store/postgres/store";
 import { SqliteEventStore } from "./event-store/sqlite/store";
@@ -377,6 +378,32 @@ export class Ponder {
             metrics.logTaskCompletedCount;
         });
       });
+
+      const isBackfillComplete = this.networks.every(
+        (n) => n.historicalSyncService.metrics.isComplete
+      );
+      this.uiService.ui.isBackfillComplete = isBackfillComplete;
+
+      if (isBackfillComplete) {
+        this.uiService.ui.backfillDuration = formatEta(
+          Math.max(
+            ...this.networks.map(
+              (n) => n.historicalSyncService.metrics.duration
+            )
+          )
+        );
+      }
+
+      this.uiService.ui.handlerError = this.eventHandlerService.metrics.error;
+      this.uiService.ui.handlersCurrent =
+        this.eventHandlerService.metrics.handledEventCount;
+      this.uiService.ui.handlersHandledTotal =
+        this.eventHandlerService.metrics.matchedEventCount -
+        this.eventHandlerService.metrics.unhandledEventCount;
+      this.uiService.ui.handlersToTimestamp =
+        this.eventHandlerService.metrics.latestHandledEventTimestamp;
+      this.uiService.ui.handlersTotal =
+        this.eventHandlerService.metrics.matchedEventCount;
     }, 17);
 
     // this.backfillService.on("logFilterStarted", ({ name, cacheRate }) => {
@@ -462,17 +489,18 @@ export class Ponder {
       this.uiService.render();
     });
 
-    this.eventHandlerService.on(
-      "eventsAdded",
-      ({ totalCount, handledCount }) => {
-        this.uiService.ui.handlersTotal += totalCount;
-        this.uiService.ui.handlersHandledTotal += handledCount;
-      }
-    );
-    this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
-      this.uiService.ui.handlersToTimestamp = toTimestamp;
-    });
-    this.eventHandlerService.on("eventQueueReset", () => {
+    // this.eventHandlerService.on(
+    //   "eventsAdded",
+    //   ({ totalCount, handledCount }) => {
+    //     this.uiService.ui.handlersTotal += totalCount;
+    //     this.uiService.ui.handlersHandledTotal += handledCount;
+    //   }
+    // );
+    // this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
+    //   this.uiService.ui.handlersToTimestamp = toTimestamp;
+    // });
+
+    this.eventHandlerService.on("reset", () => {
       this.uiService.ui.handlersCurrent = 0;
       this.uiService.ui.handlersTotal = 0;
       this.uiService.ui.handlersHandledTotal = 0;
