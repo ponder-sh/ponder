@@ -19,8 +19,8 @@ export type LogEvent = {
 };
 
 type EventAggregatorEvents = {
-  eventsAvailable: { toTimestamp: number };
-  finalityCheckpoint: { safeTimestamp: number };
+  newCheckpoint: { timestamp: number };
+  newFinalityCheckpoint: { timestamp: number };
   reorg: { commonAncestorTimestamp: number };
 };
 
@@ -31,10 +31,8 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   private logFilters: LogFilter[];
   private networks: Network[];
 
-  // Minimum timestamp that historical events are available for (across all networks).
-  private historicalCheckpoint: number;
-  // Minimum timestamp that realtime events are available for (across all networks).
-  private realtimeCheckpoint: number;
+  // Minimum timestamp at which events are available (across all networks).
+  private checkpoint: number;
   // Minimum finalized timestamp (across all networks).
   private finalityCheckpoint: number;
 
@@ -42,6 +40,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   private networkCheckpoints: Record<
     number,
     {
+      isHistoricalSyncComplete: boolean;
       historicalCheckpoint: number;
       realtimeCheckpoint: number;
       finalityCheckpoint: number;
@@ -66,13 +65,13 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     this.networks = networks;
     this.metrics = {};
 
-    this.historicalCheckpoint = 0;
-    this.realtimeCheckpoint = 0;
+    this.checkpoint = 0;
     this.finalityCheckpoint = 0;
 
     this.networkCheckpoints = {};
     this.networks.forEach((network) => {
       this.networkCheckpoints[network.chainId] = {
+        isHistoricalSyncComplete: false,
         historicalCheckpoint: 0,
         realtimeCheckpoint: 0,
         finalityCheckpoint: 0,
@@ -100,7 +99,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     });
 
     // Ugly step. We need to associate events with a log filter. There may be duplicates.
-    const hydratedEvents = events.reduce<LogEvent[]>((acc, event) => {
+    const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
       const matchedLogFilters = this.logFilters.filter((logFilter) =>
         isLogMatchedByFilter({
           log: event.log,
@@ -126,14 +125,15 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
             transaction: event.transaction,
           });
         } catch (err) {
-          // pass
+          // TODO: emit a warning here that an event was not decoded.
+          // See https://github.com/0xOlias/ponder/issues/187
         }
       });
 
       return acc;
     }, []);
 
-    return hydratedEvents;
+    return decodedEvents;
   };
 
   handleNewHistoricalCheckpoint = ({
@@ -144,17 +144,12 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     timestamp: number;
   }) => {
     this.networkCheckpoints[chainId].historicalCheckpoint = timestamp;
+    this.recalculateCheckpoint();
+  };
 
-    const newHistoricalCheckpoint = Math.min(
-      ...Object.values(this.networkCheckpoints).map(
-        (n) => n.historicalCheckpoint
-      )
-    );
-
-    if (newHistoricalCheckpoint > this.historicalCheckpoint) {
-      this.historicalCheckpoint = newHistoricalCheckpoint;
-      this.emit("eventsAvailable", { toTimestamp: this.historicalCheckpoint });
-    }
+  handleHistoricalSyncComplete = ({ chainId }: { chainId: number }) => {
+    this.networkCheckpoints[chainId].isHistoricalSyncComplete = true;
+    this.recalculateCheckpoint();
   };
 
   handleNewRealtimeCheckpoint = ({
@@ -165,15 +160,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     timestamp: number;
   }) => {
     this.networkCheckpoints[chainId].realtimeCheckpoint = timestamp;
-
-    const newRealtimeCheckpoint = Math.min(
-      ...Object.values(this.networkCheckpoints).map((n) => n.realtimeCheckpoint)
-    );
-
-    if (newRealtimeCheckpoint > this.realtimeCheckpoint) {
-      this.realtimeCheckpoint = newRealtimeCheckpoint;
-      this.emit("eventsAvailable", { toTimestamp: this.realtimeCheckpoint });
-    }
+    this.recalculateCheckpoint();
   };
 
   handleNewFinalityCheckpoint = ({
@@ -184,18 +171,35 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     timestamp: number;
   }) => {
     this.networkCheckpoints[chainId].finalityCheckpoint = timestamp;
+    this.recalculateFinalityCheckpoint();
+  };
 
+  handleReorg = ({ timestamp }: { timestamp: number }) => {
+    this.emit("reorg", { commonAncestorTimestamp: timestamp });
+  };
+
+  private recalculateCheckpoint = () => {
+    const checkpoints = Object.values(this.networkCheckpoints).map((n) =>
+      n.isHistoricalSyncComplete ? n.realtimeCheckpoint : n.historicalCheckpoint
+    );
+    const newCheckpoint = Math.min(...checkpoints);
+
+    if (newCheckpoint > this.checkpoint) {
+      this.checkpoint = newCheckpoint;
+      this.emit("newCheckpoint", { timestamp: this.checkpoint });
+    }
+  };
+
+  private recalculateFinalityCheckpoint = () => {
     const newFinalityCheckpoint = Math.min(
       ...Object.values(this.networkCheckpoints).map((n) => n.finalityCheckpoint)
     );
 
     if (newFinalityCheckpoint > this.finalityCheckpoint) {
       this.finalityCheckpoint = newFinalityCheckpoint;
-      this.emit("eventsAvailable", { toTimestamp: this.finalityCheckpoint });
+      this.emit("newFinalityCheckpoint", {
+        timestamp: this.finalityCheckpoint,
+      });
     }
-  };
-
-  handleReorg = ({ timestamp }: { timestamp: number }) => {
-    this.emit("reorg", { commonAncestorTimestamp: timestamp });
   };
 }

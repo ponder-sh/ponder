@@ -173,12 +173,13 @@ export class Ponder {
 
     await Promise.all(
       this.networks.map(async (network) => {
-        const { finalizedBlockNumber } =
-          await network.realtimeSyncService.setup();
-        await network.historicalSyncService.setup({ finalizedBlockNumber });
+        const { historicalSyncService, realtimeSyncService } = network;
 
-        network.historicalSyncService.start();
-        network.realtimeSyncService.start();
+        const { finalizedBlockNumber } = await realtimeSyncService.setup();
+        await historicalSyncService.setup({ finalizedBlockNumber });
+
+        historicalSyncService.start();
+        realtimeSyncService.start();
       })
     );
 
@@ -194,9 +195,13 @@ export class Ponder {
 
     await Promise.all(
       this.networks.map(async (network) => {
-        const { finalizedBlockNumber } =
-          await network.realtimeSyncService.setup();
-        await network.historicalSyncService.setup({ finalizedBlockNumber });
+        const { historicalSyncService, realtimeSyncService } = network;
+
+        const { finalizedBlockNumber } = await realtimeSyncService.setup();
+        await historicalSyncService.setup({ finalizedBlockNumber });
+
+        historicalSyncService.start();
+        realtimeSyncService.start();
       })
     );
   }
@@ -263,6 +268,12 @@ export class Ponder {
         });
       });
 
+      historicalSyncService.on("syncComplete", () => {
+        this.eventAggregatorService.handleHistoricalSyncComplete({
+          chainId: historicalSyncService.network.chainId,
+        });
+      });
+
       realtimeSyncService.on("realtimeCheckpoint", ({ timestamp }) => {
         this.eventAggregatorService.handleNewRealtimeCheckpoint({
           chainId: realtimeSyncService.network.chainId,
@@ -284,8 +295,8 @@ export class Ponder {
       });
     });
 
-    this.eventAggregatorService.on("eventsAvailable", ({ toTimestamp }) => {
-      this.eventHandlerService.processEvents({ toTimestamp });
+    this.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
+      this.eventHandlerService.processEvents({ toTimestamp: timestamp });
     });
 
     // this.frontfillService.on("frontfillStarted", async () => {

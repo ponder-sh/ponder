@@ -18,7 +18,7 @@ import { findMissingIntervals } from "./intervals";
 
 type HistoricalSyncEvents = {
   syncStarted: undefined;
-  syncCompleted: undefined;
+  syncComplete: undefined;
   historicalCheckpoint: { timestamp: number };
   error: { error: Error };
 };
@@ -258,7 +258,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onIdle: () => {
         if (this.metrics.startedAt) {
           this.metrics.duration = endBenchmark(this.metrics.startedAt);
-          this.emit("syncCompleted");
+          this.emit("syncComplete");
         }
       },
     });
