@@ -20,11 +20,10 @@ ponder.on("FileStore:FileCreated", async ({ event, context }) => {
     data: {
       name: filename,
       size: Number(size),
-      contents: "124443333",
-      // await context.contracts.FileStoreFrontend.readFile(
-      //   event.transaction.to as `0x{string}`,
-      //   filename
-      // ),
+      contents: await context.contracts.FileStoreFrontend.readFile(
+        event.transaction.to as `0x{string}`,
+        filename
+      ),
       createdAt: Number(event.block.timestamp),
       type: metadata?.type,
       compression: metadata?.compression,
