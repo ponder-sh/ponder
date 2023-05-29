@@ -10,14 +10,14 @@ import { Ponder } from "@/Ponder";
 
 const setup = async () => {
   const config = await buildPonderConfig({
-    configFile: path.resolve("test/Ponder/art-gobblers/ponder.config.ts"),
+    configFile: path.resolve("src/_test/art-gobblers/app/ponder.config.ts"),
   });
   // Inject proxied anvil chain.
   const testConfig = { ...config, networks: [testNetworkConfig] };
 
   const options = buildOptions({
     cliOptions: {
-      rootDir: "./test/Ponder/art-gobblers",
+      rootDir: "./src/_test/art-gobblers/app",
       configFile: "ponder.config.ts",
     },
   });
