@@ -7,12 +7,12 @@ import {
   toHex,
 } from "viem";
 
-import { type Queue, createQueue } from "@/common/queue";
-import { endBenchmark, startBenchmark } from "@/common/utils";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
+import { type Queue, createQueue } from "@/utils/queue";
+import { endBenchmark, startBenchmark } from "@/utils/timer";
 
 import { findMissingIntervals } from "./intervals";
 

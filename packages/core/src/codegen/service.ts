@@ -3,7 +3,7 @@ import { GraphQLSchema, printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { ensureDirExists } from "@/common/utils";
+import { ensureDirExists } from "@/utils/exists";
 import { Contract } from "@/config/contracts";
 import { LogFilter } from "@/config/logFilters";
 import { Resources } from "@/Ponder";

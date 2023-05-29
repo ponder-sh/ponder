@@ -1,29 +1,28 @@
 import pico from "picocolors";
 
 import { CodegenService } from "@/codegen/service";
-import { LoggerService, MessageKind } from "@/common/LoggerService";
+import { LoggerService, MessageKind } from "@/utils/logger";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
 import { buildLogFilters, LogFilter } from "@/config/logFilters";
-import { buildNetwork, Network } from "@/config/networks";
-import { PonderOptions } from "@/config/options";
-import { ResolvedPonderConfig } from "@/config/ponderConfig";
+import { type Network, buildNetwork } from "@/config/networks";
+import { type PonderOptions } from "@/config/options";
+import { type ResolvedPonderConfig } from "@/config/ponderConfig";
 import { ErrorService } from "@/errors/ErrorService";
+import { EventAggregatorService } from "@/event-aggregator/service";
+import { PostgresEventStore } from "@/event-store/postgres/store";
+import { SqliteEventStore } from "@/event-store/sqlite/store";
+import { type EventStore } from "@/event-store/store";
 import { EventHandlerService } from "@/handlers/EventHandlerService";
+import { HistoricalSyncService } from "@/historical-sync/service";
+import { RealtimeSyncService } from "@/realtime-sync/service";
 import { ReloadService } from "@/reload/service";
 import { ServerService } from "@/server/service";
 import { UiService } from "@/ui/service";
-
-import { formatEta, formatPercentage } from "./common/utils";
-import { EventAggregatorService } from "./event-aggregator/service";
-import { PostgresEventStore } from "./event-store/postgres/store";
-import { SqliteEventStore } from "./event-store/sqlite/store";
-import { EventStore } from "./event-store/store";
-import { HistoricalSyncService } from "./historical-sync/service";
-import { RealtimeSyncService } from "./realtime-sync/service";
-import { PostgresUserStore } from "./user-store/postgres/store";
-import { SqliteUserStore } from "./user-store/sqlite/store";
-import { UserStore } from "./user-store/store";
+import { PostgresUserStore } from "@/user-store/postgres/store";
+import { SqliteUserStore } from "@/user-store/sqlite/store";
+import { type UserStore } from "@/user-store/store";
+import { formatEta, formatPercentage } from "@/utils/format";
 
 export type Resources = {
   options: PonderOptions;

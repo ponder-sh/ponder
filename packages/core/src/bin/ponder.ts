@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 
-import "@/common/setupFetchPolyfill";
+import "@/utils/globals";
 
 import { cac } from "cac";
 import dotenv from "dotenv";
 import path from "node:path";
 
-import { registerKilledProcessListener } from "@/common/utils";
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
@@ -81,3 +80,18 @@ cli
   });
 
 cli.parse();
+
+function registerKilledProcessListener(fn: () => Promise<unknown>) {
+  let isKillListenerInProgress = false;
+
+  const listener = async () => {
+    if (isKillListenerInProgress) return;
+    isKillListenerInProgress = true;
+    await fn();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", listener); // CTRL+C
+  process.on("SIGQUIT", listener); // Keyboard quit
+  process.on("SIGTERM", listener); // `kill` command
+}

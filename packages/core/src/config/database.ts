@@ -2,7 +2,7 @@ import Sqlite from "better-sqlite3";
 import path from "node:path";
 import { DatabaseError, Pool } from "pg";
 
-import { ensureDirExists } from "@/common/utils";
+import { ensureDirExists } from "@/utils/exists";
 import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
 import { PostgresError } from "@/errors/postgres";

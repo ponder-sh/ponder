@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+import "@/utils/globals";
+
 import SqliteDatabase from "better-sqlite3";
 import moduleAlias from "module-alias";
 import path from "node:path";
-import fetch, { Headers, Request, Response } from "node-fetch";
 import { Pool } from "pg";
 import { beforeEach } from "vitest";
 
@@ -13,20 +13,6 @@ import type { EventStore } from "@/event-store/store";
 
 import { FORK_BLOCK_NUMBER, FORK_URL, vitalik } from "./constants";
 import { poolId, testClient } from "./utils";
-
-/**
- * Set up a fetch polyfill for test runs using Node <16.
- */
-if (!globalThis.fetch) {
-  //@ts-ignore
-  globalThis.fetch = fetch;
-  //@ts-ignore
-  globalThis.Headers = Headers;
-  //@ts-ignore
-  globalThis.Request = Request;
-  //@ts-ignore
-  globalThis.Response = Response;
-}
 
 /**
  * Set up a package alias so we can reference `@ponder/core` by name in test files.

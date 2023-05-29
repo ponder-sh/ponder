@@ -2,7 +2,7 @@ import Emittery from "emittery";
 import pLimit from "p-limit";
 import { hexToNumber, numberToHex } from "viem";
 
-import { type Queue, createQueue } from "@/common/queue";
+import { type Queue, createQueue } from "@/utils/queue";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";

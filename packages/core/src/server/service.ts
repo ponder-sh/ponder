@@ -6,7 +6,7 @@ import { graphqlHTTP } from "express-graphql";
 import type { GraphQLSchema } from "graphql";
 import type http from "node:http";
 
-import { MessageKind } from "@/common/LoggerService";
+import { MessageKind } from "@/utils/logger";
 import { Resources } from "@/Ponder";
 import { UserStore } from "@/user-store/store";
 

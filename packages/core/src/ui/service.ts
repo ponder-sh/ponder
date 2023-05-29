@@ -1,7 +1,7 @@
-import { MessageKind } from "@/common/LoggerService";
-import { formatEta } from "@/common/utils";
 import { LogFilter } from "@/config/logFilters";
 import { Resources } from "@/Ponder";
+import { formatEta } from "@/utils/format";
+import { MessageKind } from "@/utils/logger";
 
 import { buildUiState, setupInkApp, UiState } from "./app";
 

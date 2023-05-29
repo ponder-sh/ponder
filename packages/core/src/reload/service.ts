@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
 
-import { MessageKind } from "@/common/LoggerService";
+import { MessageKind } from "@/utils/logger";
 import { Resources } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
 import { Schema } from "@/schema/types";

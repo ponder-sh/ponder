@@ -2,8 +2,6 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
 
-import { createQueue, Queue, Worker } from "@/common/queue";
-import type { Model } from "@/common/types";
 import type { Contract } from "@/config/contracts";
 import { EventHandlerError } from "@/errors/eventHandler";
 import type {
@@ -14,7 +12,9 @@ import type { EventStore } from "@/event-store/store";
 import type { Resources } from "@/Ponder";
 import type { Handlers } from "@/reload/readHandlers";
 import type { Schema } from "@/schema/types";
+import type { Model } from "@/types/model";
 import type { EntityInstance, UserStore } from "@/user-store/store";
+import { createQueue, Queue, Worker } from "@/utils/queue";
 
 import {
   type ReadOnlyContract,
