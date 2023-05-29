@@ -336,7 +336,7 @@ export class Ponder {
     });
 
     this.networks.forEach((network) => {
-      const { historicalSyncService, realtimeSyncService } = network;
+      const { historicalSyncService } = network;
 
       historicalSyncService.on("error", ({ error }) => {
         this.resources.logger.logMessage(MessageKind.ERROR, error.message);

@@ -25,10 +25,22 @@ const setup = async () => {
 
   const ponder = new Ponder({ config: testConfig, options: testOptions });
 
-  const app = request(ponder.serverService.app);
+  await ponder.start();
+
+  // Wait for historical sync to complete.
+  await new Promise<void>((resolve) => {
+    ponder.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
+      // Block 15870420
+      if (timestamp >= 1667247995) {
+        resolve();
+      }
+    });
+  });
 
   const gql = async (query: string) => {
-    const response = await app.post("/").send({ query: `query { ${query} }` });
+    const response = await request(ponder.serverService.app)
+      .post("/")
+      .send({ query: `query { ${query} }` });
 
     expect(response.body.errors).toBe(undefined);
     expect(response.statusCode).toBe(200);
