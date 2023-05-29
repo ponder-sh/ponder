@@ -39,7 +39,6 @@ export class PostgresEventStore implements EventStore {
   private migrator: Migrator;
 
   constructor({ pool, schema }: { pool: Pool; schema?: string }) {
-    pg.types.setTypeParser(20, BigInt);
     this.db = new Kysely<EventStoreTables>({
       dialect: new PostgresDialect({
         pool,

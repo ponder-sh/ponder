@@ -33,8 +33,6 @@ export class SqliteEventStore implements EventStore {
   private migrator: Migrator;
 
   constructor({ sqliteDb }: { sqliteDb: Sqlite.Database }) {
-    sqliteDb.defaultSafeIntegers(true);
-
     this.db = new Kysely<EventStoreTables>({
       dialect: new SqliteDialect({ database: sqliteDb }),
     });
