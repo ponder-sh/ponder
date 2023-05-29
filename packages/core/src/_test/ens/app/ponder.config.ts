@@ -9,8 +9,8 @@ export const config = {
       abi: BaseRegistrarImplementationAbi,
       address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
       startBlock: 16370000,
-      endBlock: 16370200,
-      maxBlockRange: 100,
+      endBlock: 16370050,
+      maxBlockRange: 20,
     },
   ],
 };

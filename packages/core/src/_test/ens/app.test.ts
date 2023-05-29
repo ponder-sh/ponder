@@ -25,10 +25,22 @@ const setup = async () => {
 
   const ponder = new Ponder({ config: testConfig, options: testOptions });
 
-  const app = request(ponder.serverService.app);
+  await ponder.start();
+
+  // Wait for historical sync to complete.
+  await new Promise<void>((resolve) => {
+    ponder.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
+      // Block 16370050
+      if (timestamp >= 1673277023) {
+        resolve();
+      }
+    });
+  });
 
   const gql = async (query: string) => {
-    const response = await app.post("/").send({ query: `query { ${query} }` });
+    const response = await request(ponder.serverService.app)
+      .post("/")
+      .send({ query: `query { ${query} }` });
 
     expect(response.body.errors).toBe(undefined);
     expect(response.statusCode).toBe(200);
@@ -40,8 +52,8 @@ const setup = async () => {
 };
 
 afterEach(() => {
-  rmSync("./test/Ponder/ens/.ponder", { recursive: true, force: true });
-  rmSync("./test/Ponder/ens/generated", { recursive: true, force: true });
+  rmSync("./src/_test/ens/app/.ponder", { recursive: true, force: true });
+  rmSync("./src/_test/ens/app/generated", { recursive: true, force: true });
 });
 
 test("serves data", async () => {
@@ -65,8 +77,8 @@ test("serves data", async () => {
     }
   `);
 
-  expect(ensNfts).toHaveLength(58);
-  expect(accounts).toHaveLength(68);
+  expect(ensNfts).toHaveLength(13);
+  expect(accounts).toHaveLength(19);
 
   await ponder.kill();
 });
@@ -124,7 +136,7 @@ test("skips", async () => {
     }
   `);
 
-  expect(ensNfts).toHaveLength(53);
+  expect(ensNfts).toHaveLength(8);
 
   await ponder.kill();
 });
@@ -169,14 +181,14 @@ test("filters on integer field equals", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
-    ensNfts(where: { transferredAt: 1673278703 }) {
+    ensNfts(where: { transferredAt: 1673276483 }) {
       id
       transferredAt
     }
   `);
 
   expect(ensNfts).toHaveLength(1);
-  expect(ensNfts[0].transferredAt).toBe(1673278703);
+  expect(ensNfts[0].transferredAt).toBe(1673276483);
 
   await ponder.kill();
 });
@@ -185,7 +197,7 @@ test("filters on integer field in", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
-    ensNfts(where: { transferredAt_in: [1673278703, 1673278739] }) {
+    ensNfts(where: { transferredAt_in: [1673276483, 1673276555] }) {
       id
       transferredAt
     }
@@ -193,8 +205,8 @@ test("filters on integer field in", async () => {
 
   expect(ensNfts).toHaveLength(2);
   const transferredAt = ensNfts.map((n: any) => n.transferredAt);
-  expect(transferredAt).toContain(1673278703);
-  expect(transferredAt).toContain(1673278739);
+  expect(transferredAt).toContain(1673276483);
+  expect(transferredAt).toContain(1673276555);
 
   await ponder.kill();
 });
@@ -203,7 +215,7 @@ test("filters on string field equals", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
-    ensNfts(where: { labelHash: "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7" }) {
+    ensNfts(where: { labelHash: "0x6707d6843139c46c28b1bb912334ca1b748756e534771639e627f401ca658c0e" }) {
       id
       labelHash
     }
@@ -211,7 +223,7 @@ test("filters on string field equals", async () => {
 
   expect(ensNfts).toHaveLength(1);
   expect(ensNfts[0].labelHash).toBe(
-    "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7"
+    "0x6707d6843139c46c28b1bb912334ca1b748756e534771639e627f401ca658c0e"
   );
 
   await ponder.kill();
@@ -221,7 +233,7 @@ test("filters on string field in", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
-    ensNfts(where: { labelHash_in: ["0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7", "0xa594dce9890a89d2a1399c0870196851ca7a0db19650fb38c682a6599a6b4d9b"] }) {
+    ensNfts(where: { labelHash_in: ["0x6707d6843139c46c28b1bb912334ca1b748756e534771639e627f401ca658c0e", "0xd5a4346caa6c1cdd83dc38218d695e6b7f0f038d11b675535cfed0245927da74"] }) {
       id
       labelHash
     }
@@ -229,10 +241,10 @@ test("filters on string field in", async () => {
 
   expect(ensNfts).toHaveLength(2);
   expect(ensNfts[0].labelHash).toBe(
-    "0x547890107c99e60da4fb9602a9e7641d3c380755f3298d0c8edc490b595af6c7"
+    "0x6707d6843139c46c28b1bb912334ca1b748756e534771639e627f401ca658c0e"
   );
   expect(ensNfts[1].labelHash).toBe(
-    "0xa594dce9890a89d2a1399c0870196851ca7a0db19650fb38c682a6599a6b4d9b"
+    "0xd5a4346caa6c1cdd83dc38218d695e6b7f0f038d11b675535cfed0245927da74"
   );
 
   await ponder.kill();
@@ -242,7 +254,7 @@ test("filters on relationship field equals", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
-    ensNfts(where: { owner: "0x3b42845cD161fE095e083aF493525271a3CF27cf" }) {
+    ensNfts(where: { owner: "0xC654A505E3d38932cAb03CCc14418044A078F8A4" }) {
       id
       owner {
         id
@@ -252,10 +264,10 @@ test("filters on relationship field equals", async () => {
 
   expect(ensNfts).toHaveLength(2);
   expect(ensNfts[0].owner.id).toBe(
-    "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+    "0xC654A505E3d38932cAb03CCc14418044A078F8A4"
   );
   expect(ensNfts[1].owner.id).toBe(
-    "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+    "0xC654A505E3d38932cAb03CCc14418044A078F8A4"
   );
 
   await ponder.kill();
@@ -265,7 +277,7 @@ test("filters on relationship field contains", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
-    ensNfts(where: { owner_contains: "0x3b42845cD161f" }) {
+    ensNfts(where: { owner_contains: "0xC654A505E" }) {
       id
       owner {
         id
@@ -275,10 +287,10 @@ test("filters on relationship field contains", async () => {
 
   expect(ensNfts).toHaveLength(2);
   expect(ensNfts[0].owner.id).toBe(
-    "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+    "0xC654A505E3d38932cAb03CCc14418044A078F8A4"
   );
   expect(ensNfts[1].owner.id).toBe(
-    "0x3b42845cD161fE095e083aF493525271a3CF27cf"
+    "0xC654A505E3d38932cAb03CCc14418044A078F8A4"
   );
 
   await ponder.kill();

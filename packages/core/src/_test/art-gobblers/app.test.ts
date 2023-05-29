@@ -40,11 +40,11 @@ const setup = async () => {
 };
 
 afterEach(() => {
-  rmSync("./test/Ponder/art-gobblers/.ponder", {
+  rmSync("./src/_test/art-gobblers/app/.ponder", {
     recursive: true,
     force: true,
   });
-  rmSync("./test/Ponder/art-gobblers/generated", {
+  rmSync("./src/_test/art-gobblers/app/generated", {
     recursive: true,
     force: true,
   });
