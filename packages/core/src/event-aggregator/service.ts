@@ -33,10 +33,6 @@ type EventAggregatorEvents = {
    * Emitted when a reorg has been detected on any registered network.
    */
   reorg: { commonAncestorTimestamp: number };
-  /**
-   * Emitted when all registered networks have completed the historical sync.
-   */
-  historicalSyncComplete: { timestamp: number };
 };
 
 type EventAggregatorMetrics = {};
@@ -50,6 +46,9 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   checkpoint: number;
   // Minimum finalized timestamp (across all networks).
   finalityCheckpoint: number;
+
+  // Timestamp at which the historical sync was completed (across all networks).
+  historicalSyncCompletedAt?: number;
 
   // Per-network event timestamp checkpoints.
   private networkCheckpoints: Record<
@@ -178,10 +177,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       const maxHistoricalCheckpoint = Math.max(
         ...networkCheckpoints.map((n) => n.historicalCheckpoint)
       );
-
-      this.emit("historicalSyncComplete", {
-        timestamp: maxHistoricalCheckpoint,
-      });
+      this.historicalSyncCompletedAt = maxHistoricalCheckpoint;
     }
   };
 

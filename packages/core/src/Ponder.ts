@@ -294,35 +294,40 @@ export class Ponder {
           timestamp: commonAncestorTimestamp,
         });
       });
+
+      // TODO: Decide what to do after a deep reorg.
+      realtimeSyncService.on(
+        "deepReorg",
+        ({ detectedAtBlockNumber, minimumDepth }) => {
+          this.resources.logger.logMessage(
+            MessageKind.ERROR,
+            `WARNING: Deep reorg detected on ${network.name} at block ${detectedAtBlockNumber} with a minimum depth of ${minimumDepth}`
+          );
+        }
+      );
     });
 
     this.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
       this.eventHandlerService.processEvents({ toTimestamp: timestamp });
     });
 
-    // this.backfillService.on("backfillCompleted", async () => {
-    //   this.resources.logger.logMessage(
-    //     MessageKind.BACKFILL,
-    //     "backfill complete"
-    //   );
-    //   await this.eventHandlerService.processEvents();
-    // });
+    this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
+      if (this.serverService.isBackfillEventProcessingComplete) return;
 
-    // this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
-    //   if (this.serverService.isBackfillEventProcessingComplete) return;
-
-    //   // If a batch of events are processed and the new toTimestamp is greater than
-    //   // the backfill cutoff timestamp, backfill event processing is complete, and the
-    //   // server should begin responding as healthy.
-    //   if (toTimestamp >= this.frontfillService.backfillCutoffTimestamp) {
-    //     this.serverService.isBackfillEventProcessingComplete = true;
-    //     this.resources.logger.logMessage(
-    //       MessageKind.INDEXER,
-    //       "backfill event processing complete (server now responding as healthy)"
-    //     );
-    //     // TODO: figure out how to remove this listener from within itself?
-    //   }
-    // });
+      // If a batch of events are processed AND the historical sync is complete AND
+      // the new toTimestamp is greater than the historical sync completion timestamp,
+      // historical event processing is complete, and the server should begin responding as healthy.
+      if (
+        this.eventAggregatorService.historicalSyncCompletedAt &&
+        toTimestamp >= this.eventAggregatorService.historicalSyncCompletedAt
+      ) {
+        this.serverService.isBackfillEventProcessingComplete = true;
+        this.resources.logger.logMessage(
+          MessageKind.INDEXER,
+          "backfill event processing complete (server now responding as healthy)"
+        );
+      }
+    });
   }
 
   private registerUiHandlers() {

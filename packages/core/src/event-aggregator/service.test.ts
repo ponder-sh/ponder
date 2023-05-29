@@ -93,7 +93,7 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
   expect(emitSpy).toHaveBeenCalledTimes(1);
 });
 
-test("handleHistoricalSyncComplete emits historicalSyncComplete if final historical sync", async (context) => {
+test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final historical sync is complete", async (context) => {
   const { store } = context;
 
   const service = new EventAggregatorService({ store, logFilters, networks });
@@ -112,10 +112,8 @@ test("handleHistoricalSyncComplete emits historicalSyncComplete if final histori
   service.handleHistoricalSyncComplete({ chainId: optimism.chainId }); // emits historicalSyncComplete 10
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { timestamp: 5 });
-  expect(emitSpy).toHaveBeenCalledWith("historicalSyncComplete", {
-    timestamp: 10,
-  });
-  expect(emitSpy).toHaveBeenCalledTimes(2);
+  expect(emitSpy).toHaveBeenCalledTimes(1);
+  expect(service.historicalSyncCompletedAt).toBe(10);
 });
 
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
@@ -170,11 +168,9 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
   });
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { timestamp: 10 });
-  expect(emitSpy).toHaveBeenCalledWith("historicalSyncComplete", {
-    timestamp: 12,
-  });
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { timestamp: 25 });
-  expect(emitSpy).toHaveBeenCalledTimes(3);
+  expect(emitSpy).toHaveBeenCalledTimes(2);
+  expect(service.historicalSyncCompletedAt).toBe(12);
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
