@@ -449,6 +449,7 @@ test("handles deep reorg", async (context) => {
 
   // The current finalized block number is 16380005, so the reorg is at least 8 blocks deep.
   expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
+    detectedAtBlockNumber: 16380013,
     minimumDepth: 8,
   });
 

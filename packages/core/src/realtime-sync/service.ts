@@ -21,7 +21,7 @@ type RealtimeSyncEvents = {
   realtimeCheckpoint: { timestamp: number };
   finalityCheckpoint: { timestamp: number };
   shallowReorg: { commonAncestorTimestamp: number };
-  deepReorg: { minimumDepth: number };
+  deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
 };
 
 type RealtimeSyncMetrics = {
@@ -409,6 +409,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     // 5) If the common ancestor was not found in our local chain, this is a deep reorg.
-    this.emit("deepReorg", { minimumDepth: depth });
+    this.emit("deepReorg", {
+      detectedAtBlockNumber: newBlock.number,
+      minimumDepth: depth,
+    });
   };
 }
