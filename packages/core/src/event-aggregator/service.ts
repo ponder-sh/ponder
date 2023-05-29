@@ -19,10 +19,24 @@ export type LogEvent = {
 };
 
 type EventAggregatorEvents = {
-  historicalSyncComplete: { timestamp: number };
+  /**
+   * Emitted when a new event checkpoint is reached. This is the minimum timestamp
+   * at which events are available across all registered networks.
+   */
   newCheckpoint: { timestamp: number };
+  /**
+   * Emitted when a new finality checkpoint is reached. This is the minimum timestamp
+   * at which events are finalized across all registered networks.
+   */
   newFinalityCheckpoint: { timestamp: number };
+  /**
+   * Emitted when a reorg has been detected on any registered network.
+   */
   reorg: { commonAncestorTimestamp: number };
+  /**
+   * Emitted when all registered networks have completed the historical sync.
+   */
+  historicalSyncComplete: { timestamp: number };
 };
 
 type EventAggregatorMetrics = {};
@@ -80,6 +94,12 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     });
   }
 
+  /** Fetches events for all registered log filters between the specified timestamps.
+   *
+   * @param options.fromTimestamp Timestamp to start including events (inclusive).
+   * @param options.toTimestamp Timestamp to stop including events (inclusive).
+   * @returns A promise resolving to an array of log events.
+   */
   getEvents = async ({
     fromTimestamp,
     toTimestamp,
