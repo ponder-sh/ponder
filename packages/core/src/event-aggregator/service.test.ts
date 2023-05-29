@@ -20,6 +20,7 @@ const mainnet: Network = {
 const optimism: Network = {
   ...mainnet,
   name: "optimism",
+  chainId: 10,
 };
 
 const networks = [mainnet, optimism];
@@ -59,6 +60,10 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
     chainId: mainnet.chainId,
     timestamp: 10,
   });
+  service.handleNewHistoricalCheckpoint({
+    chainId: optimism.chainId,
+    timestamp: 12,
+  });
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { timestamp: 10 });
 });
@@ -79,8 +84,38 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
     timestamp: 5,
   });
 
-  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { timestamp: 10 });
+  service.handleNewHistoricalCheckpoint({
+    chainId: mainnet.chainId,
+    timestamp: 15,
+  });
+
+  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { timestamp: 5 });
   expect(emitSpy).toHaveBeenCalledTimes(1);
+});
+
+test("handleHistoricalSyncComplete emits historicalSyncComplete if final historical sync", async (context) => {
+  const { store } = context;
+
+  const service = new EventAggregatorService({ store, logFilters, networks });
+  const emitSpy = vi.spyOn(service, "emit");
+
+  service.handleNewHistoricalCheckpoint({
+    chainId: mainnet.chainId,
+    timestamp: 10,
+  });
+  service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
+
+  service.handleNewHistoricalCheckpoint({
+    chainId: optimism.chainId,
+    timestamp: 5,
+  }); // emits newCheckpoint 5
+  service.handleHistoricalSyncComplete({ chainId: optimism.chainId }); // emits historicalSyncComplete 10
+
+  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { timestamp: 5 });
+  expect(emitSpy).toHaveBeenCalledWith("historicalSyncComplete", {
+    timestamp: 10,
+  });
+  expect(emitSpy).toHaveBeenCalledTimes(2);
 });
 
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
@@ -90,6 +125,10 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewHistoricalCheckpoint({
+    chainId: optimism.chainId,
+    timestamp: 12,
+  });
+  service.handleNewHistoricalCheckpoint({
     chainId: mainnet.chainId,
     timestamp: 10,
   });
@@ -103,27 +142,39 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
   expect(emitSpy).toHaveBeenCalledTimes(1);
 });
 
-test("handleNewRealtimeCheckpoint emit new checkpoint if historical sync is complete", async (context) => {
+test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is complete", async (context) => {
   const { store } = context;
 
   const service = new EventAggregatorService({ store, logFilters, networks });
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewHistoricalCheckpoint({
+    chainId: optimism.chainId,
+    timestamp: 12,
+  });
+  service.handleHistoricalSyncComplete({ chainId: optimism.chainId });
+
+  service.handleNewHistoricalCheckpoint({
     chainId: mainnet.chainId,
     timestamp: 10,
   });
-
   service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
 
+  service.handleNewRealtimeCheckpoint({
+    chainId: optimism.chainId,
+    timestamp: 27,
+  });
   service.handleNewRealtimeCheckpoint({
     chainId: mainnet.chainId,
     timestamp: 25,
   });
 
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { timestamp: 10 });
+  expect(emitSpy).toHaveBeenCalledWith("historicalSyncComplete", {
+    timestamp: 12,
+  });
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { timestamp: 25 });
-  expect(emitSpy).toHaveBeenCalledTimes(2);
+  expect(emitSpy).toHaveBeenCalledTimes(3);
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
@@ -133,12 +184,16 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) 
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewFinalityCheckpoint({
+    chainId: optimism.chainId,
+    timestamp: 12,
+  });
+  service.handleNewFinalityCheckpoint({
     chainId: mainnet.chainId,
     timestamp: 15,
   });
 
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", {
-    timestamp: 15,
+    timestamp: 12,
   });
   expect(emitSpy).toHaveBeenCalledTimes(1);
 });
@@ -150,17 +205,20 @@ test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequ
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewFinalityCheckpoint({
+    chainId: optimism.chainId,
+    timestamp: 12,
+  });
+  service.handleNewFinalityCheckpoint({
     chainId: mainnet.chainId,
     timestamp: 15,
   });
-
   service.handleNewFinalityCheckpoint({
-    chainId: optimism.chainId,
-    timestamp: 14,
+    chainId: mainnet.chainId,
+    timestamp: 19,
   });
 
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", {
-    timestamp: 15,
+    timestamp: 12,
   });
   expect(emitSpy).toHaveBeenCalledTimes(1);
 });
@@ -172,6 +230,10 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent even
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewFinalityCheckpoint({
+    chainId: optimism.chainId,
+    timestamp: 12,
+  });
+  service.handleNewFinalityCheckpoint({
     chainId: mainnet.chainId,
     timestamp: 15,
   });
@@ -182,10 +244,10 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent even
   });
 
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", {
-    timestamp: 15,
+    timestamp: 12,
   });
   expect(emitSpy).toHaveBeenCalledWith("newFinalityCheckpoint", {
-    timestamp: 16,
+    timestamp: 15,
   });
   expect(emitSpy).toHaveBeenCalledTimes(2);
 });

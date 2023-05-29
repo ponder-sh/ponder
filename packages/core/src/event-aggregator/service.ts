@@ -19,6 +19,7 @@ export type LogEvent = {
 };
 
 type EventAggregatorEvents = {
+  historicalSyncComplete: { timestamp: number };
   newCheckpoint: { timestamp: number };
   newFinalityCheckpoint: { timestamp: number };
   reorg: { commonAncestorTimestamp: number };
@@ -150,6 +151,18 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   handleHistoricalSyncComplete = ({ chainId }: { chainId: number }) => {
     this.networkCheckpoints[chainId].isHistoricalSyncComplete = true;
     this.recalculateCheckpoint();
+
+    // If every network has completed the historical sync, emit an event.
+    const networkCheckpoints = Object.values(this.networkCheckpoints);
+    if (networkCheckpoints.every((n) => n.isHistoricalSyncComplete)) {
+      const maxHistoricalCheckpoint = Math.max(
+        ...networkCheckpoints.map((n) => n.historicalCheckpoint)
+      );
+
+      this.emit("historicalSyncComplete", {
+        timestamp: maxHistoricalCheckpoint,
+      });
+    }
   };
 
   handleNewRealtimeCheckpoint = ({
@@ -180,7 +193,9 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
 
   private recalculateCheckpoint = () => {
     const checkpoints = Object.values(this.networkCheckpoints).map((n) =>
-      n.isHistoricalSyncComplete ? n.realtimeCheckpoint : n.historicalCheckpoint
+      n.isHistoricalSyncComplete
+        ? Math.max(n.historicalCheckpoint, n.realtimeCheckpoint)
+        : n.historicalCheckpoint
     );
     const newCheckpoint = Math.min(...checkpoints);
 
