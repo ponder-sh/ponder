@@ -10,6 +10,8 @@ import { patchSqliteDatabase } from "@/config/database";
 import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import type { EventStore } from "@/event-store/store";
+import { SqliteUserStore } from "@/user-store/sqlite/store";
+import { UserStore } from "@/user-store/store";
 
 import { FORK_BLOCK_NUMBER, FORK_URL, vitalik } from "./constants";
 import { poolId, testClient } from "./utils";
@@ -31,6 +33,7 @@ moduleAlias.addAlias("@ponder/core", ponderCoreDir);
 declare module "vitest" {
   export interface TestContext {
     store: EventStore;
+    userStore: UserStore;
   }
 }
 
@@ -39,10 +42,13 @@ beforeEach(async (context) => {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const schema = `vitest_pool_${poolId}`;
     context.store = new PostgresEventStore({ pool, schema });
+
+    // TODO: add PostgresUserStore
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
     const sqliteDb = patchSqliteDatabase({ db: rawSqliteDb });
     context.store = new SqliteEventStore({ sqliteDb });
+    context.userStore = new SqliteUserStore({ db: rawSqliteDb });
   }
 
   await context.store.migrateUp();
