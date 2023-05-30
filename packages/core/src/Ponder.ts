@@ -1,7 +1,6 @@
 import pico from "picocolors";
 
 import { CodegenService } from "@/codegen/service";
-import { LoggerService, MessageKind } from "@/utils/logger";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
 import { buildLogFilters, LogFilter } from "@/config/logFilters";
@@ -23,6 +22,7 @@ import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { type UserStore } from "@/user-store/store";
 import { formatEta, formatPercentage } from "@/utils/format";
+import { LoggerService, MessageKind } from "@/utils/logger";
 
 export type Resources = {
   options: PonderOptions;
@@ -335,9 +335,13 @@ export class Ponder {
     });
 
     this.networks.forEach((network) => {
-      const { historicalSyncService } = network;
+      const { historicalSyncService, realtimeSyncService } = network;
 
       historicalSyncService.on("error", ({ error }) => {
+        this.resources.logger.logMessage(MessageKind.ERROR, error.message);
+      });
+
+      realtimeSyncService.on("error", ({ error }) => {
         this.resources.logger.logMessage(MessageKind.ERROR, error.message);
       });
 

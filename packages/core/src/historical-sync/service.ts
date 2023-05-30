@@ -271,7 +271,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
         const queueError = new QueueError({
           queueName: "Historical sync queue",
-          task: task,
+          task: {
+            logFilterName: task.logFilter.name,
+            ...task,
+            logFilter: undefined,
+          },
           cause: error,
         });
         this.emit("error", { error: queueError });

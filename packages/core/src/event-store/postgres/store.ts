@@ -5,7 +5,7 @@ import {
   NO_MIGRATIONS,
   PostgresDialect,
 } from "kysely";
-import pg, { type Pool } from "pg";
+import type { Pool } from "pg";
 import {
   Address,
   Hex,
@@ -19,7 +19,7 @@ import {
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
-import { NonNull } from "@/types/utils";
+import type { NonNull } from "@/types/utils";
 
 import type { EventStore } from "../store";
 import { merge_intervals } from "../utils";

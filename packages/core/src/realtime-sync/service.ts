@@ -2,11 +2,12 @@ import Emittery from "emittery";
 import pLimit from "p-limit";
 import { hexToNumber, numberToHex } from "viem";
 
-import { type Queue, createQueue } from "@/utils/queue";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
+import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
 import { poll } from "@/utils/poll";
+import { type Queue, createQueue } from "@/utils/queue";
 import { range } from "@/utils/range";
 
 import { isMatchedLogInBloomFilter } from "./bloom";
@@ -22,6 +23,7 @@ type RealtimeSyncEvents = {
   finalityCheckpoint: { timestamp: number };
   shallowReorg: { commonAncestorTimestamp: number };
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
+  error: { error: Error };
 };
 
 type RealtimeSyncMetrics = {
@@ -168,21 +170,22 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       },
       options: { concurrency: 1, autoStart: false },
       onError: ({ error, task }) => {
-        console.log({
-          taskBlockNumber: hexToNumber(task.number),
-          error,
+        const queueError = new QueueError({
+          queueName: "Realtime sync queue",
+          task: {
+            hash: task.hash,
+            parentHash: task.parentHash,
+            number: task.number,
+            timestamp: task.timestamp,
+            transactionCount: task.transactions.length,
+          },
+          cause: error,
         });
+        this.emit("error", { error: queueError });
+
         // Default to a retry (uses the retry options passed to the queue).
         // queue.addTask(task, { retry: true });
       },
-      // onComplete: ({}) => {
-      // const { logFilter } = task;
-      // if (task.kind === "LOG_SYNC") {
-      //   this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
-      // } else {
-      //   this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
-      // }
-      // },
     });
 
     return queue;
