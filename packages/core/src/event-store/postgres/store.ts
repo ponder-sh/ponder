@@ -5,7 +5,7 @@ import {
   NO_MIGRATIONS,
   PostgresDialect,
 } from "kysely";
-import pg, { type Pool } from "pg";
+import type { Pool } from "pg";
 import {
   Address,
   Hex,
@@ -16,10 +16,12 @@ import {
   toHex,
 } from "viem";
 
-import { NonNull } from "@/types/utils";
+import type { Block } from "@/types/block";
+import type { Log } from "@/types/log";
+import type { Transaction } from "@/types/transaction";
+import type { NonNull } from "@/types/utils";
 
 import type { EventStore } from "../store";
-import type { Block, Log, Transaction } from "../types";
 import { merge_intervals } from "../utils";
 import {
   type EventStoreTables,
@@ -37,7 +39,6 @@ export class PostgresEventStore implements EventStore {
   private migrator: Migrator;
 
   constructor({ pool, schema }: { pool: Pool; schema?: string }) {
-    pg.types.setTypeParser(20, BigInt);
     this.db = new Kysely<EventStoreTables>({
       dialect: new PostgresDialect({
         pool,
@@ -103,11 +104,25 @@ export class PostgresEventStore implements EventStore {
     }));
 
     await this.db.transaction().execute(async (tx) => {
-      await Promise.all([
-        tx.insertInto("blocks").values(block).execute(),
-        tx.insertInto("transactions").values(transactions).execute(),
-        tx.insertInto("logs").values(logs).execute(),
-      ]);
+      await tx
+        .insertInto("blocks")
+        .values(block)
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
+      if (transactions.length > 0) {
+        await tx
+          .insertInto("transactions")
+          .values(transactions)
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+      }
+      if (logs.length > 0) {
+        await tx
+          .insertInto("logs")
+          .values(logs)
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      }
     });
   };
 
@@ -182,17 +197,19 @@ export class PostgresEventStore implements EventStore {
   };
 
   getLogEvents = async ({
-    chainId,
     fromTimestamp,
     toTimestamp,
-    address,
-    topics,
+    filters,
   }: {
-    chainId: number;
     fromTimestamp: number;
     toTimestamp: number;
-    address?: Address | Address[];
-    topics?: (Hex | Hex[] | null)[];
+    filters: {
+      chainId: number;
+      address?: Address | Address[];
+      topics?: (Hex | Hex[] | null)[];
+      fromBlock?: number;
+      toBlock?: number;
+    }[];
   }) => {
     let query = this.db
       .selectFrom("logs")
@@ -257,26 +274,47 @@ export class PostgresEventStore implements EventStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
-      .where("logs.chainId", "=", chainId)
       .where("blocks.timestamp", ">=", fromTimestamp)
       .where("blocks.timestamp", "<=", toTimestamp)
       .orderBy("blocks.timestamp", "asc")
+      .orderBy("logs.chainId", "asc")
       .orderBy("logs.logIndex", "asc");
 
-    if (address) {
-      const addressArray = typeof address === "string" ? [address] : address;
-      query = query.where("logs.address", "in", addressArray);
-    }
+    query = query.where(({ and, or, cmpr }) =>
+      or(
+        filters.map((filter) => {
+          const { chainId, address, topics, fromBlock, toBlock } = filter;
 
-    if (topics) {
-      topics.forEach((topic, topicIndex) => {
-        if (topic === null) return;
-        const columnName = `logs.topic${topicIndex as 0 | 1 | 2 | 3}` as const;
-        const topicArray = typeof topic === "string" ? [topic] : topic;
-        query = query.where(columnName, "in", topicArray);
-      });
-    }
+          const conditions = [cmpr("logs.chainId", "=", chainId)];
 
+          if (address) {
+            const addressArray =
+              typeof address === "string" ? [address] : address;
+            conditions.push(cmpr("logs.address", "in", addressArray));
+          }
+
+          if (topics) {
+            topics.forEach((topic, topicIndex) => {
+              if (topic === null) return;
+              const columnName = `logs.topic${
+                topicIndex as 0 | 1 | 2 | 3
+              }` as const;
+              const topicArray = typeof topic === "string" ? [topic] : topic;
+              conditions.push(cmpr(columnName, "in", topicArray));
+            });
+          }
+
+          if (fromBlock) {
+            conditions.push(cmpr("blocks.number", ">=", toHex(fromBlock)));
+          }
+          if (toBlock) {
+            conditions.push(cmpr("blocks.number", "<=", toHex(toBlock)));
+          }
+
+          return and(conditions);
+        })
+      )
+    );
     const results = await query.execute();
 
     const logEvents = results.map((result_) => {
@@ -398,21 +436,32 @@ export class PostgresEventStore implements EventStore {
       finalized: 1,
     }));
 
-    await this.db.insertInto("logs").values(logs).execute();
+    if (logs.length > 0) {
+      await this.db
+        .insertInto("logs")
+        .values(logs)
+        .onConflict((oc) => oc.column("id").doNothing())
+        .execute();
+    }
   };
 
   insertFinalizedBlock = async ({
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
-    logFilterRange: { blockNumberToCacheFrom, logFilterKey },
+    logFilterRange: {
+      logFilterKey,
+      blockNumberToCacheFrom,
+      logFilterStartBlockNumber,
+    },
   }: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logFilterRange: {
-      blockNumberToCacheFrom: number;
       logFilterKey: string;
+      blockNumberToCacheFrom: number;
+      logFilterStartBlockNumber: number;
     };
   }) => {
     const block: InsertableBlock = {
@@ -437,55 +486,84 @@ export class PostgresEventStore implements EventStore {
     };
 
     await this.db.transaction().execute(async (tx) => {
-      await Promise.all([
-        tx.insertInto("blocks").values(block).execute(),
-        tx.insertInto("transactions").values(transactions).execute(),
-        tx
-          .insertInto("logFilterCachedRanges")
-          .values(logFilterCachedRange)
-          .execute(),
-      ]);
+      await tx
+        .insertInto("blocks")
+        .values(block)
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
+      if (transactions.length > 0) {
+        await tx
+          .insertInto("transactions")
+          .values(transactions)
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+      }
+      await tx
+        .insertInto("logFilterCachedRanges")
+        .values(logFilterCachedRange)
+        .execute();
     });
 
     // After inserting the new cached range record, execute a transaction to merge
-    // all adjacent cached ranges.
-    await this.db.transaction().execute(async (tx) => {
-      const existingRanges = await tx
-        .deleteFrom("logFilterCachedRanges")
-        .where("filterKey", "=", logFilterKey)
-        .returningAll()
-        .execute();
+    // all adjacent cached ranges. Return the end block timestamp of the cached interval
+    // that contains the start block number of the log filter.
+    const startingRangeEndTimestamp = await this.db
+      .transaction()
+      .execute(async (tx) => {
+        const existingRanges = await tx
+          .deleteFrom("logFilterCachedRanges")
+          .where("filterKey", "=", logFilterKey)
+          .returningAll()
+          .execute();
 
-      if (existingRanges.length === 0) return;
+        const mergedIntervals = merge_intervals(
+          existingRanges.map((r) => [
+            hexToNumber(r.startBlock),
+            hexToNumber(r.endBlock),
+          ])
+        );
 
-      const mergedIntervals = merge_intervals(
-        existingRanges.map((r) => [
-          hexToNumber(r.startBlock),
-          hexToNumber(r.endBlock),
-        ])
-      );
+        const mergedRanges = mergedIntervals.map((interval) => {
+          const [startBlock, endBlock] = interval;
+          // For each new merged range, its endBlock will be found EITHER in the newly
+          // added range OR among the endBlocks of the removed ranges.
+          // Find it so we can propogate the endBlockTimestamp correctly.
+          const endBlockTimestamp = existingRanges.find(
+            (r) => hexToNumber(r.endBlock) === endBlock
+          )!.endBlockTimestamp;
 
-      const mergedRanges = mergedIntervals.map((interval) => {
-        const [startBlock, endBlock] = interval;
-        // For each new merged range, its endBlock will be found EITHER in the newly
-        // added range OR among the endBlocks of the removed ranges.
-        // Find it so we can propogate the endBlockTimestamp correctly.
-        const endBlockTimestamp = existingRanges.find(
-          (r) => hexToNumber(r.endBlock) === endBlock
-        )!.endBlockTimestamp;
+          return {
+            filterKey: logFilterKey,
+            startBlock: toHex(startBlock),
+            endBlock: toHex(endBlock),
+            endBlockTimestamp: endBlockTimestamp,
+          };
+        });
 
-        return {
-          filterKey: logFilterKey,
-          startBlock: toHex(startBlock),
-          endBlock: toHex(endBlock),
-          endBlockTimestamp: endBlockTimestamp,
-        };
+        if (mergedRanges.length > 0) {
+          await tx
+            .insertInto("logFilterCachedRanges")
+            .values(mergedRanges)
+            .execute();
+        }
+
+        // After we've inserted the new ranges, find the range that contains the log filter start block number.
+        // We need this to determine the new latest available event timestamp for the log filter.
+        const startingRange = mergedRanges.find(
+          (range) =>
+            hexToNumber(range.startBlock) <= logFilterStartBlockNumber &&
+            hexToNumber(range.endBlock) >= logFilterStartBlockNumber
+        );
+
+        if (!startingRange) {
+          // If there is no range containing the log filter start block number, return 0. This could happen if
+          // many block tasks run concurrently and the one containing the log filter start block number is late.
+          return 0;
+        } else {
+          return hexToNumber(startingRange.endBlockTimestamp);
+        }
       });
 
-      await tx
-        .insertInto("logFilterCachedRanges")
-        .values(mergedRanges)
-        .execute();
-    });
+    return { startingRangeEndTimestamp };
   };
 }

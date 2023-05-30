@@ -1,7 +1,25 @@
-import { Kysely } from "kysely";
-import { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import type { Kysely } from "kysely";
+import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type { Block, Log, LogFilterCachedRange, Transaction } from "./types";
+import type { Block } from "@/types/block";
+import type { Log } from "@/types/log";
+import type { Transaction } from "@/types/transaction";
+
+/**
+ * A record representing a range of blocks that have been added
+ * to the event store for a given log filter.
+ */
+export type LogFilterCachedRange = {
+  filterKey: string;
+  startBlock: bigint;
+  endBlock: bigint;
+  endBlockTimestamp: bigint;
+};
+
+// /**
+//  * A record representing a call to a contract made at a specific block height.
+//  */
+// export type ContractCall = {};
 
 export interface EventStore {
   db: Kysely<any>;
@@ -10,11 +28,15 @@ export interface EventStore {
   migrateDown(): Promise<void>;
 
   getLogEvents(arg: {
-    chainId: number;
     fromTimestamp: number;
     toTimestamp: number;
-    address?: Address | Address[];
-    topics?: (Hex | Hex[] | null)[];
+    filters: {
+      chainId: number;
+      address?: Address | Address[];
+      topics?: (Hex | Hex[] | null)[];
+      fromBlock?: number;
+      toBlock?: number;
+    }[];
   }): Promise<{ log: Log; block: Block; transaction: Transaction }[]>;
 
   insertUnfinalizedBlock(options: {
@@ -48,12 +70,13 @@ export interface EventStore {
     block: RpcBlock;
     transactions: RpcTransaction[];
     logFilterRange: {
-      blockNumberToCacheFrom: number;
       logFilterKey: string;
+      blockNumberToCacheFrom: number;
+      logFilterStartBlockNumber: number;
     };
-  }): Promise<void>;
+  }): Promise<{ startingRangeEndTimestamp: number }>;
 
   // // Injected contract call methods.
-  // upsertContractCall(contractCall: ContractCall): Promise<void>;
-  // getContractCall(contractCallKey: string): Promise<ContractCall | null>;
+  // insertContractCall(options: { key: string; result: string }): Promise<void>;
+  // getContractCall(options: { key: string }): Promise<ContractCall | null>;
 }

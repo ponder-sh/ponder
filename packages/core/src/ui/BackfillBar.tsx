@@ -1,7 +1,7 @@
 import { Box, Text } from "ink";
 import React from "react";
 
-import { formatEta } from "@/common/utils";
+import { formatEta } from "@/utils/format";
 
 import { UiState } from "./app";
 import { ProgressBar } from "./ProgressBar";
