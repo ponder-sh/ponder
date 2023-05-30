@@ -1,10 +1,9 @@
-import { usdcContractConfig } from "test/utils/constants";
-import { expectEvents } from "test/utils/expectEvents";
-import { publicClient } from "test/utils/utils";
 import { HttpRequestError, InvalidParamsRpcError } from "viem";
 import { expect, test, vi } from "vitest";
 
-import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
+import { usdcContractConfig } from "@/_test/constants";
+import { publicClient } from "@/_test/utils";
+import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
 
@@ -24,16 +23,16 @@ const logFilters: LogFilter[] = [
     name: "USDC",
     ...usdcContractConfig,
     network,
-    startBlock: 16369950,
-    // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
-    endBlock: undefined,
-    maxBlockRange: network.defaultMaxBlockRange,
     filter: {
       key: encodeLogFilterKey({
         chainId: network.chainId,
         address: usdcContractConfig.address,
       }),
+      startBlock: 16369950,
+      // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
+      endBlock: undefined,
     },
+    maxBlockRange: network.defaultMaxBlockRange,
   },
 ];
 
@@ -44,8 +43,8 @@ test("setup() calculates cached and total block counts", async (context) => {
   await service.setup({ finalizedBlockNumber: 16369955 });
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
-    cachedBlockCount: 0,
     totalBlockCount: 6,
+    cacheRate: 0,
   });
 });
 
@@ -59,10 +58,10 @@ test("start() runs log tasks and block tasks", async (context) => {
   await service.onIdle();
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
+    blockTaskTotalCount: 6,
     blockTaskCompletedCount: 6,
-    blockTaskStartedCount: 6,
+    logTaskTotalCount: 2,
     logTaskCompletedCount: 2,
-    logTaskStartedCount: 2,
   });
 });
 
@@ -75,10 +74,14 @@ test("start() adds events to event store", async (context) => {
   await service.onIdle();
 
   const logEvents = await store.getLogEvents({
-    chainId: network.chainId,
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
-    address: usdcContractConfig.address,
+    filters: [
+      {
+        chainId: network.chainId,
+        address: usdcContractConfig.address,
+      },
+    ],
   });
 
   expect(logEvents[0].block).toMatchObject({
@@ -139,7 +142,7 @@ test("start() retries errors", async (context) => {
   await service.onIdle();
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
-    logTaskStartedCount: 2,
+    logTaskTotalCount: 2,
     logTaskErrorCount: 1,
     logTaskCompletedCount: 1,
   });
@@ -173,7 +176,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   await service.onIdle();
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
-    logTaskStartedCount: 4,
+    logTaskTotalCount: 4,
     logTaskErrorCount: 1,
     logTaskCompletedCount: 3,
   });
@@ -206,7 +209,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   await service.onIdle();
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
-    logTaskStartedCount: 4,
+    logTaskTotalCount: 4,
     logTaskErrorCount: 1,
     logTaskCompletedCount: 3,
   });
@@ -225,25 +228,29 @@ test("start() emits sync started and completed events", async (context) => {
   const { store } = context;
 
   const service = new HistoricalSyncService({ store, logFilters, network });
-  const eventIterator = service.anyEvent();
+  const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
-  await expectEvents(eventIterator, { syncStarted: 1 });
+
+  expect(emitSpy).toHaveBeenCalledWith("syncStarted");
 
   await service.onIdle();
-  await expectEvents(eventIterator, { syncCompleted: 1 });
+  expect(emitSpy).toHaveBeenCalledWith("syncComplete");
 });
 
-test("start() emits newEvents event", async (context) => {
+test("start() emits historicalCheckpoint event", async (context) => {
   const { store } = context;
 
   const service = new HistoricalSyncService({ store, logFilters, network });
-  const eventIterator = service.anyEvent();
+  const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
 
   await service.onIdle();
-  await expectEvents(eventIterator, { newEvents: 6 });
+
+  expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
+    timestamp: 1673275859, // Block timestamp of block 16369955
+  });
 });

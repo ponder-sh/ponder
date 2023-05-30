@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { accounts, usdcContractConfig, vitalik } from "test/utils/constants";
-import { expectEvents } from "test/utils/expectEvents";
-import { publicClient, testClient, walletClient } from "test/utils/utils";
 import { expect, test, vi } from "vitest";
 
-import { encodeLogFilterKey } from "@/config/encodeLogFilterKey";
+import { accounts, usdcContractConfig, vitalik } from "@/_test/constants";
+import { publicClient, testClient, walletClient } from "@/_test/utils";
+import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
 import { range } from "@/utils/range";
@@ -25,17 +24,17 @@ const logFilters: LogFilter[] = [
     name: "USDC",
     ...usdcContractConfig,
     network,
-    startBlock: 16369950,
-    // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
-    endBlock: undefined,
-    maxBlockRange: network.defaultMaxBlockRange,
     filter: {
       key: encodeLogFilterKey({
         chainId: network.chainId,
         address: usdcContractConfig.address,
       }),
       address: usdcContractConfig.address,
+      startBlock: 16369950,
+      // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
+      endBlock: undefined,
     },
+    maxBlockRange: network.defaultMaxBlockRange,
   },
 ];
 
@@ -59,8 +58,6 @@ const logFilters: LogFilter[] = [
 //     }
 //   }
 // };
-
-// spy.mockImplementationOnce(impl);
 
 const sendUsdcTransferTransaction = async () => {
   await walletClient.writeContract({
@@ -212,6 +209,37 @@ test("handles new blocks", async (context) => {
   await service.kill();
 });
 
+test("emits realtimeCheckpoint events", async (context) => {
+  const { store } = context;
+
+  const service = new RealtimeSyncService({ store, logFilters, network });
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await service.setup();
+  await service.start();
+
+  // Mine 8 blocks, which should trigger the finality checkpoint (after 5).
+  for (const _ in range(0, 8)) {
+    await sendUsdcTransferTransaction();
+    await testClient.mine({ blocks: 1 });
+  }
+
+  await service.addNewLatestBlock();
+  await service.onIdle();
+
+  expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    timestamp: 1673397023, // Timestamp of 16379995
+  });
+  expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    timestamp: 1673397071, // Timestamp of 16380000
+  });
+  expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
+    timestamp: 1673397078, // Timestamp of 16380008 (1s block time via Anvil)
+  });
+
+  await service.kill();
+});
+
 test("marks block data as finalized", async (context) => {
   const { store } = context;
 
@@ -241,7 +269,7 @@ test("marks block data as finalized", async (context) => {
   });
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    newFinalizedBlockNumber: 16380000,
+    timestamp: 1673397071, // Timestamp of 16380000
   });
 
   await service.kill();
@@ -375,8 +403,7 @@ test("handles 3 block shallow reorg", async (context) => {
   });
 
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
-    commonAncestorBlockNumber: 16380000,
-    depth: 3,
+    commonAncestorTimestamp: 1673397071, // Timestamp of 16380000
   });
 
   await service.kill();
@@ -405,7 +432,7 @@ test("handles deep reorg", async (context) => {
 
   // Confirm that the service has finalized blocks.
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    newFinalizedBlockNumber: 16380005,
+    timestamp: 1673397076, // Timestamp of 16380005
   });
 
   // Now, revert to the original snapshot and mine 13 blocks, each containing 2 transactions.
@@ -422,6 +449,7 @@ test("handles deep reorg", async (context) => {
 
   // The current finalized block number is 16380005, so the reorg is at least 8 blocks deep.
   expect(emitSpy).toHaveBeenCalledWith("deepReorg", {
+    detectedAtBlockNumber: 16380013,
     minimumDepth: 8,
   });
 

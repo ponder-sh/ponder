@@ -1,11 +1,11 @@
-import { Abi, AbiEvent, Address } from "abitype";
+import { Abi, Address } from "abitype";
 import { encodeEventTopics } from "viem";
 
 import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
 
 import { buildAbi } from "./abi";
-import { encodeLogFilterKey } from "./encodeLogFilterKey";
+import { encodeLogFilterKey } from "./logFilterKey";
 import { buildNetwork, Network } from "./networks";
 
 export type LogFilter = {
@@ -16,11 +16,9 @@ export type LogFilter = {
     key: string; // `${chainId}-${address}-${topics}`
     address?: `0x${string}` | `0x${string}`[];
     topics?: (`0x${string}` | `0x${string}`[] | null)[];
-    event?: AbiEvent;
-    args?: any[];
+    startBlock: number;
+    endBlock?: number;
   };
-  startBlock: number;
-  endBlock: number | undefined;
   maxBlockRange: number;
 };
 
@@ -59,11 +57,6 @@ export function buildLogFilters({
         topics,
       });
 
-      // TODO: don't store event and args here, only store topics and
-      // call transport.request methods directly. Or, viem supports topics.
-      const event = undefined;
-      const args = undefined;
-
       const logFilter: LogFilter = {
         name: contract.name,
         network,
@@ -72,11 +65,9 @@ export function buildLogFilters({
           key,
           address,
           topics,
-          event,
-          args,
+          startBlock: contract.startBlock ?? 0,
+          endBlock: contract.endBlock,
         },
-        startBlock: contract.startBlock ?? 0,
-        endBlock: contract.endBlock,
         maxBlockRange: contract.maxBlockRange ?? network.defaultMaxBlockRange,
       };
 
@@ -119,11 +110,6 @@ export function buildLogFilters({
       topics,
     });
 
-    // TODO: don't store event and args here, only store topics and
-    // call transport.request methods directly. Or, viem supports topics.
-    const event = filter.filter.event;
-    const args = filter.filter.args;
-
     const logFilter: LogFilter = {
       name: filter.name,
       network,
@@ -132,11 +118,9 @@ export function buildLogFilters({
         key,
         address,
         topics,
-        event,
-        args,
+        startBlock: filter.startBlock ?? 0,
+        endBlock: filter.endBlock,
       },
-      startBlock: filter.startBlock ?? 0,
-      endBlock: filter.endBlock,
       maxBlockRange: filter.maxBlockRange ?? network.defaultMaxBlockRange,
     };
 
