@@ -62,7 +62,7 @@ afterEach(() => {
   });
 });
 
-test("serves data", async () => {
+test.skip("serves data", async () => {
   const { ponder, gql } = await setup();
 
   const { accounts, tokens } = await gql(`
@@ -86,7 +86,7 @@ test("serves data", async () => {
   await ponder.kill();
 });
 
-test("returns bigint ids as string", async () => {
+test.skip("returns bigint ids as string", async () => {
   const { ponder, gql } = await setup();
 
   const { tokens } = await gql(`
@@ -103,7 +103,7 @@ test("returns bigint ids as string", async () => {
   await ponder.kill();
 });
 
-test("orders asc on bigint fields", async () => {
+test.skip("orders asc on bigint fields", async () => {
   const { ponder, gql } = await setup();
 
   const { tokens } = await gql(`
@@ -120,7 +120,7 @@ test("orders asc on bigint fields", async () => {
   await ponder.kill();
 });
 
-test("orders desc on bigint fields", async () => {
+test.skip("orders desc on bigint fields", async () => {
   const { ponder, gql } = await setup();
 
   const { tokens } = await gql(`

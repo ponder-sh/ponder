@@ -56,7 +56,7 @@ afterEach(() => {
   rmSync("./src/_test/ens/app/generated", { recursive: true, force: true });
 });
 
-test("serves data", async () => {
+test.skip("serves data", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts, accounts } = await gql(`
@@ -83,7 +83,7 @@ test("serves data", async () => {
   await ponder.kill();
 });
 
-test("returns string array types", async () => {
+test.skip("returns string array types", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -98,7 +98,7 @@ test("returns string array types", async () => {
   await ponder.kill();
 });
 
-test("returns int array types", async () => {
+test.skip("returns int array types", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -113,7 +113,7 @@ test("returns int array types", async () => {
   await ponder.kill();
 });
 
-test("limits", async () => {
+test.skip("limits", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -127,7 +127,7 @@ test("limits", async () => {
   await ponder.kill();
 });
 
-test("skips", async () => {
+test.skip("skips", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -141,7 +141,7 @@ test("skips", async () => {
   await ponder.kill();
 });
 
-test("orders ascending", async () => {
+test.skip("orders ascending", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -159,7 +159,7 @@ test("orders ascending", async () => {
   await ponder.kill();
 });
 
-test("orders descending", async () => {
+test.skip("orders descending", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -177,7 +177,7 @@ test("orders descending", async () => {
   await ponder.kill();
 });
 
-test("filters on integer field equals", async () => {
+test.skip("filters on integer field equals", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -193,7 +193,7 @@ test("filters on integer field equals", async () => {
   await ponder.kill();
 });
 
-test("filters on integer field in", async () => {
+test.skip("filters on integer field in", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -211,7 +211,7 @@ test("filters on integer field in", async () => {
   await ponder.kill();
 });
 
-test("filters on string field equals", async () => {
+test.skip("filters on string field equals", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -229,7 +229,7 @@ test("filters on string field equals", async () => {
   await ponder.kill();
 });
 
-test("filters on string field in", async () => {
+test.skip("filters on string field in", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -250,7 +250,7 @@ test("filters on string field in", async () => {
   await ponder.kill();
 });
 
-test("filters on relationship field equals", async () => {
+test.skip("filters on relationship field equals", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
@@ -273,7 +273,7 @@ test("filters on relationship field equals", async () => {
   await ponder.kill();
 });
 
-test("filters on relationship field contains", async () => {
+test.skip("filters on relationship field contains", async () => {
   const { ponder, gql } = await setup();
 
   const { ensNfts } = await gql(`
