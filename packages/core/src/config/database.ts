@@ -1,30 +1,49 @@
 import Sqlite from "better-sqlite3";
 import path from "node:path";
-import { DatabaseError, Pool } from "pg";
+import pg, { Client, DatabaseError, Pool } from "pg";
 
-import { ensureDirExists } from "@/utils/exists";
 import { PonderOptions } from "@/config/options";
 import { ResolvedPonderConfig } from "@/config/ponderConfig";
 import { PostgresError } from "@/errors/postgres";
 import { SqliteError } from "@/errors/sqlite";
+import { ensureDirExists } from "@/utils/exists";
+
+export interface SqliteDb {
+  kind: "sqlite";
+  db: Sqlite.Database;
+}
+
+export interface PostgresDb {
+  kind: "postgres";
+  pool: Pool;
+}
+
+export type Database = SqliteDb | PostgresDb;
+
+// Set pg protocol to use BigInt.
+pg.types.setTypeParser(20, BigInt);
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114
-const originalPoolQuery = Pool.prototype.query;
+const originalClientQuery = Client.prototype.query;
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-Pool.prototype.query = async function query(
+Client.prototype.query = async function query(
   ...args: [queryText: string, values: any[], callback: () => void]
 ) {
   try {
-    return await originalPoolQuery.apply(this, args);
+    return await originalClientQuery.apply(this, args);
   } catch (error) {
     const [statement, parameters] = args;
 
     if (error instanceof DatabaseError) {
+      const parameters_ = parameters ?? [];
       throw new PostgresError({
         statement,
-        parameters: parameters ?? [],
+        parameters:
+          parameters_.length <= 25
+            ? parameters_
+            : parameters_.slice(0, 26).concat(["..."]),
         pgError: error,
       });
     }
@@ -65,18 +84,6 @@ export const patchSqliteDatabase = ({ db }: { db: any }) => {
 
   return db;
 };
-
-export interface SqliteDb {
-  kind: "sqlite";
-  db: Sqlite.Database;
-}
-
-export interface PostgresDb {
-  kind: "postgres";
-  pool: Pool;
-}
-
-export type Database = SqliteDb | PostgresDb;
 
 export const buildDatabase = ({
   options,
