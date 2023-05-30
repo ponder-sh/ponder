@@ -10,6 +10,7 @@ import { patchSqliteDatabase } from "@/config/database";
 import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import type { EventStore } from "@/event-store/store";
+import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { UserStore } from "@/user-store/store";
 
@@ -40,15 +41,14 @@ declare module "vitest" {
 beforeEach(async (context) => {
   if (process.env.DATABASE_URL) {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const schema = `vitest_pool_${poolId}`;
-    context.store = new PostgresEventStore({ pool, schema });
-
-    // TODO: add PostgresUserStore
+    const databaseSchema = `vitest_pool_${poolId}`;
+    context.store = new PostgresEventStore({ pool, databaseSchema });
+    context.userStore = new PostgresUserStore({ pool, databaseSchema });
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
-    const sqliteDb = patchSqliteDatabase({ db: rawSqliteDb });
-    context.store = new SqliteEventStore({ sqliteDb });
-    context.userStore = new SqliteUserStore({ db: rawSqliteDb });
+    const db = patchSqliteDatabase({ db: rawSqliteDb });
+    context.store = new SqliteEventStore({ db });
+    context.userStore = new SqliteUserStore({ db });
   }
 
   await context.store.migrateUp();

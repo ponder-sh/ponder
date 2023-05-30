@@ -32,9 +32,9 @@ export class SqliteEventStore implements EventStore {
   db: Kysely<EventStoreTables>;
   private migrator: Migrator;
 
-  constructor({ sqliteDb }: { sqliteDb: Sqlite.Database }) {
+  constructor({ db }: { db: Sqlite.Database }) {
     this.db = new Kysely<EventStoreTables>({
-      dialect: new SqliteDialect({ database: sqliteDb }),
+      dialect: new SqliteDialect({ database: db }),
     });
 
     this.migrator = new Migrator({

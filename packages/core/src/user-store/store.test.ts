@@ -69,7 +69,7 @@ test("create() throws on unique constraint violation", async (context) => {
       id: "id1",
       data: { name: "Skip", age: 13 },
     })
-  ).rejects.toThrowError("SQLite error: UNIQUE constraint failed");
+  ).rejects.toThrow();
 
   await userStore.teardown();
 });
@@ -118,7 +118,7 @@ test("create() throws on invalid enum value", async (context) => {
       id: "id1",
       data: { name: "Skip", kind: "NOTACAT" },
     })
-  ).rejects.toThrowError("SQLite error: CHECK constraint failed: kind");
+  ).rejects.toThrow();
 
   await userStore.teardown();
 });

@@ -38,17 +38,25 @@ export class PostgresEventStore implements EventStore {
   db: Kysely<EventStoreTables>;
   private migrator: Migrator;
 
-  constructor({ pool, schema }: { pool: Pool; schema?: string }) {
+  constructor({
+    pool,
+    databaseSchema,
+  }: {
+    pool: Pool;
+    databaseSchema?: string;
+  }) {
     this.db = new Kysely<EventStoreTables>({
       dialect: new PostgresDialect({
         pool,
-        onCreateConnection: schema
+        onCreateConnection: databaseSchema
           ? async (connection) => {
               await connection.executeQuery(
-                CompiledQuery.raw(`CREATE SCHEMA IF NOT EXISTS ${schema}`)
+                CompiledQuery.raw(
+                  `CREATE SCHEMA IF NOT EXISTS ${databaseSchema}`
+                )
               );
               await connection.executeQuery(
-                CompiledQuery.raw(`SET search_path = ${schema}`)
+                CompiledQuery.raw(`SET search_path = ${databaseSchema}`)
               );
             }
           : undefined,
@@ -58,7 +66,7 @@ export class PostgresEventStore implements EventStore {
     this.migrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
-      migrationTableSchema: schema,
+      migrationTableSchema: databaseSchema,
     });
   }
 
