@@ -4,11 +4,11 @@ import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
 
-import { LoggerService, MessageKind } from "@/utils/logger";
 import { PonderOptions } from "@/config/options";
 import { Block } from "@/types/block";
 import { Log } from "@/types/log";
 import { Transaction } from "@/types/transaction";
+import { LoggerService, MessageKind } from "@/utils/logger";
 
 export interface LogEvent {
   name: string;

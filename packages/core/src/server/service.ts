@@ -6,9 +6,9 @@ import { graphqlHTTP } from "express-graphql";
 import type { GraphQLSchema } from "graphql";
 import type http from "node:http";
 
-import { MessageKind } from "@/utils/logger";
 import { Resources } from "@/Ponder";
 import { UserStore } from "@/user-store/store";
+import { MessageKind } from "@/utils/logger";
 
 export type ServerServiceEvents = {
   serverStarted: { desiredPort: number; port: number };

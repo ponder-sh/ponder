@@ -6,11 +6,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
 
-import { MessageKind } from "@/utils/logger";
 import { Resources } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
 import { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
+import { MessageKind } from "@/utils/logger";
 
 import { readGraphqlSchema } from "./readGraphqlSchema";
 import { Handlers, readHandlers } from "./readHandlers";
