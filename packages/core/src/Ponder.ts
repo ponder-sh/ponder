@@ -74,7 +74,7 @@ export class Ponder {
 
     this.eventStore =
       database.kind === "sqlite"
-        ? new SqliteEventStore({ sqliteDb: database.db })
+        ? new SqliteEventStore({ db: database.db })
         : new PostgresEventStore({ pool: database.pool });
 
     this.userStore =
@@ -249,12 +249,12 @@ export class Ponder {
 
       this.serverService.reload({ graphqlSchema });
 
-      await this.userStore.load({ schema });
+      await this.userStore.reload({ schema });
       this.eventHandlerService.reset({ schema });
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
-      await this.userStore.reset();
+      await this.userStore.reload();
       this.eventHandlerService.reset({ handlers });
     });
 

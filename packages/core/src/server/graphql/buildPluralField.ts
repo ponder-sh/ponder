@@ -161,7 +161,7 @@ const buildPluralField = (
 
     const filter = args;
 
-    return await store.getEntities({ entityName: entity.name, filter });
+    return await store.findMany({ modelName: entity.name, filter });
   };
 
   return {

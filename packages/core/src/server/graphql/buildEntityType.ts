@@ -55,8 +55,8 @@ export const buildEntityType = (
               // @ts-ignore
               const relatedInstanceId = parent[field.name];
 
-              return await store.findUniqueEntity({
-                entityName: field.relatedEntityName,
+              return await store.findUnique({
+                modelName: field.relatedEntityName,
                 id: relatedInstanceId,
               });
             };
@@ -83,8 +83,8 @@ export const buildEntityType = (
               // @ts-ignore
               const entityId = parent.id;
 
-              return await store.getEntities({
-                entityName: field.derivedFromEntityName,
+              return await store.findMany({
+                modelName: field.derivedFromEntityName,
                 filter: {
                   where: {
                     [field.derivedFromFieldName]: entityId,
