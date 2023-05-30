@@ -15,12 +15,20 @@ export enum FieldKind {
   DERIVED,
 }
 
+export type ScalarTypeName =
+  | "Boolean"
+  | "Int"
+  | "String"
+  | "BigInt"
+  | "Bytes"
+  | "Float";
+
 export type ScalarField = {
   name: string;
   kind: FieldKind.SCALAR;
   notNull: boolean;
   originalFieldType: TypeNode;
-  scalarTypeName: string;
+  scalarTypeName: ScalarTypeName;
   scalarGqlType: GraphQLScalarType;
 };
 
@@ -49,7 +57,7 @@ export type RelationshipField = {
   originalFieldType: TypeNode;
   notNull: boolean;
   relatedEntityName: string;
-  relatedEntityIdType: GraphQLScalarType;
+  relatedEntityIdTypeName: ScalarTypeName;
 };
 
 export type DerivedField = {
