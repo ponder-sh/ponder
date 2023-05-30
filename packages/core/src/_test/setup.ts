@@ -33,7 +33,7 @@ moduleAlias.addAlias("@ponder/core", ponderCoreDir);
  */
 declare module "vitest" {
   export interface TestContext {
-    store: EventStore;
+    eventStore: EventStore;
     userStore: UserStore;
   }
 }
@@ -42,19 +42,19 @@ beforeEach(async (context) => {
   if (process.env.DATABASE_URL) {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const databaseSchema = `vitest_pool_${poolId}`;
-    context.store = new PostgresEventStore({ pool, databaseSchema });
+    context.eventStore = new PostgresEventStore({ pool, databaseSchema });
     context.userStore = new PostgresUserStore({ pool, databaseSchema });
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
     const db = patchSqliteDatabase({ db: rawSqliteDb });
-    context.store = new SqliteEventStore({ db });
+    context.eventStore = new SqliteEventStore({ db });
     context.userStore = new SqliteUserStore({ db });
   }
 
-  await context.store.migrateUp();
+  await context.eventStore.migrateUp();
 
   return async () => {
-    await context.store.migrateDown();
+    await context.eventStore.migrateDown();
   };
 });
 

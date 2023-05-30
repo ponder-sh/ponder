@@ -46,7 +46,7 @@ type RealtimeBlockTask = BlockWithTransactions;
 type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
-  private store: EventStore;
+  private eventStore: EventStore;
   private logFilters: LogFilter[];
   network: Network;
 
@@ -62,17 +62,17 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private unpoll?: () => any | Promise<any>;
 
   constructor({
-    store,
+    eventStore,
     logFilters,
     network,
   }: {
-    store: EventStore;
+    eventStore: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
-    this.store = store;
+    this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
 
@@ -245,7 +245,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         // If there are indeed any matched logs, insert them into the store.
         if (filteredLogs.length > 0) {
-          await this.store.insertUnfinalizedBlock({
+          await this.eventStore.insertUnfinalizedBlock({
             chainId: this.network.chainId,
             block: newBlockWithTransactions,
             transactions: filteredTransactions,
@@ -293,7 +293,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           }
         }
 
-        await this.store.finalizeData({
+        await this.eventStore.finalizeData({
           chainId: this.network.chainId,
           toBlockNumber: newFinalizedBlock.number,
         });
@@ -370,7 +370,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           (block) => block.number <= commonAncestorBlock.number
         );
 
-        await this.store.deleteUnfinalizedData({
+        await this.eventStore.deleteUnfinalizedData({
           chainId: this.network.chainId,
           fromBlockNumber: commonAncestorBlock.number + 1,
         });

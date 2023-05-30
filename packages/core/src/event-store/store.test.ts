@@ -8,9 +8,9 @@ import { expect, test } from "vitest";
  */
 
 test("setup creates tables", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const tables = await store.db.introspection.getTables();
+  const tables = await eventStore.db.introspection.getTables();
   const tableNames = tables.map((t) => t.name);
   expect(tableNames).toContain("blocks");
   expect(tableNames).toContain("contractCalls");
@@ -188,30 +188,30 @@ const blockTwoLogs: RpcLog[] = [
 ];
 
 test("insertUnfinalizedBlock inserts block", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: [],
     logs: [],
   });
 
-  const blocks = await store.db.selectFrom("blocks").selectAll().execute();
+  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(1);
 });
 
 test("insertUnfinalizedBlock inserts transactions", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: [],
   });
 
-  const transactions = await store.db
+  const transactions = await eventStore.db
     .selectFrom("transactions")
     .selectAll()
     .execute();
@@ -219,30 +219,30 @@ test("insertUnfinalizedBlock inserts transactions", async (context) => {
 });
 
 test("insertUnfinalizedBlock inserts logs", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  const logs = await store.db.selectFrom("logs").selectAll().execute();
+  const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
 });
 
 test("getLogEvents returns log events", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  const logEvents = await store.getLogEvents({
+  const logEvents = await eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [{ chainId: 1 }],
@@ -380,16 +380,16 @@ test("getLogEvents returns log events", async (context) => {
 });
 
 test("getLogEvents filters on log address", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  const logEvents = await store.getLogEvents({
+  const logEvents = await eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [{ chainId: 1, address: blockOneLogs[0].address }],
@@ -400,23 +400,23 @@ test("getLogEvents filters on log address", async (context) => {
 });
 
 test("getLogEvents filters on multiple log addresses", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const logEvents = await store.getLogEvents({
+  const logEvents = await eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -435,23 +435,23 @@ test("getLogEvents filters on multiple log addresses", async (context) => {
 });
 
 test("getLogEvents filters on single topic", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const logEvents = await store.getLogEvents({
+  const logEvents = await eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -470,23 +470,23 @@ test("getLogEvents filters on single topic", async (context) => {
 });
 
 test("getLogEvents filters on multiple topics", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const logEvents = await store.getLogEvents({
+  const logEvents = await eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -505,23 +505,23 @@ test("getLogEvents filters on multiple topics", async (context) => {
 });
 
 test("getLogEvents filters on multiple filters", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const logEvents = await store.getLogEvents({
+  const logEvents = await eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -542,23 +542,23 @@ test("getLogEvents filters on multiple filters", async (context) => {
 });
 
 test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const logEvents = await store.getLogEvents({
+  const logEvents = await eventStore.getLogEvents({
     fromTimestamp: hexToNumber(blockTwo.timestamp!),
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [{ chainId: 1 }],
@@ -569,23 +569,23 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
 });
 
 test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await store.insertUnfinalizedBlock({
+  await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const logEvents = await store.getLogEvents({
+  const logEvents = await eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: hexToNumber(blockOne.timestamp!),
     filters: [{ chainId: 1 }],
@@ -599,14 +599,14 @@ test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
 });
 
 test("insertFinalizedLogs inserts logs as finalized", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertFinalizedLogs({
+  await eventStore.insertFinalizedLogs({
     chainId: 1,
     logs: blockOneLogs,
   });
 
-  const logs = await store.db
+  const logs = await eventStore.db
     .selectFrom("logs")
     .select(["address", "finalized"])
     .execute();
@@ -626,9 +626,9 @@ test("insertFinalizedLogs inserts logs as finalized", async (context) => {
 });
 
 test("insertFinalizedBlock inserts block as finalized", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertFinalizedBlock({
+  await eventStore.insertFinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -639,7 +639,7 @@ test("insertFinalizedBlock inserts block as finalized", async (context) => {
     },
   });
 
-  const blocks = await store.db
+  const blocks = await eventStore.db
     .selectFrom("blocks")
     .select(["hash", "finalized"])
     .execute();
@@ -655,9 +655,9 @@ test("insertFinalizedBlock inserts block as finalized", async (context) => {
 });
 
 test("insertFinalizedBlock inserts transactions as finalized", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertFinalizedBlock({
+  await eventStore.insertFinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -668,7 +668,7 @@ test("insertFinalizedBlock inserts transactions as finalized", async (context) =
     },
   });
 
-  const transactions = await store.db
+  const transactions = await eventStore.db
     .selectFrom("transactions")
     .select(["hash", "finalized"])
     .execute();
@@ -688,9 +688,9 @@ test("insertFinalizedBlock inserts transactions as finalized", async (context) =
 });
 
 test("insertFinalizedBlock inserts a log filter cached interval", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertFinalizedBlock({
+  await eventStore.insertFinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -701,7 +701,7 @@ test("insertFinalizedBlock inserts a log filter cached interval", async (context
     },
   });
 
-  const logFilterCachedRanges = await store.getLogFilterCachedRanges({
+  const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
     filterKey: "test-filter-key",
   });
 
@@ -715,9 +715,9 @@ test("insertFinalizedBlock inserts a log filter cached interval", async (context
 });
 
 test("insertFinalizedBlock merges cached intervals", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  await store.insertFinalizedBlock({
+  await eventStore.insertFinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -728,7 +728,7 @@ test("insertFinalizedBlock merges cached intervals", async (context) => {
     },
   });
 
-  await store.insertFinalizedBlock({
+  await eventStore.insertFinalizedBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -739,7 +739,7 @@ test("insertFinalizedBlock merges cached intervals", async (context) => {
     },
   });
 
-  const logFilterCachedRanges = await store.getLogFilterCachedRanges({
+  const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
     filterKey: "test-filter-key",
   });
 
@@ -753,9 +753,9 @@ test("insertFinalizedBlock merges cached intervals", async (context) => {
 });
 
 test("insertFinalizedBlock returns the startingRangeEndTimestamp", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const { startingRangeEndTimestamp } = await store.insertFinalizedBlock({
+  const { startingRangeEndTimestamp } = await eventStore.insertFinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -769,7 +769,7 @@ test("insertFinalizedBlock returns the startingRangeEndTimestamp", async (contex
   expect(startingRangeEndTimestamp).toBe(hexToNumber(blockOne.timestamp));
 
   const { startingRangeEndTimestamp: startingRangeEndTimestamp2 } =
-    await store.insertFinalizedBlock({
+    await eventStore.insertFinalizedBlock({
       chainId: 1,
       block: blockTwo,
       transactions: blockTwoTransactions,

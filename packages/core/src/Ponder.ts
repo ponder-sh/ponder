@@ -89,12 +89,12 @@ export class Ponder {
       this.networks.push({
         name: network.name,
         historicalSyncService: new HistoricalSyncService({
-          store: this.eventStore,
+          eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
-          store: this.eventStore,
+          eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
         }),
@@ -102,7 +102,7 @@ export class Ponder {
     });
 
     this.eventAggregatorService = new EventAggregatorService({
-      store: this.eventStore,
+      eventStore: this.eventStore,
       networks,
       logFilters,
     });
