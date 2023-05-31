@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.1.0-next.0
+
+### Minor Changes
+
+- Updated internal services to handle chain reorganizations and fix various indexer bugs.
+
 ## 0.0.56
 
 ### Patch Changes
