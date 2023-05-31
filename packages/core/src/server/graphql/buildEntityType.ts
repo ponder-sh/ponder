@@ -21,7 +21,6 @@ export const buildEntityType = (
     fields: () => {
       const fieldConfigMap: GraphQLFieldConfigMap<Source, Context> = {};
 
-      // Build resolvers for relationship fields on the entity.
       entity.fields.forEach((field) => {
         switch (field.kind) {
           case FieldKind.SCALAR: {
@@ -29,6 +28,13 @@ export const buildEntityType = (
               type: field.notNull
                 ? new GraphQLNonNull(field.scalarGqlType)
                 : field.scalarGqlType,
+              // Convert bigints to strings for GraphQL responses.
+              resolve:
+                field.scalarTypeName === "BigInt"
+                  ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                    (parent) => (parent[field.name] as bigint).toString()
+                  : undefined,
             };
             break;
           }
