@@ -267,9 +267,10 @@ export class SqliteUserStore implements UserStore {
       });
     }
 
-    // TODO: test if skip works without first.
     if (skip) {
       query = query.offset(skip);
+      // SQLite doesn't support OFFSET without LIMIT, so we need to set a limit.
+      if (!first) query = query.limit(-1);
     }
     if (first) {
       query = query.limit(first);
