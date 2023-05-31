@@ -102,6 +102,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   start = async () => {
+    // If an endBlock is specified for every log filter on this network, and the
+    // latest end blcock is less than the finalized block number, we can stop here.
+    // The service won't poll for new blocks and won't emit any events.
+    const endBlocks = this.logFilters.map((f) => f.filter.endBlock);
+    if (
+      endBlocks.every(
+        (endBlock) =>
+          endBlock !== undefined && endBlock < this.finalizedBlockNumber
+      )
+    ) {
+      return;
+    }
+
     // If the latest block was not added to the queue, setup was not completed successfully.
     if (this.queue.size === 0) {
       throw new Error(
