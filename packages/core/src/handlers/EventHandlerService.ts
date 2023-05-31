@@ -189,7 +189,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
         // Process new events that were added to the queue.
         this.queue.start();
-        await this.queue.onEmpty();
+        await this.queue.onIdle();
         this.queue.pause();
 
         this.eventsHandledToTimestamp = toTimestamp;
