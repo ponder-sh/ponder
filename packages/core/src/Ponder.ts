@@ -54,9 +54,14 @@ export class Ponder {
   constructor({
     options,
     config,
+    eventStore,
+    userStore,
   }: {
     options: PonderOptions;
     config: ResolvedPonderConfig;
+    // These options are only used for testing.
+    eventStore?: EventStore;
+    userStore?: UserStore;
   }) {
     const logger = new LoggerService({ options });
     const errors = new ErrorService();
@@ -67,20 +72,22 @@ export class Ponder {
     const logFilters = buildLogFilters({ options, config });
     this.logFilters = logFilters;
     const contracts = buildContracts({ options, config });
-    const database = buildDatabase({ options, config });
     const networks = config.networks.map((network) =>
       buildNetwork({ network })
     );
 
+    const database = buildDatabase({ options, config });
     this.eventStore =
-      database.kind === "sqlite"
+      eventStore ??
+      (database.kind === "sqlite"
         ? new SqliteEventStore({ db: database.db })
-        : new PostgresEventStore({ pool: database.pool });
+        : new PostgresEventStore({ pool: database.pool }));
 
     this.userStore =
-      database.kind === "sqlite"
+      userStore ??
+      (database.kind === "sqlite"
         ? new SqliteUserStore({ db: database.db })
-        : new PostgresUserStore({ pool: database.pool });
+        : new PostgresUserStore({ pool: database.pool }));
 
     networks.forEach((network) => {
       const logFiltersForNetwork = logFilters.filter(

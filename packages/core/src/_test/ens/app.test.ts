@@ -1,14 +1,14 @@
 import { rmSync } from "node:fs";
 import path from "node:path";
 import request from "supertest";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, TestContext } from "vitest";
 
 import { testNetworkConfig } from "@/_test/utils";
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
 
-const setup = async () => {
+const setup = async ({ context }: { context: TestContext }) => {
   const config = await buildPonderConfig({
     configFile: path.resolve("src/_test/ens/app/ponder.config.ts"),
   });
@@ -23,15 +23,20 @@ const setup = async () => {
   });
   const testOptions = { ...options, uiEnabled: false, logLevel: 1 };
 
-  const ponder = new Ponder({ config: testConfig, options: testOptions });
+  const ponder = new Ponder({
+    config: testConfig,
+    options: testOptions,
+    eventStore: context.eventStore,
+    userStore: context.userStore,
+  });
 
   await ponder.start();
 
-  // Wait for historical sync to complete.
+  // Wait for historical sync event processing to complete.
   await new Promise<void>((resolve) => {
-    ponder.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
+    ponder.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
       // Block 16370050
-      if (timestamp >= 1673277023) {
+      if (toTimestamp >= 1673277023) {
         resolve();
       }
     });
@@ -56,8 +61,8 @@ afterEach(() => {
   rmSync("./src/_test/ens/app/generated", { recursive: true, force: true });
 });
 
-test.skip("serves data", async () => {
-  const { ponder, gql } = await setup();
+test("serves data", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts, accounts } = await gql(`
     ensNfts {
@@ -83,8 +88,8 @@ test.skip("serves data", async () => {
   await ponder.kill();
 });
 
-test.skip("returns string array types", async () => {
-  const { ponder, gql } = await setup();
+test("returns string array types", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts {
@@ -98,8 +103,8 @@ test.skip("returns string array types", async () => {
   await ponder.kill();
 });
 
-test.skip("returns int array types", async () => {
-  const { ponder, gql } = await setup();
+test("returns int array types", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts {
@@ -113,8 +118,8 @@ test.skip("returns int array types", async () => {
   await ponder.kill();
 });
 
-test.skip("limits", async () => {
-  const { ponder, gql } = await setup();
+test("limits", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts(first: 2) {
@@ -127,8 +132,8 @@ test.skip("limits", async () => {
   await ponder.kill();
 });
 
-test.skip("skips", async () => {
-  const { ponder, gql } = await setup();
+test("skips", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts(skip: 5) {
@@ -141,8 +146,8 @@ test.skip("skips", async () => {
   await ponder.kill();
 });
 
-test.skip("orders ascending", async () => {
-  const { ponder, gql } = await setup();
+test("orders ascending", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts(orderBy: "transferredAt", orderDirection: "asc") {
@@ -159,8 +164,8 @@ test.skip("orders ascending", async () => {
   await ponder.kill();
 });
 
-test.skip("orders descending", async () => {
-  const { ponder, gql } = await setup();
+test("orders descending", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts(orderBy: "transferredAt", orderDirection: "desc") {
@@ -177,8 +182,8 @@ test.skip("orders descending", async () => {
   await ponder.kill();
 });
 
-test.skip("filters on integer field equals", async () => {
-  const { ponder, gql } = await setup();
+test("filters on integer field equals", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts(where: { transferredAt: 1673276483 }) {
@@ -193,8 +198,8 @@ test.skip("filters on integer field equals", async () => {
   await ponder.kill();
 });
 
-test.skip("filters on integer field in", async () => {
-  const { ponder, gql } = await setup();
+test("filters on integer field in", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts(where: { transferredAt_in: [1673276483, 1673276555] }) {
@@ -211,8 +216,8 @@ test.skip("filters on integer field in", async () => {
   await ponder.kill();
 });
 
-test.skip("filters on string field equals", async () => {
-  const { ponder, gql } = await setup();
+test("filters on string field equals", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts(where: { labelHash: "0x6707d6843139c46c28b1bb912334ca1b748756e534771639e627f401ca658c0e" }) {
@@ -229,8 +234,8 @@ test.skip("filters on string field equals", async () => {
   await ponder.kill();
 });
 
-test.skip("filters on string field in", async () => {
-  const { ponder, gql } = await setup();
+test("filters on string field in", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts(where: { labelHash_in: ["0x6707d6843139c46c28b1bb912334ca1b748756e534771639e627f401ca658c0e", "0xd5a4346caa6c1cdd83dc38218d695e6b7f0f038d11b675535cfed0245927da74"] }) {
@@ -250,8 +255,8 @@ test.skip("filters on string field in", async () => {
   await ponder.kill();
 });
 
-test.skip("filters on relationship field equals", async () => {
-  const { ponder, gql } = await setup();
+test("filters on relationship field equals", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts(where: { owner: "0xC654A505E3d38932cAb03CCc14418044A078F8A4" }) {
@@ -273,8 +278,8 @@ test.skip("filters on relationship field equals", async () => {
   await ponder.kill();
 });
 
-test.skip("filters on relationship field contains", async () => {
-  const { ponder, gql } = await setup();
+test("filters on relationship field contains", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { ensNfts } = await gql(`
     ensNfts(where: { owner_contains: "0xC654A505E" }) {
