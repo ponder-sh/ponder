@@ -46,7 +46,7 @@ type RealtimeBlockTask = BlockWithTransactions;
 type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
-  private store: EventStore;
+  private eventStore: EventStore;
   private logFilters: LogFilter[];
   network: Network;
 
@@ -62,17 +62,17 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private unpoll?: () => any | Promise<any>;
 
   constructor({
-    store,
+    eventStore,
     logFilters,
     network,
   }: {
-    store: EventStore;
+    eventStore: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
-    this.store = store;
+    this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
 
@@ -102,6 +102,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   start = async () => {
+    // If an endBlock is specified for every log filter on this network, and the
+    // latest end blcock is less than the finalized block number, we can stop here.
+    // The service won't poll for new blocks and won't emit any events.
+    const endBlocks = this.logFilters.map((f) => f.filter.endBlock);
+    if (
+      endBlocks.every(
+        (endBlock) =>
+          endBlock !== undefined && endBlock < this.finalizedBlockNumber
+      )
+    ) {
+      return;
+    }
+
     // If the latest block was not added to the queue, setup was not completed successfully.
     if (this.queue.size === 0) {
       throw new Error(
@@ -245,7 +258,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         // If there are indeed any matched logs, insert them into the store.
         if (filteredLogs.length > 0) {
-          await this.store.insertUnfinalizedBlock({
+          await this.eventStore.insertUnfinalizedBlock({
             chainId: this.network.chainId,
             block: newBlockWithTransactions,
             transactions: filteredTransactions,
@@ -293,7 +306,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           }
         }
 
-        await this.store.finalizeData({
+        await this.eventStore.finalizeData({
           chainId: this.network.chainId,
           toBlockNumber: newFinalizedBlock.number,
         });
@@ -370,7 +383,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           (block) => block.number <= commonAncestorBlock.number
         );
 
-        await this.store.deleteUnfinalizedData({
+        await this.eventStore.deleteUnfinalizedData({
           chainId: this.network.chainId,
           fromBlockNumber: commonAncestorBlock.number + 1,
         });

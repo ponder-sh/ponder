@@ -38,7 +38,7 @@ type EventAggregatorEvents = {
 type EventAggregatorMetrics = {};
 
 export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
-  private store: EventStore;
+  private eventStore: EventStore;
   private logFilters: LogFilter[];
   private networks: Network[];
 
@@ -64,17 +64,17 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   metrics: EventAggregatorMetrics;
 
   constructor({
-    store,
+    eventStore,
     networks,
     logFilters,
   }: {
-    store: EventStore;
+    eventStore: EventStore;
     networks: Network[];
     logFilters: LogFilter[];
   }) {
     super();
 
-    this.store = store;
+    this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.networks = networks;
     this.metrics = {};
@@ -106,7 +106,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     fromTimestamp: number;
     toTimestamp: number;
   }) => {
-    const events = await this.store.getLogEvents({
+    const events = await this.eventStore.getLogEvents({
       fromTimestamp,
       toTimestamp,
       filters: this.logFilters.map((logFilter) => ({

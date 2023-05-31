@@ -13,7 +13,7 @@ import type { Resources } from "@/Ponder";
 import type { Handlers } from "@/reload/readHandlers";
 import type { Schema } from "@/schema/types";
 import type { Model } from "@/types/model";
-import type { EntityInstance, UserStore } from "@/user-store/store";
+import type { ModelInstance, UserStore } from "@/user-store/store";
 import { createQueue, Queue, Worker } from "@/utils/queue";
 
 import {
@@ -190,7 +190,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
         // Process new events that were added to the queue.
         this.queue.start();
-        await this.queue.onEmpty();
+        await this.queue.onIdle();
         this.queue.pause();
 
         this.eventsHandledToTimestamp = toTimestamp;
@@ -331,31 +331,30 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
   private buildContext({ schema }: { schema: Schema }) {
     // Build entity models for event handler context.
-    const entityModels: Record<string, Model<EntityInstance>> = {};
+    const models: Record<string, Model<ModelInstance>> = {};
     schema.entities.forEach((entity) => {
-      const entityName = entity.name;
+      const modelName = entity.name;
 
-      entityModels[entityName] = {
-        findUnique: ({ id }) =>
-          this.userStore.findUniqueEntity({ entityName, id }),
+      models[modelName] = {
+        findUnique: ({ id }) => this.userStore.findUnique({ modelName, id }),
         create: ({ id, data }) =>
-          this.userStore.createEntity({ entityName, id, data }),
+          this.userStore.create({ modelName, id, data }),
         update: ({ id, data }) =>
-          this.userStore.updateEntity({ entityName, id, data }),
+          this.userStore.update({ modelName, id, data }),
         upsert: ({ id, create, update }) =>
-          this.userStore.upsertEntity({
-            entityName,
+          this.userStore.upsert({
+            modelName,
             id,
             create,
             update,
           }),
-        delete: ({ id }) => this.userStore.deleteEntity({ entityName, id }),
+        delete: ({ id }) => this.userStore.delete({ modelName, id }),
       };
     });
 
     return {
       contracts: this.injectedContracts,
-      entities: entityModels,
+      entities: models,
     };
   }
 }

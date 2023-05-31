@@ -1,381 +1,353 @@
-import { randomUUID } from "node:crypto";
-import type { Pool } from "pg";
+import { randomBytes } from "crypto";
+import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
+import { Pool } from "pg";
 
-import {
-  Entity,
-  EnumField,
-  FieldKind,
-  ListField,
-  RelationshipField,
-  ScalarField,
-  Schema,
-} from "@/schema/types";
+import { type Schema, FieldKind } from "@/schema/types";
 
-import type { EntityFilter, EntityInstance, UserStore } from "../store";
+import type { ModelFilter, ModelInstance, UserStore } from "../store";
 import {
-  getColumnValuePairs,
-  getWhereValue,
-  sqlSymbolsForFilterType,
+  type FilterType,
+  formatModelFieldValue,
+  formatModelInstance,
+  getWhereOperatorAndValue,
+  gqlScalarToSqlType,
 } from "../utils";
 
 export class PostgresUserStore implements UserStore {
-  pool: Pool;
+  db: Kysely<any>;
+
   schema?: Schema;
-  instanceId?: string;
+  private versionId?: string;
 
-  constructor({ pool }: { pool: Pool }) {
-    this.pool = pool;
+  constructor({
+    pool,
+    databaseSchema,
+  }: {
+    pool: Pool;
+    databaseSchema?: string;
+  }) {
+    this.db = new Kysely({
+      dialect: new PostgresDialect({
+        pool,
+        onCreateConnection: databaseSchema
+          ? async (connection) => {
+              await connection.executeQuery(
+                CompiledQuery.raw(
+                  `CREATE SCHEMA IF NOT EXISTS ${databaseSchema}`
+                )
+              );
+              await connection.executeQuery(
+                CompiledQuery.raw(`SET search_path = ${databaseSchema}`)
+              );
+            }
+          : undefined,
+      }),
+    });
   }
 
-  async load({ schema: newSchema }: { schema: Schema }) {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
+  /**
+   * Resets the database by dropping existing tables and creating new tables.
+   * If no new schema is provided, the existing schema is used.
+   *
+   * @param options.schema New schema to be used.
+   */
+  reload = async ({ schema }: { schema?: Schema } = {}) => {
+    // If there is no existing schema and no schema was provided, do nothing.
+    if (!this.schema && !schema) return;
 
+    await this.db.transaction().execute(async (tx) => {
+      // Drop tables from existing schema.
       if (this.schema) {
-        for (const entity of this.schema.entities) {
-          await client.query(
-            `DROP TABLE IF EXISTS "${entity.name}_${this.instanceId}"`
-          );
-        }
-      }
-
-      this.instanceId = randomUUID();
-
-      for (const entity of newSchema.entities) {
-        const createTableStatement = this.getCreateTableStatement(entity);
-        await client.query(createTableStatement);
-      }
-
-      await client.query("COMMIT");
-      this.schema = newSchema;
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  async reset() {
-    if (!this.schema) return;
-
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-      for (const entity of this.schema.entities) {
-        await client.query(
-          `DROP TABLE IF EXISTS "${entity.name}_${this.instanceId}"`
+        await Promise.all(
+          this.schema.entities.map((model) => {
+            const tableName = `${model.name}_${this.versionId}`;
+            tx.schema.dropTable(tableName);
+          })
         );
       }
 
-      this.instanceId = randomUUID();
+      if (schema) this.schema = schema;
 
-      for (const entity of this.schema.entities) {
-        const createTableStatement = this.getCreateTableStatement(entity);
-        await client.query(createTableStatement);
-      }
+      this.versionId = randomBytes(4).toString("hex");
 
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
+      // Create tables for new schema.
+      await Promise.all(
+        this.schema!.entities.map(async (model) => {
+          const tableName = `${model.name}_${this.versionId}`;
+          let tableBuilder = tx.schema.createTable(tableName);
+          model.fields.forEach((field) => {
+            switch (field.kind) {
+              case FieldKind.SCALAR: {
+                tableBuilder = tableBuilder.addColumn(
+                  field.name,
+                  gqlScalarToSqlType[field.scalarTypeName],
+                  (col) => {
+                    if (field.notNull) col = col.notNull();
+                    if (field.name === "id") col = col.primaryKey();
+                    return col;
+                  }
+                );
+                break;
+              }
+              case FieldKind.ENUM: {
+                tableBuilder = tableBuilder.addColumn(
+                  field.name,
+                  "text",
+                  (col) => {
+                    if (field.notNull) col = col.notNull();
+                    col = col.check(
+                      sql`${sql.ref(field.name)} in (${sql.join(
+                        field.enumValues.map((v) => sql.lit(v))
+                      )})`
+                    );
+                    return col;
+                  }
+                );
+                break;
+              }
+              case FieldKind.LIST: {
+                tableBuilder = tableBuilder.addColumn(
+                  field.name,
+                  "text",
+                  (col) => {
+                    if (field.notNull) col = col.notNull();
+                    return col;
+                  }
+                );
+                break;
+              }
+              case FieldKind.RELATIONSHIP: {
+                tableBuilder = tableBuilder.addColumn(
+                  field.name,
+                  gqlScalarToSqlType[field.relatedEntityIdTypeName],
+                  (col) => {
+                    if (field.notNull) col = col.notNull();
+                    return col;
+                  }
+                );
+                break;
+              }
+            }
+          });
 
-  async teardown() {
+          await tableBuilder.execute();
+        })
+      );
+    });
+  };
+
+  /**
+   * Tears down the store by dropping all tables for the current schema.
+   */
+  teardown = async () => {
     if (!this.schema) return;
 
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-      for (const entity of this.schema.entities) {
-        await client.query(
-          `DROP TABLE IF EXISTS "${entity.name}_${this.instanceId}"`
-        );
-      }
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  private getCreateTableStatement(entity: Entity) {
-    const gqlScalarToSqlType: Record<string, string | undefined> = {
-      Boolean: "integer",
-      Int: "integer",
-      String: "text",
-      BigInt: "numeric(78)", // Store BigInts as numerics large enough for Solidity's MAX_INT (2**256 - 1).
-      Bytes: "text",
-      Float: "text",
-    };
-
-    const columnStatements = entity.fields
-      .filter(
-        (
-          field
-        ): field is RelationshipField | ScalarField | ListField | EnumField =>
-          field.kind !== FieldKind.DERIVED
-      )
-      .map((field) => {
-        switch (field.kind) {
-          case FieldKind.SCALAR: {
-            const type = gqlScalarToSqlType[field.scalarTypeName];
-            const notNull = field.notNull ? "NOT NULL" : "";
-            const pk = field.name === "id" ? "PRIMARY KEY" : "";
-            return `"${field.name}" ${type} ${notNull} ${pk}`;
-          }
-          case FieldKind.ENUM: {
-            const notNull = field.notNull ? "NOT NULL" : "";
-
-            return `"${field.name}" TEXT CHECK ("${
-              field.name
-            }" IN (${field.enumValues
-              .map((v) => `'${v}'`)
-              .join(", ")})) ${notNull}`;
-          }
-          case FieldKind.LIST: {
-            const notNull = field.notNull ? "NOT NULL" : "";
-            return `"${field.name}" TEXT ${notNull}`;
-          }
-          case FieldKind.RELATIONSHIP: {
-            const type = gqlScalarToSqlType[field.relatedEntityIdType.name];
-            const notNull = field.notNull ? "NOT NULL" : "";
-            return `"${field.name}" ${type} ${notNull}`;
-          }
-        }
-      });
-
-    const tableName = `${entity.name}_${this.instanceId}`;
-    return `CREATE TABLE "${tableName}" (${columnStatements.join(", ")})`;
-  }
-
-  findUniqueEntity = async ({
-    entityName,
-    id,
-  }: {
-    entityName: string;
-    id: string;
-  }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
-
-    const statement = `SELECT "${tableName}".* FROM "${tableName}" WHERE "${tableName}"."id" = $1`;
-    const { rows, rowCount } = await this.pool.query(statement, [id]);
-
-    if (rowCount === 0) return null;
-    return this.deserialize({ entityName, instance: rows[0] });
+    // Drop tables from existing schema.
+    await this.db.transaction().execute(async (tx) => {
+      await Promise.all(
+        this.schema!.entities.map((model) => {
+          const tableName = `${model.name}_${this.versionId}`;
+          tx.schema.dropTable(tableName);
+        })
+      );
+    });
   };
 
-  createEntity = async ({
-    entityName,
-    id,
-    data,
-  }: {
-    entityName: string;
-    id: string | number | bigint;
-    data: Record<string, unknown>;
-  }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
-
-    const pairs = getColumnValuePairs({ ...data, id });
-    const insertValues = pairs.map(({ value }) => value);
-    const insertFragment = `(${pairs
-      .map(({ column }) => column)
-      .join(", ")}) VALUES (${insertValues
-      .map((_, idx) => `$${idx + 1}`)
-      .join(", ")})`;
-
-    const statement = `INSERT INTO "${tableName}" ${insertFragment} RETURNING *`;
-    const { rows } = await this.pool.query(statement, insertValues);
-
-    return this.deserialize({ entityName, instance: rows[0] });
-  };
-
-  updateEntity = async ({
-    entityName,
-    id,
-    data,
-  }: {
-    entityName: string;
-    id: string | number | bigint;
-    data: Record<string, unknown>;
-  }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
-
-    const pairs = getColumnValuePairs(data);
-    const updateValues = pairs.map(({ value }) => value);
-    const updateFragment = pairs
-      .map(({ column }, idx) => `${column} = $${idx + 1}`)
-      .join(", ");
-
-    const statement = `UPDATE "${tableName}" SET ${updateFragment} WHERE "id" = $${
-      pairs.length + 1
-    } RETURNING *`;
-    updateValues.push(id.toString());
-
-    const { rows } = await this.pool.query(statement, updateValues);
-
-    return this.deserialize({ entityName, instance: rows[0] });
-  };
-
-  upsertEntity = async ({
-    entityName,
-    id,
-    create,
-    update,
-  }: {
-    entityName: string;
-    id: string | number | bigint;
-    create: Record<string, unknown>;
-    update: Record<string, unknown>;
-  }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
-
-    const insertPairs = getColumnValuePairs({ ...create, id });
-    const insertValues = insertPairs.map(({ value }) => value);
-    const insertFragment = `(${insertPairs
-      .map(({ column }) => column)
-      .join(", ")}) VALUES (${insertValues
-      .map((_, idx) => `$${idx + 1}`)
-      .join(", ")})`;
-
-    const updatePairs = getColumnValuePairs({ ...update, id });
-    const updateValues = updatePairs.map(({ value }) => value);
-    const updateFragment = updatePairs
-      .map(({ column }, idx) => `${column} = $${idx + 1 + insertValues.length}`)
-      .join(", ");
-
-    const statement = `INSERT INTO "${tableName}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
-    const { rows } = await this.pool.query(statement, [
-      ...insertValues,
-      ...updateValues,
-    ]);
-
-    return this.deserialize({ entityName, instance: rows[0] });
-  };
-
-  deleteEntity = async ({
-    entityName,
+  findUnique = async ({
+    modelName,
     id,
   }: {
-    entityName: string;
+    modelName: string;
     id: string | number | bigint;
   }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
+    const tableName = `${modelName}_${this.versionId}`;
+    const instance = await this.db
+      .selectFrom(tableName)
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst();
 
-    const statement = `DELETE FROM "${tableName}" WHERE "id" = $1`;
-    const { rowCount } = await this.pool.query(statement, [id]);
-
-    return rowCount === 1;
+    return instance ? this.deserializeInstance({ modelName, instance }) : null;
   };
 
-  getEntities = async ({
-    entityName,
-    filter,
+  create = async ({
+    modelName,
+    id,
+    data = {},
   }: {
-    entityName: string;
-    filter?: EntityFilter;
+    modelName: string;
+    id: string | number | bigint;
+    data?: Omit<ModelInstance, "id">;
   }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
+    const tableName = `${modelName}_${this.versionId}`;
+    const formattedInstance = formatModelInstance({ id, data });
 
-    const where = filter?.where;
-    const first = filter?.first;
-    const skip = filter?.skip;
-    const orderBy = filter?.orderBy;
-    const orderDirection = filter?.orderDirection;
+    const instance = await this.db
+      .insertInto(tableName)
+      .values(formattedInstance)
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-    const fragments = [];
+    return this.deserializeInstance({ modelName, instance });
+  };
+
+  update = async ({
+    modelName,
+    id,
+    data = {},
+  }: {
+    modelName: string;
+    id: string | number | bigint;
+    data?: Partial<Omit<ModelInstance, "id">>;
+  }) => {
+    const tableName = `${modelName}_${this.versionId}`;
+    const formattedInstance = formatModelInstance({ id, data });
+
+    const instance = await this.db
+      .updateTable(tableName)
+      .set(formattedInstance)
+      .where("id", "=", formattedInstance.id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return this.deserializeInstance({ modelName, instance });
+  };
+
+  upsert = async ({
+    modelName,
+    id,
+    create = {},
+    update = {},
+  }: {
+    modelName: string;
+    id: string | number | bigint;
+    create?: Omit<ModelInstance, "id">;
+    update?: Partial<Omit<ModelInstance, "id">>;
+  }) => {
+    const tableName = `${modelName}_${this.versionId}`;
+    const createInstance = formatModelInstance({ id, data: create });
+    const updateInstance = formatModelInstance({ id, data: update });
+
+    const instance = await this.db
+      .insertInto(tableName)
+      .values(createInstance)
+      .onConflict((oc) => oc.column("id").doUpdateSet(updateInstance))
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return this.deserializeInstance({ modelName, instance });
+  };
+
+  delete = async ({
+    modelName,
+    id,
+  }: {
+    modelName: string;
+    id: string | number | bigint;
+  }) => {
+    const tableName = `${modelName}_${this.versionId}`;
+    const formattedId = formatModelFieldValue({ value: id });
+
+    const instance = await this.db
+      .deleteFrom(tableName)
+      .where("id", "=", formattedId)
+      .returningAll()
+      .executeTakeFirst();
+
+    return !!instance;
+  };
+
+  findMany = async ({
+    modelName,
+    filter = {},
+  }: {
+    modelName: string;
+    filter?: ModelFilter;
+  }) => {
+    const tableName = `${modelName}_${this.versionId}`;
+
+    let query = this.db.selectFrom(tableName).selectAll();
+
+    const { where, first, skip, orderBy, orderDirection } = filter;
 
     if (where) {
-      const whereFragments = Object.entries(where).map(([field, value]) => {
-        const [fieldName, rawFilterType] = field.split(/_(.*)/s);
+      Object.entries(where).forEach(([whereKey, rawValue]) => {
+        const [fieldName, rawFilterType] = whereKey.split(/_(.*)/s);
         // This is a hack to handle the "" operator, which the regex above doesn't handle
-        const filterType = rawFilterType === undefined ? "" : rawFilterType;
-        const sqlSymbols = sqlSymbolsForFilterType[filterType];
-        if (!sqlSymbols) {
-          throw new Error(
-            `SQL operators not found for filter type: ${filterType}`
-          );
-        }
+        const filterType = (
+          rawFilterType === undefined ? "" : rawFilterType
+        ) as FilterType;
 
-        const whereValue = getWhereValue(value, sqlSymbols);
+        const { operator, value } = getWhereOperatorAndValue({
+          filterType,
+          value: rawValue,
+        });
 
-        return `"${fieldName}" ${whereValue}`;
+        query = query.where(fieldName, operator, value);
       });
-
-      fragments.push(`WHERE ${whereFragments.join(" AND ")}`);
     }
 
-    if (orderBy) {
-      fragments.push(`ORDER BY "${orderBy}"`);
-    }
-
-    if (orderDirection) {
-      fragments.push(`${orderDirection}`);
-    }
-
-    if (first) {
-      fragments.push(`LIMIT ${first}`);
-    }
-
+    // TODO: test if skip works without first.
     if (skip) {
-      fragments.push(`OFFSET ${skip}`);
+      query = query.offset(skip);
+    }
+    if (first) {
+      query = query.limit(first);
+    }
+    if (orderBy) {
+      query = query.orderBy(orderBy, orderDirection);
     }
 
-    const statement = `SELECT * FROM "${tableName}" ${fragments.join(" ")}`;
-    const { rows } = await this.pool.query(statement);
+    const instances = await query.execute();
 
-    return rows.map((instance) => this.deserialize({ entityName, instance }));
+    return instances.map((instance) =>
+      this.deserializeInstance({ modelName, instance })
+    );
   };
 
-  deserialize = ({
-    entityName,
+  private deserializeInstance = ({
+    modelName,
     instance,
   }: {
-    entityName: string;
+    modelName: string;
     instance: Record<string, unknown>;
   }) => {
-    if (!this.schema) {
-      throw new Error(`EntityStore has not been initialized with a schema yet`);
-    }
+    const entity = this.schema!.entities.find((e) => e.name === modelName)!;
 
-    const entity = this.schema?.entities.find((e) => e.name === entityName);
-    if (!entity) {
-      throw new Error(`Entity not found in schema for ID: ${entityName}`);
-    }
+    const deserializedInstance = {} as ModelInstance;
 
-    const deserializedInstance = { ...instance };
+    entity.fields.forEach((field) => {
+      const value = instance[field.name] as string | number | null | undefined;
 
-    // For each property on the instance, look for a field defined on the entity
-    // with the same name and apply any required deserialization transforms.
-    Object.entries(instance).forEach(([fieldName, value]) => {
-      const field = entity.fieldByName[fieldName];
-      if (!field) return;
-
-      switch (field.kind) {
-        case FieldKind.SCALAR: {
-          if (field.scalarTypeName === "Boolean") {
-            deserializedInstance[fieldName] = value === 1 ? true : false;
-          } else {
-            deserializedInstance[fieldName] = value;
-          }
-          break;
-        }
-        case FieldKind.LIST: {
-          deserializedInstance[fieldName] = JSON.parse(value as string);
-          break;
-        }
-        default: {
-          deserializedInstance[fieldName] = value;
-        }
+      if (value === null || value === undefined) {
+        deserializedInstance[field.name] = null;
+        return;
       }
+
+      if (
+        field.kind === FieldKind.SCALAR &&
+        field.scalarTypeName === "Boolean"
+      ) {
+        deserializedInstance[field.name] = value === 1 ? true : false;
+        return;
+      }
+
+      if (
+        field.kind === FieldKind.SCALAR &&
+        field.scalarTypeName === "BigInt"
+      ) {
+        deserializedInstance[field.name] = BigInt(value);
+        return;
+      }
+
+      if (field.kind === FieldKind.LIST) {
+        deserializedInstance[field.name] = JSON.parse(value as string);
+        return;
+      }
+
+      deserializedInstance[field.name] = value;
     });
 
-    return deserializedInstance as EntityInstance;
+    return deserializedInstance;
   };
 }
