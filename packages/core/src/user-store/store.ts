@@ -1,67 +1,73 @@
 import type { Schema } from "@/schema/types";
 
-export type EntityFilter = {
-  where?: {
-    [key: string]:
-      | number
-      | string
-      | number[]
-      | string[]
-      | true
-      | false
-      | undefined
-      | null;
-  };
+import { FilterType } from "./utils";
+
+export type WhereFieldValue =
+  | number
+  | string
+  | number[]
+  | string[]
+  | true
+  | false
+  | undefined
+  | null;
+
+export type ModelFilter = {
+  where?: { [key: `${string}_${FilterType}`]: WhereFieldValue };
   first?: number;
   skip?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
 };
 
-export type EntityInstance = Record<string, unknown> & {
+export type ModelInstance = {
   id: string | number | bigint;
+  [key: string]:
+    | string
+    | bigint
+    | number
+    | boolean
+    | (string | bigint | number | boolean)[]
+    | null;
 };
-
-type MaybePromise<T> = T | Promise<T>;
 
 export interface UserStore {
   schema?: Schema;
 
-  load(options: { schema: Schema }): MaybePromise<void>;
-  reset(): MaybePromise<void>;
-  teardown(): MaybePromise<void>;
+  reload(options?: { schema?: Schema }): Promise<void>;
+  teardown(): Promise<void>;
 
-  findUniqueEntity(options: {
-    entityName: string;
+  findUnique(options: {
+    modelName: string;
     id: string | number | bigint;
-  }): Promise<EntityInstance | null>;
+  }): Promise<ModelInstance | null>;
 
-  createEntity(options: {
-    entityName: string;
+  findMany(options: {
+    modelName: string;
+    filter?: ModelFilter;
+  }): Promise<ModelInstance[]>;
+
+  create(options: {
+    modelName: string;
     id: string | number | bigint;
-    data: Omit<EntityInstance, "id">;
-  }): Promise<EntityInstance>;
+    data?: Omit<ModelInstance, "id">;
+  }): Promise<ModelInstance>;
 
-  updateEntity(options: {
-    entityName: string;
+  update(options: {
+    modelName: string;
     id: string | number | bigint;
-    data: Omit<Partial<EntityInstance>, "id">;
-  }): Promise<EntityInstance>;
+    data: Partial<Omit<ModelInstance, "id">>;
+  }): Promise<ModelInstance>;
 
-  upsertEntity(options: {
-    entityName: string;
+  upsert(options: {
+    modelName: string;
     id: string | number | bigint;
-    create: Omit<EntityInstance, "id">;
-    update: Omit<Partial<EntityInstance>, "id">;
-  }): Promise<EntityInstance>;
+    create?: Omit<ModelInstance, "id">;
+    update?: Partial<Omit<ModelInstance, "id">>;
+  }): Promise<ModelInstance>;
 
-  deleteEntity(options: {
-    entityName: string;
+  delete(options: {
+    modelName: string;
     id: string | number | bigint;
   }): Promise<boolean>;
-
-  getEntities(options: {
-    entityName: string;
-    filter?: EntityFilter;
-  }): Promise<EntityInstance[]>;
 }

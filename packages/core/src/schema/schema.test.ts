@@ -1,8 +1,4 @@
-import {
-  buildSchema as _buildGraphqlSchema,
-  GraphQLInt,
-  GraphQLString,
-} from "graphql";
+import { buildSchema as _buildGraphqlSchema } from "graphql";
 import { describe, expect, test } from "vitest";
 
 import { schemaHeader } from "@/reload/readGraphqlSchema";
@@ -306,7 +302,7 @@ describe("relationship fields", () => {
     expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
     expect(relationshipField?.notNull).toBe(true);
     expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
-    expect(relationshipField?.relatedEntityIdType).toBe(GraphQLString);
+    expect(relationshipField?.relatedEntityIdTypeName).toBe("String");
   });
 
   test("related entity has Int id", () => {
@@ -328,7 +324,7 @@ describe("relationship fields", () => {
     expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
     expect(relationshipField?.notNull).toBe(true);
     expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
-    expect(relationshipField?.relatedEntityIdType).toBe(GraphQLInt);
+    expect(relationshipField?.relatedEntityIdTypeName).toBe("Int");
   });
 
   test("related entity has BigInt id", () => {
@@ -350,7 +346,7 @@ describe("relationship fields", () => {
     expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
     expect(relationshipField?.notNull).toBe(true);
     expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
-    expect(relationshipField?.relatedEntityIdType).toBe(GraphQLString);
+    expect(relationshipField?.relatedEntityIdTypeName).toBe("String");
   });
 
   test("related entity has Bytes id", () => {
@@ -372,7 +368,7 @@ describe("relationship fields", () => {
     expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
     expect(relationshipField?.notNull).toBe(true);
     expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
-    expect(relationshipField?.relatedEntityIdType).toBe(GraphQLString);
+    expect(relationshipField?.relatedEntityIdTypeName).toBe("String");
   });
 
   test("related entity is nullable", () => {
@@ -394,7 +390,7 @@ describe("relationship fields", () => {
     expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
     expect(relationshipField?.notNull).toBe(false);
     expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
-    expect(relationshipField?.relatedEntityIdType).toBe(GraphQLString);
+    expect(relationshipField?.relatedEntityIdTypeName).toBe("String");
   });
 });
 

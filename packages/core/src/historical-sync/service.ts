@@ -62,7 +62,7 @@ type BlockSyncTask = {
 type HistoricalSyncQueue = Queue<LogSyncTask | BlockSyncTask>;
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
-  private store: EventStore;
+  private eventStore: EventStore;
   private logFilters: LogFilter[];
   network: Network;
 
@@ -78,17 +78,17 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logFilterCheckpoints: Record<string, number>;
 
   constructor({
-    store,
+    eventStore,
     logFilters,
     network,
   }: {
-    store: EventStore;
+    eventStore: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
-    this.store = store;
+    this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
 
@@ -124,7 +124,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           );
         }
 
-        const cachedRanges = await this.store.getLogFilterCachedRanges({
+        const cachedRanges = await this.eventStore.getLogFilterCachedRanges({
           filterKey: logFilter.filter.key,
         });
 
@@ -309,7 +309,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       ],
     });
 
-    await this.store.insertFinalizedLogs({
+    await this.eventStore.insertFinalizedLogs({
       chainId: this.network.chainId,
       logs,
     });
@@ -373,8 +373,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       requiredTxHashes.has(tx.hash)
     );
 
-    const { startingRangeEndTimestamp } = await this.store.insertFinalizedBlock(
-      {
+    const { startingRangeEndTimestamp } =
+      await this.eventStore.insertFinalizedBlock({
         chainId: this.network.chainId,
         block,
         transactions,
@@ -383,8 +383,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           blockNumberToCacheFrom,
           logFilterStartBlockNumber: logFilter.filter.startBlock,
         },
-      }
-    );
+      });
 
     this.logFilterCheckpoints[logFilter.name] = Math.max(
       this.logFilterCheckpoints[logFilter.name],

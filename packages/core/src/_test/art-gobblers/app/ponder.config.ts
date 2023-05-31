@@ -9,7 +9,7 @@ export const config = {
       abi: ArtGobblersAbi,
       address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
       startBlock: 15870400,
-      endBlock: 15870420, // 20 blocks!
+      endBlock: 15870405, // 5 blocks
     },
   ],
 };

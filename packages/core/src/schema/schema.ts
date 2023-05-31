@@ -155,7 +155,10 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
           originalFieldType,
           notNull: isNotNull,
           relatedEntityName: entityBaseType.name,
-          relatedEntityIdType: relatedEntityIdType,
+          relatedEntityIdTypeName: relatedEntityIdType.name as
+            | "String"
+            | "BigInt"
+            | "Int",
         };
       }
 

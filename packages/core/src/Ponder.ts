@@ -54,9 +54,14 @@ export class Ponder {
   constructor({
     options,
     config,
+    eventStore,
+    userStore,
   }: {
     options: PonderOptions;
     config: ResolvedPonderConfig;
+    // These options are only used for testing.
+    eventStore?: EventStore;
+    userStore?: UserStore;
   }) {
     const logger = new LoggerService({ options });
     const errors = new ErrorService();
@@ -67,20 +72,22 @@ export class Ponder {
     const logFilters = buildLogFilters({ options, config });
     this.logFilters = logFilters;
     const contracts = buildContracts({ options, config });
-    const database = buildDatabase({ options, config });
     const networks = config.networks.map((network) =>
       buildNetwork({ network })
     );
 
+    const database = buildDatabase({ options, config });
     this.eventStore =
-      database.kind === "sqlite"
-        ? new SqliteEventStore({ sqliteDb: database.db })
-        : new PostgresEventStore({ pool: database.pool });
+      eventStore ??
+      (database.kind === "sqlite"
+        ? new SqliteEventStore({ db: database.db })
+        : new PostgresEventStore({ pool: database.pool }));
 
     this.userStore =
-      database.kind === "sqlite"
+      userStore ??
+      (database.kind === "sqlite"
         ? new SqliteUserStore({ db: database.db })
-        : new PostgresUserStore({ pool: database.pool });
+        : new PostgresUserStore({ pool: database.pool }));
 
     networks.forEach((network) => {
       const logFiltersForNetwork = logFilters.filter(
@@ -89,12 +96,12 @@ export class Ponder {
       this.networks.push({
         name: network.name,
         historicalSyncService: new HistoricalSyncService({
-          store: this.eventStore,
+          eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
-          store: this.eventStore,
+          eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
         }),
@@ -102,7 +109,7 @@ export class Ponder {
     });
 
     this.eventAggregatorService = new EventAggregatorService({
-      store: this.eventStore,
+      eventStore: this.eventStore,
       networks,
       logFilters,
     });
@@ -249,12 +256,12 @@ export class Ponder {
 
       this.serverService.reload({ graphqlSchema });
 
-      await this.userStore.load({ schema });
+      await this.userStore.reload({ schema });
       this.eventHandlerService.reset({ schema });
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
-      await this.userStore.reset();
+      await this.userStore.reload();
       this.eventHandlerService.reset({ handlers });
     });
 

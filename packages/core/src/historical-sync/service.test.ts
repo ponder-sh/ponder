@@ -37,9 +37,13 @@ const logFilters: LogFilter[] = [
 ];
 
 test("setup() calculates cached and total block counts", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new HistoricalSyncService({ store, logFilters, network });
+  const service = new HistoricalSyncService({
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup({ finalizedBlockNumber: 16369955 });
 
   expect(service.metrics.logFilters["USDC"]).toMatchObject({
@@ -49,9 +53,13 @@ test("setup() calculates cached and total block counts", async (context) => {
 });
 
 test("start() runs log tasks and block tasks", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new HistoricalSyncService({ store, logFilters, network });
+  const service = new HistoricalSyncService({
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
 
@@ -66,14 +74,18 @@ test("start() runs log tasks and block tasks", async (context) => {
 });
 
 test("start() adds events to event store", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new HistoricalSyncService({ store, logFilters, network });
+  const service = new HistoricalSyncService({
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
   await service.onIdle();
 
-  const logEvents = await store.getLogEvents({
+  const logEvents = await eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -110,14 +122,18 @@ test("start() adds events to event store", async (context) => {
 });
 
 test("start() inserts cached ranges", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new HistoricalSyncService({ store, logFilters, network });
+  const service = new HistoricalSyncService({
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
   await service.onIdle();
 
-  const logFilterCachedRanges = await store.getLogFilterCachedRanges({
+  const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
     filterKey: logFilters[0].filter.key,
   });
 
@@ -131,12 +147,16 @@ test("start() inserts cached ranges", async (context) => {
 });
 
 test("start() retries errors", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const spy = vi.spyOn(store, "insertFinalizedLogs");
+  const spy = vi.spyOn(eventStore, "insertFinalizedLogs");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
-  const service = new HistoricalSyncService({ store, logFilters, network });
+  const service = new HistoricalSyncService({
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup({ finalizedBlockNumber: 16369950 }); // One block
   service.start();
   await service.onIdle();
@@ -147,7 +167,7 @@ test("start() retries errors", async (context) => {
     logTaskCompletedCount: 1,
   });
 
-  const logFilterCachedRanges = await store.getLogFilterCachedRanges({
+  const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
     filterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
@@ -158,7 +178,7 @@ test("start() retries errors", async (context) => {
 });
 
 test("start() handles Alchemy 'Log response size exceeded' error", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
   const spy = vi.spyOn(network.client, "request");
   spy.mockRejectedValueOnce(
@@ -170,7 +190,11 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
     )
   );
 
-  const service = new HistoricalSyncService({ store, logFilters, network });
+  const service = new HistoricalSyncService({
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
   await service.onIdle();
@@ -181,7 +205,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
     logTaskCompletedCount: 3,
   });
 
-  const logFilterCachedRanges = await store.getLogFilterCachedRanges({
+  const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
     filterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
@@ -192,7 +216,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
 });
 
 test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 10,000 blocks range' error", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
   const spy = vi.spyOn(network.client, "request");
   spy.mockRejectedValueOnce(
@@ -203,7 +227,11 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
     })
   );
 
-  const service = new HistoricalSyncService({ store, logFilters, network });
+  const service = new HistoricalSyncService({
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
   await service.onIdle();
@@ -214,7 +242,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
     logTaskCompletedCount: 3,
   });
 
-  const logFilterCachedRanges = await store.getLogFilterCachedRanges({
+  const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
     filterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
@@ -225,9 +253,13 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
 });
 
 test("start() emits sync started and completed events", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new HistoricalSyncService({ store, logFilters, network });
+  const service = new HistoricalSyncService({
+    eventStore,
+    logFilters,
+    network,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup({ finalizedBlockNumber: 16369955 });
@@ -240,9 +272,13 @@ test("start() emits sync started and completed events", async (context) => {
 });
 
 test("start() emits historicalCheckpoint event", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new HistoricalSyncService({ store, logFilters, network });
+  const service = new HistoricalSyncService({
+    eventStore,
+    logFilters,
+    network,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup({ finalizedBlockNumber: 16369955 });

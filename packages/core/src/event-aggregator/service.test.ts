@@ -51,9 +51,13 @@ const logFilters: LogFilter[] = [
 ];
 
 test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new EventAggregatorService({ store, logFilters, networks });
+  const service = new EventAggregatorService({
+    eventStore,
+    logFilters,
+    networks,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewHistoricalCheckpoint({
@@ -69,9 +73,13 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
 });
 
 test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new EventAggregatorService({ store, logFilters, networks });
+  const service = new EventAggregatorService({
+    eventStore,
+    logFilters,
+    networks,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewHistoricalCheckpoint({
@@ -94,9 +102,13 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
 });
 
 test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final historical sync is complete", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new EventAggregatorService({ store, logFilters, networks });
+  const service = new EventAggregatorService({
+    eventStore,
+    logFilters,
+    networks,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewHistoricalCheckpoint({
@@ -117,9 +129,13 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
 });
 
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new EventAggregatorService({ store, logFilters, networks });
+  const service = new EventAggregatorService({
+    eventStore,
+    logFilters,
+    networks,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewHistoricalCheckpoint({
@@ -141,9 +157,13 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
 });
 
 test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is complete", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new EventAggregatorService({ store, logFilters, networks });
+  const service = new EventAggregatorService({
+    eventStore,
+    logFilters,
+    networks,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewHistoricalCheckpoint({
@@ -174,9 +194,13 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new EventAggregatorService({ store, logFilters, networks });
+  const service = new EventAggregatorService({
+    eventStore,
+    logFilters,
+    networks,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewFinalityCheckpoint({
@@ -195,9 +219,13 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) 
 });
 
 test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequent event is earlier", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new EventAggregatorService({ store, logFilters, networks });
+  const service = new EventAggregatorService({
+    eventStore,
+    logFilters,
+    networks,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewFinalityCheckpoint({
@@ -220,9 +248,13 @@ test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequ
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent event is later", async (context) => {
-  const { store } = context;
+  const { eventStore } = context;
 
-  const service = new EventAggregatorService({ store, logFilters, networks });
+  const service = new EventAggregatorService({
+    eventStore,
+    logFilters,
+    networks,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   service.handleNewFinalityCheckpoint({

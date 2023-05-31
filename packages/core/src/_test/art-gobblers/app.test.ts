@@ -1,14 +1,14 @@
 import { rmSync } from "node:fs";
 import path from "node:path";
 import request from "supertest";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, TestContext } from "vitest";
 
 import { testNetworkConfig } from "@/_test/utils";
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
 
-const setup = async () => {
+const setup = async ({ context }: { context: TestContext }) => {
   const config = await buildPonderConfig({
     configFile: path.resolve("src/_test/art-gobblers/app/ponder.config.ts"),
   });
@@ -23,15 +23,20 @@ const setup = async () => {
   });
   const testOptions = { ...options, uiEnabled: false, logLevel: 1 };
 
-  const ponder = new Ponder({ config: testConfig, options: testOptions });
+  const ponder = new Ponder({
+    config: testConfig,
+    options: testOptions,
+    eventStore: context.eventStore,
+    userStore: context.userStore,
+  });
 
   await ponder.start();
 
-  // Wait for historical sync to complete.
+  // Wait for historical sync event processing to complete.
   await new Promise<void>((resolve) => {
-    ponder.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
-      // Block 15870420
-      if (timestamp >= 1667247995) {
+    ponder.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
+      // Block 15870405
+      if (toTimestamp >= 1667247815) {
         resolve();
       }
     });
@@ -62,8 +67,8 @@ afterEach(() => {
   });
 });
 
-test.skip("serves data", async () => {
-  const { ponder, gql } = await setup();
+test("serves data", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { accounts, tokens } = await gql(`
     accounts {
@@ -80,14 +85,14 @@ test.skip("serves data", async () => {
     }
   `);
 
-  expect(accounts).toHaveLength(316);
-  expect(tokens).toHaveLength(273);
+  expect(accounts).toHaveLength(108);
+  expect(tokens).toHaveLength(92);
 
   await ponder.kill();
 });
 
-test.skip("returns bigint ids as string", async () => {
-  const { ponder, gql } = await setup();
+test("returns bigint ids as string", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { tokens } = await gql(`
     tokens {
@@ -103,8 +108,8 @@ test.skip("returns bigint ids as string", async () => {
   await ponder.kill();
 });
 
-test.skip("orders asc on bigint fields", async () => {
-  const { ponder, gql } = await setup();
+test("orders asc on bigint fields", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { tokens } = await gql(`
     tokens(orderBy: "id", orderDirection: "asc") {
@@ -120,8 +125,8 @@ test.skip("orders asc on bigint fields", async () => {
   await ponder.kill();
 });
 
-test.skip("orders desc on bigint fields", async () => {
-  const { ponder, gql } = await setup();
+test("orders desc on bigint fields", async (context) => {
+  const { ponder, gql } = await setup({ context });
 
   const { tokens } = await gql(`
     tokens(orderBy: "id", orderDirection: "desc") {

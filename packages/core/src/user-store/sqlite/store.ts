@@ -1,362 +1,334 @@
 import type Sqlite from "better-sqlite3";
-import { randomUUID } from "node:crypto";
+import { randomBytes } from "crypto";
+import { Kysely, sql, SqliteDialect } from "kysely";
 
-import {
-  Entity,
-  EnumField,
-  FieldKind,
-  ListField,
-  RelationshipField,
-  ScalarField,
-  Schema,
-} from "@/schema/types";
+import { FieldKind, Schema } from "@/schema/types";
 
-import { EntityFilter, EntityInstance, UserStore } from "../store";
+import type { ModelFilter, ModelInstance, UserStore } from "../store";
 import {
-  getColumnValuePairs,
-  getWhereValue,
-  sqlSymbolsForFilterType,
+  type FilterType,
+  formatModelFieldValue,
+  formatModelInstance,
+  getWhereOperatorAndValue,
+  gqlScalarToSqlType,
 } from "../utils";
 
 export class SqliteUserStore implements UserStore {
-  db: Sqlite.Database;
+  db: Kysely<any>;
+
   schema?: Schema;
-  instanceId?: string;
+  private versionId?: string;
 
   constructor({ db }: { db: Sqlite.Database }) {
-    this.db = db;
+    this.db = new Kysely({
+      dialect: new SqliteDialect({ database: db }),
+    });
   }
 
-  load({ schema: newSchema }: { schema: Schema }) {
-    if (this.schema) {
-      this.schema.entities.forEach((entity) => {
-        this.db
-          .prepare(`DROP TABLE IF EXISTS "${entity.name}_${this.instanceId}"`)
-          .run();
-      });
-    }
+  /**
+   * Resets the database by dropping existing tables and creating new tables.
+   * If no new schema is provided, the existing schema is used.
+   *
+   * @param options.schema New schema to be used.
+   */
+  reload = async ({ schema }: { schema?: Schema } = {}) => {
+    // If there is no existing schema and no schema was provided, do nothing.
+    if (!this.schema && !schema) return;
 
-    this.instanceId = randomUUID();
+    await this.db.transaction().execute(async (tx) => {
+      // Drop tables from existing schema.
+      if (this.schema) {
+        await Promise.all(
+          this.schema.entities.map((model) => {
+            const tableName = `${model.name}_${this.versionId}`;
+            tx.schema.dropTable(tableName);
+          })
+        );
+      }
 
-    for (const entity of newSchema.entities) {
-      const createTableStatement = this.getCreateTableStatement(entity);
-      this.db.prepare(createTableStatement).run();
-    }
+      if (schema) this.schema = schema;
 
-    this.schema = newSchema;
-  }
+      this.versionId = randomBytes(4).toString("hex");
 
-  reset() {
+      // Create tables for new schema.
+      await Promise.all(
+        this.schema!.entities.map(async (model) => {
+          const tableName = `${model.name}_${this.versionId}`;
+          let tableBuilder = tx.schema.createTable(tableName);
+          model.fields.forEach((field) => {
+            switch (field.kind) {
+              case FieldKind.SCALAR: {
+                tableBuilder = tableBuilder.addColumn(
+                  field.name,
+                  gqlScalarToSqlType[field.scalarTypeName],
+                  (col) => {
+                    if (field.notNull) col = col.notNull();
+                    if (field.name === "id") col = col.primaryKey();
+                    return col;
+                  }
+                );
+                break;
+              }
+              case FieldKind.ENUM: {
+                tableBuilder = tableBuilder.addColumn(
+                  field.name,
+                  "text",
+                  (col) => {
+                    if (field.notNull) col = col.notNull();
+                    col = col.check(
+                      sql`${sql.ref(field.name)} in (${sql.join(
+                        field.enumValues.map((v) => sql.lit(v))
+                      )})`
+                    );
+                    return col;
+                  }
+                );
+                break;
+              }
+              case FieldKind.LIST: {
+                tableBuilder = tableBuilder.addColumn(
+                  field.name,
+                  "text",
+                  (col) => {
+                    if (field.notNull) col = col.notNull();
+                    return col;
+                  }
+                );
+                break;
+              }
+              case FieldKind.RELATIONSHIP: {
+                tableBuilder = tableBuilder.addColumn(
+                  field.name,
+                  gqlScalarToSqlType[field.relatedEntityIdTypeName],
+                  (col) => {
+                    if (field.notNull) col = col.notNull();
+                    return col;
+                  }
+                );
+                break;
+              }
+            }
+          });
+
+          await tableBuilder.execute();
+        })
+      );
+    });
+  };
+
+  /**
+   * Tears down the store by dropping all tables for the current schema.
+   */
+  teardown = async () => {
     if (!this.schema) return;
 
-    for (const entity of this.schema.entities) {
-      this.db
-        .prepare(`DROP TABLE IF EXISTS "${entity.name}_${this.instanceId}"`)
-        .run();
-    }
+    // Drop tables from existing schema.
+    await this.db.transaction().execute(async (tx) => {
+      await Promise.all(
+        this.schema!.entities.map((model) => {
+          const tableName = `${model.name}_${this.versionId}`;
+          tx.schema.dropTable(tableName);
+        })
+      );
+    });
+  };
 
-    this.instanceId = randomUUID();
-
-    for (const entity of this.schema.entities) {
-      const createTableStatement = this.getCreateTableStatement(entity);
-      this.db.prepare(createTableStatement).run();
-    }
-  }
-
-  teardown() {
-    if (!this.schema) return;
-
-    for (const entity of this.schema.entities) {
-      this.db
-        .prepare(`DROP TABLE IF EXISTS "${entity.name}_${this.instanceId}"`)
-        .run();
-    }
-  }
-
-  private getCreateTableStatement(entity: Entity) {
-    const gqlScalarToSqlType: Record<string, string | undefined> = {
-      Boolean: "integer",
-      Int: "integer",
-      String: "text",
-      BigInt: "text",
-      Bytes: "text",
-      Float: "text",
-    };
-
-    const columnStatements = entity.fields
-      .filter(
-        (
-          field
-        ): field is RelationshipField | ScalarField | ListField | EnumField =>
-          field.kind !== FieldKind.DERIVED
-      )
-      .map((field) => {
-        switch (field.kind) {
-          case FieldKind.SCALAR: {
-            const type = gqlScalarToSqlType[field.scalarTypeName];
-            const notNull = field.notNull ? "NOT NULL" : "";
-            const pk = field.name === "id" ? "PRIMARY KEY" : "";
-            return `"${field.name}" ${type} ${notNull} ${pk}`;
-          }
-          case FieldKind.ENUM: {
-            const notNull = field.notNull ? "NOT NULL" : "";
-
-            return `"${field.name}" TEXT CHECK ("${
-              field.name
-            }" IN (${field.enumValues
-              .map((v) => `'${v}'`)
-              .join(", ")})) ${notNull}`;
-          }
-          case FieldKind.LIST: {
-            const notNull = field.notNull ? "NOT NULL" : "";
-            return `"${field.name}" TEXT ${notNull}`;
-          }
-          case FieldKind.RELATIONSHIP: {
-            const type = gqlScalarToSqlType[field.relatedEntityIdType.name];
-            const notNull = field.notNull ? "NOT NULL" : "";
-            return `"${field.name}" ${type} ${notNull}`;
-          }
-        }
-      });
-
-    const tableName = `${entity.name}_${this.instanceId}`;
-    return `CREATE TABLE "${tableName}" (${columnStatements.join(", ")})`;
-  }
-
-  findUniqueEntity = async ({
-    entityName,
+  findUnique = async ({
+    modelName,
     id,
   }: {
-    entityName: string;
+    modelName: string;
     id: string | number | bigint;
   }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
+    const tableName = `${modelName}_${this.versionId}`;
+    const instance = await this.db
+      .selectFrom(tableName)
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst();
 
-    const statement = `SELECT "${tableName}".* FROM "${tableName}" WHERE "${tableName}"."id" = ?`;
-    const instance = this.db.prepare(statement).get(id);
-
-    if (!instance) return null;
-
-    return this.deserialize({ entityName, instance });
+    return instance ? this.deserializeInstance({ modelName, instance }) : null;
   };
 
-  createEntity = async ({
-    entityName,
+  create = async ({
+    modelName,
     id,
-    data,
+    data = {},
   }: {
-    entityName: string;
+    modelName: string;
     id: string | number | bigint;
-    data: Record<string, unknown>;
+    data?: Omit<ModelInstance, "id">;
   }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
+    const tableName = `${modelName}_${this.versionId}`;
+    const formattedInstance = formatModelInstance({ id, data });
 
-    const pairs = getColumnValuePairs({ ...data, id });
-    const insertValues = pairs.map((s) => s.value);
-    const insertFragment = `(${pairs
-      .map((s) => s.column)
-      .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
+    const instance = await this.db
+      .insertInto(tableName)
+      .values(formattedInstance)
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-    const statement = `INSERT INTO "${tableName}" ${insertFragment} RETURNING *`;
-
-    const insertedEntity = this.db.prepare(statement).get(...insertValues);
-
-    return this.deserialize({ entityName, instance: insertedEntity });
+    return this.deserializeInstance({ modelName, instance });
   };
 
-  updateEntity = async ({
-    entityName,
+  update = async ({
+    modelName,
     id,
-    data,
+    data = {},
   }: {
-    entityName: string;
+    modelName: string;
     id: string | number | bigint;
-    data: Record<string, unknown>;
+    data?: Partial<Omit<ModelInstance, "id">>;
   }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
+    const tableName = `${modelName}_${this.versionId}`;
+    const formattedInstance = formatModelInstance({ id, data });
 
-    const pairs = getColumnValuePairs(data);
+    const instance = await this.db
+      .updateTable(tableName)
+      .set(formattedInstance)
+      .where("id", "=", formattedInstance.id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-    const updatePairs = pairs.filter(({ column }) => column !== "id");
-    const updateValues = updatePairs.map(({ value }) => value);
-    const updateFragment = updatePairs
-      .map(({ column }) => `${column} = ?`)
-      .join(", ");
-
-    const statement = `UPDATE "${tableName}" SET ${updateFragment} WHERE "id" = ? RETURNING *`;
-    updateValues.push(`${id}`);
-
-    const updatedEntity = this.db.prepare(statement).get(...updateValues);
-
-    return this.deserialize({ entityName, instance: updatedEntity });
+    return this.deserializeInstance({ modelName, instance });
   };
 
-  upsertEntity = async ({
-    entityName,
+  upsert = async ({
+    modelName,
     id,
-    create,
-    update,
+    create = {},
+    update = {},
   }: {
-    entityName: string;
+    modelName: string;
     id: string | number | bigint;
-    create: Record<string, unknown>;
-    update: Record<string, unknown>;
+    create?: Omit<ModelInstance, "id">;
+    update?: Partial<Omit<ModelInstance, "id">>;
   }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
+    const tableName = `${modelName}_${this.versionId}`;
+    const createInstance = formatModelInstance({ id, data: create });
+    const updateInstance = formatModelInstance({ id, data: update });
 
-    // Add the passed `id` to the create object.
-    const insertPairs = getColumnValuePairs({ ...create, id });
-    const insertValues = insertPairs.map((s) => s.value);
-    const insertFragment = `(${insertPairs
-      .map((s) => s.column)
-      .join(", ")}) VALUES (${insertValues.map(() => "?").join(", ")})`;
+    const instance = await this.db
+      .insertInto(tableName)
+      .values(createInstance)
+      .onConflict((oc) => oc.column("id").doUpdateSet(updateInstance))
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
-    const updatePairs = getColumnValuePairs({ ...update, id });
-    const updateValues = updatePairs.map(({ value }) => value);
-    const updateFragment = updatePairs
-      .map(({ column }) => `${column} = ?`)
-      .join(", ");
-
-    const statement = `INSERT INTO "${tableName}" ${insertFragment} ON CONFLICT("id") DO UPDATE SET ${updateFragment} RETURNING *`;
-
-    const upsertedEntity = this.db
-      .prepare(statement)
-      .get(...insertValues, ...updateValues);
-
-    return this.deserialize({ entityName, instance: upsertedEntity });
+    return this.deserializeInstance({ modelName, instance });
   };
 
-  deleteEntity = async ({
-    entityName,
+  delete = async ({
+    modelName,
     id,
   }: {
-    entityName: string;
-    id: string;
+    modelName: string;
+    id: string | number | bigint;
   }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
+    const tableName = `${modelName}_${this.versionId}`;
+    const formattedId = formatModelFieldValue({ value: id });
 
-    const statement = `DELETE FROM "${tableName}" WHERE "id" = ?`;
+    const instance = await this.db
+      .deleteFrom(tableName)
+      .where("id", "=", formattedId)
+      .returningAll()
+      .executeTakeFirst();
 
-    const { changes } = this.db.prepare(statement).run(id);
-
-    // `changes` is equal to the number of rows that were updated/inserted/deleted by the query.
-    return changes === 1;
+    return !!instance;
   };
 
-  getEntities = async ({
-    entityName,
-    filter,
+  findMany = async ({
+    modelName,
+    filter = {},
   }: {
-    entityName: string;
-    filter?: EntityFilter;
+    modelName: string;
+    filter?: ModelFilter;
   }) => {
-    const tableName = `${entityName}_${this.instanceId}`;
+    const tableName = `${modelName}_${this.versionId}`;
 
-    const where = filter?.where;
-    const first = filter?.first;
-    const skip = filter?.skip;
-    const orderBy = filter?.orderBy;
-    const orderDirection = filter?.orderDirection;
+    let query = this.db.selectFrom(tableName).selectAll();
 
-    const fragments = [];
+    const { where, first, skip, orderBy, orderDirection } = filter;
 
     if (where) {
-      const whereFragments = Object.entries(where).map(([field, value]) => {
-        const [fieldName, rawFilterType] = field.split(/_(.*)/s);
-
+      Object.entries(where).forEach(([whereKey, rawValue]) => {
+        const [fieldName, rawFilterType] = whereKey.split(/_(.*)/s);
         // This is a hack to handle the "" operator, which the regex above doesn't handle
-        const filterType = rawFilterType === undefined ? "" : rawFilterType;
-        const sqlSymbols = sqlSymbolsForFilterType[filterType];
-        if (!sqlSymbols) {
-          throw new Error(
-            `SQL operators not found for filter type: ${filterType}`
-          );
-        }
+        const filterType = (
+          rawFilterType === undefined ? "" : rawFilterType
+        ) as FilterType;
 
-        const whereValue = getWhereValue(value, sqlSymbols);
+        const { operator, value } = getWhereOperatorAndValue({
+          filterType,
+          value: rawValue,
+        });
 
-        return `"${fieldName}" ${whereValue}`;
+        query = query.where(fieldName, operator, value);
       });
-
-      fragments.push(`WHERE ${whereFragments.join(" AND ")}`);
-    }
-
-    if (orderBy) {
-      const entity = this.schema?.entities.find((e) => e.name === entityName);
-      const orderByField = entity?.fieldByName[orderBy] as ScalarField;
-      // Bigints are stored as strings in SQLite. This means when trying to
-      // order by a bigint field, the values are sorted as strings. This
-      // fixes the issue by casting them as REAL for the purposes of sorting.
-      if (orderByField.scalarTypeName === "BigInt") {
-        fragments.push(`ORDER BY CAST("${orderBy}" AS REAL)`);
-      } else {
-        fragments.push(`ORDER BY "${orderBy}"`);
-      }
-    }
-
-    if (orderDirection) {
-      fragments.push(`${orderDirection}`);
-    }
-
-    if (first) {
-      fragments.push(`LIMIT ${first}`);
     }
 
     if (skip) {
-      if (!first) {
-        fragments.push(`LIMIT -1`); // Must add a no-op limit for SQLite to handle offset
-      }
-      fragments.push(`OFFSET ${skip}`);
+      query = query.offset(skip);
+      // SQLite doesn't support OFFSET without LIMIT, so we need to set a limit.
+      if (!first) query = query.limit(-1);
+    }
+    if (first) {
+      query = query.limit(first);
+    }
+    if (orderBy) {
+      query = query.orderBy(orderBy, orderDirection);
     }
 
-    const statement = `SELECT * FROM "${tableName}" ${fragments.join(" ")}`;
-
-    const instances = this.db.prepare(statement).all();
+    const instances = await query.execute();
 
     return instances.map((instance) =>
-      this.deserialize({ entityName, instance })
+      this.deserializeInstance({ modelName, instance })
     );
   };
 
-  deserialize = ({
-    entityName,
+  private deserializeInstance = ({
+    modelName,
     instance,
   }: {
-    entityName: string;
+    modelName: string;
     instance: Record<string, unknown>;
   }) => {
-    const entity = this.schema?.entities.find((e) => e.name === entityName);
-    if (!entity) {
-      throw new Error(`Entity not found in schema with name: ${entityName}`);
-    }
+    const entity = this.schema!.entities.find((e) => e.name === modelName)!;
 
-    const deserializedInstance = { ...instance };
+    const deserializedInstance = {} as ModelInstance;
 
-    // For each property on the instance, look for a field defined on the entity
-    // with the same name and apply any required deserialization transforms.
-    Object.entries(instance).forEach(([fieldName, value]) => {
-      const field = entity.fieldByName[fieldName];
-      if (!field) return;
+    entity.fields.forEach((field) => {
+      const value = instance[field.name] as string | number | null | undefined;
 
-      switch (field.kind) {
-        case FieldKind.SCALAR: {
-          if (field.scalarTypeName === "Boolean") {
-            deserializedInstance[fieldName] = value === 1 ? true : false;
-          } else {
-            deserializedInstance[fieldName] = value;
-          }
-          break;
-        }
-        case FieldKind.LIST: {
-          deserializedInstance[fieldName] = JSON.parse(value as string);
-          break;
-        }
-        default: {
-          deserializedInstance[fieldName] = value;
-        }
+      if (value === null || value === undefined) {
+        deserializedInstance[field.name] = null;
+        return;
       }
+
+      if (
+        field.kind === FieldKind.SCALAR &&
+        field.scalarTypeName === "Boolean"
+      ) {
+        deserializedInstance[field.name] = value === 1 ? true : false;
+        return;
+      }
+
+      if (
+        field.kind === FieldKind.SCALAR &&
+        field.scalarTypeName === "BigInt"
+      ) {
+        deserializedInstance[field.name] = BigInt(value);
+        return;
+      }
+
+      if (field.kind === FieldKind.LIST) {
+        deserializedInstance[field.name] = JSON.parse(value as string);
+        return;
+      }
+
+      deserializedInstance[field.name] = value;
     });
 
-    return deserializedInstance as EntityInstance;
+    return deserializedInstance;
   };
 }
