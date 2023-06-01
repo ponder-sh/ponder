@@ -188,7 +188,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       this.queue.addTask({ kind: "SETUP" });
     }
 
-    this.processEvents({ toTimestamp: this.eventAggregatorService.checkpoint });
+    if (this.eventAggregatorService.checkpoint > 0) {
+      this.processEvents({
+        toTimestamp: this.eventAggregatorService.checkpoint,
+      });
+    }
   };
 
   processEvents = async ({ toTimestamp }: { toTimestamp: number }) => {
