@@ -26,25 +26,17 @@ import {
 import { getStackTraceAndCodeFrame } from "./getStackTrace";
 
 type EventHandlerEvents = {
-  taskStarted: undefined;
-  taskCompleted: { timestamp?: number };
-
-  eventsAdded: {
-    handledCount: number;
-    totalCount: number;
-    fromTimestamp: number;
-    toTimestamp: number;
-  };
-  eventsProcessed: { count: number; toTimestamp: number };
   reset: undefined;
+  eventsProcessed: { count: number; toTimestamp: number };
+  taskCompleted: undefined;
 };
 
 type EventHandlerMetrics = {
   error: boolean;
 
-  handledEventCount: number;
-  unhandledEventCount: number;
-  matchedEventCount: number;
+  eventsAddedToQueue: number;
+  eventsProcessedFromQueue: number;
+  totalMatchedEvents: number;
 
   latestHandledEventTimestamp: number;
 };
@@ -68,9 +60,9 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
   metrics: EventHandlerMetrics = {
     error: false,
-    handledEventCount: 0,
-    unhandledEventCount: 0,
-    matchedEventCount: 0,
+    eventsAddedToQueue: 0,
+    eventsProcessedFromQueue: 0,
+    totalMatchedEvents: 0,
     latestHandledEventTimestamp: 0,
   };
 
@@ -178,9 +170,9 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
     this.metrics = {
       error: false,
-      handledEventCount: 0,
-      unhandledEventCount: 0,
-      matchedEventCount: 0,
+      eventsAddedToQueue: 0,
+      eventsProcessedFromQueue: 0,
+      totalMatchedEvents: 0,
       latestHandledEventTimestamp: 0,
     };
 
@@ -194,12 +186,6 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     // If the setup handler is present, add the setup event.
     if (this.handlers.setup) {
       this.queue.addTask({ kind: "SETUP" });
-      this.emit("eventsAdded", {
-        handledCount: 1,
-        totalCount: 1,
-        fromTimestamp: this.eventsHandledToTimestamp,
-        toTimestamp: this.eventsHandledToTimestamp,
-      });
     }
 
     this.processEvents({ toTimestamp: this.eventAggregatorService.checkpoint });
@@ -219,7 +205,8 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             handledLogFilters: this.handledLogFilters,
           });
 
-        this.metrics.matchedEventCount += matchedEventCount;
+        this.metrics.eventsAddedToQueue += handledEvents.length;
+        this.metrics.totalMatchedEvents += matchedEventCount;
 
         // Add new events to the queue.
         for (const event of handledEvents) {
@@ -261,17 +248,12 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       task,
       queue,
     }) => {
-      this.emit("taskStarted");
-
       switch (task.kind) {
         case "SETUP": {
           const setupHandler = handlers["setup"];
           if (!setupHandler) {
-            this.metrics.unhandledEventCount += 1;
             return;
           }
-
-          this.metrics.handledEventCount += 1;
 
           try {
             // Running user code here!
@@ -295,7 +277,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             });
           }
 
-          this.emit("taskCompleted", {});
+          this.emit("taskCompleted");
 
           break;
         }
@@ -304,14 +286,8 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
           const handler = handlers[event.logFilterName]?.[event.eventName];
           if (!handler) {
-            this.metrics.unhandledEventCount += 1;
             return;
           }
-
-          this.metrics.handledEventCount += 1;
-          this.metrics.latestHandledEventTimestamp = Number(
-            event.block.timestamp
-          );
 
           // This enables contract calls occurring within the
           // handler code to use the event block number by default.
@@ -349,13 +325,17 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             });
           }
 
-          this.emit("taskCompleted", {
-            timestamp: Number(event.block.timestamp),
-          });
+          this.metrics.latestHandledEventTimestamp = Number(
+            event.block.timestamp
+          );
+
+          this.emit("taskCompleted");
 
           break;
         }
       }
+
+      this.metrics.eventsProcessedFromQueue += 1;
     };
 
     const queue = createQueue({

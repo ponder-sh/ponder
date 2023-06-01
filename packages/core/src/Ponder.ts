@@ -411,15 +411,14 @@ export class Ponder {
       }
 
       this.uiService.ui.handlerError = this.eventHandlerService.metrics.error;
-      this.uiService.ui.handlersCurrent =
-        this.eventHandlerService.metrics.handledEventCount;
       this.uiService.ui.handlersHandledTotal =
-        this.eventHandlerService.metrics.matchedEventCount -
-        this.eventHandlerService.metrics.unhandledEventCount;
+        this.eventHandlerService.metrics.eventsAddedToQueue;
+      this.uiService.ui.handlersCurrent =
+        this.eventHandlerService.metrics.eventsProcessedFromQueue;
+      this.uiService.ui.handlersTotal =
+        this.eventHandlerService.metrics.totalMatchedEvents;
       this.uiService.ui.handlersToTimestamp =
         this.eventHandlerService.metrics.latestHandledEventTimestamp;
-      this.uiService.ui.handlersTotal =
-        this.eventHandlerService.metrics.matchedEventCount;
     }, 17);
 
     this.eventHandlerService.on("reset", () => {
@@ -427,6 +426,19 @@ export class Ponder {
       this.uiService.ui.handlersTotal = 0;
       this.uiService.ui.handlersHandledTotal = 0;
       this.uiService.ui.handlersToTimestamp = 0;
+    });
+
+    this.eventHandlerService.on("taskCompleted", () => {
+      this.uiService.ui.handlerError = this.eventHandlerService.metrics.error;
+      this.uiService.ui.handlersHandledTotal =
+        this.eventHandlerService.metrics.eventsAddedToQueue;
+      this.uiService.ui.handlersCurrent =
+        this.eventHandlerService.metrics.eventsProcessedFromQueue;
+      this.uiService.ui.handlersTotal =
+        this.eventHandlerService.metrics.totalMatchedEvents;
+      this.uiService.ui.handlersToTimestamp =
+        this.eventHandlerService.metrics.latestHandledEventTimestamp;
+      this.uiService.render();
     });
 
     this.serverService.on("serverStarted", ({ desiredPort, port }) => {
