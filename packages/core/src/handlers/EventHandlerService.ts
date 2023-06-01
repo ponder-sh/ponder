@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
+import { encodeEventTopics } from "viem";
 
 import type { Contract } from "@/config/contracts";
+import { LogFilter } from "@/config/logFilters";
 import { EventHandlerError } from "@/errors/eventHandler";
 import type {
   EventAggregatorService,
@@ -13,6 +15,7 @@ import type { Resources } from "@/Ponder";
 import type { Handlers } from "@/reload/readHandlers";
 import type { Schema } from "@/schema/types";
 import type { Model } from "@/types/model";
+import { Prettify } from "@/types/utils";
 import type { ModelInstance, UserStore } from "@/user-store/store";
 import { createQueue, Queue, Worker } from "@/utils/queue";
 
@@ -59,6 +62,8 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   eventStore: EventStore;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
+
+  private logFilters: LogFilter[];
   private contracts: Contract[];
 
   metrics: EventHandlerMetrics = {
@@ -70,6 +75,10 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   };
 
   private handlers?: Handlers;
+  private handledLogFilters: Prettify<
+    Pick<LogFilter["filter"], "chainId" | "address" | "topics">
+  >[] = [];
+
   private schema?: Schema;
   private queue?: EventHandlerQueue;
 
@@ -88,12 +97,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     userStore,
     eventAggregatorService,
     contracts,
+    logFilters,
   }: {
     resources: Resources;
     eventStore: EventStore;
     userStore: UserStore;
     eventAggregatorService: EventAggregatorService;
     contracts: Contract[];
+    logFilters: LogFilter[];
   }) {
     super();
     this.resources = resources;
@@ -101,6 +112,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
     this.contracts = contracts;
+    this.logFilters = logFilters;
 
     // Build the injected contract objects. They depend only on contract config,
     // so they can't be hot reloaded.
@@ -127,8 +139,36 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     handlers?: Handlers;
     schema?: Schema;
   } = {}) => {
-    if (newHandlers) this.handlers = newHandlers;
-    if (newSchema) this.schema = newSchema;
+    if (newSchema) {
+      this.schema = newSchema;
+    }
+
+    if (newHandlers) {
+      this.handlers = newHandlers;
+      this.handledLogFilters = [];
+
+      // Get the set of events that the user has provided a handler for.
+      this.logFilters.forEach((logFilter) => {
+        const handledEventSignatureTopics = Object.keys(
+          (this.handlers ?? {})[logFilter.name] ?? {}
+        ).map((eventName) => {
+          // TODO: Disambiguate overloaded ABI event signatures BEFORE getting here.
+          const topics = encodeEventTopics({
+            abi: logFilter.abi,
+            eventName,
+          });
+          return topics[0];
+        });
+
+        if (handledEventSignatureTopics.length > 0) {
+          this.handledLogFilters.push({
+            chainId: logFilter.filter.chainId,
+            address: logFilter.filter.address,
+            topics: [handledEventSignatureTopics],
+          });
+        }
+      });
+    }
 
     if (!this.handlers || !this.schema) return;
 
@@ -172,15 +212,17 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       await this.eventProcessingMutex.runExclusive(async () => {
         if (!this.queue) return;
 
-        const events = await this.eventAggregatorService.getEvents({
-          fromTimestamp: this.eventsHandledToTimestamp,
-          toTimestamp,
-        });
+        const { handledEvents, matchedEventCount } =
+          await this.eventAggregatorService.getEvents({
+            fromTimestamp: this.eventsHandledToTimestamp,
+            toTimestamp,
+            handledLogFilters: this.handledLogFilters,
+          });
 
-        this.metrics.matchedEventCount += events.length;
+        this.metrics.matchedEventCount += matchedEventCount;
 
         // Add new events to the queue.
-        for (const event of events) {
+        for (const event of handledEvents) {
           this.queue.addTask({
             kind: "LOG",
             event,
@@ -195,7 +237,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         this.eventsHandledToTimestamp = toTimestamp;
 
         this.emit("eventsProcessed", {
-          count: events.length,
+          count: handledEvents.length,
           toTimestamp: toTimestamp,
         });
       });

@@ -23,41 +23,20 @@ const logFilters: LogFilter[] = [
   {
     name: "USDC",
     ...usdcContractConfig,
-    network,
+    network: network.name,
     filter: {
       key: encodeLogFilterKey({
         chainId: network.chainId,
         address: usdcContractConfig.address,
       }),
+      chainId: network.chainId,
       address: usdcContractConfig.address,
       startBlock: 16369950,
       // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
       endBlock: undefined,
     },
-    maxBlockRange: network.defaultMaxBlockRange,
   },
 ];
-
-// const spy = vi.spyOn(network.client, "request");
-
-// let latestBlockRequestCount = 0;
-
-// // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// // @ts-ignore
-// const impl: PublicRequests["request"] = async (args) => {
-//   switch (args.method) {
-//     case "eth_getBlockByNumber": {
-//       if (args.params[0] === "latest") {
-//         latestBlockRequestCount += 1;
-//         console.log("latest!");
-//       }
-//       return { kek: 123 };
-//     }
-//     default: {
-//       throw new Error(`Unexpected RPC method call in test: ${args.method}`);
-//     }
-//   }
-// };
 
 const sendUsdcTransferTransaction = async () => {
   await walletClient.writeContract({

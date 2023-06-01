@@ -37,8 +37,8 @@ export class Ponder {
   eventStore: EventStore;
   userStore: UserStore;
 
-  networks: {
-    name: string;
+  networkServices: {
+    network: Network;
     historicalSyncService: HistoricalSyncService;
     realtimeSyncService: RealtimeSyncService;
   }[] = [];
@@ -91,10 +91,10 @@ export class Ponder {
 
     networks.forEach((network) => {
       const logFiltersForNetwork = logFilters.filter(
-        (lf) => lf.network.name === network.name
+        (logFilter) => logFilter.network === network.name
       );
-      this.networks.push({
-        name: network.name,
+      this.networkServices.push({
+        network,
         historicalSyncService: new HistoricalSyncService({
           eventStore: this.eventStore,
           network,
@@ -120,6 +120,7 @@ export class Ponder {
       userStore: this.userStore,
       eventAggregatorService: this.eventAggregatorService,
       contracts,
+      logFilters: this.logFilters,
     });
 
     this.serverService = new ServerService({
@@ -144,9 +145,9 @@ export class Ponder {
     // `ponder codegen` should still be able to if an RPC url is missing. In fact,
     // that is part of the happy path for `create-ponder`.
     const networksMissingRpcUrl: Network[] = [];
-    this.logFilters.forEach((logFilter) => {
-      if (!logFilter.network.rpcUrl) {
-        networksMissingRpcUrl.push(logFilter.network);
+    this.networkServices.forEach(({ network }) => {
+      if (!network.rpcUrl) {
+        networksMissingRpcUrl.push(network);
       }
     });
     if (networksMissingRpcUrl.length > 0) {
@@ -181,7 +182,7 @@ export class Ponder {
     }
 
     await Promise.all(
-      this.networks.map(async (network) => {
+      this.networkServices.map(async (network) => {
         const { historicalSyncService, realtimeSyncService } = network;
 
         const { finalizedBlockNumber } = await realtimeSyncService.setup();
@@ -203,7 +204,7 @@ export class Ponder {
     }
 
     await Promise.all(
-      this.networks.map(async (network) => {
+      this.networkServices.map(async (network) => {
         const { historicalSyncService, realtimeSyncService } = network;
 
         const { finalizedBlockNumber } = await realtimeSyncService.setup();
@@ -232,7 +233,7 @@ export class Ponder {
     this.eventAggregatorService.clearListeners();
 
     await Promise.all(
-      this.networks.map(async (network) => {
+      this.networkServices.map(async (network) => {
         await network.realtimeSyncService.kill();
         await network.historicalSyncService.kill();
       })
@@ -265,8 +266,8 @@ export class Ponder {
       this.eventHandlerService.reset({ handlers });
     });
 
-    this.networks.forEach((network) => {
-      const { historicalSyncService, realtimeSyncService } = network;
+    this.networkServices.forEach((services) => {
+      const { network, historicalSyncService, realtimeSyncService } = services;
 
       historicalSyncService.on("historicalCheckpoint", ({ timestamp }) => {
         this.eventAggregatorService.handleNewHistoricalCheckpoint({
@@ -341,7 +342,7 @@ export class Ponder {
       this.resources.logger.logMessage(MessageKind.ERROR, error.message);
     });
 
-    this.networks.forEach((network) => {
+    this.networkServices.forEach((network) => {
       const { historicalSyncService, realtimeSyncService } = network;
 
       historicalSyncService.on("error", ({ error }) => {
@@ -367,8 +368,9 @@ export class Ponder {
     });
 
     setInterval(() => {
-      this.networks.forEach((network) => {
-        const { historicalSyncService, realtimeSyncService } = network;
+      this.networkServices.forEach((services) => {
+        const { network, historicalSyncService, realtimeSyncService } =
+          services;
 
         if (
           realtimeSyncService.metrics.isConnected &&
@@ -393,7 +395,7 @@ export class Ponder {
         });
       });
 
-      const isBackfillComplete = this.networks.every(
+      const isBackfillComplete = this.networkServices.every(
         (n) => n.historicalSyncService.metrics.isComplete
       );
       this.uiService.ui.isBackfillComplete = isBackfillComplete;
@@ -401,7 +403,7 @@ export class Ponder {
       if (isBackfillComplete) {
         this.uiService.ui.backfillDuration = formatEta(
           Math.max(
-            ...this.networks.map(
+            ...this.networkServices.map(
               (n) => n.historicalSyncService.metrics.duration
             )
           )
