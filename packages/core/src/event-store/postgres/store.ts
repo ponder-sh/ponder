@@ -66,7 +66,7 @@ export class PostgresEventStore implements EventStore {
     this.migrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
-      migrationTableSchema: databaseSchema,
+      migrationTableSchema: databaseSchema ?? "public",
     });
   }
 
