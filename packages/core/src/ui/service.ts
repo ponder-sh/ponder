@@ -40,7 +40,6 @@ export class UiService {
       Object.keys(this.ui.stats).forEach((name) => {
         this.ui.stats[name] = {
           ...this.ui.stats[name],
-          logCurrent: this.ui.stats[name].logCurrent + 1,
           logAvgDuration:
             (Date.now() - this.ui.stats[name].logStartTimestamp) /
             this.ui.stats[name].logCurrent,
@@ -50,7 +49,6 @@ export class UiService {
 
         this.ui.stats[name] = {
           ...this.ui.stats[name],
-          blockCurrent: this.ui.stats[name].blockCurrent + 1,
           blockAvgDuration:
             (Date.now() - this.ui.stats[name].blockStartTimestamp) /
             this.ui.stats[name].blockCurrent,

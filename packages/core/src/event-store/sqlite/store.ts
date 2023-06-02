@@ -199,6 +199,8 @@ export class SqliteEventStore implements EventStore {
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
       .select([
+        "logs.chainId as chainId",
+
         "logs.address as log_address",
         "logs.blockHash as log_blockHash",
         "logs.blockNumber as log_blockNumber",
@@ -311,10 +313,12 @@ export class SqliteEventStore implements EventStore {
       // option, _all_ numbers returned from the database are bigints.
       // So, we must convert the index fields back to numbers here to match the viem types.
       const event: {
+        chainId: number;
         log: Log;
         block: Block;
         transaction: Transaction;
       } = {
+        chainId: result.chainId,
         log: {
           address: result.log_address,
           blockHash: result.log_blockHash,

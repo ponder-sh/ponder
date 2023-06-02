@@ -247,6 +247,7 @@ test("getLogEvents returns log events", async (context) => {
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [{ chainId: 1 }],
   });
+  expect(logEvents[0].chainId).toEqual(1);
 
   expect(logEvents[0].log).toMatchInlineSnapshot(`
     {

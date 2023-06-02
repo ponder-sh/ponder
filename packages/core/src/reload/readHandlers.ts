@@ -18,19 +18,22 @@ export interface LogEvent {
   transaction: Transaction;
 }
 
-export type SetupEventHandler = ({
+type SetupEventHandler = ({
   context,
 }: {
   context: unknown;
 }) => Promise<void> | void;
-export type LogEventHandler = ({
+
+type LogEventHandler = ({
   event,
   context,
 }: {
   event: LogEvent;
   context: unknown;
 }) => Promise<void> | void;
-export type LogEventHandlers = Record<string, LogEventHandler | undefined>;
+
+type LogEventHandlers = Record<string, LogEventHandler | undefined>;
+
 export type Handlers = Record<string, LogEventHandlers | undefined> & {
   setup?: SetupEventHandler;
 };

@@ -116,6 +116,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       this.logFilters.map(async (logFilter) => {
         const { startBlock, endBlock: userDefinedEndBlock } = logFilter.filter;
         const endBlock = userDefinedEndBlock ?? finalizedBlockNumber;
+        const maxBlockRange =
+          logFilter.maxBlockRange ?? this.network.defaultMaxBlockRange;
 
         if (startBlock > endBlock) {
           throw new Error(
@@ -149,10 +151,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           const [startBlock, endBlock] = blockRange;
 
           let fromBlock = startBlock;
-          let toBlock = Math.min(
-            fromBlock + logFilter.maxBlockRange - 1,
-            endBlock
-          );
+          let toBlock = Math.min(fromBlock + maxBlockRange - 1, endBlock);
 
           while (fromBlock <= endBlock) {
             this.queue.addTask({
@@ -163,10 +162,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             });
 
             fromBlock = toBlock + 1;
-            toBlock = Math.min(
-              fromBlock + logFilter.maxBlockRange - 1,
-              endBlock
-            );
+            toBlock = Math.min(fromBlock + maxBlockRange - 1, endBlock);
           }
         }
       })
@@ -213,10 +209,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       worker,
       options: { concurrency: 10, autoStart: false },
       onAdd: ({ task }) => {
+        const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metrics.logFilters[task.logFilter.name].logTaskTotalCount += 1;
+          this.metrics.logFilters[logFilter.name].logTaskTotalCount += 1;
         } else {
-          this.metrics.logFilters[task.logFilter.name].blockTaskTotalCount += 1;
+          this.metrics.logFilters[logFilter.name].blockTaskTotalCount += 1;
         }
       },
       onComplete: ({ task }) => {

@@ -22,17 +22,17 @@ const logFilters: LogFilter[] = [
   {
     name: "USDC",
     ...usdcContractConfig,
-    network,
+    network: network.name,
     filter: {
       key: encodeLogFilterKey({
         chainId: network.chainId,
         address: usdcContractConfig.address,
       }),
+      chainId: network.chainId,
       startBlock: 16369950,
       // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
       endBlock: undefined,
     },
-    maxBlockRange: network.defaultMaxBlockRange,
   },
 ];
 

@@ -97,20 +97,26 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
    *
    * @param options.fromTimestamp Timestamp to start including events (inclusive).
    * @param options.toTimestamp Timestamp to stop including events (inclusive).
+   * @param options.handledLogFilters Subset of log filters that the user has provided a handler for.
    * @returns A promise resolving to an array of log events.
    */
   getEvents = async ({
     fromTimestamp,
     toTimestamp,
+    handledLogFilters,
   }: {
     fromTimestamp: number;
     toTimestamp: number;
+    handledLogFilters: Pick<
+      LogFilter["filter"],
+      "chainId" | "address" | "topics"
+    >[];
   }) => {
     const events = await this.eventStore.getLogEvents({
       fromTimestamp,
       toTimestamp,
       filters: this.logFilters.map((logFilter) => ({
-        chainId: logFilter.network.chainId,
+        chainId: logFilter.filter.chainId,
         address: logFilter.filter.address,
         topics: logFilter.filter.topics,
         fromBlock: logFilter.filter.startBlock,
@@ -118,16 +124,43 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       })),
     });
 
-    // Ugly step. We need to associate events with a log filter. There may be duplicates.
+    /**
+     * For each event, we need to:
+     * 1) Determine if the user provided a handler function for it. If they did not, we can skip it.
+     * 2) Determine which log filter(s) it matches.
+     * 3) Use the log filter ABI to decode the log data/topics.
+     *
+     * If an event matches N log filters (that are all handled), we will add N decoded events.
+     */
+
     const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
-      const matchedLogFilters = this.logFilters.filter((logFilter) =>
-        isLogMatchedByFilter({
-          log: event.log,
-          address: logFilter.filter.address,
-          topics: logFilter.filter.topics,
-        })
+      // If the log is not matched by and of the handled log filters, skip it.
+      if (
+        !handledLogFilters.some(
+          (logFilter) =>
+            logFilter.chainId === event.chainId &&
+            isLogMatchedByFilter({
+              log: event.log,
+              address: logFilter.address,
+              topics: logFilter.topics,
+            })
+        )
+      ) {
+        return acc;
+      }
+
+      const matchedLogFilters = this.logFilters.filter(
+        (logFilter) =>
+          logFilter.filter.chainId === event.chainId &&
+          isLogMatchedByFilter({
+            log: event.log,
+            address: logFilter.filter.address,
+            topics: logFilter.filter.topics,
+          })
       );
 
+      // For log filter that the event matches, decode the event using the ABI
+      // and add it to the result list.
       matchedLogFilters.forEach((logFilter) => {
         try {
           const decodedLog = decodeEventLog({
@@ -153,7 +186,10 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       return acc;
     }, []);
 
-    return decodedEvents;
+    return {
+      handledEvents: decodedEvents,
+      matchedEventCount: events.length,
+    };
   };
 
   handleNewHistoricalCheckpoint = ({

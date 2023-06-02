@@ -6,20 +6,20 @@ import { ResolvedPonderConfig } from "@/config/ponderConfig";
 
 import { buildAbi } from "./abi";
 import { encodeLogFilterKey } from "./logFilterKey";
-import { buildNetwork, Network } from "./networks";
 
 export type LogFilter = {
   name: string;
-  network: Network;
   abi: Abi;
+  network: string;
   filter: {
     key: string; // `${chainId}-${address}-${topics}`
+    chainId: number;
     address?: `0x${string}` | `0x${string}`[];
     topics?: (`0x${string}` | `0x${string}`[] | null)[];
     startBlock: number;
     endBlock?: number;
   };
-  maxBlockRange: number;
+  maxBlockRange?: number;
 };
 
 export function buildLogFilters({
@@ -38,16 +38,12 @@ export function buildLogFilters({
       });
 
       // Get the contract network/provider.
-      const rawNetwork = config.networks.find(
-        (n) => n.name === contract.network
-      );
-      if (!rawNetwork) {
+      const network = config.networks.find((n) => n.name === contract.network);
+      if (!network) {
         throw new Error(
           `Network [${contract.network}] not found for contract: ${contract.name}`
         );
       }
-
-      const network = buildNetwork({ network: rawNetwork });
 
       const address = contract.address.toLowerCase() as Address;
       const topics = undefined;
@@ -59,16 +55,17 @@ export function buildLogFilters({
 
       const logFilter: LogFilter = {
         name: contract.name,
-        network,
         abi,
+        network: network.name,
         filter: {
           key,
+          chainId: network.chainId,
           address,
           topics,
           startBlock: contract.startBlock ?? 0,
           endBlock: contract.endBlock,
         },
-        maxBlockRange: contract.maxBlockRange ?? network.defaultMaxBlockRange,
+        maxBlockRange: contract.maxBlockRange,
       };
 
       return logFilter;
@@ -81,14 +78,12 @@ export function buildLogFilters({
     });
 
     // Get the contract network/provider.
-    const rawNetwork = config.networks.find((n) => n.name === filter.network);
-    if (!rawNetwork) {
+    const network = config.networks.find((n) => n.name === filter.network);
+    if (!network) {
       throw new Error(
         `Network [${filter.network}] not found for filter: ${filter.name}`
       );
     }
-
-    const network = buildNetwork({ network: rawNetwork });
 
     const address = Array.isArray(filter.filter.address)
       ? filter.filter.address.map((a) => a.toLowerCase() as Address)
@@ -112,16 +107,17 @@ export function buildLogFilters({
 
     const logFilter: LogFilter = {
       name: filter.name,
-      network,
       abi,
+      network: network.name,
       filter: {
         key,
+        chainId: network.chainId,
         address,
         topics,
         startBlock: filter.startBlock ?? 0,
         endBlock: filter.endBlock,
       },
-      maxBlockRange: filter.maxBlockRange ?? network.defaultMaxBlockRange,
+      maxBlockRange: filter.maxBlockRange,
     };
 
     return logFilter;

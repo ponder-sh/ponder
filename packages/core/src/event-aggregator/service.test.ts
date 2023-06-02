@@ -28,17 +28,17 @@ const networks = [mainnet, optimism];
 const usdcLogFilter = {
   name: "USDC",
   ...usdcContractConfig,
-  network: mainnet,
+  network: mainnet.name,
   filter: {
     key: encodeLogFilterKey({
       chainId: mainnet.chainId,
       address: usdcContractConfig.address,
     }),
+    chainId: mainnet.chainId,
     startBlock: 16369950,
     // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
     endBlock: undefined,
   },
-  maxBlockRange: mainnet.defaultMaxBlockRange,
 };
 
 const logFilters: LogFilter[] = [
@@ -46,7 +46,11 @@ const logFilters: LogFilter[] = [
   {
     ...usdcLogFilter,
     name: "USDC Optimism",
-    network: optimism,
+    network: optimism.name,
+    filter: {
+      ...usdcLogFilter.filter,
+      chainId: optimism.chainId,
+    },
   },
 ];
 
