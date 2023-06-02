@@ -585,4 +585,64 @@ export class PostgresEventStore implements EventStore {
 
     return { startingRangeEndTimestamp };
   };
+
+  insertContractCall = async ({
+    address,
+    blockNumber,
+    chainId,
+    data,
+    finalized,
+    result,
+  }: {
+    address: string;
+    blockNumber: bigint;
+    chainId: number;
+    data: string;
+    finalized: boolean;
+    result: string;
+  }) => {
+    await this.db
+      .insertInto("contractCalls")
+      .values({
+        address,
+        blockNumber: toHex(blockNumber),
+        chainId,
+        data,
+        finalized: finalized ? 1 : 0,
+        result,
+      })
+      .onConflict((oc) =>
+        oc.constraint("contractCallPrimaryKey").doUpdateSet({ result })
+      )
+      .execute();
+  };
+
+  getContractCall = async ({
+    address,
+    blockNumber,
+    chainId,
+    data,
+  }: {
+    address: string;
+    blockNumber: bigint;
+    chainId: number;
+    data: string;
+  }) => {
+    const contractCall = await this.db
+      .selectFrom("contractCalls")
+      .selectAll()
+      .where("address", "=", address)
+      .where("blockNumber", "=", toHex(blockNumber))
+      .where("chainId", "=", chainId)
+      .where("data", "=", data)
+      .executeTakeFirst();
+
+    return contractCall
+      ? {
+          ...contractCall,
+          blockNumber: BigInt(contractCall.blockNumber),
+          finalized: contractCall.finalized === 1,
+        }
+      : null;
+  };
 }

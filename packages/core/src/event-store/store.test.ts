@@ -1,5 +1,7 @@
-import { hexToNumber, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import { hexToNumber, RpcBlock, RpcLog, RpcTransaction, toHex } from "viem";
 import { expect, test } from "vitest";
+
+import { usdcContractConfig } from "@/_test/constants";
 
 /**
  * This test suite uses the `store` object injected during setup.
@@ -782,4 +784,127 @@ test("insertFinalizedBlock returns the startingRangeEndTimestamp", async (contex
     });
 
   expect(startingRangeEndTimestamp2).toBe(hexToNumber(blockTwo.timestamp));
+});
+
+test("insertContractCall inserts a contract call", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertContractCall({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789",
+  });
+
+  const contractCalls = await eventStore.db
+    .selectFrom("contractCalls")
+    .selectAll()
+    .execute();
+
+  expect(contractCalls).toHaveLength(1);
+  expect(contractCalls[0]).toMatchObject({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: toHex(100n),
+    finalized: 0,
+    result: "0x789",
+  });
+});
+
+test("insertContractCall upserts on conflict", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertContractCall({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789",
+  });
+
+  const contractCalls = await eventStore.db
+    .selectFrom("contractCalls")
+    .select(["address", "result"])
+    .execute();
+
+  expect(contractCalls).toHaveLength(1);
+  expect(contractCalls[0]).toMatchObject({
+    address: usdcContractConfig.address,
+    result: "0x789",
+  });
+
+  await eventStore.insertContractCall({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789123",
+  });
+
+  const contractCallsUpdated = await eventStore.db
+    .selectFrom("contractCalls")
+    .select(["address", "result"])
+    .execute();
+
+  expect(contractCallsUpdated).toHaveLength(1);
+  expect(contractCallsUpdated[0]).toMatchObject({
+    address: usdcContractConfig.address,
+    result: "0x789123",
+  });
+});
+
+test("getContractCall returns data", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertContractCall({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789",
+  });
+
+  const contractCall = await eventStore.getContractCall({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+  });
+
+  expect(contractCall).toMatchObject({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789",
+  });
+});
+
+test("getContractCall returns null if not found", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertContractCall({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789",
+  });
+
+  const contractCall = await eventStore.getContractCall({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x125",
+    blockNumber: 100n,
+  });
+
+  expect(contractCall).toBe(null);
 });

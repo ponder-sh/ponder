@@ -165,7 +165,6 @@ type ContractCallsTable = {
   chainId: number;
   data: string;
   finalized: number; // Boolean (0 or 1).
-  id: string; // Primary key from `${chainId}-${blockNumber}-${address}-${data}`
   result: string;
 };
 

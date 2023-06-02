@@ -77,8 +77,13 @@ const migrations: Record<string, Migration> = {
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("data", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
-        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // Primary key from `${chainId}-${blockNumber}-${address}-${data}`
         .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("contractCallPrimaryKey", [
+          "chainId",
+          "blockNumber",
+          "address",
+          "data",
+        ])
         .execute();
 
       await db.schema
