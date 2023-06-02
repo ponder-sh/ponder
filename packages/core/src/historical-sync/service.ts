@@ -209,10 +209,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       worker,
       options: { concurrency: 10, autoStart: false },
       onAdd: ({ task }) => {
+        const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metrics.logFilters[task.logFilter.name].logTaskTotalCount += 1;
+          this.metrics.logFilters[logFilter.name].logTaskTotalCount += 1;
         } else {
-          this.metrics.logFilters[task.logFilter.name].blockTaskTotalCount += 1;
+          this.metrics.logFilters[logFilter.name].blockTaskTotalCount += 1;
         }
       },
       onComplete: ({ task }) => {

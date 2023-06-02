@@ -37,8 +37,10 @@ export class Ponder {
   eventStore: EventStore;
   userStore: UserStore;
 
-  networkServices: {
+  // List of indexing-related services. One per configured network.
+  networkSyncServices: {
     network: Network;
+    logFilters: LogFilter[];
     historicalSyncService: HistoricalSyncService;
     realtimeSyncService: RealtimeSyncService;
   }[] = [];
@@ -93,8 +95,9 @@ export class Ponder {
       const logFiltersForNetwork = logFilters.filter(
         (logFilter) => logFilter.network === network.name
       );
-      this.networkServices.push({
+      this.networkSyncServices.push({
         network,
+        logFilters: logFiltersForNetwork,
         historicalSyncService: new HistoricalSyncService({
           eventStore: this.eventStore,
           network,
@@ -145,7 +148,7 @@ export class Ponder {
     // `ponder codegen` should still be able to if an RPC url is missing. In fact,
     // that is part of the happy path for `create-ponder`.
     const networksMissingRpcUrl: Network[] = [];
-    this.networkServices.forEach(({ network }) => {
+    this.networkSyncServices.forEach(({ network }) => {
       if (!network.rpcUrl) {
         networksMissingRpcUrl.push(network);
       }
@@ -182,15 +185,15 @@ export class Ponder {
     }
 
     await Promise.all(
-      this.networkServices.map(async (network) => {
-        const { historicalSyncService, realtimeSyncService } = network;
+      this.networkSyncServices.map(
+        async ({ historicalSyncService, realtimeSyncService }) => {
+          const { finalizedBlockNumber } = await realtimeSyncService.setup();
+          await historicalSyncService.setup({ finalizedBlockNumber });
 
-        const { finalizedBlockNumber } = await realtimeSyncService.setup();
-        await historicalSyncService.setup({ finalizedBlockNumber });
-
-        historicalSyncService.start();
-        realtimeSyncService.start();
-      })
+          historicalSyncService.start();
+          realtimeSyncService.start();
+        }
+      )
     );
 
     this.reloadService.watch();
@@ -204,15 +207,15 @@ export class Ponder {
     }
 
     await Promise.all(
-      this.networkServices.map(async (network) => {
-        const { historicalSyncService, realtimeSyncService } = network;
+      this.networkSyncServices.map(
+        async ({ historicalSyncService, realtimeSyncService }) => {
+          const { finalizedBlockNumber } = await realtimeSyncService.setup();
+          await historicalSyncService.setup({ finalizedBlockNumber });
 
-        const { finalizedBlockNumber } = await realtimeSyncService.setup();
-        await historicalSyncService.setup({ finalizedBlockNumber });
-
-        historicalSyncService.start();
-        realtimeSyncService.start();
-      })
+          historicalSyncService.start();
+          realtimeSyncService.start();
+        }
+      )
     );
   }
 
@@ -233,10 +236,12 @@ export class Ponder {
     this.eventAggregatorService.clearListeners();
 
     await Promise.all(
-      this.networkServices.map(async (network) => {
-        await network.realtimeSyncService.kill();
-        await network.historicalSyncService.kill();
-      })
+      this.networkSyncServices.map(
+        async ({ realtimeSyncService, historicalSyncService }) => {
+          await realtimeSyncService.kill();
+          await historicalSyncService.kill();
+        }
+      )
     );
 
     await this.reloadService.kill?.();
@@ -266,8 +271,9 @@ export class Ponder {
       this.eventHandlerService.reset({ handlers });
     });
 
-    this.networkServices.forEach((services) => {
-      const { network, historicalSyncService, realtimeSyncService } = services;
+    this.networkSyncServices.forEach((networkSyncService) => {
+      const { network, historicalSyncService, realtimeSyncService } =
+        networkSyncService;
 
       historicalSyncService.on("historicalCheckpoint", ({ timestamp }) => {
         this.eventAggregatorService.handleNewHistoricalCheckpoint({
@@ -342,8 +348,9 @@ export class Ponder {
       this.resources.logger.logMessage(MessageKind.ERROR, error.message);
     });
 
-    this.networkServices.forEach((network) => {
-      const { historicalSyncService, realtimeSyncService } = network;
+    this.networkSyncServices.forEach((networkSyncService) => {
+      const { historicalSyncService, realtimeSyncService, logFilters } =
+        networkSyncService;
 
       historicalSyncService.on("error", ({ error }) => {
         this.resources.logger.logMessage(MessageKind.ERROR, error.message);
@@ -354,13 +361,14 @@ export class Ponder {
       });
 
       historicalSyncService.on("syncStarted", () => {
-        this.logFilters.forEach(({ name }) => {
-          const metrics = historicalSyncService.metrics.logFilters[name];
+        logFilters.forEach(({ name }) => {
+          this.uiService.ui.stats[name].logStartTimestamp = Date.now();
+          this.uiService.ui.stats[name].blockStartTimestamp = Date.now();
 
           this.resources.logger.logMessage(
             MessageKind.BACKFILL,
             `started backfill for ${pico.bold(name)} (${formatPercentage(
-              metrics.cacheRate
+              historicalSyncService.metrics.logFilters[name].cacheRate
             )} cached)`
           );
         });
@@ -368,9 +376,9 @@ export class Ponder {
     });
 
     setInterval(() => {
-      this.networkServices.forEach((services) => {
+      this.networkSyncServices.forEach((networkSyncService) => {
         const { network, historicalSyncService, realtimeSyncService } =
-          services;
+          networkSyncService;
 
         if (
           realtimeSyncService.metrics.isConnected &&
@@ -382,6 +390,8 @@ export class Ponder {
         this.logFilters.forEach(({ name }) => {
           const historicalMetrics =
             historicalSyncService.metrics.logFilters[name];
+
+          this.uiService.ui.stats[name].cacheRate = historicalMetrics.cacheRate;
 
           this.uiService.ui.stats[name].blockCurrent =
             historicalMetrics.blockTaskCompletedCount;
@@ -395,7 +405,7 @@ export class Ponder {
         });
       });
 
-      const isBackfillComplete = this.networkServices.every(
+      const isBackfillComplete = this.networkSyncServices.every(
         (n) => n.historicalSyncService.metrics.isComplete
       );
       this.uiService.ui.isBackfillComplete = isBackfillComplete;
@@ -403,7 +413,7 @@ export class Ponder {
       if (isBackfillComplete) {
         this.uiService.ui.backfillDuration = formatEta(
           Math.max(
-            ...this.networkServices.map(
+            ...this.networkSyncServices.map(
               (n) => n.historicalSyncService.metrics.duration
             )
           )
@@ -463,28 +473,5 @@ export class Ponder {
     this.resources.errors.on("handlerErrorCleared", () => {
       this.uiService.ui.handlerError = false;
     });
-
-    // this.frontfillService.on("logTaskCompleted", ({ network, logData }) => {
-    //   Object.entries(logData).forEach(([blockNumber, logInfo]) => {
-    //     const total = Object.values(logInfo).reduce((sum, a) => sum + a, 0);
-    //     this.resources.logger.logMessage(
-    //       MessageKind.FRONTFILL,
-    //       `${network} @ ${blockNumber} (${total} matched events)`
-    //     );
-    //   });
-    // });
-
-    // this.frontfillService.on("logTaskFailed", ({ network, error }) => {
-    //   this.resources.logger.logMessage(
-    //     MessageKind.WARNING,
-    //     `(${network}) log frontfill task failed with error: ${error.message}`
-    //   );
-    // });
-    // this.frontfillService.on("blockTaskFailed", ({ network, error }) => {
-    //   this.resources.logger.logMessage(
-    //     MessageKind.WARNING,
-    //     `(${network}) block frontfill task failed with error: ${error.message}`
-    //   );
-    // });
   }
 }
