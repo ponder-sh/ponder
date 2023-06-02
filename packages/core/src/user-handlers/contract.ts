@@ -1,138 +1,143 @@
-import { AbiParameter } from "abitype";
-import { BlockTag, encodeFunctionData } from "viem";
+import {
+  type ReadContractParameters,
+  BaseError,
+  CallParameters,
+  decodeFunctionResult,
+  encodeFunctionData,
+  getContract,
+  getContractError,
+  Hex,
+} from "viem";
 
-import { Contract } from "@/config/contracts";
+import type { Contract } from "@/config/contracts";
+import type { EventStore } from "@/event-store/store";
 
-import { EventHandlerService } from "./service";
-
-export type ReadOnlyContract = {
-  [key: string]: (...args: any[]) => Promise<any>;
-};
-
-type AbiReadFunction = {
-  type: "function";
-  stateMutability: "pure" | "view";
-  inputs: readonly AbiParameter[];
-  name: string;
-  outputs: readonly AbiParameter[];
-};
-
-type CallOverrides =
-  | {
-      /** The block number at which to execute the contract call. */
-      blockNumber?: bigint;
-      blockTag?: never;
-    }
-  | {
-      blockNumber?: never;
-      /** The block tag at which to execute the contract call. */
-      blockTag?: BlockTag;
-    };
-
-export function buildInjectedContract({
+function getInjectedContract({
   contract,
-  eventHandlerService,
+  getCurrentBlockNumber,
+  eventStore,
 }: {
   contract: Contract;
-  eventHandlerService: EventHandlerService;
+  getCurrentBlockNumber: () => bigint;
+  eventStore: EventStore;
 }) {
-  const injectedContract: ReadOnlyContract = {};
+  const { abi, address } = contract;
+  const { chainId, client: publicClient } = contract.network;
 
-  const readFunctions = contract.abi.filter(
-    (item): item is AbiReadFunction =>
-      item.type === "function" &&
-      (item.stateMutability === "pure" || item.stateMutability === "view")
-  );
+  const viemContract = getContract({ abi, address, publicClient });
 
-  readFunctions.forEach((readFunction) => {
-    injectedContract[readFunction.name] = async (...args) => {
-      let overrides: CallOverrides;
+  viemContract.read = new Proxy(
+    {},
+    {
+      get(_, functionName: string) {
+        return (
+          ...parameters: [
+            args?: readonly unknown[],
+            options?: Omit<
+              ReadContractParameters,
+              "abi" | "address" | "functionName" | "args"
+            >
+          ]
+        ) => {
+          const { args, options } = getFunctionParameters(parameters);
 
-      // If the length of the args is one greater than the length of the inputs,
-      // an overrides argument was provided.
-      if (args.length === readFunction.inputs.length + 1) {
-        overrides = args.pop();
-      } else {
-        overrides = {
-          blockNumber: eventHandlerService.currentLogEventBlockNumber,
+          // If the user specified a block tag, serve the request as normal (no caching).
+          if (options?.blockTag) {
+            return publicClient.readContract({
+              abi,
+              address,
+              functionName,
+              args,
+              ...options,
+            } as ReadContractParameters);
+          }
+
+          return async () => {
+            // If the user specified a block number, use it, otherwise use the
+            // block number of the current event being handled.
+            const blockNumber = options?.blockNumber ?? getCurrentBlockNumber();
+
+            const calldata = encodeFunctionData({ abi, args, functionName });
+
+            const decodeRawResult = (rawResult: Hex) => {
+              try {
+                return decodeFunctionResult({
+                  abi,
+                  args,
+                  functionName,
+                  data: rawResult,
+                });
+              } catch (err) {
+                throw getContractError(err as BaseError, {
+                  abi,
+                  address,
+                  args,
+                  docsPath: "/docs/contract/readContract",
+                  functionName,
+                });
+              }
+            };
+
+            // Check if this request can be served from the cache.
+            const cachedContractCall = await eventStore.getContractCall({
+              address,
+              blockNumber,
+              chainId,
+              data: calldata,
+            });
+
+            if (cachedContractCall) {
+              return decodeRawResult(cachedContractCall.result);
+            }
+
+            // Cache miss. Make the RPC request, then add to the cache.
+            let rawResult: Hex;
+            try {
+              const { data } = await publicClient.call({
+                data: calldata,
+                to: address,
+                ...{
+                  ...options,
+                  blockNumber,
+                },
+              } as unknown as CallParameters);
+
+              rawResult = data || "0x";
+            } catch (err) {
+              throw getContractError(err as BaseError, {
+                abi,
+                address,
+                args,
+                docsPath: "/docs/contract/readContract",
+                functionName,
+              });
+            }
+
+            await eventStore.insertContractCall({
+              address,
+              blockNumber,
+              chainId,
+              data: calldata,
+              finalized: false,
+              result: rawResult,
+            });
+
+            return decodeRawResult(rawResult);
+          };
         };
-      }
-
-      // If `overrides` uses a blockNumber (either provided by the user or using the)
-      // default of currentLogEventBlockNumber, enable caching.
-      const isCachingEnabled = overrides.blockNumber !== undefined;
-
-      let result: any;
-
-      if (!isCachingEnabled) {
-        result = await contract.network.client.readContract({
-          address: contract.address,
-          abi: contract.abi,
-          functionName: readFunction.name as never,
-          args: args,
-          ...overrides,
-        });
-      }
-
-      if (isCachingEnabled) {
-        const calldata = encodeFunctionData({
-          abi: contract.abi,
-          args: args,
-          functionName: readFunction.name as never,
-        });
-
-        const contractCallCacheKey = `${contract.network.chainId}-${overrides.blockNumber}-${contract.address}-${calldata}`;
-
-        const cachedContractCall =
-          await eventHandlerService.eventStore.getContractCall(
-            contractCallCacheKey
-          );
-
-        if (cachedContractCall) {
-          result = JSON.parse(cachedContractCall.result, reviveJsonBigInt);
-        } else {
-          result = await contract.network.client.readContract({
-            address: contract.address,
-            abi: contract.abi,
-            functionName: readFunction.name as never,
-            args: args,
-          });
-
-          await eventHandlerService.eventStore.insertContractCall({
-            key: contractCallCacheKey,
-            result: JSON.stringify(result, serializeJsonBigInt),
-          });
-        }
-      }
-
-      let resultObject: any;
-      if (readFunction.outputs.length > 1) {
-        resultObject = {} as Record<string, any>;
-        readFunction.outputs.forEach((output, index) => {
-          const propertyName = output.name ? output.name : `arg_${index}`;
-          resultObject[propertyName] = (result as any[])[index];
-        });
-      } else {
-        resultObject = result;
-      }
-
-      return resultObject;
-    };
-  });
-
-  return injectedContract;
+      },
+    }
+  );
 }
 
-function reviveJsonBigInt(_: string, value: any) {
-  if (typeof value?.__bigint__ === "string") {
-    return BigInt(value.__bigint__);
-  }
-  return value;
-}
-
-function serializeJsonBigInt(_: string, value: any) {
-  if (typeof value === "bigint") {
-    return { __bigint__: value.toString() };
-  }
-  return value;
+function getFunctionParameters(
+  values: [args?: readonly unknown[], options?: object]
+) {
+  const hasArgs = values.length && Array.isArray(values[0]);
+  const args = hasArgs ? values[0]! : [];
+  const options = ((hasArgs ? values[1] : values[0]) ?? {}) as Omit<
+    ReadContractParameters,
+    "abi" | "address" | "functionName" | "args"
+  >;
+  return { args, options };
 }

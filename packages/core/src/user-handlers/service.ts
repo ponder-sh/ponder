@@ -19,7 +19,7 @@ import { Prettify } from "@/types/utils";
 import type { ModelInstance, UserStore } from "@/user-store/store";
 import { createQueue, Queue, Worker } from "@/utils/queue";
 
-import { type ReadOnlyContract, buildInjectedContract } from "./contract";
+import { getInjectedContract } from "./contract";
 import { getStackTraceAndCodeFrame } from "./trace";
 
 type EventHandlerEvents = {
