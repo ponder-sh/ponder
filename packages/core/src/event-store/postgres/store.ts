@@ -66,7 +66,7 @@ export class PostgresEventStore implements EventStore {
     this.migrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
-      migrationTableSchema: databaseSchema,
+      migrationTableSchema: databaseSchema ?? "public",
     });
   }
 
@@ -224,6 +224,8 @@ export class PostgresEventStore implements EventStore {
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
       .select([
+        "logs.chainId as chainId",
+
         "logs.address as log_address",
         "logs.blockHash as log_blockHash",
         "logs.blockNumber as log_blockNumber",
@@ -335,10 +337,12 @@ export class PostgresEventStore implements EventStore {
       // constructor, _all_ numbers returned from the database are bigints.
       // So, we must convert the index fields back to numbers here to match the viem types.
       const event: {
+        chainId: number;
         log: Log;
         block: Block;
         transaction: Transaction;
       } = {
+        chainId: result.chainId,
         log: {
           address: result.log_address,
           blockHash: result.log_blockHash,
@@ -438,19 +442,26 @@ export class PostgresEventStore implements EventStore {
     chainId: number;
     logs: RpcLog[];
   }) => {
-    const logs: InsertableLog[] = rpcLogs.map((log) => ({
-      ...rpcToPostgresLog({ log }),
-      chainId,
-      finalized: 1,
-    }));
+    const logBatches = rpcLogs.reduce<InsertableLog[][]>((acc, log, index) => {
+      const batchIndex = Math.floor(index / 1000);
+      acc[batchIndex] = acc[batchIndex] ?? [];
+      acc[batchIndex].push({
+        ...rpcToPostgresLog({ log }),
+        chainId,
+        finalized: 1,
+      });
+      return acc;
+    }, []);
 
-    if (logs.length > 0) {
-      await this.db
-        .insertInto("logs")
-        .values(logs)
-        .onConflict((oc) => oc.column("id").doNothing())
-        .execute();
-    }
+    await Promise.all(
+      logBatches.map(async (batch) => {
+        await this.db
+          .insertInto("logs")
+          .values(batch)
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      })
+    );
   };
 
   insertFinalizedBlock = async ({

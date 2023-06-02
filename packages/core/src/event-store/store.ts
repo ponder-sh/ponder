@@ -37,7 +37,9 @@ export interface EventStore {
       fromBlock?: number;
       toBlock?: number;
     }[];
-  }): Promise<{ log: Log; block: Block; transaction: Transaction }[]>;
+  }): Promise<
+    { chainId: number; log: Log; block: Block; transaction: Transaction }[]
+  >;
 
   insertUnfinalizedBlock(options: {
     chainId: number;
