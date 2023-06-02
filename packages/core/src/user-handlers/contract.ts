@@ -12,7 +12,7 @@ import {
 import type { Contract } from "@/config/contracts";
 import type { EventStore } from "@/event-store/store";
 
-function getInjectedContract({
+export function getInjectedContract({
   contract,
   getCurrentBlockNumber,
   eventStore,
@@ -24,13 +24,13 @@ function getInjectedContract({
   const { abi, address } = contract;
   const { chainId, client: publicClient } = contract.network;
 
-  const viemContract = getContract({ abi, address, publicClient });
+  const injectedContract = getContract({ abi, address, publicClient });
 
-  viemContract.read = new Proxy(
+  injectedContract.read = new Proxy(
     {},
     {
       get(_, functionName: string) {
-        return (
+        return async (
           ...parameters: [
             args?: readonly unknown[],
             options?: Omit<
@@ -52,58 +52,20 @@ function getInjectedContract({
             } as ReadContractParameters);
           }
 
-          return async () => {
-            // If the user specified a block number, use it, otherwise use the
-            // block number of the current event being handled.
-            const blockNumber = options?.blockNumber ?? getCurrentBlockNumber();
+          // If the user specified a block number, use it, otherwise use the
+          // block number of the current event being handled.
+          const blockNumber = options?.blockNumber ?? getCurrentBlockNumber();
 
-            const calldata = encodeFunctionData({ abi, args, functionName });
+          const calldata = encodeFunctionData({ abi, args, functionName });
 
-            const decodeRawResult = (rawResult: Hex) => {
-              try {
-                return decodeFunctionResult({
-                  abi,
-                  args,
-                  functionName,
-                  data: rawResult,
-                });
-              } catch (err) {
-                throw getContractError(err as BaseError, {
-                  abi,
-                  address,
-                  args,
-                  docsPath: "/docs/contract/readContract",
-                  functionName,
-                });
-              }
-            };
-
-            // Check if this request can be served from the cache.
-            const cachedContractReadResult =
-              await eventStore.getContractReadResult({
-                address,
-                blockNumber,
-                chainId,
-                data: calldata,
-              });
-
-            if (cachedContractReadResult) {
-              return decodeRawResult(cachedContractReadResult.result);
-            }
-
-            // Cache miss. Make the RPC request, then add to the cache.
-            let rawResult: Hex;
+          const decodeRawResult = (rawResult: Hex) => {
             try {
-              const { data } = await publicClient.call({
-                data: calldata,
-                to: address,
-                ...{
-                  ...options,
-                  blockNumber,
-                },
-              } as unknown as CallParameters);
-
-              rawResult = data || "0x";
+              return decodeFunctionResult({
+                abi,
+                args,
+                functionName,
+                data: rawResult,
+              });
             } catch (err) {
               throw getContractError(err as BaseError, {
                 abi,
@@ -113,22 +75,60 @@ function getInjectedContract({
                 functionName,
               });
             }
+          };
 
-            await eventStore.insertContractReadResult({
+          // Check if this request can be served from the cache.
+          const cachedContractReadResult =
+            await eventStore.getContractReadResult({
               address,
               blockNumber,
               chainId,
               data: calldata,
-              finalized: false,
-              result: rawResult,
             });
 
-            return decodeRawResult(rawResult);
-          };
+          if (cachedContractReadResult) {
+            return decodeRawResult(cachedContractReadResult.result);
+          }
+
+          // Cache miss. Make the RPC request, then add to the cache.
+          let rawResult: Hex;
+          try {
+            const { data } = await publicClient.call({
+              data: calldata,
+              to: address,
+              ...{
+                ...options,
+                blockNumber,
+              },
+            } as unknown as CallParameters);
+
+            rawResult = data || "0x";
+          } catch (err) {
+            throw getContractError(err as BaseError, {
+              abi,
+              address,
+              args,
+              docsPath: "/docs/contract/readContract",
+              functionName,
+            });
+          }
+
+          await eventStore.insertContractReadResult({
+            address,
+            blockNumber,
+            chainId,
+            data: calldata,
+            finalized: false,
+            result: rawResult,
+          });
+
+          return decodeRawResult(rawResult);
         };
       },
     }
   );
+
+  return injectedContract;
 }
 
 function getFunctionParameters(
