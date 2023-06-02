@@ -19,7 +19,7 @@ export type LogFilterCachedRange = {
 /**
  * A record representing a call to a contract made at a specific block height.
  */
-export type ContractCall = {
+export type ContractReadResult = {
   address: string;
   blockNumber: bigint;
   chainId: number;
@@ -85,7 +85,7 @@ export interface EventStore {
     };
   }): Promise<{ startingRangeEndTimestamp: number }>;
 
-  insertContractCall(options: {
+  insertContractReadResult(options: {
     address: string;
     blockNumber: bigint;
     chainId: number;
@@ -94,10 +94,10 @@ export interface EventStore {
     result: string;
   }): Promise<void>;
 
-  getContractCall(options: {
+  getContractReadResult(options: {
     address: string;
     blockNumber: bigint;
     chainId: number;
     data: string;
-  }): Promise<ContractCall | null>;
+  }): Promise<ContractReadResult | null>;
 }

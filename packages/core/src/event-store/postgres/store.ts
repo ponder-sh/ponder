@@ -161,7 +161,7 @@ export class PostgresEventStore implements EventStore {
         .where("chainId", "=", chainId)
         .execute();
       await tx
-        .deleteFrom("contractCalls")
+        .deleteFrom("contractReadResults")
         .where("blockNumber", ">=", toHex(fromBlockNumber))
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
@@ -196,7 +196,7 @@ export class PostgresEventStore implements EventStore {
         .where("chainId", "=", chainId)
         .execute();
       await tx
-        .updateTable("contractCalls")
+        .updateTable("contractReadResults")
         .set({ finalized: 1 })
         .where("blockNumber", "<=", toHex(toBlockNumber))
         .where("chainId", "=", chainId)
@@ -586,7 +586,7 @@ export class PostgresEventStore implements EventStore {
     return { startingRangeEndTimestamp };
   };
 
-  insertContractCall = async ({
+  insertContractReadResult = async ({
     address,
     blockNumber,
     chainId,
@@ -602,7 +602,7 @@ export class PostgresEventStore implements EventStore {
     result: string;
   }) => {
     await this.db
-      .insertInto("contractCalls")
+      .insertInto("contractReadResults")
       .values({
         address,
         blockNumber: toHex(blockNumber),
@@ -612,12 +612,12 @@ export class PostgresEventStore implements EventStore {
         result,
       })
       .onConflict((oc) =>
-        oc.constraint("contractCallPrimaryKey").doUpdateSet({ result })
+        oc.constraint("contractReadResultPrimaryKey").doUpdateSet({ result })
       )
       .execute();
   };
 
-  getContractCall = async ({
+  getContractReadResult = async ({
     address,
     blockNumber,
     chainId,
@@ -628,8 +628,8 @@ export class PostgresEventStore implements EventStore {
     chainId: number;
     data: string;
   }) => {
-    const contractCall = await this.db
-      .selectFrom("contractCalls")
+    const contractReadResult = await this.db
+      .selectFrom("contractReadResults")
       .selectAll()
       .where("address", "=", address)
       .where("blockNumber", "=", toHex(blockNumber))
@@ -637,11 +637,11 @@ export class PostgresEventStore implements EventStore {
       .where("data", "=", data)
       .executeTakeFirst();
 
-    return contractCall
+    return contractReadResult
       ? {
-          ...contractCall,
-          blockNumber: BigInt(contractCall.blockNumber),
-          finalized: contractCall.finalized === 1,
+          ...contractReadResult,
+          blockNumber: BigInt(contractReadResult.blockNumber),
+          finalized: contractReadResult.finalized === 1,
         }
       : null;
   };

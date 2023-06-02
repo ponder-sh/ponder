@@ -79,15 +79,16 @@ function getInjectedContract({
             };
 
             // Check if this request can be served from the cache.
-            const cachedContractCall = await eventStore.getContractCall({
-              address,
-              blockNumber,
-              chainId,
-              data: calldata,
-            });
+            const cachedContractReadResult =
+              await eventStore.getContractReadResult({
+                address,
+                blockNumber,
+                chainId,
+                data: calldata,
+              });
 
-            if (cachedContractCall) {
-              return decodeRawResult(cachedContractCall.result);
+            if (cachedContractReadResult) {
+              return decodeRawResult(cachedContractReadResult.result);
             }
 
             // Cache miss. Make the RPC request, then add to the cache.
@@ -113,7 +114,7 @@ function getInjectedContract({
               });
             }
 
-            await eventStore.insertContractCall({
+            await eventStore.insertContractReadResult({
               address,
               blockNumber,
               chainId,

@@ -159,7 +159,7 @@ export function rpcToPostgresLog({
   };
 }
 
-type ContractCallsTable = {
+type ContractReadResultsTable = {
   address: string;
   blockNumber: string;
   chainId: number;
@@ -185,6 +185,6 @@ export type EventStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
   logs: LogsTable;
-  contractCalls: ContractCallsTable;
+  contractReadResults: ContractReadResultsTable;
   logFilterCachedRanges: LogFilterCachedRangesTable;
 };

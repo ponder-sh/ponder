@@ -15,7 +15,7 @@ test("setup creates tables", async (context) => {
   const tables = await eventStore.db.introspection.getTables();
   const tableNames = tables.map((t) => t.name);
   expect(tableNames).toContain("blocks");
-  expect(tableNames).toContain("contractCalls");
+  expect(tableNames).toContain("contractReadResults");
   expect(tableNames).toContain("logFilterCachedRanges");
   expect(tableNames).toContain("logs");
   expect(tableNames).toContain("transactions");
@@ -786,10 +786,10 @@ test("insertFinalizedBlock returns the startingRangeEndTimestamp", async (contex
   expect(startingRangeEndTimestamp2).toBe(hexToNumber(blockTwo.timestamp));
 });
 
-test("insertContractCall inserts a contract call", async (context) => {
+test("insertContractReadResult inserts a contract call", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertContractCall({
+  await eventStore.insertContractReadResult({
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
@@ -798,13 +798,13 @@ test("insertContractCall inserts a contract call", async (context) => {
     result: "0x789",
   });
 
-  const contractCalls = await eventStore.db
-    .selectFrom("contractCalls")
+  const contractReadResults = await eventStore.db
+    .selectFrom("contractReadResults")
     .selectAll()
     .execute();
 
-  expect(contractCalls).toHaveLength(1);
-  expect(contractCalls[0]).toMatchObject({
+  expect(contractReadResults).toHaveLength(1);
+  expect(contractReadResults[0]).toMatchObject({
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
@@ -814,10 +814,10 @@ test("insertContractCall inserts a contract call", async (context) => {
   });
 });
 
-test("insertContractCall upserts on conflict", async (context) => {
+test("insertContractReadResult upserts on conflict", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertContractCall({
+  await eventStore.insertContractReadResult({
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
@@ -826,18 +826,18 @@ test("insertContractCall upserts on conflict", async (context) => {
     result: "0x789",
   });
 
-  const contractCalls = await eventStore.db
-    .selectFrom("contractCalls")
+  const contractReadResults = await eventStore.db
+    .selectFrom("contractReadResults")
     .select(["address", "result"])
     .execute();
 
-  expect(contractCalls).toHaveLength(1);
-  expect(contractCalls[0]).toMatchObject({
+  expect(contractReadResults).toHaveLength(1);
+  expect(contractReadResults[0]).toMatchObject({
     address: usdcContractConfig.address,
     result: "0x789",
   });
 
-  await eventStore.insertContractCall({
+  await eventStore.insertContractReadResult({
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
@@ -846,22 +846,22 @@ test("insertContractCall upserts on conflict", async (context) => {
     result: "0x789123",
   });
 
-  const contractCallsUpdated = await eventStore.db
-    .selectFrom("contractCalls")
+  const contractReadResultsUpdated = await eventStore.db
+    .selectFrom("contractReadResults")
     .select(["address", "result"])
     .execute();
 
-  expect(contractCallsUpdated).toHaveLength(1);
-  expect(contractCallsUpdated[0]).toMatchObject({
+  expect(contractReadResultsUpdated).toHaveLength(1);
+  expect(contractReadResultsUpdated[0]).toMatchObject({
     address: usdcContractConfig.address,
     result: "0x789123",
   });
 });
 
-test("getContractCall returns data", async (context) => {
+test("getContractReadResult returns data", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertContractCall({
+  await eventStore.insertContractReadResult({
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
@@ -870,14 +870,14 @@ test("getContractCall returns data", async (context) => {
     result: "0x789",
   });
 
-  const contractCall = await eventStore.getContractCall({
+  const contractReadResult = await eventStore.getContractReadResult({
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
     blockNumber: 100n,
   });
 
-  expect(contractCall).toMatchObject({
+  expect(contractReadResult).toMatchObject({
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
@@ -887,10 +887,10 @@ test("getContractCall returns data", async (context) => {
   });
 });
 
-test("getContractCall returns null if not found", async (context) => {
+test("getContractReadResult returns null if not found", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertContractCall({
+  await eventStore.insertContractReadResult({
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
@@ -899,12 +899,12 @@ test("getContractCall returns null if not found", async (context) => {
     result: "0x789",
   });
 
-  const contractCall = await eventStore.getContractCall({
+  const contractReadResult = await eventStore.getContractReadResult({
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x125",
     blockNumber: 100n,
   });
 
-  expect(contractCall).toBe(null);
+  expect(contractReadResult).toBe(null);
 });
