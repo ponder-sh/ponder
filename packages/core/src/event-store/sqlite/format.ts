@@ -163,9 +163,9 @@ type ContractReadResultsTable = {
   address: string;
   blockNumber: string;
   chainId: number;
-  data: string;
+  data: Hex;
   finalized: number; // Boolean (0 or 1).
-  result: string;
+  result: Hex;
 };
 
 type LogFilterCachedRangesTable = {

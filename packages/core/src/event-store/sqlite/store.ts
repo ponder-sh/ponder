@@ -569,9 +569,9 @@ export class SqliteEventStore implements EventStore {
     address: string;
     blockNumber: bigint;
     chainId: number;
-    data: string;
+    data: Hex;
     finalized: boolean;
-    result: string;
+    result: Hex;
   }) => {
     await this.db
       .insertInto("contractReadResults")
@@ -596,7 +596,7 @@ export class SqliteEventStore implements EventStore {
     address: string;
     blockNumber: bigint;
     chainId: number;
-    data: string;
+    data: Hex;
   }) => {
     const contractReadResult = await this.db
       .selectFrom("contractReadResults")

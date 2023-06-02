@@ -23,9 +23,9 @@ export type ContractReadResult = {
   address: string;
   blockNumber: bigint;
   chainId: number;
-  data: string;
+  data: Hex;
   finalized: boolean;
-  result: string;
+  result: Hex;
 };
 
 export interface EventStore {
@@ -89,15 +89,15 @@ export interface EventStore {
     address: string;
     blockNumber: bigint;
     chainId: number;
-    data: string;
+    data: Hex;
     finalized: boolean;
-    result: string;
+    result: Hex;
   }): Promise<void>;
 
   getContractReadResult(options: {
     address: string;
     blockNumber: bigint;
     chainId: number;
-    data: string;
+    data: Hex;
   }): Promise<ContractReadResult | null>;
 }
