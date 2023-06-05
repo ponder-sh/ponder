@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.60
+
+### Patch Changes
+
+- [#200](https://github.com/0xOlias/ponder/pull/200) [`50571b6`](https://github.com/0xOlias/ponder/commit/50571b64c2feb8f7e9fdd36d77625ca5c5162d38) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated `ReadOnlyContract` to be viem Contract Instances. Fixed bug where contract calls were not using the block number of the current event being handled.
+
 ## 0.0.59
 
 ### Patch Changes
@@ -115,7 +121,7 @@
 
     await MyEntity.create({
       id: setupData.id,
-      data: { ...setupData }
+      data: { ...setupData },
     });
   });
   ```
@@ -428,8 +434,8 @@
       {
         name: "mainnet",
         chainId: 1,
-        rpcUrl: process.env.PONDER_RPC_URL_1
-      }
+        rpcUrl: process.env.PONDER_RPC_URL_1,
+      },
     ],
     sources: [
       {
@@ -437,10 +443,10 @@
         network: "mainnet",
         abi: "./abis/ArtGobblers.json",
         address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: 15863321
-      }
+        startBlock: 15863321,
+      },
     ],
-    plugins: [graphqlPlugin()]
+    plugins: [graphqlPlugin()],
   };
   ```
 
@@ -458,7 +464,7 @@
       ],
       sources: [
         /* ... */
-      ]
+      ],
     };
   };
   ```
