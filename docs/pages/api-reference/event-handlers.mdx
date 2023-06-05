@@ -181,14 +181,33 @@ See [Create & update entities](/guides/create-update-entities) for a complete AP
 #### `ReadOnlyContract`
 
 <Callout type="warning">
-  **Avoid using contract calls.** Reading data directly from contracts is slow
-  and expensive. If you're designing smart contracts that will be indexed by
-  Ponder, try to emit event logs that include all the data you need.
+  **Avoid reading data directly from contracts.** It's slow and expensive. If
+  you're designing smart contracts that will be indexed by Ponder, try to emit
+  event logs that include all the data you need.
 </Callout>
 
-`ReadOnlyContract` objects are used to read data directly from a contract. These objects have a method for each read-only function present in the contract's ABI (functions with state mutability of `"pure"` or `"view"`). `context.contracts` contains a `ReadOnlyContract` object for each contract defined in [ponder.config.ts](/api-reference/ponder-config#contracts).
+`ReadOnlyContract` objects are used to read data directly from a contract. These objects have a method for each read-only function present in the contract's ABI (functions with state mutability of `"pure"` or `"view"`). The `context.contracts` object has a `ReadOnlyContract` for each contract defined in [ponder.config.ts](/api-reference/ponder-config#contracts).
 
-By default, contract calls use the `eth_call` RPC method with `blockTag` set to the block timestamp of the event being handled (aka `event.block.timestamp`). Sometimes, you may need to read the contract at a different block height, such as the contract deployment block number or `"latest"`.
+A `ReadOnlyContract` is a [viem Contract Instance](https://viem.sh/docs/contract/getContract.html#contract-instances) that has been modified to cache contract read results. By default, contract reads use the `eth_call` RPC method with `blockNumber` set to the block number of the event being handled (`event.block.number`). You can read the contract at a different block number (e.g. the contract deployment block number or `"latest"`) by passing the `blockNumber` or `blockTag` option, but this will disable caching.
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("MyERC20:Transfer", async ({ event, context }) => {
+  const { MyERC20 } = context.contracts;
+
+  // This read will occur at the block number of the event being
+  // handled (event.block.number) and will be served from the cache
+  // on hot reloads / reployments.
+  const totalSupply = await MyERC20.read.totalSupply();
+
+  // This read will occur at the latest block number when this function
+  // runs, and will not be cached. Avoid this pattern.
+  const currentBalance = await MyERC20.read.balanceOf("0xFa3...", {
+    blockTag: "latest"
+  });
+});
+```
 
 ## The `"setup"` event
 

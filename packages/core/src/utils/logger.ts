@@ -11,14 +11,13 @@ export enum LogLevel {
   Trace, // 5
 }
 
-export enum MessageKind {
-  EVENT = "event",
-  ERROR = "error",
-  WARNING = "warning",
-  BACKFILL = "backfill",
-  FRONTFILL = "frontfill",
-  INDEXER = "indexer",
-}
+type MessageKind =
+  | "event"
+  | "error"
+  | "warning"
+  | "historical"
+  | "realtime"
+  | "indexer";
 
 export class LoggerService {
   logLevel: number;
@@ -50,27 +49,27 @@ export class LoggerService {
     const padded = kind.padEnd(this.maxWidth, " ");
 
     switch (kind) {
-      case MessageKind.EVENT: {
+      case "event": {
         this.info(pico.magenta(padded) + " - " + message);
         break;
       }
-      case MessageKind.ERROR: {
+      case "error": {
         this.error(pico.red(padded) + " - " + message);
         break;
       }
-      case MessageKind.WARNING: {
+      case "warning": {
         this.error(pico.yellow(padded) + " - " + message);
         break;
       }
-      case MessageKind.BACKFILL: {
+      case "historical": {
         this.info(pico.yellow(padded) + " - " + message);
         break;
       }
-      case MessageKind.FRONTFILL: {
+      case "realtime": {
         this.info(pico.cyan(padded) + " - " + message);
         break;
       }
-      case MessageKind.INDEXER: {
+      case "indexer": {
         this.info(pico.blue(padded) + " - " + message);
         break;
       }

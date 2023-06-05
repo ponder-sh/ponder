@@ -1,5 +1,7 @@
-import { hexToNumber, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import { hexToNumber, RpcBlock, RpcLog, RpcTransaction, toHex } from "viem";
 import { expect, test } from "vitest";
+
+import { usdcContractConfig } from "@/_test/constants";
 
 /**
  * This test suite uses the `store` object injected during setup.
@@ -13,7 +15,7 @@ test("setup creates tables", async (context) => {
   const tables = await eventStore.db.introspection.getTables();
   const tableNames = tables.map((t) => t.name);
   expect(tableNames).toContain("blocks");
-  expect(tableNames).toContain("contractCalls");
+  expect(tableNames).toContain("contractReadResults");
   expect(tableNames).toContain("logFilterCachedRanges");
   expect(tableNames).toContain("logs");
   expect(tableNames).toContain("transactions");
@@ -782,4 +784,127 @@ test("insertFinalizedBlock returns the startingRangeEndTimestamp", async (contex
     });
 
   expect(startingRangeEndTimestamp2).toBe(hexToNumber(blockTwo.timestamp));
+});
+
+test("insertContractReadResult inserts a contract call", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertContractReadResult({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789",
+  });
+
+  const contractReadResults = await eventStore.db
+    .selectFrom("contractReadResults")
+    .selectAll()
+    .execute();
+
+  expect(contractReadResults).toHaveLength(1);
+  expect(contractReadResults[0]).toMatchObject({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: toHex(100n),
+    finalized: 0,
+    result: "0x789",
+  });
+});
+
+test("insertContractReadResult upserts on conflict", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertContractReadResult({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789",
+  });
+
+  const contractReadResults = await eventStore.db
+    .selectFrom("contractReadResults")
+    .select(["address", "result"])
+    .execute();
+
+  expect(contractReadResults).toHaveLength(1);
+  expect(contractReadResults[0]).toMatchObject({
+    address: usdcContractConfig.address,
+    result: "0x789",
+  });
+
+  await eventStore.insertContractReadResult({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789123",
+  });
+
+  const contractReadResultsUpdated = await eventStore.db
+    .selectFrom("contractReadResults")
+    .select(["address", "result"])
+    .execute();
+
+  expect(contractReadResultsUpdated).toHaveLength(1);
+  expect(contractReadResultsUpdated[0]).toMatchObject({
+    address: usdcContractConfig.address,
+    result: "0x789123",
+  });
+});
+
+test("getContractReadResult returns data", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertContractReadResult({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789",
+  });
+
+  const contractReadResult = await eventStore.getContractReadResult({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+  });
+
+  expect(contractReadResult).toMatchObject({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789",
+  });
+});
+
+test("getContractReadResult returns null if not found", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertContractReadResult({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x123",
+    blockNumber: 100n,
+    finalized: false,
+    result: "0x789",
+  });
+
+  const contractReadResult = await eventStore.getContractReadResult({
+    address: usdcContractConfig.address,
+    chainId: 1,
+    data: "0x125",
+    blockNumber: 100n,
+  });
+
+  expect(contractReadResult).toBe(null);
 });

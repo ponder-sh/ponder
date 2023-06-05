@@ -159,14 +159,13 @@ export function rpcToSqliteLog({
   };
 }
 
-type ContractCallsTable = {
+type ContractReadResultsTable = {
   address: string;
   blockNumber: string;
   chainId: number;
-  data: string;
+  data: Hex;
   finalized: number; // Boolean (0 or 1).
-  id: string; // Primary key from `${chainId}-${blockNumber}-${address}-${data}`
-  result: string;
+  result: Hex;
 };
 
 type LogFilterCachedRangesTable = {
@@ -186,6 +185,6 @@ export type EventStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
   logs: LogsTable;
-  contractCalls: ContractCallsTable;
+  contractReadResults: ContractReadResultsTable;
   logFilterCachedRanges: LogFilterCachedRangesTable;
 };

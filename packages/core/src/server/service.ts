@@ -8,7 +8,6 @@ import type http from "node:http";
 
 import { Resources } from "@/Ponder";
 import { UserStore } from "@/user-store/store";
-import { MessageKind } from "@/utils/logger";
 
 export type ServerServiceEvents = {
   serverStarted: { desiredPort: number; port: number };
@@ -22,7 +21,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
   server?: http.Server;
   private graphqlMiddleware?: express.Handler;
 
-  isBackfillEventProcessingComplete = false;
+  isHistoricalEventProcessingComplete = false;
 
   constructor({
     resources,
@@ -50,12 +49,12 @@ export class ServerService extends Emittery<ServerServiceEvents> {
       port: resolvedPort,
     });
 
-    // By default, the server will respond as unhealthy until the backfill events have
+    // By default, the server will respond as unhealthy until historical events have
     // been processed OR 4.5 minutes have passed since the app was created. This
     // enables zero-downtime deployments on PaaS platforms like Railway and Render.
     // Also see https://github.com/0xOlias/ponder/issues/24
     this.app.get("/health", (_, res) => {
-      if (this.isBackfillEventProcessingComplete) {
+      if (this.isHistoricalEventProcessingComplete) {
         return res.status(200).send();
       }
 
@@ -64,8 +63,8 @@ export class ServerService extends Emittery<ServerServiceEvents> {
 
       if (elapsed > max) {
         this.resources.logger.logMessage(
-          MessageKind.WARNING,
-          `Backfill & log processing time has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`
+          "warning",
+          `Historical sync duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`
         );
         return res.status(200).send();
       }

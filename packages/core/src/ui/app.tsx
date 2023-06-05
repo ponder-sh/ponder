@@ -3,8 +3,8 @@ import React from "react";
 
 import { LogFilter } from "@/config/logFilters";
 
-import { BackfillBar } from "./BackfillBar";
 import { HandlersBar } from "./HandlersBar";
+import { HistoricalBar } from "./HistoricalBar";
 
 export type UiState = {
   port: number;
@@ -29,8 +29,8 @@ export type UiState = {
     }
   >;
 
-  isBackfillComplete: boolean;
-  backfillDuration: string;
+  isHistoricalSyncComplete: boolean;
+  historicalSyncDuration: string;
 
   handlerError: boolean;
   handlersCurrent: number;
@@ -47,8 +47,8 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
 
     stats: {},
 
-    isBackfillComplete: false,
-    backfillDuration: "",
+    isHistoricalSyncComplete: false,
+    historicalSyncDuration: "",
 
     handlerError: false,
     handlersCurrent: 0,
@@ -82,8 +82,8 @@ const App = (ui: UiState) => {
   const {
     port,
     stats,
-    isBackfillComplete,
-    backfillDuration,
+    isHistoricalSyncComplete,
+    historicalSyncDuration,
     handlersCurrent,
     handlerError,
     networks,
@@ -105,19 +105,19 @@ const App = (ui: UiState) => {
       {/* Newline above interface */}
       <Text> </Text>
       <Box flexDirection="row">
-        <Text bold={true}>Backfill </Text>
-        {isBackfillComplete ? (
+        <Text bold={true}>Historical sync </Text>
+        {isHistoricalSyncComplete ? (
           <Text color="greenBright">
-            (done in {backfillDuration})<Newline />
+            (done in {historicalSyncDuration})<Newline />
           </Text>
         ) : (
           <Text color="yellowBright">(in progress)</Text>
         )}
       </Box>
-      {!isBackfillComplete && (
+      {!isHistoricalSyncComplete && (
         <Box flexDirection="column">
           {Object.entries(stats).map(([contract, stat]) => (
-            <BackfillBar key={contract} contract={contract} stat={stat} />
+            <HistoricalBar key={contract} contract={contract} stat={stat} />
           ))}
           <Text> </Text>
         </Box>

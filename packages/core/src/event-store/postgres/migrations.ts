@@ -71,14 +71,19 @@ const migrations: Record<string, Migration> = {
         .execute();
 
       await db.schema
-        .createTable("contractCalls")
+        .createTable("contractReadResults")
         .addColumn("address", "text", (col) => col.notNull())
         .addColumn("blockNumber", "text", (col) => col.notNull()) // BigInt
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("data", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
-        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // Primary key from `${chainId}-${blockNumber}-${address}-${data}`
         .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("contractReadResultPrimaryKey", [
+          "chainId",
+          "blockNumber",
+          "address",
+          "data",
+        ])
         .execute();
 
       await db.schema
@@ -96,7 +101,7 @@ const migrations: Record<string, Migration> = {
       await db.schema.dropTable("blocks").execute();
       await db.schema.dropTable("logs").execute();
       await db.schema.dropTable("transactions").execute();
-      await db.schema.dropTable("contractCalls").execute();
+      await db.schema.dropTable("contractReadResults").execute();
       await db.schema.dropTable("logFilterCachedRanges").execute();
     },
   },

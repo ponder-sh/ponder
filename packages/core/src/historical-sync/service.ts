@@ -144,8 +144,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
         this.metrics.logFilters[logFilter.name].totalBlockCount =
           totalBlockCount;
-        this.metrics.logFilters[logFilter.name].cacheRate =
-          cachedBlockCount / (totalBlockCount || 1);
+        this.metrics.logFilters[logFilter.name].cacheRate = Math.min(
+          1,
+          cachedBlockCount / (totalBlockCount || 1)
+        );
 
         for (const blockRange of requiredBlockRanges) {
           const [startBlock, endBlock] = blockRange;
@@ -168,11 +170,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       })
     );
 
-    // If, after adding tasks to the queue, there are no tasks in the queue,
-    // this means everything we need was cached and we can complete early.
+    // Edge case: If there are no tasks in the queue, this means the entire
+    // requested range was cached, so the sync is complete. However, we still
+    // need to emit the historicalCheckpoint event with some timestamp. It should
+    // be safe to use the current timestamp.
     if (this.queue.size === 0) {
       this.metrics.duration = endBenchmark(this.metrics.startedAt);
       this.metrics.isComplete = true;
+      this.emit("historicalCheckpoint", { timestamp: Date.now() });
       this.emit("syncComplete");
     }
   }

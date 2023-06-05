@@ -136,7 +136,7 @@ export class SqliteEventStore implements EventStore {
         .where("chainId", "=", chainId)
         .execute();
       await tx
-        .deleteFrom("contractCalls")
+        .deleteFrom("contractReadResults")
         .where("blockNumber", ">=", toHex(fromBlockNumber))
         .where("finalized", "=", 0)
         .where("chainId", "=", chainId)
@@ -171,7 +171,7 @@ export class SqliteEventStore implements EventStore {
         .where("chainId", "=", chainId)
         .execute();
       await tx
-        .updateTable("contractCalls")
+        .updateTable("contractReadResults")
         .set({ finalized: 1 })
         .where("blockNumber", "<=", toHex(toBlockNumber))
         .where("chainId", "=", chainId)
@@ -556,5 +556,63 @@ export class SqliteEventStore implements EventStore {
       });
 
     return { startingRangeEndTimestamp };
+  };
+
+  insertContractReadResult = async ({
+    address,
+    blockNumber,
+    chainId,
+    data,
+    finalized,
+    result,
+  }: {
+    address: string;
+    blockNumber: bigint;
+    chainId: number;
+    data: Hex;
+    finalized: boolean;
+    result: Hex;
+  }) => {
+    await this.db
+      .insertInto("contractReadResults")
+      .values({
+        address,
+        blockNumber: toHex(blockNumber),
+        chainId,
+        data,
+        finalized: finalized ? 1 : 0,
+        result,
+      })
+      .onConflict((oc) => oc.doUpdateSet({ result }))
+      .execute();
+  };
+
+  getContractReadResult = async ({
+    address,
+    blockNumber,
+    chainId,
+    data,
+  }: {
+    address: string;
+    blockNumber: bigint;
+    chainId: number;
+    data: Hex;
+  }) => {
+    const contractReadResult = await this.db
+      .selectFrom("contractReadResults")
+      .selectAll()
+      .where("address", "=", address)
+      .where("blockNumber", "=", toHex(blockNumber))
+      .where("chainId", "=", chainId)
+      .where("data", "=", data)
+      .executeTakeFirst();
+
+    return contractReadResult
+      ? {
+          ...contractReadResult,
+          blockNumber: BigInt(contractReadResult.blockNumber),
+          finalized: contractReadResult.finalized === 1,
+        }
+      : null;
   };
 }

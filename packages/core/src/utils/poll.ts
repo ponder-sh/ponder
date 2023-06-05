@@ -1,10 +1,11 @@
 import { wait } from "./wait";
 
-type PollOptions<TData> = {
+// Adapted from viem.
+// https://github.com/wagmi-dev/viem/blob/38422ac7617022761ee7aa87310dd89adb34573c/src/utils/poll.ts
+
+type PollOptions = {
   // Whether or not to emit when the polling starts.
   emitOnBegin?: boolean;
-  // The initial wait time (in ms) before polling.
-  initialWaitTime?: (data: TData | void) => Promise<number>;
   // The interval (in ms).
   interval: number;
 };
@@ -12,20 +13,17 @@ type PollOptions<TData> = {
 /**
  * @description Polls a function at a specified interval.
  */
-export function poll<TData>(
-  fn: ({ unpoll }: { unpoll: () => void }) => Promise<TData | void>,
-  { emitOnBegin, initialWaitTime, interval }: PollOptions<TData>
+export function poll(
+  fn: ({ unpoll }: { unpoll: () => void }) => Promise<unknown> | unknown,
+  { emitOnBegin, interval }: PollOptions
 ) {
   let active = true;
 
   const unwatch = () => (active = false);
 
   const watch = async () => {
-    let data: TData | void;
-    if (emitOnBegin) data = await fn({ unpoll: unwatch });
-
-    const initialWait = (await initialWaitTime?.(data)) ?? interval;
-    await wait(initialWait);
+    if (emitOnBegin) await fn({ unpoll: unwatch });
+    await wait(interval);
 
     const poll = async () => {
       if (!active) return;

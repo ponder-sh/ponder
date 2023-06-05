@@ -12,17 +12,17 @@ import { EventAggregatorService } from "@/event-aggregator/service";
 import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import { type EventStore } from "@/event-store/store";
-import { EventHandlerService } from "@/handlers/EventHandlerService";
 import { HistoricalSyncService } from "@/historical-sync/service";
 import { RealtimeSyncService } from "@/realtime-sync/service";
 import { ReloadService } from "@/reload/service";
 import { ServerService } from "@/server/service";
 import { UiService } from "@/ui/service";
+import { EventHandlerService } from "@/user-handlers/service";
 import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { type UserStore } from "@/user-store/store";
 import { formatEta, formatPercentage } from "@/utils/format";
-import { LoggerService, MessageKind } from "@/utils/logger";
+import { LoggerService } from "@/utils/logger";
 
 export type Resources = {
   options: PonderOptions;
@@ -180,7 +180,7 @@ export class Ponder {
   async dev() {
     const setupError = await this.setup();
     if (setupError) {
-      this.resources.logger.logMessage(MessageKind.ERROR, setupError.message);
+      this.resources.logger.logMessage("error", setupError.message);
       return await this.kill();
     }
 
@@ -202,7 +202,7 @@ export class Ponder {
   async start() {
     const setupError = await this.setup();
     if (setupError) {
-      this.resources.logger.logMessage(MessageKind.ERROR, setupError.message);
+      this.resources.logger.logMessage("error", setupError.message);
       return await this.kill();
     }
 
@@ -313,7 +313,7 @@ export class Ponder {
         "deepReorg",
         ({ detectedAtBlockNumber, minimumDepth }) => {
           this.resources.logger.logMessage(
-            MessageKind.ERROR,
+            "error",
             `WARNING: Deep reorg detected on ${network.name} at block ${detectedAtBlockNumber} with a minimum depth of ${minimumDepth}`
           );
         }
@@ -325,7 +325,7 @@ export class Ponder {
     });
 
     this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
-      if (this.serverService.isBackfillEventProcessingComplete) return;
+      if (this.serverService.isHistoricalEventProcessingComplete) return;
 
       // If a batch of events are processed AND the historical sync is complete AND
       // the new toTimestamp is greater than the historical sync completion timestamp,
@@ -334,10 +334,10 @@ export class Ponder {
         this.eventAggregatorService.historicalSyncCompletedAt &&
         toTimestamp >= this.eventAggregatorService.historicalSyncCompletedAt
       ) {
-        this.serverService.isBackfillEventProcessingComplete = true;
+        this.serverService.isHistoricalEventProcessingComplete = true;
         this.resources.logger.logMessage(
-          MessageKind.INDEXER,
-          "backfill event processing complete (server now responding as healthy)"
+          "indexer",
+          "historical sync complete (server now responding as healthy)"
         );
       }
     });
@@ -345,7 +345,7 @@ export class Ponder {
 
   private registerUiHandlers() {
     this.resources.errors.on("handlerError", ({ error }) => {
-      this.resources.logger.logMessage(MessageKind.ERROR, error.message);
+      this.resources.logger.logMessage("error", error.message);
     });
 
     this.networkSyncServices.forEach((networkSyncService) => {
@@ -353,11 +353,11 @@ export class Ponder {
         networkSyncService;
 
       historicalSyncService.on("error", ({ error }) => {
-        this.resources.logger.logMessage(MessageKind.ERROR, error.message);
+        this.resources.logger.logMessage("error", error.message);
       });
 
       realtimeSyncService.on("error", ({ error }) => {
-        this.resources.logger.logMessage(MessageKind.ERROR, error.message);
+        this.resources.logger.logMessage("error", error.message);
       });
 
       historicalSyncService.on("syncStarted", () => {
@@ -366,8 +366,8 @@ export class Ponder {
           this.uiService.ui.stats[name].blockStartTimestamp = Date.now();
 
           this.resources.logger.logMessage(
-            MessageKind.BACKFILL,
-            `started backfill for ${pico.bold(name)} (${formatPercentage(
+            "historical",
+            `started historical sync for ${pico.bold(name)} (${formatPercentage(
               historicalSyncService.metrics.logFilters[name].cacheRate
             )} cached)`
           );
@@ -405,13 +405,13 @@ export class Ponder {
         });
       });
 
-      const isBackfillComplete = this.networkSyncServices.every(
+      const isHistoricalSyncComplete = this.networkSyncServices.every(
         (n) => n.historicalSyncService.metrics.isComplete
       );
-      this.uiService.ui.isBackfillComplete = isBackfillComplete;
+      this.uiService.ui.isHistoricalSyncComplete = isHistoricalSyncComplete;
 
-      if (isBackfillComplete) {
-        this.uiService.ui.backfillDuration = formatEta(
+      if (isHistoricalSyncComplete) {
+        this.uiService.ui.historicalSyncDuration = formatEta(
           Math.max(
             ...this.networkSyncServices.map(
               (n) => n.historicalSyncService.metrics.duration
@@ -454,12 +454,12 @@ export class Ponder {
     this.serverService.on("serverStarted", ({ desiredPort, port }) => {
       if (desiredPort !== port) {
         this.resources.logger.logMessage(
-          MessageKind.EVENT,
+          "event",
           `port ${desiredPort} unavailable, server listening on port ${port}`
         );
       } else {
         this.resources.logger.logMessage(
-          MessageKind.EVENT,
+          "event",
           `server listening on port ${port}`
         );
       }
