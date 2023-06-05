@@ -74,12 +74,10 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
   private injectedContracts: Record<string, ReadOnlyContract> = {};
 
-  isBackfillStarted = false;
-
   private eventProcessingMutex: Mutex;
   private eventsHandledToTimestamp = 0;
 
-  currentLogEventBlockNumber = 0n;
+  private currentLogEventBlockNumber = 0n;
 
   constructor({
     resources,

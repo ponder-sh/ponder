@@ -58,7 +58,7 @@ test("setup() returns the finalized block number", async (context) => {
   await service.kill();
 });
 
-test("backfills blocks from finalized to latest", async (context) => {
+test("fetches blocks from finalized to latest", async (context) => {
   const { eventStore } = context;
 
   const service = new RealtimeSyncService({ eventStore, logFilters, network });
@@ -73,7 +73,7 @@ test("backfills blocks from finalized to latest", async (context) => {
   await service.kill();
 });
 
-test("backfills transactions from finalized to latest", async (context) => {
+test("fetches transactions from finalized to latest", async (context) => {
   const { eventStore } = context;
 
   const service = new RealtimeSyncService({ eventStore, logFilters, network });
@@ -99,7 +99,7 @@ test("backfills transactions from finalized to latest", async (context) => {
   await service.kill();
 });
 
-test("backfills logs from finalized to latest", async (context) => {
+test("fetches logs from finalized to latest", async (context) => {
   const { eventStore } = context;
 
   const service = new RealtimeSyncService({ eventStore, logFilters, network });

@@ -6,7 +6,7 @@ import { formatEta } from "@/utils/format";
 import { UiState } from "./app";
 import { ProgressBar } from "./ProgressBar";
 
-export const BackfillBar = ({
+export const HistoricalBar = ({
   contract,
   stat,
 }: {
@@ -17,14 +17,8 @@ export const BackfillBar = ({
   const total = stat.logTotal + stat.blockTotal;
 
   // Only display the ETA text once 5 log tasks have been processed
-  const backfillEtaText =
+  const etaText =
     stat.logTotal > 5 && stat.eta > 0 ? ` | ~${formatEta(stat.eta)}` : null;
-  // const backfillCountText = total > 0 ? ` | ${current}/${total}` : null;
-
-  // const cacheRateDecimal = Math.round(stat.cacheRate * 1000) / 10;
-  // const cacheRateText = Number.isInteger(cacheRateDecimal)
-  //   ? `${cacheRateDecimal}.0%`
-  //   : `${cacheRateDecimal}%`;
 
   const rate =
     (current / Math.max(total, 1)) * (1 - stat.cacheRate) + stat.cacheRate;
@@ -50,7 +44,7 @@ export const BackfillBar = ({
         <Text>
           {" "}
           {completionText}
-          {backfillEtaText}
+          {etaText}
           {/* {backfillCountText} */}
         </Text>
       </Box>

@@ -8,7 +8,7 @@ import { PonderOptions } from "@/config/options";
 import { Block } from "@/types/block";
 import { Log } from "@/types/log";
 import { Transaction } from "@/types/transaction";
-import { LoggerService, MessageKind } from "@/utils/logger";
+import { LoggerService } from "@/utils/logger";
 
 export interface LogEvent {
   name: string;
@@ -119,7 +119,7 @@ export const readHandlers = async ({
     });
   } else {
     logger.logMessage(
-      MessageKind.WARNING,
+      "warning",
       `tsconfig.json not found, unable to resolve "@/*" path aliases. Expected at: ${tsconfigPath}`
     );
   }

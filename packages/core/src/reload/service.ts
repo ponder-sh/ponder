@@ -10,7 +10,6 @@ import { Resources } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
 import { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
-import { MessageKind } from "@/utils/logger";
 
 import { readGraphqlSchema } from "./readGraphqlSchema";
 import { Handlers, readHandlers } from "./readHandlers";
@@ -48,7 +47,7 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
     watcher.on("change", async (filePath) => {
       if (filePath === this.resources.options.configFile) {
         this.resources.logger.logMessage(
-          MessageKind.ERROR,
+          "error",
           "detected change in ponder.config.ts. " +
             pico.bold("Restart the server.")
         );
@@ -60,7 +59,7 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
         const fileName = path.basename(filePath);
 
         this.resources.logger.logMessage(
-          MessageKind.EVENT,
+          "event",
           "detected change in " + pico.bold(fileName)
         );
 

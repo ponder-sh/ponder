@@ -1,7 +1,6 @@
 import { LogFilter } from "@/config/logFilters";
 import { Resources } from "@/Ponder";
 import { formatEta } from "@/utils/format";
-import { MessageKind } from "@/utils/logger";
 
 import { buildUiState, setupInkApp, UiState } from "./app";
 
@@ -59,8 +58,8 @@ export class UiService {
     }, 17);
 
     this.etaInterval = setInterval(() => {
-      this.updateBackfillEta();
-      if (!this.resources.options.uiEnabled) this.logBackfillProgress();
+      this.updateHistoricalSyncEta();
+      if (!this.resources.options.uiEnabled) this.logHistoricalSyncProgress();
     }, 1000);
   }
 
@@ -70,7 +69,7 @@ export class UiService {
     clearInterval(this.etaInterval);
   }
 
-  private updateBackfillEta = () => {
+  private updateHistoricalSyncEta = () => {
     this.logFilters.forEach((contract) => {
       const stats = this.ui.stats[contract.name];
 
@@ -92,8 +91,8 @@ export class UiService {
     });
   };
 
-  private logBackfillProgress() {
-    if (this.ui.isBackfillComplete) return;
+  private logHistoricalSyncProgress() {
+    if (this.ui.isHistoricalSyncComplete) return;
 
     this.logFilters.forEach((contract) => {
       const stat = this.ui.stats[contract.name];
@@ -110,7 +109,7 @@ export class UiService {
       const countText = `${current}/${total}`;
 
       this.resources.logger.logMessage(
-        MessageKind.BACKFILL,
+        "historical",
         `${contract.name}: ${`(${etaText + " | " + countText})`}`
       );
     });

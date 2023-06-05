@@ -34,7 +34,8 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
   const dateText = `${month} ${day}, ${year}`;
 
   const isUpToDate =
-    ui.isBackfillComplete && ui.handlersCurrent === ui.handlersHandledTotal;
+    ui.isHistoricalSyncComplete &&
+    ui.handlersCurrent === ui.handlersHandledTotal;
   const isStarted = ui.handlersToTimestamp > 0;
 
   const titleText = () => {
