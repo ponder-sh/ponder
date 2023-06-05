@@ -4,31 +4,36 @@ import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
 
-import { LoggerService, MessageKind } from "@/common/LoggerService";
-import type { Block, Log, Transaction } from "@/common/types";
 import { PonderOptions } from "@/config/options";
+import { Block } from "@/types/block";
+import { Log } from "@/types/log";
+import { Transaction } from "@/types/transaction";
+import { LoggerService } from "@/utils/logger";
 
 export interface LogEvent {
   name: string;
   params: Record<string, any>;
   log: Log;
-  block: Omit<Block, "transactions">;
+  block: Block;
   transaction: Transaction;
 }
 
-export type SetupEventHandler = ({
+type SetupEventHandler = ({
   context,
 }: {
   context: unknown;
 }) => Promise<void> | void;
-export type LogEventHandler = ({
+
+type LogEventHandler = ({
   event,
   context,
 }: {
   event: LogEvent;
   context: unknown;
 }) => Promise<void> | void;
-export type LogEventHandlers = Record<string, LogEventHandler | undefined>;
+
+type LogEventHandlers = Record<string, LogEventHandler | undefined>;
+
 export type Handlers = Record<string, LogEventHandlers | undefined> & {
   setup?: SetupEventHandler;
 };
@@ -114,7 +119,7 @@ export const readHandlers = async ({
     });
   } else {
     logger.logMessage(
-      MessageKind.WARNING,
+      "warning",
       `tsconfig.json not found, unable to resolve "@/*" path aliases. Expected at: ${tsconfigPath}`
     );
   }

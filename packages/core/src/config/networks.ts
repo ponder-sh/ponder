@@ -10,6 +10,7 @@ export type Network = {
   rpcUrl?: string;
   pollingInterval: number;
   defaultMaxBlockRange: number;
+  finalityBlockCount: number;
 };
 
 const clients: Record<number, PublicClient | undefined> = {};
@@ -41,6 +42,9 @@ export function buildNetwork({
     rpcUrl: network.rpcUrl,
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange(network),
+    // TODO: Get this from a list of known finality block counts, then
+    // fallback to a default.
+    finalityBlockCount: 10,
   };
 
   return resolvedNetwork;

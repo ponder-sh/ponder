@@ -8,7 +8,7 @@ export default defineConfig({
     },
   },
   test: {
-    globalSetup: ["test/utils/globalSetup.ts"],
-    setupFiles: ["test/utils/setup.ts"],
+    globalSetup: ["src/_test/globalSetup.ts"],
+    setupFiles: ["src/_test/setup.ts"],
   },
 });

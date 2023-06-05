@@ -1,14 +1,14 @@
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
 
-import { EntityStore } from "@/database/entity/entityStore";
 import { Schema } from "@/schema/types";
+import { UserStore } from "@/user-store/store";
 
 import { buildEntityType } from "./buildEntityType";
 import { buildPluralField } from "./buildPluralField";
 import { buildSingularField } from "./buildSingularField";
 
 export type Source = { request: unknown };
-export type Context = { store: EntityStore };
+export type Context = { store: UserStore };
 
 const buildGqlSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Source, Context>> = {};

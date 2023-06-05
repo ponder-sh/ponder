@@ -115,7 +115,7 @@
 
     await MyEntity.create({
       id: setupData.id,
-      data: { ...setupData },
+      data: { ...setupData }
     });
   });
   ```
@@ -428,8 +428,8 @@
       {
         name: "mainnet",
         chainId: 1,
-        rpcUrl: process.env.PONDER_RPC_URL_1,
-      },
+        rpcUrl: process.env.PONDER_RPC_URL_1
+      }
     ],
     sources: [
       {
@@ -437,10 +437,10 @@
         network: "mainnet",
         abi: "./abis/ArtGobblers.json",
         address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: 15863321,
-      },
+        startBlock: 15863321
+      }
     ],
-    plugins: [graphqlPlugin()],
+    plugins: [graphqlPlugin()]
   };
   ```
 
@@ -458,7 +458,7 @@
       ],
       sources: [
         /* ... */
-      ],
+      ]
     };
   };
   ```
