@@ -4,7 +4,7 @@ import Emittery from "emittery";
 import { encodeEventTopics } from "viem";
 
 import type { Contract } from "@/config/contracts";
-import { LogFilter } from "@/config/logFilters";
+import type { LogFilter } from "@/config/logFilters";
 import { EventHandlerError } from "@/errors/eventHandler";
 import type {
   EventAggregatorService,
@@ -14,10 +14,11 @@ import type { EventStore } from "@/event-store/store";
 import type { Resources } from "@/Ponder";
 import type { Handlers } from "@/reload/readHandlers";
 import type { Schema } from "@/schema/types";
+import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";
-import { Prettify } from "@/types/utils";
+import type { Prettify } from "@/types/utils";
 import type { ModelInstance, UserStore } from "@/user-store/store";
-import { createQueue, Queue, Worker } from "@/utils/queue";
+import { type Queue, type Worker, createQueue } from "@/utils/queue";
 
 import { getInjectedContract } from "./contract";
 import { getStackTraceAndCodeFrame } from "./trace";
@@ -71,7 +72,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private schema?: Schema;
   private queue?: EventHandlerQueue;
 
-  private injectedContracts: Record<string, ReadOnlyContract | undefined> = {};
+  private injectedContracts: Record<string, ReadOnlyContract> = {};
 
   isBackfillStarted = false;
 
@@ -106,11 +107,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     // Build the injected contract objects. They depend only on contract config,
     // so they can't be hot reloaded.
     this.contracts.forEach((contract) => {
-      this.injectedContracts[contract.name] = {};
-      // buildInjectedContract({
-      //   contract,
-      //   eventHandlerService: this,
-      // });
+      this.injectedContracts[contract.name] = getInjectedContract({
+        contract,
+        getCurrentBlockNumber: () => this.currentLogEventBlockNumber,
+        eventStore: this.eventStore,
+      });
     });
 
     // Setup the event processing mutex.
