@@ -207,7 +207,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     this.networkCheckpoints[chainId].isHistoricalSyncComplete = true;
     this.recalculateCheckpoint();
 
-    // If every network has completed the historical sync, emit an event.
+    // If every network has completed the historical sync, set the metric.
     const networkCheckpoints = Object.values(this.networkCheckpoints);
     if (networkCheckpoints.every((n) => n.isHistoricalSyncComplete)) {
       const maxHistoricalCheckpoint = Math.max(
