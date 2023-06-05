@@ -19,42 +19,15 @@ export const buildContractTypes = (contracts: Contract[]) => {
           (item.stateMutability === "pure" || item.stateMutability === "view")
       );
 
-      const abiReadOrViewFunctionTypes = abiReadOrViewFunctions
-        .map(({ name, inputs, outputs }) => {
-          const argsType = `${inputs
-            .map(
-              (input, index) =>
-                `${
-                  input.name !== "" ? input.name : `arg_${index}`
-                }: AbiParameterToPrimitiveType<${JSON.stringify(input)}>`
-            )
-            .concat(`overrides?: CallOverrides`)
-            .join(",")}`;
+      return `
+      const ${contract.name}Abi = ${JSON.stringify(
+        abiReadOrViewFunctions
+      )} as const;
 
-          let returnType: string;
-          if (outputs.length > 1) {
-            returnType = `{${outputs
-              .map(
-                (output, index) =>
-                  `${
-                    output.name !== "" ? output.name : `arg_${index}`
-                  }: AbiParameterToPrimitiveType<${JSON.stringify(output)}>`
-              )
-              .join(",")}}`;
-          } else {
-            returnType = `${outputs
-              .map(
-                (output) =>
-                  `AbiParameterToPrimitiveType<${JSON.stringify(output)}>`
-              )
-              .join(",")}`;
-          }
-
-          return `${name}: (${argsType}) => Promise<${returnType}>`;
-        })
-        .join(";");
-
-      return `export type ${contract.name} = { ${abiReadOrViewFunctionTypes} };`;
+      export type ${contract.name} = ReadOnlyContract<typeof ${
+        contract.name
+      }Abi>;
+      `;
     })
     .join("\n");
 };
