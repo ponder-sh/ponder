@@ -22,7 +22,7 @@ import type { Transaction } from "@/types/transaction";
 import type { NonNull } from "@/types/utils";
 
 import type { EventStore } from "../store";
-import { merge_intervals } from "../utils";
+import { mergeIntervals } from "../utils";
 import {
   type EventStoreTables,
   type InsertableBlock,
@@ -535,7 +535,7 @@ export class PostgresEventStore implements EventStore {
           .returningAll()
           .execute();
 
-        const mergedIntervals = merge_intervals(
+        const mergedIntervals = mergeIntervals(
           existingRanges.map((r) => [
             hexToNumber(r.startBlock),
             hexToNumber(r.endBlock),
