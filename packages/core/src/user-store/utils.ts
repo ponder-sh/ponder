@@ -2,15 +2,6 @@ import { intToBlob } from "@/utils/encode";
 
 import { ModelInstance } from "./store";
 
-export const gqlScalarToSqlType = {
-  Boolean: "integer" as const,
-  Int: "integer" as const,
-  String: "text" as const,
-  BigInt: "blob" as const,
-  Bytes: "text" as const,
-  Float: "text" as const,
-} as const;
-
 export const filterTypes = {
   // universal
   "": { operator: "=", patternPrefix: undefined, patternSuffix: undefined },

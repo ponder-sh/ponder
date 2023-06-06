@@ -11,8 +11,16 @@ import {
   formatModelFieldValue,
   formatModelInstance,
   getWhereOperatorAndValue,
-  gqlScalarToSqlType,
 } from "../utils";
+
+const gqlScalarToSqlType = {
+  Boolean: "integer",
+  Int: "integer",
+  String: "text",
+  BigInt: "blob",
+  Bytes: "text",
+  Float: "text",
+} as const;
 
 export class SqliteUserStore implements UserStore {
   db: Kysely<any>;

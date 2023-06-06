@@ -11,8 +11,16 @@ import {
   formatModelFieldValue,
   formatModelInstance,
   getWhereOperatorAndValue,
-  gqlScalarToSqlType,
 } from "../utils";
+
+const gqlScalarToSqlType = {
+  Boolean: "integer",
+  Int: "integer",
+  String: "text",
+  BigInt: sql`bytea`,
+  Bytes: "text",
+  Float: "text",
+} as const;
 
 export class PostgresUserStore implements UserStore {
   db: Kysely<any>;
@@ -296,7 +304,12 @@ export class PostgresUserStore implements UserStore {
       query = query.limit(first);
     }
     if (orderBy) {
-      query = query.orderBy(orderBy, orderDirection);
+      query = query.orderBy(
+        orderBy,
+        orderDirection === "asc" || orderDirection === undefined
+          ? sql`asc nulls first`
+          : sql`desc nulls last`
+      );
     }
 
     const instances = await query.execute();
