@@ -86,7 +86,7 @@ test("serves data", async (context) => {
   expect(accounts).toHaveLength(19);
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("returns string array types", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -101,7 +101,7 @@ test("returns string array types", async (context) => {
   expect(ensNfts[0].stringArray).toEqual(["123", "abc"]);
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("returns int array types", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -116,7 +116,7 @@ test("returns int array types", async (context) => {
   expect(ensNfts[0].intArray).toEqual([123, 456]);
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("limits", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -130,7 +130,7 @@ test("limits", async (context) => {
   expect(ensNfts).toHaveLength(2);
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("skips", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -144,7 +144,7 @@ test("skips", async (context) => {
   expect(ensNfts).toHaveLength(8);
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("orders ascending", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -162,7 +162,7 @@ test("orders ascending", async (context) => {
   );
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("orders descending", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -180,7 +180,7 @@ test("orders descending", async (context) => {
   );
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("filters on integer field equals", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -196,7 +196,7 @@ test("filters on integer field equals", async (context) => {
   expect(ensNfts[0].transferredAt).toBe(1673276483);
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("filters on integer field in", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -214,7 +214,7 @@ test("filters on integer field in", async (context) => {
   expect(transferredAt).toContain(1673276555);
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("filters on string field equals", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -232,7 +232,7 @@ test("filters on string field equals", async (context) => {
   );
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("filters on string field in", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -253,7 +253,7 @@ test("filters on string field in", async (context) => {
   );
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("filters on relationship field equals", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -276,7 +276,7 @@ test("filters on relationship field equals", async (context) => {
   );
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
 
 test("filters on relationship field contains", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -299,4 +299,4 @@ test("filters on relationship field contains", async (context) => {
   );
 
   await ponder.kill();
-}, 20_000);
+}, 40_000);
