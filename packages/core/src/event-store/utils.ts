@@ -1,15 +1,20 @@
+import { Hex } from "viem";
+
 const MAX_UINT =
   115792089237316195423570985008687907853269984665640564039457584007913129639935n;
 
 /**
- * Converts a bigint into a 33-byte Buffer (sign byte followed by 32-byte value).
+ * Converts a integer into a 33-byte Buffer (sign byte followed by 32-byte value).
  * Used as the storage encoding for EVM uint256 and int256 types to enable ordering
  * using SQLite's default BLOB collation (memcmp).
  *
  * @param value Integer to be encoded.
  * @returns 33-byte Buffer representing the encoded integer.
  */
-export function bigIntToBlob(value: bigint) {
+export function intToBlob(value: bigint | number | Hex) {
+  if (typeof value === "string" || typeof value === "number")
+    value = BigInt(value);
+
   // If the value is negative, invert it.
   const signByte = value >= 0n ? "ff" : "00";
   if (value < 0n) value = MAX_UINT + value;
@@ -37,6 +42,7 @@ export function bigIntToBlob(value: bigint) {
 export function blobToBigInt(buffer: Buffer) {
   const signByte = buffer.at(0);
   const hexString = buffer.subarray(1).toString("hex").replace(/^0+/, "");
+  if (hexString.length === 0) return 0n;
 
   let value = BigInt("0x" + hexString);
 
