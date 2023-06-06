@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.61
+
+### Patch Changes
+
+- [#204](https://github.com/0xOlias/ponder/pull/204) [`f8ddf37`](https://github.com/0xOlias/ponder/commit/f8ddf3755ed1e358655152a956e57a7e080b6b52) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where sorting on BigInt fields was not working as expected.
+
 ## 0.0.60
 
 ### Patch Changes
