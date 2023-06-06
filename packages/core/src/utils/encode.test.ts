@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 
-import { intToBlob, blobToBigInt } from "./utils";
+import { blobToBigInt } from "./decode";
+import { intToBlob } from "./encode";
 
 test("intToBlob handles small positive integer", () => {
   const value = 101n;
