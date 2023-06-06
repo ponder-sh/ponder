@@ -260,3 +260,37 @@ test("findMany() returns multiple records", async (context) => {
 
   await userStore.teardown();
 });
+
+test("findMany() sorts on BigInt field", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    id: "id1",
+    data: { name: "Skip", bigAge: 105n },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    id: "id2",
+    data: { name: "Foo", bigAge: 10n },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    id: "id3",
+    data: { name: "Bar", bigAge: 190n },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    id: "id4",
+    data: { name: "Patch" },
+  });
+
+  const instances = await userStore.findMany({
+    modelName: "Pet",
+    filter: { orderBy: "bigAge" },
+  });
+  expect(instances.map((i) => i.bigAge)).toMatchObject([null, 10n, 105n, 190n]);
+
+  await userStore.teardown();
+});

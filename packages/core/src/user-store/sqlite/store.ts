@@ -2,7 +2,8 @@ import type Sqlite from "better-sqlite3";
 import { randomBytes } from "crypto";
 import { Kysely, sql, SqliteDialect } from "kysely";
 
-import { FieldKind, Schema } from "@/schema/types";
+import { type Schema, FieldKind } from "@/schema/types";
+import { blobToBigInt } from "@/utils/decode";
 
 import type { ModelFilter, ModelInstance, UserStore } from "../store";
 import {
@@ -10,8 +11,16 @@ import {
   formatModelFieldValue,
   formatModelInstance,
   getWhereOperatorAndValue,
-  gqlScalarToSqlType,
 } from "../utils";
+
+const gqlScalarToSqlType = {
+  Boolean: "integer",
+  Int: "integer",
+  String: "text",
+  BigInt: "blob",
+  Bytes: "text",
+  Float: "text",
+} as const;
 
 export class SqliteUserStore implements UserStore {
   db: Kysely<any>;
@@ -144,7 +153,7 @@ export class SqliteUserStore implements UserStore {
     const instance = await this.db
       .selectFrom(tableName)
       .selectAll()
-      .where("id", "=", id)
+      .where("id", "=", formatModelFieldValue({ value: id }))
       .executeTakeFirst();
 
     return instance ? this.deserializeInstance({ modelName, instance }) : null;
@@ -317,7 +326,9 @@ export class SqliteUserStore implements UserStore {
         field.kind === FieldKind.SCALAR &&
         field.scalarTypeName === "BigInt"
       ) {
-        deserializedInstance[field.name] = BigInt(value);
+        deserializedInstance[field.name] = blobToBigInt(
+          value as unknown as Buffer
+        );
         return;
       }
 

@@ -1,13 +1,6 @@
-import { ModelInstance } from "./store";
+import { intToBlob } from "@/utils/encode";
 
-export const gqlScalarToSqlType = {
-  Boolean: "integer" as const,
-  Int: "integer" as const,
-  String: "text" as const,
-  BigInt: "text" as const,
-  Bytes: "text" as const,
-  Float: "text" as const,
-} as const;
+import { ModelInstance } from "./store";
 
 export const filterTypes = {
   // universal
@@ -133,7 +126,7 @@ export function formatModelFieldValue({ value }: { value: unknown }) {
   if (typeof value === "boolean") {
     return value ? 1 : 0;
   } else if (typeof value === "bigint") {
-    return value.toString();
+    return intToBlob(value);
   } else if (typeof value === "undefined") {
     return null;
   } else if (Array.isArray(value)) {
@@ -150,7 +143,9 @@ export function formatModelInstance({
   id: string | number | bigint;
   data: Partial<Omit<ModelInstance, "id">>;
 }) {
-  const instance: ModelInstance = { id };
+  const instance: { [key: string]: string | number | null | Buffer } = {};
+
+  instance["id"] = formatModelFieldValue({ value: id });
 
   Object.entries(data).forEach(([key, value]) => {
     instance[key] = formatModelFieldValue({ value });

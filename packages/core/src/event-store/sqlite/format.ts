@@ -8,27 +8,27 @@ import {
 } from "viem";
 import { Address, Hash, Hex } from "viem";
 
+import { intToBlob } from "@/utils/encode";
+
 type BlocksTable = {
-  baseFeePerGas: Hex | null; // BigInt
-  difficulty: Hex; // BigInt
+  baseFeePerGas: Buffer | null; // BigInt
+  difficulty: Buffer; // BigInt
   extraData: Hex;
-  gasLimit: Hex; // BigInt
-  gasUsed: Hex; // BigInt
+  gasLimit: Buffer; // BigInt
+  gasUsed: Buffer; // BigInt
   hash: Hash;
   logsBloom: Hex;
   miner: Address;
   mixHash: Hash;
   nonce: Hex;
-  number: Hex; // BigInt
+  number: Buffer; // BigInt
   parentHash: Hash;
   receiptsRoot: Hex;
   sha3Uncles: Hash;
-  size: Hex; // BigInt
+  size: Buffer; // BigInt
   stateRoot: Hash;
-  // NOTE: Should be a `bigint` to match viem, but using `number`
-  // to make comparison operators work in store.getLogEvents.
-  timestamp: number;
-  totalDifficulty: Hex; // BigInt
+  timestamp: Buffer; // BigInt
+  totalDifficulty: Buffer; // BigInt
   transactionsRoot: Hash;
 
   chainId: number;
@@ -41,33 +41,33 @@ export function rpcToSqliteBlock(
   block: RpcBlock
 ): Omit<InsertableBlock, "chainId" | "finalized"> {
   return {
-    baseFeePerGas: block.baseFeePerGas,
-    difficulty: block.difficulty,
+    baseFeePerGas: block.baseFeePerGas ? intToBlob(block.baseFeePerGas) : null,
+    difficulty: intToBlob(block.difficulty),
     extraData: block.extraData,
-    gasLimit: block.gasLimit,
-    gasUsed: block.gasUsed,
+    gasLimit: intToBlob(block.gasLimit),
+    gasUsed: intToBlob(block.gasUsed),
     hash: block.hash!,
     logsBloom: block.logsBloom!,
     miner: block.miner,
     mixHash: block.mixHash,
     nonce: block.nonce!,
-    number: block.number!,
+    number: intToBlob(block.number!),
     parentHash: block.parentHash,
     receiptsRoot: block.receiptsRoot,
     sha3Uncles: block.sha3Uncles,
-    size: block.size,
+    size: intToBlob(block.size),
     stateRoot: block.stateRoot,
-    timestamp: hexToNumber(block.timestamp),
-    totalDifficulty: block.totalDifficulty!,
+    timestamp: intToBlob(block.timestamp),
+    totalDifficulty: intToBlob(block.totalDifficulty!),
     transactionsRoot: block.transactionsRoot,
   };
 }
 
 type TransactionsTable = {
   blockHash: Hash;
-  blockNumber: Hex; // BigInt
+  blockNumber: Buffer; // BigInt
   from: Address;
-  gas: Hex; // BigInt
+  gas: Buffer; // BigInt
   hash: Hash;
   input: Hex;
   nonce: number;
@@ -75,13 +75,13 @@ type TransactionsTable = {
   s: Hex;
   to: Address | null;
   transactionIndex: number;
-  v: Hex; // BigInt
-  value: Hex; // BigInt
+  v: Buffer; // BigInt
+  value: Buffer; // BigInt
 
   type: "legacy" | "eip2930" | "eip1559";
-  gasPrice: Hex | null; // BigInt
-  maxFeePerGas: Hex | null; // BigInt
-  maxPriorityFeePerGas: Hex | null; // BigInt
+  gasPrice: Buffer | null; // BigInt
+  maxFeePerGas: Buffer | null; // BigInt
+  maxPriorityFeePerGas: Buffer | null; // BigInt
   accessList: string | null;
 
   chainId: number;
@@ -98,22 +98,26 @@ export function rpcToSqliteTransaction(
       ? JSON.stringify(transaction.accessList)
       : undefined,
     blockHash: transaction.blockHash!,
-    blockNumber: transaction.blockNumber!,
+    blockNumber: intToBlob(transaction.blockNumber!),
     from: transaction.from,
-    gas: transaction.gas,
-    gasPrice: transaction.gasPrice,
+    gas: intToBlob(transaction.gas),
+    gasPrice: transaction.gasPrice ? intToBlob(transaction.gasPrice) : null,
     hash: transaction.hash,
     input: transaction.input,
-    maxFeePerGas: transaction.maxFeePerGas,
-    maxPriorityFeePerGas: transaction.maxPriorityFeePerGas,
+    maxFeePerGas: transaction.maxFeePerGas
+      ? intToBlob(transaction.maxFeePerGas)
+      : null,
+    maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
+      ? intToBlob(transaction.maxPriorityFeePerGas)
+      : null,
     nonce: hexToNumber(transaction.nonce),
     r: transaction.r,
     s: transaction.s,
     to: transaction.to ? transaction.to : null,
     transactionIndex: Number(transaction.transactionIndex),
     type: transactionType[transaction.type],
-    value: transaction.value,
-    v: transaction.v,
+    value: intToBlob(transaction.value),
+    v: intToBlob(transaction.v),
   };
 }
 
@@ -121,7 +125,7 @@ type LogsTable = {
   id: string;
   address: Address;
   blockHash: Hash;
-  blockNumber: Hex; // BigInt
+  blockNumber: Buffer; // BigInt
   data: Hex;
   logIndex: number;
   transactionHash: Hash;
@@ -146,7 +150,7 @@ export function rpcToSqliteLog({
   return {
     address: log.address,
     blockHash: log.blockHash!,
-    blockNumber: log.blockNumber!,
+    blockNumber: intToBlob(log.blockNumber!),
     data: log.data,
     id: `${log.blockHash}-${log.logIndex}`,
     logIndex: Number(log.logIndex!),
@@ -161,7 +165,7 @@ export function rpcToSqliteLog({
 
 type ContractReadResultsTable = {
   address: string;
-  blockNumber: string;
+  blockNumber: Buffer; // BigInt
   chainId: number;
   data: Hex;
   finalized: number; // Boolean (0 or 1).
@@ -171,9 +175,9 @@ type ContractReadResultsTable = {
 type LogFilterCachedRangesTable = {
   id: Generated<number>;
   filterKey: string;
-  startBlock: Hex; // BigInt
-  endBlock: Hex; // BigInt
-  endBlockTimestamp: Hex; // BigInt
+  startBlock: Buffer; // BigInt
+  endBlock: Buffer; // BigInt
+  endBlockTimestamp: Buffer; // BigInt
 };
 
 export type LogFilterCachedRange = Omit<

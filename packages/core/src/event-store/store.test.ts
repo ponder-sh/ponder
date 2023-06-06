@@ -1,7 +1,8 @@
-import { hexToNumber, RpcBlock, RpcLog, RpcTransaction, toHex } from "viem";
+import { hexToNumber, RpcBlock, RpcLog, RpcTransaction } from "viem";
 import { expect, test } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
+import { blobToBigInt } from "@/utils/decode";
 
 /**
  * This test suite uses the `store` object injected during setup.
@@ -786,6 +787,75 @@ test("insertFinalizedBlock returns the startingRangeEndTimestamp", async (contex
   expect(startingRangeEndTimestamp2).toBe(hexToNumber(blockTwo.timestamp));
 });
 
+test("finalizeData updates unfinalized blocks", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  await eventStore.finalizeData({
+    chainId: 1,
+    toBlockNumber: hexToNumber(blockOne.number!),
+  });
+
+  const blocks = await eventStore.db
+    .selectFrom("blocks")
+    .select(["hash", "finalized"])
+    .execute();
+
+  expect(blocks.find((b) => b.hash === blockOne.hash)?.finalized).toBe(1);
+  expect(blocks.find((b) => b.hash === blockTwo.hash)?.finalized).toBe(0);
+});
+
+test("finalizeData updates unfinalized logs", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  await eventStore.finalizeData({
+    chainId: 1,
+    toBlockNumber: hexToNumber(blockOne.number!),
+  });
+
+  const logs = await eventStore.db
+    .selectFrom("logs")
+    .select(["blockNumber", "finalized"])
+    .execute();
+
+  logs.forEach((log) => {
+    if (
+      Number(blobToBigInt(log.blockNumber)) <= hexToNumber(blockOne.number!)
+    ) {
+      expect(log.finalized).toEqual(1);
+    } else {
+      expect(log.finalized).toEqual(0);
+    }
+  });
+});
+
 test("insertContractReadResult inserts a contract call", async (context) => {
   const { eventStore } = context;
 
@@ -808,7 +878,6 @@ test("insertContractReadResult inserts a contract call", async (context) => {
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
-    blockNumber: toHex(100n),
     finalized: 0,
     result: "0x789",
   });

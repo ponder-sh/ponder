@@ -2,7 +2,7 @@
  * I modified the SO impl to handle [inclusive, inclusive] intervals.
  * From: https://stackoverflow.com/a/26391774/12841788
  */
-export function merge_intervals(intervals: number[][]) {
+export function mergeIntervals(intervals: number[][]) {
   intervals.sort((a, b) => a[0] - b[0]);
   const result: number[][] = [];
   let last: number[];

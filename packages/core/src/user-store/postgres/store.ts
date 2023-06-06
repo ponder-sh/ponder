@@ -3,6 +3,7 @@ import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
 import { type Schema, FieldKind } from "@/schema/types";
+import { blobToBigInt } from "@/utils/decode";
 
 import type { ModelFilter, ModelInstance, UserStore } from "../store";
 import {
@@ -10,8 +11,16 @@ import {
   formatModelFieldValue,
   formatModelInstance,
   getWhereOperatorAndValue,
-  gqlScalarToSqlType,
 } from "../utils";
+
+const gqlScalarToSqlType = {
+  Boolean: "integer",
+  Int: "integer",
+  String: "text",
+  BigInt: sql`bytea`,
+  Bytes: "text",
+  Float: "text",
+} as const;
 
 export class PostgresUserStore implements UserStore {
   db: Kysely<any>;
@@ -164,7 +173,7 @@ export class PostgresUserStore implements UserStore {
     const instance = await this.db
       .selectFrom(tableName)
       .selectAll()
-      .where("id", "=", id)
+      .where("id", "=", formatModelFieldValue({ value: id }))
       .executeTakeFirst();
 
     return instance ? this.deserializeInstance({ modelName, instance }) : null;
@@ -295,7 +304,12 @@ export class PostgresUserStore implements UserStore {
       query = query.limit(first);
     }
     if (orderBy) {
-      query = query.orderBy(orderBy, orderDirection);
+      query = query.orderBy(
+        orderBy,
+        orderDirection === "asc" || orderDirection === undefined
+          ? sql`asc nulls first`
+          : sql`desc nulls last`
+      );
     }
 
     const instances = await query.execute();
@@ -336,7 +350,9 @@ export class PostgresUserStore implements UserStore {
         field.kind === FieldKind.SCALAR &&
         field.scalarTypeName === "BigInt"
       ) {
-        deserializedInstance[field.name] = BigInt(value);
+        deserializedInstance[field.name] = blobToBigInt(
+          value as unknown as Buffer
+        );
         return;
       }
 

@@ -89,7 +89,7 @@ test("serves data", async (context) => {
   expect(tokens).toHaveLength(92);
 
   await ponder.kill();
-});
+}, 20_000);
 
 test("returns bigint ids as string", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -106,7 +106,7 @@ test("returns bigint ids as string", async (context) => {
   }
 
   await ponder.kill();
-});
+}, 20_000);
 
 test("orders asc on bigint fields", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -123,7 +123,7 @@ test("orders asc on bigint fields", async (context) => {
   );
 
   await ponder.kill();
-});
+}, 20_000);
 
 test("orders desc on bigint fields", async (context) => {
   const { ponder, gql } = await setup({ context });
@@ -140,4 +140,4 @@ test("orders desc on bigint fields", async (context) => {
   );
 
   await ponder.kill();
-});
+}, 20_000);

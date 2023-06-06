@@ -183,7 +183,7 @@ describe("create-ponder", () => {
       });
     });
 
-    describe.only("mainnet EIP-1967 proxy (USDC)", () => {
+    describe("mainnet EIP-1967 proxy (USDC)", () => {
       const rootDir = path.join(tmpDir, randomUUID());
 
       beforeAll(async () => {

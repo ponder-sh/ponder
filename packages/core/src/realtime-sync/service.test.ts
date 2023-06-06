@@ -6,6 +6,7 @@ import { publicClient, testClient, walletClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
+import { blobToBigInt } from "@/utils/decode";
 import { range } from "@/utils/range";
 
 import { RealtimeSyncService } from "./service";
@@ -240,7 +241,10 @@ test("marks block data as finalized", async (context) => {
 
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
   blocks.forEach((block) => {
-    if (Number(block.number) <= originalFinalizedBlockNumber + 5) {
+    if (
+      Number(blobToBigInt(block.number)) <=
+      originalFinalizedBlockNumber + 5
+    ) {
       expect(Number(block.finalized)).toEqual(1);
     } else {
       expect(Number(block.finalized)).toEqual(0);
