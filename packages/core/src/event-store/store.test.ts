@@ -1,4 +1,4 @@
-import { hexToNumber, RpcBlock, RpcLog, RpcTransaction, toHex } from "viem";
+import { hexToNumber, RpcBlock, RpcLog, RpcTransaction } from "viem";
 import { expect, test } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
@@ -808,7 +808,6 @@ test("insertContractReadResult inserts a contract call", async (context) => {
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
-    blockNumber: toHex(100n),
     finalized: 0,
     result: "0x789",
   });
