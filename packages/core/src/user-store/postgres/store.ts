@@ -3,6 +3,7 @@ import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
 import { type Schema, FieldKind } from "@/schema/types";
+import { blobToBigInt } from "@/utils/decode";
 
 import type { ModelFilter, ModelInstance, UserStore } from "../store";
 import {
@@ -164,7 +165,7 @@ export class PostgresUserStore implements UserStore {
     const instance = await this.db
       .selectFrom(tableName)
       .selectAll()
-      .where("id", "=", id)
+      .where("id", "=", formatModelFieldValue({ value: id }))
       .executeTakeFirst();
 
     return instance ? this.deserializeInstance({ modelName, instance }) : null;
@@ -336,7 +337,9 @@ export class PostgresUserStore implements UserStore {
         field.kind === FieldKind.SCALAR &&
         field.scalarTypeName === "BigInt"
       ) {
-        deserializedInstance[field.name] = BigInt(value);
+        deserializedInstance[field.name] = blobToBigInt(
+          value as unknown as Buffer
+        );
         return;
       }
 
