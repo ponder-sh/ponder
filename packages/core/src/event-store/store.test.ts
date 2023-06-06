@@ -818,7 +818,7 @@ test("finalizeData updates unfinalized blocks", async (context) => {
   expect(blocks.find((b) => b.hash === blockTwo.hash)?.finalized).toBe(0);
 });
 
-test.only("finalizeData updates unfinalized logs", async (context) => {
+test("finalizeData updates unfinalized logs", async (context) => {
   const { eventStore } = context;
 
   await eventStore.insertUnfinalizedBlock({
