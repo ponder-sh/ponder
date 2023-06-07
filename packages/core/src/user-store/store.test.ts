@@ -37,18 +37,65 @@ test("reload() binds the schema", async (context) => {
   await userStore.teardown();
 });
 
-test("create() inserts a record", async (context) => {
+test("create() inserts a record that is effective after timestamp", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
 
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 25,
+    id: "id1",
+  });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await userStore.teardown();
+});
+
+test("create() inserts a record that is effective at timestamp", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const instance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+  });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await userStore.teardown();
+});
+
+test("create() inserts a record that is not effective before timestamp", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  const instance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 8,
+    id: "id1",
+  });
+  expect(instance).toBeNull();
 
   await userStore.teardown();
 });
@@ -59,6 +106,7 @@ test("create() throws on unique constraint violation", async (context) => {
 
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -66,6 +114,7 @@ test("create() throws on unique constraint violation", async (context) => {
   await expect(() =>
     userStore.create({
       modelName: "Pet",
+      timestamp: 15,
       id: "id1",
       data: { name: "Skip", age: 13 },
     })
@@ -80,11 +129,16 @@ test("create() respects optional fields", async (context) => {
 
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     data: { name: "Skip" },
   });
 
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 11,
+    id: "id1",
+  });
 
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: null });
 
@@ -97,11 +151,16 @@ test("create() accepts enums", async (context) => {
 
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     data: { name: "Skip", kind: "CAT" },
   });
 
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 11,
+    id: "id1",
+  });
 
   expect(instance).toMatchObject({ id: "id1", name: "Skip", kind: "CAT" });
 
@@ -115,6 +174,7 @@ test("create() throws on invalid enum value", async (context) => {
   await expect(() =>
     userStore.create({
       modelName: "Pet",
+      timestamp: 10,
       id: "id1",
       data: { name: "Skip", kind: "NOTACAT" },
     })
@@ -129,32 +189,42 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
 
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
 
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+  });
 
   expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
 
   await userStore.teardown();
 });
 
-test("update() updates the record", async (context) => {
+test("update() updates a record", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
 
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
 
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await userStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
 
   await userStore.update({
     modelName: "Pet",
+    timestamp: 11,
     id: "id1",
     data: { name: "Peanut Butter" },
   });
@@ -168,12 +238,95 @@ test("update() updates the record", async (context) => {
   await userStore.teardown();
 });
 
-test("upsert() inserts a record", async (context) => {
+test("update() updates a record and maintains older version", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", bigAge: 100n },
+  });
+
+  await userStore.update({
+    modelName: "Pet",
+    timestamp: 11,
+    id: "id1",
+    data: { name: "Peanut Butter" },
+  });
+
+  const originalInstance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+  });
+  expect(originalInstance).toMatchObject({
+    id: "id1",
+    name: "Skip",
+    bigAge: 100n,
+  });
+
+  await userStore.teardown();
+});
+
+test("update() throws if trying to update an instance in the past", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip" },
+  });
+
+  await expect(() =>
+    userStore.update({
+      modelName: "Pet",
+      timestamp: 8,
+      id: "id1",
+      data: { name: "Peanut Butter" },
+    })
+  ).rejects.toThrow();
+
+  await userStore.teardown();
+});
+
+test("update() updates a record in-place within the same timestamp", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip" },
+  });
+
+  await userStore.update({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Peanut Butter" },
+  });
+
+  const updatedInstance = await userStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
+  expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
+
+  await userStore.teardown();
+});
+
+test("upsert() inserts a new record", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
 
   await userStore.upsert({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     create: { name: "Skip", age: 12 },
   });
@@ -190,6 +343,7 @@ test("upsert() updates a record", async (context) => {
 
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -198,6 +352,7 @@ test("upsert() updates a record", async (context) => {
 
   await userStore.upsert({
     modelName: "Pet",
+    timestamp: 12,
     id: "id1",
     create: { name: "Skip", age: 24 },
     update: { name: "Jelly" },
@@ -212,19 +367,72 @@ test("upsert() updates a record", async (context) => {
   await userStore.teardown();
 });
 
+test("upsert() throws if trying to update an instance in the past", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip" },
+  });
+
+  await expect(() =>
+    userStore.upsert({
+      modelName: "Pet",
+      timestamp: 8,
+      id: "id1",
+      create: { name: "Jelly" },
+      update: { name: "Peanut Butter" },
+    })
+  ).rejects.toThrow();
+
+  await userStore.teardown();
+});
+
+test("upsert() updates a record in-place within the same timestamp", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip" },
+  });
+
+  await userStore.upsert({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    create: { name: "Jelly" },
+    update: { name: "Peanut Butter" },
+  });
+
+  const updatedInstance = await userStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
+  expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
+
+  await userStore.teardown();
+});
+
 test("delete() removes a record", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
 
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
   const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
-  await userStore.delete({ modelName: "Pet", id: "id1" });
+  await userStore.delete({ modelName: "Pet", timestamp: 15, id: "id1" });
 
   const deletedInstance = await userStore.findUnique({
     modelName: "Pet",
@@ -235,28 +443,90 @@ test("delete() removes a record", async (context) => {
   await userStore.teardown();
 });
 
-test("findMany() returns multiple records", async (context) => {
+test("delete() retains older version of record", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
 
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
+
+  await userStore.delete({ modelName: "Pet", timestamp: 15, id: "id1" });
+
+  const deletedInstance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 12,
+    id: "id1",
+  });
+  expect(deletedInstance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await userStore.teardown();
+});
+
+test("delete() removes a record entirely if only present for one timestamp", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await userStore.delete({ modelName: "Pet", timestamp: 10, id: "id1" });
+
+  const deletedInstance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+  });
+  expect(deletedInstance).toBe(null);
+
+  await userStore.teardown();
+});
+
+test("findMany() returns current versions of all records", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 8,
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+  await userStore.update({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "SkipUpdated" },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
     id: "id2",
     data: { name: "Foo" },
   });
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id3",
     data: { name: "Bar", bigAge: 100n },
   });
 
   const instances = await userStore.findMany({ modelName: "Pet" });
   expect(instances).toHaveLength(3);
+  expect(instances.map((i) => i.name)).toMatchObject([
+    "SkipUpdated",
+    "Foo",
+    "Bar",
+  ]);
 
   await userStore.teardown();
 });
@@ -267,21 +537,25 @@ test("findMany() sorts on BigInt field", async (context) => {
 
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id1",
     data: { name: "Skip", bigAge: 105n },
   });
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id2",
     data: { name: "Foo", bigAge: 10n },
   });
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id3",
     data: { name: "Bar", bigAge: 190n },
   });
   await userStore.create({
     modelName: "Pet",
+    timestamp: 10,
     id: "id4",
     data: { name: "Patch" },
   });

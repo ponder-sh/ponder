@@ -77,7 +77,8 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private eventProcessingMutex: Mutex;
   private eventsHandledToTimestamp = 0;
 
-  private currentLogEventBlockNumber = 0n;
+  private currentEventBlockNumber = 0n;
+  private currentEventTimestamp = 0;
 
   constructor({
     resources,
@@ -107,7 +108,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.contracts.forEach((contract) => {
       this.injectedContracts[contract.name] = getInjectedContract({
         contract,
-        getCurrentBlockNumber: () => this.currentLogEventBlockNumber,
+        getCurrentBlockNumber: () => this.currentEventBlockNumber,
         eventStore: this.eventStore,
       });
     });
@@ -291,7 +292,8 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
           // This enables contract calls occurring within the
           // handler code to use the event block number by default.
-          this.currentLogEventBlockNumber = event.block.number;
+          this.currentEventBlockNumber = event.block.number;
+          this.currentEventTimestamp = Number(event.block.timestamp);
 
           try {
             // Running user code here!
@@ -357,19 +359,45 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       const modelName = entity.name;
 
       models[modelName] = {
-        findUnique: ({ id }) => this.userStore.findUnique({ modelName, id }),
-        create: ({ id, data }) =>
-          this.userStore.create({ modelName, id, data }),
-        update: ({ id, data }) =>
-          this.userStore.update({ modelName, id, data }),
-        upsert: ({ id, create, update }) =>
-          this.userStore.upsert({
+        findUnique: ({ id }) => {
+          return this.userStore.findUnique({
             modelName,
+            timestamp: this.currentEventTimestamp,
+            id,
+          });
+        },
+        create: ({ id, data }) => {
+          return this.userStore.create({
+            modelName,
+            timestamp: this.currentEventTimestamp,
+            id,
+            data,
+          });
+        },
+        update: ({ id, data }) => {
+          return this.userStore.update({
+            modelName,
+            timestamp: this.currentEventTimestamp,
+            id,
+            data,
+          });
+        },
+        upsert: ({ id, create, update }) => {
+          return this.userStore.upsert({
+            modelName,
+            timestamp: this.currentEventTimestamp,
             id,
             create,
             update,
-          }),
-        delete: ({ id }) => this.userStore.delete({ modelName, id }),
+          });
+        },
+        delete: ({ id }) => {
+          return this.userStore.delete({
+            modelName,
+            timestamp: this.currentEventTimestamp,
+            id,
+          });
+        },
       };
     });
 
