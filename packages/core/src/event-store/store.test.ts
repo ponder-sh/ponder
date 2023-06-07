@@ -235,373 +235,6 @@ test("insertUnfinalizedBlock inserts logs", async (context) => {
   expect(logs).toHaveLength(2);
 });
 
-test("getLogEvents returns log events", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
-  });
-
-  const logEvents = await eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [{ chainId: 1 }],
-  });
-  expect(logEvents[0].chainId).toEqual(1);
-
-  expect(logEvents[0].log).toMatchInlineSnapshot(`
-    {
-      "address": "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
-      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 15131999n,
-      "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
-      "id": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd-0x6c",
-      "logIndex": 108,
-      "removed": false,
-      "topics": [
-        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-        "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
-        "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
-      ],
-      "transactionHash": "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-      "transactionIndex": 69,
-    }
-  `);
-
-  expect(logEvents[0].block).toMatchInlineSnapshot(`
-    {
-      "baseFeePerGas": 0n,
-      "difficulty": 12730590371363483n,
-      "extraData": "0x",
-      "gasLimit": 29999943n,
-      "gasUsed": 0n,
-      "hash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-      "miner": "0x0000000000000000000000000000000000000000",
-      "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "nonce": "0x0000000000000000",
-      "number": 15495110n,
-      "parentHash": "0xe55516ad8029e53cd32087f14653d851401b05245abb1b2d6ed4ddcc597ac5a6",
-      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-      "size": 520n,
-      "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "timestamp": 1662619503n,
-      "totalDifficulty": 58750003716598352816469n,
-      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-    }
-  `);
-
-  expect(logEvents[0].transaction).toMatchInlineSnapshot(`
-    {
-      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 69420n,
-      "from": "0x1",
-      "gas": 69420420n,
-      "gasPrice": 69n,
-      "hash": "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-      "input": "0x1",
-      "nonce": 1,
-      "r": "0x1",
-      "s": "0x1",
-      "to": "0x1",
-      "transactionIndex": 1,
-      "type": "legacy",
-      "v": 1n,
-      "value": 1n,
-    }
-  `);
-
-  expect(logEvents[1].log).toMatchInlineSnapshot(`
-    {
-      "address": "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
-      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 15131999n,
-      "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
-      "id": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd-0x6d",
-      "logIndex": 109,
-      "removed": false,
-      "topics": [],
-      "transactionHash": "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-      "transactionIndex": 70,
-    }
-  `);
-
-  expect(logEvents[1].block).toMatchInlineSnapshot(`
-    {
-      "baseFeePerGas": 0n,
-      "difficulty": 12730590371363483n,
-      "extraData": "0x",
-      "gasLimit": 29999943n,
-      "gasUsed": 0n,
-      "hash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-      "miner": "0x0000000000000000000000000000000000000000",
-      "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "nonce": "0x0000000000000000",
-      "number": 15495110n,
-      "parentHash": "0xe55516ad8029e53cd32087f14653d851401b05245abb1b2d6ed4ddcc597ac5a6",
-      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-      "size": 520n,
-      "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "timestamp": 1662619503n,
-      "totalDifficulty": 58750003716598352816469n,
-      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-    }
-  `);
-
-  expect(logEvents[1].transaction).toMatchInlineSnapshot(`
-    {
-      "accessList": [
-        {
-          "address": "0x1",
-          "storageKeys": [
-            "0x1",
-          ],
-        },
-      ],
-      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 69420n,
-      "from": "0x1",
-      "gas": 69420420n,
-      "gasPrice": 69n,
-      "hash": "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-      "input": "0x1",
-      "nonce": 1,
-      "r": "0x1",
-      "s": "0x1",
-      "to": "0x1",
-      "transactionIndex": 1,
-      "type": "eip2930",
-      "v": 1n,
-      "value": 1n,
-    }
-  `);
-});
-
-test("getLogEvents filters on log address", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
-  });
-
-  const logEvents = await eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [{ chainId: 1, address: blockOneLogs[0].address }],
-  });
-
-  expect(logEvents[0].log.address).toBe(blockOneLogs[0].address);
-  expect(logEvents).toHaveLength(1);
-});
-
-test("getLogEvents filters on multiple log addresses", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
-  });
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
-  });
-
-  const logEvents = await eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [
-      {
-        chainId: 1,
-        address: [blockOneLogs[0].address, blockOneLogs[1].address],
-      },
-    ],
-  });
-
-  expect(logEvents.map((e) => e.log.address)).toMatchObject([
-    blockOneLogs[0].address,
-    blockOneLogs[1].address,
-  ]);
-  expect(logEvents).toHaveLength(2);
-});
-
-test("getLogEvents filters on single topic", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
-  });
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
-  });
-
-  const logEvents = await eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [
-      {
-        chainId: 1,
-        topics: [blockOneLogs[0].topics[0] as `0x${string}`],
-      },
-    ],
-  });
-
-  expect(logEvents.map((e) => e.log.topics)).toMatchObject([
-    blockOneLogs[0].topics,
-    blockTwoLogs[0].topics,
-  ]);
-  expect(logEvents).toHaveLength(2);
-});
-
-test("getLogEvents filters on multiple topics", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
-  });
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
-  });
-
-  const logEvents = await eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [
-      {
-        chainId: 1,
-        topics: [
-          blockOneLogs[0].topics[0] as `0x${string}`,
-          blockOneLogs[0].topics[1] as `0x${string}`,
-        ],
-      },
-    ],
-  });
-
-  expect(logEvents[0].log.topics).toMatchObject(blockOneLogs[0].topics);
-  expect(logEvents).toHaveLength(1);
-});
-
-test("getLogEvents filters on multiple filters", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
-  });
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
-  });
-
-  const logEvents = await eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [
-      {
-        chainId: 1,
-        address: blockOneLogs[0].address,
-      },
-      {
-        chainId: 1,
-        topics: [blockTwoLogs[0].topics[0] as `0x${string}`],
-      },
-    ],
-  });
-
-  expect(logEvents[0].log.topics).toMatchObject(blockOneLogs[0].topics);
-  expect(logEvents[1].log.topics).toMatchObject(blockTwoLogs[0].topics);
-  expect(logEvents).toHaveLength(2);
-});
-
-test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
-  });
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
-  });
-
-  const logEvents = await eventStore.getLogEvents({
-    fromTimestamp: hexToNumber(blockTwo.timestamp!),
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [{ chainId: 1 }],
-  });
-
-  expect(logEvents[0].block.hash).toBe(blockTwo.hash);
-  expect(logEvents).toHaveLength(1);
-});
-
-test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
-  });
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
-  });
-
-  const logEvents = await eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: hexToNumber(blockOne.timestamp!),
-    filters: [{ chainId: 1 }],
-  });
-
-  expect(logEvents.map((e) => e.block.hash)).toMatchObject([
-    blockOne.hash,
-    blockOne.hash,
-  ]);
-  expect(logEvents).toHaveLength(2);
-});
-
 test("insertFinalizedLogs inserts logs as finalized", async (context) => {
   const { eventStore } = context;
 
@@ -976,4 +609,478 @@ test("getContractReadResult returns null if not found", async (context) => {
   });
 
   expect(contractReadResult).toBe(null);
+});
+
+test("getLogEvents returns log events", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  const { events } = await eventStore.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [{ name: "noFilter", chainId: 1 }],
+  });
+  expect(events[0].filterName).toEqual("noFilter");
+
+  expect(events[0].log).toMatchInlineSnapshot(`
+    {
+      "address": "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+      "blockNumber": 15131999n,
+      "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
+      "id": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd-0x6c",
+      "logIndex": 108,
+      "removed": false,
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
+        "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
+      ],
+      "transactionHash": "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+      "transactionIndex": 69,
+    }
+  `);
+
+  expect(events[0].block).toMatchInlineSnapshot(`
+    {
+      "baseFeePerGas": 0n,
+      "difficulty": 12730590371363483n,
+      "extraData": "0x",
+      "gasLimit": 29999943n,
+      "gasUsed": 0n,
+      "hash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "miner": "0x0000000000000000000000000000000000000000",
+      "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "nonce": "0x0000000000000000",
+      "number": 15495110n,
+      "parentHash": "0xe55516ad8029e53cd32087f14653d851401b05245abb1b2d6ed4ddcc597ac5a6",
+      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+      "size": 520n,
+      "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": 1662619503n,
+      "totalDifficulty": 58750003716598352816469n,
+      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+    }
+  `);
+
+  expect(events[0].transaction).toMatchInlineSnapshot(`
+    {
+      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+      "blockNumber": 69420n,
+      "from": "0x1",
+      "gas": 69420420n,
+      "gasPrice": 69n,
+      "hash": "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+      "input": "0x1",
+      "nonce": 1,
+      "r": "0x1",
+      "s": "0x1",
+      "to": "0x1",
+      "transactionIndex": 1,
+      "type": "legacy",
+      "v": 1n,
+      "value": 1n,
+    }
+  `);
+
+  expect(events[1].log).toMatchInlineSnapshot(`
+    {
+      "address": "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+      "blockNumber": 15131999n,
+      "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
+      "id": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd-0x6d",
+      "logIndex": 109,
+      "removed": false,
+      "topics": [],
+      "transactionHash": "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+      "transactionIndex": 70,
+    }
+  `);
+
+  expect(events[1].block).toMatchInlineSnapshot(`
+    {
+      "baseFeePerGas": 0n,
+      "difficulty": 12730590371363483n,
+      "extraData": "0x",
+      "gasLimit": 29999943n,
+      "gasUsed": 0n,
+      "hash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "miner": "0x0000000000000000000000000000000000000000",
+      "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "nonce": "0x0000000000000000",
+      "number": 15495110n,
+      "parentHash": "0xe55516ad8029e53cd32087f14653d851401b05245abb1b2d6ed4ddcc597ac5a6",
+      "receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+      "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+      "size": 520n,
+      "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "timestamp": 1662619503n,
+      "totalDifficulty": 58750003716598352816469n,
+      "transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+    }
+  `);
+
+  expect(events[1].transaction).toMatchInlineSnapshot(`
+    {
+      "accessList": [
+        {
+          "address": "0x1",
+          "storageKeys": [
+            "0x1",
+          ],
+        },
+      ],
+      "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+      "blockNumber": 69420n,
+      "from": "0x1",
+      "gas": 69420420n,
+      "gasPrice": 69n,
+      "hash": "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+      "input": "0x1",
+      "nonce": 1,
+      "r": "0x1",
+      "s": "0x1",
+      "to": "0x1",
+      "transactionIndex": 1,
+      "type": "eip2930",
+      "v": 1n,
+      "value": 1n,
+    }
+  `);
+});
+
+test("getLogEvents filters on log address", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  const { events } = await eventStore.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [
+      { name: "singleAddress", chainId: 1, address: blockOneLogs[0].address },
+    ],
+  });
+
+  expect(events[0].log.address).toBe(blockOneLogs[0].address);
+  expect(events).toHaveLength(1);
+});
+
+test("getLogEvents filters on multiple addresses", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  const { events } = await eventStore.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [
+      {
+        name: "multipleAddress",
+        chainId: 1,
+        address: [blockOneLogs[0].address, blockOneLogs[1].address],
+      },
+    ],
+  });
+
+  expect(events[0]).toMatchObject({
+    filterName: "multipleAddress",
+    log: {
+      address: blockOneLogs[0].address,
+    },
+  });
+  expect(events[1]).toMatchObject({
+    filterName: "multipleAddress",
+    log: {
+      address: blockOneLogs[1].address,
+    },
+  });
+  expect(events).toHaveLength(2);
+});
+
+test("getLogEvents filters on single topic", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  const { events } = await eventStore.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [
+      {
+        name: "singleTopic",
+        chainId: 1,
+        topics: [blockOneLogs[0].topics[0] as `0x${string}`],
+      },
+    ],
+  });
+
+  expect(events[0]).toMatchObject({
+    filterName: "singleTopic",
+    log: {
+      topics: blockOneLogs[0].topics,
+    },
+  });
+  expect(events[1]).toMatchObject({
+    filterName: "singleTopic",
+    log: {
+      topics: blockTwoLogs[0].topics,
+    },
+  });
+  expect(events).toHaveLength(2);
+});
+
+test("getLogEvents filters on multiple topics", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  const { events } = await eventStore.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [
+      {
+        name: "multipleTopics",
+        chainId: 1,
+        topics: [
+          blockOneLogs[0].topics[0] as `0x${string}`,
+          blockOneLogs[0].topics[1] as `0x${string}`,
+        ],
+      },
+    ],
+  });
+
+  expect(events[0]).toMatchObject({
+    filterName: "multipleTopics",
+    log: {
+      topics: blockOneLogs[0].topics,
+    },
+  });
+  expect(events).toHaveLength(1);
+});
+
+test("getLogEvents filters on fromBlock", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  const { events } = await eventStore.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [
+      {
+        name: "fromBlock",
+        chainId: 1,
+        fromBlock: 15495111,
+      },
+    ],
+  });
+
+  expect(events[0]).toMatchObject({
+    filterName: "fromBlock",
+    block: {
+      number: 15495111n,
+    },
+  });
+  expect(events).toHaveLength(1);
+});
+
+test("getLogEvents filters on multiple filters", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  const { events } = await eventStore.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [
+      {
+        name: "singleAddress", // This should match blockOneLogs[0]
+        chainId: 1,
+        address: blockOneLogs[0].address,
+      },
+      {
+        name: "singleTopic", // This should match blockOneLogs[0] AND blockTwoLogs[0]
+        chainId: 1,
+        topics: [blockOneLogs[0].topics[0] as `0x${string}`],
+      },
+    ],
+  });
+
+  expect(events[0]).toMatchObject({
+    filterName: "singleAddress",
+    log: {
+      address: blockOneLogs[0].address,
+    },
+  });
+  expect(events[1]).toMatchObject({
+    filterName: "singleTopic",
+    log: {
+      address: blockOneLogs[0].address,
+    },
+  });
+  expect(events[2]).toMatchObject({
+    filterName: "singleTopic",
+    log: {
+      topics: blockTwoLogs[0].topics,
+    },
+  });
+});
+
+test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  const { events } = await eventStore.getLogEvents({
+    fromTimestamp: hexToNumber(blockTwo.timestamp!),
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [{ name: "noFilter", chainId: 1 }],
+  });
+
+  expect(events[0].block.hash).toBe(blockTwo.hash);
+  expect(events).toHaveLength(1);
+});
+
+test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  const { events } = await eventStore.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: hexToNumber(blockOne.timestamp!),
+    filters: [{ name: "noFilter", chainId: 1 }],
+  });
+
+  expect(events.map((e) => e.block.hash)).toMatchObject([
+    blockOne.hash,
+    blockOne.hash,
+  ]);
+  expect(events).toHaveLength(2);
+});
+
+test("getLogEvents returns no events if handledTopic0 is an empty array", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  const { events } = await eventStore.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    filters: [{ name: "noFilter", chainId: 1, handledTopic0: [] }],
+  });
+
+  expect(events).toHaveLength(0);
 });
