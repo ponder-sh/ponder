@@ -22,6 +22,8 @@ const gqlScalarToSqlType = {
   Float: "text",
 } as const;
 
+const MAX_INTEGER = 2_147_483_647 as const;
+
 export class PostgresUserStore implements UserStore {
   db: Kysely<any>;
 
@@ -92,7 +94,6 @@ export class PostgresUserStore implements UserStore {
                   gqlScalarToSqlType[field.scalarTypeName],
                   (col) => {
                     if (field.notNull) col = col.notNull();
-                    if (field.name === "id") col = col.primaryKey();
                     return col;
                   }
                 );
@@ -139,6 +140,24 @@ export class PostgresUserStore implements UserStore {
             }
           });
 
+          // Add the effective timestamp columns.
+          tableBuilder = tableBuilder.addColumn(
+            "effectiveFrom",
+            "integer",
+            (col) => col.notNull()
+          );
+          tableBuilder = tableBuilder.addColumn(
+            "effectiveTo",
+            "integer",
+            (col) => col.notNull()
+          );
+          tableBuilder = tableBuilder.addPrimaryKeyConstraint(
+            `${tableName}_id_effectiveTo_unique`,
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            ["id", "effectiveTo"]
+          );
+
           await tableBuilder.execute();
         })
       );
@@ -164,36 +183,55 @@ export class PostgresUserStore implements UserStore {
 
   findUnique = async ({
     modelName,
+    timestamp,
     id,
   }: {
     modelName: string;
+    timestamp?: number;
     id: string | number | bigint;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const instance = await this.db
+    const formattedId = formatModelFieldValue({ value: id });
+    const effectiveTimestamp = timestamp ?? MAX_INTEGER;
+
+    const instances = await this.db
       .selectFrom(tableName)
       .selectAll()
-      .where("id", "=", formatModelFieldValue({ value: id }))
-      .executeTakeFirst();
+      .where("id", "=", formattedId)
+      .where("effectiveFrom", "<=", effectiveTimestamp)
+      .where("effectiveTo", ">=", effectiveTimestamp)
+      .execute();
 
-    return instance ? this.deserializeInstance({ modelName, instance }) : null;
+    if (instances.length > 1) {
+      throw new Error(`Expected 1 instance, found ${instances.length}`);
+    }
+
+    return instances[0]
+      ? this.deserializeInstance({ modelName, instance: instances[0] })
+      : null;
   };
 
   create = async ({
     modelName,
+    timestamp,
     id,
     data = {},
   }: {
     modelName: string;
+    timestamp: number;
     id: string | number | bigint;
     data?: Omit<ModelInstance, "id">;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const formattedInstance = formatModelInstance({ id, data });
+    const createInstance = formatModelInstance({ id, data });
 
     const instance = await this.db
       .insertInto(tableName)
-      .values(formattedInstance)
+      .values({
+        ...createInstance,
+        effectiveFrom: timestamp,
+        effectiveTo: MAX_INTEGER,
+      })
       .returningAll()
       .executeTakeFirstOrThrow();
 
@@ -202,80 +240,204 @@ export class PostgresUserStore implements UserStore {
 
   update = async ({
     modelName,
+    timestamp,
     id,
     data = {},
   }: {
     modelName: string;
+    timestamp: number;
     id: string | number | bigint;
     data?: Partial<Omit<ModelInstance, "id">>;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const formattedInstance = formatModelInstance({ id, data });
+    const formattedId = formatModelFieldValue({ value: id });
+    const updateInstance = formatModelInstance({ id, data });
 
-    const instance = await this.db
-      .updateTable(tableName)
-      .set(formattedInstance)
-      .where("id", "=", formattedInstance.id)
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    const instance = await this.db.transaction().execute(async (tx) => {
+      // Find the latest version of this instance.
+      const latestInstance = await tx
+        .selectFrom(tableName)
+        .selectAll()
+        .where("id", "=", formattedId)
+        .orderBy("effectiveTo", "desc")
+        .executeTakeFirstOrThrow();
+
+      // If the latest version has the same effectiveFrom timestamp as the update,
+      // this update is occurring within the same block/second. Update in place.
+      if (latestInstance.effectiveFrom === timestamp) {
+        return await tx
+          .updateTable(tableName)
+          .set(updateInstance)
+          .where("id", "=", formattedId)
+          .where("effectiveFrom", "=", timestamp)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+      }
+
+      if (latestInstance.effectiveFrom > timestamp) {
+        throw new Error(`Cannot update an instance in the past`);
+      }
+
+      // If the latest version has an earlier effectiveFrom timestamp than the update,
+      // we need to update the latest version AND insert a new version.
+      await tx
+        .updateTable(tableName)
+        .set({ effectiveTo: timestamp - 1 })
+        .where("id", "=", formattedId)
+        .where("effectiveTo", "=", MAX_INTEGER)
+        .execute();
+
+      return await tx
+        .insertInto(tableName)
+        .values({
+          ...latestInstance,
+          ...updateInstance,
+          effectiveFrom: timestamp,
+          effectiveTo: MAX_INTEGER,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    });
 
     return this.deserializeInstance({ modelName, instance });
   };
 
   upsert = async ({
     modelName,
+    timestamp,
     id,
     create = {},
     update = {},
   }: {
     modelName: string;
+    timestamp: number;
     id: string | number | bigint;
     create?: Omit<ModelInstance, "id">;
     update?: Partial<Omit<ModelInstance, "id">>;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
+    const formattedId = formatModelFieldValue({ value: id });
     const createInstance = formatModelInstance({ id, data: create });
     const updateInstance = formatModelInstance({ id, data: update });
 
-    const instance = await this.db
-      .insertInto(tableName)
-      .values(createInstance)
-      .onConflict((oc) => oc.column("id").doUpdateSet(updateInstance))
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    const instance = await this.db.transaction().execute(async (tx) => {
+      // Attempt to find the latest version of this instance.
+      const latestInstance = await tx
+        .selectFrom(tableName)
+        .selectAll()
+        .where("id", "=", formattedId)
+        .orderBy("effectiveTo", "desc")
+        .executeTakeFirst();
+
+      // If there is no latest version, insert a new version using the create data.
+      if (!latestInstance) {
+        return await tx
+          .insertInto(tableName)
+          .values({
+            ...createInstance,
+            effectiveFrom: timestamp,
+            effectiveTo: MAX_INTEGER,
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow();
+      }
+
+      // If the latest version has the same effectiveFrom timestamp as the update,
+      // this update is occurring within the same block/second. Update in place.
+      if (latestInstance.effectiveFrom === timestamp) {
+        return await tx
+          .updateTable(tableName)
+          .set(updateInstance)
+          .where("id", "=", formattedId)
+          .where("effectiveFrom", "=", timestamp)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+      }
+
+      if (latestInstance.effectiveFrom > timestamp) {
+        throw new Error(`Cannot update an instance in the past`);
+      }
+
+      // If the latest version has an earlier effectiveFrom timestamp than the update,
+      // we need to update the latest version AND insert a new version.
+      await tx
+        .updateTable(tableName)
+        .set({ effectiveTo: timestamp - 1 })
+        .where("id", "=", formattedId)
+        .where("effectiveTo", "=", MAX_INTEGER)
+        .execute();
+
+      return await tx
+        .insertInto(tableName)
+        .values({
+          ...latestInstance,
+          ...updateInstance,
+          effectiveFrom: timestamp,
+          effectiveTo: MAX_INTEGER,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    });
 
     return this.deserializeInstance({ modelName, instance });
   };
 
   delete = async ({
     modelName,
+    timestamp,
     id,
   }: {
     modelName: string;
+    timestamp: number;
     id: string | number | bigint;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
     const formattedId = formatModelFieldValue({ value: id });
 
-    const instance = await this.db
-      .deleteFrom(tableName)
-      .where("id", "=", formattedId)
-      .returningAll()
-      .executeTakeFirst();
+    const instance = await this.db.transaction().execute(async (tx) => {
+      // Update the latest version to be effective until the delete timestamp.
+      const deletedInstance = await tx
+        .updateTable(tableName)
+        .set({ effectiveTo: timestamp })
+        .where("id", "=", formattedId)
+        .where("effectiveTo", "=", MAX_INTEGER)
+        .returning(["id", "effectiveFrom"])
+        .executeTakeFirst();
 
-    return !!instance;
+      // If, after the update, the latest version is only effective from
+      // the delete timestamp, delete the instance in place. It "never existed".
+      if (deletedInstance?.effectiveFrom === timestamp) {
+        await tx
+          .deleteFrom(tableName)
+          .where("id", "=", formattedId)
+          .where("effectiveFrom", "=", timestamp)
+          .returning(["id"])
+          .executeTakeFirst();
+      }
+
+      return !!deletedInstance;
+    });
+
+    return instance;
   };
 
   findMany = async ({
     modelName,
+    timestamp,
     filter = {},
   }: {
     modelName: string;
+    timestamp: number;
     filter?: ModelFilter;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
+    const effectiveTimestamp = timestamp ?? MAX_INTEGER;
 
-    let query = this.db.selectFrom(tableName).selectAll();
+    let query = this.db
+      .selectFrom(tableName)
+      .selectAll()
+      .where("effectiveFrom", "<=", effectiveTimestamp)
+      .where("effectiveTo", ">=", effectiveTimestamp);
 
     const { where, first, skip, orderBy, orderDirection } = filter;
 
