@@ -183,7 +183,7 @@ export class PostgresUserStore implements UserStore {
 
   findUnique = async ({
     modelName,
-    timestamp,
+    timestamp = MAX_INTEGER,
     id,
   }: {
     modelName: string;
@@ -192,14 +192,13 @@ export class PostgresUserStore implements UserStore {
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
     const formattedId = formatModelFieldValue({ value: id });
-    const effectiveTimestamp = timestamp ?? MAX_INTEGER;
 
     const instances = await this.db
       .selectFrom(tableName)
       .selectAll()
       .where("id", "=", formattedId)
-      .where("effectiveFrom", "<=", effectiveTimestamp)
-      .where("effectiveTo", ">=", effectiveTimestamp)
+      .where("effectiveFrom", "<=", timestamp)
+      .where("effectiveTo", ">=", timestamp)
       .execute();
 
     if (instances.length > 1) {
@@ -423,7 +422,7 @@ export class PostgresUserStore implements UserStore {
 
   findMany = async ({
     modelName,
-    timestamp,
+    timestamp = MAX_INTEGER,
     filter = {},
   }: {
     modelName: string;
@@ -431,13 +430,12 @@ export class PostgresUserStore implements UserStore {
     filter?: ModelFilter;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const effectiveTimestamp = timestamp ?? MAX_INTEGER;
 
     let query = this.db
       .selectFrom(tableName)
       .selectAll()
-      .where("effectiveFrom", "<=", effectiveTimestamp)
-      .where("effectiveTo", ">=", effectiveTimestamp);
+      .where("effectiveFrom", "<=", timestamp)
+      .where("effectiveTo", ">=", timestamp);
 
     const { where, first, skip, orderBy, orderDirection } = filter;
 
