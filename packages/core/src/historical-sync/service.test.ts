@@ -85,31 +85,32 @@ test("start() adds events to event store", async (context) => {
   service.start();
   await service.onIdle();
 
-  const logEvents = await eventStore.getLogEvents({
+  const { events } = await eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
       {
+        name: "usdc",
         chainId: network.chainId,
         address: usdcContractConfig.address,
       },
     ],
   });
 
-  expect(logEvents[0].block).toMatchObject({
+  expect(events[0].block).toMatchObject({
     hash: "0x0d8710de44b1b42ef86da0e9bebeaacb6d1cb5603f8014dec82e429f0cbf2fe0",
     number: 16369950n,
     timestamp: 1673275799n,
   });
 
-  expect(logEvents[0].transaction).toMatchObject({
+  expect(events[0].transaction).toMatchObject({
     blockHash:
       "0x0d8710de44b1b42ef86da0e9bebeaacb6d1cb5603f8014dec82e429f0cbf2fe0",
     blockNumber: 16369950n,
     hash: "0xc921941ceddbd1341e3899d0b51e4cacbc9675ee07549d12d99ce7caecc6904b",
   });
 
-  expect(logEvents[0].log).toMatchObject({
+  expect(events[0].log).toMatchObject({
     address: usdcContractConfig.address,
     blockHash:
       "0x0d8710de44b1b42ef86da0e9bebeaacb6d1cb5603f8014dec82e429f0cbf2fe0",
@@ -118,7 +119,7 @@ test("start() adds events to event store", async (context) => {
       "0xc921941ceddbd1341e3899d0b51e4cacbc9675ee07549d12d99ce7caecc6904b",
   });
 
-  expect(logEvents).toHaveLength(61);
+  expect(events).toHaveLength(61);
 });
 
 test("start() inserts cached ranges", async (context) => {

@@ -1,10 +1,10 @@
+import { AbiEvent } from "abitype";
 import Emittery from "emittery";
-import { decodeEventLog } from "viem";
+import { decodeEventLog, Hex } from "viem";
 
 import { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
-import { isLogMatchedByFilter } from "@/realtime-sync/filter";
 import { Block } from "@/types/block";
 import { Log } from "@/types/log";
 import { Transaction } from "@/types/transaction";
@@ -107,88 +107,61 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   }: {
     fromTimestamp: number;
     toTimestamp: number;
-    handledLogFilters: Pick<
-      LogFilter["filter"],
-      "chainId" | "address" | "topics"
-    >[];
+    handledLogFilters: Record<
+      string,
+      {
+        eventName: string;
+        topic0: Hex;
+        abiItem: AbiEvent;
+      }[]
+    >;
   }) => {
-    const events = await this.eventStore.getLogEvents({
+    const { events, totalEventCount } = await this.eventStore.getLogEvents({
       fromTimestamp,
       toTimestamp,
       filters: this.logFilters.map((logFilter) => ({
+        name: logFilter.name,
         chainId: logFilter.filter.chainId,
         address: logFilter.filter.address,
         topics: logFilter.filter.topics,
         fromBlock: logFilter.filter.startBlock,
         toBlock: logFilter.filter.endBlock,
+        handledTopic0: handledLogFilters[logFilter.name].map((i) => i.topic0),
       })),
     });
 
-    /**
-     * For each event, we need to:
-     * 1) Determine if the user provided a handler function for it. If they did not, we can skip it.
-     * 2) Determine which log filter(s) it matches.
-     * 3) Use the log filter ABI to decode the log data/topics.
-     *
-     * If an event matches N log filters (that are all handled), we will add N decoded events.
-     */
-
     const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
-      // If the log is not matched by and of the handled log filters, skip it.
-      if (
-        !handledLogFilters.some(
-          (logFilter) =>
-            logFilter.chainId === event.chainId &&
-            isLogMatchedByFilter({
-              log: event.log,
-              address: logFilter.address,
-              topics: logFilter.topics,
-            })
-        )
-      ) {
-        return acc;
-      }
-
-      const matchedLogFilters = this.logFilters.filter(
-        (logFilter) =>
-          logFilter.filter.chainId === event.chainId &&
-          isLogMatchedByFilter({
-            log: event.log,
-            address: logFilter.filter.address,
-            topics: logFilter.filter.topics,
-          })
+      // TODO: Improve decode performance by having the specific ABI event item ready.
+      const logFilterData = handledLogFilters[event.filterName].find(
+        (i) => i.topic0 === event.log.topics[0]
       );
 
-      // For log filter that the event matches, decode the event using the ABI
-      // and add it to the result list.
-      matchedLogFilters.forEach((logFilter) => {
-        try {
-          const decodedLog = decodeEventLog({
-            abi: logFilter.abi,
-            data: event.log.data,
-            topics: event.log.topics,
-          });
+      try {
+        const decodedLog = decodeEventLog({
+          abi: [logFilterData?.abiItem],
+          data: event.log.data,
+          topics: event.log.topics,
+        });
 
-          acc.push({
-            logFilterName: logFilter.name,
-            eventName: decodedLog.eventName,
-            params: decodedLog.args || {},
-            log: event.log,
-            block: event.block,
-            transaction: event.transaction,
-          });
-        } catch (err) {
-          // TODO: emit a warning here that an event was not decoded.
-          // See https://github.com/0xOlias/ponder/issues/187
-        }
-      });
+        acc.push({
+          logFilterName: event.filterName,
+          eventName: decodedLog.eventName,
+          params: decodedLog.args || {},
+          log: event.log,
+          block: event.block,
+          transaction: event.transaction,
+        });
+      } catch (err) {
+        // TODO: emit a warning here that an event was not decoded.
+        // See https://github.com/0xOlias/ponder/issues/187
+      }
 
       return acc;
     }, []);
 
     return {
-      handledEvents: decodedEvents,
-      matchedEventCount: events.length,
+      totalEventCount,
+      events: decodedEvents,
     };
   };
 
