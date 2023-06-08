@@ -615,7 +615,7 @@ export class PostgresEventStore implements EventStore {
     const handledLogs = await handledLogQuery.execute();
 
     const totalLogCount = await totalLogCountQuery.execute();
-    const totalEventCount = totalLogCount[0].log_count as number;
+    const totalEventCount = Number(totalLogCount[0].log_count);
 
     const events = handledLogs.map((result_) => {
       // Without this cast, the block_ and tx_ fields are all nullable
