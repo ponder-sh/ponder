@@ -8,14 +8,21 @@ If you want to contribute, but aren't sure where to start, reach out in Ponder's
 
 This guide is intended to help you get started with contributing. By following these steps, you will understand the development process and workflow.
 
-1. [Fork the repository](#fork-the-repository)
-2. [Install Node.js and pnpm](#install-nodejs-and-pnpm)
-3. [Install Foundry](#install-foundry)
-4. [Install dependencies](#install-dependencies)
-5. [Run the test suite](#run-the-test-suite)
-6. [Write documentation](#write-documentation)
-7. [Submit a pull request](#submit-a-pull-request)
-8. [Versioning and releases](#versioning-and-releases)
+- [Contributing](#contributing)
+  - [Get started](#get-started)
+  - [Fork the repository](#fork-the-repository)
+  - [Install Node.js and pnpm](#install-nodejs-and-pnpm)
+  - [Install Foundry](#install-foundry)
+  - [Install dependencies](#install-dependencies)
+  - [Run the test suite](#run-the-test-suite)
+    - [Environment variables](#environment-variables)
+    - [Running tests](#running-tests)
+  - [Write documentation](#write-documentation)
+  - [Submit a pull request](#submit-a-pull-request)
+  - [Versioning and releases](#versioning-and-releases)
+    - [Changesets workflow](#changesets-workflow)
+    - [Releases](#releases)
+  - [That's it!](#thats-it)
 
 <br>
 
@@ -106,6 +113,7 @@ The test suite uses [vitest](https://vitest.dev/guide) in concurrent mode as a t
 
 Herea are some commands to get you started.
 
+- `pnpm build` - required for a fresh install
 - `pnpm test` — run all tests in watch mode
 - `pnpm test path/to/file.test.ts` — run a single test file
 - `pnpm test path/to/dir` — run all test files in a directory
