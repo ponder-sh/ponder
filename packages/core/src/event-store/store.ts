@@ -34,19 +34,21 @@ export interface EventStore {
   migrateUp(): Promise<void>;
   migrateDown(): Promise<void>;
 
-  getLogEvents(arg: {
-    fromTimestamp: number;
-    toTimestamp: number;
-    filters: {
-      chainId: number;
-      address?: Address | Address[];
-      topics?: (Hex | Hex[] | null)[];
-      fromBlock?: number;
-      toBlock?: number;
-    }[];
-  }): Promise<
-    { chainId: number; log: Log; block: Block; transaction: Transaction }[]
-  >;
+  insertFinalizedLogs(options: {
+    chainId: number;
+    logs: RpcLog[];
+  }): Promise<void>;
+
+  insertFinalizedBlock(options: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logFilterRange: {
+      logFilterKey: string;
+      blockNumberToCacheFrom: number;
+      logFilterStartBlockNumber: number;
+    };
+  }): Promise<{ startingRangeEndTimestamp: number }>;
 
   insertUnfinalizedBlock(options: {
     chainId: number;
@@ -69,22 +71,6 @@ export interface EventStore {
     filterKey: string;
   }): Promise<LogFilterCachedRange[]>;
 
-  insertFinalizedLogs(options: {
-    chainId: number;
-    logs: RpcLog[];
-  }): Promise<void>;
-
-  insertFinalizedBlock(options: {
-    chainId: number;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    logFilterRange: {
-      logFilterKey: string;
-      blockNumberToCacheFrom: number;
-      logFilterStartBlockNumber: number;
-    };
-  }): Promise<{ startingRangeEndTimestamp: number }>;
-
   insertContractReadResult(options: {
     address: string;
     blockNumber: bigint;
@@ -100,4 +86,26 @@ export interface EventStore {
     chainId: number;
     data: Hex;
   }): Promise<ContractReadResult | null>;
+
+  getLogEvents(arg: {
+    fromTimestamp: number;
+    toTimestamp: number;
+    filters?: {
+      name: string;
+      chainId: number;
+      address?: Address | Address[];
+      topics?: (Hex | Hex[] | null)[];
+      fromBlock?: number;
+      toBlock?: number;
+      handledTopic0?: Hex[];
+    }[];
+  }): Promise<{
+    totalEventCount: number;
+    events: {
+      filterName: string;
+      log: Log;
+      block: Block;
+      transaction: Transaction;
+    }[];
+  }>;
 }

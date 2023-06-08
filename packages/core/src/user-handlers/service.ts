@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
+import { AbiEvent } from "abitype";
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
-import { encodeEventTopics } from "viem";
+import { encodeEventTopics, getAbiItem, Hex } from "viem";
 
 import type { Contract } from "@/config/contracts";
 import type { LogFilter } from "@/config/logFilters";
@@ -16,7 +17,6 @@ import type { Handlers } from "@/reload/readHandlers";
 import type { Schema } from "@/schema/types";
 import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";
-import type { Prettify } from "@/types/utils";
 import type { ModelInstance, UserStore } from "@/user-store/store";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
 
@@ -65,9 +65,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   };
 
   private handlers?: Handlers;
-  private handledLogFilters: Prettify<
-    Pick<LogFilter["filter"], "chainId" | "address" | "topics">
-  >[] = [];
+  private handledLogFilters: Record<
+    string,
+    {
+      eventName: string;
+      topic0: Hex;
+      abiItem: AbiEvent;
+    }[]
+  > = {};
 
   private schema?: Schema;
   private queue?: EventHandlerQueue;
@@ -134,7 +139,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
     if (newHandlers) {
       this.handlers = newHandlers;
-      this.handledLogFilters = [];
+      this.handledLogFilters = {};
 
       // Get the set of events that the user has provided a handler for.
       this.logFilters.forEach((logFilter) => {
@@ -146,16 +151,16 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             abi: logFilter.abi,
             eventName,
           });
-          return topics[0];
+
+          const abiItem = getAbiItem({
+            abi: logFilter.abi,
+            name: eventName,
+          }) as AbiEvent;
+
+          return { eventName, topic0: topics[0], abiItem };
         });
 
-        if (handledEventSignatureTopics.length > 0) {
-          this.handledLogFilters.push({
-            chainId: logFilter.filter.chainId,
-            address: logFilter.filter.address,
-            topics: [handledEventSignatureTopics],
-          });
-        }
+        this.handledLogFilters[logFilter.name] = handledEventSignatureTopics;
       });
     }
 
@@ -199,18 +204,18 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       await this.eventProcessingMutex.runExclusive(async () => {
         if (!this.queue) return;
 
-        const { handledEvents, matchedEventCount } =
+        const { events, totalEventCount } =
           await this.eventAggregatorService.getEvents({
             fromTimestamp: this.eventsHandledToTimestamp,
             toTimestamp,
             handledLogFilters: this.handledLogFilters,
           });
 
-        this.metrics.eventsAddedToQueue += handledEvents.length;
-        this.metrics.totalMatchedEvents += matchedEventCount;
+        this.metrics.eventsAddedToQueue += events.length;
+        this.metrics.totalMatchedEvents += totalEventCount;
 
         // Add new events to the queue.
-        for (const event of handledEvents) {
+        for (const event of events) {
           this.queue.addTask({
             kind: "LOG",
             event,
@@ -225,7 +230,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         this.eventsHandledToTimestamp = toTimestamp;
 
         this.emit("eventsProcessed", {
-          count: handledEvents.length,
+          count: events.length,
           toTimestamp: toTimestamp,
         });
       });
