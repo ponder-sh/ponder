@@ -11,6 +11,7 @@ import {
   formatModelFieldValue,
   formatModelInstance,
   getWhereOperatorAndValue,
+  parseModelFilter,
 } from "../utils";
 
 const gqlScalarToSqlType = {
@@ -437,7 +438,8 @@ export class PostgresUserStore implements UserStore {
       .where("effectiveFrom", "<=", timestamp)
       .where("effectiveTo", ">=", timestamp);
 
-    const { where, first, skip, orderBy, orderDirection } = filter;
+    const { where, first, skip, orderBy, orderDirection } =
+      parseModelFilter(filter);
 
     if (where) {
       Object.entries(where).forEach(([whereKey, rawValue]) => {

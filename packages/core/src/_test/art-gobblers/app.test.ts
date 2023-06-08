@@ -85,7 +85,7 @@ test("serves data", async (context) => {
     }
   `);
 
-  expect(accounts).toHaveLength(108);
+  expect(accounts).toHaveLength(100);
   expect(tokens).toHaveLength(92);
 
   await ponder.kill();
