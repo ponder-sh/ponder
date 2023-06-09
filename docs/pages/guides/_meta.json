@@ -1,6 +1,6 @@
 {
   "design-your-schema": "Design your schema",
   "create-update-entities": "Create & update entities",
-  "production": "Deploy to production",
-  "query-the-api": "Query the API"
+  "query-the-graphql-api": "Query the GraphQL API",
+  "production": "Deploy to production"
 }
