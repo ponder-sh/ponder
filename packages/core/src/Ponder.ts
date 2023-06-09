@@ -246,7 +246,7 @@ export class Ponder {
 
     await this.reloadService.kill?.();
     this.uiService.kill();
-    this.eventHandlerService.killQueue();
+    this.eventHandlerService.kill();
     await this.serverService.teardown();
     await this.userStore.teardown();
   }
@@ -262,12 +262,10 @@ export class Ponder {
 
       this.serverService.reload({ graphqlSchema });
 
-      await this.userStore.reload({ schema });
       this.eventHandlerService.reset({ schema });
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
-      await this.userStore.reload();
       this.eventHandlerService.reset({ handlers });
     });
 
@@ -322,6 +320,10 @@ export class Ponder {
 
     this.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
       this.eventHandlerService.processEvents({ toTimestamp: timestamp });
+    });
+
+    this.eventAggregatorService.on("reorg", ({ commonAncestorTimestamp }) => {
+      this.eventHandlerService.handleReorg({ commonAncestorTimestamp });
     });
 
     this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {

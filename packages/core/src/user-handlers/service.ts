@@ -49,12 +49,9 @@ type EventHandlerQueue = Queue<EventHandlerTask>;
 
 export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private resources: Resources;
-  eventStore: EventStore;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
-
   private logFilters: LogFilter[];
-  private contracts: Contract[];
 
   metrics: EventHandlerMetrics = {
     error: false,
@@ -102,19 +99,17 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   }) {
     super();
     this.resources = resources;
-    this.eventStore = eventStore;
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
-    this.contracts = contracts;
     this.logFilters = logFilters;
 
     // Build the injected contract objects. They depend only on contract config,
     // so they can't be hot reloaded.
-    this.contracts.forEach((contract) => {
+    contracts.forEach((contract) => {
       this.injectedContracts[contract.name] = getInjectedContract({
         contract,
         getCurrentBlockNumber: () => this.currentEventBlockNumber,
-        eventStore: this.eventStore,
+        eventStore,
       });
     });
 
@@ -122,11 +117,12 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.eventProcessingMutex = new Mutex();
   }
 
-  killQueue = () => {
+  kill = () => {
     this.queue?.clear();
+    this.eventProcessingMutex.cancel();
   };
 
-  reset = ({
+  reset = async ({
     handlers: newHandlers,
     schema: newSchema,
   }: {
@@ -164,41 +160,36 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       });
     }
 
-    if (!this.handlers || !this.schema) return;
+    this.resetEventQueue();
 
-    this.eventProcessingMutex.cancel();
-    this.eventProcessingMutex = new Mutex();
+    await this.userStore.reload({ schema: this.schema });
     this.eventsHandledToTimestamp = 0;
+    this.metrics.latestHandledEventTimestamp = 0;
 
-    this.metrics = {
-      error: false,
-      eventsAddedToQueue: 0,
-      eventsProcessedFromQueue: 0,
-      totalMatchedEvents: 0,
-      latestHandledEventTimestamp: 0,
-    };
-
-    this.queue = this.createEventQueue({
-      handlers: this.handlers,
-      schema: this.schema,
+    await this.processEvents({
+      toTimestamp: this.eventAggregatorService.checkpoint,
     });
+  };
 
-    this.emit("reset");
+  handleReorg = async ({
+    commonAncestorTimestamp,
+  }: {
+    commonAncestorTimestamp: number;
+  }) => {
+    this.resetEventQueue();
 
-    // If the setup handler is present, add the setup event.
-    if (this.handlers.setup) {
-      this.queue.addTask({ kind: "SETUP" });
-    }
+    await this.userStore.revert({ safeTimestamp: commonAncestorTimestamp });
+    this.eventsHandledToTimestamp = commonAncestorTimestamp;
+    this.metrics.latestHandledEventTimestamp = commonAncestorTimestamp;
 
-    if (this.eventAggregatorService.checkpoint > 0) {
-      this.processEvents({
-        toTimestamp: this.eventAggregatorService.checkpoint,
-      });
-    }
+    await this.processEvents({
+      toTimestamp: this.eventAggregatorService.checkpoint,
+    });
   };
 
   processEvents = async ({ toTimestamp }: { toTimestamp: number }) => {
     if (this.resources.errors.isHandlerError) return;
+    if (toTimestamp === 0) return;
 
     try {
       await this.eventProcessingMutex.runExclusive(async () => {
@@ -213,6 +204,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
         this.metrics.eventsAddedToQueue += events.length;
         this.metrics.totalMatchedEvents += totalEventCount;
+
+        // If no events have been handled, add the setup event
+        if (this.eventsHandledToTimestamp === 0 && this.handlers?.setup) {
+          this.queue.addTask({ kind: "SETUP" });
+        }
 
         // Add new events to the queue.
         for (const event of events) {
@@ -241,6 +237,28 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     }
   };
 
+  private resetEventQueue = () => {
+    if (!this.handlers || !this.schema) return;
+
+    this.eventProcessingMutex.cancel();
+    this.eventProcessingMutex = new Mutex();
+
+    this.metrics = {
+      ...this.metrics,
+      error: false,
+      eventsAddedToQueue: 0,
+      eventsProcessedFromQueue: 0,
+      totalMatchedEvents: 0,
+    };
+
+    this.queue = this.createEventQueue({
+      handlers: this.handlers,
+      schema: this.schema,
+    });
+
+    this.emit("reset");
+  };
+
   private createEventQueue = ({
     handlers,
     schema,
@@ -248,7 +266,56 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     handlers: Handlers;
     schema: Schema;
   }) => {
-    const context = this.buildContext({ schema });
+    // Build entity models for event handler context.
+    const models = schema.entities.reduce<Record<string, Model<ModelInstance>>>(
+      (acc, { name: modelName }) => {
+        acc[modelName] = {
+          findUnique: ({ id }) => {
+            return this.userStore.findUnique({
+              modelName,
+              timestamp: this.currentEventTimestamp,
+              id,
+            });
+          },
+          create: ({ id, data }) => {
+            return this.userStore.create({
+              modelName,
+              timestamp: this.currentEventTimestamp,
+              id,
+              data,
+            });
+          },
+          update: ({ id, data }) => {
+            return this.userStore.update({
+              modelName,
+              timestamp: this.currentEventTimestamp,
+              id,
+              data,
+            });
+          },
+          upsert: ({ id, create, update }) => {
+            return this.userStore.upsert({
+              modelName,
+              timestamp: this.currentEventTimestamp,
+              id,
+              create,
+              update,
+            });
+          },
+          delete: ({ id }) => {
+            return this.userStore.delete({
+              modelName,
+              timestamp: this.currentEventTimestamp,
+              id,
+            });
+          },
+        };
+        return acc;
+      },
+      {}
+    );
+
+    const context = { contracts: this.injectedContracts, entities: models };
 
     const eventHandlerWorker: Worker<EventHandlerTask> = async ({
       task,
@@ -332,9 +399,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             });
           }
 
-          this.metrics.latestHandledEventTimestamp = Number(
-            event.block.timestamp
-          );
+          this.metrics.latestHandledEventTimestamp = this.currentEventTimestamp;
 
           this.emit("taskCompleted");
 
@@ -356,59 +421,4 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
     return queue;
   };
-
-  private buildContext({ schema }: { schema: Schema }) {
-    // Build entity models for event handler context.
-    const models: Record<string, Model<ModelInstance>> = {};
-    schema.entities.forEach((entity) => {
-      const modelName = entity.name;
-
-      models[modelName] = {
-        findUnique: ({ id }) => {
-          return this.userStore.findUnique({
-            modelName,
-            timestamp: this.currentEventTimestamp,
-            id,
-          });
-        },
-        create: ({ id, data }) => {
-          return this.userStore.create({
-            modelName,
-            timestamp: this.currentEventTimestamp,
-            id,
-            data,
-          });
-        },
-        update: ({ id, data }) => {
-          return this.userStore.update({
-            modelName,
-            timestamp: this.currentEventTimestamp,
-            id,
-            data,
-          });
-        },
-        upsert: ({ id, create, update }) => {
-          return this.userStore.upsert({
-            modelName,
-            timestamp: this.currentEventTimestamp,
-            id,
-            create,
-            update,
-          });
-        },
-        delete: ({ id }) => {
-          return this.userStore.delete({
-            modelName,
-            timestamp: this.currentEventTimestamp,
-            id,
-          });
-        },
-      };
-    });
-
-    return {
-      contracts: this.injectedContracts,
-      entities: models,
-    };
-  }
 }
