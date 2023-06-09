@@ -2,4 +2,4 @@
 "@ponder/core": patch
 ---
 
-This patch adds default pagination to the ponder server. Server will now by default return the first 100 rows in the query response. Users can query at most a 1000 rows in a single query. The query API also limits the number of skips to 5000 in a single query.
+Added entity count limits to GraphQL API server responses. By default, the server now returns only the first 100 entities (equivalent to adding `first: 100`). There is also now a hard cap of 1000 entities (`first: 1000`) in a single response. There is also a cap of 5000 entities that can be skipped (`skip: 5000`) in a single response. To paginate through a large number of entities, maintain a cursor client-side and use `where: { id_gt: previousCursor }` to fetch the next page of entities.
