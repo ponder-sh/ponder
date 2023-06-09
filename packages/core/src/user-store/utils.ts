@@ -155,7 +155,7 @@ export function formatModelInstance({
   return instance;
 }
 
-export function parseModelFilter(filter: ModelFilter): ModelFilter {
+export function parseModelFilter(filter: ModelFilter = {}): ModelFilter {
   const parsedFilter: ModelFilter = {};
 
   if (filter.first) {
