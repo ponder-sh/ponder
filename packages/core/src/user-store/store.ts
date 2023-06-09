@@ -37,6 +37,8 @@ export interface UserStore {
   reload(options?: { schema?: Schema }): Promise<void>;
   teardown(): Promise<void>;
 
+  revert(options: { safeTimestamp: number }): Promise<void>;
+
   findUnique(options: {
     modelName: string;
     timestamp?: number;

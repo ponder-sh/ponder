@@ -25,6 +25,11 @@ const graphqlSchema = buildGraphqlSchema(`
     CAT
     DOG
   }
+
+  type Person @entity {
+    id: String!
+    name: String!
+  }
 `);
 const schema = buildSchema(graphqlSchema);
 
@@ -491,6 +496,36 @@ test("delete() removes a record entirely if only present for one timestamp", asy
   await userStore.teardown();
 });
 
+test("delete() deletes versions effective in the delete timestamp", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+
+  await userStore.delete({ modelName: "Pet", timestamp: 15, id: "id1" });
+
+  const instanceDuringDeleteTimestamp = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 15,
+    id: "id1",
+  });
+  expect(instanceDuringDeleteTimestamp).toBe(null);
+
+  const instancePriorToDelete = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 14,
+    id: "id1",
+  });
+  expect(instancePriorToDelete!.name).toBe("Skip");
+
+  await userStore.teardown();
+});
+
 test("findMany() returns current versions of all records", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
@@ -565,6 +600,79 @@ test("findMany() sorts on BigInt field", async (context) => {
     filter: { orderBy: "bigAge" },
   });
   expect(instances.map((i) => i.bigAge)).toMatchObject([null, 10n, 105n, 190n]);
+
+  await userStore.teardown();
+});
+
+test("revert() deletes versions newer than the safe timestamp", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip" },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 13,
+    id: "id2",
+    data: { name: "Foo" },
+  });
+  await userStore.update({
+    modelName: "Pet",
+    timestamp: 15,
+    id: "id1",
+    data: { name: "SkipUpdated" },
+  });
+  await userStore.create({
+    modelName: "Person",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Bob" },
+  });
+  await userStore.update({
+    modelName: "Person",
+    timestamp: 11,
+    id: "id1",
+    data: { name: "Bobby" },
+  });
+
+  await userStore.revert({ safeTimestamp: 12 });
+
+  const pets = await userStore.findMany({ modelName: "Pet" });
+  expect(pets.length).toBe(1);
+  expect(pets[0].name).toBe("Skip");
+
+  const persons = await userStore.findMany({ modelName: "Person" });
+  expect(persons.length).toBe(1);
+  expect(persons[0].name).toBe("Bobby");
+
+  await userStore.teardown();
+});
+
+test("revert() updates versions that only existed during the safe timestamp to latest", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip" },
+  });
+  await userStore.delete({
+    modelName: "Pet",
+    timestamp: 11,
+    id: "id1",
+  });
+
+  await userStore.revert({ safeTimestamp: 10 });
+
+  const pets = await userStore.findMany({ modelName: "Pet" });
+  expect(pets.length).toBe(1);
+  expect(pets[0].name).toBe("Skip");
 
   await userStore.teardown();
 });
