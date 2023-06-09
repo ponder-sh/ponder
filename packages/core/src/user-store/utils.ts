@@ -1,6 +1,7 @@
+import { BaseError } from "@/errors/base";
 import { intToBlob } from "@/utils/encode";
 
-import { ModelInstance } from "./store";
+import { ModelFilter, ModelInstance } from "./store";
 
 export const filterTypes = {
   // universal
@@ -153,3 +154,32 @@ export function formatModelInstance({
 
   return instance;
 }
+
+export function parseModelFilter(filter: ModelFilter = {}): ModelFilter {
+  const parsedFilter: ModelFilter = {};
+
+  if (filter.first) {
+    if (filter.first > MAX_LIMIT) {
+      throw new BaseError("Cannot query more than 1000 rows.");
+    }
+    parsedFilter.first = filter.first;
+  } else {
+    parsedFilter.first = DEFAULT_LIMIT;
+  }
+
+  if (filter.skip) {
+    if (filter.skip > MAX_SKIP)
+      throw new BaseError("Cannot skip more than 5000 rows.");
+    parsedFilter.skip = filter.skip;
+  }
+
+  parsedFilter.orderBy = filter.orderBy;
+  parsedFilter.orderDirection = filter.orderDirection;
+  parsedFilter.where = filter.where;
+
+  return parsedFilter;
+}
+
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 1000;
+const MAX_SKIP = 5000;

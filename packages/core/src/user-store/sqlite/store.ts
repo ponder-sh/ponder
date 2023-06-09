@@ -11,6 +11,7 @@ import {
   formatModelFieldValue,
   formatModelInstance,
   getWhereOperatorAndValue,
+  parseModelFilter,
 } from "../utils";
 
 const gqlScalarToSqlType = {
@@ -417,7 +418,8 @@ export class SqliteUserStore implements UserStore {
       .where("effectiveFrom", "<=", timestamp)
       .where("effectiveTo", ">=", timestamp);
 
-    const { where, first, skip, orderBy, orderDirection } = filter;
+    const { where, first, skip, orderBy, orderDirection } =
+      parseModelFilter(filter);
 
     if (where) {
       Object.entries(where).forEach(([whereKey, rawValue]) => {
@@ -438,8 +440,6 @@ export class SqliteUserStore implements UserStore {
 
     if (skip) {
       query = query.offset(skip);
-      // SQLite doesn't support OFFSET without LIMIT, so we need to set a limit.
-      if (!first) query = query.limit(-1);
     }
     if (first) {
       query = query.limit(first);
