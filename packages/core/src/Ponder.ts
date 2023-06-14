@@ -246,7 +246,7 @@ export class Ponder {
 
     await this.reloadService.kill?.();
     this.uiService.kill();
-    this.eventHandlerService.killQueue();
+    this.eventHandlerService.kill();
     await this.serverService.teardown();
     await this.userStore.teardown();
   }
@@ -262,12 +262,10 @@ export class Ponder {
 
       this.serverService.reload({ graphqlSchema });
 
-      await this.userStore.reload({ schema });
       this.eventHandlerService.reset({ schema });
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
-      await this.userStore.reload();
       this.eventHandlerService.reset({ handlers });
     });
 
@@ -324,6 +322,10 @@ export class Ponder {
       this.eventHandlerService.processEvents({ toTimestamp: timestamp });
     });
 
+    this.eventAggregatorService.on("reorg", ({ commonAncestorTimestamp }) => {
+      this.eventHandlerService.handleReorg({ commonAncestorTimestamp });
+    });
+
     this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
       if (this.serverService.isHistoricalEventProcessingComplete) return;
 
@@ -372,6 +374,20 @@ export class Ponder {
             )} cached)`
           );
         });
+      });
+
+      realtimeSyncService.on("finalityCheckpoint", ({ timestamp }) => {
+        this.resources.logger.logMessage(
+          "realtime",
+          `finality checkpoint, timestamp: ${timestamp}`
+        );
+      });
+
+      realtimeSyncService.on("shallowReorg", ({ commonAncestorTimestamp }) => {
+        this.resources.logger.logMessage(
+          "realtime",
+          `reorg detected, common ancestor timestamp: ${commonAncestorTimestamp}`
+        );
       });
     });
 

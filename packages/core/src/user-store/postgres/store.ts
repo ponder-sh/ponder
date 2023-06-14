@@ -398,7 +398,7 @@ export class PostgresUserStore implements UserStore {
       // Update the latest version to be effective until the delete timestamp.
       const deletedInstance = await tx
         .updateTable(tableName)
-        .set({ effectiveTo: timestamp })
+        .set({ effectiveTo: timestamp - 1 })
         .where("id", "=", formattedId)
         .where("effectiveTo", "=", MAX_INTEGER)
         .returning(["id", "effectiveFrom"])
@@ -479,6 +479,31 @@ export class PostgresUserStore implements UserStore {
     return instances.map((instance) =>
       this.deserializeInstance({ modelName, instance })
     );
+  };
+
+  revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
+    this.db.transaction().execute(async (tx) => {
+      await Promise.all(
+        (this.schema?.entities ?? []).map(async (entity) => {
+          const modelName = entity.name;
+          const tableName = `${modelName}_${this.versionId}`;
+
+          // Delete any versions that are newer than the safe timestamp.
+          await tx
+            .deleteFrom(tableName)
+            .where("effectiveFrom", ">", safeTimestamp)
+            .execute();
+
+          // Now, any versions that have effectiveTo greater than or equal
+          // to the safe timestamp are the new latest version.
+          await tx
+            .updateTable(tableName)
+            .where("effectiveTo", ">=", safeTimestamp)
+            .set({ effectiveTo: MAX_INTEGER })
+            .execute();
+        })
+      );
+    });
   };
 
   private deserializeInstance = ({

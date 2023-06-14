@@ -42,9 +42,7 @@ export function buildNetwork({
     rpcUrl: network.rpcUrl,
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange(network),
-    // TODO: Get this from a list of known finality block counts, then
-    // fallback to a default.
-    finalityBlockCount: 10,
+    finalityBlockCount: getFinalityBlockCount(network),
   };
 
   return resolvedNetwork;
@@ -64,7 +62,7 @@ function getDefaultMaxBlockRange(network: {
 
   let maxBlockRange: number;
   switch (network.chainId) {
-    // Mainnet.
+    // Mainnet and mainnet testnets.
     case 1:
     case 3:
     case 4:
@@ -93,4 +91,45 @@ function getDefaultMaxBlockRange(network: {
   }
 
   return maxBlockRange;
+}
+
+/**
+ * Returns the number of blocks that must pass before a block is considered final.
+ * Note that a value of `0` indicates that blocks are considered final immediately.
+ *
+ * @param network The network to get the finality block count for.
+ * @returns The finality block count.
+ */
+function getFinalityBlockCount(network: { chainId: number }) {
+  let finalityBlockCount: number;
+  switch (network.chainId) {
+    // Mainnet and mainnet testnets.
+    case 1:
+    case 3:
+    case 4:
+    case 5:
+    case 42:
+    case 11155111:
+      finalityBlockCount = 32;
+      break;
+    // Optimism.
+    case 10:
+    case 420:
+      finalityBlockCount = 0;
+      break;
+    // Polygon.
+    case 137:
+    case 80001:
+      finalityBlockCount = 100;
+      break;
+    // Arbitrum.
+    case 42161:
+    case 421613:
+      finalityBlockCount = 0;
+      break;
+    default:
+      finalityBlockCount = 0;
+  }
+
+  return finalityBlockCount;
 }
