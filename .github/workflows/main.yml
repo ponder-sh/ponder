@@ -72,6 +72,6 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
       - name: Test
-        run: test:ci:create-ponder
+        run: pnpm test:ci:create-ponder
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
