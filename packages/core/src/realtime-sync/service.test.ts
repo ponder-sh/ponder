@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { accounts, usdcContractConfig, vitalik } from "@/_test/constants";
+import { resetTestClient } from "@/_test/setup";
 import { publicClient, testClient, walletClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
@@ -47,6 +48,10 @@ const sendUsdcTransferTransaction = async () => {
     account: vitalik.account,
   });
 };
+
+beforeEach(async () => {
+  return await resetTestClient();
+});
 
 test("setup() returns the finalized block number", async (context) => {
   const { eventStore } = context;
