@@ -1,37 +1,36 @@
 import pico from "picocolors";
 
-import { PonderOptions } from "../config/options";
-
-export enum LogLevel {
-  // Silent 0
-  Error, // 1
-  Info, // 2
-  Warn, // 3
-  Debug, // 4
-  Trace, // 5
-}
+/**
+ * Log levels:
+ * 0 -> silent
+ * 1 -> error
+ * 2 -> info
+ * 3 -> warn
+ * 4 -> debug
+ * 5 -> trace
+ */
 
 export class LoggerService {
   logLevel: number;
 
-  constructor({ options }: { options: PonderOptions }) {
+  constructor({ options }: { options: { logLevel: number } }) {
     this.logLevel = options.logLevel;
   }
 
   error = (...args: Parameters<typeof console.log>) => {
-    if (this.logLevel > LogLevel.Error) console.log(...args);
+    if (this.logLevel > 0) console.log(...args);
   };
   info = (...args: Parameters<typeof console.log>) => {
-    if (this.logLevel > LogLevel.Info) console.log(...args);
+    if (this.logLevel > 1) console.log(...args);
   };
   warn = (...args: Parameters<typeof console.log>) => {
-    if (this.logLevel > LogLevel.Warn) console.log(...args);
+    if (this.logLevel > 2) console.log(...args);
   };
   debug = (...args: Parameters<typeof console.log>) => {
-    if (this.logLevel > LogLevel.Debug) console.log(...args);
+    if (this.logLevel > 3) console.log(...args);
   };
   trace = (...args: Parameters<typeof console.log>) => {
-    if (this.logLevel > LogLevel.Trace) console.log(...args);
+    if (this.logLevel > 4) console.log(...args);
   };
 
   private maxWidth = 0;

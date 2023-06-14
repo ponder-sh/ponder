@@ -7,7 +7,12 @@ import {
 } from "viem";
 import { mainnet } from "viem/chains";
 
-// Test setup adapted from @viem/anvil `example-vitest` repository.
+import { buildOptions } from "@/config/options";
+import { ErrorService } from "@/errors/ErrorService";
+import { Resources } from "@/Ponder";
+import { LoggerService } from "@/utils/logger";
+
+// Anvil test setup adapted from @viem/anvil `example-vitest` repository.
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
 
 // ID of the current test worker. Used by the `@viem/anvil` proxy server.
@@ -50,3 +55,11 @@ export const walletClient = createWalletClient({
   chain: anvil,
   transport: http(),
 });
+
+export const testResources: Resources = {
+  logger: new LoggerService({ options: { logLevel: 0 } }),
+  options: buildOptions({
+    cliOptions: { configFile: "", rootDir: "" },
+  }),
+  errors: new ErrorService(),
+};
