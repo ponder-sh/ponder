@@ -60,7 +60,13 @@ beforeEach(async (context) => {
 
 /**
  * Resets the Anvil instance to the defaults.
- * Should be ran in a beforeEach block for any suites that use the test client.
+ *
+ * ```ts
+ * // Add this to any test suite that uses the test client.
+ * beforeEach(async () => {
+ *   return await resetTestClient();
+ * })
+ * ```
  */
 export async function resetTestClient() {
   await testClient.impersonateAccount({ address: vitalik.address });
