@@ -375,6 +375,20 @@ export class Ponder {
           );
         });
       });
+
+      realtimeSyncService.on("finalityCheckpoint", ({ timestamp }) => {
+        this.resources.logger.logMessage(
+          "realtime",
+          `finality checkpoint, timestamp: ${timestamp}`
+        );
+      });
+
+      realtimeSyncService.on("shallowReorg", ({ commonAncestorTimestamp }) => {
+        this.resources.logger.logMessage(
+          "realtime",
+          `reorg detected, common ancestor timestamp: ${commonAncestorTimestamp}`
+        );
+      });
     });
 
     setInterval(() => {

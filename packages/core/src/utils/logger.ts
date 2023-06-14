@@ -11,14 +11,6 @@ export enum LogLevel {
   Trace, // 5
 }
 
-type MessageKind =
-  | "event"
-  | "error"
-  | "warning"
-  | "historical"
-  | "realtime"
-  | "indexer";
-
 export class LoggerService {
   logLevel: number;
 
@@ -44,7 +36,10 @@ export class LoggerService {
 
   private maxWidth = 0;
   // This function is specifically for message logs.
-  logMessage(kind: MessageKind, message: string) {
+  logMessage(
+    kind: "event" | "error" | "warning" | "historical" | "realtime" | "indexer",
+    message: string
+  ) {
     this.maxWidth = Math.max(this.maxWidth, kind.length);
     const padded = kind.padEnd(this.maxWidth, " ");
 
