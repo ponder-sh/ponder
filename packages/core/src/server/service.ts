@@ -51,8 +51,8 @@ export class ServerService extends Emittery<ServerServiceEvents> {
 
     this.app.post("/metrics", async (_, res) => {
       try {
-        res.set("Content-Type", this.resources.metrics.registry.contentType);
-        res.end(await this.resources.metrics.metrics());
+        res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        res.end(await this.resources.metrics.getMetrics());
       } catch (error) {
         res.status(500).end(error);
       }
@@ -60,8 +60,8 @@ export class ServerService extends Emittery<ServerServiceEvents> {
 
     this.app.get("/metrics", async (_, res) => {
       try {
-        res.set("Content-Type", this.resources.metrics.registry.contentType);
-        res.end(await this.resources.metrics.metrics());
+        res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        res.end(await this.resources.metrics.getMetrics());
       } catch (error) {
         res.status(500).end(error);
       }

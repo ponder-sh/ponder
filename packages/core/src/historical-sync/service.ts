@@ -236,12 +236,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onComplete: ({ task }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metricsNew.ponder_historical_log_task_processed.inc({
+          this.metricsNew.ponder_historical_log_task_completed.inc({
             network: this.network.name,
           });
           this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
         } else {
-          this.metricsNew.ponder_historical_block_task_processed.inc({
+          this.metricsNew.ponder_historical_block_task_completed.inc({
             network: this.network.name,
           });
           this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
@@ -250,8 +250,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onError: ({ error, task, queue }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
+          this.metricsNew.ponder_historical_log_task_failed.inc({
+            network: this.network.name,
+          });
           this.metrics.logFilters[logFilter.name].logTaskErrorCount += 1;
         } else {
+          this.metricsNew.ponder_historical_block_task_failed.inc({
+            network: this.network.name,
+          });
           this.metrics.logFilters[logFilter.name].blockTaskErrorCount += 1;
         }
 

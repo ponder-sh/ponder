@@ -1,12 +1,18 @@
 import prometheus from "prom-client";
 
+const httpRequestBucketsInMs = [
+  10, 25, 50, 75, 100, 200, 300, 400, 500, 750, 1_000, 1_500, 2_000, 4_000,
+];
+
 export class MetricsService {
   private registry: prometheus.Registry;
 
   ponder_historical_log_task_total: prometheus.Counter<"network">;
-  ponder_historical_log_task_processed: prometheus.Counter<"network">;
+  ponder_historical_log_task_failed: prometheus.Counter<"network">;
+  ponder_historical_log_task_completed: prometheus.Counter<"network">;
   ponder_historical_block_task_total: prometheus.Counter<"network">;
-  ponder_historical_block_task_processed: prometheus.Counter<"network">;
+  ponder_historical_block_task_failed: prometheus.Counter<"network">;
+  ponder_historical_block_task_completed: prometheus.Counter<"network">;
   ponder_historical_rpc_request_total: prometheus.Counter<"network" | "method">;
   ponder_historical_rpc_request_duration: prometheus.Histogram<
     "network" | "method"
@@ -21,8 +27,14 @@ export class MetricsService {
       labelNames: ["network"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_log_task_processed = new prometheus.Counter({
-      name: "ponder_historical_log_task_processed",
+    this.ponder_historical_log_task_failed = new prometheus.Counter({
+      name: "ponder_historical_log_task_failed",
+      help: "Number of historical sync log tasks that failed due to an error",
+      labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_log_task_completed = new prometheus.Counter({
+      name: "ponder_historical_log_task_completed",
       help: "Number of historical sync log tasks that have been processed",
       labelNames: ["network"] as const,
       registers: [this.registry],
@@ -33,8 +45,14 @@ export class MetricsService {
       labelNames: ["network"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_block_task_processed = new prometheus.Counter({
-      name: "ponder_historical_block_task_processed",
+    this.ponder_historical_block_task_failed = new prometheus.Counter({
+      name: "ponder_historical_block_task_failed",
+      help: "Number of historical sync block tasks that failed due to an error",
+      labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_block_task_completed = new prometheus.Counter({
+      name: "ponder_historical_block_task_completed",
       help: "Number of historical sync block tasks that have been processed",
       labelNames: ["network"] as const,
       registers: [this.registry],
@@ -49,6 +67,7 @@ export class MetricsService {
       name: "ponder_historical_rpc_request_duration",
       help: "Duration of RPC requests completed during the historical sync",
       labelNames: ["network", "method"] as const,
+      buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
   }
