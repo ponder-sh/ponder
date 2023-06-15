@@ -329,11 +329,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logTaskWorker = async ({ task }: { task: LogSyncTask }) => {
     const { logFilter, fromBlock, toBlock } = task;
 
-    const endTimer =
-      this.metricsNew.ponder_historical_rpc_request_duration.startTimer({
-        network: this.network.name,
-        method: "eth_getLogs",
-      });
+    const stopClock = startClock();
     const logs = await this.network.client.request({
       method: "eth_getLogs",
       params: [
@@ -345,8 +341,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         },
       ],
     });
-    endTimer();
+    this.metricsNew.ponder_historical_rpc_request_duration.observe(
+      {
+        method: "eth_getLogs",
+        network: this.network.name,
+      },
+      stopClock()
+    );
     this.metricsNew.ponder_historical_rpc_request_total.inc({
+      method: "eth_getLogs",
       network: this.network.name,
     });
 
@@ -409,17 +412,21 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const { logFilter, blockNumber, blockNumberToCacheFrom, requiredTxHashes } =
       task;
 
-    const endTimer =
-      this.metricsNew.ponder_historical_rpc_request_duration.startTimer({
-        network: this.network.name,
-        method: "eth_getBlockByNumber",
-      });
+    const stopClock = startClock();
     const block = await this.network.client.request({
       method: "eth_getBlockByNumber",
       params: [toHex(blockNumber), true],
     });
-    endTimer();
+
+    this.metricsNew.ponder_historical_rpc_request_duration.observe(
+      {
+        method: "eth_getBlockByNumber",
+        network: this.network.name,
+      },
+      stopClock()
+    );
     this.metricsNew.ponder_historical_rpc_request_total.inc({
+      method: "eth_getBlockByNumber",
       network: this.network.name,
     });
 
