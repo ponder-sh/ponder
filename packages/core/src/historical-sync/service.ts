@@ -168,6 +168,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               fromBlock,
               toBlock,
             });
+            this.metricsNew.ponder_historical_task_total.inc({
+              kind: "log",
+              network: this.network.name,
+            });
 
             fromBlock = toBlock + 1;
             toBlock = Math.min(fromBlock + maxBlockRange - 1, endBlock);
@@ -222,44 +226,36 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onAdd: ({ task }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metricsNew.ponder_historical_log_task_total.inc({
-            network: this.network.name,
-          });
           this.metrics.logFilters[logFilter.name].logTaskTotalCount += 1;
         } else {
-          this.metricsNew.ponder_historical_block_task_total.inc({
-            network: this.network.name,
-          });
           this.metrics.logFilters[logFilter.name].blockTaskTotalCount += 1;
         }
       },
       onComplete: ({ task }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metricsNew.ponder_historical_log_task_completed.inc({
-            network: this.network.name,
-          });
           this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
         } else {
-          this.metricsNew.ponder_historical_block_task_completed.inc({
-            network: this.network.name,
-          });
           this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
         }
+
+        this.metricsNew.ponder_historical_task_completed.inc({
+          kind: task.kind === "LOG_SYNC" ? "log" : "block",
+          network: this.network.name,
+        });
       },
       onError: ({ error, task, queue }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metricsNew.ponder_historical_log_task_failed.inc({
-            network: this.network.name,
-          });
           this.metrics.logFilters[logFilter.name].logTaskErrorCount += 1;
         } else {
-          this.metricsNew.ponder_historical_block_task_failed.inc({
-            network: this.network.name,
-          });
           this.metrics.logFilters[logFilter.name].blockTaskErrorCount += 1;
         }
+
+        this.metricsNew.ponder_historical_task_failed.inc({
+          kind: task.kind === "LOG_SYNC" ? "log" : "block",
+          network: this.network.name,
+        });
 
         // Handle Alchemy response size error.
         if (
@@ -276,6 +272,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             { front: true }
           );
           queue.addTask({ ...task, fromBlock: safeEnd + 1 }, { front: true });
+          // Splitting the task into two parts increases the total count by 1.
+          this.metricsNew.ponder_historical_task_total.inc({
+            kind: "log",
+            network: this.network.name,
+          });
           return;
         }
 
@@ -292,6 +293,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           );
           queue.addTask({ ...task, toBlock: midpoint }, { front: true });
           queue.addTask({ ...task, fromBlock: midpoint + 1 }, { front: true });
+          // Splitting the task into two parts increases the total count by 1.
+          this.metricsNew.ponder_historical_task_total.inc({
+            kind: "log",
+            network: this.network.name,
+          });
           return;
         }
 
@@ -390,6 +396,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
 
     this.queue.addTasks(blockTasks, { front: true });
+    this.metricsNew.ponder_historical_task_total.inc(
+      {
+        kind: "block",
+        network: this.network.name,
+      },
+      blockTasks.length
+    );
   };
 
   private blockTaskWorker = async ({ task }: { task: BlockSyncTask }) => {
