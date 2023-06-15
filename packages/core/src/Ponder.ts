@@ -102,6 +102,7 @@ export class Ponder {
         network,
         logFilters: logFiltersForNetwork,
         historicalSyncService: new HistoricalSyncService({
+          resources,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,

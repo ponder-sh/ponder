@@ -11,8 +11,10 @@ import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
+import { MetricsService } from "@/metrics/service";
+import { Resources } from "@/Ponder";
 import { type Queue, createQueue } from "@/utils/queue";
-import { endBenchmark, startBenchmark } from "@/utils/timer";
+import { startClock } from "@/utils/timer";
 
 import { findMissingIntervals } from "./intervals";
 
@@ -24,7 +26,7 @@ type HistoricalSyncEvents = {
 };
 
 type HistoricalSyncMetrics = {
-  startedAt: [number, number];
+  endDuration: () => number;
   isComplete: boolean;
   duration: number;
   logFilters: Record<
@@ -62,13 +64,14 @@ type BlockSyncTask = {
 type HistoricalSyncQueue = Queue<LogSyncTask | BlockSyncTask>;
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
+  private metricsNew: MetricsService;
   private eventStore: EventStore;
   private logFilters: LogFilter[];
   network: Network;
 
   private queue: HistoricalSyncQueue;
   metrics: HistoricalSyncMetrics = {
-    startedAt: startBenchmark(),
+    endDuration: startClock(),
     duration: 0,
     isComplete: false,
     logFilters: {},
@@ -78,16 +81,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logFilterCheckpoints: Record<string, number>;
 
   constructor({
+    resources,
     eventStore,
     logFilters,
     network,
   }: {
+    resources: Resources;
     eventStore: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
+    this.metricsNew = resources.metrics;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
@@ -175,7 +181,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // need to emit the historicalCheckpoint event with some timestamp. It should
     // be safe to use the current timestamp.
     if (this.queue.size === 0) {
-      this.metrics.duration = endBenchmark(this.metrics.startedAt);
+      this.metrics.duration = this.metrics.endDuration();
       this.metrics.isComplete = true;
       this.emit("historicalCheckpoint", { timestamp: Date.now() });
       this.emit("syncComplete");
@@ -216,16 +222,28 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onAdd: ({ task }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
+          this.metricsNew.ponder_historical_log_task_total.inc({
+            network: this.network.name,
+          });
           this.metrics.logFilters[logFilter.name].logTaskTotalCount += 1;
         } else {
+          this.metricsNew.ponder_historical_block_task_total.inc({
+            network: this.network.name,
+          });
           this.metrics.logFilters[logFilter.name].blockTaskTotalCount += 1;
         }
       },
       onComplete: ({ task }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
+          this.metricsNew.ponder_historical_log_task_processed.inc({
+            network: this.network.name,
+          });
           this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
         } else {
+          this.metricsNew.ponder_historical_block_task_processed.inc({
+            network: this.network.name,
+          });
           this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
         }
       },
@@ -287,7 +305,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       },
       onIdle: () => {
         if (this.metrics.isComplete) return;
-        this.metrics.duration = endBenchmark(this.metrics.startedAt);
+        this.metrics.duration = this.metrics.endDuration();
         this.metrics.isComplete = true;
         this.emit("syncComplete");
       },
@@ -299,6 +317,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logTaskWorker = async ({ task }: { task: LogSyncTask }) => {
     const { logFilter, fromBlock, toBlock } = task;
 
+    const endTimer =
+      this.metricsNew.ponder_historical_rpc_request_duration.startTimer({
+        network: this.network.name,
+        method: "eth_getLogs",
+      });
     const logs = await this.network.client.request({
       method: "eth_getLogs",
       params: [
@@ -309,6 +332,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           toBlock: toHex(toBlock),
         },
       ],
+    });
+    endTimer();
+    this.metricsNew.ponder_historical_rpc_request_total.inc({
+      network: this.network.name,
     });
 
     await this.eventStore.insertFinalizedLogs({
@@ -363,9 +390,18 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const { logFilter, blockNumber, blockNumberToCacheFrom, requiredTxHashes } =
       task;
 
+    const endTimer =
+      this.metricsNew.ponder_historical_rpc_request_duration.startTimer({
+        network: this.network.name,
+        method: "eth_getBlockByNumber",
+      });
     const block = await this.network.client.request({
       method: "eth_getBlockByNumber",
       params: [toHex(blockNumber), true],
+    });
+    endTimer();
+    this.metricsNew.ponder_historical_rpc_request_total.inc({
+      network: this.network.name,
     });
 
     if (!block) throw new Error(`Block not found: ${blockNumber}`);

@@ -1,5 +1,12 @@
-export const startBenchmark = () => process.hrtime();
-export const endBenchmark = (hrt: [number, number]) => {
-  const diffHrt = process.hrtime(hrt);
-  return Math.round(diffHrt[0] * 1000 + diffHrt[1] / 1000000);
+/**
+ * Measures the elapsed wall clock time in milliseconds (ms) between two points.
+ * @returns A function returning the elapsed time in milliseconds (ms).
+ */
+export const startClock = () => {
+  const start = process.hrtime();
+
+  return () => {
+    const diff = process.hrtime(start);
+    return Math.round(diff[0] * 1000 + diff[1] / 1000000);
+  };
 };
