@@ -19,10 +19,15 @@ jobs:
       matrix:
         node-version: [16, 18]
     steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
       - name: Setup
         uses: ./.github/actions/setup
+
       - name: Typecheck
         run: pnpm typecheck
+
       - name: Lint
         run: pnpm lint
 
@@ -50,8 +55,12 @@ jobs:
         ports:
           - 5432:5432
     steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
       - name: Setup
         uses: ./.github/actions/setup
+
       - name: Test
         run: pnpm test:ci:core
         env:
@@ -67,8 +76,12 @@ jobs:
       matrix:
         node-version: [16, 18]
     steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
       - name: Setup
         uses: ./.github/actions/setup
+
       - name: Test
         run: pnpm test:ci:create-ponder
         env:
