@@ -109,11 +109,15 @@ const buildPluralField = (
       case FieldKind.LIST: {
         // List fields => universal, plural
         operators.universal.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+          filterFields[`${field.name}${suffix}`] = {
+            type: new GraphQLList(field.baseGqlType),
+          };
         });
 
         operators.plural.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+          filterFields[`${field.name}${suffix}`] = {
+            type: field.baseGqlType,
+          };
         });
         break;
       }

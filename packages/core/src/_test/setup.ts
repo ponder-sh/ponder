@@ -59,9 +59,16 @@ beforeEach(async (context) => {
 });
 
 /**
- * Reset the Anvil instance and set defaults shared by all tests.
+ * Resets the Anvil instance to the defaults.
+ *
+ * ```ts
+ * // Add this to any test suite that uses the test client.
+ * beforeEach(async () => {
+ *   return await resetTestClient();
+ * })
+ * ```
  */
-beforeEach(async () => {
+export async function resetTestClient() {
   await testClient.impersonateAccount({ address: vitalik.address });
   await testClient.setAutomine(false);
 
@@ -71,4 +78,4 @@ beforeEach(async () => {
       blockNumber: FORK_BLOCK_NUMBER,
     });
   };
-});
+}

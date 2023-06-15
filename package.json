@@ -16,7 +16,11 @@
     "lint:format": "prettier --write",
     "preinstall": "npx -y only-allow pnpm",
     "test": "pnpm --parallel --no-bail test",
+    "test:core": "pnpm --filter '@ponder/core' test",
+    "test:create-ponder": "pnpm --filter 'create-ponder' test",
     "test:ci": "pnpm --parallel --no-bail test:ci",
+    "test:ci:core": "pnpm --filter '@ponder/core' test:ci",
+    "test:ci:create-ponder": "pnpm --filter 'create-ponder' test:ci",
     "typecheck": "pnpm --parallel typecheck"
   },
   "devDependencies": {
@@ -32,6 +36,7 @@
     "prettier": "^2.8.2",
     "typescript": "^5.1.3"
   },
+  "packageManager": "pnpm@7.28.0",
   "pnpm": {
     "patchedDependencies": {
       "graphql@15.8.0": "patches/graphql@15.8.0.patch"

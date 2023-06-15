@@ -99,6 +99,11 @@ export function getWhereOperatorAndValue({
   }
 
   if (Array.isArray(value)) {
+    // Handle basic list equals.
+    if (filterType === "" || filterType === "not") {
+      return { operator, value: JSON.stringify(value) };
+    }
+
     return {
       operator,
       value: value.map((v) => {

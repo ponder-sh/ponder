@@ -1,8 +1,8 @@
 import path from "node:path";
 
-import { PonderCliOptions } from "@/bin/ponder";
+import type { PonderCliOptions } from "@/bin/ponder";
 
-import { ResolvedPonderConfig } from "./ponderConfig";
+import type { ResolvedPonderConfig } from "./ponderConfig";
 
 export type PonderOptions = {
   configFile: string;
