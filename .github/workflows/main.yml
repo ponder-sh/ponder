@@ -37,7 +37,7 @@ jobs:
         database: [postgres, sqlite]
     services:
       postgres:
-        image: postgres
+        image: ${{ matrix.database == 'postgres' && 'postgres' || '' }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
