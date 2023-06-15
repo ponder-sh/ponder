@@ -50,7 +50,8 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v3
+      - name: Clone repository
+        uses: actions/checkout@v3
       - name: Setup
         uses: ./.github/actions/setup
       - name: Test
