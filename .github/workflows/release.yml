@@ -13,20 +13,25 @@ jobs:
       matrix:
         node-version: [18]
     steps:
-      - uses: actions/checkout@v3
+      - name: Clone repository
+        uses: actions/checkout@v3
         with:
-          # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
+          # This fetches the entire Git history so that Changesets can generate changelogs with the correct commits.
           fetch-depth: 0
-      - uses: pnpm/action-setup@v2.2.4
-        with:
-          version: 7
-      - name: Set up node ${{ matrix.node-version }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v2
+
+      - name: Set up node
         uses: actions/setup-node@v3
         with:
           cache: pnpm
           node-version: ${{ matrix.node-version }}
+
       - name: Install dependencies
-        run: pnpm i
+        shell: bash
+        run: pnpm install
+
       - name: Create release pull request or publish to npm
         id: changesets
         uses: changesets/action@v1.4.1
