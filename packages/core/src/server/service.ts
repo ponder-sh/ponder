@@ -49,6 +49,24 @@ export class ServerService extends Emittery<ServerServiceEvents> {
       port: resolvedPort,
     });
 
+    this.app.post("/metrics", async (_, res) => {
+      try {
+        res.set("Content-Type", this.resources.metrics.registry.contentType);
+        res.end(await this.resources.metrics.metrics());
+      } catch (error) {
+        res.status(500).end(error);
+      }
+    });
+
+    this.app.get("/metrics", async (_, res) => {
+      try {
+        res.set("Content-Type", this.resources.metrics.registry.contentType);
+        res.end(await this.resources.metrics.metrics());
+      } catch (error) {
+        res.status(500).end(error);
+      }
+    });
+
     // By default, the server will respond as unhealthy until historical events have
     // been processed OR 4.5 minutes have passed since the app was created. This
     // enables zero-downtime deployments on PaaS platforms like Railway and Render.

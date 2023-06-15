@@ -13,6 +13,7 @@ import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import { type EventStore } from "@/event-store/store";
 import { HistoricalSyncService } from "@/historical-sync/service";
+import { MetricsService } from "@/metrics/service";
 import { RealtimeSyncService } from "@/realtime-sync/service";
 import { ReloadService } from "@/reload/service";
 import { ServerService } from "@/server/service";
@@ -28,6 +29,7 @@ export type Resources = {
   options: PonderOptions;
   logger: LoggerService;
   errors: ErrorService;
+  metrics: MetricsService;
 };
 
 export class Ponder {
@@ -67,8 +69,9 @@ export class Ponder {
   }) {
     const logger = new LoggerService({ options });
     const errors = new ErrorService();
+    const metrics = new MetricsService();
 
-    const resources = { options, logger, errors };
+    const resources = { options, logger, errors, metrics };
     this.resources = resources;
 
     const logFilters = buildLogFilters({ options, config });

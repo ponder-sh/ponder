@@ -133,6 +133,7 @@ importers:
       pg: ^8.9.0
       picocolors: ^1.0.0
       prettier: ^2.6.2
+      prom-client: ^14.2.0
       react: '17'
       retry: ^0.13.1
       stacktrace-parser: ^0.1.10
@@ -170,6 +171,7 @@ importers:
       pg: 8.9.0
       picocolors: 1.0.0
       prettier: 2.8.2
+      prom-client: 14.2.0
       react: 17.0.2
       retry: 0.13.1
       stacktrace-parser: 0.1.10
@@ -3553,6 +3555,10 @@ packages:
     resolution: {integrity: sha512-p2q/t/mhvuOj/UeLlV6566GD/guowlr0hHxClI0W9m7MWYkL1F0hLo+0Aexs9HSPCtR1SXQ0TD3MMKrXZajbiQ==}
     dependencies:
       file-uri-to-path: 1.0.0
+    dev: false
+
+  /bintrees/1.0.2:
+    resolution: {integrity: sha512-VOMgTMwjAaUG580SXn3LacVgjurrbMme7ZZNYGSSV7mmtY6QQRh0Eg3pwIcntQ77DErK1L0NxkbetjcoXzVwKw==}
     dev: false
 
   /bl/4.1.0:
@@ -7752,6 +7758,13 @@ packages:
       react-is: 17.0.2
     dev: true
 
+  /prom-client/14.2.0:
+    resolution: {integrity: sha512-sF308EhTenb/pDRPakm+WgiN+VdM/T1RaHj1x+MvAuT8UiQP8JmOEbxVqtkbfR4LrvOg5n7ic01kRBDGXjYikA==}
+    engines: {node: '>=10'}
+    dependencies:
+      tdigest: 0.1.2
+    dev: false
+
   /prompts/2.4.2:
     resolution: {integrity: sha512-NxNv/kLguCA7p3jE8oL2aEBsrJWgAakBpgmgK6lpPWV+WuOmY6r2/zbAVnP+T8bQlA0nzHXSJSJW0Hq7ylaD2Q==}
     engines: {node: '>= 6'}
@@ -8741,6 +8754,12 @@ packages:
       fs-constants: 1.0.0
       inherits: 2.0.4
       readable-stream: 3.6.1
+    dev: false
+
+  /tdigest/0.1.2:
+    resolution: {integrity: sha512-+G0LLgjjo9BZX2MfdvPfH+MKLCrxlXSYec5DaPYP1fe6Iyhf0/fSmJ0bFiZ1F8BT6cGXl2LpltQptzjXKWEkKA==}
+    dependencies:
+      bintrees: 1.0.2
     dev: false
 
   /term-size/2.2.1:
