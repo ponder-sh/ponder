@@ -4,7 +4,7 @@ import Emittery from "emittery";
 import express from "express";
 import { graphqlHTTP } from "express-graphql";
 import type { GraphQLSchema } from "graphql";
-import type http from "node:http";
+import { createHttpTerminator } from "http-terminator";
 
 import { Resources } from "@/Ponder";
 import { UserStore } from "@/user-store/store";
@@ -18,7 +18,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
   userStore: UserStore;
 
   app?: express.Express;
-  server?: http.Server;
+  private terminate?: () => Promise<void>;
   private graphqlMiddleware?: express.Handler;
 
   isHistoricalEventProcessingComplete = false;
@@ -42,7 +42,9 @@ export class ServerService extends Emittery<ServerServiceEvents> {
     // If the desired port is unavailable, detect-port will find the next available port.
     const resolvedPort = await detectPort(this.resources.options.port);
 
-    this.server = this.app.listen(resolvedPort);
+    const server = this.app.listen(resolvedPort);
+    const terminator = createHttpTerminator({ server });
+    this.terminate = () => terminator.terminate();
 
     this.emit("serverStarted", {
       desiredPort: this.resources.options.port,
@@ -104,13 +106,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
     this.app?.use("/", (...args) => this.graphqlMiddleware?.(...args));
   }
 
-  teardown() {
-    this.server?.unref();
-    return new Promise<void>((resolve, reject) => {
-      this.server?.close((err) => {
-        if (err) return reject(err);
-        resolve();
-      });
-    });
+  async teardown() {
+    await this.terminate?.();
   }
 }
