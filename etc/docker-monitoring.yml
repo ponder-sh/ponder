@@ -36,5 +36,6 @@ services:
       - grafana_data:/var/lib/grafana
       - ./grafana/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/dashboards:/etc/grafana/provisioning_temp/dashboards
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
     depends_on:
       - prometheus
