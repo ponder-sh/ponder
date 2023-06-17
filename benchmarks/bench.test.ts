@@ -20,6 +20,21 @@ async function fetchWithTimeout(
   return response;
 }
 
+const fetchGraphql = async (query: string) => {
+  const response = await fetchWithTimeout(
+    "http://localhost:8000/subgraphs/name/ponder-benchmarks/subgraph",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query: `query { ${query} }` }),
+    }
+  );
+  const body = await response.text();
+  return body;
+};
+
 beforeAll(async () => {
   // Need to exec the `graph create` and `graph deploy` commands here.
   // This setup should not be part of the benchmark.
@@ -52,22 +67,7 @@ beforeAll(async () => {
     }
   );
 
-  const fetchGraphql = async (query: string) => {
-    const response = await fetchWithTimeout(
-      "http://localhost:8000/subgraphs/name/ponder-benchmarks/subgraph/graphql",
-      {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query: `query { ${query} }` }),
-      }
-    );
-    const body = await response.text();
-    return body;
-  };
-
+  console.log("Testing query...");
   try {
     const response = await fetchGraphql(`
       exampleEntitys {
@@ -80,6 +80,7 @@ beforeAll(async () => {
     console.log({ error8000 });
   }
 
+  console.log("Fetching Graph Node metrics...");
   try {
     const metricsResponse = await fetchWithTimeout("http://localhost:8040");
     const metricsRaw = await metricsResponse.text();
