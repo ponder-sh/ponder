@@ -20,24 +20,18 @@ async function fetchWithTimeout(
 }
 
 beforeAll(async () => {
-  // Need to exec the `graph build` and `graph deploy` commands here
+  // Need to exec the `graph create` and `graph deploy` commands here.
   // This setup should not be part of the benchmark.
-  // console.log("Building subgraph...");
-  // await execa(
-  //   "graph",
-  //   ["build", "./subgraph/subgraph.yaml", "--output-dir=./subgraph/build"],
-  //   {
-  //     timeout: 10_000,
-  //     stdio: "inherit",
-  //   }
-  // );
 
-  try {
-    const response5001 = await fetchWithTimeout("http://localhost:5001");
-    console.log({ response5001 });
-  } catch (error5001) {
-    console.log({ error5001 });
-  }
+  console.log("Registering subgraph...");
+  await execa(
+    "graph",
+    ["create", "ponder-benchmarks/subgraph", "--node=http://localhost:8020"],
+    {
+      timeout: 10_000,
+      stdio: "inherit",
+    }
+  );
 
   console.log("Deploying subgraph...");
   await execa(
