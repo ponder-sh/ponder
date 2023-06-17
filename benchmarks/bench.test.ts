@@ -1,4 +1,5 @@
 import execa from "execa";
+import parsePrometheusTextFormat from "parse-prometheus-text-format";
 import { beforeAll, test } from "vitest";
 
 async function fetchWithTimeout(
@@ -63,7 +64,7 @@ beforeAll(async () => {
         body: JSON.stringify({ query: `query { ${query} }` }),
       }
     );
-    const body = await response.json();
+    const body = await response.text();
     return body;
   };
 
@@ -80,12 +81,12 @@ beforeAll(async () => {
   }
 
   try {
-    const response8040 = await fetchWithTimeout("http://localhost:8040");
-    console.log({ response8040 });
-    const text = await response8040.text();
-    console.log({ text });
-  } catch (error8040) {
-    console.log({ error8040 });
+    const metricsResponse = await fetchWithTimeout("http://localhost:8040");
+    const metricsRaw = await metricsResponse.text();
+    const metrics = parsePrometheusTextFormat(metricsRaw);
+    console.log({ metrics });
+  } catch (error) {
+    console.log("Unable to fetch metrics:", { error });
   }
 }, 60_000);
 
