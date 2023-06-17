@@ -37,7 +37,8 @@ jobs:
           postgres_db: postgres
           ipfs: localhost:5001
           ethereum: mainnet:${{ secrets.ANVIL_FORK_URL }}
-          graph_log: info
+          graph_log: trace
+          graphman_log: trace
         ports:
           - 8000:8000
           - 8001:8001
@@ -57,6 +58,9 @@ jobs:
       - name: Verify Graph Node connection
         run: |
           echo "${{ toJson(job) }}"
+          echo "IPFS logs:"
+          docker logs "${{ job.services.ipfs.id }}"
+          echo "Graph Node logs:"
           docker logs "${{ job.services.graph-node.id }}"
 
       - name: Setup
