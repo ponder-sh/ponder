@@ -5,11 +5,14 @@ beforeAll(async () => {
   // Need to exec the `graph build` and `graph deploy` commands here
   // This setup should not be part of the benchmark.
   console.log("Building subgraph...");
-  await execa("graph", [
-    "build",
-    "./subgraph/subgraph.yaml",
-    "--output-dir=./subgraph/build",
-  ]);
+  await execa(
+    "graph",
+    ["build", "./subgraph/subgraph.yaml", "--output-dir=./subgraph/build"],
+    {
+      timeout: 10_000,
+      stdio: "inherit",
+    }
+  );
 
   try {
     const response8000 = await fetch("http://localhost:8000");
@@ -40,13 +43,20 @@ beforeAll(async () => {
   }
 
   console.log("Deploying subgraph...");
-  await execa("graph", [
-    "deploy",
-    "ponder-benchmarks/subgraph",
-    "./subgraph/subgraph.yaml",
-    "--node=http://localhost:8020",
-  ]);
-}, 30_000);
+  await execa(
+    "graph",
+    [
+      "deploy",
+      "ponder-benchmarks/subgraph",
+      "./subgraph/subgraph.yaml",
+      "--node=http://localhost:8020",
+    ],
+    {
+      timeout: 10_000,
+      stdio: "inherit",
+    }
+  );
+}, 60_000);
 
 test("test", async () => {
   console.log("In test!");
