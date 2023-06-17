@@ -58,7 +58,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Start Anvil
-        run: anvil --no-mining --fork-url $ANVIL_FORK_URL --fork-block-number 17500050 &
+        run: anvil --no-mining --fork-url $ANVIL_FORK_URL --chain-id 1 --fork-block-number 17500050 &
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
 
