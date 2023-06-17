@@ -31,7 +31,7 @@ jobs:
       graph-node:
         image: graphprotocol/graph-node
         options: >-
-          --health-cmd curl --fail http://localhost:8040 || exit 1
+          --health-cmd 'curl --fail http://localhost:8040 || exit 1'
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
