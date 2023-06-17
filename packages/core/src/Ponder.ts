@@ -102,12 +102,13 @@ export class Ponder {
         network,
         logFilters: logFiltersForNetwork,
         historicalSyncService: new HistoricalSyncService({
-          resources,
+          metrics,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
+          metrics,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
@@ -401,7 +402,7 @@ export class Ponder {
           networkSyncService;
 
         if (
-          realtimeSyncService.metrics.isConnected &&
+          realtimeSyncService.stats.isConnected &&
           !this.uiService.ui.networks.includes(network.name)
         ) {
           this.uiService.ui.networks.push(network.name);

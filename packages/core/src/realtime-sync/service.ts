@@ -6,6 +6,7 @@ import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
+import { MetricsService } from "@/metrics/service";
 import { poll } from "@/utils/poll";
 import { type Queue, createQueue } from "@/utils/queue";
 import { range } from "@/utils/range";
@@ -26,7 +27,7 @@ type RealtimeSyncEvents = {
   error: { error: Error };
 };
 
-type RealtimeSyncMetrics = {
+type RealtimeSyncStats = {
   isConnected: boolean;
   // Block number -> log filter name -> matched log count.
   // Note that finalized blocks are removed from this object.
@@ -46,11 +47,12 @@ type RealtimeBlockTask = BlockWithTransactions;
 type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
+  private metrics: MetricsService;
   private eventStore: EventStore;
   private logFilters: LogFilter[];
   network: Network;
 
-  metrics: RealtimeSyncMetrics;
+  stats: RealtimeSyncStats;
 
   // Queue of unprocessed blocks.
   private queue: RealtimeSyncQueue;
@@ -62,29 +64,32 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private unpoll?: () => any | Promise<any>;
 
   constructor({
+    metrics,
     eventStore,
     logFilters,
     network,
   }: {
+    metrics: MetricsService;
     eventStore: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
+    this.metrics = metrics;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
 
     this.queue = this.buildQueue();
-    this.metrics = { isConnected: false, blocks: {} };
+    this.stats = { isConnected: false, blocks: {} };
   }
 
   setup = async () => {
     // Fetch the latest block for the network.
     const latestBlock = await this.getLatestBlock();
 
-    this.metrics.isConnected = true;
+    this.stats.isConnected = true;
 
     // Set the finalized block number according to the network's finality threshold.
     // If the finality block count is greater than the latest block number, set to zero.
@@ -274,7 +279,16 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       // Add this block the local chain.
       this.blocks.push(newBlock);
 
-      this.metrics.blocks[newBlock.number] = {
+      this.metrics.ponder_realtime_latest_block_number.set(
+        { network: this.network.name },
+        newBlock.number
+      );
+      this.metrics.ponder_realtime_latest_block_timestamp.set(
+        { network: this.network.name },
+        newBlock.timestamp
+      );
+
+      this.stats.blocks[newBlock.number] = {
         bloom: {
           hit: isMatchedLogPresentInBlock,
           falsePositive: isMatchedLogPresentInBlock && matchedLogCount === 0,
@@ -300,9 +314,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         );
 
         // Clean up metrics for now-finalized blocks.
-        for (const blockNumber in this.metrics.blocks) {
+        for (const blockNumber in this.stats.blocks) {
           if (Number(blockNumber) < newFinalizedBlock.number) {
-            delete this.metrics.blocks[blockNumber];
+            delete this.stats.blocks[blockNumber];
           }
         }
 

@@ -12,7 +12,6 @@ import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
 import { MetricsService } from "@/metrics/service";
-import { Resources } from "@/Ponder";
 import { type Queue, createQueue } from "@/utils/queue";
 import { startClock } from "@/utils/timer";
 
@@ -81,19 +80,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logFilterCheckpoints: Record<string, number>;
 
   constructor({
-    resources,
+    metrics,
     eventStore,
     logFilters,
     network,
   }: {
-    resources: Resources;
+    metrics: MetricsService;
     eventStore: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
-    this.metricsNew = resources.metrics;
+    this.metricsNew = metrics;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;

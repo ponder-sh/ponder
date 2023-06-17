@@ -14,10 +14,13 @@ export class MetricsService {
   ponder_historical_rpc_request_duration: prometheus.Histogram<
     "network" | "method"
   >;
+  ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
+  ponder_realtime_latest_block_timestamp: prometheus.Gauge<"network">;
 
   constructor() {
     this.registry = new prometheus.Registry();
 
+    // Historical sync metrics
     this.ponder_historical_task_total = new prometheus.Counter({
       name: "ponder_historical_task_total",
       help: "Number of historical sync tasks that have been scheduled",
@@ -47,6 +50,20 @@ export class MetricsService {
       help: "Duration of RPC requests completed during the historical sync",
       labelNames: ["network", "method"] as const,
       buckets: httpRequestBucketsInMs,
+      registers: [this.registry],
+    });
+
+    // Realtime sync metrics
+    this.ponder_realtime_latest_block_number = new prometheus.Gauge({
+      name: "ponder_realtime_latest_block_number",
+      help: "Block number of the latest synced block",
+      labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_realtime_latest_block_timestamp = new prometheus.Gauge({
+      name: "ponder_realtime_latest_block_timestamp",
+      help: "Block timestamp of the latest synced block",
+      labelNames: ["network"] as const,
       registers: [this.registry],
     });
   }
