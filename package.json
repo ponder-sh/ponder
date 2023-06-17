@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "bench": "pnpm --filter 'benchmarks' bench",
+    "bench": "pnpm --filter './benchmarks' bench",
     "build": "pnpm --filter '@ponder/core' build && pnpm --filter './packages/*' --filter '!@ponder/core' --parallel build",
     "changeset:release": "pnpm build && changeset publish",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
