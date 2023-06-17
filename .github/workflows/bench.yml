@@ -17,6 +17,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
+          POSTGRES_INITDB_ARGS: -E UTF8 --locale=C
         options: >-
           --health-cmd pg_isready
           --health-interval 5s
