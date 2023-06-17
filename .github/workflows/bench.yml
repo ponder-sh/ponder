@@ -31,11 +31,11 @@ jobs:
           - 5001:5001
       graph-node:
         image: graphprotocol/graph-node
-        # options: >-
-        #   --health-cmd "echo 'Running health check...' && (curl --fail http://localhost:8040 || exit 1)"
-        #   --health-interval 5s
-        #   --health-timeout 5s
-        #   --health-retries 10
+        options: >-
+          --health-cmd "curl --fail http://graph-node:8040"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
         env:
           postgres_host: postgres
           postgres_user: postgres
@@ -55,18 +55,11 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v3
 
-      # - name: Start IPFS node
-      #   uses: ibnesayeed/setup-ipfs@master
-      #   with:
-      #     ipfs_version: 0.10.0
-      #     run_daemon: true
-
       - name: Verify Graph Node connection
         run: |
           echo "${{ toJson(job) }}"
           echo "IPFS logs:"
           docker logs "${{ job.services.ipfs.id }}"
-          sleep 5
           echo "Graph Node logs:"
           docker logs "${{ job.services.graph-node.id }}"
 

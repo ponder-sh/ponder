@@ -80,7 +80,7 @@ beforeAll(async () => {
 
   try {
     const response8040 = await fetchWithTimeout("http://localhost:8040");
-    console.log({ response8040 });
+    console.log({ response8040, body: response8040.body });
   } catch (error8040) {
     console.log({ error8040 });
   }
