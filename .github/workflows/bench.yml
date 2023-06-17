@@ -47,7 +47,7 @@ jobs:
       - name: Start IPFS node
         uses: ibnesayeed/setup-ipfs@master
         with:
-          ipfs_version: 0.10
+          ipfs_version: 0.10.0
           run_daemon: true
 
       - name: Setup
