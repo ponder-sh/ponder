@@ -53,14 +53,6 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v3
 
-      - name: Verify Graph Node connection
-        run: |
-          echo "${{ toJson(job) }}"
-          echo "IPFS logs:"
-          docker logs "${{ job.services.ipfs.id }}"
-          echo "Graph Node logs:"
-          docker logs "${{ job.services.graph-node.id }}"
-
       - name: Setup
         uses: ./.github/actions/setup
 
@@ -69,11 +61,3 @@ jobs:
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-
-      - name: Verify Graph Node connection end
-        run: |
-          echo "${{ toJson(job) }}"
-          echo "IPFS logs:"
-          docker logs "${{ job.services.ipfs.id }}"
-          echo "Graph Node logs:"
-          docker logs "${{ job.services.graph-node.id }}"

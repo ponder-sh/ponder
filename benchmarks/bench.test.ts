@@ -51,36 +51,39 @@ beforeAll(async () => {
     }
   );
 
-  try {
-    const response8000 = await fetchWithTimeout(
-      "http://localhost:8000/subgraphs/name/ponder-benchmarks/subgraph/graphql"
+  const fetchGraphql = async (query: string) => {
+    const response = await fetchWithTimeout(
+      "http://localhost:8000/subgraphs/name/ponder-benchmarks/subgraph/graphql",
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query: `query { ${query} }` }),
+      }
     );
-    console.log({ response8000 });
-    const body = await response8000.json();
-    console.log({ body });
+    const body = await response.json();
+    return body;
+  };
+
+  try {
+    const response = await fetchGraphql(`
+      exampleEntitys {
+        id
+      }
+    `);
+
+    console.log({ response });
   } catch (error8000) {
     console.log({ error8000 });
   }
 
   try {
-    const response8020 = await fetchWithTimeout("http://localhost:8020");
-    console.log({ response8020 });
-  } catch (error8020) {
-    console.log({ error8020 });
-  }
-
-  try {
-    const response8030 = await fetchWithTimeout("http://localhost:8030");
-    console.log({ response8030 });
-  } catch (error8030) {
-    console.log({ error8030 });
-  }
-
-  try {
     const response8040 = await fetchWithTimeout("http://localhost:8040");
     console.log({ response8040 });
-    const body = await response8040.json();
-    console.log({ body });
+    const text = await response8040.text();
+    console.log({ text });
   } catch (error8040) {
     console.log({ error8040 });
   }
