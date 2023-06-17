@@ -19,9 +19,9 @@ jobs:
           POSTGRES_DB: postgres
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
         ports:
           - 5432:5432
       ipfs:
@@ -30,6 +30,11 @@ jobs:
           - 5001:5001
       graph-node:
         image: graphprotocol/graph-node
+        options: >-
+          --health-cmd curl --fail http://localhost:8040 || exit 1
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
         env:
           postgres_host: localhost
           postgres_user: postgres
