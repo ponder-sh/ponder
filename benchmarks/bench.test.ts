@@ -97,22 +97,21 @@ beforeAll(async () => {
 
   console.log("Waiting for subgraph to sync 100 blocks...");
   let latestBlockNumber = 0;
-  while (latestBlockNumber < 17500100) {
+  let attempts = 0;
+  while (latestBlockNumber < 17500100 && attempts < 15) {
     latestBlockNumber = await fetchSubgraphLatestBlockNumber();
+    attempts += 1;
     console.log({ latestBlockNumber });
     await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
 
   console.log("Fetching Graph Node metrics...");
-  try {
-    const metricsResponse = await fetchWithTimeout("http://localhost:8040");
-    const metricsRaw = await metricsResponse.text();
-    const metrics = parsePrometheusTextFormat(metricsRaw);
-    console.log({ metrics });
-  } catch (error) {
-    console.log("Unable to fetch metrics:", { error });
-  }
-}, 60_000);
+  const metricsResponse = await fetchWithTimeout("http://localhost:8040");
+  const metricsRaw = await metricsResponse.text();
+  const metrics = parsePrometheusTextFormat(metricsRaw);
+  console.log(metricsRaw);
+  console.log(metrics);
+}, 90_000);
 
 test("test", async () => {
   console.log("In test!");
