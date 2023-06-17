@@ -10,14 +10,6 @@ jobs:
   bench:
     name: Bench
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/foundry-rs/foundry
-      env:
-        ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-        ANVIL_BLOCK_NUMBER: 17500050
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      ports:
-        - 8545:8545
     services:
       postgres:
         image: postgres
@@ -37,6 +29,10 @@ jobs:
         image: ipfs/go-ipfs:v0.10.0
         ports:
           - 5001:5001
+      anvil:
+        image: ghcr.io/0xolias/simple-anvil-image:main
+        ports:
+          - 8545:8545
       graph-node:
         image: graphprotocol/graph-node
         # Would be best to get this health check working, but so far it hasn't been an issue.
@@ -48,7 +44,7 @@ jobs:
           postgres_pass: postgres
           postgres_db: postgres
           ipfs: ipfs:5001
-          ethereum: mainnet:http://localhost:8545
+          ethereum: mainnet:http://anvil:8545
           GRAPH_LOG: debug
           GRAPHMAN_LOG: debug
         ports:
@@ -64,17 +60,17 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
-      - name: Start Anvil
-        run: anvil --host 0.0.0.0 --no-mining --fork-url $ANVIL_FORK_URL --chain-id 1 --fork-block-number 17500050 &
-        # env:
-        #   ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
+      # - name: Start Anvil
+      #   run: anvil --host 0.0.0.0 --no-mining --fork-url $ANVIL_FORK_URL --chain-id 1 --fork-block-number 17500050 &
+      #   env:
+      #     ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
 
       - name: Bench
         run: pnpm bench
-        # env:
-        #   ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-        #   ANVIL_BLOCK_NUMBER: 17500050
-        #   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        env:
+          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
+          ANVIL_BLOCK_NUMBER: 17500050
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
-      - name: Shutdown Anvil
-        run: pkill -2 anvil
+      # - name: Shutdown Anvil
+      #   run: pkill -2 anvil
