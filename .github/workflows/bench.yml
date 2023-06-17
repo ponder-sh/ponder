@@ -40,7 +40,7 @@ jobs:
           postgres_pass: postgres
           postgres_db: postgres
           ipfs: ipfs:5001
-          ethereum: mainnet:http://bench:8545
+          ethereum: mainnet:http://host.docker.internal:8545
           GRAPH_LOG: debug
           GRAPHMAN_LOG: debug
         ports:
@@ -57,7 +57,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Start Anvil
-        run: anvil --no-mining --fork-url $ANVIL_FORK_URL --chain-id 1 --fork-block-number 17500050 &
+        run: anvil --host 0.0.0.0 --no-mining --fork-url $ANVIL_FORK_URL --chain-id 1 --fork-block-number 17500050 &
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
 
