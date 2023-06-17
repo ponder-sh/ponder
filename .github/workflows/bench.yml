@@ -28,8 +28,6 @@ jobs:
         image: ipfs/go-ipfs:v0.10.0
         ports:
           - 5001:5001
-        volumes:
-          - ./data/ipfs:/data/ipfs
       graph-node:
         image: graphprotocol/graph-node
         env:
