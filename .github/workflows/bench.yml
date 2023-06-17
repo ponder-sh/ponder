@@ -28,6 +28,8 @@ jobs:
         image: ipfs/go-ipfs:v0.10.0
         ports:
           - 5001:5001
+        volumes:
+          - ./data/ipfs:/data/ipfs
       graph-node:
         image: graphprotocol/graph-node
         env:
@@ -35,7 +37,7 @@ jobs:
           postgres_user: postgres
           postgres_pass: postgres
           postgres_db: postgres
-          ipfs: http://localhost:5001
+          ipfs: ipfs:5001
           ethereum: mainnet:${{ secrets.ANVIL_FORK_URL }}
           GRAPH_LOG: debug
           GRAPHMAN_LOG: debug
@@ -72,3 +74,11 @@ jobs:
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+      - name: Verify Graph Node connection end
+        run: |
+          echo "${{ toJson(job) }}"
+          echo "IPFS logs:"
+          docker logs "${{ job.services.ipfs.id }}"
+          echo "Graph Node logs:"
+          docker logs "${{ job.services.graph-node.id }}"
