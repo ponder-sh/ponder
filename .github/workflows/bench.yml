@@ -31,12 +31,12 @@ jobs:
       graph-node:
         image: graphprotocol/graph-node
         options: >-
-          --health-cmd "curl --fail http://localhost:8040 || exit 1"
+          --health-cmd "echo "Running health check..." && (curl --fail http://localhost:8040 || exit 1)"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
         env:
-          postgres_host: localhost
+          postgres_host: postgres
           postgres_user: postgres
           postgres_pass: postgres
           postgres_db: postgres
