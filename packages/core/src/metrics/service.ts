@@ -23,6 +23,12 @@ export class MetricsService {
   constructor() {
     this.registry = new prometheus.Registry();
 
+    // Register default metric collection.
+    prometheus.collectDefaultMetrics({
+      register: this.registry,
+      prefix: "ponder_default_",
+    });
+
     // Historical sync metrics
     this.ponder_historical_task_total = new prometheus.Counter({
       name: "ponder_historical_task_total",
