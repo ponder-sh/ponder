@@ -2,6 +2,7 @@ import execa from "execa";
 import parsePrometheusTextFormat from "parse-prometheus-text-format";
 import { beforeAll, test } from "vitest";
 
+import { FORK_BLOCK_NUMBER, FORK_URL } from "./_test/constants";
 import { publicClient, testClient } from "./_test/utils";
 
 const fetchWithTimeout = async (
@@ -66,8 +67,10 @@ const fetchSubgraphLatestBlockNumber = async () => {
 };
 
 beforeAll(async () => {
-  // Need to exec the `graph create` and `graph deploy` commands here.
-  // This setup should not be part of the benchmark.
+  console.log("Setting up the Anvil node...");
+  await testClient.setAutomine(false);
+  await testClient.setRpcUrl(FORK_URL);
+  await testClient.reset({ blockNumber: FORK_BLOCK_NUMBER });
 
   console.log("Registering subgraph...");
   await execa(
