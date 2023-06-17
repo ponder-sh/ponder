@@ -52,8 +52,12 @@ beforeAll(async () => {
   );
 
   try {
-    const response8000 = await fetchWithTimeout("http://localhost:8000");
+    const response8000 = await fetchWithTimeout(
+      "http://localhost:8000/subgraphs/name/ponder-benchmarks/subgraph/graphql"
+    );
     console.log({ response8000 });
+    const body = await response8000.json();
+    console.log({ body });
   } catch (error8000) {
     console.log({ error8000 });
   }
@@ -74,7 +78,9 @@ beforeAll(async () => {
 
   try {
     const response8040 = await fetchWithTimeout("http://localhost:8040");
-    console.log({ response8040, body: response8040.body });
+    console.log({ response8040 });
+    const body = await response8040.json();
+    console.log({ body });
   } catch (error8040) {
     console.log({ error8040 });
   }
