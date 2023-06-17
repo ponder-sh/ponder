@@ -2,10 +2,10 @@ import execa from "execa";
 import parsePrometheusTextFormat from "parse-prometheus-text-format";
 import { beforeAll, test } from "vitest";
 
-async function fetchWithTimeout(
+const fetchWithTimeout = async (
   input: RequestInfo | URL,
   options: RequestInit & { timeout?: number } = {}
-) {
+) => {
   const { timeout = 2_000 } = options;
 
   const controller = new AbortController();
@@ -18,21 +18,49 @@ async function fetchWithTimeout(
   clearTimeout(id);
 
   return response;
-}
+};
 
-const fetchGraphql = async (query: string) => {
-  const response = await fetchWithTimeout(
-    "http://localhost:8000/subgraphs/name/ponder-benchmarks/subgraph",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query: `query { ${query} }` }),
-    }
-  );
+const fetchGraphql = async (input: RequestInfo | URL, query: string) => {
+  const response = await fetchWithTimeout(input, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query: `query ${query}` }),
+  });
   const body = await response.json();
   return body;
+};
+
+const fetchSubgraphLatestBlockNumber = async () => {
+  const response = await fetchGraphql(
+    "http://localhost:8000/subgraphs/name/ponder-benchmarks/subgraph",
+    `{
+      _meta {
+        block {
+          number
+        }
+      }
+    }`
+  );
+
+  const error = response.errors?.[0];
+
+  if (error) {
+    if (
+      error.message?.endsWith(
+        "Wait for it to ingest a few blocks before querying it"
+      )
+    ) {
+      return 0;
+    } else {
+      throw error;
+    }
+  }
+
+  const blockNumber = response.data?._meta?.block?.number;
+
+  return blockNumber as number;
 };
 
 beforeAll(async () => {
@@ -67,38 +95,12 @@ beforeAll(async () => {
     }
   );
 
-  let graphqlError = "initial";
-  while (graphqlError) {
-    console.log("Fetching latest block number...");
-    const response = await fetchGraphql(`
-    _meta {
-      block {
-        number
-      }
-    }
-  `);
-
-    graphqlError = response.errors?.[0];
-    if (graphqlError) {
-      console.log("Got GraphQL error:", graphqlError);
-    } else {
-      const blockNumber = response.data?._meta?.block?.number;
-      console.log("Got block number:", blockNumber);
-    }
+  console.log("Waiting for subgraph to sync 100 blocks...");
+  let latestBlockNumber = 0;
+  while (latestBlockNumber < 17500100) {
+    latestBlockNumber = await fetchSubgraphLatestBlockNumber();
+    console.log({ latestBlockNumber });
     await new Promise((resolve) => setTimeout(resolve, 1_000));
-  }
-
-  const response = await fetchGraphql(`
-    _meta {
-      block {
-        number
-      }
-    }
-  `);
-
-  const error = response.errors?.[0];
-  if (error) {
-    console.log("GraphQL error:", error);
   }
 
   console.log("Fetching Graph Node metrics...");
