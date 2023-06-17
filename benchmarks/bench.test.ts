@@ -32,6 +32,13 @@ beforeAll(async () => {
   //   }
   // );
 
+  try {
+    const response5001 = await fetchWithTimeout("http://localhost:5001");
+    console.log({ response5001 });
+  } catch (error5001) {
+    console.log({ error5001 });
+  }
+
   console.log("Deploying subgraph...");
   await execa(
     "graph",
