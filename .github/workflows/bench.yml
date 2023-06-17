@@ -40,7 +40,7 @@ jobs:
           postgres_pass: postgres
           postgres_db: postgres
           ipfs: ipfs:5001
-          ethereum: mainnet:http://localhost:8545
+          ethereum: mainnet:http://bench:8545
           GRAPH_LOG: debug
           GRAPHMAN_LOG: debug
         ports:
@@ -49,7 +49,6 @@ jobs:
           - 8020:8020
           - 8030:8030
           - 8040:8040
-          - 8545:8545
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
@@ -68,3 +67,6 @@ jobs:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
           ANVIL_BLOCK_NUMBER: 17500050
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+      - name: Shutdown Anvil
+        run: pkill -2 anvil
