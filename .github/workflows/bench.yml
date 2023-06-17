@@ -31,11 +31,9 @@ jobs:
           - 5001:5001
       graph-node:
         image: graphprotocol/graph-node
-        options: >-
-          --health-cmd "curl --fail http://graph-node:8040"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+        # Would be best to get this health check working, but so far it hasn't been an issue.
+        # options: >-
+        #   --health-cmd "curl --fail http://graph-node:8040"
         env:
           postgres_host: postgres
           postgres_user: postgres
