@@ -26,20 +26,20 @@ jobs:
           - 5432:5432
       graph-node:
         image: graphprotocol/graph-node
-        ports:
-          - "8000:8000"
-          - "8001:8001"
-          - "8020:8020"
-          - "8030:8030"
-          - "8040:8040"
         env:
           postgres_host: localhost:5432
           postgres_user: postgres
           postgres_pass: postgres
           postgres_db: postgres
-          ipfs: ipfs:5001
-          ethereum: ${{ secrets.ANVIL_FORK_URL }}
+          ipfs: localhost:5001
+          ethereum: mainnet:${{ secrets.ANVIL_FORK_URL }}
           graph_log: info
+        ports:
+          - 8000:8000
+          - 8001:8001
+          - 8020:8020
+          - 8030:8030
+          - 8040:8040
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
