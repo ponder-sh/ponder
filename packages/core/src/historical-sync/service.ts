@@ -24,7 +24,7 @@ type HistoricalSyncEvents = {
   error: { error: Error };
 };
 
-type HistoricalSyncMetrics = {
+type HistoricalSyncStats = {
   endDuration: () => number;
   isComplete: boolean;
   duration: number;
@@ -63,13 +63,13 @@ type BlockSyncTask = {
 type HistoricalSyncQueue = Queue<LogSyncTask | BlockSyncTask>;
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
-  private metricsNew: MetricsService;
+  private metrics: MetricsService;
   private eventStore: EventStore;
   private logFilters: LogFilter[];
   network: Network;
 
   private queue: HistoricalSyncQueue;
-  metrics: HistoricalSyncMetrics = {
+  stats: HistoricalSyncStats = {
     endDuration: startClock(),
     duration: 0,
     isComplete: false,
@@ -92,7 +92,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }) {
     super();
 
-    this.metricsNew = metrics;
+    this.metrics = metrics;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
@@ -101,7 +101,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.logFilterCheckpoints = {};
 
     logFilters.forEach((logFilter) => {
-      this.metrics.logFilters[logFilter.name] = {
+      this.stats.logFilters[logFilter.name] = {
         totalBlockCount: 0,
         cacheRate: 0,
         logTaskTotalCount: 0,
@@ -147,9 +147,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           0
         );
 
-        this.metrics.logFilters[logFilter.name].totalBlockCount =
-          totalBlockCount;
-        this.metrics.logFilters[logFilter.name].cacheRate = Math.min(
+        this.stats.logFilters[logFilter.name].totalBlockCount = totalBlockCount;
+        this.stats.logFilters[logFilter.name].cacheRate = Math.min(
           1,
           cachedBlockCount / (totalBlockCount || 1)
         );
@@ -167,7 +166,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               fromBlock,
               toBlock,
             });
-            this.metricsNew.ponder_historical_task_total.inc({
+            this.metrics.ponder_historical_task_total.inc({
               kind: "log",
               network: this.network.name,
             });
@@ -184,8 +183,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // need to emit the historicalCheckpoint event with some timestamp. It should
     // be safe to use the current timestamp.
     if (this.queue.size === 0) {
-      this.metrics.duration = this.metrics.endDuration();
-      this.metrics.isComplete = true;
+      this.stats.duration = this.stats.endDuration();
+      this.stats.isComplete = true;
       this.emit("historicalCheckpoint", { timestamp: Date.now() });
       this.emit("syncComplete");
     }
@@ -225,20 +224,20 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onAdd: ({ task }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metrics.logFilters[logFilter.name].logTaskTotalCount += 1;
+          this.stats.logFilters[logFilter.name].logTaskTotalCount += 1;
         } else {
-          this.metrics.logFilters[logFilter.name].blockTaskTotalCount += 1;
+          this.stats.logFilters[logFilter.name].blockTaskTotalCount += 1;
         }
       },
       onComplete: ({ task }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
+          this.stats.logFilters[logFilter.name].logTaskCompletedCount += 1;
         } else {
-          this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
+          this.stats.logFilters[logFilter.name].blockTaskCompletedCount += 1;
         }
 
-        this.metricsNew.ponder_historical_task_completed.inc({
+        this.metrics.ponder_historical_task_completed.inc({
           kind: task.kind === "LOG_SYNC" ? "log" : "block",
           network: this.network.name,
         });
@@ -246,12 +245,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onError: ({ error, task, queue }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metrics.logFilters[logFilter.name].logTaskErrorCount += 1;
+          this.stats.logFilters[logFilter.name].logTaskErrorCount += 1;
         } else {
-          this.metrics.logFilters[logFilter.name].blockTaskErrorCount += 1;
+          this.stats.logFilters[logFilter.name].blockTaskErrorCount += 1;
         }
 
-        this.metricsNew.ponder_historical_task_failed.inc({
+        this.metrics.ponder_historical_task_failed.inc({
           kind: task.kind === "LOG_SYNC" ? "log" : "block",
           network: this.network.name,
         });
@@ -272,7 +271,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           );
           queue.addTask({ ...task, fromBlock: safeEnd + 1 }, { front: true });
           // Splitting the task into two parts increases the total count by 1.
-          this.metricsNew.ponder_historical_task_total.inc({
+          this.metrics.ponder_historical_task_total.inc({
             kind: "log",
             network: this.network.name,
           });
@@ -293,7 +292,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           queue.addTask({ ...task, toBlock: midpoint }, { front: true });
           queue.addTask({ ...task, fromBlock: midpoint + 1 }, { front: true });
           // Splitting the task into two parts increases the total count by 1.
-          this.metricsNew.ponder_historical_task_total.inc({
+          this.metrics.ponder_historical_task_total.inc({
             kind: "log",
             network: this.network.name,
           });
@@ -315,9 +314,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         queue.addTask(task, { retry: true });
       },
       onIdle: () => {
-        if (this.metrics.isComplete) return;
-        this.metrics.duration = this.metrics.endDuration();
-        this.metrics.isComplete = true;
+        if (this.stats.isComplete) return;
+        this.stats.duration = this.stats.endDuration();
+        this.stats.isComplete = true;
         this.emit("syncComplete");
       },
     });
@@ -340,17 +339,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         },
       ],
     });
-    this.metricsNew.ponder_historical_rpc_request_duration.observe(
+    this.metrics.ponder_historical_rpc_request_duration.observe(
       {
         method: "eth_getLogs",
         network: this.network.name,
       },
       stopClock()
     );
-    this.metricsNew.ponder_historical_rpc_request_total.inc({
-      method: "eth_getLogs",
-      network: this.network.name,
-    });
 
     await this.eventStore.insertFinalizedLogs({
       chainId: this.network.chainId,
@@ -398,7 +393,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
 
     this.queue.addTasks(blockTasks, { front: true });
-    this.metricsNew.ponder_historical_task_total.inc(
+    this.metrics.ponder_historical_task_total.inc(
       {
         kind: "block",
         network: this.network.name,
@@ -417,17 +412,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       params: [toHex(blockNumber), true],
     });
 
-    this.metricsNew.ponder_historical_rpc_request_duration.observe(
+    this.metrics.ponder_historical_rpc_request_duration.observe(
       {
         method: "eth_getBlockByNumber",
         network: this.network.name,
       },
       stopClock()
     );
-    this.metricsNew.ponder_historical_rpc_request_total.inc({
-      method: "eth_getBlockByNumber",
-      network: this.network.name,
-    });
 
     if (!block) throw new Error(`Block not found: ${blockNumber}`);
 

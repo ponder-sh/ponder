@@ -375,7 +375,7 @@ export class Ponder {
           this.resources.logger.logMessage(
             "historical",
             `started historical sync for ${pico.bold(name)} (${formatPercentage(
-              historicalSyncService.metrics.logFilters[name].cacheRate
+              historicalSyncService.stats.logFilters[name].cacheRate
             )} cached)`
           );
         });
@@ -410,7 +410,7 @@ export class Ponder {
 
         this.logFilters.forEach(({ name }) => {
           const historicalMetrics =
-            historicalSyncService.metrics.logFilters[name];
+            historicalSyncService.stats.logFilters[name];
 
           this.uiService.ui.stats[name].cacheRate = historicalMetrics.cacheRate;
 
@@ -427,7 +427,7 @@ export class Ponder {
       });
 
       const isHistoricalSyncComplete = this.networkSyncServices.every(
-        (n) => n.historicalSyncService.metrics.isComplete
+        (n) => n.historicalSyncService.stats.isComplete
       );
       this.uiService.ui.isHistoricalSyncComplete = isHistoricalSyncComplete;
 
@@ -435,7 +435,7 @@ export class Ponder {
         this.uiService.ui.historicalSyncDuration = formatEta(
           Math.max(
             ...this.networkSyncServices.map(
-              (n) => n.historicalSyncService.metrics.duration
+              (n) => n.historicalSyncService.stats.duration
             )
           )
         );

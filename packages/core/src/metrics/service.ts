@@ -1,7 +1,8 @@
 import prometheus from "prom-client";
 
 const httpRequestBucketsInMs = [
-  10, 25, 50, 75, 100, 200, 300, 400, 500, 750, 1_000, 1_500, 2_000, 4_000,
+  5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450,
+  500, 750, 1_000, 2_000, 10_000,
 ];
 
 export class MetricsService {
@@ -10,12 +11,14 @@ export class MetricsService {
   ponder_historical_task_total: prometheus.Counter<"network" | "kind">;
   ponder_historical_task_failed: prometheus.Counter<"network" | "kind">;
   ponder_historical_task_completed: prometheus.Counter<"network" | "kind">;
-  ponder_historical_rpc_request_total: prometheus.Counter<"network" | "method">;
   ponder_historical_rpc_request_duration: prometheus.Histogram<
     "network" | "method"
   >;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_timestamp: prometheus.Gauge<"network">;
+  ponder_realtime_rpc_request_duration: prometheus.Histogram<
+    "network" | "method"
+  >;
 
   constructor() {
     this.registry = new prometheus.Registry();
@@ -39,12 +42,6 @@ export class MetricsService {
       labelNames: ["network", "kind"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_rpc_request_total = new prometheus.Counter({
-      name: "ponder_historical_rpc_request_total",
-      help: "Number of RPC requests executed during the historical sync",
-      labelNames: ["network", "method"] as const,
-      registers: [this.registry],
-    });
     this.ponder_historical_rpc_request_duration = new prometheus.Histogram({
       name: "ponder_historical_rpc_request_duration",
       help: "Duration of RPC requests completed during the historical sync",
@@ -64,6 +61,13 @@ export class MetricsService {
       name: "ponder_realtime_latest_block_timestamp",
       help: "Block timestamp of the latest synced block",
       labelNames: ["network"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_realtime_rpc_request_duration = new prometheus.Histogram({
+      name: "ponder_realtime_rpc_request_duration",
+      help: "Duration of RPC requests completed during the realtime sync",
+      labelNames: ["network", "method"] as const,
+      buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
   }

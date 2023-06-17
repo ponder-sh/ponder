@@ -10,6 +10,7 @@ import { MetricsService } from "@/metrics/service";
 import { poll } from "@/utils/poll";
 import { type Queue, createQueue } from "@/utils/queue";
 import { range } from "@/utils/range";
+import { startClock } from "@/utils/timer";
 
 import { isMatchedLogInBloomFilter } from "./bloom";
 import { filterLogs } from "./filter";
@@ -128,11 +129,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     }
 
     // Fetch the block at the finalized block number.
+    const stopClock = startClock();
     const finalizedBlock = await this.network.client.request({
       method: "eth_getBlockByNumber",
       params: [numberToHex(this.finalizedBlockNumber), false],
     });
     if (!finalizedBlock) throw new Error(`Unable to fetch finalized block`);
+    this.metrics.ponder_realtime_rpc_request_duration.observe(
+      {
+        method: "eth_getBlockByNumber",
+        network: this.network.name,
+      },
+      stopClock()
+    );
 
     // Add the finalized block as the first element of the list of unfinalized blocks.
     this.blocks.push(rpcBlockToLightBlock(finalizedBlock));
@@ -149,7 +158,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       },
       {
         emitOnBegin: false,
-        interval: 10_000,
+        interval: this.network.pollingInterval,
       }
     );
   };
@@ -168,11 +177,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   private getLatestBlock = async () => {
     // Fetch the latest block for the network.
+    const stopClock = startClock();
     const latestBlock_ = await this.network.client.request({
       method: "eth_getBlockByNumber",
       params: ["latest", true],
     });
     if (!latestBlock_) throw new Error(`Unable to fetch latest block`);
+    this.metrics.ponder_realtime_rpc_request_duration.observe(
+      {
+        method: "eth_getBlockByNumber",
+        network: this.network.name,
+      },
+      stopClock()
+    );
     return latestBlock_ as BlockWithTransactions;
   };
 
@@ -236,6 +253,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       if (isMatchedLogPresentInBlock) {
         // If there's a potential match, fetch the logs from the block.
+        const stopClock = startClock();
         const logs = await this.network.client.request({
           method: "eth_getLogs",
           params: [
@@ -244,6 +262,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             },
           ],
         });
+        this.metrics.ponder_realtime_rpc_request_duration.observe(
+          {
+            method: "eth_getLogs",
+            network: this.network.name,
+          },
+          stopClock()
+        );
 
         // Filter logs down to those that actually match the registered filters.
         const filteredLogs = filterLogs({
@@ -347,12 +372,21 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       const missingBlockRequests = missingBlockNumbers.map((number) => {
         return limit(async () => {
+          const stopClock = startClock();
           const block = await this.network.client.request({
             method: "eth_getBlockByNumber",
             params: [numberToHex(number), true],
           });
-          if (!block)
+          if (!block) {
             throw new Error(`Failed to fetch block number: ${number}`);
+          }
+          this.metrics.ponder_realtime_rpc_request_duration.observe(
+            {
+              method: "eth_getBlockByNumber",
+              network: this.network.name,
+            },
+            stopClock()
+          );
           return block as BlockWithTransactions;
         });
       });
@@ -422,10 +456,20 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         return;
       }
 
+      // If the parent block is not present in our local chain, keep traversing up the canonical chain.
+      const stopClock = startClock();
       const parentBlock_ = await this.network.client.request({
         method: "eth_getBlockByHash",
         params: [canonicalBlock.parentHash, true],
       });
+      this.metrics.ponder_realtime_rpc_request_duration.observe(
+        {
+          method: "eth_getBlockByHash",
+          network: this.network.name,
+        },
+        stopClock()
+      );
+
       if (!parentBlock_)
         throw new Error(
           `Failed to fetch parent block with hash: ${canonicalBlock.parentHash}`
