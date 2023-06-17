@@ -31,6 +31,8 @@ jobs:
           - 5001:5001
       anvil:
         image: ghcr.io/0xolias/simple-anvil-image:main
+        env:
+          ANVIL_IP_ADDR: 0.0.0.0
         ports:
           - 8545:8545
       graph-node:
