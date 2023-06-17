@@ -31,7 +31,7 @@ const fetchGraphql = async (query: string) => {
       body: JSON.stringify({ query: `query { ${query} }` }),
     }
   );
-  const body = await response.text();
+  const body = await response.json();
   return body;
 };
 
@@ -67,17 +67,38 @@ beforeAll(async () => {
     }
   );
 
-  console.log("Testing query...");
-  try {
+  let graphqlError = "initial";
+  while (graphqlError) {
+    console.log("Fetching latest block number...");
     const response = await fetchGraphql(`
-      exampleEntitys {
-        id
+    _meta {
+      block {
+        number
       }
-    `);
+    }
+  `);
 
-    console.log({ response });
-  } catch (error8000) {
-    console.log({ error8000 });
+    graphqlError = response.errors?.[0];
+    if (graphqlError) {
+      console.log("Got GraphQL error:", graphqlError);
+    } else {
+      const blockNumber = response.data?._meta?.block?.number;
+      console.log("Got block number:", blockNumber);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+
+  const response = await fetchGraphql(`
+    _meta {
+      block {
+        number
+      }
+    }
+  `);
+
+  const error = response.errors?.[0];
+  if (error) {
+    console.log("GraphQL error:", error);
   }
 
   console.log("Fetching Graph Node metrics...");
