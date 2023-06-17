@@ -1,6 +1,24 @@
 import execa from "execa";
 import { beforeAll, test } from "vitest";
 
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  options: RequestInit & { timeout?: number } = {}
+) {
+  const { timeout = 8000 } = options;
+
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  const response = await fetch(input, {
+    ...options,
+    signal: controller.signal,
+  });
+  clearTimeout(id);
+
+  return response;
+}
+
 beforeAll(async () => {
   // Need to exec the `graph build` and `graph deploy` commands here
   // This setup should not be part of the benchmark.
@@ -15,28 +33,36 @@ beforeAll(async () => {
   );
 
   try {
-    const response8000 = await fetch("http://localhost:8000");
+    const response8000 = await fetchWithTimeout("http://localhost:8000", {
+      timeout: 2_000,
+    });
     console.log({ response8000 });
   } catch (error) {
     console.log({ error });
   }
 
   try {
-    const response8020 = await fetch("http://localhost:8020");
+    const response8020 = await fetchWithTimeout("http://localhost:8020", {
+      timeout: 2_000,
+    });
     console.log({ response8020 });
   } catch (error) {
     console.log({ error });
   }
 
   try {
-    const response8030 = await fetch("http://localhost:8030");
+    const response8030 = await fetchWithTimeout("http://localhost:8030", {
+      timeout: 2_000,
+    });
     console.log({ response8030 });
   } catch (error) {
     console.log({ error });
   }
 
   try {
-    const response8040 = await fetch("http://localhost:8040");
+    const response8040 = await fetchWithTimeout("http://localhost:8040", {
+      timeout: 2_000,
+    });
     console.log({ response8040 });
   } catch (error) {
     console.log({ error });
