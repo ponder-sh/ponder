@@ -2,6 +2,8 @@ import execa from "execa";
 import parsePrometheusTextFormat from "parse-prometheus-text-format";
 import { beforeAll, test } from "vitest";
 
+import { publicClient, testClient } from "./_test/utils";
+
 const fetchWithTimeout = async (
   input: RequestInfo | URL,
   options: RequestInit & { timeout?: number } = {}
@@ -93,6 +95,11 @@ beforeAll(async () => {
       timeout: 10_000,
       stdio: "inherit",
     }
+  );
+
+  console.log(
+    "Test client latest block number:",
+    await publicClient.getBlockNumber()
   );
 
   console.log("Waiting for subgraph to sync 100 blocks...");
