@@ -3,7 +3,12 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 import { accounts, usdcContractConfig, vitalik } from "@/_test/constants";
 import { resetTestClient } from "@/_test/setup";
-import { publicClient, testClient, walletClient } from "@/_test/utils";
+import {
+  publicClient,
+  testClient,
+  testResources,
+  walletClient,
+} from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
@@ -12,6 +17,7 @@ import { range } from "@/utils/range";
 
 import { RealtimeSyncService } from "./service";
 
+const { metrics } = testResources;
 const network: Network = {
   name: "mainnet",
   chainId: 1,
@@ -56,7 +62,12 @@ beforeEach(async () => {
 test("setup() returns the finalized block number", async (context) => {
   const { eventStore } = context;
 
-  const service = new RealtimeSyncService({ eventStore, logFilters, network });
+  const service = new RealtimeSyncService({
+    metrics,
+    eventStore,
+    logFilters,
+    network,
+  });
   const { finalizedBlockNumber } = await service.setup();
 
   expect(finalizedBlockNumber).toEqual(16379995); // ANVIL_FORK_BLOCK - finalityBlockCount
@@ -67,7 +78,12 @@ test("setup() returns the finalized block number", async (context) => {
 test("fetches blocks from finalized to latest", async (context) => {
   const { eventStore } = context;
 
-  const service = new RealtimeSyncService({ eventStore, logFilters, network });
+  const service = new RealtimeSyncService({
+    metrics,
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup();
   await service.start();
   await service.onIdle();
@@ -82,7 +98,12 @@ test("fetches blocks from finalized to latest", async (context) => {
 test("fetches transactions from finalized to latest", async (context) => {
   const { eventStore } = context;
 
-  const service = new RealtimeSyncService({ eventStore, logFilters, network });
+  const service = new RealtimeSyncService({
+    metrics,
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup();
   await service.start();
   await service.onIdle();
@@ -108,12 +129,17 @@ test("fetches transactions from finalized to latest", async (context) => {
 test("fetches logs from finalized to latest", async (context) => {
   const { eventStore } = context;
 
-  const service = new RealtimeSyncService({ eventStore, logFilters, network });
+  const service = new RealtimeSyncService({
+    metrics,
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup();
   await service.start();
   await service.onIdle();
 
-  expect(service.metrics.blocks).toMatchObject({
+  expect(service.stats.blocks).toMatchObject({
     16379996: {
       bloom: { hit: true, falsePositive: false },
       matchedLogCount: 18,
@@ -149,7 +175,12 @@ test("fetches logs from finalized to latest", async (context) => {
 test("handles new blocks", async (context) => {
   const { eventStore } = context;
 
-  const service = new RealtimeSyncService({ eventStore, logFilters, network });
+  const service = new RealtimeSyncService({
+    metrics,
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup();
   await service.start();
 
@@ -167,7 +198,7 @@ test("handles new blocks", async (context) => {
 
   await service.onIdle();
 
-  expect(service.metrics.blocks).toMatchObject({
+  expect(service.stats.blocks).toMatchObject({
     // ... previous blocks omitted for brevity
     16380000: {
       bloom: { hit: true, falsePositive: false },
@@ -197,7 +228,12 @@ test("handles new blocks", async (context) => {
 test("emits realtimeCheckpoint events", async (context) => {
   const { eventStore } = context;
 
-  const service = new RealtimeSyncService({ eventStore, logFilters, network });
+  const service = new RealtimeSyncService({
+    metrics,
+    eventStore,
+    logFilters,
+    network,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup();
@@ -228,7 +264,12 @@ test("emits realtimeCheckpoint events", async (context) => {
 test("marks block data as finalized", async (context) => {
   const { eventStore } = context;
 
-  const service = new RealtimeSyncService({ eventStore, logFilters, network });
+  const service = new RealtimeSyncService({
+    metrics,
+    eventStore,
+    logFilters,
+    network,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   const { finalizedBlockNumber: originalFinalizedBlockNumber } =
@@ -266,7 +307,12 @@ test("marks block data as finalized", async (context) => {
 test("handles 1 block shallow reorg", async (context) => {
   const { eventStore } = context;
 
-  const service = new RealtimeSyncService({ eventStore, logFilters, network });
+  const service = new RealtimeSyncService({
+    metrics,
+    eventStore,
+    logFilters,
+    network,
+  });
   await service.setup();
   await service.start();
 
@@ -282,7 +328,7 @@ test("handles 1 block shallow reorg", async (context) => {
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  expect(service.metrics.blocks).toMatchObject({
+  expect(service.stats.blocks).toMatchObject({
     // ... previous blocks omitted for brevity
     16380001: {
       bloom: { hit: true, falsePositive: false },
@@ -306,7 +352,7 @@ test("handles 1 block shallow reorg", async (context) => {
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  expect(service.metrics.blocks).toMatchObject({
+  expect(service.stats.blocks).toMatchObject({
     // ... previous blocks omitted for brevity
     16380001: {
       bloom: { hit: false, falsePositive: false },
@@ -320,7 +366,12 @@ test("handles 1 block shallow reorg", async (context) => {
 test("handles 3 block shallow reorg", async (context) => {
   const { eventStore } = context;
 
-  const service = new RealtimeSyncService({ eventStore, logFilters, network });
+  const service = new RealtimeSyncService({
+    metrics,
+    eventStore,
+    logFilters,
+    network,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup();
@@ -338,7 +389,7 @@ test("handles 3 block shallow reorg", async (context) => {
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  expect(service.metrics.blocks).toMatchObject({
+  expect(service.stats.blocks).toMatchObject({
     // ... previous blocks omitted for brevity
     16380001: {
       bloom: { hit: true, falsePositive: false },
@@ -366,7 +417,7 @@ test("handles 3 block shallow reorg", async (context) => {
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  expect(service.metrics.blocks).toMatchObject({
+  expect(service.stats.blocks).toMatchObject({
     // ... previous blocks omitted for brevity
     16380001: {
       bloom: { hit: true, falsePositive: false },
@@ -400,7 +451,12 @@ test("handles 3 block shallow reorg", async (context) => {
 test("handles deep reorg", async (context) => {
   const { eventStore } = context;
 
-  const service = new RealtimeSyncService({ eventStore, logFilters, network });
+  const service = new RealtimeSyncService({
+    metrics,
+    eventStore,
+    logFilters,
+    network,
+  });
   const emitSpy = vi.spyOn(service, "emit");
 
   await service.setup();

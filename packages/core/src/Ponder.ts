@@ -13,6 +13,7 @@ import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import { type EventStore } from "@/event-store/store";
 import { HistoricalSyncService } from "@/historical-sync/service";
+import { MetricsService } from "@/metrics/service";
 import { RealtimeSyncService } from "@/realtime-sync/service";
 import { ReloadService } from "@/reload/service";
 import { ServerService } from "@/server/service";
@@ -28,6 +29,7 @@ export type Resources = {
   options: PonderOptions;
   logger: LoggerService;
   errors: ErrorService;
+  metrics: MetricsService;
 };
 
 export class Ponder {
@@ -67,8 +69,9 @@ export class Ponder {
   }) {
     const logger = new LoggerService({ options });
     const errors = new ErrorService();
+    const metrics = new MetricsService();
 
-    const resources = { options, logger, errors };
+    const resources = { options, logger, errors, metrics };
     this.resources = resources;
 
     const logFilters = buildLogFilters({ options, config });
@@ -99,11 +102,13 @@ export class Ponder {
         network,
         logFilters: logFiltersForNetwork,
         historicalSyncService: new HistoricalSyncService({
+          metrics,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
+          metrics,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
@@ -370,7 +375,7 @@ export class Ponder {
           this.resources.logger.logMessage(
             "historical",
             `started historical sync for ${pico.bold(name)} (${formatPercentage(
-              historicalSyncService.metrics.logFilters[name].cacheRate
+              historicalSyncService.stats.logFilters[name].cacheRate
             )} cached)`
           );
         });
@@ -397,7 +402,7 @@ export class Ponder {
           networkSyncService;
 
         if (
-          realtimeSyncService.metrics.isConnected &&
+          realtimeSyncService.stats.isConnected &&
           !this.uiService.ui.networks.includes(network.name)
         ) {
           this.uiService.ui.networks.push(network.name);
@@ -405,7 +410,7 @@ export class Ponder {
 
         this.logFilters.forEach(({ name }) => {
           const historicalMetrics =
-            historicalSyncService.metrics.logFilters[name];
+            historicalSyncService.stats.logFilters[name];
 
           this.uiService.ui.stats[name].cacheRate = historicalMetrics.cacheRate;
 
@@ -422,7 +427,7 @@ export class Ponder {
       });
 
       const isHistoricalSyncComplete = this.networkSyncServices.every(
-        (n) => n.historicalSyncService.metrics.isComplete
+        (n) => n.historicalSyncService.stats.isComplete
       );
       this.uiService.ui.isHistoricalSyncComplete = isHistoricalSyncComplete;
 
@@ -430,7 +435,7 @@ export class Ponder {
         this.uiService.ui.historicalSyncDuration = formatEta(
           Math.max(
             ...this.networkSyncServices.map(
-              (n) => n.historicalSyncService.metrics.duration
+              (n) => n.historicalSyncService.stats.duration
             )
           )
         );

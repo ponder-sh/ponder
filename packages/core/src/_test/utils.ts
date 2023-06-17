@@ -9,6 +9,7 @@ import { mainnet } from "viem/chains";
 
 import { buildOptions } from "@/config/options";
 import { ErrorService } from "@/errors/ErrorService";
+import { MetricsService } from "@/metrics/service";
 import { Resources } from "@/Ponder";
 import { LoggerService } from "@/utils/logger";
 
@@ -62,4 +63,5 @@ export const testResources: Resources = {
     cliOptions: { configFile: "", rootDir: "" },
   }),
   errors: new ErrorService(),
+  metrics: new MetricsService(),
 };

@@ -11,8 +11,9 @@ import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
+import { MetricsService } from "@/metrics/service";
 import { type Queue, createQueue } from "@/utils/queue";
-import { endBenchmark, startBenchmark } from "@/utils/timer";
+import { startClock } from "@/utils/timer";
 
 import { findMissingIntervals } from "./intervals";
 
@@ -23,8 +24,8 @@ type HistoricalSyncEvents = {
   error: { error: Error };
 };
 
-type HistoricalSyncMetrics = {
-  startedAt: [number, number];
+type HistoricalSyncStats = {
+  endDuration: () => number;
   isComplete: boolean;
   duration: number;
   logFilters: Record<
@@ -62,13 +63,14 @@ type BlockSyncTask = {
 type HistoricalSyncQueue = Queue<LogSyncTask | BlockSyncTask>;
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
+  private metrics: MetricsService;
   private eventStore: EventStore;
   private logFilters: LogFilter[];
   network: Network;
 
   private queue: HistoricalSyncQueue;
-  metrics: HistoricalSyncMetrics = {
-    startedAt: startBenchmark(),
+  stats: HistoricalSyncStats = {
+    endDuration: startClock(),
     duration: 0,
     isComplete: false,
     logFilters: {},
@@ -78,16 +80,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logFilterCheckpoints: Record<string, number>;
 
   constructor({
+    metrics,
     eventStore,
     logFilters,
     network,
   }: {
+    metrics: MetricsService;
     eventStore: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
+    this.metrics = metrics;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
@@ -96,7 +101,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.logFilterCheckpoints = {};
 
     logFilters.forEach((logFilter) => {
-      this.metrics.logFilters[logFilter.name] = {
+      this.stats.logFilters[logFilter.name] = {
         totalBlockCount: 0,
         cacheRate: 0,
         logTaskTotalCount: 0,
@@ -142,9 +147,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           0
         );
 
-        this.metrics.logFilters[logFilter.name].totalBlockCount =
-          totalBlockCount;
-        this.metrics.logFilters[logFilter.name].cacheRate = Math.min(
+        this.stats.logFilters[logFilter.name].totalBlockCount = totalBlockCount;
+        this.stats.logFilters[logFilter.name].cacheRate = Math.min(
           1,
           cachedBlockCount / (totalBlockCount || 1)
         );
@@ -162,6 +166,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               fromBlock,
               toBlock,
             });
+            this.metrics.ponder_historical_task_total.inc({
+              kind: "log",
+              network: this.network.name,
+            });
 
             fromBlock = toBlock + 1;
             toBlock = Math.min(fromBlock + maxBlockRange - 1, endBlock);
@@ -175,8 +183,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // need to emit the historicalCheckpoint event with some timestamp. It should
     // be safe to use the current timestamp.
     if (this.queue.size === 0) {
-      this.metrics.duration = endBenchmark(this.metrics.startedAt);
-      this.metrics.isComplete = true;
+      this.stats.duration = this.stats.endDuration();
+      this.stats.isComplete = true;
       this.emit("historicalCheckpoint", { timestamp: Date.now() });
       this.emit("syncComplete");
     }
@@ -216,26 +224,36 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onAdd: ({ task }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metrics.logFilters[logFilter.name].logTaskTotalCount += 1;
+          this.stats.logFilters[logFilter.name].logTaskTotalCount += 1;
         } else {
-          this.metrics.logFilters[logFilter.name].blockTaskTotalCount += 1;
+          this.stats.logFilters[logFilter.name].blockTaskTotalCount += 1;
         }
       },
       onComplete: ({ task }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metrics.logFilters[logFilter.name].logTaskCompletedCount += 1;
+          this.stats.logFilters[logFilter.name].logTaskCompletedCount += 1;
         } else {
-          this.metrics.logFilters[logFilter.name].blockTaskCompletedCount += 1;
+          this.stats.logFilters[logFilter.name].blockTaskCompletedCount += 1;
         }
+
+        this.metrics.ponder_historical_task_completed.inc({
+          kind: task.kind === "LOG_SYNC" ? "log" : "block",
+          network: this.network.name,
+        });
       },
       onError: ({ error, task, queue }) => {
         const { logFilter } = task;
         if (task.kind === "LOG_SYNC") {
-          this.metrics.logFilters[logFilter.name].logTaskErrorCount += 1;
+          this.stats.logFilters[logFilter.name].logTaskErrorCount += 1;
         } else {
-          this.metrics.logFilters[logFilter.name].blockTaskErrorCount += 1;
+          this.stats.logFilters[logFilter.name].blockTaskErrorCount += 1;
         }
+
+        this.metrics.ponder_historical_task_failed.inc({
+          kind: task.kind === "LOG_SYNC" ? "log" : "block",
+          network: this.network.name,
+        });
 
         // Handle Alchemy response size error.
         if (
@@ -252,6 +270,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             { front: true }
           );
           queue.addTask({ ...task, fromBlock: safeEnd + 1 }, { front: true });
+          // Splitting the task into two parts increases the total count by 1.
+          this.metrics.ponder_historical_task_total.inc({
+            kind: "log",
+            network: this.network.name,
+          });
           return;
         }
 
@@ -268,6 +291,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           );
           queue.addTask({ ...task, toBlock: midpoint }, { front: true });
           queue.addTask({ ...task, fromBlock: midpoint + 1 }, { front: true });
+          // Splitting the task into two parts increases the total count by 1.
+          this.metrics.ponder_historical_task_total.inc({
+            kind: "log",
+            network: this.network.name,
+          });
           return;
         }
 
@@ -286,9 +314,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         queue.addTask(task, { retry: true });
       },
       onIdle: () => {
-        if (this.metrics.isComplete) return;
-        this.metrics.duration = endBenchmark(this.metrics.startedAt);
-        this.metrics.isComplete = true;
+        if (this.stats.isComplete) return;
+        this.stats.duration = this.stats.endDuration();
+        this.stats.isComplete = true;
         this.emit("syncComplete");
       },
     });
@@ -299,6 +327,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logTaskWorker = async ({ task }: { task: LogSyncTask }) => {
     const { logFilter, fromBlock, toBlock } = task;
 
+    const stopClock = startClock();
     const logs = await this.network.client.request({
       method: "eth_getLogs",
       params: [
@@ -310,6 +339,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         },
       ],
     });
+    this.metrics.ponder_historical_rpc_request_duration.observe(
+      {
+        method: "eth_getLogs",
+        network: this.network.name,
+      },
+      stopClock()
+    );
 
     await this.eventStore.insertFinalizedLogs({
       chainId: this.network.chainId,
@@ -357,16 +393,32 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
 
     this.queue.addTasks(blockTasks, { front: true });
+    this.metrics.ponder_historical_task_total.inc(
+      {
+        kind: "block",
+        network: this.network.name,
+      },
+      blockTasks.length
+    );
   };
 
   private blockTaskWorker = async ({ task }: { task: BlockSyncTask }) => {
     const { logFilter, blockNumber, blockNumberToCacheFrom, requiredTxHashes } =
       task;
 
+    const stopClock = startClock();
     const block = await this.network.client.request({
       method: "eth_getBlockByNumber",
       params: [toHex(blockNumber), true],
     });
+
+    this.metrics.ponder_historical_rpc_request_duration.observe(
+      {
+        method: "eth_getBlockByNumber",
+        network: this.network.name,
+      },
+      stopClock()
+    );
 
     if (!block) throw new Error(`Block not found: ${blockNumber}`);
 

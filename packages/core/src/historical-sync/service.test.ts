@@ -2,13 +2,14 @@ import { HttpRequestError, InvalidParamsRpcError } from "viem";
 import { expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
-import { publicClient } from "@/_test/utils";
+import { publicClient, testResources } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
 
 import { HistoricalSyncService } from "./service";
 
+const { metrics } = testResources;
 const network: Network = {
   name: "mainnet",
   chainId: 1,
@@ -40,13 +41,14 @@ test("setup() calculates cached and total block counts", async (context) => {
   const { eventStore } = context;
 
   const service = new HistoricalSyncService({
+    metrics,
     eventStore,
     logFilters,
     network,
   });
   await service.setup({ finalizedBlockNumber: 16369955 });
 
-  expect(service.metrics.logFilters["USDC"]).toMatchObject({
+  expect(service.stats.logFilters["USDC"]).toMatchObject({
     totalBlockCount: 6,
     cacheRate: 0,
   });
@@ -56,6 +58,7 @@ test("start() runs log tasks and block tasks", async (context) => {
   const { eventStore } = context;
 
   const service = new HistoricalSyncService({
+    metrics,
     eventStore,
     logFilters,
     network,
@@ -65,7 +68,7 @@ test("start() runs log tasks and block tasks", async (context) => {
 
   await service.onIdle();
 
-  expect(service.metrics.logFilters["USDC"]).toMatchObject({
+  expect(service.stats.logFilters["USDC"]).toMatchObject({
     blockTaskTotalCount: 6,
     blockTaskCompletedCount: 6,
     logTaskTotalCount: 2,
@@ -77,6 +80,7 @@ test("start() adds events to event store", async (context) => {
   const { eventStore } = context;
 
   const service = new HistoricalSyncService({
+    metrics,
     eventStore,
     logFilters,
     network,
@@ -126,6 +130,7 @@ test("start() inserts cached ranges", async (context) => {
   const { eventStore } = context;
 
   const service = new HistoricalSyncService({
+    metrics,
     eventStore,
     logFilters,
     network,
@@ -154,6 +159,7 @@ test("start() retries errors", async (context) => {
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const service = new HistoricalSyncService({
+    metrics,
     eventStore,
     logFilters,
     network,
@@ -162,7 +168,7 @@ test("start() retries errors", async (context) => {
   service.start();
   await service.onIdle();
 
-  expect(service.metrics.logFilters["USDC"]).toMatchObject({
+  expect(service.stats.logFilters["USDC"]).toMatchObject({
     logTaskTotalCount: 2,
     logTaskErrorCount: 1,
     logTaskCompletedCount: 1,
@@ -192,6 +198,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   );
 
   const service = new HistoricalSyncService({
+    metrics,
     eventStore,
     logFilters,
     network,
@@ -200,7 +207,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   service.start();
   await service.onIdle();
 
-  expect(service.metrics.logFilters["USDC"]).toMatchObject({
+  expect(service.stats.logFilters["USDC"]).toMatchObject({
     logTaskTotalCount: 4,
     logTaskErrorCount: 1,
     logTaskCompletedCount: 3,
@@ -229,6 +236,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   );
 
   const service = new HistoricalSyncService({
+    metrics,
     eventStore,
     logFilters,
     network,
@@ -237,7 +245,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   service.start();
   await service.onIdle();
 
-  expect(service.metrics.logFilters["USDC"]).toMatchObject({
+  expect(service.stats.logFilters["USDC"]).toMatchObject({
     logTaskTotalCount: 4,
     logTaskErrorCount: 1,
     logTaskCompletedCount: 3,
@@ -257,6 +265,7 @@ test("start() emits sync started and completed events", async (context) => {
   const { eventStore } = context;
 
   const service = new HistoricalSyncService({
+    metrics,
     eventStore,
     logFilters,
     network,
@@ -276,6 +285,7 @@ test("start() emits historicalCheckpoint event", async (context) => {
   const { eventStore } = context;
 
   const service = new HistoricalSyncService({
+    metrics,
     eventStore,
     logFilters,
     network,
