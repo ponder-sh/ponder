@@ -5,7 +5,7 @@ async function fetchWithTimeout(
   input: RequestInfo | URL,
   options: RequestInit & { timeout?: number } = {}
 ) {
-  const { timeout = 8000 } = options;
+  const { timeout = 2_000 } = options;
 
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
@@ -33,39 +33,31 @@ beforeAll(async () => {
   );
 
   try {
-    const response8000 = await fetchWithTimeout("http://localhost:8000", {
-      timeout: 2_000,
-    });
+    const response8000 = await fetchWithTimeout("http://localhost:8000");
     console.log({ response8000 });
-  } catch (error) {
-    console.log({ error });
+  } catch (error8000) {
+    console.log({ error8000 });
   }
 
   try {
-    const response8020 = await fetchWithTimeout("http://localhost:8020", {
-      timeout: 2_000,
-    });
+    const response8020 = await fetchWithTimeout("http://localhost:8020");
     console.log({ response8020 });
-  } catch (error) {
-    console.log({ error });
+  } catch (error8020) {
+    console.log({ error8020 });
   }
 
   try {
-    const response8030 = await fetchWithTimeout("http://localhost:8030", {
-      timeout: 2_000,
-    });
+    const response8030 = await fetchWithTimeout("http://localhost:8030");
     console.log({ response8030 });
-  } catch (error) {
-    console.log({ error });
+  } catch (error8030) {
+    console.log({ error8030 });
   }
 
   try {
-    const response8040 = await fetchWithTimeout("http://localhost:8040", {
-      timeout: 2_000,
-    });
+    const response8040 = await fetchWithTimeout("http://localhost:8040");
     console.log({ response8040 });
-  } catch (error) {
-    console.log({ error });
+  } catch (error8040) {
+    console.log({ error8040 });
   }
 
   console.log("Deploying subgraph...");
@@ -76,6 +68,7 @@ beforeAll(async () => {
       "ponder-benchmarks/subgraph",
       "./subgraph/subgraph.yaml",
       "--node=http://localhost:8020",
+      "--version-label=v0.0.1",
     ],
     {
       timeout: 10_000,
