@@ -35,7 +35,7 @@ jobs:
           postgres_user: postgres
           postgres_pass: postgres
           postgres_db: postgres
-          ipfs: /ip4/0.0.0.0/tcp/5001
+          ipfs: 0.0.0.0:5001
           ethereum: mainnet:${{ secrets.ANVIL_FORK_URL }}
           graph_log: trace
           graphman_log: trace
@@ -60,6 +60,7 @@ jobs:
           echo "${{ toJson(job) }}"
           echo "IPFS logs:"
           docker logs "${{ job.services.ipfs.id }}"
+          sleep 5
           echo "Graph Node logs:"
           docker logs "${{ job.services.graph-node.id }}"
 
