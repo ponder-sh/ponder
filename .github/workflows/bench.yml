@@ -35,10 +35,10 @@ jobs:
           postgres_user: postgres
           postgres_pass: postgres
           postgres_db: postgres
-          ipfs: 0.0.0.0:5001
+          ipfs: http://localhost:5001
           ethereum: mainnet:${{ secrets.ANVIL_FORK_URL }}
-          graph_log: trace
-          graphman_log: trace
+          GRAPH_LOG: debug
+          GRAPHMAN_LOG: debug
         ports:
           - 8000:8000
           - 8001:8001
