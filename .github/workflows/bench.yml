@@ -24,6 +24,10 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      ipfs:
+        image: ipfs/go-ipfs:v0.10.0
+        ports:
+          - 5001:5001
       graph-node:
         image: graphprotocol/graph-node
         env:
@@ -44,11 +48,11 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v3
 
-      - name: Start IPFS node
-        uses: ibnesayeed/setup-ipfs@master
-        with:
-          ipfs_version: 0.10.0
-          run_daemon: true
+      # - name: Start IPFS node
+      #   uses: ibnesayeed/setup-ipfs@master
+      #   with:
+      #     ipfs_version: 0.10.0
+      #     run_daemon: true
 
       - name: Verify Graph Node connection
         run: |
