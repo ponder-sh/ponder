@@ -50,6 +50,11 @@ jobs:
           ipfs_version: 0.10.0
           run_daemon: true
 
+      - name: Verify Graph Node connection
+        run: |
+          echo "${{ toJson(job) }}"
+          docker logs "${{ job.services.graph-node.id }}"
+
       - name: Setup
         uses: ./.github/actions/setup
 
