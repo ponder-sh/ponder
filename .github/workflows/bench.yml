@@ -1,0 +1,57 @@
+name: Bench
+
+on:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Bench
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      graph-node:
+        image: graphprotocol/graph-node
+        ports:
+          - "8000:8000"
+          - "8001:8001"
+          - "8020:8020"
+          - "8030:8030"
+          - "8040:8040"
+        env:
+          postgres_host: localhost:5432
+          postgres_user: postgres
+          postgres_pass: postgres
+          postgres_db: postgres
+          ipfs: ipfs:5001
+          ethereum: ${{ secrets.ANVIL_FORK_URL }}
+          graph_log: info
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
+      - name: Start IPFS node
+        uses: ibnesayeed/setup-ipfs@master
+        with:
+          ipfs_version: 0.10
+          run_daemon: true
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Bench
+        run: pnpm bench
+        env:
+          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
