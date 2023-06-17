@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint:
+  bench:
     name: Bench
     runs-on: ubuntu-latest
     services:
@@ -40,7 +40,7 @@ jobs:
           postgres_pass: postgres
           postgres_db: postgres
           ipfs: ipfs:5001
-          ethereum: mainnet:http://127.0.0.1:8545
+          ethereum: mainnet:http://localhost:8545
           GRAPH_LOG: debug
           GRAPHMAN_LOG: debug
         ports:
@@ -49,6 +49,7 @@ jobs:
           - 8020:8020
           - 8030:8030
           - 8040:8040
+          - 8545:8545
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
