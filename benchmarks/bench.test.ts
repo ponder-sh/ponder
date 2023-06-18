@@ -108,7 +108,7 @@ beforeAll(async () => {
   console.log("Waiting for subgraph to sync 100 blocks...");
   let latestBlockNumber = 0;
   let attempts = 0;
-  while (latestBlockNumber < 17500100 && attempts < 15) {
+  while (attempts < 60) {
     latestBlockNumber = await fetchSubgraphLatestBlockNumber();
     attempts += 1;
     console.log({ latestBlockNumber });
@@ -121,7 +121,7 @@ beforeAll(async () => {
   const metrics = parsePrometheusTextFormat(metricsRaw);
   console.log(metricsRaw);
   console.log(metrics);
-}, 90_000);
+}, 120_000);
 
 test("test", async () => {
   console.log("In test!");

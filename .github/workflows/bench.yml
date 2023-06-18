@@ -33,7 +33,7 @@ jobs:
         image: ghcr.io/0xolias/simple-anvil-image:main
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-          ANVIL_FORK_BLOCK_NUMBER: 17500050
+          ANVIL_FORK_BLOCK_NUMBER: 17500010
         ports:
           - 8545:8545
       graph-node:
@@ -67,5 +67,5 @@ jobs:
         run: pnpm bench
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-          ANVIL_FORK_BLOCK_NUMBER: 17500050
+          ANVIL_FORK_BLOCK_NUMBER: 17500010
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
