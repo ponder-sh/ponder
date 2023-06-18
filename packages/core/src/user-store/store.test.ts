@@ -1,7 +1,7 @@
 import { buildSchema as buildGraphqlSchema } from "graphql";
 import { expect, test } from "vitest";
 
-import { schemaHeader } from "@/reload/readGraphqlSchema";
+import { schemaHeader } from "@/reload/graphql";
 import { buildSchema } from "@/schema/schema";
 
 /**

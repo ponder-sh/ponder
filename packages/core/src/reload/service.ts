@@ -11,8 +11,8 @@ import { buildSchema } from "@/schema/schema";
 import { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
 
-import { readGraphqlSchema } from "./readGraphqlSchema";
-import { Handlers, readHandlers } from "./readHandlers";
+import { readGraphqlSchema } from "./graphql";
+import { Handlers, readHandlers } from "./handlers";
 
 type ReloadServiceEvents = {
   ponderConfigChanged: undefined;

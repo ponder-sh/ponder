@@ -1,7 +1,7 @@
 export type { PonderOptions } from "@/config/options";
 export type { PonderConfig, ResolvedPonderConfig } from "@/config/ponderConfig";
 export { Ponder } from "@/Ponder";
-export { PonderApp } from "@/reload/readHandlers";
+export { PonderApp } from "@/reload/handlers";
 export type { Block } from "@/types/block";
 export type { ReadOnlyContract } from "@/types/contract";
 export type { Log } from "@/types/log";

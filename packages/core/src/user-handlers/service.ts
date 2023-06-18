@@ -13,7 +13,7 @@ import type {
 } from "@/event-aggregator/service";
 import type { EventStore } from "@/event-store/store";
 import type { Resources } from "@/Ponder";
-import type { Handlers } from "@/reload/readHandlers";
+import type { Handlers } from "@/reload/handlers";
 import type { Schema } from "@/schema/types";
 import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";

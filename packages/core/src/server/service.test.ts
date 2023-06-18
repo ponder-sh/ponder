@@ -3,7 +3,7 @@ import request from "supertest";
 import { expect, test } from "vitest";
 
 import { testResources } from "@/_test/utils";
-import { schemaHeader } from "@/reload/readGraphqlSchema";
+import { schemaHeader } from "@/reload/graphql";
 import { buildSchema } from "@/schema/schema";
 import { UserStore } from "@/user-store/store";
 import { range } from "@/utils/range";
