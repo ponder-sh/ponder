@@ -130,14 +130,18 @@ beforeAll(async () => {
   const metricsRaw = await metricsResponse.text();
   const metrics = parsePrometheusTextFormat(metricsRaw) as any[];
 
-  const chain_head_cache_num_blocks =
-    metrics.find((m) => m.name === "chain_head_cache_num_blocks")?.metrics ??
-    [];
+  const chain_head_cache_num_blocks = Number(
+    metrics
+      .find((m) => m.name === "chain_head_cache_num_blocks")
+      ?.metrics.find((m) => m?.labels?.network === "mainnet").value
+  );
 
-  const endpoint_request: { req_type: string; result: string }[] =
-    metrics.find((m) => m.name === "endpoint_request")?.metrics ?? [];
+  const endpoint_request = metrics
+    .find((m) => m.name === "endpoint_request")
+    ?.metrics.map(({ value, labels }) => ({ value, method: labels.method }));
 
-  console.log({ chain_head_cache_num_blocks, endpoint_request });
+  console.log(chain_head_cache_num_blocks);
+  console.log(endpoint_request);
 
   console.log(metricsRaw);
   for (const metric of metrics) {
