@@ -17,12 +17,12 @@ export const anvil = {
   id: 1, // We configured our anvil instance to use `1` as the chain id (see `globalSetup.ts`);
   rpcUrls: {
     default: {
-      http: [`http://localhost:8545`],
-      webSocket: [`ws://localhost:8545`],
+      http: [`http://127.0.0.1:8545`],
+      webSocket: [`ws://127.0.0.1:8545`],
     },
     public: {
-      http: [`http://localhost:8545`],
-      webSocket: [`ws://localhost:8545`],
+      http: [`http://127.0.0.1:8545`],
+      webSocket: [`ws://127.0.0.1:8545`],
     },
   },
 } as Chain;
