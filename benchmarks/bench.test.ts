@@ -2,8 +2,18 @@ import execa from "execa";
 import parsePrometheusTextFormat from "parse-prometheus-text-format";
 import { beforeAll, test } from "vitest";
 
-import { FORK_BLOCK_NUMBER, FORK_URL } from "./_test/constants";
-import { publicClient, testClient } from "./_test/utils";
+import { FORK_BLOCK_NUMBER } from "./_test/constants";
+
+const END_BLOCK = FORK_BLOCK_NUMBER;
+
+export const startClock = () => {
+  const start = process.hrtime();
+
+  return () => {
+    const diff = process.hrtime(start);
+    return Math.round(diff[0] * 1000 + diff[1] / 1000000);
+  };
+};
 
 const fetchWithTimeout = async (
   input: RequestInfo | URL,
@@ -67,11 +77,6 @@ const fetchSubgraphLatestBlockNumber = async () => {
 };
 
 beforeAll(async () => {
-  console.log("Setting up the Anvil node...");
-  await testClient.setAutomine(false);
-  await testClient.setRpcUrl(FORK_URL);
-  await testClient.reset({ blockNumber: FORK_BLOCK_NUMBER });
-
   console.log("Registering subgraph...");
   await execa(
     "graph",
@@ -100,27 +105,44 @@ beforeAll(async () => {
     }
   );
 
-  console.log(
-    "Test client latest block number:",
-    await publicClient.getBlockNumber()
-  );
+  const endClock = startClock();
 
-  console.log("Waiting for subgraph to sync 100 blocks...");
-  let latestBlockNumber = 0;
-  let attempts = 0;
-  while (attempts < 60) {
-    latestBlockNumber = await fetchSubgraphLatestBlockNumber();
-    attempts += 1;
-    console.log({ latestBlockNumber });
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
-  }
+  await new Promise((resolve, reject) => {
+    const interval = setInterval(async () => {
+      const latestBlockNumber = await fetchSubgraphLatestBlockNumber();
+      if (latestBlockNumber >= END_BLOCK) {
+        clearInterval(interval);
+        resolve(undefined);
+      }
+    }, 1_000);
 
-  console.log("Fetching Graph Node metrics...");
+    setTimeout(() => {
+      clearInterval(interval);
+      reject(new Error("Timed out waiting for subgraph to sync"));
+    }, 60_000);
+  });
+
+  const duration = endClock();
+
+  console.log("Subgraph synced in", duration, "ms");
+
   const metricsResponse = await fetchWithTimeout("http://localhost:8040");
   const metricsRaw = await metricsResponse.text();
-  const metrics = parsePrometheusTextFormat(metricsRaw);
+  const metrics = parsePrometheusTextFormat(metricsRaw) as any[];
+
+  const chain_head_cache_num_blocks =
+    metrics.find((m) => m.name === "chain_head_cache_num_blocks")?.metrics ??
+    [];
+
+  const endpoint_request: { req_type: string; result: string }[] =
+    metrics.find((m) => m.name === "endpoint_request")?.metrics ?? [];
+
+  console.log({ chain_head_cache_num_blocks, endpoint_request });
+
   console.log(metricsRaw);
-  console.log(metrics);
+  for (const metric of metrics) {
+    console.log(metric);
+  }
 }, 120_000);
 
 test("test", async () => {
