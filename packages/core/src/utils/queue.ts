@@ -4,7 +4,7 @@ import { setTimeout } from "timers/promises";
 
 import { Prettify } from "@/types/utils";
 
-type TaskOptions = { front?: boolean; retry?: boolean };
+type TaskOptions = { priority?: number; retry?: boolean };
 
 export type Queue<TTask> = PQueue & {
   addTask: (
@@ -101,7 +101,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
   );
 
   queue.addTask = async (task, taskOptions) => {
-    const priority = taskOptions?.front ? queue.size : 0;
+    const priority = taskOptions?.priority ?? 0;
 
     let retryTimeout: number | undefined = undefined;
     if (taskOptions?.retry) {
@@ -136,7 +136,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
   queue.addTasks = async (tasks, taskOptions) => {
     await Promise.all(
       tasks.map(async (task) => {
-        const priority = taskOptions?.front ? queue.size : 0;
+        const priority = taskOptions?.priority ?? 0;
 
         let retryTimeout: number | undefined = undefined;
         if (taskOptions?.retry) {
