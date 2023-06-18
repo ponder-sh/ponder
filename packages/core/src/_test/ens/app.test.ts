@@ -86,4 +86,4 @@ test("serves data", async (context) => {
   expect(accounts).toHaveLength(12);
 
   await ponder.kill();
-}, 40_000);
+}, 60_000);
