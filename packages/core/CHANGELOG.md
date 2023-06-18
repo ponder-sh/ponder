@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.0.62
+
+### Patch Changes
+
+- [#213](https://github.com/0xOlias/ponder/pull/213) [`2bff2f8`](https://github.com/0xOlias/ponder/commit/2bff2f8bfdecb85a8be7c3ef61c9634dfb19b4c0) Thanks [@r0ohafza](https://github.com/r0ohafza)! - Added entity count limits to GraphQL API server responses. By default, the server now returns only the first 100 entities (equivalent to adding `first: 100`). There is also now a hard cap of 1000 entities (`first: 1000`) in a single response. There is also a cap of 5000 entities that can be skipped (`skip: 5000`) in a single response. To paginate through a large number of entities, maintain a cursor client-side and use `where: { id_gt: previousCursor }` to fetch the next page of entities.
+
+- [#221](https://github.com/0xOlias/ponder/pull/221) [`cc7c60c`](https://github.com/0xOlias/ponder/commit/cc7c60c7ec09d4c2ccee735468efa6eb8122a9d2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where `Keep-Alive` HTTP connections were not being terminated properly on process exit
+
+- [#219](https://github.com/0xOlias/ponder/pull/219) [`a8e3b79`](https://github.com/0xOlias/ponder/commit/a8e3b791a5d7eb0c0cfcdd7f347519d9bb6caf88) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the "equals" filter argument was not working as expected for basic list field types.
+
 ## 0.0.61
 
 ### Patch Changes
