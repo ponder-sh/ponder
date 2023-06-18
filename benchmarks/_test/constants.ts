@@ -3,10 +3,12 @@ if (!process.env.ANVIL_FORK_URL) {
 }
 export const FORK_URL = process.env.ANVIL_FORK_URL;
 
-if (!process.env.ANVIL_BLOCK_NUMBER) {
-  throw new Error('Missing environment variable "ANVIL_BLOCK_NUMBER"');
+if (!process.env.ANVIL_FORK_BLOCK_NUMBER) {
+  throw new Error('Missing environment variable "ANVIL_FORK_BLOCK_NUMBER"');
 }
-export const FORK_BLOCK_NUMBER = BigInt(Number(process.env.ANVIL_BLOCK_NUMBER));
+export const FORK_BLOCK_NUMBER = BigInt(
+  Number(process.env.ANVIL_FORK_BLOCK_NUMBER)
+);
 
 export const accounts = [
   {
