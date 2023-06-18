@@ -1,0 +1,5 @@
+data/
+dist/
+.ponder/
+generated/
+.env.local

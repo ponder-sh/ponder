@@ -1,8 +1,7 @@
 import execa from "execa";
 import parsePrometheusTextFormat from "parse-prometheus-text-format";
-import { beforeAll, test } from "vitest";
 
-import { FORK_BLOCK_NUMBER } from "./_test/constants";
+import { FORK_BLOCK_NUMBER } from "./constants";
 
 const START_BLOCK = 17500000;
 const END_BLOCK = Number(FORK_BLOCK_NUMBER);
@@ -84,7 +83,7 @@ const fetchSubgraphMetrics = async () => {
   return metrics;
 };
 
-beforeAll(async () => {
+const subgraph = async () => {
   console.log("Registering subgraph...");
   await execa(
     "graph",
@@ -178,8 +177,6 @@ beforeAll(async () => {
     console.log(metric.metrics);
     console.log("");
   }
-}, 120_000);
+};
 
-test("test", async () => {
-  console.log("In test!");
-});
+await subgraph();
