@@ -145,8 +145,12 @@ const subgraph = async () => {
   await Promise.all([
     new Promise((resolve, reject) => {
       const interval = setInterval(async () => {
-        const latestBlockNumber = await fetchSubgraphLatestBlockNumber();
-        if (latestBlockNumber >= END_BLOCK - START_BLOCK) {
+        const latestSyncedBlockNumber = await fetchSubgraphLatestBlockNumber();
+        console.log(
+          `Latest synced block number (GraphQL): ${latestSyncedBlockNumber}/${END_BLOCK}`
+        );
+
+        if (latestSyncedBlockNumber >= END_BLOCK) {
           durationGraphQL = endClockGraphQL();
           clearInterval(interval);
           resolve(undefined);
@@ -167,8 +171,13 @@ const subgraph = async () => {
             .find((m) => m.name === "chain_head_cache_num_blocks")
             ?.metrics.find((m) => m?.labels?.network === "mainnet").value
         );
+        console.log(
+          `Metric progress (chain_head_cache_num_blocks): ${chain_head_cache_num_blocks}/${
+            END_BLOCK - START_BLOCK
+          }`
+        );
 
-        if (chain_head_cache_num_blocks >= 10) {
+        if (chain_head_cache_num_blocks >= END_BLOCK - START_BLOCK) {
           durationMetrics = endClockMetrics();
           clearInterval(interval);
           resolve(undefined);
