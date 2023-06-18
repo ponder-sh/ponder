@@ -101,6 +101,26 @@ const setup = async ({ userStore }: { userStore: UserStore }) => {
   return { service, gql, createTestEntity, createEntityWithBigIntId };
 };
 
+test("serves the _meta object", async (context) => {
+  const { userStore } = context;
+  const { service, gql } = await setup({ userStore });
+
+  const response = await gql(`
+    _meta {
+      entityStoreVersionId
+    }
+  `);
+
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { _meta } = response.body.data;
+
+  expect(_meta.entityStoreVersionId).toEqual(userStore.versionId);
+
+  await service.teardown();
+  await userStore.teardown();
+});
+
 test("serves all scalar types correctly", async (context) => {
   const { userStore } = context;
   const { service, gql, createTestEntity } = await setup({ userStore });
