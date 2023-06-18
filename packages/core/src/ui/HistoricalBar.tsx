@@ -7,23 +7,26 @@ import { UiState } from "./app";
 import { ProgressBar } from "./ProgressBar";
 
 export const HistoricalBar = ({
-  contract,
+  title,
   stat,
 }: {
-  contract: string;
-  stat: UiState["stats"][0];
+  title: string;
+  stat: UiState["historicalSyncLogFilterStats"][0];
 }) => {
-  const current = stat.logCurrent + stat.blockCurrent;
-  const total = stat.logTotal + stat.blockTotal;
+  const { startTimestamp, cachedBlocks, totalBlocks, completedBlocks } = stat;
+
+  const currentCompletionRate =
+    (cachedBlocks + completedBlocks) / (totalBlocks || 1);
+
+  const eta =
+    (Date.now() - startTimestamp) / // Elapsed time in milliseconds
+    (completedBlocks / (totalBlocks - cachedBlocks)); // Progress
 
   // Only display the ETA text once 5 log tasks have been processed
   const etaText =
-    stat.logTotal > 5 && stat.eta > 0 ? ` | ~${formatEta(stat.eta)}` : null;
+    completedBlocks > 5 && eta > 0 ? ` | ~${formatEta(eta)}` : null;
 
-  const rate =
-    (current / Math.max(total, 1)) * (1 - stat.cacheRate) + stat.cacheRate;
-
-  const completionDecimal = Math.round(rate * 1000) / 10;
+  const completionDecimal = Math.round(currentCompletionRate * 1000) / 10;
   const completionText =
     Number.isInteger(completionDecimal) && completionDecimal < 100
       ? `${completionDecimal}.0%`
@@ -32,20 +35,18 @@ export const HistoricalBar = ({
   return (
     <Box flexDirection="column">
       <Text>
-        {contract}
+        {title}
         {/* ({cacheRateText} cached) */}
       </Text>
       <Box flexDirection="row">
         <ProgressBar
-          current={current}
-          end={Math.max(total, 1)}
-          cachedRate={stat.cacheRate}
+          current={cachedBlocks + completedBlocks}
+          end={totalBlocks || 1}
         />
         <Text>
           {" "}
           {completionText}
           {etaText}
-          {/* {backfillCountText} */}
         </Text>
       </Box>
       {/* <Text> </Text> */}

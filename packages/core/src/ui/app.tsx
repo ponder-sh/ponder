@@ -9,23 +9,13 @@ import { HistoricalBar } from "./HistoricalBar";
 export type UiState = {
   port: number;
 
-  stats: Record<
+  historicalSyncLogFilterStats: Record<
     string,
     {
-      cacheRate: number;
-
-      logStartTimestamp: number;
-      logTotal: number;
-      logCurrent: number;
-      logAvgDuration: number;
-      logAvgBlockCount: number;
-
-      blockStartTimestamp: number;
-      blockTotal: number;
-      blockCurrent: number;
-      blockAvgDuration: number;
-
-      eta: number;
+      startTimestamp: number;
+      totalBlocks: number;
+      cachedBlocks: number;
+      completedBlocks: number;
     }
   >;
 
@@ -45,7 +35,7 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
   const ui: UiState = {
     port: 0,
 
-    stats: {},
+    historicalSyncLogFilterStats: {},
 
     isHistoricalSyncComplete: false,
     historicalSyncDuration: "",
@@ -60,18 +50,11 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
   };
 
   logFilters.forEach((logFilter) => {
-    ui.stats[logFilter.name] = {
-      cacheRate: 0,
-      logStartTimestamp: 0,
-      logTotal: 0,
-      logCurrent: 0,
-      logAvgDuration: 0,
-      logAvgBlockCount: 0,
-      blockStartTimestamp: 0,
-      blockTotal: 0,
-      blockCurrent: 0,
-      blockAvgDuration: 0,
-      eta: 0,
+    ui.historicalSyncLogFilterStats[logFilter.name] = {
+      startTimestamp: 0,
+      totalBlocks: 0,
+      cachedBlocks: 0,
+      completedBlocks: 0,
     };
   });
 
@@ -81,7 +64,7 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
 const App = (ui: UiState) => {
   const {
     port,
-    stats,
+    historicalSyncLogFilterStats,
     isHistoricalSyncComplete,
     historicalSyncDuration,
     handlersCurrent,
@@ -116,9 +99,15 @@ const App = (ui: UiState) => {
       </Box>
       {!isHistoricalSyncComplete && (
         <Box flexDirection="column">
-          {Object.entries(stats).map(([contract, stat]) => (
-            <HistoricalBar key={contract} contract={contract} stat={stat} />
-          ))}
+          {Object.entries(historicalSyncLogFilterStats).map(
+            ([logFilterName, stat]) => (
+              <HistoricalBar
+                key={logFilterName}
+                title={logFilterName}
+                stat={stat}
+              />
+            )
+          )}
           <Text> </Text>
         </Box>
       )}

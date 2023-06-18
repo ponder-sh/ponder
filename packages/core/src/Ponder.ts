@@ -369,8 +369,8 @@ export class Ponder {
 
       historicalSyncService.on("syncStarted", () => {
         logFilters.forEach(({ name }) => {
-          this.uiService.ui.stats[name].logStartTimestamp = Date.now();
-          this.uiService.ui.stats[name].blockStartTimestamp = Date.now();
+          this.uiService.ui.historicalSyncLogFilterStats[name].startTimestamp =
+            Date.now();
 
           this.resources.logger.logMessage(
             "historical",
@@ -398,8 +398,7 @@ export class Ponder {
 
     setInterval(() => {
       this.networkSyncServices.forEach((networkSyncService) => {
-        const { network, historicalSyncService, realtimeSyncService } =
-          networkSyncService;
+        const { network, realtimeSyncService } = networkSyncService;
 
         if (
           realtimeSyncService.stats.isConnected &&
@@ -407,23 +406,6 @@ export class Ponder {
         ) {
           this.uiService.ui.networks.push(network.name);
         }
-
-        this.logFilters.forEach(({ name }) => {
-          const historicalMetrics =
-            historicalSyncService.stats.logFilters[name];
-
-          this.uiService.ui.stats[name].cacheRate = historicalMetrics.cacheRate;
-
-          this.uiService.ui.stats[name].blockCurrent =
-            historicalMetrics.blockTaskCompletedCount;
-          this.uiService.ui.stats[name].blockTotal =
-            historicalMetrics.blockTaskTotalCount;
-
-          this.uiService.ui.stats[name].logCurrent =
-            historicalMetrics.logTaskCompletedCount;
-          this.uiService.ui.stats[name].logTotal =
-            historicalMetrics.logTaskTotalCount;
-        });
       });
 
       const isHistoricalSyncComplete = this.networkSyncServices.every(
