@@ -4,7 +4,8 @@ import { beforeAll, test } from "vitest";
 
 import { FORK_BLOCK_NUMBER } from "./_test/constants";
 
-const END_BLOCK = FORK_BLOCK_NUMBER;
+const START_BLOCK = 17500000;
+const END_BLOCK = Number(FORK_BLOCK_NUMBER);
 
 export const startClock = () => {
   const start = process.hrtime();
@@ -76,6 +77,13 @@ const fetchSubgraphLatestBlockNumber = async () => {
   return blockNumber as number;
 };
 
+const fetchSubgraphMetrics = async () => {
+  const metricsResponse = await fetchWithTimeout("http://localhost:8040");
+  const metricsRaw = await metricsResponse.text();
+  const metrics = parsePrometheusTextFormat(metricsRaw) as any[];
+  return metrics;
+};
+
 beforeAll(async () => {
   console.log("Registering subgraph...");
   await execa(
@@ -105,47 +113,70 @@ beforeAll(async () => {
     }
   );
 
-  const endClock = startClock();
+  const endClockGraphQL = startClock();
+  const endClockMetrics = startClock();
+  let durationGraphQL = -1;
+  let durationMetrics = -1;
 
-  await new Promise((resolve, reject) => {
-    const interval = setInterval(async () => {
-      const latestBlockNumber = await fetchSubgraphLatestBlockNumber();
-      if (latestBlockNumber >= END_BLOCK) {
+  await Promise.all([
+    new Promise((resolve, reject) => {
+      const interval = setInterval(async () => {
+        const latestBlockNumber = await fetchSubgraphLatestBlockNumber();
+        if (latestBlockNumber >= END_BLOCK - START_BLOCK) {
+          durationGraphQL = endClockGraphQL();
+          clearInterval(interval);
+          resolve(undefined);
+        }
+      }, 1_000);
+
+      setTimeout(() => {
         clearInterval(interval);
-        resolve(undefined);
-      }
-    }, 1_000);
+        reject(new Error("Timed out waiting for subgraph to sync"));
+      }, 60_000);
+    }),
+    new Promise((resolve, reject) => {
+      const interval = setInterval(async () => {
+        const metrics = await fetchSubgraphMetrics();
 
-    setTimeout(() => {
-      clearInterval(interval);
-      reject(new Error("Timed out waiting for subgraph to sync"));
-    }, 60_000);
-  });
+        const chain_head_cache_num_blocks = Number(
+          metrics
+            .find((m) => m.name === "chain_head_cache_num_blocks")
+            ?.metrics.find((m) => m?.labels?.network === "mainnet").value
+        );
 
-  const duration = endClock();
+        if (chain_head_cache_num_blocks >= 10) {
+          durationMetrics = endClockMetrics();
+          clearInterval(interval);
+          resolve(undefined);
+        }
+      }, 1_000);
 
-  console.log("Subgraph synced in", duration, "ms");
+      setTimeout(() => {
+        clearInterval(interval);
+        reject(new Error("Timed out waiting for subgraph to sync"));
+      }, 60_000);
+    }),
+  ]);
 
-  const metricsResponse = await fetchWithTimeout("http://localhost:8040");
-  const metricsRaw = await metricsResponse.text();
-  const metrics = parsePrometheusTextFormat(metricsRaw) as any[];
+  console.log("Subgraph synced in:", { durationGraphQL, durationMetrics });
 
-  const chain_head_cache_num_blocks = Number(
-    metrics
-      .find((m) => m.name === "chain_head_cache_num_blocks")
-      ?.metrics.find((m) => m?.labels?.network === "mainnet").value
-  );
+  const metrics = await fetchSubgraphMetrics();
 
   const endpoint_request = metrics
     .find((m) => m.name === "endpoint_request")
-    ?.metrics.map(({ value, labels }) => ({ value, method: labels.method }));
+    ?.metrics.map(({ value, labels }) => ({
+      method: labels.req_type,
+      value: Number(value),
+    }));
 
-  console.log(chain_head_cache_num_blocks);
   console.log(endpoint_request);
 
-  console.log(metricsRaw);
   for (const metric of metrics) {
-    console.log(metric);
+    console.log(metric.name);
+    console.log(metric.help);
+    console.log(metric.type);
+    console.log(metric.metrics);
+    console.log("\n");
   }
 }, 120_000);
 
