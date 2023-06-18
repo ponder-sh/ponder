@@ -2,8 +2,8 @@
   "name": "ponder-benchmarks",
   "private": true,
   "scripts": {
-    "up": "export $(grep -v '^#' .env.local | xargs) && docker-compose up",
-    "bench": "tsup-node && export $(grep -v '^#' .env.local | xargs) && node dist/bench.mjs"
+    "bench": "export $(grep -v '^#' .env.local | xargs) && docker-compose up --detach && tsup-node && (node dist/bench.mjs || true) && docker-compose down",
+    "bench:ci": "tsup-node && node dist/bench.mjs"
   },
   "devDependencies": {
     "@graphprotocol/graph-cli": "^0.51.1",

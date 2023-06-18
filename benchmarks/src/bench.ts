@@ -1,7 +1,7 @@
 import execa from "execa";
 import parsePrometheusTextFormat from "parse-prometheus-text-format";
 
-import { FORK_BLOCK_NUMBER } from "./constants";
+import { FORK_BLOCK_NUMBER } from "./anvil";
 
 const START_BLOCK = 17500000;
 const END_BLOCK = Number(FORK_BLOCK_NUMBER);
@@ -83,7 +83,32 @@ const fetchSubgraphMetrics = async () => {
   return metrics;
 };
 
+const waitForGraphNode = async () => {
+  const endClock = startClock();
+  return new Promise<number>((resolve, reject) => {
+    const interval = setInterval(async () => {
+      try {
+        const metrics = await fetchSubgraphMetrics();
+        if (metrics) {
+          clearInterval(interval);
+          resolve(endClock());
+        }
+      } catch (e) {
+        // Ignore.
+      }
+    }, 1_000);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      reject(new Error("Timed out waiting for Graph Node to start"));
+    }, 15_000);
+  });
+};
+
 const subgraph = async () => {
+  const duration = await waitForGraphNode();
+  console.log(`Graph Node ready (waited for ${duration}ms)`);
+
   console.log("Registering subgraph...");
   await execa(
     "graph",

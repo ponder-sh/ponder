@@ -7,10 +7,20 @@ import {
 } from "viem";
 import { mainnet } from "viem/chains";
 
-import { FORK_BLOCK_NUMBER, FORK_URL, vitalik } from "./constants";
-
 // Anvil test setup adapted from @viem/anvil `example-vitest` repository.
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
+
+if (!process.env.ANVIL_FORK_URL) {
+  throw new Error('Missing environment variable "ANVIL_FORK_URL"');
+}
+export const FORK_URL = process.env.ANVIL_FORK_URL;
+
+if (!process.env.ANVIL_FORK_BLOCK_NUMBER) {
+  throw new Error('Missing environment variable "ANVIL_FORK_BLOCK_NUMBER"');
+}
+export const FORK_BLOCK_NUMBER = BigInt(
+  Number(process.env.ANVIL_FORK_BLOCK_NUMBER)
+);
 
 export const anvil = {
   ...mainnet, // We are using a mainnet fork for testing.
@@ -49,25 +59,3 @@ export const walletClient = createWalletClient({
   chain: anvil,
   transport: http(),
 });
-
-/**
- * Resets the Anvil instance to the defaults.
- *
- * ```ts
- * // Add this to any test suite that uses the test client.
- * beforeEach(async () => {
- *   return await resetTestClient();
- * })
- * ```
- */
-export async function resetTestClient() {
-  await testClient.impersonateAccount({ address: vitalik.address });
-  await testClient.setAutomine(false);
-
-  return async () => {
-    await testClient.reset({
-      jsonRpcUrl: FORK_URL,
-      blockNumber: FORK_BLOCK_NUMBER,
-    });
-  };
-}
