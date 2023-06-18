@@ -176,7 +176,7 @@ beforeAll(async () => {
     console.log(metric.help);
     console.log(metric.type);
     console.log(metric.metrics);
-    console.log("\n");
+    console.log("");
   }
 }, 120_000);
 
