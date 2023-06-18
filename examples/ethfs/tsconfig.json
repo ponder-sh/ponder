@@ -2,10 +2,10 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "esModuleInterop": true,
-    "strict": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "strict": true,
     "rootDir": ".",
     "paths": {
       "@/generated": ["./generated/index.ts"]
