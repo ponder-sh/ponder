@@ -138,60 +138,29 @@ const subgraph = async () => {
   );
 
   const endClockGraphQL = startClock();
-  const endClockMetrics = startClock();
-  let durationGraphQL = -1;
-  let durationMetrics = -1;
+  let durationGraphQL: number;
 
-  await Promise.all([
-    new Promise((resolve, reject) => {
-      const interval = setInterval(async () => {
-        const latestSyncedBlockNumber = await fetchSubgraphLatestBlockNumber();
-        console.log(
-          `Latest synced block number (GraphQL): ${latestSyncedBlockNumber}/${END_BLOCK}`
-        );
+  await new Promise((resolve, reject) => {
+    const interval = setInterval(async () => {
+      const latestSyncedBlockNumber = await fetchSubgraphLatestBlockNumber();
+      console.log(
+        `Latest synced block number (GraphQL): ${latestSyncedBlockNumber}/${END_BLOCK}`
+      );
 
-        if (latestSyncedBlockNumber >= END_BLOCK) {
-          durationGraphQL = endClockGraphQL();
-          clearInterval(interval);
-          resolve(undefined);
-        }
-      }, 1_000);
-
-      setTimeout(() => {
+      if (latestSyncedBlockNumber >= END_BLOCK) {
+        durationGraphQL = endClockGraphQL();
         clearInterval(interval);
-        reject(new Error("Timed out waiting for subgraph to sync"));
-      }, 60_000);
-    }),
-    new Promise((resolve, reject) => {
-      const interval = setInterval(async () => {
-        const metrics = await fetchSubgraphMetrics();
+        resolve(undefined);
+      }
+    }, 1_000);
 
-        const chain_head_cache_num_blocks = Number(
-          metrics
-            .find((m) => m.name === "chain_head_cache_num_blocks")
-            ?.metrics.find((m) => m?.labels?.network === "mainnet").value
-        );
-        console.log(
-          `Metric progress (chain_head_cache_num_blocks): ${chain_head_cache_num_blocks}/${
-            END_BLOCK - START_BLOCK
-          }`
-        );
+    setTimeout(() => {
+      clearInterval(interval);
+      reject(new Error("Timed out waiting for subgraph to sync"));
+    }, 60_000);
+  });
 
-        if (chain_head_cache_num_blocks >= END_BLOCK - START_BLOCK) {
-          durationMetrics = endClockMetrics();
-          clearInterval(interval);
-          resolve(undefined);
-        }
-      }, 1_000);
-
-      setTimeout(() => {
-        clearInterval(interval);
-        reject(new Error("Timed out waiting for subgraph to sync"));
-      }, 60_000);
-    }),
-  ]);
-
-  console.log("Subgraph synced in:", { durationGraphQL, durationMetrics });
+  console.log(`Subgraph synced in: ${durationGraphQL}`);
 
   const metrics = await fetchSubgraphMetrics();
 
