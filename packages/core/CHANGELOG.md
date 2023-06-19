@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.63
+
+### Patch Changes
+
+- [#225](https://github.com/0xOlias/ponder/pull/225) [`c474fb0`](https://github.com/0xOlias/ponder/commit/c474fb01fffc74aed17d247eb4bcea0168be5517) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug in the historical sync queue where block tasks were not being prioritzed properly. Now, when starting the historical sync, events should be available and processed almost immediately.
+
 ## 0.0.62
 
 ### Patch Changes
