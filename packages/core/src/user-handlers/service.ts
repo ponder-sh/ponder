@@ -212,7 +212,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         this.metrics.eventsAddedToQueue += events.length;
         this.metrics.totalMatchedEvents += totalEventCount;
 
-        // If no events have been handled, add the setup event
+        // If no events have been handled yet, add the setup event.
         if (this.eventsHandledToTimestamp === 0 && this.handlers?.setup) {
           this.queue.addTask({ kind: "SETUP" });
         }
