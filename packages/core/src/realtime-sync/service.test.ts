@@ -476,7 +476,9 @@ test("handles deep reorg", async (context) => {
 
   // Confirm that the service has finalized blocks.
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    timestamp: 1673397076, // Timestamp of 16380005
+    // Note that the precise number can change depending on how long it takes to
+    // mine each block above.
+    timestamp: expect.any(Number),
   });
 
   // Now, revert to the original snapshot and mine 13 blocks, each containing 2 transactions.
