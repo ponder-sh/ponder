@@ -195,9 +195,16 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       await this.eventProcessingMutex.runExclusive(async () => {
         if (!this.queue) return;
 
+        // The getEvents method is inclusive on both sides, so we need to add 1 here
+        // to avoid fetching the same event twice.
+        const fromTimestamp =
+          this.eventsHandledToTimestamp === 0
+            ? 0
+            : this.eventsHandledToTimestamp + 1;
+
         const { events, totalEventCount } =
           await this.eventAggregatorService.getEvents({
-            fromTimestamp: this.eventsHandledToTimestamp,
+            fromTimestamp,
             toTimestamp,
             handledLogFilters: this.handledLogFilters,
           });

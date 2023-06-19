@@ -18,9 +18,23 @@ import { startClock } from "@/utils/timer";
 import { findMissingIntervals } from "./intervals";
 
 type HistoricalSyncEvents = {
+  /**
+   * Emitted when the service starts processing historical sync tasks.
+   */
   syncStarted: undefined;
+  /**
+   * Emitted when the service has finished processing all historical sync tasks.
+   */
   syncComplete: undefined;
+  /**
+   * Emitted when the minimum cached timestamp among all registered log filters moves forward.
+   * This indicates to consumers that the connected event store now contains a complete history
+   * of events for all registered log filters between their start block and this timestamp (inclusive).
+   */
   historicalCheckpoint: { timestamp: number };
+  /**
+   * Emitted when a historical sync task fails.
+   */
   error: { error: Error };
 };
 
@@ -205,7 +219,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     if (this.queue.size === 0) {
       this.stats.duration = this.stats.endDuration();
       this.stats.isComplete = true;
-      this.emit("historicalCheckpoint", { timestamp: Date.now() });
+      this.emit("historicalCheckpoint", {
+        timestamp: Math.round(Date.now() / 1000),
+      });
       this.emit("syncComplete");
     }
   }
