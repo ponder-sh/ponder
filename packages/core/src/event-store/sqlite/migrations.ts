@@ -96,6 +96,12 @@ const migrations: Record<string, Migration> = {
         .addColumn("id", "integer", (col) => col.notNull().primaryKey())
         .addColumn("startBlock", "blob", (col) => col.notNull()) // BigInt
         .execute();
+
+      await db.schema
+        .createIndex("log_events_index")
+        .on("logs")
+        .columns(["address", "blockHash", "blockNumber", "transactionHash"])
+        .execute();
     },
     async down(db: Kysely<any>) {
       await db.schema.dropTable("blocks").execute();
