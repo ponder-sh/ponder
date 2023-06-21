@@ -9,9 +9,9 @@ import { Resources } from "@/Ponder";
 import { Schema } from "@/schema/types";
 import { ensureDirExists } from "@/utils/exists";
 
-import { buildContractTypes } from "./buildContractTypes";
-import { buildEntityTypes } from "./buildEntityTypes";
-import { buildEventTypes } from "./buildEventTypes";
+import { buildContractTypes } from "./contract";
+import { buildEntityTypes } from "./entity";
+import { buildEventTypes } from "./event";
 import { formatPrettier } from "./prettier";
 
 export class CodegenService extends Emittery {
