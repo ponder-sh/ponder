@@ -616,7 +616,9 @@ export class SqliteEventStore implements EventStore {
           transactionIndex: Number(result.log_transactionIndex),
         },
         block: {
-          baseFeePerGas: blobToBigInt(result.block_baseFeePerGas),
+          baseFeePerGas: result.block_baseFeePerGas
+            ? blobToBigInt(result.block_baseFeePerGas)
+            : null,
           difficulty: blobToBigInt(result.block_difficulty),
           extraData: result.block_extraData,
           gasLimit: blobToBigInt(result.block_gasLimit),
