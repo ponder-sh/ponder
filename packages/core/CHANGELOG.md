@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.64
+
+### Patch Changes
+
+- [#183](https://github.com/0xOlias/ponder/pull/183) [`1d82c94`](https://github.com/0xOlias/ponder/commit/1d82c9423f6f11364c35b10f11e47e622fec78d5) Thanks [@pyk](https://github.com/pyk)! - Fixed a bug where codegen would fail for schemas that include a field typed as `Float`.
+
 ## 0.0.63
 
 ### Patch Changes
