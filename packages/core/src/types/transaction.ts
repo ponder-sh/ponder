@@ -47,6 +47,16 @@ export type Transaction = Prettify<
       }
     | {
         /** Transaction type. */
+        type: "eip2930";
+        /** List of addresses and storage keys the transaction will access. */
+        accessList: AccessList;
+        /** Base fee per gas. Only present in legacy and EIP-2930 transactions. */
+        gasPrice: bigint;
+        maxFeePerGas?: never;
+        maxPriorityFeePerGas?: never;
+      }
+    | {
+        /** Transaction type. */
         type: "eip1559";
         accessList?: never;
         gasPrice?: never;
@@ -57,11 +67,19 @@ export type Transaction = Prettify<
       }
     | {
         /** Transaction type. */
-        type: "eip2930";
-        /** Base fee per gas. Only present in legacy and EIP-2930 transactions. */
-        gasPrice: bigint;
-        /** List of addresses and storage keys the transaction will access. */
-        accessList: AccessList;
+        type: "deposit";
+        accessList?: never;
+        gasPrice?: never;
+        /** Total fee per gas in wei (gasPrice/baseFeePerGas + maxPriorityFeePerGas). Only present in EIP-1559 transactions. */
+        maxFeePerGas: bigint;
+        /** Max priority fee per gas (in wei). Only present in EIP-1559 transactions. */
+        maxPriorityFeePerGas: bigint;
+      }
+    | {
+        /** Transaction type. */
+        type: Hex;
+        gasPrice?: never;
+        accessList?: never;
         maxFeePerGas?: never;
         maxPriorityFeePerGas?: never;
       }
