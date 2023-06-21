@@ -1,10 +1,13 @@
 # Ponder
 
+[![CI status][ci-badge]][ci-url]
+[![Telegram chat][tg-badge]][tg-url]
+
 Ponder is an open-source framework for blockchain application backends.
 
 ## Documentation
 
-Visit [ponder.sh](https://ponder.sh) for documentation, guides, and an API reference.
+Visit [ponder.sh](https://ponder.sh) for documentation, guides, and the API reference.
 
 ## Features
 
@@ -16,8 +19,8 @@ Visit [ponder.sh](https://ponder.sh) for documentation, guides, and an API refer
 ✅ &nbsp;Compatible with all Ethereum-based blockchains, including test nodes like [Anvil](https://book.getfoundry.sh/anvil)<br/>
 ✅ &nbsp;Supports multiple chains in the same app<br/>
 🏗️ &nbsp;Gracefully handles chain reorganizations<br/>
-🏗️ &nbsp;Handle transactions calls (in addition to logs)<br/>
-🏗️ &nbsp;Run effects (e.g. send an API request) in event handler code<br/>
+🏗️ &nbsp;Define event handlers for transactions calls<br/>
+🏗️ &nbsp;Supports factory contracts<br/>
 
 ## Quickstart
 
@@ -100,10 +103,13 @@ ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
   const { EnsName } = context.entities;
   const { name, owner } = event.params;
 
-  await EnsName.insert(`${name}-${owner}`, {
-    name: name,
-    owner: owner,
-    registeredAt: event.block.timestamp
+  await EnsName.create({
+    id: `${name}-${owner}`,
+    data: {
+      name: name,
+      owner: owner,
+      registeredAt: event.block.timestamp
+    }
   });
 });
 ```
@@ -139,7 +145,7 @@ Ponder automatically generates a frontend-ready GraphQL API based on your projec
 }
 ```
 
-That's it! Visit [ponder.sh](https://ponder.sh) for documentation, guides for deploying to production, and an API reference.
+That's it! Visit [ponder.sh](https://ponder.sh) for documentation, guides for deploying to production, and the API reference.
 
 ## Contributing
 
@@ -153,3 +159,8 @@ If you're interested in contributing to Ponder, please read the [contribution gu
 ## About
 
 Ponder is MIT-licensed open-source software.
+
+[ci-badge]: https://github.com/0xOlias/ponder/actions/workflows/main.yml/badge.svg
+[ci-url]: https://github.com/0xOlias/ponder/actions/workflows/main.yml
+[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=Support&url=https%3A%2F%2Fmogyo.ro%2Fquart-apis%2Ftgmembercount%3Fchat_id%3Dponder_sh
+[tg-url]: https://t.me/ponder_sh
