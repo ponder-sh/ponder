@@ -329,6 +329,31 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           return;
         }
 
+        // Handle thirdweb block range limit error.
+        if (
+          task.kind === "LOG_SYNC" &&
+          error instanceof InvalidParamsRpcError &&
+          error.details.includes("block range less than 20000")
+        ) {
+          const midpoint = Math.floor(
+            (task.toBlock - task.fromBlock) / 2 + task.fromBlock
+          );
+          queue.addTask(
+            { ...task, toBlock: midpoint },
+            { priority: Number.MAX_SAFE_INTEGER - task.fromBlock }
+          );
+          queue.addTask(
+            { ...task, fromBlock: midpoint + 1 },
+            { priority: Number.MAX_SAFE_INTEGER - midpoint + 1 }
+          );
+          // Splitting the task into two parts increases the total count by 1.
+          this.metrics.ponder_historical_scheduled_tasks.inc({
+            network: this.network.name,
+            kind: "log",
+          });
+          return;
+        }
+
         // Handle Quicknode block range limit error (should never happen).
         if (
           task.kind === "LOG_SYNC" &&
