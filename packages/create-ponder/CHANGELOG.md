@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.65
+
+### Patch Changes
+
+- [#233](https://github.com/0xOlias/ponder/pull/233) [`1a44573`](https://github.com/0xOlias/ponder/commit/1a4457399ad33ab5652d054ded42bc5718cb5462) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for explorer.zora.energy links in `create-ponder` etherscan template.
+
 ## 0.0.64
 
 ## 0.0.63

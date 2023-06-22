@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.65
+
+### Patch Changes
+
+- [#230](https://github.com/0xOlias/ponder/pull/230) [`c9afd1b`](https://github.com/0xOlias/ponder/commit/c9afd1b627cba4f32197a2492a34ceb1be34fec3) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed transaction and block formatting to handle Arbitrum RPC data formats.
+
 ## 0.0.64
 
 ### Patch Changes
