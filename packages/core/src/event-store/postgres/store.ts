@@ -648,7 +648,9 @@ export class PostgresEventStore implements EventStore {
           transactionIndex: Number(result.log_transactionIndex),
         },
         block: {
-          baseFeePerGas: blobToBigInt(result.block_baseFeePerGas),
+          baseFeePerGas: result.block_baseFeePerGas
+            ? blobToBigInt(result.block_baseFeePerGas)
+            : null,
           difficulty: blobToBigInt(result.block_difficulty),
           extraData: result.block_extraData,
           gasLimit: blobToBigInt(result.block_gasLimit),
@@ -682,14 +684,28 @@ export class PostgresEventStore implements EventStore {
           transactionIndex: Number(result.tx_transactionIndex),
           value: blobToBigInt(result.tx_value),
           v: blobToBigInt(result.tx_v),
-          ...(result.tx_type === "legacy"
+          ...(result.tx_type === "0x0"
             ? {
-                type: result.tx_type,
+                type: "legacy",
                 gasPrice: blobToBigInt(result.tx_gasPrice),
               }
-            : result.tx_type === "eip1559"
+            : result.tx_type === "0x1"
             ? {
-                type: result.tx_type,
+                type: "eip2930",
+                gasPrice: blobToBigInt(result.tx_gasPrice),
+                accessList: JSON.parse(result.tx_accessList),
+              }
+            : result.tx_type === "0x2"
+            ? {
+                type: "eip1559",
+                maxFeePerGas: blobToBigInt(result.tx_maxFeePerGas),
+                maxPriorityFeePerGas: blobToBigInt(
+                  result.tx_maxPriorityFeePerGas
+                ),
+              }
+            : result.tx_type === "0x7e"
+            ? {
+                type: "deposit",
                 maxFeePerGas: blobToBigInt(result.tx_maxFeePerGas),
                 maxPriorityFeePerGas: blobToBigInt(
                   result.tx_maxPriorityFeePerGas
@@ -697,8 +713,6 @@ export class PostgresEventStore implements EventStore {
               }
             : {
                 type: result.tx_type,
-                gasPrice: blobToBigInt(result.tx_gasPrice),
-                accessList: JSON.parse(result.tx_accessList),
               }),
         },
       };
