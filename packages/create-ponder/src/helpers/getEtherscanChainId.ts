@@ -62,6 +62,11 @@ const networkByEtherscanHostname: Record<
     chainId: 421613,
     apiUrl: "https://api-goerli.arbiscan.io/api",
   },
+  "explorer.zora.energy": {
+    name: "zora",
+    chainId: 7777777,
+    apiUrl: "https://explorer.zora.energy/api",
+  },
 };
 
 export const getNetworkByEtherscanHostname = (hostname: string) => {
