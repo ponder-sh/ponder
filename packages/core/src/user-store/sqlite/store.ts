@@ -12,6 +12,7 @@ import {
   formatModelInstance,
   getWhereOperatorAndValue,
   parseModelFilter,
+  MAX_INTEGER,
 } from "../utils";
 
 const gqlScalarToSqlType = {
@@ -22,8 +23,6 @@ const gqlScalarToSqlType = {
   Bytes: "text",
   Float: "text",
 } as const;
-
-const MAX_INTEGER = 2_147_483_647 as const;
 
 export class SqliteUserStore implements UserStore {
   db: Kysely<any>;
@@ -411,6 +410,8 @@ export class SqliteUserStore implements UserStore {
     filter?: ModelFilter;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
+
+    if (filter.timestamp) timestamp = filter.timestamp;
 
     let query = this.db
       .selectFrom(tableName)

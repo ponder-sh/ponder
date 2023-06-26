@@ -176,6 +176,7 @@ export function parseModelFilter(filter: ModelFilter = {}): ModelFilter {
   parsedFilter.orderBy = filter.orderBy || "id";
   parsedFilter.orderDirection = filter.orderDirection || "asc";
   parsedFilter.where = filter.where;
+  parsedFilter.timestamp = filter.timestamp;
 
   return parsedFilter;
 }
@@ -183,3 +184,5 @@ export function parseModelFilter(filter: ModelFilter = {}): ModelFilter {
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
 const MAX_SKIP = 5000;
+
+export const MAX_INTEGER = 2_147_483_647 as const;

@@ -18,6 +18,7 @@ export type ModelFilter = {
   skip?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
+  timestamp?: number;
 };
 
 export type ModelInstance = {

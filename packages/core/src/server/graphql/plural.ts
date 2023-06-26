@@ -23,6 +23,7 @@ type PluralArgs = {
   skip?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
+  timestamp?: number;
 };
 type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
@@ -176,6 +177,7 @@ const buildPluralField = ({
       skip: { type: GraphQLInt },
       orderBy: { type: GraphQLString },
       orderDirection: { type: GraphQLString },
+      timestamp: { type: GraphQLInt },
     },
     resolve: resolver,
   };
