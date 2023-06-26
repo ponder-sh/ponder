@@ -29,7 +29,7 @@ export class SqliteUserStore implements UserStore {
   db: Kysely<any>;
 
   schema?: Schema;
-  private versionId?: string;
+  versionId?: string;
 
   constructor({ db }: { db: Sqlite.Database }) {
     this.db = new Kysely({

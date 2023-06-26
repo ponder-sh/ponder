@@ -33,6 +33,7 @@ export type ModelInstance = {
 
 export interface UserStore {
   schema?: Schema;
+  versionId?: string;
 
   reload(options?: { schema?: Schema }): Promise<void>;
   teardown(): Promise<void>;
