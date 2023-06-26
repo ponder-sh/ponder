@@ -19,6 +19,7 @@ import {
   type LightBlock,
   rpcBlockToLightBlock,
 } from "./format";
+import { LoggerService } from "@/logs/service";
 
 type RealtimeSyncEvents = {
   realtimeCheckpoint: { timestamp: number };
@@ -49,6 +50,7 @@ type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private metrics: MetricsService;
+  private logger: LoggerService;
   private eventStore: EventStore;
   private logFilters: LogFilter[];
   network: Network;
@@ -66,11 +68,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   constructor({
     metrics,
+    logger,
     eventStore,
     logFilters,
     network,
   }: {
     metrics: MetricsService;
+    logger: LoggerService;
     eventStore: EventStore;
     logFilters: LogFilter[];
     network: Network;
@@ -78,6 +82,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     super();
 
     this.metrics = metrics;
+    this.logger = logger;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
@@ -89,6 +94,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   setup = async () => {
     // Fetch the latest block for the network.
     const latestBlock = await this.getLatestBlock();
+
+    this.logger.info({
+      msg: `Fetched latest block at ${hexToNumber(
+        latestBlock.number
+      )} (network=${this.network.name})`,
+    });
 
     this.stats.isConnected = true;
 
@@ -102,7 +113,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // Add the latest block to the unfinalized block queue.
     // The queue won't start immediately; see syncUnfinalizedData for details.
-    this.queue.addTask(latestBlock);
+    const priority = Number.MAX_SAFE_INTEGER - hexToNumber(latestBlock.number);
+    this.queue.addTask(latestBlock, { priority });
 
     return { finalizedBlockNumber };
   };
@@ -118,6 +130,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           endBlock !== undefined && endBlock < this.finalizedBlockNumber
       )
     ) {
+      this.logger.info({
+        msg: `Killed realtime service, no realtime log filters found (network=${this.network.name})`,
+      });
       return;
     }
 
@@ -142,6 +157,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       },
       stopClock()
     );
+
+    this.logger.info({
+      msg: `Fetched finalized block at ${hexToNumber(
+        finalizedBlock.number!
+      )} (network=${this.network.name})`,
+    });
 
     // Add the finalized block as the first element of the list of unfinalized blocks.
     this.blocks.push(rpcBlockToLightBlock(finalizedBlock));
@@ -169,6 +190,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.queue.clear();
     // TODO: Figure out if it's necessary to wait for the queue to be idle before killing it.
     // await this.onIdle();
+
+    this.logger.debug({
+      msg: `Killed realtime sync service (network=${this.network.name})`,
+    });
   };
 
   onIdle = async () => {
@@ -195,7 +220,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   addNewLatestBlock = async () => {
     const block = await this.getLatestBlock();
-    this.queue.addTask(block);
+    const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
+    this.queue.addTask(block, { priority });
   };
 
   private buildQueue = () => {
@@ -235,6 +261,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // 1) We already saw and handled this block. No-op.
     if (this.blocks.find((b) => b.hash === newBlock.hash)) {
+      this.logger.debug({
+        msg: `Skipped block, already processed (${this.network.name}, ${newBlock.number})`,
+      });
       return;
     }
 
@@ -313,6 +342,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         newBlock.timestamp
       );
 
+      this.logger.info({
+        msg: `Processed new head block at ${newBlock.number} (network=${this.network.name})`,
+        matchedLogCount,
+      });
+
       this.stats.blocks[newBlock.number] = {
         bloom: {
           hit: isMatchedLogPresentInBlock,
@@ -355,6 +389,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.emit("finalityCheckpoint", {
           timestamp: newFinalizedBlock.timestamp,
         });
+
+        this.logger.info({
+          msg: `Updated finality checkpoint to ${newFinalizedBlock.number} (network=${this.network.name})`,
+          matchedLogCount,
+        });
       }
 
       return;
@@ -394,11 +433,17 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       const missingBlocks = await Promise.all(missingBlockRequests);
 
       // Add blocks to the queue from oldest to newest. Include the current block.
-      for (const block of [...missingBlocks, newBlockWithTransactions].sort(
-        (a, b) => hexToNumber(a.number) - hexToNumber(b.number)
-      )) {
-        this.queue.addTask(block);
+      for (const block of [...missingBlocks, newBlockWithTransactions]) {
+        const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
+        this.queue.addTask(block, { priority });
       }
+
+      this.logger.info({
+        msg: `Fetched missing block range [${
+          (missingBlockNumbers[0],
+          missingBlockNumbers[missingBlockNumbers.length - 1])
+        }] (network=${this.network.name})`,
+      });
 
       return;
     }
@@ -442,15 +487,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         // Add blocks from the canonical chain (they've already been fetched).
         for (const block of canonicalBlocksWithTransactions) {
-          this.queue.addTask(block);
+          const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
+          this.queue.addTask(block, { priority });
         }
 
         // Also add a new latest block, so we don't have to wait for the next poll to
         // start fetching any newer blocks on the canonical chain.
         await this.addNewLatestBlock();
-
         this.emit("shallowReorg", {
           commonAncestorTimestamp: commonAncestorBlock.timestamp,
+        });
+
+        this.logger.info({
+          msg: `Reconciled ${depth}-block reorg with common ancestor block ${commonAncestorBlock.number} (network=${this.network.name})`,
         });
 
         return;
@@ -486,6 +535,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.emit("deepReorg", {
       detectedAtBlockNumber: newBlock.number,
       minimumDepth: depth,
+    });
+
+    this.logger.warn({
+      msg: `Unable to reconcile >${depth}-block reorg (network=${this.network.name})`,
     });
   };
 }

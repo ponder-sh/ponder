@@ -10,7 +10,7 @@ import { Resources } from "@/Ponder";
 import { UserStore } from "@/user-store/store";
 
 export type ServerServiceEvents = {
-  serverStarted: { desiredPort: number; port: number };
+  serverStarted: { port: number };
 };
 
 export class ServerService extends Emittery<ServerServiceEvents> {
@@ -18,6 +18,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
   userStore: UserStore;
 
   app?: express.Express;
+  private resolvedPort?: number;
   private terminate?: () => Promise<void>;
   private graphqlMiddleware?: express.Handler;
 
@@ -40,15 +41,22 @@ export class ServerService extends Emittery<ServerServiceEvents> {
     this.app.use(cors());
 
     // If the desired port is unavailable, detect-port will find the next available port.
-    const resolvedPort = await detectPort(this.resources.options.port);
+    this.resolvedPort = await detectPort(this.resources.options.port);
 
-    const server = this.app.listen(resolvedPort);
+    const server = this.app.listen(this.resolvedPort);
     const terminator = createHttpTerminator({ server });
     this.terminate = () => terminator.terminate();
 
     this.emit("serverStarted", {
-      desiredPort: this.resources.options.port,
-      port: resolvedPort,
+      port: this.resolvedPort,
+    });
+
+    this.resources.logger.info({
+      msg: `Server started on port ${this.resolvedPort} ${
+        this.resolvedPort !== this.resources.options.port
+          ? `(port ${this.resources.options.port} was unavailable)`
+          : ""
+      }`,
     });
 
     this.app.post("/metrics", async (_, res) => {
@@ -82,10 +90,9 @@ export class ServerService extends Emittery<ServerServiceEvents> {
       const elapsed = Math.floor(process.uptime());
 
       if (elapsed > max) {
-        this.resources.logger.logMessage(
-          "warning",
-          `Historical sync duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`
-        );
+        this.resources.logger.warn({
+          msg: `Historical sync duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
+        });
         return res.status(200).send();
       }
 
@@ -108,5 +115,16 @@ export class ServerService extends Emittery<ServerServiceEvents> {
 
   async teardown() {
     await this.terminate?.();
+    this.resources.logger.debug({
+      msg: `Killed server on port ${this.resolvedPort}`,
+    });
+  }
+
+  setIsHistoricalEventProcessingComplete() {
+    this.isHistoricalEventProcessingComplete = true;
+
+    this.resources.logger.info({
+      msg: `Server now responding as healthy`,
+    });
   }
 }

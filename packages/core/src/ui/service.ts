@@ -98,7 +98,7 @@ export class UiService {
 
       const countText = `${cachedBlocks + completedBlocks}/${totalBlocks}`;
 
-      this.resources.logger.logMessage(
+      this.resources.logger.info(
         "historical",
         `${contract.name}: ${`(${etaText + " | " + countText})`}`
       );

@@ -103,8 +103,8 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.eventAggregatorService = eventAggregatorService;
     this.logFilters = logFilters;
 
-    // Build the injected contract objects. They depend only on contract config,
-    // so they can't be hot reloaded.
+    // Build the injected contract objects here.
+    // They depend only on contract config, so they can't be hot reloaded.
     contracts.forEach((contract) => {
       this.injectedContracts[contract.name] = getInjectedContract({
         contract,
@@ -113,13 +113,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       });
     });
 
-    // Setup the event processing mutex.
     this.eventProcessingMutex = new Mutex();
   }
 
   kill = () => {
     this.queue?.clear();
     this.eventProcessingMutex.cancel();
+
+    this.resources.logger.debug({ msg: `Killed user handler service` });
   };
 
   reset = async ({
@@ -160,9 +161,17 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       });
     }
 
+    // If either the schema or handlers have not been provided yet,
+    // we're not ready to process events, so it's safe to return early.
+    if (!this.schema || !this.handlers) return;
+
     this.resetEventQueue();
 
     await this.userStore.reload({ schema: this.schema });
+    this.resources.logger.debug({
+      msg: `Reset user store (versionId=${this.userStore.versionId})`,
+    });
+
     this.eventsHandledToTimestamp = 0;
     this.metrics.latestHandledEventTimestamp = 0;
 
@@ -179,6 +188,10 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.resetEventQueue();
 
     await this.userStore.revert({ safeTimestamp: commonAncestorTimestamp });
+    this.resources.logger.debug({
+      msg: `Reverted user store to safe timestamp ${commonAncestorTimestamp}`,
+    });
+
     this.eventsHandledToTimestamp = commonAncestorTimestamp;
     this.metrics.latestHandledEventTimestamp = commonAncestorTimestamp;
 
@@ -235,6 +248,10 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         this.emit("eventsProcessed", {
           count: events.length,
           toTimestamp: toTimestamp,
+        });
+
+        this.resources.logger.debug({
+          msg: `Processed ${events.length} events in timestamp range [${fromTimestamp}, ${toTimestamp}]`,
         });
       });
     } catch (error) {

@@ -25,7 +25,7 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
   resources: Resources;
 
   latestFileHashes: Record<string, string | undefined> = {};
-  kill?: () => Promise<void>;
+  closeWatcher?: () => Promise<void>;
 
   constructor({ resources }: { resources: Resources }) {
     super();
@@ -40,17 +40,12 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
     ];
 
     const watcher = chokidar.watch(watchFiles);
-    this.kill = async () => {
+    this.closeWatcher = async () => {
       await watcher.close();
     };
 
     watcher.on("change", async (filePath) => {
       if (filePath === this.resources.options.configFile) {
-        this.resources.logger.logMessage(
-          "error",
-          "detected change in ponder.config.ts. " +
-            pico.bold("Restart the server.")
-        );
         this.emit("ponderConfigChanged");
         return;
       }
@@ -58,10 +53,7 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
       if (this.isFileChanged(filePath)) {
         const fileName = path.basename(filePath);
 
-        this.resources.logger.logMessage(
-          "event",
-          "detected change in " + pico.bold(fileName)
-        );
+        this.resources.logger.info({ msg: `Detected change in ${fileName}` });
 
         this.resources.errors.clearHandlerError();
 
@@ -72,6 +64,11 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
         }
       }
     });
+  }
+
+  async kill() {
+    this.closeWatcher?.();
+    this.resources.logger.debug({ msg: `Killed build service` });
   }
 
   async loadHandlers() {

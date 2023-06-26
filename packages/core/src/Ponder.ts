@@ -1,4 +1,5 @@
 import pico from "picocolors";
+import path from "node:path";
 
 import { CodegenService } from "@/codegen/service";
 import { buildContracts } from "@/config/contracts";
@@ -22,8 +23,8 @@ import { EventHandlerService } from "@/user-handlers/service";
 import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { type UserStore } from "@/user-store/store";
-import { formatEta, formatPercentage } from "@/utils/format";
-import { LoggerService } from "@/utils/logger";
+import { formatEta } from "@/utils/format";
+import { LoggerService } from "@/logs/service";
 
 export type Resources = {
   options: PonderOptions;
@@ -55,6 +56,8 @@ export class Ponder {
   codegenService: CodegenService;
   uiService: UiService;
 
+  private killFunctions: (() => any)[] = [];
+
   constructor({
     options,
     config,
@@ -67,7 +70,10 @@ export class Ponder {
     eventStore?: EventStore;
     userStore?: UserStore;
   }) {
-    const logger = new LoggerService({ options });
+    const logger = new LoggerService({
+      level: options.logLevel,
+      dir: options.logDir,
+    });
     const errors = new ErrorService();
     const metrics = new MetricsService();
 
@@ -103,12 +109,14 @@ export class Ponder {
         logFilters: logFiltersForNetwork,
         historicalSyncService: new HistoricalSyncService({
           metrics,
+          logger,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
           metrics,
+          logger,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
@@ -145,6 +153,10 @@ export class Ponder {
   }
 
   async setup() {
+    this.resources.logger.debug({
+      msg: `Using config at ${this.resources.options.configFile}`,
+    });
+
     this.registerServiceDependencies();
     this.registerUiHandlers();
 
@@ -185,7 +197,7 @@ export class Ponder {
   async dev() {
     const setupError = await this.setup();
     if (setupError) {
-      this.resources.logger.logMessage("error", setupError.message);
+      // this.resources.logger.logMessage("error", setupError.message);
       return await this.kill();
     }
 
@@ -207,7 +219,7 @@ export class Ponder {
   async start() {
     const setupError = await this.setup();
     if (setupError) {
-      this.resources.logger.logMessage("error", setupError.message);
+      // this.resources.logger.error("error", setupError.message);
       return await this.kill();
     }
 
@@ -238,6 +250,9 @@ export class Ponder {
   }
 
   async kill() {
+    this.killFunctions.forEach((fn) => {
+      fn();
+    });
     this.eventAggregatorService.clearListeners();
 
     await Promise.all(
@@ -254,10 +269,15 @@ export class Ponder {
     this.eventHandlerService.kill();
     await this.serverService.teardown();
     await this.userStore.teardown();
+
+    this.resources.logger.debug({ msg: `Shutdown sequence completed` });
   }
 
   private registerServiceDependencies() {
     this.reloadService.on("ponderConfigChanged", async () => {
+      this.resources.logger.fatal({
+        msg: "Detected change in ponder.config.ts",
+      });
       await this.kill();
     });
 
@@ -311,16 +331,16 @@ export class Ponder {
         });
       });
 
-      // TODO: Decide what to do after a deep reorg.
-      realtimeSyncService.on(
-        "deepReorg",
-        ({ detectedAtBlockNumber, minimumDepth }) => {
-          this.resources.logger.logMessage(
-            "error",
-            `WARNING: Deep reorg detected on ${network.name} at block ${detectedAtBlockNumber} with a minimum depth of ${minimumDepth}`
-          );
-        }
-      );
+      // // TODO: Decide what to do after a deep reorg.
+      // realtimeSyncService.on(
+      //   "deepReorg",
+      //   ({ detectedAtBlockNumber, minimumDepth }) => {
+      //     this.resources.logger.logMessage(
+      //       "error",
+      //       `WARNING: Deep reorg detected on ${network.name} at block ${detectedAtBlockNumber} with a minimum depth of ${minimumDepth}`
+      //     );
+      //   }
+      // );
     });
 
     this.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
@@ -341,62 +361,36 @@ export class Ponder {
         this.eventAggregatorService.historicalSyncCompletedAt &&
         toTimestamp >= this.eventAggregatorService.historicalSyncCompletedAt
       ) {
-        this.serverService.isHistoricalEventProcessingComplete = true;
-        this.resources.logger.logMessage(
-          "indexer",
-          "historical sync complete (server now responding as healthy)"
-        );
+        this.serverService.setIsHistoricalEventProcessingComplete();
       }
     });
   }
 
   private registerUiHandlers() {
-    this.resources.errors.on("handlerError", ({ error }) => {
-      this.resources.logger.logMessage("error", error.message);
-    });
+    // this.resources.errors.on("handlerError", ({ error }) => {
+    //   this.resources.logger.logMessage("error", error.message);
+    // });
 
     this.networkSyncServices.forEach((networkSyncService) => {
-      const { historicalSyncService, realtimeSyncService, logFilters } =
-        networkSyncService;
+      const { historicalSyncService, logFilters } = networkSyncService;
 
-      historicalSyncService.on("error", ({ error }) => {
-        this.resources.logger.logMessage("error", error.message);
-      });
+      // historicalSyncService.on("error", ({ error }) => {
+      //   this.resources.logger.logMessage("error", error.message);
+      // });
 
-      realtimeSyncService.on("error", ({ error }) => {
-        this.resources.logger.logMessage("error", error.message);
-      });
+      // realtimeSyncService.on("error", ({ error }) => {
+      //   this.resources.logger.logMessage("error", error.message);
+      // });
 
       historicalSyncService.on("syncStarted", () => {
         logFilters.forEach(({ name }) => {
           this.uiService.ui.historicalSyncLogFilterStats[name].startTimestamp =
             Date.now();
-
-          this.resources.logger.logMessage(
-            "historical",
-            `started historical sync for ${pico.bold(name)} (${formatPercentage(
-              historicalSyncService.stats.logFilters[name].cacheRate
-            )} cached)`
-          );
         });
-      });
-
-      realtimeSyncService.on("finalityCheckpoint", ({ timestamp }) => {
-        this.resources.logger.logMessage(
-          "realtime",
-          `finality checkpoint, timestamp: ${timestamp}`
-        );
-      });
-
-      realtimeSyncService.on("shallowReorg", ({ commonAncestorTimestamp }) => {
-        this.resources.logger.logMessage(
-          "realtime",
-          `reorg detected, common ancestor timestamp: ${commonAncestorTimestamp}`
-        );
       });
     });
 
-    setInterval(() => {
+    const interval = setInterval(() => {
       this.networkSyncServices.forEach((networkSyncService) => {
         const { network, realtimeSyncService } = networkSyncService;
 
@@ -433,6 +427,9 @@ export class Ponder {
       this.uiService.ui.handlersToTimestamp =
         this.eventHandlerService.metrics.latestHandledEventTimestamp;
     }, 17);
+    this.killFunctions.push(() => {
+      clearInterval(interval);
+    });
 
     this.eventHandlerService.on("reset", () => {
       this.uiService.ui.handlersCurrent = 0;
@@ -454,18 +451,7 @@ export class Ponder {
       this.uiService.render();
     });
 
-    this.serverService.on("serverStarted", ({ desiredPort, port }) => {
-      if (desiredPort !== port) {
-        this.resources.logger.logMessage(
-          "event",
-          `port ${desiredPort} unavailable, server listening on port ${port}`
-        );
-      } else {
-        this.resources.logger.logMessage(
-          "event",
-          `server listening on port ${port}`
-        );
-      }
+    this.serverService.on("serverStarted", ({ port }) => {
       this.uiService.ui.port = port;
     });
 

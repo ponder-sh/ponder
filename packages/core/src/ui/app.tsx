@@ -144,11 +144,11 @@ export const setupInkApp = (ui: UiState) => {
   const { rerender, unmount: inkUnmount, clear } = inkRender(<App {...ui} />);
 
   const render = (ui: UiState) => {
-    rerender(<App {...ui} />);
+    // rerender(<App {...ui} />);
   };
 
   const unmount = () => {
-    clear();
+    // clear();
     inkUnmount();
   };
   return { render, unmount };
