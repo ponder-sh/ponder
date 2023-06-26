@@ -11,7 +11,7 @@ import { buildOptions } from "@/config/options";
 import { ErrorService } from "@/errors/ErrorService";
 import { MetricsService } from "@/metrics/service";
 import { Resources } from "@/Ponder";
-import { LoggerService } from "@/utils/logger";
+import { LoggerService } from "@/logs/service";
 
 // Anvil test setup adapted from @viem/anvil `example-vitest` repository.
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
@@ -58,7 +58,7 @@ export const walletClient = createWalletClient({
 });
 
 export const testResources: Resources = {
-  logger: new LoggerService({ options: { logLevel: 0 } }),
+  logger: new LoggerService({ level: "silent" }),
   options: buildOptions({
     cliOptions: { configFile: "", rootDir: "" },
   }),

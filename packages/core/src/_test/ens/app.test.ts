@@ -21,7 +21,11 @@ const setup = async ({ context }: { context: TestContext }) => {
       configFile: "ponder.config.ts",
     },
   });
-  const testOptions = { ...options, uiEnabled: false, logLevel: 1 };
+  const testOptions = {
+    ...options,
+    uiEnabled: false,
+    logLevel: "error",
+  } as const;
 
   const ponder = new Ponder({
     config: testConfig,
