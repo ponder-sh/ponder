@@ -11,8 +11,8 @@ import {
   formatModelFieldValue,
   formatModelInstance,
   getWhereOperatorAndValue,
-  parseModelFilter,
   MAX_INTEGER,
+  parseModelFilter,
 } from "../utils";
 
 const gqlScalarToSqlType = {
