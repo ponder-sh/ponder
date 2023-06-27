@@ -98,10 +98,10 @@ export class UiService {
 
       const countText = `${cachedBlocks + completedBlocks}/${totalBlocks}`;
 
-      this.resources.logger.logMessage(
-        "historical",
-        `${contract.name}: ${`(${etaText + " | " + countText})`}`
-      );
+      // this.resources.logger.info(
+      //   "historical",
+      //   `${contract.name}: ${`(${etaText + " | " + countText})`}`
+      // );
     });
   }
 }

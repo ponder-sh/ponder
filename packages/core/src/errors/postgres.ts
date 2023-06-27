@@ -1,7 +1,8 @@
 import { DatabaseError } from "pg";
 
+import { prettyPrint } from "@/utils/print";
+
 import { BaseError } from "./base";
-import { prettyPrint } from "./utils";
 
 export class PostgresError extends BaseError {
   name = "PostgresError";
@@ -17,10 +18,7 @@ export class PostgresError extends BaseError {
   }) {
     const params = parameters.reduce<Record<number, any>>(
       (acc, parameter, idx) => {
-        acc[idx + 1] =
-          typeof parameter === "string" && parameter.length > 80
-            ? parameter.slice(0, 80).concat("...")
-            : parameter;
+        acc[idx + 1] = parameter;
         return acc;
       },
       {}

@@ -8,10 +8,10 @@ import {
 import { mainnet } from "viem/chains";
 
 import { buildOptions } from "@/config/options";
-import { ErrorService } from "@/errors/ErrorService";
+import { UserErrorService } from "@/errors/service";
+import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { Resources } from "@/Ponder";
-import { LoggerService } from "@/utils/logger";
 
 // Anvil test setup adapted from @viem/anvil `example-vitest` repository.
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
@@ -58,10 +58,10 @@ export const walletClient = createWalletClient({
 });
 
 export const testResources: Resources = {
-  logger: new LoggerService({ options: { logLevel: 0 } }),
+  logger: new LoggerService({ level: "silent" }),
   options: buildOptions({
     cliOptions: { configFile: "", rootDir: "" },
   }),
-  errors: new ErrorService(),
+  errors: new UserErrorService(),
   metrics: new MetricsService(),
 };

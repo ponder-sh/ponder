@@ -9,7 +9,7 @@ import { Network } from "@/config/networks";
 
 import { HistoricalSyncService } from "./service";
 
-const { metrics } = testResources;
+const { metrics, logger } = testResources;
 const network: Network = {
   name: "mainnet",
   chainId: 1,
@@ -42,6 +42,7 @@ test("setup() calculates cached and total block counts", async (context) => {
 
   const service = new HistoricalSyncService({
     metrics,
+    logger,
     eventStore,
     logFilters,
     network,
@@ -59,6 +60,7 @@ test("start() runs log tasks and block tasks", async (context) => {
 
   const service = new HistoricalSyncService({
     metrics,
+    logger,
     eventStore,
     logFilters,
     network,
@@ -81,6 +83,7 @@ test("start() adds events to event store", async (context) => {
 
   const service = new HistoricalSyncService({
     metrics,
+    logger,
     eventStore,
     logFilters,
     network,
@@ -131,6 +134,7 @@ test("start() inserts cached ranges", async (context) => {
 
   const service = new HistoricalSyncService({
     metrics,
+    logger,
     eventStore,
     logFilters,
     network,
@@ -160,6 +164,7 @@ test("start() retries errors", async (context) => {
 
   const service = new HistoricalSyncService({
     metrics,
+    logger,
     eventStore,
     logFilters,
     network,
@@ -199,6 +204,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
 
   const service = new HistoricalSyncService({
     metrics,
+    logger,
     eventStore,
     logFilters,
     network,
@@ -237,6 +243,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
 
   const service = new HistoricalSyncService({
     metrics,
+    logger,
     eventStore,
     logFilters,
     network,
@@ -266,6 +273,7 @@ test("start() emits sync started and completed events", async (context) => {
 
   const service = new HistoricalSyncService({
     metrics,
+    logger,
     eventStore,
     logFilters,
     network,
@@ -286,6 +294,7 @@ test("start() emits historicalCheckpoint event", async (context) => {
 
   const service = new HistoricalSyncService({
     metrics,
+    logger,
     eventStore,
     logFilters,
     network,

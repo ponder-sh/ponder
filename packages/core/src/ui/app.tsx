@@ -90,11 +90,11 @@ const App = (ui: UiState) => {
       <Box flexDirection="row">
         <Text bold={true}>Historical sync </Text>
         {isHistoricalSyncComplete ? (
-          <Text color="greenBright">
+          <Text color="green">
             (done in {historicalSyncDuration})<Newline />
           </Text>
         ) : (
-          <Text color="yellowBright">(in progress)</Text>
+          <Text color="yellow">(in progress)</Text>
         )}
       </Box>
       {!isHistoricalSyncComplete && (

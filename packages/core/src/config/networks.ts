@@ -115,7 +115,7 @@ function getFinalityBlockCount(network: { chainId: number }) {
     // Optimism.
     case 10:
     case 420:
-      finalityBlockCount = 0;
+      finalityBlockCount = 5;
       break;
     // Polygon.
     case 137:
@@ -125,10 +125,14 @@ function getFinalityBlockCount(network: { chainId: number }) {
     // Arbitrum.
     case 42161:
     case 421613:
-      finalityBlockCount = 0;
+      finalityBlockCount = 40;
+      break;
+    // Zora.
+    case 7777777:
+      finalityBlockCount = 5;
       break;
     default:
-      finalityBlockCount = 0;
+      finalityBlockCount = 5;
   }
 
   return finalityBlockCount;

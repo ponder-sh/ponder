@@ -81,6 +81,11 @@ export class CodegenService extends Emittery {
     const filePath = path.join(this.resources.options.generatedDir, "index.ts");
     ensureDirExists(filePath);
     writeFileSync(filePath, final, "utf8");
+
+    this.resources.logger.debug({
+      service: "codegen",
+      msg: `Wrote new file at generated/index.ts`,
+    });
   }
 
   generateSchemaFile({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
@@ -97,5 +102,10 @@ export class CodegenService extends Emittery {
     );
     ensureDirExists(filePath);
     writeFileSync(filePath, final, "utf8");
+
+    this.resources.logger.debug({
+      service: "codegen",
+      msg: `Wrote new file at generated/schema.graphql`,
+    });
   }
 }

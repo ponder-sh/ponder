@@ -39,10 +39,10 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
   const isStarted = ui.handlersToTimestamp > 0;
 
   const titleText = () => {
-    if (isUpToDate) return <Text color="greenBright">(up to date)</Text>;
+    if (isUpToDate) return <Text color="green">(up to date)</Text>;
     if (isStarted)
       return (
-        <Text color="yellowBright">
+        <Text color="yellow">
           (up to {ui.handlersToTimestamp === 0 ? "" : dateText})
         </Text>
       );
@@ -73,7 +73,7 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
   return (
     <Box flexDirection="column">
       <Box flexDirection="row">
-        <Text bold={true}>Handlers </Text>
+        <Text bold={true}>Event handlers </Text>
         <Text>{titleText()}</Text>
       </Box>
       {/* {!isUpToDate && ( */}

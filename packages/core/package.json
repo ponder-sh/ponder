@@ -46,6 +46,7 @@
     "p-queue": "^6.6.2",
     "pg": "^8.9.0",
     "picocolors": "^1.0.0",
+    "pino": "^8.14.1",
     "prettier": "^2.6.2",
     "prom-client": "^14.2.0",
     "react": "17",

@@ -1,4 +1,5 @@
 import path from "node:path";
+import type { LevelWithSilent } from "pino";
 
 import type { PonderCliOptions } from "@/bin/ponder";
 
@@ -11,11 +12,12 @@ export type PonderOptions = {
   srcDir: string;
   generatedDir: string;
   ponderDir: string;
+  logDir: string;
 
   port: number;
   maxHealthcheckDuration: number;
 
-  logLevel: number;
+  logLevel: LevelWithSilent;
   uiEnabled: boolean;
 };
 
@@ -30,6 +32,15 @@ export const buildOptions = ({
     ? Math.max(Number(process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC) - 5, 0) // Add 5 seconds of buffer.
     : undefined;
 
+  const logLevel = (
+    process.env.PONDER_LOG_LEVEL &&
+    ["silent", "fatal", "error", "warn", "info", "debug", "trace"].includes(
+      process.env.PONDER_LOG_LEVEL
+    )
+      ? process.env.PONDER_LOG_LEVEL
+      : "info"
+  ) as LevelWithSilent;
+
   const defaults = {
     rootDir: path.resolve(cliOptions.rootDir),
     configFile: cliOptions.configFile,
@@ -37,12 +48,13 @@ export const buildOptions = ({
     srcDir: "src",
     generatedDir: "generated",
     ponderDir: ".ponder",
+    logDir: ".ponder/logs",
 
     port: Number(process.env.PORT ?? 42069),
     maxHealthcheckDuration:
       configOptions?.maxHealthcheckDuration ?? railwayHealthcheckTimeout ?? 240,
 
-    logLevel: Number(process.env.PONDER_LOG_LEVEL ?? 2),
+    logLevel,
     uiEnabled: true,
   };
 
@@ -54,5 +66,6 @@ export const buildOptions = ({
     srcDir: path.join(defaults.rootDir, defaults.srcDir),
     generatedDir: path.join(defaults.rootDir, defaults.generatedDir),
     ponderDir: path.join(defaults.rootDir, defaults.ponderDir),
+    logDir: path.join(defaults.rootDir, defaults.logDir),
   };
 };

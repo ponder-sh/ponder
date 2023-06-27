@@ -6,7 +6,7 @@ import { encodeEventTopics, getAbiItem, Hex } from "viem";
 
 import type { Contract } from "@/config/contracts";
 import type { LogFilter } from "@/config/logFilters";
-import { EventHandlerError } from "@/errors/eventHandler";
+import { UserError } from "@/errors/user";
 import type {
   EventAggregatorService,
   LogEvent,
@@ -18,10 +18,11 @@ import type { Schema } from "@/schema/types";
 import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";
 import type { ModelInstance, UserStore } from "@/user-store/store";
+import { prettyPrint } from "@/utils/print";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
 
 import { getInjectedContract } from "./contract";
-import { getStackTraceAndCodeFrame } from "./trace";
+import { getStackTrace } from "./trace";
 
 type EventHandlerEvents = {
   reset: undefined;
@@ -40,10 +41,7 @@ type EventHandlerMetrics = {
 };
 
 type SetupTask = { kind: "SETUP" };
-type LogEventTask = {
-  kind: "LOG";
-  event: LogEvent;
-};
+type LogEventTask = { kind: "LOG"; event: LogEvent };
 type EventHandlerTask = SetupTask | LogEventTask;
 type EventHandlerQueue = Queue<EventHandlerTask>;
 
@@ -81,6 +79,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
   private currentEventBlockNumber = 0n;
   private currentEventTimestamp = 0;
+  private hasEventHandlerError = false;
 
   constructor({
     resources,
@@ -103,8 +102,8 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.eventAggregatorService = eventAggregatorService;
     this.logFilters = logFilters;
 
-    // Build the injected contract objects. They depend only on contract config,
-    // so they can't be hot reloaded.
+    // Build the injected contract objects here.
+    // They depend only on contract config, so they can't be hot reloaded.
     contracts.forEach((contract) => {
       this.injectedContracts[contract.name] = getInjectedContract({
         contract,
@@ -113,13 +112,17 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       });
     });
 
-    // Setup the event processing mutex.
     this.eventProcessingMutex = new Mutex();
   }
 
   kill = () => {
     this.queue?.clear();
     this.eventProcessingMutex.cancel();
+
+    this.resources.logger.debug({
+      service: "handlers",
+      msg: `Killed user handler service`,
+    });
   };
 
   reset = async ({
@@ -160,9 +163,18 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       });
     }
 
+    // If either the schema or handlers have not been provided yet,
+    // we're not ready to process events, so it's safe to return early.
+    if (!this.schema || !this.handlers) return;
+
     this.resetEventQueue();
 
     await this.userStore.reload({ schema: this.schema });
+    this.resources.logger.debug({
+      service: "handlers",
+      msg: `Reset user store (versionId=${this.userStore.versionId})`,
+    });
+
     this.eventsHandledToTimestamp = 0;
     this.metrics.latestHandledEventTimestamp = 0;
 
@@ -179,6 +191,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.resetEventQueue();
 
     await this.userStore.revert({ safeTimestamp: commonAncestorTimestamp });
+    this.resources.logger.debug({
+      service: "handlers",
+      msg: `Reverted user store to safe timestamp ${commonAncestorTimestamp}`,
+    });
+
     this.eventsHandledToTimestamp = commonAncestorTimestamp;
     this.metrics.latestHandledEventTimestamp = commonAncestorTimestamp;
 
@@ -188,7 +205,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   };
 
   processEvents = async ({ toTimestamp }: { toTimestamp: number }) => {
-    if (this.resources.errors.isHandlerError) return;
+    if (this.hasEventHandlerError) return;
     if (toTimestamp === 0) return;
 
     try {
@@ -236,6 +253,15 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           count: events.length,
           toTimestamp: toTimestamp,
         });
+
+        if (events.length > 0) {
+          this.resources.logger.info({
+            service: "handlers",
+            msg: `Processed ${
+              events.length === 1 ? "1 event" : `${events.length} events`
+            } in timestamp range [${fromTimestamp}, ${toTimestamp + 1})`,
+          });
+        }
       });
     } catch (error) {
       // Pending locks get cancelled in resetEventQueue. This is expected, so it's safe to
@@ -249,6 +275,8 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
     this.eventProcessingMutex.cancel();
     this.eventProcessingMutex = new Mutex();
+
+    this.hasEventHandlerError = false;
 
     this.metrics = {
       ...this.metrics,
@@ -342,19 +370,24 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             // Remove all remaining tasks from the queue.
             queue.clear();
 
+            this.hasEventHandlerError = true;
+            this.metrics.error = true;
+
             const error = error_ as Error;
-            const { stackTrace, codeFrame } = getStackTraceAndCodeFrame(
-              error,
-              this.resources.options
-            );
-            this.resources.errors.submitHandlerError({
-              error: new EventHandlerError({
-                eventName: "setup",
-                stackTrace: stackTrace,
-                codeFrame: codeFrame,
-                cause: error,
-              }),
+            const trace = getStackTrace(error, this.resources.options);
+
+            const message = `Error while handling "setup" event: ${error.message}`;
+
+            const userError = new UserError(message, {
+              stack: trace,
+              cause: error,
             });
+
+            this.resources.logger.error({
+              service: "handlers",
+              error: userError,
+            });
+            this.resources.errors.submitUserError({ error: userError });
           }
 
           this.emit("taskCompleted");
@@ -387,23 +420,29 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             // Remove all remaining tasks from the queue.
             queue.clear();
 
+            this.hasEventHandlerError = true;
             this.metrics.error = true;
 
             const error = error_ as Error;
-            const { stackTrace, codeFrame } = getStackTraceAndCodeFrame(
-              error,
-              this.resources.options
-            );
-            this.resources.errors.submitHandlerError({
-              error: new EventHandlerError({
-                stackTrace: stackTrace,
-                codeFrame: codeFrame,
-                cause: error,
-                eventName: event.eventName,
-                blockNumber: event.block.number,
-                params: event.params,
-              }),
+            const trace = getStackTrace(error, this.resources.options);
+
+            const message = `Error while handling "${event.logFilterName}:${
+              event.eventName
+            }" event at block ${Number(event.block.number)}: ${error.message}`;
+
+            const metaMessage = `Event params:\n${prettyPrint(event.params)}`;
+
+            const userError = new UserError(message, {
+              stack: trace,
+              meta: metaMessage,
+              cause: error,
             });
+
+            this.resources.logger.error({
+              service: "handlers",
+              error: userError,
+            });
+            this.resources.errors.submitUserError({ error: userError });
           }
 
           this.metrics.latestHandledEventTimestamp = this.currentEventTimestamp;

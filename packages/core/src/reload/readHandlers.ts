@@ -8,7 +8,6 @@ import { PonderOptions } from "@/config/options";
 import { Block } from "@/types/block";
 import { Log } from "@/types/log";
 import { Transaction } from "@/types/transaction";
-import { LoggerService } from "@/utils/logger";
 
 export interface LogEvent {
   name: string;
@@ -69,13 +68,7 @@ export class PonderApp<EventHandlers = Record<string, LogEventHandler>> {
   }
 }
 
-export const readHandlers = async ({
-  options,
-  logger,
-}: {
-  options: PonderOptions;
-  logger: LoggerService;
-}) => {
+export const readHandlers = async ({ options }: { options: PonderOptions }) => {
   const entryAppFilename = path.join(options.generatedDir, "index.ts");
   if (!existsSync(entryAppFilename)) {
     throw new Error(
@@ -118,8 +111,7 @@ export const readHandlers = async ({
       outDir: buildDir,
     });
   } else {
-    logger.logMessage(
-      "warning",
+    throw new Error(
       `tsconfig.json not found, unable to resolve "@/*" path aliases. Expected at: ${tsconfigPath}`
     );
   }
