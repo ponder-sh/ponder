@@ -1,6 +1,5 @@
 import path from "node:path";
 import pino, { type Logger, type LevelWithSilent } from "pino";
-import pretty from "pino-pretty";
 import pc from "picocolors";
 
 type LogFunctionArgs =
@@ -20,14 +19,18 @@ export class LoggerService {
     if (level !== "silent") {
       streams.push({
         level,
-        stream: pretty({
-          // Write logs in the main thread (worse performance, better DX).
-          sync: true,
-          // Exclude all properties from default formatting provided by `pino-pretty`.
-          // All structured properties will still be included in the log file.
-          include: "",
-          messageFormat: formatMessage,
-        }),
+        stream: {
+          write(logString: string) {
+            const log = JSON.parse(logString);
+            const prettyLog = formatMessage(log);
+            console.log(prettyLog);
+
+            // If there is an "error" property, log it.
+            if (log.error) {
+              console.log(log.error);
+            }
+          },
+        },
       });
     }
 

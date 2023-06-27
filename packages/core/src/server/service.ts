@@ -53,7 +53,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
 
     this.resources.logger.info({
       service: "server",
-      msg: `Server started on port ${this.resolvedPort} ${
+      msg: `Started listening on port ${this.resolvedPort} ${
         this.resolvedPort !== this.resources.options.port
           ? `(port ${this.resources.options.port} was unavailable)`
           : ""
@@ -119,7 +119,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
     await this.terminate?.();
     this.resources.logger.debug({
       service: "server",
-      msg: `Killed server on port ${this.resolvedPort}`,
+      msg: `Stopped listening on port ${this.resolvedPort}`,
     });
   }
 
@@ -128,7 +128,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
 
     this.resources.logger.info({
       service: "server",
-      msg: `Server now responding as healthy`,
+      msg: `Started responding as healthy`,
     });
   }
 }

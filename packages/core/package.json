@@ -47,7 +47,6 @@
     "pg": "^8.9.0",
     "picocolors": "^1.0.0",
     "pino": "^8.14.1",
-    "pino-pretty": "^10.0.0",
     "prettier": "^2.6.2",
     "prom-client": "^14.2.0",
     "react": "17",

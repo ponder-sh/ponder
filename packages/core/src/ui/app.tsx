@@ -90,11 +90,11 @@ const App = (ui: UiState) => {
       <Box flexDirection="row">
         <Text bold={true}>Historical sync </Text>
         {isHistoricalSyncComplete ? (
-          <Text color="greenBright">
+          <Text color="green">
             (done in {historicalSyncDuration})<Newline />
           </Text>
         ) : (
-          <Text color="yellowBright">(in progress)</Text>
+          <Text color="yellow">(in progress)</Text>
         )}
       </Box>
       {!isHistoricalSyncComplete && (
@@ -144,11 +144,11 @@ export const setupInkApp = (ui: UiState) => {
   const { rerender, unmount: inkUnmount, clear } = inkRender(<App {...ui} />);
 
   const render = (ui: UiState) => {
-    // rerender(<App {...ui} />);
+    rerender(<App {...ui} />);
   };
 
   const unmount = () => {
-    // clear();
+    clear();
     inkUnmount();
   };
   return { render, unmount };

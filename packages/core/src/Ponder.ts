@@ -254,9 +254,7 @@ export class Ponder {
   }
 
   async kill() {
-    this.killFunctions.forEach((fn) => {
-      fn();
-    });
+    this.killFunctions.forEach((fn) => fn());
     this.eventAggregatorService.clearListeners();
 
     await Promise.all(
@@ -303,8 +301,7 @@ export class Ponder {
     });
 
     this.networkSyncServices.forEach((networkSyncService) => {
-      const { network, historicalSyncService, realtimeSyncService } =
-        networkSyncService;
+      const { historicalSyncService, realtimeSyncService } = networkSyncService;
 
       historicalSyncService.on("historicalCheckpoint", ({ timestamp }) => {
         this.eventAggregatorService.handleNewHistoricalCheckpoint({
@@ -338,17 +335,6 @@ export class Ponder {
           timestamp: commonAncestorTimestamp,
         });
       });
-
-      // // TODO: Decide what to do after a deep reorg.
-      // realtimeSyncService.on(
-      //   "deepReorg",
-      //   ({ detectedAtBlockNumber, minimumDepth }) => {
-      //     this.resources.logger.logMessage(
-      //       "error",
-      //       `WARNING: Deep reorg detected on ${network.name} at block ${detectedAtBlockNumber} with a minimum depth of ${minimumDepth}`
-      //     );
-      //   }
-      // );
     });
 
     this.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
@@ -435,6 +421,7 @@ export class Ponder {
       this.uiService.ui.handlersToTimestamp =
         this.eventHandlerService.metrics.latestHandledEventTimestamp;
     }, 17);
+
     this.killFunctions.push(() => {
       clearInterval(interval);
     });
