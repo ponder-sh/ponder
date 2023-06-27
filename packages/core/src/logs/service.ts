@@ -1,11 +1,12 @@
 import path from "node:path";
 import pino, { type Logger, type LevelWithSilent } from "pino";
 import pretty from "pino-pretty";
+import pc from "picocolors";
 
 type LogFunctionArgs =
-  | [obj: object, msg?: string, ...args: any[]]
-  | [obj: unknown, msg?: string, ...args: any[]]
-  | [msg: string, ...args: any[]];
+  | [string]
+  | [{ msg: string; service?: string } & { [key: string]: any }]
+  | [string, { service?: string } & { [key: string]: any }];
 
 export class LoggerService {
   private logger: Logger;
@@ -22,15 +23,10 @@ export class LoggerService {
         stream: pretty({
           // Write logs in the main thread (worse performance, better DX).
           sync: true,
-          // Only include the level, time, and msg properties.
+          // Exclude all properties from default formatting provided by `pino-pretty`.
           // All structured properties will still be included in the log file.
-          include: "level,time",
-          // Use UTC timestamps rather than local (the default).
-          translateTime: "UTC:HH:MM:ss.l",
-          customPrettifiers: {
-            // Remove the default enclosing brackets.
-            time: (timestamp) => `${timestamp}`,
-          },
+          include: "",
+          messageFormat: formatMessage,
         }),
       });
     }
@@ -65,3 +61,42 @@ export class LoggerService {
     this.logger.trace(...(args as [any]));
   };
 }
+
+const levels = {
+  60: { label: "FATAL", colorize: (s: string) => pc.bgRed(s) },
+  50: { label: "ERROR", colorize: (s: string) => pc.red(s) },
+  40: { label: "WARN ", colorize: (s: string) => pc.yellow(s) },
+  30: { label: "INFO ", colorize: (s: string) => pc.green(s) },
+  20: { label: "DEBUG", colorize: (s: string) => pc.blue(s) },
+  10: { label: "TRACE", colorize: (s: string) => pc.gray(s) },
+} as const;
+
+const formatMessage = (log: { [key: string]: any }) => {
+  let result = "";
+
+  const timestamp = log["time"] as number;
+  const level = levels[(log["level"] as keyof typeof levels) ?? 30];
+  const message = log["msg"] as string | undefined;
+  const service = log["service"] as string | undefined;
+
+  const date = new Date(timestamp);
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+  const millis = String(date.getUTCMilliseconds()).padStart(3, "0");
+  const time = `${hours}:${minutes}:${seconds}.${millis} `;
+
+  result += pc.isColorSupported ? pc.gray(time) : time;
+
+  result += pc.isColorSupported ? level.colorize(level.label) : level.label;
+
+  if (service) {
+    result += pc.isColorSupported
+      ? " " + pc.cyan(service.padEnd(10, " "))
+      : " " + service.padEnd(10, " ");
+  }
+
+  result += pc.reset(` ${message}`);
+
+  return result;
+};

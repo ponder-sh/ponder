@@ -52,6 +52,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
     });
 
     this.resources.logger.info({
+      service: "server",
       msg: `Server started on port ${this.resolvedPort} ${
         this.resolvedPort !== this.resources.options.port
           ? `(port ${this.resources.options.port} was unavailable)`
@@ -91,6 +92,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
 
       if (elapsed > max) {
         this.resources.logger.warn({
+          service: "server",
           msg: `Historical sync duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
         });
         return res.status(200).send();
@@ -116,6 +118,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
   async teardown() {
     await this.terminate?.();
     this.resources.logger.debug({
+      service: "server",
       msg: `Killed server on port ${this.resolvedPort}`,
     });
   }
@@ -124,6 +127,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
     this.isHistoricalEventProcessingComplete = true;
 
     this.resources.logger.info({
+      service: "server",
       msg: `Server now responding as healthy`,
     });
   }

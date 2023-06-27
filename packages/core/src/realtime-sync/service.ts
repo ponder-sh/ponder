@@ -96,6 +96,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const latestBlock = await this.getLatestBlock();
 
     this.logger.info({
+      service: "realtime",
       msg: `Fetched latest block at ${hexToNumber(
         latestBlock.number
       )} (network=${this.network.name})`,
@@ -130,8 +131,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           endBlock !== undefined && endBlock < this.finalizedBlockNumber
       )
     ) {
-      this.logger.info({
-        msg: `Killed realtime service, no realtime log filters found (network=${this.network.name})`,
+      this.logger.warn({
+        service: "realtime",
+        msg: `No realtime log filters found (network=${this.network.name})`,
       });
       return;
     }
@@ -159,6 +161,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     );
 
     this.logger.info({
+      service: "realtime",
       msg: `Fetched finalized block at ${hexToNumber(
         finalizedBlock.number!
       )} (network=${this.network.name})`,
@@ -192,6 +195,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // await this.onIdle();
 
     this.logger.debug({
+      service: "realtime",
       msg: `Killed realtime sync service (network=${this.network.name})`,
     });
   };
@@ -262,7 +266,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // 1) We already saw and handled this block. No-op.
     if (this.blocks.find((b) => b.hash === newBlock.hash)) {
       this.logger.debug({
-        msg: `Skipped block, already processed (${this.network.name}, ${newBlock.number})`,
+        service: "realtime",
+        msg: `Skipped new block at ${newBlock.number}, already seen (network=${this.network.name})`,
       });
       return;
     }
@@ -342,10 +347,23 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         newBlock.timestamp
       );
 
-      this.logger.info({
+      this.logger.debug({
+        service: "realtime",
         msg: `Processed new head block at ${newBlock.number} (network=${this.network.name})`,
-        matchedLogCount,
       });
+
+      if (matchedLogCount > 0) {
+        this.logger.info({
+          service: "realtime",
+          msg: `Found ${
+            matchedLogCount === 1
+              ? "1 matched log"
+              : `${matchedLogCount} matched logs`
+          } in new head block ${newBlock.number} (network=${
+            this.network.name
+          })`,
+        });
+      }
 
       this.stats.blocks[newBlock.number] = {
         bloom: {
@@ -390,7 +408,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           timestamp: newFinalizedBlock.timestamp,
         });
 
-        this.logger.info({
+        this.logger.debug({
+          service: "realtime",
           msg: `Updated finality checkpoint to ${newFinalizedBlock.number} (network=${this.network.name})`,
           matchedLogCount,
         });
@@ -439,9 +458,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       }
 
       this.logger.info({
-        msg: `Fetched missing block range [${
-          (missingBlockNumbers[0],
-          missingBlockNumbers[missingBlockNumbers.length - 1])
+        service: "realtime",
+        msg: `Fetched unfinalized block range [${missingBlockNumbers[0]}, ${
+          missingBlockNumbers[missingBlockNumbers.length - 1]
         }] (network=${this.network.name})`,
       });
 
@@ -499,6 +518,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         });
 
         this.logger.info({
+          service: "realtime",
           msg: `Reconciled ${depth}-block reorg with common ancestor block ${commonAncestorBlock.number} (network=${this.network.name})`,
         });
 
@@ -538,6 +558,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
 
     this.logger.warn({
+      service: "realtime",
       msg: `Unable to reconcile >${depth}-block reorg (network=${this.network.name})`,
     });
   };

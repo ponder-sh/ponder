@@ -154,7 +154,11 @@ export class Ponder {
 
   async setup() {
     this.resources.logger.debug({
-      msg: `Using config at ${this.resources.options.configFile}`,
+      service: "app",
+      msg: `Started using config file: ${path.relative(
+        this.resources.options.rootDir,
+        this.resources.options.configFile
+      )}`,
     });
 
     this.registerServiceDependencies();
@@ -270,12 +274,16 @@ export class Ponder {
     await this.serverService.teardown();
     await this.userStore.teardown();
 
-    this.resources.logger.debug({ msg: `Shutdown sequence completed` });
+    this.resources.logger.debug({
+      service: "app",
+      msg: `Finished shutdown sequence`,
+    });
   }
 
   private registerServiceDependencies() {
     this.reloadService.on("ponderConfigChanged", async () => {
       this.resources.logger.fatal({
+        service: "build",
         msg: "Detected change in ponder.config.ts",
       });
       await this.kill();

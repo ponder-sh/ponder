@@ -190,7 +190,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         this.stats.logFilters[logFilter.name].cacheRate = cacheRate;
 
         this.logger.info({
-          msg: `Historical sync started with ${formatPercentage(
+          service: "historical",
+          msg: `Started sync with ${formatPercentage(
             cacheRate
           )} cached (network=${this.network.name})`,
           network: this.network.name,
@@ -241,9 +242,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
       this.emit("syncComplete");
       this.logger.info({
-        msg: `Historical sync completed in ${formatEta(
-          this.stats.duration
-        )} (network=${this.network.name})`,
+        service: "historical",
+        msg: `Completed sync in ${formatEta(this.stats.duration)} (network=${
+          this.network.name
+        })`,
         network: this.network.name,
         duration: this.stats.duration,
       });
@@ -261,6 +263,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // TODO: Figure out if it's necessary to wait for the queue to be idle before killing it.
     // await this.onIdle();
     this.logger.debug({
+      service: "historical",
       msg: `Killed historical sync service (network=${this.network.name})`,
     });
   };
@@ -308,11 +311,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           );
         }
 
-        this.logger.debug({
+        this.logger.trace({
+          service: "historical",
           msg:
             task.kind === "LOG_SYNC"
-              ? `Historical sync log task completed`
-              : `Historical sync block task completed`,
+              ? `Completed log sync task`
+              : `Completed block sync task`,
           network: this.network.name,
           logFilter: logFilter.name,
           ...(task.kind === "LOG_SYNC"
@@ -439,6 +443,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         this.emit("error", { error: queueError });
 
         this.logger.error({
+          service: "historical",
           msg:
             task.kind === "LOG_SYNC"
               ? `Historical sync log task failed`
@@ -472,9 +477,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         this.stats.isComplete = true;
         this.emit("syncComplete");
         this.logger.info({
-          msg: `Historical sync completed in ${formatEta(
-            this.stats.duration
-          )} (network=${this.network.name})`,
+          service: "historical",
+          msg: `Completed sync in ${formatEta(this.stats.duration)} (network=${
+            this.network.name
+          })`,
           network: this.network.name,
           duration: this.stats.duration,
         });

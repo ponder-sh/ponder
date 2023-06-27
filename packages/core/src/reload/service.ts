@@ -53,7 +53,10 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
       if (this.isFileChanged(filePath)) {
         const fileName = path.basename(filePath);
 
-        this.resources.logger.info({ msg: `Detected change in ${fileName}` });
+        this.resources.logger.info({
+          service: "build",
+          msg: `Detected change in ${fileName}`,
+        });
 
         this.resources.errors.clearHandlerError();
 
@@ -68,15 +71,15 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
 
   async kill() {
     this.closeWatcher?.();
-    this.resources.logger.debug({ msg: `Killed build service` });
+    this.resources.logger.debug({
+      service: "build",
+      msg: `Killed build service`,
+    });
   }
 
   async loadHandlers() {
     try {
-      const handlers = await readHandlers({
-        options: this.resources.options,
-        logger: this.resources.logger,
-      });
+      const handlers = await readHandlers({ options: this.resources.options });
       this.emit("newHandlers", { handlers });
     } catch (error_) {
       const error = error_ as Error;

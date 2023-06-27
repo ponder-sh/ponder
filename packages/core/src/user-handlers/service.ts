@@ -120,7 +120,10 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.queue?.clear();
     this.eventProcessingMutex.cancel();
 
-    this.resources.logger.debug({ msg: `Killed user handler service` });
+    this.resources.logger.debug({
+      service: "handlers",
+      msg: `Killed user handler service`,
+    });
   };
 
   reset = async ({
@@ -169,6 +172,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
     await this.userStore.reload({ schema: this.schema });
     this.resources.logger.debug({
+      service: "handlers",
       msg: `Reset user store (versionId=${this.userStore.versionId})`,
     });
 
@@ -189,6 +193,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
     await this.userStore.revert({ safeTimestamp: commonAncestorTimestamp });
     this.resources.logger.debug({
+      service: "handlers",
       msg: `Reverted user store to safe timestamp ${commonAncestorTimestamp}`,
     });
 
@@ -250,9 +255,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           toTimestamp: toTimestamp,
         });
 
-        this.resources.logger.debug({
-          msg: `Processed ${events.length} events in timestamp range [${fromTimestamp}, ${toTimestamp}]`,
-        });
+        if (events.length > 0) {
+          this.resources.logger.info({
+            service: "handlers",
+            msg: `Processed ${
+              events.length === 1 ? "1 event" : `${events.length} events`
+            } in timestamp range [${fromTimestamp}, ${toTimestamp + 1})`,
+          });
+        }
       });
     } catch (error) {
       // Pending locks get cancelled in resetEventQueue. This is expected, so it's safe to
