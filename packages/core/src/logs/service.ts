@@ -26,12 +26,11 @@ export class LoggerService {
             if (log.error?.stack) console.log(log.error.stack);
             if (log.error?.meta) console.log(log.error.meta);
 
-            // If the "error" property has an inner "cause" error with a stack trace,
-            // log that too.
-            if (log.error?.cause?.stack) {
-              console.log("Details:");
-              console.log("  " + log.error.cause.stack);
-            }
+            // TODO: Consider also logging any inner `cause` errors.
+            // if (log.error?.cause?.stack) {
+            //   console.log("Details:");
+            //   console.log("  " + log.error.cause.stack);
+            // }
           },
         },
       });

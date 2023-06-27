@@ -1,5 +1,6 @@
-import { BaseError } from "./base";
 import { prettyPrint } from "@/utils/print";
+
+import { BaseError } from "./base";
 
 export class SqliteError extends BaseError {
   name = "SqliteError";

@@ -67,7 +67,7 @@ export const patchSqliteDatabase = ({ db }: { db: any }) => {
         } catch (error) {
           throw new SqliteError({
             statement: source,
-            parameters: args,
+            parameters: args[0],
             sqliteError: error as Error,
           });
         }
