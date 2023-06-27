@@ -8,7 +8,7 @@ import {
 import { mainnet } from "viem/chains";
 
 import { buildOptions } from "@/config/options";
-import { ErrorService } from "@/errors/ErrorService";
+import { UserErrorService } from "@/errors/service";
 import { MetricsService } from "@/metrics/service";
 import { Resources } from "@/Ponder";
 import { LoggerService } from "@/logs/service";
@@ -62,6 +62,6 @@ export const testResources: Resources = {
   options: buildOptions({
     cliOptions: { configFile: "", rootDir: "" },
   }),
-  errors: new ErrorService(),
+  errors: new UserErrorService(),
   metrics: new MetricsService(),
 };

@@ -1,5 +1,5 @@
 import { BaseError } from "./base";
-import { prettyPrint } from "./utils";
+import { prettyPrint } from "@/utils/print";
 
 export class QueueError extends BaseError {
   name = "QueueError";

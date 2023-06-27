@@ -1,4 +1,3 @@
-import pico from "picocolors";
 import path from "node:path";
 
 import { CodegenService } from "@/codegen/service";
@@ -8,12 +7,13 @@ import { buildLogFilters, LogFilter } from "@/config/logFilters";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type PonderOptions } from "@/config/options";
 import { type ResolvedPonderConfig } from "@/config/ponderConfig";
-import { ErrorService } from "@/errors/ErrorService";
+import { UserErrorService } from "@/errors/service";
 import { EventAggregatorService } from "@/event-aggregator/service";
 import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import { type EventStore } from "@/event-store/store";
 import { HistoricalSyncService } from "@/historical-sync/service";
+import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { RealtimeSyncService } from "@/realtime-sync/service";
 import { ReloadService } from "@/reload/service";
@@ -24,12 +24,11 @@ import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { type UserStore } from "@/user-store/store";
 import { formatEta } from "@/utils/format";
-import { LoggerService } from "@/logs/service";
 
 export type Resources = {
   options: PonderOptions;
   logger: LoggerService;
-  errors: ErrorService;
+  errors: UserErrorService;
   metrics: MetricsService;
 };
 
@@ -74,7 +73,7 @@ export class Ponder {
       level: options.logLevel,
       dir: options.logDir,
     });
-    const errors = new ErrorService();
+    const errors = new UserErrorService();
     const metrics = new MetricsService();
 
     const resources = { options, logger, errors, metrics };
@@ -361,20 +360,8 @@ export class Ponder {
   }
 
   private registerUiHandlers() {
-    // this.resources.errors.on("handlerError", ({ error }) => {
-    //   this.resources.logger.logMessage("error", error.message);
-    // });
-
     this.networkSyncServices.forEach((networkSyncService) => {
       const { historicalSyncService, logFilters } = networkSyncService;
-
-      // historicalSyncService.on("error", ({ error }) => {
-      //   this.resources.logger.logMessage("error", error.message);
-      // });
-
-      // realtimeSyncService.on("error", ({ error }) => {
-      //   this.resources.logger.logMessage("error", error.message);
-      // });
 
       historicalSyncService.on("syncStarted", () => {
         logFilters.forEach(({ name }) => {
@@ -411,7 +398,7 @@ export class Ponder {
         );
       }
 
-      this.uiService.ui.handlerError = this.eventHandlerService.metrics.error;
+      this.uiService.ui.handlerError = this.resources.errors.hasUserError;
       this.uiService.ui.handlersHandledTotal =
         this.eventHandlerService.metrics.eventsAddedToQueue;
       this.uiService.ui.handlersCurrent =
@@ -434,7 +421,7 @@ export class Ponder {
     });
 
     this.eventHandlerService.on("taskCompleted", () => {
-      this.uiService.ui.handlerError = this.eventHandlerService.metrics.error;
+      this.uiService.ui.handlerError = this.resources.errors.hasUserError;
       this.uiService.ui.handlersHandledTotal =
         this.eventHandlerService.metrics.eventsAddedToQueue;
       this.uiService.ui.handlersCurrent =
@@ -448,14 +435,6 @@ export class Ponder {
 
     this.serverService.on("serverStarted", ({ port }) => {
       this.uiService.ui.port = port;
-    });
-
-    this.resources.errors.on("handlerError", () => {
-      this.uiService.ui.handlerError = true;
-    });
-
-    this.resources.errors.on("handlerErrorCleared", () => {
-      this.uiService.ui.handlerError = false;
     });
   }
 }

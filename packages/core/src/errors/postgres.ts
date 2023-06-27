@@ -1,7 +1,7 @@
 import { DatabaseError } from "pg";
 
 import { BaseError } from "./base";
-import { prettyPrint } from "./utils";
+import { prettyPrint } from "@/utils/print";
 
 export class PostgresError extends BaseError {
   name = "PostgresError";

@@ -1,11 +1,8 @@
 import path from "node:path";
-import pino, { type Logger, type LevelWithSilent } from "pino";
 import pc from "picocolors";
+import pino, { type LevelWithSilent, type Logger } from "pino";
 
-type LogFunctionArgs =
-  | [string]
-  | [{ msg: string; service?: string } & { [key: string]: any }]
-  | [string, { service?: string } & { [key: string]: any }];
+type LogOptions = { msg?: string; service?: string } & { [key: string]: any };
 
 export class LoggerService {
   private logger: Logger;
@@ -25,9 +22,15 @@ export class LoggerService {
             const prettyLog = formatMessage(log);
             console.log(prettyLog);
 
-            // If there is an "error" property, log it.
-            if (log.error) {
-              console.log(log.error);
+            // If there is an "error" property, log the stack trace.
+            if (log.error?.stack) console.log(log.error.stack);
+            if (log.error?.meta) console.log(log.error.meta);
+
+            // If the "error" property has an inner "cause" error with a stack trace,
+            // log that too.
+            if (log.error?.cause?.stack) {
+              console.log("Details:");
+              console.log("  " + log.error.cause.stack);
             }
           },
         },
@@ -42,26 +45,32 @@ export class LoggerService {
       });
     }
 
-    this.logger = pino({ level: "trace" }, pino.multistream(streams));
+    this.logger = pino(
+      {
+        level: "trace",
+        serializers: { error: pino.stdSerializers.errWithCause },
+      },
+      pino.multistream(streams)
+    );
   }
 
-  fatal = (...args: LogFunctionArgs) => {
-    this.logger.fatal(...(args as [any]));
+  fatal = (options: LogOptions & { error?: Error }) => {
+    this.logger.fatal(options);
   };
-  error = (...args: LogFunctionArgs) => {
-    this.logger.error(...(args as [any]));
+  error = (options: LogOptions & { error: Error }) => {
+    this.logger.error(options);
   };
-  warn = (...args: LogFunctionArgs) => {
-    this.logger.warn(...(args as [any]));
+  warn = (options: LogOptions & { msg: string }) => {
+    this.logger.warn(options);
   };
-  info = (...args: LogFunctionArgs) => {
-    this.logger.info(...(args as [any]));
+  info = (options: LogOptions & { msg: string }) => {
+    this.logger.info(options);
   };
-  debug = (...args: LogFunctionArgs) => {
-    this.logger.debug(...(args as [any]));
+  debug = (options: LogOptions & { msg: string }) => {
+    this.logger.debug(options);
   };
-  trace = (...args: LogFunctionArgs) => {
-    this.logger.trace(...(args as [any]));
+  trace = (options: LogOptions & { msg: string }) => {
+    this.logger.trace(options);
   };
 }
 
@@ -77,10 +86,12 @@ const levels = {
 const formatMessage = (log: { [key: string]: any }) => {
   let result = "";
 
-  const timestamp = log["time"] as number;
-  const level = levels[(log["level"] as keyof typeof levels) ?? 30];
-  const message = log["msg"] as string | undefined;
-  const service = log["service"] as string | undefined;
+  const timestamp = log.time as number;
+  const level = levels[(log.level as keyof typeof levels) ?? 30];
+  const msg = log.msg as string | undefined;
+  const errorMessage = log.error?.message as string | undefined;
+  const message = msg ?? errorMessage;
+  const service = log.service as string | undefined;
 
   const date = new Date(timestamp);
   const hours = String(date.getUTCHours()).padStart(2, "0");
