@@ -130,6 +130,7 @@ function getFinalityBlockCount(network: { chainId: number }) {
     // Zora.
     case 7777777:
       finalityBlockCount = 5;
+      break;
     default:
       finalityBlockCount = 5;
   }

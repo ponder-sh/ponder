@@ -9,9 +9,9 @@ import { mainnet } from "viem/chains";
 
 import { buildOptions } from "@/config/options";
 import { UserErrorService } from "@/errors/service";
+import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { Resources } from "@/Ponder";
-import { LoggerService } from "@/logs/service";
 
 // Anvil test setup adapted from @viem/anvil `example-vitest` repository.
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest

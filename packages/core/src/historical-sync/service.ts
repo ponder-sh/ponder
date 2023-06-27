@@ -11,13 +11,13 @@ import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
+import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
+import { formatEta, formatPercentage } from "@/utils/format";
 import { type Queue, createQueue } from "@/utils/queue";
 import { startClock } from "@/utils/timer";
 
 import { findMissingIntervals } from "./intervals";
-import { LoggerService } from "@/logs/service";
-import { formatEta, formatPercentage } from "@/utils/format";
 
 type HistoricalSyncEvents = {
   /**

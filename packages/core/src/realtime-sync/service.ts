@@ -6,6 +6,7 @@ import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
+import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { poll } from "@/utils/poll";
 import { type Queue, createQueue } from "@/utils/queue";
@@ -19,7 +20,6 @@ import {
   type LightBlock,
   rpcBlockToLightBlock,
 } from "./format";
-import { LoggerService } from "@/logs/service";
 
 type RealtimeSyncEvents = {
   realtimeCheckpoint: { timestamp: number };
