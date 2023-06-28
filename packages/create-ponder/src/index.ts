@@ -167,7 +167,7 @@ export const run = async (
       "devDependencies": {
         "@types/node": "^18.11.18",
         "abitype": "^0.8.11",
-        "typescript": "^4.9.5",
+        "typescript": "^5.1.3",
         "viem": "^1.2.2"
       }
     }
