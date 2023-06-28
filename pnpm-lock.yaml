@@ -160,7 +160,7 @@ importers:
       '@types/retry': ^0.12.2
       '@types/supertest': ^2.0.12
       '@viem/anvil': ^0.0.5
-      abitype: ^0.6.7
+      abitype: ^0.8.11
       async-mutex: ^0.4.0
       better-sqlite3: '7'
       cac: ^6.7.14
@@ -195,7 +195,7 @@ importers:
       tsc-alias: ^1.8.2
       tsup: ^6.7.0
       typescript: ^5.1.3
-      viem: 1.2.2
+      viem: ^1.2.2
       vite: ^4.1.4
       vitest: ^0.29.2
     dependencies:
@@ -247,7 +247,7 @@ importers:
       '@types/react': 18.0.25
       '@types/retry': 0.12.2
       '@types/supertest': 2.0.12
-      abitype: 0.6.7_typescript@5.1.3
+      abitype: 0.8.11_typescript@5.1.3
       module-alias: 2.2.2
       supertest: 6.3.3
       tsup: 6.7.0_typescript@5.1.3
@@ -4152,6 +4152,18 @@ packages:
     peerDependencies:
       typescript: '>=4.9.4'
       zod: '>=3.19.1'
+    peerDependenciesMeta:
+      zod:
+        optional: true
+    dependencies:
+      typescript: 5.1.3
+    dev: true
+
+  /abitype/0.8.11_typescript@5.1.3:
+    resolution: {integrity: sha512-bM4v2dKvX08sZ9IU38IN5BKmN+ZkOSd2oI4a9f0ejHYZQYV6cDr7j+d95ga0z2XHG36Y4jzoG5Z7qDqxp7fi/A==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+      zod: ^3 >=3.19.1
     peerDependenciesMeta:
       zod:
         optional: true
