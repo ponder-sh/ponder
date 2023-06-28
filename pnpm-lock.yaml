@@ -167,7 +167,6 @@ importers:
       chokidar: ^3.5.3
       cors: ^2.8.5
       data-uri-to-buffer: 3.0.1
-      detect-port: ^1.5.1
       dotenv: ^16.0.1
       emittery: ^0.13.1
       esbuild: ^0.15.2
@@ -208,7 +207,6 @@ importers:
       chokidar: 3.5.3
       cors: 2.8.5
       data-uri-to-buffer: 3.0.1
-      detect-port: 1.5.1
       dotenv: 16.0.1
       emittery: 0.13.1
       esbuild: 0.15.4
@@ -4227,11 +4225,6 @@ packages:
     hasBin: true
     dev: true
 
-  /address/1.2.2:
-    resolution: {integrity: sha512-4B/qKCfeE/ODUaAUpSwfzazo5x29WD4r3vXiWsB7I2mSDAihwEqKO+g8GELZUQSSAo5e1XTYh3ZVfLyxBc12nA==}
-    engines: {node: '>= 10.0.0'}
-    dev: false
-
   /ajv/6.12.6:
     resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
     dependencies:
@@ -5573,16 +5566,6 @@ packages:
     engines: {node: '>=12'}
     dependencies:
       execa: 5.1.1
-    dev: false
-
-  /detect-port/1.5.1:
-    resolution: {integrity: sha512-aBzdj76lueB6uUst5iAs7+0H/oOjqI5D16XUWxlWMIMROhcM0rfsNVk93zTngq1dDNpoXRr++Sus7ETAExppAQ==}
-    hasBin: true
-    dependencies:
-      address: 1.2.2
-      debug: 4.3.4
-    transitivePeerDependencies:
-      - supports-color
     dev: false
 
   /dezalgo/1.0.4:
