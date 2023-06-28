@@ -71,7 +71,7 @@ const setup = async ({
   const createTestEntity = async ({ id }: { id: number }) => {
     await userStore.create({
       modelName: "TestEntity",
-      timestamp: id,
+      timestamp: 0,
       id: String(id),
       data: {
         string: String(id),
@@ -99,7 +99,7 @@ const setup = async ({
   }) => {
     await userStore.create({
       modelName: "EntityWithBigIntId",
-      timestamp: Number(id),
+      timestamp: 0,
       id,
       data: {
         testEntity: testEntityId,
@@ -1394,4 +1394,100 @@ test("limits and skips together as expected", async (context) => {
   expect(testEntitys[9]).toMatchObject({ id: "59" });
 
   await service.kill();
+});
+
+test("serves singular entity versioned at specified timestamp", async (context) => {
+  const { userStore } = context;
+  const { service, gql, createTestEntity } = await setup({ userStore });
+
+  await createTestEntity({ id: 1 });
+  await userStore.update({
+    modelName: "TestEntity",
+    timestamp: 10,
+    id: String(1),
+    data: {
+      string: "updated",
+    },
+  });
+
+  const responseOld = await gql(`
+    testEntity(id: "1", timestamp: 5) {
+      id
+      string
+    }
+  `);
+  expect(responseOld.body.errors).toBe(undefined);
+  expect(responseOld.statusCode).toBe(200);
+  const testEntityOld = responseOld.body.data.testEntity;
+  expect(testEntityOld.string).toBe("1");
+
+  const response = await gql(`
+    testEntity(id: "1", timestamp: 15) {
+      id
+      string
+    }
+  `);
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const testEntity = response.body.data.testEntity;
+  expect(testEntity.string).toBe("updated");
+
+  await service.teardown();
+  await userStore.teardown();
+});
+
+test("serves plural entities versioned at specified timestamp", async (context) => {
+  const { userStore } = context;
+  const { service, gql, createTestEntity } = await setup({ userStore });
+
+  await createTestEntity({ id: 1 });
+  await createTestEntity({ id: 2 });
+
+  await userStore.update({
+    modelName: "TestEntity",
+    timestamp: 10,
+    id: String(1),
+    data: {
+      string: "updated",
+    },
+  });
+  await userStore.update({
+    modelName: "TestEntity",
+    timestamp: 15,
+    id: String(2),
+    data: {
+      string: "updated",
+    },
+  });
+
+  const responseOld = await gql(`
+    testEntitys(timestamp: 12, orderBy: "int") {
+      id
+      string
+    }
+  `);
+  expect(responseOld.body.errors).toBe(undefined);
+  expect(responseOld.statusCode).toBe(200);
+  const testEntitysOld = responseOld.body.data.testEntitys;
+  expect(testEntitysOld).toMatchObject([
+    { id: "1", string: "updated" },
+    { id: "2", string: "2" },
+  ]);
+
+  const response = await gql(`
+    testEntitys(orderBy: "int") {
+      id
+      string
+    }
+  `);
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const testEntitys = response.body.data.testEntitys;
+  expect(testEntitys).toMatchObject([
+    { id: "1", string: "updated" },
+    { id: "2", string: "updated" },
+  ]);
+
+  await service.teardown();
+  await userStore.teardown();
 });
