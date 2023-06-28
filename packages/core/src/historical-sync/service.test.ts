@@ -3,15 +3,18 @@ import {
   HttpRequestError,
   InvalidParamsRpcError,
 } from "viem";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
+import { setupEventStore } from "@/_test/setup";
 import { publicClient, testResources } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
 
 import { HistoricalSyncService } from "./service";
+
+beforeEach(async (context) => await setupEventStore(context));
 
 const { metrics, logger } = testResources;
 const network: Network = {

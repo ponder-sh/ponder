@@ -1,12 +1,15 @@
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
+import { setupEventStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
 
 import { EventAggregatorService } from "./service";
+
+beforeEach(async (context) => await setupEventStore(context));
 
 const mainnet: Network = {
   name: "mainnet",

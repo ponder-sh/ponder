@@ -1,7 +1,8 @@
 import { hexToNumber, RpcBlock, RpcLog, RpcTransaction } from "viem";
-import { expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
+import { setupEventStore } from "@/_test/setup";
 import { blobToBigInt } from "@/utils/decode";
 
 /**
@@ -9,6 +10,7 @@ import { blobToBigInt } from "@/utils/decode";
  * At the moment, this could be either a PostgresEventStore or a
  * SqliteEventStore; the tests run as expected either way.
  */
+beforeEach(async (context) => await setupEventStore(context));
 
 test("setup creates tables", async (context) => {
   const { eventStore } = context;
