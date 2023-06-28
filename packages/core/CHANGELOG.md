@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.0.66
+
+### Patch Changes
+
+- [#235](https://github.com/0xOlias/ponder/pull/235) [`0420400`](https://github.com/0xOlias/ponder/commit/04204001eb6173b797d0e03b2939fb1c2cd3840b) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the default finality checkpoint of several chains (including Arbitrum) was set to zero. The target finality interval for reorg-safe chains like Arbitrum and Optimism is now 10 seconds (e.g. 40 blocks on Arbitrum).
+
+- [#235](https://github.com/0xOlias/ponder/pull/235) [`0420400`](https://github.com/0xOlias/ponder/commit/04204001eb6173b797d0e03b2939fb1c2cd3840b) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the realtime sync service would process blocks out of order, leading to less efficient RPC request patterns.
+
+- [#235](https://github.com/0xOlias/ponder/pull/235) [`0420400`](https://github.com/0xOlias/ponder/commit/04204001eb6173b797d0e03b2939fb1c2cd3840b) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated Ponder's logging behavior. Stdout log lines will not include timestamps, log level, service name, and a message. Logs are also written to files located at `/.ponder/logs/{timestamp}.log` in JSON format. There are now more log levels: `"silent"`, `"fatal"`, `"error"`, `"warn"`, `"info"`, `"debug"`, and `"trace"`. These can be configured using the `PONDER_LOG_LEVEL` environment variable.
+
 ## 0.0.65
 
 ### Patch Changes
