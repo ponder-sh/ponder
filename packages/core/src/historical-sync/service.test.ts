@@ -11,6 +11,7 @@ import { publicClient, testResources } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
+import { wait } from "@/utils/wait";
 
 import { HistoricalSyncService } from "./service";
 
@@ -315,6 +316,10 @@ test("start() emits historicalCheckpoint event", async (context) => {
   service.start();
 
   await service.onIdle();
+
+  // TODO: Remove this. It's just a test to see if there's indeed a
+  // a race condition happening here.
+  await wait(300);
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     timestamp: 1673275859, // Block timestamp of block 16369955
