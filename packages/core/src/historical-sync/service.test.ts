@@ -320,6 +320,10 @@ test("start() emits historicalCheckpoint event", async (context) => {
   // TODO: Remove this. It's just a test to see if there's indeed a
   // a race condition happening here.
   await wait(300);
+  const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
+    filterKey: logFilters[0].filter.key,
+  });
+  console.log(logFilterCachedRanges);
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     timestamp: 1673275859, // Block timestamp of block 16369955
