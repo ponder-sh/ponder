@@ -199,21 +199,6 @@ export class PostgresEventStore implements EventStore {
     });
   };
 
-  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
-    const results = await this.db
-      .selectFrom("logFilterCachedRanges")
-      .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
-      .where("filterKey", "=", filterKey)
-      .execute();
-
-    return results.map((range) => ({
-      ...range,
-      startBlock: blobToBigInt(range.startBlock),
-      endBlock: blobToBigInt(range.endBlock),
-      endBlockTimestamp: blobToBigInt(range.endBlockTimestamp),
-    }));
-  };
-
   insertFinalizedLogs = async ({
     chainId,
     logs: rpcLogs,
@@ -247,11 +232,7 @@ export class PostgresEventStore implements EventStore {
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
-    logFilterRange: {
-      logFilterKey,
-      blockNumberToCacheFrom,
-      logFilterStartBlockNumber,
-    },
+    logFilterRange: { logFilterKey, blockNumberToCacheFrom },
   }: {
     chainId: number;
     block: RpcBlock;
@@ -259,7 +240,6 @@ export class PostgresEventStore implements EventStore {
     logFilterRange: {
       logFilterKey: string;
       blockNumberToCacheFrom: number;
-      logFilterStartBlockNumber: number;
     };
   }) => {
     const block: InsertableBlock = {
@@ -301,10 +281,15 @@ export class PostgresEventStore implements EventStore {
         .values(logFilterCachedRange)
         .execute();
     });
+  };
 
-    // After inserting the new cached range record, execute a transaction to merge
-    // all adjacent cached ranges. Return the end block timestamp of the cached interval
-    // that contains the start block number of the log filter.
+  mergeLogFilterCachedRanges = async ({
+    logFilterKey,
+    logFilterStartBlockNumber,
+  }: {
+    logFilterKey: string;
+    logFilterStartBlockNumber: number;
+  }) => {
     const startingRangeEndTimestamp = await this.db
       .transaction()
       .execute(async (tx) => {
@@ -364,6 +349,21 @@ export class PostgresEventStore implements EventStore {
       });
 
     return { startingRangeEndTimestamp };
+  };
+
+  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
+    const results = await this.db
+      .selectFrom("logFilterCachedRanges")
+      .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
+      .where("filterKey", "=", filterKey)
+      .execute();
+
+    return results.map((range) => ({
+      ...range,
+      startBlock: blobToBigInt(range.startBlock),
+      endBlock: blobToBigInt(range.endBlock),
+      endBlockTimestamp: blobToBigInt(range.endBlockTimestamp),
+    }));
   };
 
   insertContractReadResult = async ({
