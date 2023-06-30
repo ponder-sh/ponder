@@ -53,17 +53,17 @@ export async function setupEventStore(context: TestContext) {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
     context.eventStore = new PostgresEventStore({ pool, databaseSchema });
+    await context.eventStore.migrateUp();
+
+    return async () => {
+      await pool.query(`DROP SCHEMA IF EXISTS "${databaseSchema}" CASCADE`);
+    };
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
     const db = patchSqliteDatabase({ db: rawSqliteDb });
     context.eventStore = new SqliteEventStore({ db });
+    await context.eventStore.migrateUp();
   }
-
-  await context.eventStore.migrateUp();
-
-  return async () => {
-    await context.eventStore.migrateDown();
-  };
 }
 
 /**
