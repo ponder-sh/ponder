@@ -293,10 +293,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       // Merge all cached ranges once last time before emitting the `syncComplete` event.
       await Promise.all(
         this.logFilters.map((logFilter) =>
-          this.eventStore.mergeLogFilterCachedRanges({
-            logFilterKey: logFilter.filter.key,
-            logFilterStartBlockNumber: logFilter.filter.startBlock,
-          })
+          this.updateHistoricalCheckpoint({ logFilter })
         )
       );
 
@@ -623,6 +620,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       },
     });
 
+    await this.updateHistoricalCheckpoint({ logFilter });
+  };
+
+  updateHistoricalCheckpoint = async ({
+    logFilter,
+  }: {
+    logFilter: LogFilter;
+  }) => {
     const { startingRangeEndTimestamp } =
       await this.eventStore.mergeLogFilterCachedRanges({
         logFilterKey: logFilter.filter.key,
