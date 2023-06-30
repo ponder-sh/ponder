@@ -14,7 +14,7 @@ import type { EventStore } from "@/event-store/store";
 import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { formatEta, formatPercentage } from "@/utils/format";
-import { type Queue, createQueue } from "@/utils/queue";
+import { type Queue, type Worker, createQueue } from "@/utils/queue";
 import { startClock } from "@/utils/timer";
 
 import { findMissingIntervals } from "./intervals";
@@ -273,18 +273,44 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   };
 
   private buildQueue = () => {
-    const worker = async ({ task }: { task: LogSyncTask | BlockSyncTask }) => {
-      switch (task.kind) {
-        case "LOG_SYNC": {
-          return this.logTaskWorker({ task });
-        }
-        case "BLOCK_SYNC": {
-          return this.blockTaskWorker({ task });
-        }
+    const worker: Worker<LogSyncTask | BlockSyncTask> = async ({
+      task,
+      queue,
+    }) => {
+      if (task.kind === "LOG_SYNC") {
+        await this.logTaskWorker({ task });
+      } else {
+        await this.blockTaskWorker({ task });
       }
+
+      // If this is not the final task, return.
+      if (queue.size > 0 || queue.pending > 1) return;
+
+      // If this is the final task, run the cleanup/completion logic.
+
+      // It's possible for multiple block sync tasks to run simultaneously,
+      // resulting in a scenario where cached ranges are not fully merged.
+      // Merge all cached ranges once last time before emitting the `syncComplete` event.
+      await Promise.all(
+        this.logFilters.map((logFilter) =>
+          this.updateHistoricalCheckpoint({ logFilter })
+        )
+      );
+
+      this.stats.duration = this.stats.endDuration();
+      this.stats.isComplete = true;
+      this.emit("syncComplete");
+      this.logger.info({
+        service: "historical",
+        msg: `Completed sync in ${formatEta(this.stats.duration)} (network=${
+          this.network.name
+        })`,
+        network: this.network.name,
+        duration: this.stats.duration,
+      });
     };
 
-    const queue = createQueue<LogSyncTask | BlockSyncTask, unknown, any>({
+    const queue = createQueue<LogSyncTask | BlockSyncTask>({
       worker,
       options: { concurrency: 10, autoStart: false },
       onAdd: ({ task }) => {
@@ -471,20 +497,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             : task.blockNumberToCacheFrom);
         queue.addTask(task, { priority, retry: true });
       },
-      onIdle: () => {
-        if (this.stats.isComplete) return;
-        this.stats.duration = this.stats.endDuration();
-        this.stats.isComplete = true;
-        this.emit("syncComplete");
-        this.logger.info({
-          service: "historical",
-          msg: `Completed sync in ${formatEta(this.stats.duration)} (network=${
-            this.network.name
-          })`,
-          network: this.network.name,
-          duration: this.stats.duration,
-        });
-      },
     });
 
     return queue;
@@ -598,16 +610,28 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       requiredTxHashes.has(tx.hash)
     );
 
+    await this.eventStore.insertFinalizedBlock({
+      chainId: this.network.chainId,
+      block,
+      transactions,
+      logFilterRange: {
+        logFilterKey: logFilter.filter.key,
+        blockNumberToCacheFrom,
+      },
+    });
+
+    await this.updateHistoricalCheckpoint({ logFilter });
+  };
+
+  updateHistoricalCheckpoint = async ({
+    logFilter,
+  }: {
+    logFilter: LogFilter;
+  }) => {
     const { startingRangeEndTimestamp } =
-      await this.eventStore.insertFinalizedBlock({
-        chainId: this.network.chainId,
-        block,
-        transactions,
-        logFilterRange: {
-          logFilterKey: logFilter.filter.key,
-          blockNumberToCacheFrom,
-          logFilterStartBlockNumber: logFilter.filter.startBlock,
-        },
+      await this.eventStore.mergeLogFilterCachedRanges({
+        logFilterKey: logFilter.filter.key,
+        logFilterStartBlockNumber: logFilter.filter.startBlock,
       });
 
     this.logFilterCheckpoints[logFilter.name] = Math.max(
