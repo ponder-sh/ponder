@@ -1,6 +1,7 @@
 import { buildSchema as buildGraphqlSchema } from "graphql";
-import { expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 
+import { setupUserStore } from "@/_test/setup";
 import { schemaHeader } from "@/reload/readGraphqlSchema";
 import { buildSchema } from "@/schema/schema";
 
@@ -9,6 +10,7 @@ import { buildSchema } from "@/schema/schema";
  * At the moment, this could be either a PostgresUserStore or a
  * SqliteUserStore; the tests run as expected either way.
  */
+beforeEach(async (context) => await setupUserStore(context));
 
 const graphqlSchema = buildGraphqlSchema(`
   ${schemaHeader}

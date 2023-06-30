@@ -559,9 +559,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
 
     for (const blockTask of blockTasks) {
-      this.queue.addTask(blockTask, {
-        priority: Number.MAX_SAFE_INTEGER - blockTask.blockNumberToCacheFrom,
-      });
+      const priority =
+        Number.MAX_SAFE_INTEGER - blockTask.blockNumberToCacheFrom;
+      this.queue.addTask(blockTask, { priority });
     }
 
     this.metrics.ponder_historical_scheduled_tasks.inc(

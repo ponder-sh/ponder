@@ -1,7 +1,8 @@
 import { buildSchema as buildGraphqlSchema } from "graphql";
 import request from "supertest";
-import { expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 
+import { setupUserStore } from "@/_test/setup";
 import { testResources } from "@/_test/utils";
 import { schemaHeader } from "@/reload/readGraphqlSchema";
 import { buildSchema } from "@/schema/schema";
@@ -10,6 +11,8 @@ import { range } from "@/utils/range";
 
 import { buildGqlSchema } from "./graphql/buildGqlSchema";
 import { ServerService } from "./service";
+
+beforeEach(async (context) => await setupUserStore(context));
 
 const userSchema = buildGraphqlSchema(`
   ${schemaHeader}

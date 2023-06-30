@@ -2,7 +2,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { accounts, usdcContractConfig, vitalik } from "@/_test/constants";
-import { resetTestClient } from "@/_test/setup";
+import { resetTestClient, setupEventStore } from "@/_test/setup";
 import {
   publicClient,
   testClient,
@@ -16,6 +16,9 @@ import { blobToBigInt } from "@/utils/decode";
 import { range } from "@/utils/range";
 
 import { RealtimeSyncService } from "./service";
+
+beforeEach(async (context) => await setupEventStore(context));
+beforeEach(async () => await resetTestClient());
 
 const network: Network = {
   name: "mainnet",
@@ -60,10 +63,6 @@ const sendUsdcTransferTransaction = async () => {
     account: vitalik.account,
   });
 };
-
-beforeEach(async () => {
-  return await resetTestClient();
-});
 
 test("setup() returns the finalized block number", async (context) => {
   const { eventStore } = context;

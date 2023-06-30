@@ -1,13 +1,21 @@
-import { HttpRequestError, InvalidParamsRpcError } from "viem";
-import { expect, test, vi } from "vitest";
+import {
+  EIP1193RequestFn,
+  HttpRequestError,
+  InvalidParamsRpcError,
+} from "viem";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
+import { setupEventStore } from "@/_test/setup";
 import { publicClient, testResources } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
+import { wait } from "@/utils/wait";
 
 import { HistoricalSyncService } from "./service";
+
+beforeEach(async (context) => await setupEventStore(context));
 
 const { metrics, logger } = testResources;
 const network: Network = {
@@ -18,6 +26,11 @@ const network: Network = {
   defaultMaxBlockRange: 3,
   finalityBlockCount: 10,
 };
+
+const rpcRequestSpy = vi.spyOn(
+  network.client as { request: EIP1193RequestFn },
+  "request"
+);
 
 const logFilters: LogFilter[] = [
   {
@@ -192,8 +205,7 @@ test("start() retries errors", async (context) => {
 test("start() handles Alchemy 'Log response size exceeded' error", async (context) => {
   const { eventStore } = context;
 
-  const spy = vi.spyOn(network.client, "request");
-  spy.mockRejectedValueOnce(
+  rpcRequestSpy.mockRejectedValueOnce(
     new InvalidParamsRpcError(
       new Error(
         // The suggested block range is 16369950 to 16369951.
@@ -232,8 +244,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
 test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 10,000 blocks range' error", async (context) => {
   const { eventStore } = context;
 
-  const spy = vi.spyOn(network.client, "request");
-  spy.mockRejectedValueOnce(
+  rpcRequestSpy.mockRejectedValueOnce(
     new HttpRequestError({
       url: "http://",
       details:
@@ -305,6 +316,14 @@ test("start() emits historicalCheckpoint event", async (context) => {
   service.start();
 
   await service.onIdle();
+
+  // TODO: Remove this. It's just a test to see if there's indeed a
+  // a race condition happening here.
+  await wait(300);
+  const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
+    filterKey: logFilters[0].filter.key,
+  });
+  console.log(logFilterCachedRanges);
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     timestamp: 1673275859, // Block timestamp of block 16369955

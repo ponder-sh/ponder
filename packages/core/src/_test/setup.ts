@@ -4,7 +4,7 @@ import SqliteDatabase from "better-sqlite3";
 import moduleAlias from "module-alias";
 import path from "node:path";
 import { Pool } from "pg";
-import { beforeEach } from "vitest";
+import type { TestContext } from "vitest";
 
 import { patchSqliteDatabase } from "@/config/database";
 import { PostgresEventStore } from "@/event-store/postgres/store";
@@ -12,7 +12,7 @@ import { SqliteEventStore } from "@/event-store/sqlite/store";
 import type { EventStore } from "@/event-store/store";
 import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
-import { UserStore } from "@/user-store/store";
+import type { UserStore } from "@/user-store/store";
 
 import { FORK_BLOCK_NUMBER, FORK_URL, vitalik } from "./constants";
 import { poolId, testClient } from "./utils";
@@ -38,17 +38,25 @@ declare module "vitest" {
   }
 }
 
-beforeEach(async (context) => {
+/**
+ * Sets up an isolated EventStore on the test context.
+ *
+ * ```ts
+ * // Add this to any test suite that uses the test client.
+ * beforeEach(async (context) => {
+ *   return await setupEventStore(context);
+ * })
+ * ```
+ */
+export async function setupEventStore(context: TestContext) {
   if (process.env.DATABASE_URL) {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const databaseSchema = `vitest_pool_${poolId}`;
+    const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
     context.eventStore = new PostgresEventStore({ pool, databaseSchema });
-    context.userStore = new PostgresUserStore({ pool, databaseSchema });
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
     const db = patchSqliteDatabase({ db: rawSqliteDb });
     context.eventStore = new SqliteEventStore({ db });
-    context.userStore = new SqliteUserStore({ db });
   }
 
   await context.eventStore.migrateUp();
@@ -56,7 +64,33 @@ beforeEach(async (context) => {
   return async () => {
     await context.eventStore.migrateDown();
   };
-});
+}
+
+/**
+ * Sets up an isolated UserStore on the test context.
+ *
+ * ```ts
+ * // Add this to any test suite that uses the test client.
+ * beforeEach(async (context) => {
+ *   return await setupUserStore(context);
+ * })
+ * ```
+ */
+export async function setupUserStore(context: TestContext) {
+  if (process.env.DATABASE_URL) {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
+    context.userStore = new PostgresUserStore({ pool, databaseSchema });
+  } else {
+    const rawSqliteDb = new SqliteDatabase(":memory:");
+    const db = patchSqliteDatabase({ db: rawSqliteDb });
+    context.userStore = new SqliteUserStore({ db });
+  }
+
+  return async () => {
+    await context.userStore.teardown();
+  };
+}
 
 /**
  * Resets the Anvil instance to the defaults.

@@ -1,12 +1,15 @@
 import { getFunctionSelector, hexToBigInt } from "viem";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
+import { setupEventStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import { Contract } from "@/config/contracts";
 import { Network } from "@/config/networks";
 
 import { getInjectedContract } from "./contract";
+
+beforeEach(async (context) => await setupEventStore(context));
 
 const network: Network = {
   name: "mainnet",

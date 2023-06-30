@@ -407,6 +407,8 @@ export class Ponder {
         this.eventHandlerService.metrics.totalMatchedEvents;
       this.uiService.ui.handlersToTimestamp =
         this.eventHandlerService.metrics.latestHandledEventTimestamp;
+
+      this.uiService.ui.port = this.serverService.port;
     }, 17);
 
     this.killFunctions.push(() => {
@@ -431,10 +433,6 @@ export class Ponder {
       this.uiService.ui.handlersToTimestamp =
         this.eventHandlerService.metrics.latestHandledEventTimestamp;
       this.uiService.render();
-    });
-
-    this.serverService.on("serverStarted", ({ port }) => {
-      this.uiService.ui.port = port;
     });
   }
 }

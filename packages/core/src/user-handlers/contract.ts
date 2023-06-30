@@ -1,12 +1,15 @@
 import {
+  type Abi,
+  type BaseError,
+  type CallParameters,
+  type GetContractReturnType,
+  type Hex,
+  type PublicClient,
   type ReadContractParameters,
-  BaseError,
-  CallParameters,
   decodeFunctionResult,
   encodeFunctionData,
   getContract,
   getContractError,
-  Hex,
 } from "viem";
 
 import type { Contract } from "@/config/contracts";
@@ -20,7 +23,7 @@ export function getInjectedContract({
   contract: Contract;
   getCurrentBlockNumber: () => bigint;
   eventStore: EventStore;
-}) {
+}): GetContractReturnType<Abi, PublicClient> {
   const { abi, address } = contract;
   const { chainId, client: publicClient } = contract.network;
 

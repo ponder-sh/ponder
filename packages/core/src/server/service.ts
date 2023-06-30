@@ -1,24 +1,19 @@
 import cors from "cors";
-import detectPort from "detect-port";
-import Emittery from "emittery";
 import express from "express";
 import { graphqlHTTP } from "express-graphql";
 import type { GraphQLSchema } from "graphql";
 import { createHttpTerminator } from "http-terminator";
+import { createServer, Server } from "node:http";
 
 import { Resources } from "@/Ponder";
 import { UserStore } from "@/user-store/store";
 
-export type ServerServiceEvents = {
-  serverStarted: { port: number };
-};
-
-export class ServerService extends Emittery<ServerServiceEvents> {
+export class ServerService {
   resources: Resources;
   userStore: UserStore;
+  port: number;
 
   app?: express.Express;
-  private resolvedPort?: number;
   private terminate?: () => Promise<void>;
   private graphqlMiddleware?: express.Handler;
 
@@ -31,33 +26,44 @@ export class ServerService extends Emittery<ServerServiceEvents> {
     resources: Resources;
     userStore: UserStore;
   }) {
-    super();
     this.resources = resources;
     this.userStore = userStore;
+    this.port = this.resources.options.port;
   }
 
   async start() {
     this.app = express();
     this.app.use(cors());
 
-    // If the desired port is unavailable, detect-port will find the next available port.
-    this.resolvedPort = await detectPort(this.resources.options.port);
+    const server = await new Promise<Server>((resolve, reject) => {
+      const server = createServer(this.app)
+        .on("error", (error) => {
+          if ((error as any).code === "EADDRINUSE") {
+            this.resources.logger.warn({
+              service: "server",
+              msg: `Port ${this.port} was in use, trying port ${this.port + 1}`,
+            });
+            this.port += 1;
+            setTimeout(() => {
+              server.close();
+              server.listen(this.port);
+            }, 5);
+          } else {
+            reject(error);
+          }
+        })
+        .on("listening", () => {
+          resolve(server);
+        })
+        .listen(this.port);
+    });
 
-    const server = this.app.listen(this.resolvedPort);
     const terminator = createHttpTerminator({ server });
     this.terminate = () => terminator.terminate();
 
-    this.emit("serverStarted", {
-      port: this.resolvedPort,
-    });
-
     this.resources.logger.info({
       service: "server",
-      msg: `Started listening on port ${this.resolvedPort} ${
-        this.resolvedPort !== this.resources.options.port
-          ? `(port ${this.resources.options.port} was unavailable)`
-          : ""
-      }`,
+      msg: `Started listening on port ${this.port}`,
     });
 
     this.app.post("/metrics", async (_, res) => {
@@ -119,7 +125,7 @@ export class ServerService extends Emittery<ServerServiceEvents> {
     await this.terminate?.();
     this.resources.logger.debug({
       service: "server",
-      msg: `Stopped listening on port ${this.resolvedPort}`,
+      msg: `Stopped listening on port ${this.port}`,
     });
   }
 
