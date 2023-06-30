@@ -168,7 +168,7 @@ export const run = async (
         "@types/node": "^18.11.18",
         "abitype": "^0.8.11",
         "typescript": "^5.1.3",
-        "viem": "^1.2.2"
+        "viem": "^1.2.6"
       }
     }
   `;
