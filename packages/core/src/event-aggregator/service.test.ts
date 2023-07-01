@@ -9,7 +9,7 @@ import { Network } from "@/config/networks";
 
 import { EventAggregatorService } from "./service";
 
-beforeEach(async (context) => await setupEventStore(context));
+beforeEach(setupEventStore);
 
 const mainnet: Network = {
   name: "mainnet",

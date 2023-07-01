@@ -9,7 +9,7 @@ import { Network } from "@/config/networks";
 
 import { getInjectedContract } from "./contract";
 
-beforeEach(async (context) => await setupEventStore(context));
+beforeEach(setupEventStore);
 
 const network: Network = {
   name: "mainnet",

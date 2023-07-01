@@ -13,12 +13,7 @@ import {
 import { setupEventStore } from "@/_test/setup";
 import { blobToBigInt } from "@/utils/decode";
 
-/**
- * This test suite uses the `store` object injected during setup.
- * At the moment, this could be either a PostgresEventStore or a
- * SqliteEventStore; the tests run as expected either way.
- */
-beforeEach(async (context) => await setupEventStore(context));
+beforeEach(setupEventStore);
 
 test("setup creates tables", async (context) => {
   const { eventStore } = context;
