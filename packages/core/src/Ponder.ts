@@ -3,7 +3,7 @@ import path from "node:path";
 import { CodegenService } from "@/codegen/service";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
-import { buildLogFilters, LogFilter } from "@/config/logFilters";
+import { type LogFilter, buildLogFilters } from "@/config/logFilters";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type PonderOptions } from "@/config/options";
 import { type ResolvedPonderConfig } from "@/config/ponderConfig";
@@ -292,11 +292,11 @@ export class Ponder {
 
       this.serverService.reload({ graphqlSchema });
 
-      this.eventHandlerService.reset({ schema });
+      await this.eventHandlerService.reset({ schema });
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
-      this.eventHandlerService.reset({ handlers });
+      await this.eventHandlerService.reset({ handlers });
     });
 
     this.networkSyncServices.forEach((networkSyncService) => {
