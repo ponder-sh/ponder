@@ -29,7 +29,7 @@ export class PostgresUserStore implements UserStore {
   db: Kysely<any>;
 
   schema?: Schema;
-  private versionId?: string;
+  versionId?: string;
 
   constructor({
     pool,

@@ -10,8 +10,8 @@
     "@ponder/core": "workspace:latest"
   },
   "devDependencies": {
-    "abitype": "^0.6.7",
+    "abitype": "^0.8.11",
     "typescript": "^5.1.3",
-    "viem": "0.3.50"
+    "viem": "^1.2.6"
   }
 }

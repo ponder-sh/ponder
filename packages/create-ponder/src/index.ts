@@ -166,9 +166,9 @@ export const run = async (
       },
       "devDependencies": {
         "@types/node": "^18.11.18",
-        "abitype": "^0.6.7",
-        "typescript": "^4.9.5",
-        "viem": "0.1.6"
+        "abitype": "^0.8.11",
+        "typescript": "^5.1.3",
+        "viem": "^1.2.6"
       }
     }
   `;

@@ -1,5 +1,43 @@
 # @ponder/core
 
+## 0.0.67
+
+### Patch Changes
+
+- [#241](https://github.com/0xOlias/ponder/pull/241) [`438813b`](https://github.com/0xOlias/ponder/commit/438813b7221c00bf89eb1ec66cf22f90e3d52ab1) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a race condition bug in the historical sync service
+
+- [#239](https://github.com/0xOlias/ponder/pull/239) [`af90fb1`](https://github.com/0xOlias/ponder/commit/af90fb1710c529c760cb93cbde1b703d188a872a) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the Ponder server would occasionally fail to start due to a port detection race condition.
+
+- [#239](https://github.com/0xOlias/ponder/pull/239) [`af90fb1`](https://github.com/0xOlias/ponder/commit/af90fb1710c529c760cb93cbde1b703d188a872a) Thanks [@0xOlias](https://github.com/0xOlias)! - Bumped `viem` and `abitype` versions.
+
+## 0.0.66
+
+### Patch Changes
+
+- [#235](https://github.com/0xOlias/ponder/pull/235) [`0420400`](https://github.com/0xOlias/ponder/commit/04204001eb6173b797d0e03b2939fb1c2cd3840b) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the default finality checkpoint of several chains (including Arbitrum) was set to zero. The target finality interval for reorg-safe chains like Arbitrum and Optimism is now 10 seconds (e.g. 40 blocks on Arbitrum).
+
+- [#235](https://github.com/0xOlias/ponder/pull/235) [`0420400`](https://github.com/0xOlias/ponder/commit/04204001eb6173b797d0e03b2939fb1c2cd3840b) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the realtime sync service would process blocks out of order, leading to less efficient RPC request patterns.
+
+- [#235](https://github.com/0xOlias/ponder/pull/235) [`0420400`](https://github.com/0xOlias/ponder/commit/04204001eb6173b797d0e03b2939fb1c2cd3840b) Thanks [@0xOlias](https://github.com/0xOlias)! - Updated Ponder's logging behavior. Stdout log lines will not include timestamps, log level, service name, and a message. Logs are also written to files located at `/.ponder/logs/{timestamp}.log` in JSON format. There are now more log levels: `"silent"`, `"fatal"`, `"error"`, `"warn"`, `"info"`, `"debug"`, and `"trace"`. These can be configured using the `PONDER_LOG_LEVEL` environment variable.
+
+## 0.0.65
+
+### Patch Changes
+
+- [#230](https://github.com/0xOlias/ponder/pull/230) [`c9afd1b`](https://github.com/0xOlias/ponder/commit/c9afd1b627cba4f32197a2492a34ceb1be34fec3) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed transaction and block formatting to handle Arbitrum RPC data formats.
+
+## 0.0.64
+
+### Patch Changes
+
+- [#183](https://github.com/0xOlias/ponder/pull/183) [`1d82c94`](https://github.com/0xOlias/ponder/commit/1d82c9423f6f11364c35b10f11e47e622fec78d5) Thanks [@pyk](https://github.com/pyk)! - Fixed a bug where codegen would fail for schemas that include a field typed as `Float`.
+
+## 0.0.63
+
+### Patch Changes
+
+- [#225](https://github.com/0xOlias/ponder/pull/225) [`c474fb0`](https://github.com/0xOlias/ponder/commit/c474fb01fffc74aed17d247eb4bcea0168be5517) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug in the historical sync queue where block tasks were not being prioritzed properly. Now, when starting the historical sync, events should be available and processed almost immediately.
+
 ## 0.0.62
 
 ### Patch Changes

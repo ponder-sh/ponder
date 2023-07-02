@@ -1,5 +1,9 @@
 import {
   type Chain,
+  type HttpTransport,
+  type PublicClient,
+  type TestClient,
+  type WalletClient,
   createPublicClient,
   createTestClient,
   createWalletClient,
@@ -8,10 +12,10 @@ import {
 import { mainnet } from "viem/chains";
 
 import { buildOptions } from "@/config/options";
-import { ErrorService } from "@/errors/ErrorService";
+import { UserErrorService } from "@/errors/service";
+import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { Resources } from "@/Ponder";
-import { LoggerService } from "@/utils/logger";
 
 // Anvil test setup adapted from @viem/anvil `example-vitest` repository.
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
@@ -19,7 +23,7 @@ import { LoggerService } from "@/utils/logger";
 // ID of the current test worker. Used by the `@viem/anvil` proxy server.
 export const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
 
-export const anvil = {
+export const anvil: Chain = {
   ...mainnet, // We are using a mainnet fork for testing.
   id: 1, // We configured our anvil instance to use `1` as the chain id (see `globalSetup.ts`);
   rpcUrls: {
@@ -32,7 +36,7 @@ export const anvil = {
       webSocket: [`ws://127.0.0.1:8545/${poolId}`],
     },
   },
-} as Chain;
+};
 
 export const testNetworkConfig = {
   name: "mainnet",
@@ -41,27 +45,28 @@ export const testNetworkConfig = {
   pollingInterval: 500,
 };
 
-export const testClient = createTestClient({
-  chain: anvil,
-  mode: "anvil",
-  transport: http(),
-});
+export const testClient: TestClient<"anvil", HttpTransport, Chain> =
+  createTestClient({
+    chain: anvil,
+    mode: "anvil",
+    transport: http(),
+  });
 
-export const publicClient = createPublicClient({
-  chain: anvil,
-  transport: http(),
-});
+export const publicClient: PublicClient<HttpTransport, Chain> =
+  createPublicClient({
+    chain: anvil,
+    transport: http(),
+  });
 
-export const walletClient = createWalletClient({
-  chain: anvil,
-  transport: http(),
-});
+export const walletClient: WalletClient<HttpTransport, Chain> =
+  createWalletClient({
+    chain: anvil,
+    transport: http(),
+  });
 
 export const testResources: Resources = {
-  logger: new LoggerService({ options: { logLevel: 0 } }),
-  options: buildOptions({
-    cliOptions: { configFile: "", rootDir: "" },
-  }),
-  errors: new ErrorService(),
+  options: buildOptions({ cliOptions: { configFile: "", rootDir: "" } }),
+  logger: new LoggerService({ level: "silent" }),
+  errors: new UserErrorService(),
   metrics: new MetricsService(),
 };

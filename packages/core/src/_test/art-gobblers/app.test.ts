@@ -1,12 +1,16 @@
 import { rmSync } from "node:fs";
 import path from "node:path";
 import request from "supertest";
-import { afterEach, expect, test, TestContext } from "vitest";
+import { afterEach, beforeEach, expect, test, TestContext } from "vitest";
 
+import { setupEventStore, setupUserStore } from "@/_test/setup";
 import { testNetworkConfig } from "@/_test/utils";
 import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
+
+beforeEach(async (context) => await setupEventStore(context));
+beforeEach(async (context) => await setupUserStore(context));
 
 const setup = async ({ context }: { context: TestContext }) => {
   const config = await buildPonderConfig({
@@ -21,7 +25,11 @@ const setup = async ({ context }: { context: TestContext }) => {
       configFile: "ponder.config.ts",
     },
   });
-  const testOptions = { ...options, uiEnabled: false, logLevel: 1 };
+  const testOptions = {
+    ...options,
+    uiEnabled: false,
+    logLevel: "error",
+  } as const;
 
   const ponder = new Ponder({
     config: testConfig,

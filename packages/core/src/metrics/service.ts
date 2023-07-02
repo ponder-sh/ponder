@@ -8,9 +8,14 @@ const httpRequestBucketsInMs = [
 export class MetricsService {
   private registry: prometheus.Registry;
 
-  ponder_historical_task_total: prometheus.Counter<"network" | "kind">;
-  ponder_historical_task_failed: prometheus.Counter<"network" | "kind">;
-  ponder_historical_task_completed: prometheus.Counter<"network" | "kind">;
+  ponder_historical_scheduled_tasks: prometheus.Counter<"network" | "kind">;
+  ponder_historical_completed_tasks: prometheus.Counter<
+    "network" | "kind" | "status"
+  >;
+  ponder_historical_total_blocks: prometheus.Gauge<"network" | "logFilter">;
+  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "logFilter">;
+  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "logFilter">;
+
   ponder_historical_rpc_request_duration: prometheus.Histogram<
     "network" | "method"
   >;
@@ -30,22 +35,34 @@ export class MetricsService {
     });
 
     // Historical sync metrics
-    this.ponder_historical_task_total = new prometheus.Counter({
-      name: "ponder_historical_task_total",
+    this.ponder_historical_scheduled_tasks = new prometheus.Counter({
+      name: "ponder_historical_scheduled_tasks",
       help: "Number of historical sync tasks that have been scheduled",
       labelNames: ["network", "kind"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_task_failed = new prometheus.Counter({
-      name: "ponder_historical_task_failed",
-      help: "Number of historical sync tasks that failed due to an error",
-      labelNames: ["network", "kind"] as const,
+    this.ponder_historical_completed_tasks = new prometheus.Counter({
+      name: "ponder_historical_completed_tasks",
+      help: "Number of historical sync tasks that have been processed",
+      labelNames: ["network", "kind", "status"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_task_completed = new prometheus.Counter({
-      name: "ponder_historical_task_completed",
-      help: "Number of historical sync tasks that have been processed",
-      labelNames: ["network", "kind"] as const,
+    this.ponder_historical_total_blocks = new prometheus.Gauge({
+      name: "ponder_historical_total_blocks",
+      help: "Number of blocks required for the historical sync",
+      labelNames: ["network", "logFilter"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_cached_blocks = new prometheus.Gauge({
+      name: "ponder_historical_cached_blocks",
+      help: "Number of blocks that were found in the cache for the historical sync",
+      labelNames: ["network", "logFilter"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_completed_blocks = new prometheus.Gauge({
+      name: "ponder_historical_completed_blocks",
+      help: "Number of blocks that have been processed for the historical sync",
+      labelNames: ["network", "logFilter"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_rpc_request_duration = new prometheus.Histogram({

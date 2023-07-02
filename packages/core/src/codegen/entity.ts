@@ -7,6 +7,7 @@ const gqlScalarToTsType: Record<string, string | undefined> = {
   String: "string",
   Boolean: "boolean",
   Int: "number",
+  Float: "number",
   BigInt: "bigint",
   Bytes: "string",
 };

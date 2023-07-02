@@ -28,16 +28,32 @@ export const fromEtherscan = async ({
   const { name, chainId, apiUrl } = network;
   const contractAddress = url.pathname.slice(1).split("/")[1];
 
-  const txHash = await getContractCreationTxn(contractAddress, apiUrl, apiKey);
+  let blockNumber: number | undefined = undefined;
 
-  if (!apiKey) {
-    console.log("\n(1/2) Waiting 5 seconds for Etherscan API rate limit");
-    await wait(5000);
+  try {
+    const txHash = await getContractCreationTxn(
+      contractAddress,
+      apiUrl,
+      apiKey
+    );
+
+    if (!apiKey) {
+      console.log("\n(1/n) Waiting 5 seconds for Etherscan API rate limit");
+      await wait(5000);
+    }
+    const contractCreationBlockNumber = await getTxBlockNumber(
+      txHash,
+      apiUrl,
+      apiKey
+    );
+
+    blockNumber = contractCreationBlockNumber;
+  } catch (error) {
+    // Do nothing, blockNumber won't be set.
   }
-  const blockNumber = await getTxBlockNumber(txHash, apiUrl, apiKey);
 
   if (!apiKey) {
-    console.log("(2/2) Waiting 5 seconds for Etherscan API rate limit");
+    console.log("(2/n) Waiting 5 seconds for Etherscan API rate limit");
     await wait(5000);
   }
   const abis: { abi: string; contractName: string }[] = [];
@@ -61,15 +77,15 @@ export const fromEtherscan = async ({
       "Detected EIP-1967 proxy, fetching implementation contract ABIs"
     );
     if (!apiKey) {
-      console.log("(3/X) Waiting 5 seconds for Etherscan API rate limit");
+      console.log("(3/n) Waiting 5 seconds for Etherscan API rate limit");
       await wait(5000);
     }
-    const { implAddresses } = await getProxyImplementationAddresses(
+    const { implAddresses } = await getProxyImplementationAddresses({
       contractAddress,
-      blockNumber,
       apiUrl,
-      apiKey
-    );
+      fromBlock: blockNumber,
+      apiKey,
+    });
 
     for (const [index, implAddress] of implAddresses.entries()) {
       console.log(`Fetching ABI for implementation contract: ${implAddress}`);
@@ -138,7 +154,7 @@ export const fromEtherscan = async ({
         network: name,
         abi: abiConfig,
         address: contractAddress,
-        startBlock: blockNumber,
+        startBlock: blockNumber ?? undefined,
       },
     ],
   };
@@ -220,17 +236,22 @@ const getContractAbiAndName = async (
   return { abi, contractName };
 };
 
-const getProxyImplementationAddresses = async (
-  contractAddress: string,
-  fromBlock: number,
-  apiUrl: string,
-  apiKey?: string
-) => {
+const getProxyImplementationAddresses = async ({
+  contractAddress,
+  apiUrl,
+  fromBlock,
+  apiKey,
+}: {
+  contractAddress: string;
+  apiUrl: string;
+  fromBlock?: number;
+  apiKey?: string;
+}) => {
   const searchParams = new URLSearchParams({
     module: "logs",
     action: "getLogs",
     address: contractAddress,
-    fromBlock: String(fromBlock),
+    fromBlock: fromBlock ? String(fromBlock) : "0",
     toBlock: "latest",
     topic0:
       "0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
@@ -241,7 +262,7 @@ const getProxyImplementationAddresses = async (
   const logs = data.result;
 
   const implAddresses = logs.map((log: any) => {
-    if (log.topics.length === 2) {
+    if (log.topics[0] && log.topics[1]) {
       // If there are two topics, this is a compliant EIP-1967 proxy and the address is indexed.
       return `0x${log.topics[1].slice(26)}`;
     } else {

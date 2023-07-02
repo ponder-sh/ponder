@@ -1,5 +1,23 @@
 # create-ponder
 
+## 0.0.67
+
+### Patch Changes
+
+- [#239](https://github.com/0xOlias/ponder/pull/239) [`af90fb1`](https://github.com/0xOlias/ponder/commit/af90fb1710c529c760cb93cbde1b703d188a872a) Thanks [@0xOlias](https://github.com/0xOlias)! - Bumped `viem` and `abitype` versions.
+
+## 0.0.66
+
+## 0.0.65
+
+### Patch Changes
+
+- [#233](https://github.com/0xOlias/ponder/pull/233) [`1a44573`](https://github.com/0xOlias/ponder/commit/1a4457399ad33ab5652d054ded42bc5718cb5462) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for explorer.zora.energy links in `create-ponder` etherscan template.
+
+## 0.0.64
+
+## 0.0.63
+
 ## 0.0.62
 
 ## 0.0.61

@@ -217,6 +217,65 @@ describe("create-ponder", () => {
         expect(JSON.parse(implementationAbiString).length).toBeGreaterThan(0);
       });
     });
+
+    describe("zora EIP-1967 proxy (ZoraNFTCreatorProxy)", () => {
+      const rootDir = path.join(tmpDir, randomUUID());
+
+      beforeAll(async () => {
+        await run(
+          {
+            projectName: "ZoraNFTCreatorProxy",
+            rootDir,
+            template: {
+              kind: TemplateKind.ETHERSCAN,
+              link: "https://explorer.zora.energy/address/0xA2c2A96A232113Dd4993E8b048EEbc3371AE8d85",
+            },
+          },
+          {
+            installCommand:
+              'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
+          }
+        );
+      });
+
+      test("creates project files and directories", async () => {
+        const root = fs.readdirSync(rootDir);
+        expect(root).toContain(".env.local");
+        expect(root).toContain(".gitignore");
+        expect(root).toContain("abis");
+        expect(root).toContain("generated");
+        expect(root).toContain("src");
+        expect(root).toContain("node_modules");
+        expect(root).toContain("package.json");
+        expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("schema.graphql");
+        expect(root).toContain("tsconfig.json");
+      });
+
+      test("downloads abis", async () => {
+        const proxyAbiString = fs.readFileSync(
+          path.join(rootDir, `abis/ZoraNFTCreatorProxy.json`),
+          { encoding: "utf8" }
+        );
+        expect(JSON.parse(proxyAbiString).length).toBeGreaterThan(0);
+
+        const implementationAbiString = fs.readFileSync(
+          path.join(rootDir, `abis/ZoraNFTCreatorV1_0xe776.json`),
+          { encoding: "utf8" }
+        );
+        expect(JSON.parse(implementationAbiString).length).toBeGreaterThan(0);
+      });
+
+      test("creates codegen files", async () => {
+        const generated = fs.readdirSync(path.join(rootDir, "generated"));
+        expect(generated.sort()).toEqual(["index.ts", "schema.graphql"].sort());
+      });
+
+      test("creates src files", async () => {
+        const src = fs.readdirSync(path.join(rootDir, "src"));
+        expect(src.sort()).toEqual(["ZoraNFTCreatorProxy.ts"].sort());
+      });
+    });
   });
 
   describe("from subgraph id", () => {

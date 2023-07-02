@@ -9,9 +9,9 @@ import { Resources } from "@/Ponder";
 import { Schema } from "@/schema/types";
 import { ensureDirExists } from "@/utils/exists";
 
-import { buildContractTypes } from "./buildContractTypes";
-import { buildEntityTypes } from "./buildEntityTypes";
-import { buildEventTypes } from "./buildEventTypes";
+import { buildContractTypes } from "./contract";
+import { buildEntityTypes } from "./entity";
+import { buildEventTypes } from "./event";
 import { formatPrettier } from "./prettier";
 
 export class CodegenService extends Emittery {
@@ -81,6 +81,11 @@ export class CodegenService extends Emittery {
     const filePath = path.join(this.resources.options.generatedDir, "index.ts");
     ensureDirExists(filePath);
     writeFileSync(filePath, final, "utf8");
+
+    this.resources.logger.debug({
+      service: "codegen",
+      msg: `Wrote new file at generated/index.ts`,
+    });
   }
 
   generateSchemaFile({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
@@ -97,5 +102,10 @@ export class CodegenService extends Emittery {
     );
     ensureDirExists(filePath);
     writeFileSync(filePath, final, "utf8");
+
+    this.resources.logger.debug({
+      service: "codegen",
+      msg: `Wrote new file at generated/schema.graphql`,
+    });
   }
 }

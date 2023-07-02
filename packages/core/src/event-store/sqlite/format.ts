@@ -4,7 +4,6 @@ import {
   type RpcLog,
   type RpcTransaction,
   hexToNumber,
-  transactionType,
 } from "viem";
 import { Address, Hash, Hex } from "viem";
 
@@ -78,7 +77,7 @@ type TransactionsTable = {
   v: Buffer; // BigInt
   value: Buffer; // BigInt
 
-  type: "legacy" | "eip2930" | "eip1559";
+  type: Hex;
   gasPrice: Buffer | null; // BigInt
   maxFeePerGas: Buffer | null; // BigInt
   maxPriorityFeePerGas: Buffer | null; // BigInt
@@ -115,7 +114,7 @@ export function rpcToSqliteTransaction(
     s: transaction.s,
     to: transaction.to ? transaction.to : null,
     transactionIndex: Number(transaction.transactionIndex),
-    type: transactionType[transaction.type],
+    type: transaction.type ?? "0x0",
     value: intToBlob(transaction.value),
     v: intToBlob(transaction.v),
   };

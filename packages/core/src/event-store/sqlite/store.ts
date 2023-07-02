@@ -173,21 +173,6 @@ export class SqliteEventStore implements EventStore {
     });
   };
 
-  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
-    const results = await this.db
-      .selectFrom("logFilterCachedRanges")
-      .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
-      .where("filterKey", "=", filterKey)
-      .execute();
-
-    return results.map((range) => ({
-      ...range,
-      startBlock: blobToBigInt(range.startBlock),
-      endBlock: blobToBigInt(range.endBlock),
-      endBlockTimestamp: blobToBigInt(range.endBlockTimestamp),
-    }));
-  };
-
   insertFinalizedLogs = async ({
     chainId,
     logs: rpcLogs,
@@ -216,20 +201,12 @@ export class SqliteEventStore implements EventStore {
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
-    logFilterRange: {
-      logFilterKey,
-      blockNumberToCacheFrom,
-      logFilterStartBlockNumber,
-    },
+    logFilterRange: { logFilterKey, blockNumberToCacheFrom },
   }: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
-    logFilterRange: {
-      logFilterKey: string;
-      blockNumberToCacheFrom: number;
-      logFilterStartBlockNumber: number;
-    };
+    logFilterRange: { logFilterKey: string; blockNumberToCacheFrom: number };
   }) => {
     const block: InsertableBlock = {
       ...rpcToSqliteBlock(rpcBlock),
@@ -272,10 +249,15 @@ export class SqliteEventStore implements EventStore {
           .execute(),
       ]);
     });
+  };
 
-    // After inserting the new cached range record, execute a transaction to merge
-    // all adjacent cached ranges. Return the end block timestamp of the cached interval
-    // that contains the start block number of the log filter.
+  mergeLogFilterCachedRanges = async ({
+    logFilterKey,
+    logFilterStartBlockNumber,
+  }: {
+    logFilterKey: string;
+    logFilterStartBlockNumber: number;
+  }) => {
     const startingRangeEndTimestamp = await this.db
       .transaction()
       .execute(async (tx) => {
@@ -334,6 +316,21 @@ export class SqliteEventStore implements EventStore {
       });
 
     return { startingRangeEndTimestamp };
+  };
+
+  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
+    const results = await this.db
+      .selectFrom("logFilterCachedRanges")
+      .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
+      .where("filterKey", "=", filterKey)
+      .execute();
+
+    return results.map((range) => ({
+      ...range,
+      startBlock: blobToBigInt(range.startBlock),
+      endBlock: blobToBigInt(range.endBlock),
+      endBlockTimestamp: blobToBigInt(range.endBlockTimestamp),
+    }));
   };
 
   insertContractReadResult = async ({
@@ -616,7 +613,9 @@ export class SqliteEventStore implements EventStore {
           transactionIndex: Number(result.log_transactionIndex),
         },
         block: {
-          baseFeePerGas: blobToBigInt(result.block_baseFeePerGas),
+          baseFeePerGas: result.block_baseFeePerGas
+            ? blobToBigInt(result.block_baseFeePerGas)
+            : null,
           difficulty: blobToBigInt(result.block_difficulty),
           extraData: result.block_extraData,
           gasLimit: blobToBigInt(result.block_gasLimit),
@@ -650,14 +649,28 @@ export class SqliteEventStore implements EventStore {
           transactionIndex: Number(result.tx_transactionIndex),
           value: blobToBigInt(result.tx_value),
           v: blobToBigInt(result.tx_v),
-          ...(result.tx_type === "legacy"
+          ...(result.tx_type === "0x0"
             ? {
-                type: result.tx_type,
+                type: "legacy",
                 gasPrice: blobToBigInt(result.tx_gasPrice),
               }
-            : result.tx_type === "eip1559"
+            : result.tx_type === "0x1"
             ? {
-                type: result.tx_type,
+                type: "eip2930",
+                gasPrice: blobToBigInt(result.tx_gasPrice),
+                accessList: JSON.parse(result.tx_accessList),
+              }
+            : result.tx_type === "0x2"
+            ? {
+                type: "eip1559",
+                maxFeePerGas: blobToBigInt(result.tx_maxFeePerGas),
+                maxPriorityFeePerGas: blobToBigInt(
+                  result.tx_maxPriorityFeePerGas
+                ),
+              }
+            : result.tx_type === "0x7e"
+            ? {
+                type: "deposit",
                 maxFeePerGas: blobToBigInt(result.tx_maxFeePerGas),
                 maxPriorityFeePerGas: blobToBigInt(
                   result.tx_maxPriorityFeePerGas
@@ -665,8 +678,6 @@ export class SqliteEventStore implements EventStore {
               }
             : {
                 type: result.tx_type,
-                gasPrice: blobToBigInt(result.tx_gasPrice),
-                accessList: JSON.parse(result.tx_accessList),
               }),
         },
       };

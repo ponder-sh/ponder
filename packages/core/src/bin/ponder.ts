@@ -72,7 +72,11 @@ cli
     const config = await buildPonderConfig({ configFile });
     const options = buildOptions({ cliOptions, configOptions: config.options });
 
-    const codegenOptions = { ...options, uiEnabled: false, logLevel: 0 };
+    const codegenOptions = {
+      ...options,
+      uiEnabled: false,
+      logLevel: "silent",
+    } as const;
 
     const ponder = new Ponder({ config, options: codegenOptions });
     registerKilledProcessListener(() => ponder.kill());

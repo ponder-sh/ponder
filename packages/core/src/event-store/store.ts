@@ -46,9 +46,17 @@ export interface EventStore {
     logFilterRange: {
       logFilterKey: string;
       blockNumberToCacheFrom: number;
-      logFilterStartBlockNumber: number;
     };
+  }): Promise<void>;
+
+  mergeLogFilterCachedRanges(options: {
+    logFilterKey: string;
+    logFilterStartBlockNumber: number;
   }): Promise<{ startingRangeEndTimestamp: number }>;
+
+  getLogFilterCachedRanges(options: {
+    filterKey: string;
+  }): Promise<LogFilterCachedRange[]>;
 
   insertUnfinalizedBlock(options: {
     chainId: number;
@@ -66,10 +74,6 @@ export interface EventStore {
     chainId: number;
     toBlockNumber: number;
   }): Promise<void>;
-
-  getLogFilterCachedRanges(options: {
-    filterKey: string;
-  }): Promise<LogFilterCachedRange[]>;
 
   insertContractReadResult(options: {
     address: string;

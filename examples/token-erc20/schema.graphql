@@ -1,0 +1,34 @@
+type Account @entity {
+  id: String!
+  balance: BigInt!
+  approvals: [Approval!]! @derivedFrom(field: "owner")
+  isOwner: Boolean!
+
+  approvalOwnerEvents: [ApprovalEvent!]! @derivedFrom(field: "owner")
+  approvalSpenderEvents: [ApprovalEvent!]! @derivedFrom(field: "spender")
+  transferFromEvents: [TransferEvent!]! @derivedFrom(field: "from")
+  transferToEvents: [TransferEvent!]! @derivedFrom(field: "to")
+}
+
+type Approval @entity {
+  id: String!
+  amount: BigInt!
+  owner: Account!
+  spender: String!
+}
+
+type TransferEvent @entity {
+  id: String!
+  amount: BigInt!
+  from: Account!
+  to: Account!
+  timestamp: Int!
+}
+
+type ApprovalEvent @entity {
+  id: String!
+  amount: BigInt!
+  owner: Account!
+  spender: Account!
+  timestamp: Int!
+}

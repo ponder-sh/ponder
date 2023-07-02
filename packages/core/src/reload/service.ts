@@ -4,8 +4,8 @@ import { GraphQLSchema } from "graphql";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import pico from "picocolors";
 
+import { UserError } from "@/errors/user";
 import { Resources } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
 import { Schema } from "@/schema/types";
@@ -25,7 +25,7 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
   resources: Resources;
 
   latestFileHashes: Record<string, string | undefined> = {};
-  kill?: () => Promise<void>;
+  closeWatcher?: () => Promise<void>;
 
   constructor({ resources }: { resources: Resources }) {
     super();
@@ -40,17 +40,12 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
     ];
 
     const watcher = chokidar.watch(watchFiles);
-    this.kill = async () => {
+    this.closeWatcher = async () => {
       await watcher.close();
     };
 
     watcher.on("change", async (filePath) => {
       if (filePath === this.resources.options.configFile) {
-        this.resources.logger.logMessage(
-          "error",
-          "detected change in ponder.config.ts. " +
-            pico.bold("Restart the server.")
-        );
         this.emit("ponderConfigChanged");
         return;
       }
@@ -58,12 +53,12 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
       if (this.isFileChanged(filePath)) {
         const fileName = path.basename(filePath);
 
-        this.resources.logger.logMessage(
-          "event",
-          "detected change in " + pico.bold(fileName)
-        );
+        this.resources.logger.info({
+          service: "build",
+          msg: `Detected change in ${fileName}`,
+        });
 
-        this.resources.errors.clearHandlerError();
+        this.resources.errors.hasUserError = false;
 
         if (filePath === this.resources.options.schemaFile) {
           this.loadSchema();
@@ -74,17 +69,33 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
     });
   }
 
+  async kill() {
+    this.closeWatcher?.();
+    this.resources.logger.debug({
+      service: "build",
+      msg: `Killed build service`,
+    });
+  }
+
   async loadHandlers() {
     try {
-      const handlers = await readHandlers({
-        options: this.resources.options,
-        logger: this.resources.logger,
-      });
+      const handlers = await readHandlers({ options: this.resources.options });
       this.emit("newHandlers", { handlers });
     } catch (error_) {
       const error = error_ as Error;
-      error.message = "Building event handlers: " + error.message;
-      this.resources.errors.submitHandlerError({ error });
+
+      // TODO: Build the UserError object within readHandlers, check instanceof,
+      // then log/submit as-is if it's already a UserError.
+      const message = `Error while building handlers: ${error.message}`;
+      const userError = new UserError(message, {
+        stack: error.stack,
+      });
+
+      this.resources.logger.error({
+        service: "build",
+        error: userError,
+      });
+      this.resources.errors.submitUserError({ error: userError });
     }
   }
 
@@ -99,9 +110,22 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
       return { schema, graphqlSchema };
     } catch (error_) {
       const error = error_ as Error;
-      error.message = "Building schema: " + error.message;
-      error.stack = "";
-      this.resources.errors.submitHandlerError({ error });
+
+      // TODO: Parse GraphQLError instances better here.
+      // We can use the `.locations` property to build a pretty codeframe.
+
+      // TODO: Build the UserError object within readHandlers, check instanceof,
+      // then log/submit as-is if it's already a UserError.
+      const message = `Error while building schema.graphql: ${error.message}`;
+      const userError = new UserError(message, {
+        stack: error.stack,
+      });
+
+      this.resources.logger.error({
+        service: "build",
+        error: userError,
+      });
+      this.resources.errors.submitUserError({ error: userError });
     }
   }
 

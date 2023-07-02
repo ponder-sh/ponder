@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.0.62",
+  "version": "0.0.67",
   "description": "API builder for blockchain apps",
   "license": "MIT",
   "author": "olias.eth",
@@ -29,7 +29,6 @@
     "chokidar": "^3.5.3",
     "cors": "^2.8.5",
     "data-uri-to-buffer": "3.0.1",
-    "detect-port": "^1.5.1",
     "dotenv": "^16.0.1",
     "emittery": "^0.13.1",
     "esbuild": "^0.15.2",
@@ -46,13 +45,14 @@
     "p-queue": "^6.6.2",
     "pg": "^8.9.0",
     "picocolors": "^1.0.0",
+    "pino": "^8.14.1",
     "prettier": "^2.6.2",
     "prom-client": "^14.2.0",
     "react": "17",
     "retry": "^0.13.1",
     "stacktrace-parser": "^0.1.10",
     "tsc-alias": "^1.8.2",
-    "viem": "0.3.50"
+    "viem": "^1.2.6"
   },
   "devDependencies": {
     "@types/babel__code-frame": "^7.0.3",
@@ -68,7 +68,7 @@
     "@types/react": "^18.0.25",
     "@types/retry": "^0.12.2",
     "@types/supertest": "^2.0.12",
-    "abitype": "^0.6.7",
+    "abitype": "^0.8.11",
     "module-alias": "^2.2.2",
     "supertest": "^6.3.3",
     "tsup": "^6.7.0",

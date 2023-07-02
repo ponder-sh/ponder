@@ -13,11 +13,8 @@ import { parse as parseStackTrace, StackFrame } from "stacktrace-parser";
 
 import { PonderOptions } from "@/config/options";
 
-export const getStackTraceAndCodeFrame = (
-  error: Error,
-  options: PonderOptions
-) => {
-  if (!error.stack) return { stackTrace: undefined, codeFrame: undefined };
+export const getStackTrace = (error: Error, options: PonderOptions) => {
+  if (!error.stack) return undefined;
 
   const buildDir = path.join(options.ponderDir, "out");
 
@@ -75,19 +72,27 @@ export const getStackTraceAndCodeFrame = (
     .filter((f): f is StackFrame => !!f);
 
   if (sourceMappedStackTrace.length === 0 || !codeFrame) {
-    return { stackTrace: undefined, codeFrame: undefined };
+    return undefined;
   }
 
-  const formattedStackTrace = sourceMappedStackTrace
-    .map(
-      (frame) =>
-        `    at ${frame.methodName} (${frame.file}:${frame.lineNumber}${
-          frame.column !== null ? `:${frame.column}` : ""
-        })`
-    )
-    .join("\n");
+  const formattedStackTrace = [
+    ...sourceMappedStackTrace.map((frame) => {
+      let result = "  at";
 
-  return { stackTrace: formattedStackTrace, codeFrame };
+      result += ` ${
+        frame.methodName === "<unknown>" ? "(anonymous)" : frame.methodName
+      }`;
+
+      result += ` (${frame.file}:${frame.lineNumber}${
+        frame.column !== null ? `:${frame.column}` : ""
+      })`;
+
+      return result;
+    }),
+    codeFrame,
+  ].join("\n");
+
+  return formattedStackTrace;
 };
 
 function getSourceMappedStackFrame(
