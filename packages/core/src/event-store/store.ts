@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import type { Kysely, MigrationInfo, Migrator } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type { Block } from "@/types/block";
@@ -30,6 +30,7 @@ export type ContractReadResult = {
 
 export interface EventStore {
   db: Kysely<any>;
+  migrator: Migrator;
 
   migrateUp(): Promise<void>;
   migrateDown(): Promise<void>;
