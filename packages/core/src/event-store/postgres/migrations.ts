@@ -105,6 +105,33 @@ const migrations: Record<string, Migration> = {
       await db.schema.dropTable("logFilterCachedRanges").execute();
     },
   },
+  ["2023_06_20_0_indices"]: {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createIndex("log_events_index")
+        .on("logs")
+        .columns(["address", "chainId", "blockHash"])
+        .execute();
+
+      await db.schema
+        .createIndex("blocks_index")
+        .on("blocks")
+        .columns(["timestamp", "number"])
+        .execute();
+
+      await db.schema
+        .createIndex("logFilterCachedRanges_index")
+        .on("logFilterCachedRanges")
+        .columns(["filterKey"])
+        .execute();
+    },
+
+    async down(db: Kysely<any>) {
+      await db.schema.dropIndex("log_events_index").execute();
+      await db.schema.dropIndex("logFilterCachedRanges_index").execute();
+      await db.schema.dropIndex("blocks_index").execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

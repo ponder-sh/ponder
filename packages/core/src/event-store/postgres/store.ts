@@ -31,7 +31,7 @@ import { migrationProvider } from "./migrations";
 
 export class PostgresEventStore implements EventStore {
   db: Kysely<EventStoreTables>;
-  private migrator: Migrator;
+  migrator: Migrator;
 
   constructor({
     pool,

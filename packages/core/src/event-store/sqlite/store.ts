@@ -24,7 +24,7 @@ import { migrationProvider } from "./migrations";
 
 export class SqliteEventStore implements EventStore {
   db: Kysely<EventStoreTables>;
-  private migrator: Migrator;
+  migrator: Migrator;
 
   constructor({ db }: { db: Sqlite.Database }) {
     this.db = new Kysely<EventStoreTables>({
