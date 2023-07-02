@@ -1,4 +1,4 @@
-import type { Kysely, MigrationInfo, Migrator } from "kysely";
+import type { Kysely, Migrator } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type { Block } from "@/types/block";
