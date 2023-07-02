@@ -15,15 +15,21 @@ export class MetricsService {
   ponder_historical_total_blocks: prometheus.Gauge<"network" | "logFilter">;
   ponder_historical_cached_blocks: prometheus.Gauge<"network" | "logFilter">;
   ponder_historical_completed_blocks: prometheus.Gauge<"network" | "logFilter">;
-
   ponder_historical_rpc_request_duration: prometheus.Histogram<
     "network" | "method"
   >;
+
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_timestamp: prometheus.Gauge<"network">;
   ponder_realtime_rpc_request_duration: prometheus.Histogram<
     "network" | "method"
   >;
+
+  ponder_handlers_matched_events: prometheus.Gauge<"eventName">;
+  ponder_handlers_handled_events: prometheus.Gauge<"eventName">;
+  ponder_handlers_processed_events: prometheus.Gauge<"eventName">;
+  ponder_handlers_has_error: prometheus.Gauge;
+  ponder_handlers_latest_processed_timestamp: prometheus.Gauge;
 
   constructor() {
     this.registry = new prometheus.Registry();
@@ -91,6 +97,36 @@ export class MetricsService {
       help: "Duration of RPC requests completed during the realtime sync",
       labelNames: ["network", "method"] as const,
       buckets: httpRequestBucketsInMs,
+      registers: [this.registry],
+    });
+
+    // Handlers metrics
+    this.ponder_handlers_matched_events = new prometheus.Gauge({
+      name: "ponder_handlers_matched_events",
+      help: "Number of available events for all log filters",
+      labelNames: ["eventName"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_handlers_handled_events = new prometheus.Gauge({
+      name: "ponder_handlers_handled_events",
+      help: "Number of available events for which there is a handler function registered",
+      labelNames: ["eventName"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_handlers_processed_events = new prometheus.Gauge({
+      name: "ponder_handlers_processed_events",
+      help: "Number of available events that have been processed",
+      labelNames: ["eventName"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_handlers_has_error = new prometheus.Gauge({
+      name: "ponder_handlers_has_error",
+      help: "Boolean (0 or 1) indicating if an error was encountered while running handlers",
+      registers: [this.registry],
+    });
+    this.ponder_handlers_latest_processed_timestamp = new prometheus.Gauge({
+      name: "ponder_handlers_latest_processed_timestamp",
+      help: "Block timestamp of the latest processed event",
       registers: [this.registry],
     });
   }

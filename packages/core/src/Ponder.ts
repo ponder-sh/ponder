@@ -330,19 +330,20 @@ export class Ponder {
       });
 
       realtimeSyncService.on("shallowReorg", ({ commonAncestorTimestamp }) => {
-        this.eventAggregatorService.handleReorg({
-          timestamp: commonAncestorTimestamp,
-        });
+        this.eventAggregatorService.handleReorg({ commonAncestorTimestamp });
       });
     });
 
-    this.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
-      this.eventHandlerService.processEvents({ toTimestamp: timestamp });
+    this.eventAggregatorService.on("newCheckpoint", async () => {
+      await this.eventHandlerService.processEvents();
     });
 
-    this.eventAggregatorService.on("reorg", ({ commonAncestorTimestamp }) => {
-      this.eventHandlerService.handleReorg({ commonAncestorTimestamp });
-    });
+    this.eventAggregatorService.on(
+      "reorg",
+      async ({ commonAncestorTimestamp }) => {
+        await this.eventHandlerService.handleReorg({ commonAncestorTimestamp });
+      }
+    );
 
     this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
       if (this.serverService.isHistoricalEventProcessingComplete) return;
@@ -398,41 +399,11 @@ export class Ponder {
         );
       }
 
-      this.uiService.ui.handlerError = this.resources.errors.hasUserError;
-      this.uiService.ui.handlersHandledTotal =
-        this.eventHandlerService.metrics.eventsAddedToQueue;
-      this.uiService.ui.handlersCurrent =
-        this.eventHandlerService.metrics.eventsProcessedFromQueue;
-      this.uiService.ui.handlersTotal =
-        this.eventHandlerService.metrics.totalMatchedEvents;
-      this.uiService.ui.handlersToTimestamp =
-        this.eventHandlerService.metrics.latestHandledEventTimestamp;
-
       this.uiService.ui.port = this.serverService.port;
     }, 17);
 
     this.killFunctions.push(() => {
       clearInterval(interval);
-    });
-
-    this.eventHandlerService.on("reset", () => {
-      this.uiService.ui.handlersCurrent = 0;
-      this.uiService.ui.handlersTotal = 0;
-      this.uiService.ui.handlersHandledTotal = 0;
-      this.uiService.ui.handlersToTimestamp = 0;
-    });
-
-    this.eventHandlerService.on("taskCompleted", () => {
-      this.uiService.ui.handlerError = this.resources.errors.hasUserError;
-      this.uiService.ui.handlersHandledTotal =
-        this.eventHandlerService.metrics.eventsAddedToQueue;
-      this.uiService.ui.handlersCurrent =
-        this.eventHandlerService.metrics.eventsProcessedFromQueue;
-      this.uiService.ui.handlersTotal =
-        this.eventHandlerService.metrics.totalMatchedEvents;
-      this.uiService.ui.handlersToTimestamp =
-        this.eventHandlerService.metrics.latestHandledEventTimestamp;
-      this.uiService.render();
     });
   }
 }
