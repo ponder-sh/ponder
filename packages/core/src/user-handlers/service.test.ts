@@ -115,7 +115,8 @@ test("processEvents() calls event handler functions", async (context) => {
 
   await service.reset({ schema, handlers });
 
-  await service.processEvents({ toTimestamp: 10 });
+  eventAggregatorService.checkpoint = 10;
+  await service.processEvents();
 
   expect(transferHandler).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -152,7 +153,8 @@ test("processEvents() calls getEvents with expected parameters", async (context)
 
   await service.reset({ schema, handlers });
 
-  await service.processEvents({ toTimestamp: 10 });
+  eventAggregatorService.checkpoint = 10;
+  await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith({
     fromTimestamp: 0,
@@ -160,7 +162,8 @@ test("processEvents() calls getEvents with expected parameters", async (context)
     handledLogFilters,
   });
 
-  await service.processEvents({ toTimestamp: 50 });
+  eventAggregatorService.checkpoint = 50;
+  await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith({
     fromTimestamp: 11,
@@ -186,7 +189,7 @@ test("reset() processes events after resetting", async (context) => {
   await service.reset({ schema, handlers });
 
   eventAggregatorService.checkpoint = 10;
-  await service.processEvents({ toTimestamp: 10 });
+  await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith({
     fromTimestamp: 0,
@@ -222,7 +225,8 @@ test("handleReorg() reverts the user store", async (context) => {
 
   await service.reset({ schema, handlers });
 
-  await service.processEvents({ toTimestamp: 10 });
+  eventAggregatorService.checkpoint = 10;
+  await service.processEvents();
 
   await service.handleReorg({ commonAncestorTimestamp: 6 });
 
@@ -246,7 +250,7 @@ test("handleReorg() processes events between the reorg timestamp and the checkpo
   await service.reset({ schema, handlers });
 
   eventAggregatorService.checkpoint = 10;
-  await service.processEvents({ toTimestamp: 10 });
+  await service.processEvents();
 
   // This simulates a scenario where there was a reorg back to 6
   // and the new latest block is 9.
