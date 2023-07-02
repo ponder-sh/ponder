@@ -1,31 +1,13 @@
 import "@/utils/globals";
 
-import SqliteDatabase from "better-sqlite3";
-import { Pool } from "pg";
 import { hexToNumber, RpcBlock, RpcTransaction } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
-import { poolId } from "@/_test/utils";
-import { patchSqliteDatabase } from "@/config/database";
-import { PostgresEventStore } from "@/event-store/postgres/store";
-import { SqliteEventStore } from "@/event-store/sqlite/store";
+import { setupEventStore } from "@/_test/setup";
 
-beforeEach(async (context) => {
-  if (process.env.DATABASE_URL) {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
-    context.eventStore = new PostgresEventStore({ pool, databaseSchema });
-
-    return async () => {
-      await pool.query(`DROP SCHEMA IF EXISTS "${databaseSchema}" CASCADE`);
-    };
-  } else {
-    const rawSqliteDb = new SqliteDatabase(":memory:");
-    const db = patchSqliteDatabase({ db: rawSqliteDb });
-    context.eventStore = new SqliteEventStore({ db });
-  }
-});
-
+beforeEach(
+  async (context) => await setupEventStore(context, { skipMigrateUp: true })
+);
 test("setup creates tables", async (context) => {
   const { eventStore } = context;
 
