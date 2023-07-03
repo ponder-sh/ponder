@@ -112,8 +112,7 @@ export class Ponder {
           logFilters: logFiltersForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
-          metrics,
-          logger,
+          resources,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,

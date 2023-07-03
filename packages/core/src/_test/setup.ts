@@ -83,6 +83,7 @@ export async function setupEventStore(
     const rawSqliteDb = new SqliteDatabase(":memory:");
     const db = patchSqliteDatabase({ db: rawSqliteDb });
     context.eventStore = new SqliteEventStore({ db });
+
     if (!options.skipMigrateUp) {
       await context.eventStore.migrateUp();
     }

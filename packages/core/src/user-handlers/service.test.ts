@@ -4,7 +4,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore, setupUserStore } from "@/_test/setup";
-import { publicClient, testResources } from "@/_test/utils";
+import { publicClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { EventAggregatorService } from "@/event-aggregator/service";
@@ -110,10 +110,10 @@ beforeEach(() => {
 });
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
-  const { eventStore, userStore } = context;
+  const { resources, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources: testResources,
+    resources,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -147,10 +147,10 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 });
 
 test("processEvents() calls event handler functions with correct arguments", async (context) => {
-  const { eventStore, userStore } = context;
+  const { resources, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources: testResources,
+    resources,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -185,10 +185,10 @@ test("processEvents() calls event handler functions with correct arguments", asy
 });
 
 test("processEvents() model methods insert data into the user store", async (context) => {
-  const { eventStore, userStore } = context;
+  const { resources, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources: testResources,
+    resources,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -210,11 +210,10 @@ test("processEvents() model methods insert data into the user store", async (con
 });
 
 test("processEvents() updates event count metrics", async (context) => {
-  const { eventStore, userStore } = context;
-  const { metrics } = testResources;
+  const { resources, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources: testResources,
+    resources,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -228,19 +227,19 @@ test("processEvents() updates event count metrics", async (context) => {
   await service.processEvents();
 
   const matchedEventsMetric = (
-    await metrics.ponder_handlers_matched_events.get()
+    await resources.metrics.ponder_handlers_matched_events.get()
   ).values[0].value;
   expect(matchedEventsMetric).toBe(10);
 
   const handledEventsMetric = (
-    await metrics.ponder_handlers_handled_events.get()
+    await resources.metrics.ponder_handlers_handled_events.get()
   ).values;
   expect(handledEventsMetric).toMatchObject([
     { labels: { eventName: "USDC:Transfer" }, value: 1 },
   ]);
 
   const processedEventsMetric = (
-    await metrics.ponder_handlers_processed_events.get()
+    await resources.metrics.ponder_handlers_processed_events.get()
   ).values;
   expect(processedEventsMetric).toMatchObject([
     { labels: { eventName: "USDC:Transfer" }, value: 1 },
@@ -250,10 +249,10 @@ test("processEvents() updates event count metrics", async (context) => {
 });
 
 test("reset() reloads the user store", async (context) => {
-  const { eventStore, userStore } = context;
+  const { resources, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources: testResources,
+    resources,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -286,11 +285,10 @@ test("reset() reloads the user store", async (context) => {
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { eventStore, userStore } = context;
-  const { metrics } = testResources;
+  const { resources, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources: testResources,
+    resources,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -304,14 +302,14 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   await service.processEvents();
 
   const latestProcessedTimestampMetric = (
-    await metrics.ponder_handlers_latest_processed_timestamp.get()
+    await resources.metrics.ponder_handlers_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetric).toBe(10);
 
   await service.reset({ schema, handlers });
 
   const latestProcessedTimestampMetricAfterReset = (
-    await metrics.ponder_handlers_latest_processed_timestamp.get()
+    await resources.metrics.ponder_handlers_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReset).toBe(0);
 
@@ -319,18 +317,18 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 });
 
 test("handleReorg() reverts the user store", async (context) => {
-  const { eventStore, userStore } = context;
-
-  const userStoreRevertSpy = vi.spyOn(userStore, "revert");
+  const { resources, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources: testResources,
+    resources,
     eventStore,
     userStore,
     eventAggregatorService,
     contracts,
     logFilters,
   });
+
+  const userStoreRevertSpy = vi.spyOn(userStore, "revert");
 
   await service.reset({ schema, handlers });
 
@@ -345,18 +343,18 @@ test("handleReorg() reverts the user store", async (context) => {
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
-  const { eventStore, userStore } = context;
-
-  const userStoreRevertSpy = vi.spyOn(userStore, "revert");
+  const { resources, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources: testResources,
+    resources,
     eventStore,
     userStore,
     eventAggregatorService,
     contracts,
     logFilters,
   });
+
+  const userStoreRevertSpy = vi.spyOn(userStore, "revert");
 
   await service.reset({ schema, handlers });
 
@@ -375,10 +373,10 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
-  const { eventStore, userStore } = context;
+  const { resources, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources: testResources,
+    resources,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -413,11 +411,10 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { eventStore, userStore } = context;
-  const { metrics } = testResources;
+  const { resources, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources: testResources,
+    resources,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -431,7 +428,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   await service.processEvents();
 
   const latestProcessedTimestampMetric = (
-    await metrics.ponder_handlers_latest_processed_timestamp.get()
+    await resources.metrics.ponder_handlers_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetric).toBe(10);
 
@@ -441,7 +438,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   await service.handleReorg({ commonAncestorTimestamp: 6 });
 
   const latestProcessedTimestampMetricAfterReorg = (
-    await metrics.ponder_handlers_latest_processed_timestamp.get()
+    await resources.metrics.ponder_handlers_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReorg).toBe(6);
 
