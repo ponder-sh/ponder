@@ -14,7 +14,7 @@ import { Network } from "@/config/networks";
 
 import { HistoricalSyncService } from "./service";
 
-beforeEach(async (context) => await setupEventStore(context));
+beforeEach((context) => setupEventStore(context));
 
 const { metrics, logger } = testResources;
 const network: Network = {

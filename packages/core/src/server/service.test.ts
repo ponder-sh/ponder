@@ -12,7 +12,7 @@ import { range } from "@/utils/range";
 import { buildGqlSchema } from "./graphql/buildGqlSchema";
 import { ServerService } from "./service";
 
-beforeEach(async (context) => await setupUserStore(context));
+beforeEach((context) => setupUserStore(context));
 
 const userSchema = buildGraphqlSchema(`
   ${schemaHeader}

@@ -3,7 +3,7 @@ import path from "node:path";
 import { CodegenService } from "@/codegen/service";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
-import { buildLogFilters, LogFilter } from "@/config/logFilters";
+import { type LogFilter, buildLogFilters } from "@/config/logFilters";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type PonderOptions } from "@/config/options";
 import { type ResolvedPonderConfig } from "@/config/ponderConfig";
@@ -292,11 +292,13 @@ export class Ponder {
 
       this.serverService.reload({ graphqlSchema });
 
-      this.eventHandlerService.reset({ schema });
+      await this.eventHandlerService.reset({ schema });
+      await this.eventHandlerService.processEvents();
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
-      this.eventHandlerService.reset({ handlers });
+      await this.eventHandlerService.reset({ handlers });
+      await this.eventHandlerService.processEvents();
     });
 
     this.networkSyncServices.forEach((networkSyncService) => {
@@ -330,19 +332,21 @@ export class Ponder {
       });
 
       realtimeSyncService.on("shallowReorg", ({ commonAncestorTimestamp }) => {
-        this.eventAggregatorService.handleReorg({
-          timestamp: commonAncestorTimestamp,
-        });
+        this.eventAggregatorService.handleReorg({ commonAncestorTimestamp });
       });
     });
 
-    this.eventAggregatorService.on("newCheckpoint", ({ timestamp }) => {
-      this.eventHandlerService.processEvents({ toTimestamp: timestamp });
+    this.eventAggregatorService.on("newCheckpoint", async () => {
+      await this.eventHandlerService.processEvents();
     });
 
-    this.eventAggregatorService.on("reorg", ({ commonAncestorTimestamp }) => {
-      this.eventHandlerService.handleReorg({ commonAncestorTimestamp });
-    });
+    this.eventAggregatorService.on(
+      "reorg",
+      async ({ commonAncestorTimestamp }) => {
+        await this.eventHandlerService.handleReorg({ commonAncestorTimestamp });
+        await this.eventHandlerService.processEvents();
+      }
+    );
 
     this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
       if (this.serverService.isHistoricalEventProcessingComplete) return;
@@ -398,41 +402,11 @@ export class Ponder {
         );
       }
 
-      this.uiService.ui.handlerError = this.resources.errors.hasUserError;
-      this.uiService.ui.handlersHandledTotal =
-        this.eventHandlerService.metrics.eventsAddedToQueue;
-      this.uiService.ui.handlersCurrent =
-        this.eventHandlerService.metrics.eventsProcessedFromQueue;
-      this.uiService.ui.handlersTotal =
-        this.eventHandlerService.metrics.totalMatchedEvents;
-      this.uiService.ui.handlersToTimestamp =
-        this.eventHandlerService.metrics.latestHandledEventTimestamp;
-
       this.uiService.ui.port = this.serverService.port;
     }, 17);
 
     this.killFunctions.push(() => {
       clearInterval(interval);
-    });
-
-    this.eventHandlerService.on("reset", () => {
-      this.uiService.ui.handlersCurrent = 0;
-      this.uiService.ui.handlersTotal = 0;
-      this.uiService.ui.handlersHandledTotal = 0;
-      this.uiService.ui.handlersToTimestamp = 0;
-    });
-
-    this.eventHandlerService.on("taskCompleted", () => {
-      this.uiService.ui.handlerError = this.resources.errors.hasUserError;
-      this.uiService.ui.handlersHandledTotal =
-        this.eventHandlerService.metrics.eventsAddedToQueue;
-      this.uiService.ui.handlersCurrent =
-        this.eventHandlerService.metrics.eventsProcessedFromQueue;
-      this.uiService.ui.handlersTotal =
-        this.eventHandlerService.metrics.totalMatchedEvents;
-      this.uiService.ui.handlersToTimestamp =
-        this.eventHandlerService.metrics.latestHandledEventTimestamp;
-      this.uiService.render();
     });
   }
 }

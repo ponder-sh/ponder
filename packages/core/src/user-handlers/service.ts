@@ -21,23 +21,12 @@ import type { ModelInstance, UserStore } from "@/user-store/store";
 import { prettyPrint } from "@/utils/print";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
 
-import { getInjectedContract } from "./contract";
+import { buildReadOnlyContracts } from "./contract";
+import { buildModels } from "./model";
 import { getStackTrace } from "./trace";
 
 type EventHandlerEvents = {
-  reset: undefined;
-  eventsProcessed: { count: number; toTimestamp: number };
-  taskCompleted: undefined;
-};
-
-type EventHandlerMetrics = {
-  error: boolean;
-
-  eventsAddedToQueue: number;
-  eventsProcessedFromQueue: number;
-  totalMatchedEvents: number;
-
-  latestHandledEventTimestamp: number;
+  eventsProcessed: { toTimestamp: number };
 };
 
 type SetupTask = { kind: "SETUP" };
@@ -51,13 +40,10 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private eventAggregatorService: EventAggregatorService;
   private logFilters: LogFilter[];
 
-  metrics: EventHandlerMetrics = {
-    error: false,
-    eventsAddedToQueue: 0,
-    eventsProcessedFromQueue: 0,
-    totalMatchedEvents: 0,
-    latestHandledEventTimestamp: 0,
-  };
+  private readOnlyContracts: Record<string, ReadOnlyContract> = {};
+
+  private schema?: Schema;
+  private models: Record<string, Model<ModelInstance>> = {};
 
   private handlers?: Handlers;
   private handledLogFilters: Record<
@@ -69,17 +55,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     }[]
   > = {};
 
-  private schema?: Schema;
+  private eventProcessingMutex: Mutex;
   private queue?: EventHandlerQueue;
 
-  private injectedContracts: Record<string, ReadOnlyContract> = {};
-
-  private eventProcessingMutex: Mutex;
-  private eventsHandledToTimestamp = 0;
+  private eventsProcessedToTimestamp = 0;
+  private hasError = false;
 
   private currentEventBlockNumber = 0n;
   private currentEventTimestamp = 0;
-  private hasEventHandlerError = false;
 
   constructor({
     resources,
@@ -102,14 +85,12 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.eventAggregatorService = eventAggregatorService;
     this.logFilters = logFilters;
 
-    // Build the injected contract objects here.
-    // They depend only on contract config, so they can't be hot reloaded.
-    contracts.forEach((contract) => {
-      this.injectedContracts[contract.name] = getInjectedContract({
-        contract,
-        getCurrentBlockNumber: () => this.currentEventBlockNumber,
-        eventStore,
-      });
+    // The read-only contract objects only depend on config, so they can
+    // be built in the constructor (they can't be hot-reloaded).
+    this.readOnlyContracts = buildReadOnlyContracts({
+      contracts,
+      getCurrentBlockNumber: () => this.currentEventBlockNumber,
+      eventStore,
     });
 
     this.eventProcessingMutex = new Mutex();
@@ -125,6 +106,13 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     });
   };
 
+  /**
+   * Registers a new set of handler functions and/or a new schema, cancels
+   * the current event processing mutex & event queue, drops and re-creates
+   * all tables from the user store, and resets eventsProcessedToTimestamp to zero.
+   *
+   * Note: Caller should (probably) immediately call processEvents after this method.
+   */
   reset = async ({
     handlers: newHandlers,
     schema: newSchema,
@@ -134,6 +122,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   } = {}) => {
     if (newSchema) {
       this.schema = newSchema;
+      this.models = buildModels({
+        userStore: this.userStore,
+        schema: this.schema,
+        getCurrentEventTimestamp: () => this.currentEventTimestamp,
+      });
     }
 
     if (newHandlers) {
@@ -164,10 +157,21 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     }
 
     // If either the schema or handlers have not been provided yet,
-    // we're not ready to process events, so it's safe to return early.
+    // we're not ready to process events. Just return early.
     if (!this.schema || !this.handlers) return;
 
-    this.resetEventQueue();
+    // Cancel all pending calls to processEvents, reset the mutex, and create
+    // a new queue using the latest available handlers and schema.
+    this.eventProcessingMutex.cancel();
+    this.eventProcessingMutex = new Mutex();
+    this.queue = this.createEventQueue({ handlers: this.handlers });
+
+    this.hasError = false;
+    this.resources.metrics.ponder_handlers_has_error.set(0);
+
+    this.resources.metrics.ponder_handlers_matched_events.reset();
+    this.resources.metrics.ponder_handlers_handled_events.reset();
+    this.resources.metrics.ponder_handlers_processed_events.reset();
 
     await this.userStore.reload({ schema: this.schema });
     this.resources.logger.debug({
@@ -175,49 +179,104 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       msg: `Reset user store (versionId=${this.userStore.versionId})`,
     });
 
-    this.eventsHandledToTimestamp = 0;
-    this.metrics.latestHandledEventTimestamp = 0;
-
-    await this.processEvents({
-      toTimestamp: this.eventAggregatorService.checkpoint,
-    });
+    // When we call userStore.reload() above, the user store is dropped.
+    // Set the latest processed timestamp to zero accordingly.
+    this.eventsProcessedToTimestamp = 0;
+    this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(0);
   };
 
+  /**
+   * This method is triggered by the realtime sync service detecting a reorg,
+   * which can happen at any time. The event queue and the user store can be
+   * in one of several different states that we need to keep in mind:
+   *
+   * 1) No events have been added to the queue yet.
+   * 2) No unsafe events have been processed (eventsProcessedToTimestamp <= commonAncestorTimestamp).
+   * 3) Unsafe events may have been processed (eventsProcessedToTimestamp > commonAncestorTimestamp).
+   * 4) The queue has encountered a user error and is waiting for a reload.
+   *
+   * Note: It's crucial that we acquire a mutex lock while handling the reorg.
+   * This will only ever run while the queue is idle, so we can be confident
+   * that eventsProcessedToTimestamp matches the current state of the user store,
+   * and that no unsafe events will get processed after handling the reorg.
+   *
+   * Note: Caller should (probably) immediately call processEvents after this method.
+   */
   handleReorg = async ({
     commonAncestorTimestamp,
   }: {
     commonAncestorTimestamp: number;
   }) => {
-    this.resetEventQueue();
-
-    await this.userStore.revert({ safeTimestamp: commonAncestorTimestamp });
-    this.resources.logger.debug({
-      service: "handlers",
-      msg: `Reverted user store to safe timestamp ${commonAncestorTimestamp}`,
-    });
-
-    this.eventsHandledToTimestamp = commonAncestorTimestamp;
-    this.metrics.latestHandledEventTimestamp = commonAncestorTimestamp;
-
-    await this.processEvents({
-      toTimestamp: this.eventAggregatorService.checkpoint,
-    });
-  };
-
-  processEvents = async ({ toTimestamp }: { toTimestamp: number }) => {
-    if (this.hasEventHandlerError) return;
-    if (toTimestamp === 0) return;
-
     try {
       await this.eventProcessingMutex.runExclusive(async () => {
-        if (!this.queue) return;
+        // If there is a user error, the queue & user store will be wiped on reload (case 4).
+        if (this.hasError) return;
+
+        if (this.eventsProcessedToTimestamp <= commonAncestorTimestamp) {
+          // No unsafe events have been processed, so no need to revert (case 1 & case 2).
+          this.resources.logger.debug({
+            service: "handlers",
+            msg: `No unsafe events were detected while reconciling a reorg, no-op`,
+          });
+        } else {
+          // Unsafe events have been processed, must revert the user store and update
+          // eventsProcessedToTimestamp accordingly (case 3).
+          await this.userStore.revert({
+            safeTimestamp: commonAncestorTimestamp,
+          });
+
+          this.eventsProcessedToTimestamp = commonAncestorTimestamp;
+          this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
+            commonAncestorTimestamp
+          );
+
+          // Note: There's currently no way to know how many events are "thrown out"
+          // during the reorg reconciliation, so the event count metrics
+          // (e.g. ponder_handlers_processed_events) will be slightly inflated.
+
+          this.resources.logger.debug({
+            service: "handlers",
+            msg: `Reverted user store to safe timestamp ${commonAncestorTimestamp}`,
+          });
+        }
+      });
+    } catch (error) {
+      // Pending locks get cancelled in reset(). This is expected, so it's safe to
+      // ignore the error that is thrown when a pending lock is cancelled.
+      if (error !== E_CANCELED) throw error;
+    }
+  };
+
+  /**
+   * Processes all newly available events.
+   *
+   * Acquires a lock on the event processing mutex, then gets the latest checkpoint
+   * from the event aggregator service. Fetches events between previous checkpoint
+   * and the new checkpoint, adds them to the queue, then processes them.
+   */
+  processEvents = async () => {
+    try {
+      await this.eventProcessingMutex.runExclusive(async () => {
+        if (this.hasError || !this.queue) return;
+
+        const eventsAvailableTo = this.eventAggregatorService.checkpoint;
+
+        // If we have already added events to the queue for the current checkpoint,
+        // do nothing and return. This can happen if a number of calls to processEvents
+        // "stack up" while one is being processed, and then they all run sequentially
+        // but the event aggregator service checkpoint has not moved.
+        if (this.eventsProcessedToTimestamp >= eventsAvailableTo) {
+          return;
+        }
 
         // The getEvents method is inclusive on both sides, so we need to add 1 here
         // to avoid fetching the same event twice.
         const fromTimestamp =
-          this.eventsHandledToTimestamp === 0
+          this.eventsProcessedToTimestamp === 0
             ? 0
-            : this.eventsHandledToTimestamp + 1;
+            : this.eventsProcessedToTimestamp + 1;
+
+        const toTimestamp = eventsAvailableTo;
 
         const { events, totalEventCount } =
           await this.eventAggregatorService.getEvents({
@@ -226,12 +285,19 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             handledLogFilters: this.handledLogFilters,
           });
 
-        this.metrics.eventsAddedToQueue += events.length;
-        this.metrics.totalMatchedEvents += totalEventCount;
+        // TODO: Add the "eventName" label here by updating getEvents
+        // implementation to return a count for each event name rather
+        // than all lumped together.
+        this.resources.metrics.ponder_handlers_matched_events.inc(
+          totalEventCount
+        );
 
-        // If no events have been handled yet, add the setup event.
-        if (this.eventsHandledToTimestamp === 0 && this.handlers?.setup) {
+        // If no events have been added yet, add the setup event.
+        if (this.eventsProcessedToTimestamp === 0 && this.handlers?.setup) {
           this.queue.addTask({ kind: "SETUP" });
+          this.resources.metrics.ponder_handlers_handled_events.inc({
+            eventName: "setup",
+          });
         }
 
         // Add new events to the queue.
@@ -240,6 +306,9 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             kind: "LOG",
             event,
           });
+          this.resources.metrics.ponder_handlers_handled_events.inc({
+            eventName: `${event.logFilterName}:${event.eventName}`,
+          });
         }
 
         // Process new events that were added to the queue.
@@ -247,110 +316,35 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         await this.queue.onIdle();
         this.queue.pause();
 
-        this.eventsHandledToTimestamp = toTimestamp;
+        this.eventsProcessedToTimestamp = toTimestamp;
 
-        this.emit("eventsProcessed", {
-          count: events.length,
-          toTimestamp: toTimestamp,
-        });
+        this.emit("eventsProcessed", { toTimestamp });
+
+        this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
+          toTimestamp
+        );
 
         if (events.length > 0) {
           this.resources.logger.info({
             service: "handlers",
             msg: `Processed ${
               events.length === 1 ? "1 event" : `${events.length} events`
-            } in timestamp range [${fromTimestamp}, ${toTimestamp + 1})`,
+            }`,
           });
         }
       });
     } catch (error) {
-      // Pending locks get cancelled in resetEventQueue. This is expected, so it's safe to
+      // Pending locks get cancelled in reset(). This is expected, so it's safe to
       // ignore the error that is thrown when a pending lock is cancelled.
       if (error !== E_CANCELED) throw error;
     }
   };
 
-  private resetEventQueue = () => {
-    if (!this.handlers || !this.schema) return;
-
-    this.eventProcessingMutex.cancel();
-    this.eventProcessingMutex = new Mutex();
-
-    this.hasEventHandlerError = false;
-
-    this.metrics = {
-      ...this.metrics,
-      error: false,
-      eventsAddedToQueue: 0,
-      eventsProcessedFromQueue: 0,
-      totalMatchedEvents: 0,
+  private createEventQueue = ({ handlers }: { handlers: Handlers }) => {
+    const context = {
+      contracts: this.readOnlyContracts,
+      entities: this.models,
     };
-
-    this.queue = this.createEventQueue({
-      handlers: this.handlers,
-      schema: this.schema,
-    });
-
-    this.emit("reset");
-  };
-
-  private createEventQueue = ({
-    handlers,
-    schema,
-  }: {
-    handlers: Handlers;
-    schema: Schema;
-  }) => {
-    // Build entity models for event handler context.
-    const models = schema.entities.reduce<Record<string, Model<ModelInstance>>>(
-      (acc, { name: modelName }) => {
-        acc[modelName] = {
-          findUnique: ({ id }) => {
-            return this.userStore.findUnique({
-              modelName,
-              timestamp: this.currentEventTimestamp,
-              id,
-            });
-          },
-          create: ({ id, data }) => {
-            return this.userStore.create({
-              modelName,
-              timestamp: this.currentEventTimestamp,
-              id,
-              data,
-            });
-          },
-          update: ({ id, data }) => {
-            return this.userStore.update({
-              modelName,
-              timestamp: this.currentEventTimestamp,
-              id,
-              data,
-            });
-          },
-          upsert: ({ id, create, update }) => {
-            return this.userStore.upsert({
-              modelName,
-              timestamp: this.currentEventTimestamp,
-              id,
-              create,
-              update,
-            });
-          },
-          delete: ({ id }) => {
-            return this.userStore.delete({
-              modelName,
-              timestamp: this.currentEventTimestamp,
-              id,
-            });
-          },
-        };
-        return acc;
-      },
-      {}
-    );
-
-    const context = { contracts: this.injectedContracts, entities: models };
 
     const eventHandlerWorker: Worker<EventHandlerTask> = async ({
       task,
@@ -359,19 +353,21 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       switch (task.kind) {
         case "SETUP": {
           const setupHandler = handlers["setup"];
-          if (!setupHandler) {
-            return;
-          }
+          if (!setupHandler) return;
 
           try {
             // Running user code here!
             await setupHandler({ context });
+
+            this.resources.metrics.ponder_handlers_processed_events.inc({
+              eventName: "setup",
+            });
           } catch (error_) {
             // Remove all remaining tasks from the queue.
             queue.clear();
 
-            this.hasEventHandlerError = true;
-            this.metrics.error = true;
+            this.hasError = true;
+            this.resources.metrics.ponder_handlers_has_error.set(1);
 
             const error = error_ as Error;
             const trace = getStackTrace(error, this.resources.options);
@@ -390,17 +386,13 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             this.resources.errors.submitUserError({ error: userError });
           }
 
-          this.emit("taskCompleted");
-
           break;
         }
         case "LOG": {
           const event = task.event;
 
           const handler = handlers[event.logFilterName]?.[event.eventName];
-          if (!handler) {
-            return;
-          }
+          if (!handler) return;
 
           // This enables contract calls occurring within the
           // handler code to use the event block number by default.
@@ -416,12 +408,16 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
               },
               context,
             });
+
+            this.resources.metrics.ponder_handlers_processed_events.inc({
+              eventName: `${event.logFilterName}:${event.eventName}`,
+            });
           } catch (error_) {
             // Remove all remaining tasks from the queue.
             queue.clear();
 
-            this.hasEventHandlerError = true;
-            this.metrics.error = true;
+            this.hasError = true;
+            this.resources.metrics.ponder_handlers_has_error.set(1);
 
             const error = error_ as Error;
             const trace = getStackTrace(error, this.resources.options);
@@ -445,15 +441,9 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             this.resources.errors.submitUserError({ error: userError });
           }
 
-          this.metrics.latestHandledEventTimestamp = this.currentEventTimestamp;
-
-          this.emit("taskCompleted");
-
           break;
         }
       }
-
-      this.metrics.eventsProcessedFromQueue += 1;
     };
 
     const queue = createQueue({

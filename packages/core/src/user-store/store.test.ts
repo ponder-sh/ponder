@@ -5,12 +5,7 @@ import { setupUserStore } from "@/_test/setup";
 import { schemaHeader } from "@/reload/readGraphqlSchema";
 import { buildSchema } from "@/schema/schema";
 
-/**
- * This test suite uses the `store` object injected during setup.
- * At the moment, this could be either a PostgresUserStore or a
- * SqliteUserStore; the tests run as expected either way.
- */
-beforeEach(async (context) => await setupUserStore(context));
+beforeEach((context) => setupUserStore(context));
 
 const graphqlSchema = buildGraphqlSchema(`
   ${schemaHeader}

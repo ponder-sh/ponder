@@ -212,8 +212,12 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     this.recalculateFinalityCheckpoint();
   };
 
-  handleReorg = ({ timestamp }: { timestamp: number }) => {
-    this.emit("reorg", { commonAncestorTimestamp: timestamp });
+  handleReorg = ({
+    commonAncestorTimestamp,
+  }: {
+    commonAncestorTimestamp: number;
+  }) => {
+    this.emit("reorg", { commonAncestorTimestamp });
   };
 
   private recalculateCheckpoint = () => {

@@ -7,9 +7,9 @@ import { publicClient } from "@/_test/utils";
 import { Contract } from "@/config/contracts";
 import { Network } from "@/config/networks";
 
-import { getInjectedContract } from "./contract";
+import { buildReadOnlyContracts } from "./contract";
 
-beforeEach(async (context) => await setupEventStore(context));
+beforeEach((context) => setupEventStore(context));
 
 const network: Network = {
   name: "mainnet",
@@ -20,12 +20,14 @@ const network: Network = {
   finalityBlockCount: 10,
 };
 
-const contract: Contract = {
-  name: "USDC",
-  address: usdcContractConfig.address,
-  abi: usdcContractConfig.abi,
-  network: network,
-};
+const contracts: Contract[] = [
+  {
+    name: "USDC",
+    address: usdcContractConfig.address,
+    abi: usdcContractConfig.abi,
+    network: network,
+  },
+];
 
 // Test data generated from Alchemy Composer.
 const usdcTotalSupply16375000 = 40921687992499550n;
@@ -34,26 +36,28 @@ const usdcTotalSupply16380000 = 40695630049769550n; // This is "latest" for our 
 test("getInjectedContract() returns data", async (context) => {
   const { eventStore } = context;
 
-  const injectedContract = getInjectedContract({
-    contract,
+  const readOnlyContracts = buildReadOnlyContracts({
+    contracts,
     getCurrentBlockNumber: () => 16375000n,
     eventStore,
   });
+  const contract = readOnlyContracts["USDC"];
 
-  const decimals = await injectedContract.read.decimals();
+  const decimals = await contract.read.decimals();
   expect(decimals).toBe(6);
 });
 
 test("getInjectedContract() uses current block number if no overrides are provided", async (context) => {
   const { eventStore } = context;
 
-  const injectedContract = getInjectedContract({
-    contract,
+  const readOnlyContracts = buildReadOnlyContracts({
+    contracts,
     getCurrentBlockNumber: () => 16375000n,
     eventStore,
   });
+  const contract = readOnlyContracts["USDC"];
 
-  const totalSupply = await injectedContract.read.totalSupply();
+  const totalSupply = await contract.read.totalSupply();
 
   expect(totalSupply).toBe(usdcTotalSupply16375000);
 });
@@ -61,15 +65,16 @@ test("getInjectedContract() uses current block number if no overrides are provid
 test("getInjectedContract() caches the read result if no overrides are provided", async (context) => {
   const { eventStore } = context;
 
-  const callSpy = vi.spyOn(contract.network.client, "call");
+  const callSpy = vi.spyOn(network.client, "call");
 
-  const injectedContract = getInjectedContract({
-    contract,
+  const readOnlyContracts = buildReadOnlyContracts({
+    contracts,
     getCurrentBlockNumber: () => 16375000n,
     eventStore,
   });
+  const contract = readOnlyContracts["USDC"];
 
-  await injectedContract.read.totalSupply();
+  await contract.read.totalSupply();
 
   expect(callSpy).toHaveBeenCalledTimes(1);
 
@@ -91,13 +96,14 @@ test("getInjectedContract() caches the read result if no overrides are provided"
 test("getInjectedContract() uses blockTag override if provided", async (context) => {
   const { eventStore } = context;
 
-  const injectedContract = getInjectedContract({
-    contract,
+  const readOnlyContracts = buildReadOnlyContracts({
+    contracts,
     getCurrentBlockNumber: () => 16375000n,
     eventStore,
   });
+  const contract = readOnlyContracts["USDC"];
 
-  const totalSupply = await injectedContract.read.totalSupply({
+  const totalSupply = await contract.read.totalSupply({
     blockTag: "latest",
   });
 
@@ -107,13 +113,14 @@ test("getInjectedContract() uses blockTag override if provided", async (context)
 test("getInjectedContract() does not cache data if blockTag override is provided", async (context) => {
   const { eventStore } = context;
 
-  const injectedContract = getInjectedContract({
-    contract,
+  const readOnlyContracts = buildReadOnlyContracts({
+    contracts,
     getCurrentBlockNumber: () => 16375000n,
     eventStore,
   });
+  const contract = readOnlyContracts["USDC"];
 
-  await injectedContract.read.totalSupply({
+  await contract.read.totalSupply({
     blockTag: "latest",
   });
 
