@@ -5,6 +5,11 @@ const httpRequestBucketsInMs = [
   500, 750, 1_000, 2_000, 10_000,
 ];
 
+const httpRequestSizeInBytes = [
+  10, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 50_000, 100_000, 250_000,
+  500_000, 1_000_000, 5_000_000, 10_000_000,
+];
+
 export class MetricsService {
   private registry: prometheus.Registry;
 
@@ -31,16 +36,25 @@ export class MetricsService {
   ponder_handlers_has_error: prometheus.Gauge;
   ponder_handlers_latest_processed_timestamp: prometheus.Gauge;
 
+  ponder_server_port: prometheus.Gauge;
+  ponder_server_request_size: prometheus.Histogram<
+    "method" | "path" | "status"
+  >;
+  ponder_server_response_size: prometheus.Histogram<
+    "method" | "path" | "status"
+  >;
+  ponder_server_response_duration: prometheus.Histogram<
+    "method" | "path" | "status"
+  >;
+
   constructor() {
     this.registry = new prometheus.Registry();
 
-    // Register default metric collection.
     prometheus.collectDefaultMetrics({
       register: this.registry,
       prefix: "ponder_default_",
     });
 
-    // Historical sync metrics
     this.ponder_historical_scheduled_tasks = new prometheus.Counter({
       name: "ponder_historical_scheduled_tasks",
       help: "Number of historical sync tasks that have been scheduled",
@@ -79,7 +93,6 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    // Realtime sync metrics
     this.ponder_realtime_latest_block_number = new prometheus.Gauge({
       name: "ponder_realtime_latest_block_number",
       help: "Block number of the latest synced block",
@@ -100,7 +113,6 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    // Handlers metrics
     this.ponder_handlers_matched_events = new prometheus.Gauge({
       name: "ponder_handlers_matched_events",
       help: "Number of available events for all log filters",
@@ -127,6 +139,33 @@ export class MetricsService {
     this.ponder_handlers_latest_processed_timestamp = new prometheus.Gauge({
       name: "ponder_handlers_latest_processed_timestamp",
       help: "Block timestamp of the latest processed event",
+      registers: [this.registry],
+    });
+
+    this.ponder_server_port = new prometheus.Gauge({
+      name: "ponder_server_port",
+      help: "Port that the server is listening on",
+      registers: [this.registry],
+    });
+    this.ponder_server_request_size = new prometheus.Histogram({
+      name: "ponder_server_request_size",
+      help: "Size of HTTP requests received by the server",
+      labelNames: ["method", "path", "status"] as const,
+      buckets: httpRequestSizeInBytes,
+      registers: [this.registry],
+    });
+    this.ponder_server_response_size = new prometheus.Histogram({
+      name: "ponder_server_response_size",
+      help: "Size of HTTP responses served the server",
+      labelNames: ["method", "path", "status"] as const,
+      buckets: httpRequestSizeInBytes,
+      registers: [this.registry],
+    });
+    this.ponder_server_response_duration = new prometheus.Histogram({
+      name: "ponder_server_response_duration",
+      help: "Duration of HTTP responses served the server",
+      labelNames: ["method", "path", "status"] as const,
+      buckets: httpRequestSizeInBytes,
       registers: [this.registry],
     });
   }

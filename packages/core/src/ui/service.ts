@@ -60,32 +60,31 @@ export class UiService {
       });
 
       // Handlers
-      const matchedEventsMetric =
-        await this.resources.metrics.ponder_handlers_matched_events.get();
-      const handledEventsMetric =
-        await this.resources.metrics.ponder_handlers_handled_events.get();
-      const processedEventsMetric =
-        await this.resources.metrics.ponder_handlers_processed_events.get();
-      const latestProcessedTimestampMetric =
-        await this.resources.metrics.ponder_handlers_latest_processed_timestamp.get();
-
-      this.ui.handlersTotal = matchedEventsMetric.values.reduce(
-        (a, v) => a + v.value,
-        0
-      );
-      this.ui.handlersHandledTotal = handledEventsMetric.values.reduce(
-        (a, v) => a + v.value,
-        0
-      );
-      this.ui.handlersCurrent = processedEventsMetric.values.reduce(
-        (a, v) => a + v.value,
-        0
-      );
-      this.ui.handlersToTimestamp =
-        latestProcessedTimestampMetric.values[0].value ?? 0;
+      const matchedEvents = (
+        await this.resources.metrics.ponder_handlers_matched_events.get()
+      ).values.reduce((a, v) => a + v.value, 0);
+      const handledEvents = (
+        await this.resources.metrics.ponder_handlers_handled_events.get()
+      ).values.reduce((a, v) => a + v.value, 0);
+      const processedEvents = (
+        await this.resources.metrics.ponder_handlers_processed_events.get()
+      ).values.reduce((a, v) => a + v.value, 0);
+      const latestProcessedTimestamp =
+        (
+          await this.resources.metrics.ponder_handlers_latest_processed_timestamp.get()
+        ).values[0].value ?? 0;
+      this.ui.handlersTotal = matchedEvents;
+      this.ui.handlersHandledTotal = handledEvents;
+      this.ui.handlersCurrent = processedEvents;
+      this.ui.handlersToTimestamp = latestProcessedTimestamp;
 
       // Errors
       this.ui.handlerError = this.resources.errors.hasUserError;
+
+      // Server
+      const port = (await this.resources.metrics.ponder_server_port.get())
+        .values[0].value;
+      this.ui.port = port;
 
       this.render();
     }, 17);

@@ -401,8 +401,6 @@ export class Ponder {
           )
         );
       }
-
-      this.uiService.ui.port = this.serverService.port;
     }, 17);
 
     this.killFunctions.push(() => {

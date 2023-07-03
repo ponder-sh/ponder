@@ -7,13 +7,15 @@ import { createServer, Server } from "node:http";
 
 import { Resources } from "@/Ponder";
 import { UserStore } from "@/user-store/store";
+import { startClock } from "@/utils/timer";
 
 export class ServerService {
-  resources: Resources;
-  userStore: UserStore;
-  port: number;
+  private resources: Resources;
+  private userStore: UserStore;
 
+  private port: number;
   app?: express.Express;
+
   private terminate?: () => Promise<void>;
   private graphqlMiddleware?: express.Handler;
 
@@ -35,6 +37,41 @@ export class ServerService {
     this.app = express();
     this.app.use(cors());
 
+    this.app.use((req, res, next) => {
+      const endClock = startClock();
+      res.on("finish", () => {
+        const responseDuration = endClock();
+        const method = req.method;
+        const path = new URL(req.url, `http://${req.get("host")}`).pathname;
+        const status =
+          res.statusCode >= 200 && res.statusCode < 300
+            ? "2XX"
+            : res.statusCode >= 300 && res.statusCode < 400
+            ? "3XX"
+            : res.statusCode >= 400 && res.statusCode < 500
+            ? "4XX"
+            : "5XX";
+
+        const requestSize = Number(req.get("Content-Length") ?? 0);
+        this.resources.metrics.ponder_server_request_size.observe(
+          { method, path, status },
+          Number(requestSize)
+        );
+
+        const responseSize = Number(res.get("Content-Length") ?? 0);
+        this.resources.metrics.ponder_server_response_size.observe(
+          { method, path, status },
+          Number(responseSize)
+        );
+
+        this.resources.metrics.ponder_server_response_duration.observe(
+          { method, path, status },
+          responseDuration
+        );
+      });
+      next();
+    });
+
     const server = await new Promise<Server>((resolve, reject) => {
       const server = createServer(this.app)
         .on("error", (error) => {
@@ -53,6 +90,7 @@ export class ServerService {
           }
         })
         .on("listening", () => {
+          this.resources.metrics.ponder_server_port.set(this.port);
           resolve(server);
         })
         .listen(this.port);
