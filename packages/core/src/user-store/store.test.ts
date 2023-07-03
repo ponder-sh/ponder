@@ -5,7 +5,7 @@ import { setupUserStore } from "@/_test/setup";
 import { schemaHeader } from "@/reload/readGraphqlSchema";
 import { buildSchema } from "@/schema/schema";
 
-beforeEach(setupUserStore);
+beforeEach((context) => setupUserStore(context));
 
 const graphqlSchema = buildGraphqlSchema(`
   ${schemaHeader}

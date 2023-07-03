@@ -13,7 +13,7 @@ import {
 import { setupEventStore } from "@/_test/setup";
 import { blobToBigInt } from "@/utils/decode";
 
-beforeEach(setupEventStore);
+beforeEach((context) => setupEventStore(context));
 
 test("setup creates tables", async (context) => {
   const { eventStore } = context;

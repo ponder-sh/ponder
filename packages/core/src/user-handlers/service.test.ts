@@ -13,8 +13,8 @@ import { buildSchema } from "@/schema/schema";
 
 import { EventHandlerService } from "./service";
 
-beforeEach(setupEventStore);
-beforeEach(setupUserStore);
+beforeEach((context) => setupEventStore(context));
+beforeEach((context) => setupUserStore(context));
 
 const network = {
   name: "mainnet",

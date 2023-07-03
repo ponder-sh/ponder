@@ -9,8 +9,8 @@ import { buildOptions } from "@/config/options";
 import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
 
-beforeEach(setupEventStore);
-beforeEach(setupUserStore);
+beforeEach((context) => setupEventStore(context));
+beforeEach((context) => setupUserStore(context));
 
 const setup = async ({ context }: { context: TestContext }) => {
   const config = await buildPonderConfig({
