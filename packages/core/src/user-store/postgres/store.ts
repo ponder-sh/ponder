@@ -482,7 +482,7 @@ export class PostgresUserStore implements UserStore {
   };
 
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
-    this.db.transaction().execute(async (tx) => {
+    await this.db.transaction().execute(async (tx) => {
       await Promise.all(
         (this.schema?.entities ?? []).map(async (entity) => {
           const modelName = entity.name;
