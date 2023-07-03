@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.68
+
+### Patch Changes
+
+- [#226](https://github.com/0xOlias/ponder/pull/226) [`1ae6a24`](https://github.com/0xOlias/ponder/commit/1ae6a24683371baeccbb70df7b3c8f566acac735) Thanks [@k-xo](https://github.com/k-xo)! - Added a database migration to create indices in the event store. This should improve event handler performance.
+
 ## 0.0.67
 
 ### Patch Changes
