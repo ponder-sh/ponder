@@ -34,58 +34,72 @@ export class UiService {
     }
 
     this.renderInterval = setInterval(async () => {
+      const logFilterNames = Object.keys(this.ui.historicalSyncLogFilterStats);
+
       // Historical sync
-      const totalBlocksMetric =
-        await this.resources.metrics.ponder_historical_total_blocks.get();
-      const cachedBlocksMetric =
-        await this.resources.metrics.ponder_historical_cached_blocks.get();
-      const completedBlocksMetric =
-        await this.resources.metrics.ponder_historical_completed_blocks.get();
+      const rateMetric = (
+        await this.resources.metrics.ponder_historical_completion_rate.get()
+      ).values;
+      const etaMetric = (
+        await this.resources.metrics.ponder_historical_completion_eta.get()
+      ).values;
 
-      Object.keys(this.ui.historicalSyncLogFilterStats).forEach((name) => {
-        const totalBlocks =
-          totalBlocksMetric.values.find((v) => v.labels.logFilter === name)
-            ?.value ?? 0;
-        const cachedBlocks =
-          cachedBlocksMetric.values.find((v) => v.labels.logFilter === name)
-            ?.value ?? 0;
-        const completedBlocks =
-          completedBlocksMetric.values.find((v) => v.labels.logFilter === name)
-            ?.value ?? 0;
+      logFilterNames.forEach((name) => {
+        const rate = rateMetric.find((m) => m.labels.logFilter === name)?.value;
+        const eta = etaMetric.find((m) => m.labels.logFilter === name)?.value;
 
-        this.ui.historicalSyncLogFilterStats[name].totalBlocks = totalBlocks;
-        this.ui.historicalSyncLogFilterStats[name].cachedBlocks = cachedBlocks;
-        this.ui.historicalSyncLogFilterStats[name].completedBlocks =
-          completedBlocks;
+        if (rate !== undefined) {
+          this.ui.historicalSyncLogFilterStats[name].rate = rate;
+        }
+        this.ui.historicalSyncLogFilterStats[name].eta = eta;
       });
 
-      // Handlers
-      const matchedEventsMetric =
-        await this.resources.metrics.ponder_handlers_matched_events.get();
-      const handledEventsMetric =
-        await this.resources.metrics.ponder_handlers_handled_events.get();
-      const processedEventsMetric =
-        await this.resources.metrics.ponder_handlers_processed_events.get();
-      const latestProcessedTimestampMetric =
-        await this.resources.metrics.ponder_handlers_latest_processed_timestamp.get();
+      const minRate = Math.min(
+        ...logFilterNames.map(
+          (name) => this.ui.historicalSyncLogFilterStats[name].rate
+        )
+      );
 
-      this.ui.handlersTotal = matchedEventsMetric.values.reduce(
-        (a, v) => a + v.value,
-        0
-      );
-      this.ui.handlersHandledTotal = handledEventsMetric.values.reduce(
-        (a, v) => a + v.value,
-        0
-      );
-      this.ui.handlersCurrent = processedEventsMetric.values.reduce(
-        (a, v) => a + v.value,
-        0
-      );
-      this.ui.handlersToTimestamp =
-        latestProcessedTimestampMetric.values[0].value ?? 0;
+      if (!this.ui.isHistoricalSyncComplete && minRate === 1) {
+        this.ui.isHistoricalSyncComplete = true;
+      }
+
+      // Realtime sync
+      const connectedNetworks = (
+        await this.resources.metrics.ponder_realtime_is_connected.get()
+      ).values
+        .filter((m) => m.value === 1)
+        .map((m) => m.labels.network)
+        .filter((n): n is string => typeof n === "string");
+
+      this.ui.networks = connectedNetworks;
+
+      // Handlers
+      const matchedEvents = (
+        await this.resources.metrics.ponder_handlers_matched_events.get()
+      ).values.reduce((a, v) => a + v.value, 0);
+      const handledEvents = (
+        await this.resources.metrics.ponder_handlers_handled_events.get()
+      ).values.reduce((a, v) => a + v.value, 0);
+      const processedEvents = (
+        await this.resources.metrics.ponder_handlers_processed_events.get()
+      ).values.reduce((a, v) => a + v.value, 0);
+      const latestProcessedTimestamp =
+        (
+          await this.resources.metrics.ponder_handlers_latest_processed_timestamp.get()
+        ).values[0].value ?? 0;
+      this.ui.handlersTotal = matchedEvents;
+      this.ui.handlersHandledTotal = handledEvents;
+      this.ui.handlersCurrent = processedEvents;
+      this.ui.handlersToTimestamp = latestProcessedTimestamp;
 
       // Errors
       this.ui.handlerError = this.resources.errors.hasUserError;
+
+      // Server
+      const port = (await this.resources.metrics.ponder_server_port.get())
+        .values[0].value;
+      this.ui.port = port;
 
       this.render();
     }, 17);

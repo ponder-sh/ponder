@@ -1,80 +1,112 @@
 import { hexToNumber } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
-import { blockOne, blockOneTransactions, blockTwo } from "@/_test/constants";
+import {
+  blockOne,
+  blockOneLogs,
+  blockOneTransactions,
+  blockTwo,
+  blockTwoLogs,
+  blockTwoTransactions,
+} from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
 
-beforeEach(
-  async (context) => await setupEventStore(context, { skipMigrateUp: true })
-);
+beforeEach((context) => setupEventStore(context, { skipMigrateUp: true }));
 
-test("indices migrations works correctly", async (context) => {
+test("initial migration succeeds", async (context) => {
   const { eventStore } = context;
-  let migrations;
 
-  // Fetch migrations and run initial migration
-  migrations = await eventStore.migrator.getMigrations();
-  await eventStore.migrator.migrateTo(migrations[0].name);
-
-  migrations = await eventStore.migrator.getMigrations();
-  expect(migrations[0].executedAt).toBeDefined();
-  expect(migrations[1].executedAt).toBeUndefined();
-
-  // Insert a block
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: [],
-    logs: [],
-  });
-
-  const blocksAfterFirstMigration = await eventStore.db
-    .selectFrom("blocks")
-    .selectAll()
-    .execute();
-  expect(blocksAfterFirstMigration).toHaveLength(1);
-
-  // Run the second migration
-  await eventStore.migrator.migrateTo(migrations[1].name);
-  migrations = await eventStore.migrator.getMigrations();
-  expect(migrations[1].executedAt).toBeDefined();
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockTwo,
-    transactions: [],
-    logs: [],
-  });
-
-  const blockAfterSecondMigration = await eventStore.db
-    .selectFrom("blocks")
-    .selectAll()
-    .execute();
-
-  expect(blockAfterSecondMigration).toHaveLength(2);
+  const migrations = await eventStore.migrator.getMigrations();
+  const { error } = await eventStore.migrator.migrateTo(migrations[0].name);
+  expect(error).toBeFalsy();
 
   await eventStore.insertUnfinalizedBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
-    logs: [],
+    logs: blockOneLogs,
   });
 
-  const transactions = await eventStore.db
-    .selectFrom("transactions")
-    .selectAll()
-    .execute();
-  expect(transactions).toHaveLength(2);
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  expect(
+    await eventStore.db.selectFrom("blocks").selectAll().execute()
+  ).toHaveLength(2);
+
+  expect(
+    await eventStore.db.selectFrom("transactions").selectAll().execute()
+  ).toHaveLength(3);
 
   await eventStore.finalizeData({
     chainId: 1,
     toBlockNumber: hexToNumber(blockOne.number!),
   });
 
-  const blocks = await eventStore.db
-    .selectFrom("blocks")
-    .select(["hash", "finalized"])
-    .execute();
+  expect(
+    (
+      await eventStore.db
+        .selectFrom("blocks")
+        .select(["hash", "finalized"])
+        .execute()
+    ).find((b) => b.hash === blockOne.hash)?.finalized
+  ).toBe(1);
+}, 15_000);
 
-  expect(blocks.find((b) => b.hash === blockOne.hash)?.finalized).toBe(1);
-});
+test("latest migration succeeds", async (context) => {
+  const { eventStore } = context;
+
+  const migrations = await eventStore.migrator.getMigrations();
+
+  // Migrate to migration N - 1, then add some data.
+  const { error } = await eventStore.migrator.migrateTo(
+    migrations[migrations.length - 2].name
+  );
+  expect(error).toBeFalsy();
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
+
+  await eventStore.insertUnfinalizedBlock({
+    chainId: 1,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+  });
+
+  // Migrate to the target step.
+  const { error: latestError } = await eventStore.migrator.migrateTo(
+    migrations[migrations.length - 1].name
+  );
+  expect(latestError).toBeFalsy();
+
+  expect(
+    await eventStore.db.selectFrom("blocks").selectAll().execute()
+  ).toHaveLength(2);
+
+  expect(
+    await eventStore.db.selectFrom("transactions").selectAll().execute()
+  ).toHaveLength(3);
+
+  await eventStore.finalizeData({
+    chainId: 1,
+    toBlockNumber: hexToNumber(blockOne.number!),
+  });
+
+  expect(
+    (
+      await eventStore.db
+        .selectFrom("blocks")
+        .select(["hash", "finalized"])
+        .execute()
+    ).find((b) => b.hash === blockOne.hash)?.finalized
+  ).toBe(1);
+}, 15_000);
