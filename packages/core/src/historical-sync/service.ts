@@ -90,7 +90,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       this.logFilterCheckpoints[logFilter.name] = 0;
     });
 
-    this.registerEtaMetricCollectMethod();
+    this.registerMetricCollectMethods();
   }
 
   async setup({ finalizedBlockNumber }: { finalizedBlockNumber: number }) {
@@ -193,6 +193,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       const completionStats = await this.getCompletionStats();
 
       completionStats.forEach(({ logFilter, rate, eta }) => {
+        if (rate === 1) return;
         this.resources.logger.info({
           service: "historical",
           msg: `Sync is ${formatPercentage(rate)} complete${
@@ -214,7 +215,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       this.emit("syncComplete");
       this.resources.logger.info({
         service: "historical",
-        msg: `Completed sync, block range was 100% cached (network=${this.network.name})`,
+        msg: `Completed sync (network=${this.network.name})`,
         network: this.network.name,
       });
     }
@@ -646,28 +647,48 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       const rate = (cachedBlocks + completedBlocks) / totalBlocks;
 
-      const elapsed = hrTimeToMs(process.hrtime(this.startTimestamp));
-      const completedRate = completedBlocks / (totalBlocks - cachedBlocks);
+      // If fewer than 3 blocks have been processsed, the ETA will be low quality.
+      if (completedBlocks < 3) return { logFilter: name, rate };
 
       // If rate is 1, sync is complete, so set the ETA to zero.
-      const eta = rate === 1 ? 0 : elapsed / completedRate;
+      if (rate === 1) return { logFilter: name, rate, eta: 0 };
 
-      return { logFilter: name, rate, eta };
+      // (time elapsed) / (% completion of remaining block range)
+      const elapsed = hrTimeToMs(process.hrtime(this.startTimestamp));
+      const estimatedTotalDuration =
+        elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
+      const estimatedTimeRemaining = estimatedTotalDuration - elapsed;
+
+      return { logFilter: name, rate, eta: estimatedTimeRemaining };
     });
   };
 
-  private registerEtaMetricCollectMethod = async () => {
+  private registerMetricCollectMethods = async () => {
     // The `prom-client` base Metric class does allow dynamic assignment
     // of the `collect()` method, but it's not typed as such.
+
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    this.resources.metrics.ponder_historical_eta_duration.collect =
+    this.resources.metrics.ponder_historical_completion_rate.collect =
+      async () => {
+        const completionStats = await this.getCompletionStats();
+        completionStats.forEach(({ logFilter, rate }) => {
+          this.resources.metrics.ponder_historical_completion_rate.set(
+            { logFilter, network: this.network.name },
+            rate
+          );
+        });
+      };
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    this.resources.metrics.ponder_historical_completion_eta.collect =
       async () => {
         const completionStats = await this.getCompletionStats();
         completionStats.forEach(({ logFilter, eta }) => {
           // If no progress has been made, can't calculate an accurate ETA.
           if (eta) {
-            this.resources.metrics.ponder_historical_eta_duration.set(
+            this.resources.metrics.ponder_historical_completion_eta.set(
               { logFilter, network: this.network.name },
               eta
             );

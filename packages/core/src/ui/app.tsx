@@ -12,15 +12,12 @@ export type UiState = {
   historicalSyncLogFilterStats: Record<
     string,
     {
-      totalBlocks: number;
-      cachedBlocks: number;
-      completedBlocks: number;
-      eta: number;
+      rate: number;
+      eta?: number;
     }
   >;
 
   isHistoricalSyncComplete: boolean;
-  historicalSyncDuration: string;
 
   handlerError: boolean;
   handlersCurrent: number;
@@ -38,7 +35,6 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
     historicalSyncLogFilterStats: {},
 
     isHistoricalSyncComplete: false,
-    historicalSyncDuration: "",
 
     handlerError: false,
     handlersCurrent: 0,
@@ -51,10 +47,7 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
 
   logFilters.forEach((logFilter) => {
     ui.historicalSyncLogFilterStats[logFilter.name] = {
-      totalBlocks: 0,
-      cachedBlocks: 0,
-      completedBlocks: 0,
-      eta: Number.MAX_SAFE_INTEGER,
+      rate: 0,
     };
   });
 
@@ -66,7 +59,6 @@ const App = (ui: UiState) => {
     port,
     historicalSyncLogFilterStats,
     isHistoricalSyncComplete,
-    historicalSyncDuration,
     handlersCurrent,
     handlerError,
     networks,
@@ -91,7 +83,8 @@ const App = (ui: UiState) => {
         <Text bold={true}>Historical sync </Text>
         {isHistoricalSyncComplete ? (
           <Text color="green">
-            (done in {historicalSyncDuration})<Newline />
+            (complete)
+            <Newline />
           </Text>
         ) : (
           <Text color="yellow">(in progress)</Text>

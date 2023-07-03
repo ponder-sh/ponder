@@ -18,7 +18,6 @@ export const config: PonderConfig = {
       abi: FileStoreAbi,
       address: "0x9746fD0A77829E12F8A9DBe70D7a322412325B91",
       startBlock: 15963553,
-      endBlock: 16000000,
     },
     {
       name: "FileStoreFrontend",

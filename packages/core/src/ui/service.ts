@@ -1,6 +1,5 @@
 import { LogFilter } from "@/config/logFilters";
 import { Resources } from "@/Ponder";
-import { formatEta } from "@/utils/format";
 
 import { buildUiState, setupInkApp, UiState } from "./app";
 
@@ -38,56 +37,31 @@ export class UiService {
       const logFilterNames = Object.keys(this.ui.historicalSyncLogFilterStats);
 
       // Historical sync
-      const totalBlocksMetric =
-        await this.resources.metrics.ponder_historical_total_blocks.get();
-      const cachedBlocksMetric =
-        await this.resources.metrics.ponder_historical_cached_blocks.get();
-      const completedBlocksMetric =
-        await this.resources.metrics.ponder_historical_completed_blocks.get();
-      const etaMetric =
-        await this.resources.metrics.ponder_historical_eta_duration.get();
+      const rateMetric = (
+        await this.resources.metrics.ponder_historical_completion_rate.get()
+      ).values;
+      const etaMetric = (
+        await this.resources.metrics.ponder_historical_completion_eta.get()
+      ).values;
 
       logFilterNames.forEach((name) => {
-        const totalBlocks = totalBlocksMetric.values.find(
-          (v) => v.labels.logFilter === name
-        )?.value;
-        if (totalBlocks !== undefined) {
-          this.ui.historicalSyncLogFilterStats[name].totalBlocks = totalBlocks;
-        }
+        const rate = rateMetric.find((m) => m.labels.logFilter === name)?.value;
+        const eta = etaMetric.find((m) => m.labels.logFilter === name)?.value;
 
-        const cachedBlocks = cachedBlocksMetric.values.find(
-          (v) => v.labels.logFilter === name
-        )?.value;
-        if (cachedBlocks !== undefined) {
-          this.ui.historicalSyncLogFilterStats[name].cachedBlocks =
-            cachedBlocks;
+        if (rate !== undefined) {
+          this.ui.historicalSyncLogFilterStats[name].rate = rate;
         }
-
-        const completedBlocks = completedBlocksMetric.values.find(
-          (v) => v.labels.logFilter === name
-        )?.value;
-        if (completedBlocks !== undefined) {
-          this.ui.historicalSyncLogFilterStats[name].completedBlocks =
-            completedBlocks;
-        }
-
-        const eta = etaMetric.values.find(
-          (v) => v.labels.logFilter === name
-        )?.value;
-        if (eta !== undefined) {
-          this.ui.historicalSyncLogFilterStats[name].eta = eta;
-        }
+        this.ui.historicalSyncLogFilterStats[name].eta = eta;
       });
 
-      const maxEta = Math.max(
+      const minRate = Math.min(
         ...logFilterNames.map(
-          (name) => this.ui.historicalSyncLogFilterStats[name].eta
+          (name) => this.ui.historicalSyncLogFilterStats[name].rate
         )
       );
 
-      if (maxEta === 0) {
+      if (!this.ui.isHistoricalSyncComplete && minRate === 1) {
         this.ui.isHistoricalSyncComplete = true;
-        this.ui.historicalSyncDuration = formatEta(maxEta);
       }
 
       // Realtime sync

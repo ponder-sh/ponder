@@ -13,17 +13,18 @@ const httpRequestSizeInBytes = [
 export class MetricsService {
   private registry: prometheus.Registry;
 
-  ponder_historical_eta_duration: prometheus.Gauge<"network" | "logFilter">;
   ponder_historical_scheduled_tasks: prometheus.Counter<"network" | "kind">;
   ponder_historical_completed_tasks: prometheus.Counter<
     "network" | "kind" | "status"
   >;
-  ponder_historical_total_blocks: prometheus.Gauge<"network" | "logFilter">;
-  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "logFilter">;
-  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "logFilter">;
   ponder_historical_rpc_request_duration: prometheus.Histogram<
     "network" | "method"
   >;
+  ponder_historical_total_blocks: prometheus.Gauge<"network" | "logFilter">;
+  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "logFilter">;
+  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "logFilter">;
+  ponder_historical_completion_rate: prometheus.Gauge<"network" | "logFilter">;
+  ponder_historical_completion_eta: prometheus.Gauge<"network" | "logFilter">;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
@@ -94,8 +95,14 @@ export class MetricsService {
       labelNames: ["network", "logFilter"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_eta_duration = new prometheus.Gauge({
-      name: "ponder_historical_eta_duration",
+    this.ponder_historical_completion_rate = new prometheus.Gauge({
+      name: "ponder_historical_completion_rate",
+      help: "Completion rate (0 to 1) of the historical sync",
+      labelNames: ["network", "logFilter"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_completion_eta = new prometheus.Gauge({
+      name: "ponder_historical_completion_eta",
       help: "Estimated number of milliseconds remaining to complete the historical sync",
       labelNames: ["network", "logFilter"] as const,
       registers: [this.registry],
