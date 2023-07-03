@@ -10,4 +10,37 @@ By default, Ponder organizes event logs _by contract address_ via the [`contract
 
 However, Ponder also supports filtering logs by event signature and indexed event argument values. For example, you can use this feature to handle all ERC20 `Transfer` events for an entire network, regardless of the contract that emitted them.
 
+Similarly, the [Filter](/api-reference/ponder-config#filter) object supports a string of addresses to handle multiple contracts using the same abi. For example, you can handle all `Swap` events for different Uniswap pools using the following config:
+
+```ts filename="ponder.config.ts"
+import type { PonderConfig } from "@ponder/core";
+import { parseAbiItem } from 'viem';
+
+export const config: PonderConfig = {
+  networks: [
+    {
+      name: "mainnet",
+      chainId: 1,
+      rpcUrl: process.env.PONDER_RPC_URL_1
+    }
+  ],
+  filters: [
+      {
+        name: "UniswapV3Pool",
+        network: "mainnet",
+        abi: "./abis/UniswapV3Pool.json",
+        filter: {
+          address: ["0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8", // ETH-USDC 30bps
+                    "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640", // ETH-USDC 5bps
+                    ...
+                  ],
+          event: parseAbiItem('event Swap(address sender, address recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)'),
+          args: []
+      },
+      startBlock: 17610000,
+    }
+  ],
+};
+```
+
 See the API of the [`filters`](/api-reference/ponder-config#filters) field in `ponder.config.ts` for more details.
