@@ -64,6 +64,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private minimumLogFilterCheckpoint = 0;
 
   private startTimestamp?: [number, number];
+  private cleanupFunctions: (() => void | Promise<void>)[] = [];
 
   constructor({
     resources,
@@ -187,6 +188,22 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   start() {
     this.startTimestamp = process.hrtime();
 
+    // Emit status update logs on an interval for each active log filter.
+    const updateLogInterval = setInterval(async () => {
+      const completionStats = await this.getCompletionStats();
+
+      completionStats.forEach(({ logFilter, rate, eta }) => {
+        this.resources.logger.info({
+          service: "historical",
+          msg: `Sync is ${formatPercentage(rate)} complete${
+            eta !== undefined ? ` with ~${formatEta(eta)} remaining` : ""
+          } (logFilter=${logFilter})`,
+          network: this.network.name,
+        });
+      });
+    }, 10_000);
+    this.cleanupFunctions.push(() => clearInterval(updateLogInterval));
+
     // Edge case: If there are no tasks in the queue, this means the entire
     // requested range was cached, so the sync is complete. However, we still
     // need to emit the historicalCheckpoint event with some timestamp. It should
@@ -206,6 +223,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }
 
   kill = async () => {
+    await Promise.all(this.cleanupFunctions);
     this.queue.pause();
     this.queue.clear();
     // TODO: Figure out if it's necessary to wait for the queue to be idle before killing it.
@@ -280,6 +298,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             requiredTransactionCount: task.requiredTxHashes.size,
           });
 
+          // When a block task completes, a cached range record gets inserted.
+          // Update the block range progress metric accordingly.
           this.resources.metrics.ponder_historical_completed_blocks.inc(
             {
               network: this.network.name,
@@ -406,26 +426,30 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
         this.emit("error", { error: queueError });
 
-        this.resources.logger.error({
-          service: "historical",
-          msg:
-            task.kind === "LOG_SYNC"
-              ? `Historical sync log task failed`
-              : `Historical sync block task failed`,
-          network: this.network.name,
-          logFilter: logFilter.name,
-          ...(task.kind === "LOG_SYNC"
-            ? {
-                fromBlock: task.fromBlock,
-                toBlock: task.toBlock,
-              }
-            : {
-                blockNumberToCacheFrom: task.blockNumberToCacheFrom,
-                blockNumber: task.blockNumber,
-                requiredTransactionCount: task.requiredTxHashes.size,
-              }),
-          error,
-        });
+        if (task.kind === "LOG_SYNC") {
+          this.resources.logger.error({
+            service: "historical",
+            msg: `Log sync task failed (network=${this.network.name}, logFilter=${logFilter.name})`,
+            error,
+            network: this.network.name,
+            logFilter: logFilter.name,
+            fromBlock: task.fromBlock,
+            toBlock: task.toBlock,
+          });
+        }
+
+        if (task.kind === "BLOCK_SYNC") {
+          this.resources.logger.error({
+            service: "historical",
+            msg: `Block sync task failed (network=${this.network.name}, logFilter=${logFilter.name})`,
+            error,
+            network: this.network.name,
+            logFilter: logFilter.name,
+            blockNumberToCacheFrom: task.blockNumberToCacheFrom,
+            blockNumber: task.blockNumber,
+            requiredTransactionCount: task.requiredTxHashes.size,
+          });
+        }
 
         // Default to a retry (uses the retry options passed to the queue).
         const priority =
@@ -588,6 +612,50 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
   };
 
+  private getCompletionStats = async () => {
+    const cachedBlocksMetric = (
+      await this.resources.metrics.ponder_historical_cached_blocks.get()
+    ).values;
+    const totalBlocksMetric = (
+      await this.resources.metrics.ponder_historical_total_blocks.get()
+    ).values;
+    const completedBlocksMetric = (
+      await this.resources.metrics.ponder_historical_completed_blocks.get()
+    ).values;
+
+    return this.logFilters.map(({ name }) => {
+      const totalBlocks = totalBlocksMetric.find(
+        (m) => m.labels.logFilter === name
+      )?.value;
+      const cachedBlocks = cachedBlocksMetric.find(
+        (m) => m.labels.logFilter === name
+      )?.value;
+      const completedBlocks =
+        completedBlocksMetric.find((m) => m.labels.logFilter === name)?.value ??
+        0;
+
+      // Any of these mean setup is not complete.
+      if (
+        totalBlocks === undefined ||
+        totalBlocks === 0 ||
+        cachedBlocks === undefined ||
+        !this.startTimestamp
+      ) {
+        return { logFilter: name, rate: 0 };
+      }
+
+      const rate = (cachedBlocks + completedBlocks) / totalBlocks;
+
+      const elapsed = hrTimeToMs(process.hrtime(this.startTimestamp));
+      const completedRate = completedBlocks / (totalBlocks - cachedBlocks);
+
+      // If rate is 1, sync is complete, so set the ETA to zero.
+      const eta = rate === 1 ? 0 : elapsed / completedRate;
+
+      return { logFilter: name, rate, eta };
+    });
+  };
+
   private registerEtaMetricCollectMethod = async () => {
     // The `prom-client` base Metric class does allow dynamic assignment
     // of the `collect()` method, but it's not typed as such.
@@ -595,58 +663,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // @ts-ignore
     this.resources.metrics.ponder_historical_eta_duration.collect =
       async () => {
-        // If the start timestamp hasn't been recorded, can't calculate.
-        if (!this.startTimestamp) return;
-
-        const elapsed = hrTimeToMs(process.hrtime(this.startTimestamp));
-
-        await Promise.all(
-          this.logFilters.map(async ({ name }) => {
-            const cachedBlocks =
-              (
-                await this.resources.metrics.ponder_historical_cached_blocks.get()
-              ).values.find((v) => v.labels.logFilter === name)?.value ?? 0;
-
-            const totalBlocks =
-              (
-                await this.resources.metrics.ponder_historical_total_blocks.get()
-              ).values.find((v) => v.labels.logFilter === name)?.value ?? 0;
-
-            const completedBlocks =
-              (
-                await this.resources.metrics.ponder_historical_completed_blocks.get()
-              ).values.find((v) => v.labels.logFilter === name)?.value ?? 0;
-
-            // If totalBlocks has been set AND all blocks are cached, it's complete and the ETA is zero.
-            if (totalBlocks > 0 && cachedBlocks === totalBlocks) {
-              this.resources.metrics.ponder_historical_eta_duration.set(
-                { logFilter: name, network: this.network.name },
-                0
-              );
-              return;
-            }
-
-            // If no blocks have been completed yet, can't calculate.
-            if (completedBlocks === 0) return;
-
-            // If all blocks have been completed, it's complete and the ETA is zero.
-            if (completedBlocks === totalBlocks - cachedBlocks) {
-              this.resources.metrics.ponder_historical_eta_duration.set(
-                { logFilter: name, network: this.network.name },
-                0
-              );
-              return;
-            }
-
-            const eta =
-              elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
-
+        const completionStats = await this.getCompletionStats();
+        completionStats.forEach(({ logFilter, eta }) => {
+          // If no progress has been made, can't calculate an accurate ETA.
+          if (eta) {
             this.resources.metrics.ponder_historical_eta_duration.set(
-              { logFilter: name, network: this.network.name },
+              { logFilter, network: this.network.name },
               eta
             );
-          })
-        );
+          }
+        });
       };
   };
 }

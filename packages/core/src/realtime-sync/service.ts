@@ -262,7 +262,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (this.blocks.find((b) => b.hash === newBlock.hash)) {
       this.resources.logger.debug({
         service: "realtime",
-        msg: `Skipped new block at ${newBlock.number}, already seen (network=${this.network.name})`,
+        msg: `Already processed block at ${newBlock.number} (network=${this.network.name})`,
       });
       return;
     }
