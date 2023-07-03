@@ -13,7 +13,6 @@ const httpRequestSizeInBytes = [
 export class MetricsService {
   private registry: prometheus.Registry;
 
-  ponder_historical_is_connected: prometheus.Gauge<"network">;
   ponder_historical_eta_duration: prometheus.Gauge<"network" | "logFilter">;
   ponder_historical_scheduled_tasks: prometheus.Counter<"network" | "kind">;
   ponder_historical_completed_tasks: prometheus.Counter<
@@ -58,18 +57,6 @@ export class MetricsService {
       prefix: "ponder_default_",
     });
 
-    this.ponder_historical_is_connected = new prometheus.Gauge({
-      name: "ponder_historical_is_connected",
-      help: "Boolean (0 or 1) indicating if the historical sync service is connected",
-      labelNames: ["network"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_historical_eta_duration = new prometheus.Gauge({
-      name: "ponder_historical_eta_duration",
-      help: "Estimated number of milliseconds remaining to complete the historical sync",
-      labelNames: ["network", "logFilter"] as const,
-      registers: [this.registry],
-    });
     this.ponder_historical_scheduled_tasks = new prometheus.Counter({
       name: "ponder_historical_scheduled_tasks",
       help: "Number of historical sync tasks that have been scheduled",
@@ -80,6 +67,13 @@ export class MetricsService {
       name: "ponder_historical_completed_tasks",
       help: "Number of historical sync tasks that have been processed",
       labelNames: ["network", "kind", "status"] as const,
+      registers: [this.registry],
+    });
+    this.ponder_historical_rpc_request_duration = new prometheus.Histogram({
+      name: "ponder_historical_rpc_request_duration",
+      help: "Duration of RPC requests completed during the historical sync",
+      labelNames: ["network", "method"] as const,
+      buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
     this.ponder_historical_total_blocks = new prometheus.Gauge({
@@ -100,11 +94,10 @@ export class MetricsService {
       labelNames: ["network", "logFilter"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_rpc_request_duration = new prometheus.Histogram({
-      name: "ponder_historical_rpc_request_duration",
-      help: "Duration of RPC requests completed during the historical sync",
-      labelNames: ["network", "method"] as const,
-      buckets: httpRequestBucketsInMs,
+    this.ponder_historical_eta_duration = new prometheus.Gauge({
+      name: "ponder_historical_eta_duration",
+      help: "Estimated number of milliseconds remaining to complete the historical sync",
+      labelNames: ["network", "logFilter"] as const,
       registers: [this.registry],
     });
 

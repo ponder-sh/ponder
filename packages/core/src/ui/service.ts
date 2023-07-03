@@ -90,6 +90,16 @@ export class UiService {
         this.ui.historicalSyncDuration = formatEta(maxEta);
       }
 
+      // Realtime sync
+      const connectedNetworks = (
+        await this.resources.metrics.ponder_realtime_is_connected.get()
+      ).values
+        .filter((m) => m.value === 1)
+        .map((m) => m.labels.network)
+        .filter((n): n is string => typeof n === "string");
+
+      this.ui.networks = connectedNetworks;
+
       // Handlers
       const matchedEvents = (
         await this.resources.metrics.ponder_handlers_matched_events.get()

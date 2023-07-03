@@ -29,7 +29,6 @@ type RealtimeSyncEvents = {
 };
 
 type RealtimeSyncStats = {
-  isConnected: boolean;
   // Block number -> log filter name -> matched log count.
   // Note that finalized blocks are removed from this object.
   blocks: Record<
@@ -83,7 +82,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.network = network;
 
     this.queue = this.buildQueue();
-    this.stats = { isConnected: false, blocks: {} };
+    this.stats = { blocks: {} };
   }
 
   setup = async () => {
@@ -97,7 +96,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       )} (network=${this.network.name})`,
     });
 
-    this.stats.isConnected = true;
+    this.resources.metrics.ponder_realtime_is_connected.set(
+      { network: this.network.name },
+      1
+    );
 
     // Set the finalized block number according to the network's finality threshold.
     // If the finality block count is greater than the latest block number, set to zero.
@@ -130,6 +132,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         service: "realtime",
         msg: `No realtime log filters found (network=${this.network.name})`,
       });
+      this.resources.metrics.ponder_realtime_is_connected.set(
+        { network: this.network.name },
+        0
+      );
       return;
     }
 
