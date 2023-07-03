@@ -1,5 +1,6 @@
 import { LogFilter } from "@/config/logFilters";
 import { Resources } from "@/Ponder";
+import { formatEta } from "@/utils/format";
 
 import { buildUiState, setupInkApp, UiState } from "./app";
 
@@ -34,6 +35,8 @@ export class UiService {
     }
 
     this.renderInterval = setInterval(async () => {
+      const logFilterNames = Object.keys(this.ui.historicalSyncLogFilterStats);
+
       // Historical sync
       const totalBlocksMetric =
         await this.resources.metrics.ponder_historical_total_blocks.get();
@@ -41,23 +44,51 @@ export class UiService {
         await this.resources.metrics.ponder_historical_cached_blocks.get();
       const completedBlocksMetric =
         await this.resources.metrics.ponder_historical_completed_blocks.get();
+      const etaMetric =
+        await this.resources.metrics.ponder_historical_eta_duration.get();
 
-      Object.keys(this.ui.historicalSyncLogFilterStats).forEach((name) => {
-        const totalBlocks =
-          totalBlocksMetric.values.find((v) => v.labels.logFilter === name)
-            ?.value ?? 0;
-        const cachedBlocks =
-          cachedBlocksMetric.values.find((v) => v.labels.logFilter === name)
-            ?.value ?? 0;
-        const completedBlocks =
-          completedBlocksMetric.values.find((v) => v.labels.logFilter === name)
-            ?.value ?? 0;
+      logFilterNames.forEach((name) => {
+        const totalBlocks = totalBlocksMetric.values.find(
+          (v) => v.labels.logFilter === name
+        )?.value;
+        if (totalBlocks !== undefined) {
+          this.ui.historicalSyncLogFilterStats[name].totalBlocks = totalBlocks;
+        }
 
-        this.ui.historicalSyncLogFilterStats[name].totalBlocks = totalBlocks;
-        this.ui.historicalSyncLogFilterStats[name].cachedBlocks = cachedBlocks;
-        this.ui.historicalSyncLogFilterStats[name].completedBlocks =
-          completedBlocks;
+        const cachedBlocks = cachedBlocksMetric.values.find(
+          (v) => v.labels.logFilter === name
+        )?.value;
+        if (cachedBlocks !== undefined) {
+          this.ui.historicalSyncLogFilterStats[name].cachedBlocks =
+            cachedBlocks;
+        }
+
+        const completedBlocks = completedBlocksMetric.values.find(
+          (v) => v.labels.logFilter === name
+        )?.value;
+        if (completedBlocks !== undefined) {
+          this.ui.historicalSyncLogFilterStats[name].completedBlocks =
+            completedBlocks;
+        }
+
+        const eta = etaMetric.values.find(
+          (v) => v.labels.logFilter === name
+        )?.value;
+        if (eta !== undefined) {
+          this.ui.historicalSyncLogFilterStats[name].eta = eta;
+        }
       });
+
+      const maxEta = Math.max(
+        ...logFilterNames.map(
+          (name) => this.ui.historicalSyncLogFilterStats[name].eta
+        )
+      );
+
+      if (maxEta === 0) {
+        this.ui.isHistoricalSyncComplete = true;
+        this.ui.historicalSyncDuration = formatEta(maxEta);
+      }
 
       // Handlers
       const matchedEvents = (

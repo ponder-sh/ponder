@@ -13,14 +13,10 @@ export const HistoricalBar = ({
   title: string;
   stat: UiState["historicalSyncLogFilterStats"][0];
 }) => {
-  const { startTimestamp, cachedBlocks, totalBlocks, completedBlocks } = stat;
+  const { cachedBlocks, totalBlocks, completedBlocks, eta } = stat;
 
   const currentCompletionRate =
     (cachedBlocks + completedBlocks) / (totalBlocks || 1);
-
-  const eta =
-    (Date.now() - startTimestamp) / // Elapsed time in milliseconds
-    (completedBlocks / (totalBlocks - cachedBlocks)); // Progress
 
   // Only display the ETA text once 5 log tasks have been processed
   const etaText =

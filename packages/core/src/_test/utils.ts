@@ -11,12 +11,6 @@ import {
 } from "viem";
 import { mainnet } from "viem/chains";
 
-import { buildOptions } from "@/config/options";
-import { UserErrorService } from "@/errors/service";
-import { LoggerService } from "@/logs/service";
-import { MetricsService } from "@/metrics/service";
-import { Resources } from "@/Ponder";
-
 // Anvil test setup adapted from @viem/anvil `example-vitest` repository.
 // https://github.com/wagmi-dev/anvil.js/tree/main/examples/example-vitest
 
@@ -63,10 +57,3 @@ export const walletClient: WalletClient<HttpTransport, Chain> =
     chain: anvil,
     transport: http(),
   });
-
-export const testResources: Resources = {
-  options: buildOptions({ cliOptions: { configFile: "", rootDir: "" } }),
-  logger: new LoggerService({ level: "silent" }),
-  errors: new UserErrorService(),
-  metrics: new MetricsService(),
-};

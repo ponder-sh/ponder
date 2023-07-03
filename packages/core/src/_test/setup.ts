@@ -4,12 +4,17 @@ import SqliteDatabase from "better-sqlite3";
 import moduleAlias from "module-alias";
 import path from "node:path";
 import { Pool } from "pg";
-import type { TestContext } from "vitest";
+import { type TestContext, beforeEach } from "vitest";
 
 import { patchSqliteDatabase } from "@/config/database";
+import { buildOptions } from "@/config/options";
+import { UserErrorService } from "@/errors/service";
 import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import type { EventStore } from "@/event-store/store";
+import { LoggerService } from "@/logs/service";
+import { MetricsService } from "@/metrics/service";
+import { Resources } from "@/Ponder";
 import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import type { UserStore } from "@/user-store/store";
@@ -33,10 +38,20 @@ moduleAlias.addAlias("@ponder/core", ponderCoreDir);
  */
 declare module "vitest" {
   export interface TestContext {
+    resources: Resources;
     eventStore: EventStore;
     userStore: UserStore;
   }
 }
+
+beforeEach((context) => {
+  context.resources = {
+    options: buildOptions({ cliOptions: { configFile: "", rootDir: "" } }),
+    logger: new LoggerService({ level: "silent" }),
+    errors: new UserErrorService(),
+    metrics: new MetricsService(),
+  };
+});
 
 /**
  * Sets up an isolated EventStore on the test context.

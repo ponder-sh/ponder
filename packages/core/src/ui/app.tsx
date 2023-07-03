@@ -12,10 +12,10 @@ export type UiState = {
   historicalSyncLogFilterStats: Record<
     string,
     {
-      startTimestamp: number;
       totalBlocks: number;
       cachedBlocks: number;
       completedBlocks: number;
+      eta: number;
     }
   >;
 
@@ -51,10 +51,10 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
 
   logFilters.forEach((logFilter) => {
     ui.historicalSyncLogFilterStats[logFilter.name] = {
-      startTimestamp: 0,
       totalBlocks: 0,
       cachedBlocks: 0,
       completedBlocks: 0,
+      eta: Number.MAX_SAFE_INTEGER,
     };
   });
 

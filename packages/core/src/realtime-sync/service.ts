@@ -53,7 +53,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private logger: LoggerService;
   private eventStore: EventStore;
   private logFilters: LogFilter[];
-  network: Network;
+  private network: Network;
 
   stats: RealtimeSyncStats;
 

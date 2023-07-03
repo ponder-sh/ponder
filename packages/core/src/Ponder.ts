@@ -23,7 +23,6 @@ import { EventHandlerService } from "@/user-handlers/service";
 import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { type UserStore } from "@/user-store/store";
-import { formatEta } from "@/utils/format";
 
 export type Resources = {
   options: PonderOptions;
@@ -107,8 +106,7 @@ export class Ponder {
         network,
         logFilters: logFiltersForNetwork,
         historicalSyncService: new HistoricalSyncService({
-          metrics,
-          logger,
+          resources,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
@@ -161,7 +159,6 @@ export class Ponder {
     });
 
     this.registerServiceDependencies();
-    this.registerUiHandlers();
 
     // If any of the provided networks do not have a valid RPC url,
     // kill the app here. This happens here rather than in the constructor because
@@ -302,31 +299,32 @@ export class Ponder {
     });
 
     this.networkSyncServices.forEach((networkSyncService) => {
+      const { chainId } = networkSyncService.network;
       const { historicalSyncService, realtimeSyncService } = networkSyncService;
 
       historicalSyncService.on("historicalCheckpoint", ({ timestamp }) => {
         this.eventAggregatorService.handleNewHistoricalCheckpoint({
-          chainId: historicalSyncService.network.chainId,
+          chainId,
           timestamp,
         });
       });
 
       historicalSyncService.on("syncComplete", () => {
         this.eventAggregatorService.handleHistoricalSyncComplete({
-          chainId: historicalSyncService.network.chainId,
+          chainId,
         });
       });
 
       realtimeSyncService.on("realtimeCheckpoint", ({ timestamp }) => {
         this.eventAggregatorService.handleNewRealtimeCheckpoint({
-          chainId: realtimeSyncService.network.chainId,
+          chainId,
           timestamp,
         });
       });
 
       realtimeSyncService.on("finalityCheckpoint", ({ timestamp }) => {
         this.eventAggregatorService.handleNewFinalityCheckpoint({
-          chainId: realtimeSyncService.network.chainId,
+          chainId,
           timestamp,
         });
       });
@@ -360,51 +358,6 @@ export class Ponder {
       ) {
         this.serverService.setIsHistoricalEventProcessingComplete();
       }
-    });
-  }
-
-  private registerUiHandlers() {
-    this.networkSyncServices.forEach((networkSyncService) => {
-      const { historicalSyncService, logFilters } = networkSyncService;
-
-      historicalSyncService.on("syncStarted", () => {
-        logFilters.forEach(({ name }) => {
-          this.uiService.ui.historicalSyncLogFilterStats[name].startTimestamp =
-            Date.now();
-        });
-      });
-    });
-
-    const interval = setInterval(() => {
-      this.networkSyncServices.forEach((networkSyncService) => {
-        const { network, realtimeSyncService } = networkSyncService;
-
-        if (
-          realtimeSyncService.stats.isConnected &&
-          !this.uiService.ui.networks.includes(network.name)
-        ) {
-          this.uiService.ui.networks.push(network.name);
-        }
-      });
-
-      const isHistoricalSyncComplete = this.networkSyncServices.every(
-        (n) => n.historicalSyncService.stats.isComplete
-      );
-      this.uiService.ui.isHistoricalSyncComplete = isHistoricalSyncComplete;
-
-      if (isHistoricalSyncComplete) {
-        this.uiService.ui.historicalSyncDuration = formatEta(
-          Math.max(
-            ...this.networkSyncServices.map(
-              (n) => n.historicalSyncService.stats.duration
-            )
-          )
-        );
-      }
-    }, 17);
-
-    this.killFunctions.push(() => {
-      clearInterval(interval);
     });
   }
 }

@@ -7,7 +7,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
-import { publicClient, testResources } from "@/_test/utils";
+import { publicClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { Network } from "@/config/networks";
@@ -16,7 +16,6 @@ import { HistoricalSyncService } from "./service";
 
 beforeEach((context) => setupEventStore(context));
 
-const { metrics, logger } = testResources;
 const network: Network = {
   name: "mainnet",
   chainId: 1,
@@ -49,30 +48,46 @@ const logFilters: LogFilter[] = [
   },
 ];
 
-test("setup() calculates cached and total block counts", async (context) => {
-  const { eventStore } = context;
+test("setup() updates cached block, total block, and scheduled task metrics", async (context) => {
+  const { resources, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    metrics,
-    logger,
+    resources,
     eventStore,
     logFilters,
     network,
   });
   await service.setup({ finalizedBlockNumber: 16369955 });
 
-  expect(service.stats.logFilters["USDC"]).toMatchObject({
-    totalBlockCount: 6,
-    cacheRate: 0,
-  });
+  const cachedBlocksMetric = (
+    await resources.metrics.ponder_historical_cached_blocks.get()
+  ).values;
+  expect(cachedBlocksMetric).toMatchObject([
+    { labels: { network: "mainnet", logFilter: "USDC" }, value: 0 },
+  ]);
+
+  const totalBlocksMetric = (
+    await resources.metrics.ponder_historical_total_blocks.get()
+  ).values;
+  expect(totalBlocksMetric).toMatchObject([
+    { labels: { network: "mainnet", logFilter: "USDC" }, value: 6 },
+  ]);
+
+  const scheduledTaskMetric = (
+    await resources.metrics.ponder_historical_scheduled_tasks.get()
+  ).values;
+  expect(scheduledTaskMetric).toMatchObject([
+    { labels: { network: "mainnet", kind: "log" }, value: 2 },
+  ]);
+
+  await service.kill();
 });
 
-test("start() runs log tasks and block tasks", async (context) => {
-  const { eventStore } = context;
+test("start() updates completed tasks and completed blocks metrics", async (context) => {
+  const { resources, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    metrics,
-    logger,
+    resources,
     eventStore,
     logFilters,
     network,
@@ -82,20 +97,73 @@ test("start() runs log tasks and block tasks", async (context) => {
 
   await service.onIdle();
 
-  expect(service.stats.logFilters["USDC"]).toMatchObject({
-    blockTaskTotalCount: 6,
-    blockTaskCompletedCount: 6,
-    logTaskTotalCount: 2,
-    logTaskCompletedCount: 2,
+  const completedTasksMetric = (
+    await resources.metrics.ponder_historical_completed_tasks.get()
+  ).values;
+  expect(completedTasksMetric).toMatchObject([
+    {
+      labels: { network: "mainnet", kind: "log", status: "success" },
+      value: 2,
+    },
+    {
+      labels: { network: "mainnet", kind: "block", status: "success" },
+      value: 6,
+    },
+  ]);
+
+  const totalBlocksMetric = (
+    await resources.metrics.ponder_historical_completed_blocks.get()
+  ).values;
+  expect(totalBlocksMetric).toMatchObject([
+    { labels: { network: "mainnet", logFilter: "USDC" }, value: 6 },
+  ]);
+
+  await service.kill();
+});
+
+test("start() updates rpc request duration metrics", async (context) => {
+  const { resources, eventStore } = context;
+
+  const service = new HistoricalSyncService({
+    resources,
+    eventStore,
+    logFilters,
+    network,
   });
+  await service.setup({ finalizedBlockNumber: 16369955 });
+  service.start();
+
+  await service.onIdle();
+
+  const requestsDurationMetric = (
+    await resources.metrics.ponder_historical_rpc_request_duration.get()
+  ).values;
+
+  expect(requestsDurationMetric).toMatchObject(
+    expect.arrayContaining([
+      expect.objectContaining({
+        labels: expect.objectContaining({
+          network: "mainnet",
+          method: "eth_getLogs",
+        }),
+      }),
+      expect.objectContaining({
+        labels: expect.objectContaining({
+          network: "mainnet",
+          method: "eth_getBlockByNumber",
+        }),
+      }),
+    ])
+  );
+
+  await service.kill();
 });
 
 test("start() adds events to event store", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    metrics,
-    logger,
+    resources,
     eventStore,
     logFilters,
     network,
@@ -139,14 +207,15 @@ test("start() adds events to event store", async (context) => {
   });
 
   expect(events).toHaveLength(61);
+
+  await service.kill();
 });
 
 test("start() inserts cached ranges", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    metrics,
-    logger,
+    resources,
     eventStore,
     logFilters,
     network,
@@ -166,43 +235,77 @@ test("start() inserts cached ranges", async (context) => {
     endBlockTimestamp: 1673275859n,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
+
+  await service.kill();
 });
 
 test("start() retries errors", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const spy = vi.spyOn(eventStore, "insertFinalizedLogs");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const service = new HistoricalSyncService({
-    metrics,
-    logger,
+    resources,
     eventStore,
     logFilters,
     network,
   });
-  await service.setup({ finalizedBlockNumber: 16369950 }); // One block
+  await service.setup({ finalizedBlockNumber: 16369951 }); // Two blocks
   service.start();
   await service.onIdle();
-
-  expect(service.stats.logFilters["USDC"]).toMatchObject({
-    logTaskTotalCount: 2,
-    logTaskErrorCount: 1,
-    logTaskCompletedCount: 1,
-  });
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
     filterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
     startBlock: 16369950n,
-    endBlock: 16369950n,
+    endBlock: 16369951n,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
+
+  await service.kill();
+});
+
+test("start() updates failed task metrics", async (context) => {
+  const { resources, eventStore } = context;
+
+  const spy = vi.spyOn(eventStore, "insertFinalizedLogs");
+  spy.mockRejectedValueOnce(new Error("Unexpected error!"));
+
+  const service = new HistoricalSyncService({
+    resources,
+    eventStore,
+    logFilters,
+    network,
+  });
+  await service.setup({ finalizedBlockNumber: 16369951 }); // Two blocks
+  service.start();
+  await service.onIdle();
+
+  const completedTasksMetric = (
+    await resources.metrics.ponder_historical_completed_tasks.get()
+  ).values;
+  expect(completedTasksMetric).toMatchObject([
+    {
+      labels: { network: "mainnet", kind: "log", status: "failure" },
+      value: 1,
+    },
+    {
+      labels: { network: "mainnet", kind: "log", status: "success" },
+      value: 1,
+    },
+    {
+      labels: { network: "mainnet", kind: "block", status: "success" },
+      value: 2,
+    },
+  ]);
+
+  await service.kill();
 });
 
 test("start() handles Alchemy 'Log response size exceeded' error", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   rpcRequestSpy.mockRejectedValueOnce(
     new InvalidParamsRpcError(
@@ -214,8 +317,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   );
 
   const service = new HistoricalSyncService({
-    metrics,
-    logger,
+    resources,
     eventStore,
     logFilters,
     network,
@@ -223,12 +325,6 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
   await service.onIdle();
-
-  expect(service.stats.logFilters["USDC"]).toMatchObject({
-    logTaskTotalCount: 4,
-    logTaskErrorCount: 1,
-    logTaskCompletedCount: 3,
-  });
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
     filterKey: logFilters[0].filter.key,
@@ -238,10 +334,12 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
     endBlock: 16369955n,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
+
+  await service.kill();
 });
 
 test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 10,000 blocks range' error", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   rpcRequestSpy.mockRejectedValueOnce(
     new HttpRequestError({
@@ -252,8 +350,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   );
 
   const service = new HistoricalSyncService({
-    metrics,
-    logger,
+    resources,
     eventStore,
     logFilters,
     network,
@@ -261,12 +358,6 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
   await service.onIdle();
-
-  expect(service.stats.logFilters["USDC"]).toMatchObject({
-    logTaskTotalCount: 4,
-    logTaskErrorCount: 1,
-    logTaskCompletedCount: 3,
-  });
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
     filterKey: logFilters[0].filter.key,
@@ -276,14 +367,15 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
     endBlock: 16369955n,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
+
+  await service.kill();
 });
 
-test("start() emits sync started and completed events", async (context) => {
-  const { eventStore } = context;
+test("start() emits sync completed event", async (context) => {
+  const { resources, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    metrics,
-    logger,
+    resources,
     eventStore,
     logFilters,
     network,
@@ -293,18 +385,54 @@ test("start() emits sync started and completed events", async (context) => {
   await service.setup({ finalizedBlockNumber: 16369955 });
   service.start();
 
-  expect(emitSpy).toHaveBeenCalledWith("syncStarted");
-
   await service.onIdle();
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
+
+  await service.kill();
+});
+
+test("start() emits checkpoit and sync completed event if 100% cached", async (context) => {
+  const { resources, eventStore } = context;
+
+  let service = new HistoricalSyncService({
+    resources,
+    eventStore,
+    logFilters,
+    network,
+  });
+
+  await service.setup({ finalizedBlockNumber: 16369955 });
+  service.start();
+  await service.onIdle();
+  await service.kill();
+
+  service = new HistoricalSyncService({
+    resources,
+    eventStore,
+    logFilters,
+    network,
+  });
+
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await service.setup({ finalizedBlockNumber: 16369955 });
+  service.start();
+  await service.onIdle();
+
+  expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
+    timestamp: expect.any(Number),
+  });
+  expect(emitSpy).toHaveBeenCalledWith("syncComplete");
+  expect(emitSpy).toHaveBeenCalledTimes(2);
+
+  await service.kill();
 });
 
 test("start() emits historicalCheckpoint event", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    metrics,
-    logger,
+    resources,
     eventStore,
     logFilters,
     network,
@@ -319,4 +447,6 @@ test("start() emits historicalCheckpoint event", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
     timestamp: 1673275859, // Block timestamp of block 16369955
   });
+
+  await service.kill();
 });
