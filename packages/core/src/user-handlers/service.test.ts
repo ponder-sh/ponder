@@ -47,13 +47,21 @@ const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
 
 const schema = buildSchema(
   buildGraphqlSchema(`${schemaHeader}
-    type TestEntity @entity {
+    type TransferEvent @entity {
       id: String!
+      timestamp: Int!
     }
   `)
 );
 
-const transferHandler = vi.fn();
+const transferHandler = vi.fn(async ({ event, context }) => {
+  await context.entities.TransferEvent.create({
+    id: event.log.id,
+    data: {
+      timestamp: Number(event.block.timestamp),
+    },
+  });
+});
 
 const handlers = {
   USDC: {
@@ -76,15 +84,15 @@ const handledLogFilters = {
   ],
 };
 
-const getEvents = vi.fn(() => ({
-  totalEventCount: 5,
+const getEvents = vi.fn(({ fromTimestamp, toTimestamp }) => ({
+  totalEventCount: toTimestamp - fromTimestamp,
   events: [
     {
       logFilterName: "USDC",
       eventName: "Transfer",
-      params: {},
-      log: {},
-      block: {},
+      params: { from: "0x0", to: "0x1", amount: 100n },
+      log: { id: String(toTimestamp) },
+      block: { timestamp: BigInt(toTimestamp) },
       transaction: {},
     },
   ],
@@ -101,7 +109,7 @@ beforeEach(() => {
   eventAggregatorService.checkpoint = 0;
 });
 
-test("processEvents() calls event handler functions", async (context) => {
+test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
   const { eventStore, userStore } = context;
 
   const service = new EventHandlerService({
@@ -115,43 +123,7 @@ test("processEvents() calls event handler functions", async (context) => {
 
   await service.reset({ schema, handlers });
 
-  eventAggregatorService.checkpoint = 10;
-  await service.processEvents();
-
-  expect(transferHandler).toHaveBeenCalledWith(
-    expect.objectContaining({
-      event: {
-        logFilterName: "USDC",
-        eventName: "Transfer",
-        params: {},
-        log: {},
-        block: {},
-        transaction: {},
-        name: "Transfer",
-      },
-      context: {
-        contracts: expect.anything(),
-        entities: expect.anything(),
-      },
-    })
-  );
-
-  service.kill();
-});
-
-test("processEvents() calls getEvents with expected parameters", async (context) => {
-  const { eventStore, userStore } = context;
-
-  const service = new EventHandlerService({
-    resources: testResources,
-    eventStore,
-    userStore,
-    eventAggregatorService,
-    contracts,
-    logFilters,
-  });
-
-  await service.reset({ schema, handlers });
+  expect(getEvents).not.toHaveBeenCalled();
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -174,7 +146,7 @@ test("processEvents() calls getEvents with expected parameters", async (context)
   service.kill();
 });
 
-test("reset() processes events after resetting", async (context) => {
+test("processEvents() calls event handler functions with correct arguments", async (context) => {
   const { eventStore, userStore } = context;
 
   const service = new EventHandlerService({
@@ -191,20 +163,157 @@ test("reset() processes events after resetting", async (context) => {
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
-  expect(getEvents).toHaveBeenLastCalledWith({
-    fromTimestamp: 0,
-    toTimestamp: 10,
-    handledLogFilters,
+  expect(transferHandler).toHaveBeenCalledWith(
+    expect.objectContaining({
+      event: {
+        logFilterName: "USDC",
+        eventName: "Transfer",
+        params: { from: "0x0", to: "0x1", amount: 100n },
+        log: { id: "10" },
+        block: { timestamp: 10n },
+        transaction: {},
+        name: "Transfer",
+      },
+      context: {
+        contracts: { USDC: expect.anything() },
+        entities: { TransferEvent: expect.anything() },
+      },
+    })
+  );
+
+  service.kill();
+});
+
+test("processEvents() model methods insert data into the user store", async (context) => {
+  const { eventStore, userStore } = context;
+
+  const service = new EventHandlerService({
+    resources: testResources,
+    eventStore,
+    userStore,
+    eventAggregatorService,
+    contracts,
+    logFilters,
   });
 
-  eventAggregatorService.checkpoint = 15;
   await service.reset({ schema, handlers });
 
-  expect(getEvents).toHaveBeenLastCalledWith({
-    fromTimestamp: 0,
-    toTimestamp: 15,
-    handledLogFilters,
+  eventAggregatorService.checkpoint = 10;
+  await service.processEvents();
+
+  const transferEvents = await userStore.findMany({
+    modelName: "TransferEvent",
   });
+  expect(transferEvents.length).toBe(1);
+
+  service.kill();
+});
+
+test("processEvents() updates event count metrics", async (context) => {
+  const { eventStore, userStore } = context;
+  const { metrics } = testResources;
+
+  const service = new EventHandlerService({
+    resources: testResources,
+    eventStore,
+    userStore,
+    eventAggregatorService,
+    contracts,
+    logFilters,
+  });
+
+  await service.reset({ schema, handlers });
+
+  eventAggregatorService.checkpoint = 10;
+  await service.processEvents();
+
+  const matchedEventsMetric = (
+    await metrics.ponder_handlers_matched_events.get()
+  ).values[0].value;
+  expect(matchedEventsMetric).toBe(10);
+
+  const handledEventsMetric = (
+    await metrics.ponder_handlers_handled_events.get()
+  ).values;
+  expect(handledEventsMetric).toMatchObject([
+    { labels: { eventName: "USDC:Transfer" }, value: 1 },
+  ]);
+
+  const processedEventsMetric = (
+    await metrics.ponder_handlers_processed_events.get()
+  ).values;
+  expect(processedEventsMetric).toMatchObject([
+    { labels: { eventName: "USDC:Transfer" }, value: 1 },
+  ]);
+
+  service.kill();
+});
+
+test("reset() reloads the user store", async (context) => {
+  const { eventStore, userStore } = context;
+
+  const service = new EventHandlerService({
+    resources: testResources,
+    eventStore,
+    userStore,
+    eventAggregatorService,
+    contracts,
+    logFilters,
+  });
+
+  await service.reset({ schema, handlers });
+
+  eventAggregatorService.checkpoint = 10;
+  await service.processEvents();
+
+  const transferEvents = await userStore.findMany({
+    modelName: "TransferEvent",
+  });
+  expect(transferEvents.length).toBe(1);
+
+  const versionIdBeforeReset = userStore.versionId;
+
+  await service.reset({ schema, handlers });
+
+  expect(userStore.versionId).not.toBe(versionIdBeforeReset);
+
+  const transferEventsAfterReset = await userStore.findMany({
+    modelName: "TransferEvent",
+  });
+  expect(transferEventsAfterReset.length).toBe(0);
+
+  service.kill();
+});
+
+test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
+  const { eventStore, userStore } = context;
+  const { metrics } = testResources;
+
+  const service = new EventHandlerService({
+    resources: testResources,
+    eventStore,
+    userStore,
+    eventAggregatorService,
+    contracts,
+    logFilters,
+  });
+
+  await service.reset({ schema, handlers });
+
+  eventAggregatorService.checkpoint = 10;
+  await service.processEvents();
+
+  const latestProcessedTimestampMetric = (
+    await metrics.ponder_handlers_latest_processed_timestamp.get()
+  ).values[0].value;
+  expect(latestProcessedTimestampMetric).toBe(10);
+
+  await service.reset({ schema, handlers });
+
+  const latestProcessedTimestampMetricAfterReset = (
+    await metrics.ponder_handlers_latest_processed_timestamp.get()
+  ).values[0].value;
+  expect(latestProcessedTimestampMetricAfterReset).toBe(0);
 
   service.kill();
 });
@@ -235,7 +344,37 @@ test("handleReorg() reverts the user store", async (context) => {
   service.kill();
 });
 
-test("handleReorg() processes events between the reorg timestamp and the checkpoint", async (context) => {
+test("handleReorg() does nothing if there is a user error", async (context) => {
+  const { eventStore, userStore } = context;
+
+  const userStoreRevertSpy = vi.spyOn(userStore, "revert");
+
+  const service = new EventHandlerService({
+    resources: testResources,
+    eventStore,
+    userStore,
+    eventAggregatorService,
+    contracts,
+    logFilters,
+  });
+
+  await service.reset({ schema, handlers });
+
+  transferHandler.mockImplementationOnce(() => {
+    throw new Error("User error!");
+  });
+
+  eventAggregatorService.checkpoint = 10;
+  await service.processEvents();
+
+  await service.handleReorg({ commonAncestorTimestamp: 6 });
+
+  expect(userStoreRevertSpy).not.toHaveBeenCalled();
+
+  service.kill();
+});
+
+test("handleReorg() processes the correct range of events after a reorg", async (context) => {
   const { eventStore, userStore } = context;
 
   const service = new EventHandlerService({
@@ -252,16 +391,59 @@ test("handleReorg() processes events between the reorg timestamp and the checkpo
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
+  expect(getEvents).toHaveBeenLastCalledWith({
+    fromTimestamp: 0,
+    toTimestamp: 10,
+    handledLogFilters,
+  });
+
   // This simulates a scenario where there was a reorg back to 6
   // and the new latest block is 9.
   eventAggregatorService.checkpoint = 9;
   await service.handleReorg({ commonAncestorTimestamp: 6 });
+  await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith({
     fromTimestamp: 7,
     toTimestamp: 9,
     handledLogFilters,
   });
+
+  service.kill();
+});
+
+test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
+  const { eventStore, userStore } = context;
+  const { metrics } = testResources;
+
+  const service = new EventHandlerService({
+    resources: testResources,
+    eventStore,
+    userStore,
+    eventAggregatorService,
+    contracts,
+    logFilters,
+  });
+
+  await service.reset({ schema, handlers });
+
+  eventAggregatorService.checkpoint = 10;
+  await service.processEvents();
+
+  const latestProcessedTimestampMetric = (
+    await metrics.ponder_handlers_latest_processed_timestamp.get()
+  ).values[0].value;
+  expect(latestProcessedTimestampMetric).toBe(10);
+
+  // This simulates a scenario where there was a reorg back to 6
+  // and the new latest block is 9.
+  eventAggregatorService.checkpoint = 9;
+  await service.handleReorg({ commonAncestorTimestamp: 6 });
+
+  const latestProcessedTimestampMetricAfterReorg = (
+    await metrics.ponder_handlers_latest_processed_timestamp.get()
+  ).values[0].value;
+  expect(latestProcessedTimestampMetricAfterReorg).toBe(6);
 
   service.kill();
 });

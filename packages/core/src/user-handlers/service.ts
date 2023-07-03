@@ -106,6 +106,13 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     });
   };
 
+  /**
+   * Registers a new set of handler functions and/or a new schema, cancels
+   * the current event processing mutex & event queue, drops and re-creates
+   * all tables from the user store, and resets eventsProcessedToTimestamp to zero.
+   *
+   * Note: Caller should (probably) immediately call processEvents after this method.
+   */
   reset = async ({
     handlers: newHandlers,
     schema: newSchema,
@@ -176,31 +183,30 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     // Set the latest processed timestamp to zero accordingly.
     this.eventsProcessedToTimestamp = 0;
     this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(0);
-
-    await this.processEvents();
   };
 
+  /**
+   * This method is triggered by the realtime sync service detecting a reorg,
+   * which can happen at any time. The event queue and the user store can be
+   * in one of several different states that we need to keep in mind:
+   *
+   * 1) No events have been added to the queue yet.
+   * 2) No unsafe events have been processed (eventsProcessedToTimestamp <= commonAncestorTimestamp).
+   * 3) Unsafe events may have been processed (eventsProcessedToTimestamp > commonAncestorTimestamp).
+   * 4) The queue has encountered a user error and is waiting for a reload.
+   *
+   * Note: It's crucial that we acquire a mutex lock while handling the reorg.
+   * This will only ever run while the queue is idle, so we can be confident
+   * that eventsProcessedToTimestamp matches the current state of the user store,
+   * and that no unsafe events will get processed after handling the reorg.
+   *
+   * Note: Caller should (probably) immediately call processEvents after this method.
+   */
   handleReorg = async ({
     commonAncestorTimestamp,
   }: {
     commonAncestorTimestamp: number;
   }) => {
-    /**
-     * This method is triggered by the realtime sync service detecting a reorg,
-     * which can happen at any time. The event queue and the user store can be
-     * in one of several different states that we need to keep in mind:
-     *
-     * 1) No events have been added to the queue yet.
-     * 2) No unsafe events have been processed (eventsProcessedToTimestamp <= commonAncestorTimestamp).
-     * 3) Unsafe events may have been processed (eventsProcessedToTimestamp > commonAncestorTimestamp).
-     * 4) The queue has encountered a user error and is waiting for a reload.
-     *
-     * Note: It's crucial that we acquire a mutex lock while handling the reorg.
-     * This will only ever run while the queue is idle, so we can be confident
-     * that eventsProcessedToTimestamp matches the current state of the user store,
-     * and that no unsafe events will get processed after handling the reorg.
-     */
-
     try {
       await this.eventProcessingMutex.runExclusive(async () => {
         // If there is a user error, the queue & user store will be wiped on reload (case 4).
@@ -239,8 +245,6 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       // ignore the error that is thrown when a pending lock is cancelled.
       if (error !== E_CANCELED) throw error;
     }
-
-    await this.processEvents();
   };
 
   /**
@@ -249,7 +253,6 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
    * Acquires a lock on the event processing mutex, then gets the latest checkpoint
    * from the event aggregator service. Fetches events between previous checkpoint
    * and the new checkpoint, adds them to the queue, then processes them.
-   *
    */
   processEvents = async () => {
     try {

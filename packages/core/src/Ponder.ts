@@ -293,10 +293,12 @@ export class Ponder {
       this.serverService.reload({ graphqlSchema });
 
       await this.eventHandlerService.reset({ schema });
+      await this.eventHandlerService.processEvents();
     });
 
     this.reloadService.on("newHandlers", async ({ handlers }) => {
       await this.eventHandlerService.reset({ handlers });
+      await this.eventHandlerService.processEvents();
     });
 
     this.networkSyncServices.forEach((networkSyncService) => {
@@ -342,6 +344,7 @@ export class Ponder {
       "reorg",
       async ({ commonAncestorTimestamp }) => {
         await this.eventHandlerService.handleReorg({ commonAncestorTimestamp });
+        await this.eventHandlerService.processEvents();
       }
     );
 
