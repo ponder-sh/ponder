@@ -23,6 +23,7 @@ const network = {
   pollingInterval: 1_000,
   defaultMaxBlockRange: 3,
   finalityBlockCount: 10,
+  maxRpcRequestConcurrency: 10,
 };
 
 const logFilters: LogFilter[] = [
