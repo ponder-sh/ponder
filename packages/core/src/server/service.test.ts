@@ -3,8 +3,8 @@ import request from "supertest";
 import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
+import { schemaHeader } from "@/build/schema";
 import { Resources } from "@/Ponder";
-import { schemaHeader } from "@/reload/readGraphqlSchema";
 import { buildSchema } from "@/schema/schema";
 import { UserStore } from "@/user-store/store";
 import { range } from "@/utils/range";
@@ -166,7 +166,7 @@ test("serves all scalar types correctly", async (context) => {
     bigInt: "2",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("serves all scalar list types correctly", async (context) => {
@@ -221,7 +221,7 @@ test("serves all scalar list types correctly", async (context) => {
     bytesList: ["2"],
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("serves enum types correctly", async (context) => {
@@ -260,7 +260,7 @@ test("serves enum types correctly", async (context) => {
     enum: "TWO",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("serves derived types correctly", async (context) => {
@@ -298,7 +298,7 @@ test("serves derived types correctly", async (context) => {
     ],
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("serves relationship types correctly", async (context) => {
@@ -342,7 +342,7 @@ test("serves relationship types correctly", async (context) => {
     },
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on string field equals", async (context) => {
@@ -371,7 +371,7 @@ test("filters on string field equals", async (context) => {
     id: "123",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on string field in", async (context) => {
@@ -403,7 +403,7 @@ test("filters on string field in", async (context) => {
     id: "125",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on string field contains", async (context) => {
@@ -432,7 +432,7 @@ test("filters on string field contains", async (context) => {
     id: "125",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on string field starts with", async (context) => {
@@ -464,7 +464,7 @@ test("filters on string field starts with", async (context) => {
     id: "125",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on string field not ends with", async (context) => {
@@ -496,7 +496,7 @@ test("filters on string field not ends with", async (context) => {
     id: "130",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on integer field equals", async (context) => {
@@ -525,7 +525,7 @@ test("filters on integer field equals", async (context) => {
     id: "0",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on integer field greater than", async (context) => {
@@ -554,7 +554,7 @@ test("filters on integer field greater than", async (context) => {
     id: "2",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on integer field less than or equal to", async (context) => {
@@ -586,7 +586,7 @@ test("filters on integer field less than or equal to", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on integer field in", async (context) => {
@@ -618,7 +618,7 @@ test("filters on integer field in", async (context) => {
     id: "2",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on float field equals", async (context) => {
@@ -647,7 +647,7 @@ test("filters on float field equals", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on float field greater than", async (context) => {
@@ -676,7 +676,7 @@ test("filters on float field greater than", async (context) => {
     id: "2",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on float field less than or equal to", async (context) => {
@@ -709,7 +709,7 @@ test("filters on float field less than or equal to", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on float field in", async (context) => {
@@ -742,7 +742,7 @@ test("filters on float field in", async (context) => {
     id: "2",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test.todo("filters on bigInt field equals", async (context) => {
@@ -771,7 +771,7 @@ test.todo("filters on bigInt field equals", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test.todo("filters on bigInt field greater than", async (context) => {
@@ -800,7 +800,7 @@ test.todo("filters on bigInt field greater than", async (context) => {
     id: "2",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test.todo("filters on bigInt field less than or equal to", async (context) => {
@@ -833,7 +833,7 @@ test.todo("filters on bigInt field less than or equal to", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test.todo("filters on bigInt field in", async (context) => {
@@ -866,7 +866,7 @@ test.todo("filters on bigInt field in", async (context) => {
     id: "2",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on string list field equals", async (context) => {
@@ -895,7 +895,7 @@ test("filters on string list field equals", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on string list field contains", async (context) => {
@@ -924,7 +924,7 @@ test("filters on string list field contains", async (context) => {
     id: "2",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on enum field equals", async (context) => {
@@ -953,7 +953,7 @@ test("filters on enum field equals", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on enum field in", async (context) => {
@@ -985,7 +985,7 @@ test("filters on enum field in", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on relationship field equals", async (context) => {
@@ -1018,7 +1018,7 @@ test("filters on relationship field equals", async (context) => {
     },
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on relationship field in", async (context) => {
@@ -1049,7 +1049,7 @@ test("filters on relationship field in", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("filters on relationship field in", async (context) => {
@@ -1080,7 +1080,7 @@ test("filters on relationship field in", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("orders by on int field ascending", async (context) => {
@@ -1115,7 +1115,7 @@ test("orders by on int field ascending", async (context) => {
     id: "123",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("orders by on int field descending", async (context) => {
@@ -1150,7 +1150,7 @@ test("orders by on int field descending", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("orders by on bigInt field ascending", async (context) => {
@@ -1185,7 +1185,7 @@ test("orders by on bigInt field ascending", async (context) => {
     id: "123",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("orders by on bigInt field descending", async (context) => {
@@ -1220,7 +1220,7 @@ test("orders by on bigInt field descending", async (context) => {
     id: "1",
   });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("limits to the first 100 by default", async (context) => {
@@ -1245,7 +1245,7 @@ test("limits to the first 100 by default", async (context) => {
   expect(testEntitys).toHaveLength(100);
   expect(testEntitys[0]).toMatchObject({ id: "0" });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("limits as expected if less than 1000", async (context) => {
@@ -1270,7 +1270,7 @@ test("limits as expected if less than 1000", async (context) => {
   expect(testEntitys).toHaveLength(15);
   expect(testEntitys[0]).toMatchObject({ id: "0" });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("throws if limit is greater than 1000", async (context) => {
@@ -1295,7 +1295,7 @@ test("throws if limit is greater than 1000", async (context) => {
   );
   expect(response.statusCode).toBe(500);
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("skips as expected", async (context) => {
@@ -1320,7 +1320,7 @@ test("skips as expected", async (context) => {
   expect(testEntitys).toHaveLength(85);
   expect(testEntitys[0]).toMatchObject({ id: "20" });
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("throws if skip is greater than 5000", async (context) => {
@@ -1343,7 +1343,7 @@ test("throws if skip is greater than 5000", async (context) => {
   );
   expect(response.statusCode).toBe(500);
 
-  await service.teardown();
+  await service.kill();
 });
 
 test("limits and skips together as expected", async (context) => {
@@ -1369,5 +1369,5 @@ test("limits and skips together as expected", async (context) => {
   expect(testEntitys[0]).toMatchObject({ id: "50" });
   expect(testEntitys[9]).toMatchObject({ id: "59" });
 
-  await service.teardown();
+  await service.kill();
 });

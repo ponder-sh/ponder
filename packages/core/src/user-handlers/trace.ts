@@ -11,9 +11,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parse as parseStackTrace, StackFrame } from "stacktrace-parser";
 
-import { PonderOptions } from "@/config/options";
+import { Options } from "@/config/options";
 
-export const getStackTrace = (error: Error, options: PonderOptions) => {
+export const getStackTrace = (error: Error, options: Options) => {
   if (!error.stack) return undefined;
 
   const buildDir = path.join(options.ponderDir, "out");

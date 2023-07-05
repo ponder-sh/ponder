@@ -1,12 +1,13 @@
 import path from "node:path";
 
+import { BuildService } from "@/build/service";
 import { CodegenService } from "@/codegen/service";
+import { type ResolvedConfig } from "@/config/config";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
 import { type LogFilter, buildLogFilters } from "@/config/logFilters";
 import { type Network, buildNetwork } from "@/config/networks";
-import { type PonderOptions } from "@/config/options";
-import { type ResolvedPonderConfig } from "@/config/ponderConfig";
+import { type Options } from "@/config/options";
 import { UserErrorService } from "@/errors/service";
 import { EventAggregatorService } from "@/event-aggregator/service";
 import { PostgresEventStore } from "@/event-store/postgres/store";
@@ -16,7 +17,6 @@ import { HistoricalSyncService } from "@/historical-sync/service";
 import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { RealtimeSyncService } from "@/realtime-sync/service";
-import { ReloadService } from "@/reload/service";
 import { ServerService } from "@/server/service";
 import { UiService } from "@/ui/service";
 import { EventHandlerService } from "@/user-handlers/service";
@@ -25,7 +25,7 @@ import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { type UserStore } from "@/user-store/store";
 
 export type Resources = {
-  options: PonderOptions;
+  options: Options;
   logger: LoggerService;
   errors: UserErrorService;
   metrics: MetricsService;
@@ -50,7 +50,7 @@ export class Ponder {
   eventHandlerService: EventHandlerService;
 
   serverService: ServerService;
-  reloadService: ReloadService;
+  buildService: BuildService;
   codegenService: CodegenService;
   uiService: UiService;
 
@@ -62,8 +62,8 @@ export class Ponder {
     eventStore,
     userStore,
   }: {
-    options: PonderOptions;
-    config: ResolvedPonderConfig;
+    options: Options;
+    config: ResolvedConfig;
     // These options are only used for testing.
     eventStore?: EventStore;
     userStore?: UserStore;
@@ -139,7 +139,7 @@ export class Ponder {
       resources,
       userStore: this.userStore,
     });
-    this.reloadService = new ReloadService({ resources });
+    this.buildService = new BuildService({ resources });
     this.codegenService = new CodegenService({
       resources,
       contracts,
@@ -188,9 +188,9 @@ export class Ponder {
     await this.eventStore.migrateUp();
 
     // Manually trigger loading schema and handlers. Subsequent loads
-    // are triggered by changes to project files (handled in ReloadService).
-    this.reloadService.loadSchema();
-    await this.reloadService.loadHandlers();
+    // are triggered by changes to project files (handled in BuildService).
+    this.buildService.buildSchema();
+    await this.buildService.buildHandlers();
   }
 
   async dev() {
@@ -212,7 +212,7 @@ export class Ponder {
       )
     );
 
-    this.reloadService.watch();
+    this.buildService.watch();
   }
 
   async start() {
@@ -238,7 +238,7 @@ export class Ponder {
   async codegen() {
     this.codegenService.generateAppFile();
 
-    const result = this.reloadService.loadSchema();
+    const result = this.buildService.buildSchema();
     if (result) {
       const { schema, graphqlSchema } = result;
       this.codegenService.generateAppFile({ schema });
@@ -261,10 +261,10 @@ export class Ponder {
       )
     );
 
-    await this.reloadService.kill?.();
+    await this.buildService.kill?.();
     this.uiService.kill();
     this.eventHandlerService.kill();
-    await this.serverService.teardown();
+    await this.serverService.kill();
     await this.userStore.teardown();
 
     this.resources.logger.debug({
@@ -274,7 +274,7 @@ export class Ponder {
   }
 
   private registerServiceDependencies() {
-    this.reloadService.on("ponderConfigChanged", async () => {
+    this.buildService.on("newConfig", async () => {
       this.resources.logger.fatal({
         service: "build",
         msg: "Detected change in ponder.config.ts",
@@ -282,7 +282,7 @@ export class Ponder {
       await this.kill();
     });
 
-    this.reloadService.on("newSchema", async ({ schema, graphqlSchema }) => {
+    this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
       this.codegenService.generateAppFile({ schema });
       this.codegenService.generateSchemaFile({ graphqlSchema });
 
@@ -292,7 +292,7 @@ export class Ponder {
       await this.eventHandlerService.processEvents();
     });
 
-    this.reloadService.on("newHandlers", async ({ handlers }) => {
+    this.buildService.on("newHandlers", async ({ handlers }) => {
       await this.eventHandlerService.reset({ handlers });
       await this.eventHandlerService.processEvents();
     });

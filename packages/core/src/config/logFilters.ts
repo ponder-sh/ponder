@@ -1,8 +1,8 @@
 import { Abi, Address } from "abitype";
 import { encodeEventTopics } from "viem";
 
-import { PonderOptions } from "@/config/options";
-import { ResolvedPonderConfig } from "@/config/ponderConfig";
+import { ResolvedConfig } from "@/config/config";
+import { Options } from "@/config/options";
 
 import { buildAbi } from "./abi";
 import { encodeLogFilterKey } from "./logFilterKey";
@@ -26,8 +26,8 @@ export function buildLogFilters({
   config,
   options,
 }: {
-  config: ResolvedPonderConfig;
-  options: PonderOptions;
+  config: ResolvedConfig;
+  options: Options;
 }) {
   const contractLogFilters = (config.contracts ?? [])
     .filter((contract) => contract.isLogEventSource ?? true)

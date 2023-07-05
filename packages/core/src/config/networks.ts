@@ -1,7 +1,7 @@
 import { createPublicClient, http, PublicClient } from "viem";
 import { mainnet } from "viem/chains";
 
-import { ResolvedPonderConfig } from "@/config/ponderConfig";
+import { ResolvedConfig } from "@/config/config";
 
 export type Network = {
   name: string;
@@ -18,7 +18,7 @@ const clients: Record<number, PublicClient | undefined> = {};
 export function buildNetwork({
   network,
 }: {
-  network: ResolvedPonderConfig["networks"][0];
+  network: ResolvedConfig["networks"][0];
 }) {
   let client = clients[network.chainId];
 

@@ -5,7 +5,7 @@ import path from "path";
 
 import { ensureDirExists } from "@/utils/exists";
 
-export type ResolvedPonderConfig = {
+export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
   database?:
     | {
@@ -86,17 +86,13 @@ export type ResolvedPonderConfig = {
   };
 };
 
-export type PonderConfig =
-  | ResolvedPonderConfig
-  | Promise<ResolvedPonderConfig>
-  | (() => ResolvedPonderConfig)
-  | (() => Promise<ResolvedPonderConfig>);
+export type Config =
+  | ResolvedConfig
+  | Promise<ResolvedConfig>
+  | (() => ResolvedConfig)
+  | (() => Promise<ResolvedConfig>);
 
-export const buildPonderConfig = async ({
-  configFile,
-}: {
-  configFile: string;
-}) => {
+export const buildConfig = async ({ configFile }: { configFile: string }) => {
   if (!existsSync(configFile)) {
     throw new Error(`Ponder config file not found, expected: ${configFile}`);
   }
@@ -135,7 +131,7 @@ export const buildPonderConfig = async ({
       );
     }
 
-    let resolvedConfig: ResolvedPonderConfig;
+    let resolvedConfig: ResolvedConfig;
 
     if (typeof rawConfig === "function") {
       resolvedConfig = await rawConfig();

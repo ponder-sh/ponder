@@ -1,8 +1,8 @@
 import { buildSchema as buildGraphqlSchema } from "graphql";
 import { expect, test } from "vitest";
 
+import { schemaHeader } from "@/build/schema";
 import { buildEntityTypes } from "@/codegen/entity";
-import { schemaHeader } from "@/reload/readGraphqlSchema";
 import { buildSchema } from "@/schema/schema";
 
 const graphqlSchema = buildGraphqlSchema(`
