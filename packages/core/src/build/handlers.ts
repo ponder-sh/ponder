@@ -4,7 +4,7 @@ import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
 
-import { PonderOptions } from "@/config/options";
+import { Options } from "@/config/options";
 import { Block } from "@/types/block";
 import { Log } from "@/types/log";
 import { Transaction } from "@/types/transaction";
@@ -68,7 +68,7 @@ export class PonderApp<EventHandlers = Record<string, LogEventHandler>> {
   }
 }
 
-export const readHandlers = async ({ options }: { options: PonderOptions }) => {
+export const readHandlers = async ({ options }: { options: Options }) => {
   const entryAppFilename = path.join(options.generatedDir, "index.ts");
   if (!existsSync(entryAppFilename)) {
     throw new Error(

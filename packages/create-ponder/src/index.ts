@@ -13,13 +13,13 @@ import { fromEtherscan } from "@/templates/etherscan";
 import { fromSubgraphId } from "@/templates/subgraphId";
 import { fromSubgraphRepo } from "@/templates/subgraphRepo";
 
-export type PonderNetwork = {
+export type Network = {
   name: string;
   chainId: number;
   rpcUrl: string;
 };
 
-export type PonderContract = {
+export type Contract = {
   name: string;
   network: string;
   abi: string;
@@ -27,12 +27,12 @@ export type PonderContract = {
   startBlock?: number;
 };
 
-export type PartialPonderConfig = {
+export type PartialConfig = {
   database?: {
     kind: string;
   };
-  networks: PonderNetwork[];
-  contracts: PonderContract[];
+  networks: Network[];
+  contracts: Contract[];
 };
 
 export const run = async (
@@ -45,7 +45,7 @@ export const run = async (
   mkdirSync(path.join(rootDir, "abis"), { recursive: true });
   mkdirSync(path.join(rootDir, "src"), { recursive: true });
 
-  let ponderConfig: PartialPonderConfig;
+  let config: PartialConfig;
 
   console.log(
     `\nCreating a new Ponder app in ${pico.bold(pico.green(rootDir))}.`
@@ -54,7 +54,7 @@ export const run = async (
   switch (options.template?.kind) {
     case TemplateKind.ETHERSCAN: {
       console.log(`\nUsing ${pico.cyan("Etherscan contract link")} template.`);
-      ponderConfig = await fromEtherscan({
+      config = await fromEtherscan({
         rootDir,
         etherscanLink: options.template.link,
         etherscanApiKey: options.etherscanApiKey,
@@ -63,7 +63,7 @@ export const run = async (
     }
     case TemplateKind.SUBGRAPH_ID: {
       console.log(`\nUsing ${pico.cyan("Subgraph ID")} template.`);
-      ponderConfig = await fromSubgraphId({
+      config = await fromSubgraphId({
         rootDir,
         subgraphId: options.template.id,
       });
@@ -72,20 +72,20 @@ export const run = async (
     case TemplateKind.SUBGRAPH_REPO: {
       console.log(`\nUsing ${pico.cyan("Subgraph repository")} template.`);
 
-      ponderConfig = fromSubgraphRepo({
+      config = fromSubgraphRepo({
         rootDir,
         subgraphPath: options.template.path,
       });
       break;
     }
     default: {
-      ponderConfig = fromBasic({ rootDir });
+      config = fromBasic({ rootDir });
       break;
     }
   }
 
   // Write the handler ts files.
-  ponderConfig.contracts.forEach((contract) => {
+  config.contracts.forEach((contract) => {
     let abi: Abi;
     if (Array.isArray(contract.abi)) {
       // If it's an array of ABIs, use the 2nd one (the implementation ABI).
@@ -126,26 +126,26 @@ export const run = async (
   });
 
   // Write the ponder.config.ts file.
-  const finalPonderConfig = `
-    import type { PonderConfig } from "@ponder/core";
+  const finalConfig = `
+    import type { Config } from "@ponder/core";
 
-    export const config: PonderConfig = {
-      networks: ${JSON.stringify(ponderConfig.networks).replaceAll(
+    export const config: Config = {
+      networks: ${JSON.stringify(config.networks).replaceAll(
         /"process.env.PONDER_RPC_URL_(.*?)"/g,
         "process.env.PONDER_RPC_URL_$1"
       )},
-      contracts: ${JSON.stringify(ponderConfig.contracts)},
+      contracts: ${JSON.stringify(config.contracts)},
     };
   `;
 
   writeFileSync(
     path.join(rootDir, "ponder.config.ts"),
-    prettier.format(finalPonderConfig, { parser: "babel" })
+    prettier.format(finalConfig, { parser: "babel" })
   );
 
   // Write the .env.local file.
   const uniqueChainIds = Array.from(
-    new Set(ponderConfig.networks.map((n) => n.chainId))
+    new Set(config.networks.map((n) => n.chainId))
   );
   const envLocal = `${uniqueChainIds.map(
     (chainId) => `PONDER_RPC_URL_${chainId}=""\n`

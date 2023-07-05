@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import fetch from "node-fetch";
 import prettier from "prettier";
-import type { PartialPonderConfig } from "src/index";
+import type { PartialConfig } from "src/index";
 
 import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId";
 import { wait } from "@/helpers/wait";
@@ -140,7 +140,7 @@ export const fromEtherscan = async ({
   );
 
   // Build and return the partial ponder config.
-  const ponderConfig: PartialPonderConfig = {
+  const config: PartialConfig = {
     networks: [
       {
         name: name,
@@ -159,7 +159,7 @@ export const fromEtherscan = async ({
     ],
   };
 
-  return ponderConfig;
+  return config;
 };
 
 const fetchEtherscan = async (url: string) => {

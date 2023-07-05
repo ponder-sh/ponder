@@ -5,15 +5,15 @@ import { afterEach, beforeEach, expect, test, TestContext } from "vitest";
 
 import { setupEventStore, setupUserStore } from "@/_test/setup";
 import { testNetworkConfig } from "@/_test/utils";
+import { buildConfig } from "@/config/config";
 import { buildOptions } from "@/config/options";
-import { buildPonderConfig } from "@/config/ponderConfig";
 import { Ponder } from "@/Ponder";
 
 beforeEach((context) => setupEventStore(context));
 beforeEach((context) => setupUserStore(context));
 
 const setup = async ({ context }: { context: TestContext }) => {
-  const config = await buildPonderConfig({
+  const config = await buildConfig({
     configFile: path.resolve("src/_test/art-gobblers/app/ponder.config.ts"),
   });
   // Inject proxied anvil chain.

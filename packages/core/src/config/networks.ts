@@ -1,7 +1,7 @@
 import { createPublicClient, http, PublicClient } from "viem";
 import { mainnet } from "viem/chains";
 
-import { ResolvedPonderConfig } from "@/config/ponderConfig";
+import { ResolvedConfig } from "@/config/config";
 
 export type Network = {
   name: string;
@@ -10,6 +10,7 @@ export type Network = {
   rpcUrl?: string;
   pollingInterval: number;
   defaultMaxBlockRange: number;
+  maxRpcRequestConcurrency: number;
   finalityBlockCount: number;
 };
 
@@ -18,7 +19,7 @@ const clients: Record<number, PublicClient | undefined> = {};
 export function buildNetwork({
   network,
 }: {
-  network: ResolvedPonderConfig["networks"][0];
+  network: ResolvedConfig["networks"][0];
 }) {
   let client = clients[network.chainId];
 
@@ -42,6 +43,7 @@ export function buildNetwork({
     rpcUrl: network.rpcUrl,
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange(network),
+    maxRpcRequestConcurrency: network.maxRpcRequestConcurrency ?? 10,
     finalityBlockCount: getFinalityBlockCount(network),
   };
 

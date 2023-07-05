@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
 
-import type { PartialPonderConfig } from "@/index";
+import type { PartialConfig } from "@/index";
 
 export const fromBasic = ({ rootDir }: { rootDir: string }) => {
   const abiFileContents = `[]`;
@@ -31,7 +31,7 @@ export const fromBasic = ({ rootDir }: { rootDir: string }) => {
   );
 
   // Build the partial ponder config.
-  const ponderConfig: PartialPonderConfig = {
+  const config: PartialConfig = {
     networks: [
       {
         name: "mainnet",
@@ -50,5 +50,5 @@ export const fromBasic = ({ rootDir }: { rootDir: string }) => {
     ],
   };
 
-  return ponderConfig;
+  return config;
 };

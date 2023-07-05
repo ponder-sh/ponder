@@ -1,11 +1,11 @@
 import path from "node:path";
 import type { LevelWithSilent } from "pino";
 
-import type { PonderCliOptions } from "@/bin/ponder";
+import type { CliOptions } from "@/bin/ponder";
 
-import type { ResolvedPonderConfig } from "./ponderConfig";
+import type { ResolvedConfig } from "./config";
 
-export type PonderOptions = {
+export type Options = {
   configFile: string;
   schemaFile: string;
   rootDir: string;
@@ -25,9 +25,9 @@ export const buildOptions = ({
   cliOptions,
   configOptions = {},
 }: {
-  cliOptions: PonderCliOptions;
-  configOptions?: ResolvedPonderConfig["options"];
-}): PonderOptions => {
+  cliOptions: CliOptions;
+  configOptions?: ResolvedConfig["options"];
+}): Options => {
   const railwayHealthcheckTimeout = process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC
     ? Math.max(Number(process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC) - 5, 0) // Add 5 seconds of buffer.
     : undefined;

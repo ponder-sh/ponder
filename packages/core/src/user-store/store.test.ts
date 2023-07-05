@@ -2,7 +2,7 @@ import { buildSchema as buildGraphqlSchema } from "graphql";
 import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
-import { schemaHeader } from "@/reload/readGraphqlSchema";
+import { schemaHeader } from "@/build/schema";
 import { buildSchema } from "@/schema/schema";
 
 beforeEach((context) => setupUserStore(context));

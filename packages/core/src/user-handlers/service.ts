@@ -4,6 +4,7 @@ import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
 import { encodeEventTopics, getAbiItem, Hex } from "viem";
 
+import type { Handlers } from "@/build/handlers";
 import type { Contract } from "@/config/contracts";
 import type { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
@@ -13,7 +14,6 @@ import type {
 } from "@/event-aggregator/service";
 import type { EventStore } from "@/event-store/store";
 import type { Resources } from "@/Ponder";
-import type { Handlers } from "@/reload/readHandlers";
 import type { Schema } from "@/schema/types";
 import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";

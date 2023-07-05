@@ -11,25 +11,32 @@ import { buildSchema } from "@/schema/schema";
 import { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
 
-import { readGraphqlSchema } from "./readGraphqlSchema";
-import { Handlers, readHandlers } from "./readHandlers";
+import { Handlers, readHandlers } from "./handlers";
+import { readGraphqlSchema } from "./schema";
 
-type ReloadServiceEvents = {
-  ponderConfigChanged: undefined;
-  projectFileChanged: undefined;
+type BuildServiceEvents = {
+  newConfig: undefined;
   newHandlers: { handlers: Handlers };
   newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
 
-export class ReloadService extends Emittery<ReloadServiceEvents> {
-  resources: Resources;
+export class BuildService extends Emittery<BuildServiceEvents> {
+  private resources: Resources;
 
-  latestFileHashes: Record<string, string | undefined> = {};
-  closeWatcher?: () => Promise<void>;
+  private closeWatcher?: () => Promise<void>;
+  private latestFileHashes: Record<string, string | undefined> = {};
 
   constructor({ resources }: { resources: Resources }) {
     super();
     this.resources = resources;
+  }
+
+  async kill() {
+    this.closeWatcher?.();
+    this.resources.logger.debug({
+      service: "build",
+      msg: `Killed build service`,
+    });
   }
 
   watch() {
@@ -46,7 +53,7 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
 
     watcher.on("change", async (filePath) => {
       if (filePath === this.resources.options.configFile) {
-        this.emit("ponderConfigChanged");
+        this.emit("newConfig");
         return;
       }
 
@@ -61,23 +68,15 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
         this.resources.errors.hasUserError = false;
 
         if (filePath === this.resources.options.schemaFile) {
-          this.loadSchema();
+          this.buildSchema();
         } else {
-          await this.loadHandlers();
+          await this.buildHandlers();
         }
       }
     });
   }
 
-  async kill() {
-    this.closeWatcher?.();
-    this.resources.logger.debug({
-      service: "build",
-      msg: `Killed build service`,
-    });
-  }
-
-  async loadHandlers() {
+  async buildHandlers() {
     try {
       const handlers = await readHandlers({ options: this.resources.options });
       this.emit("newHandlers", { handlers });
@@ -99,7 +98,7 @@ export class ReloadService extends Emittery<ReloadServiceEvents> {
     }
   }
 
-  loadSchema() {
+  buildSchema() {
     try {
       const userGraphqlSchema = readGraphqlSchema({
         options: this.resources.options,

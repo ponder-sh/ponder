@@ -75,7 +75,27 @@ export const filterTypes = {
   },
 } as const;
 
-export type FilterType = keyof typeof filterTypes;
+export type FilterType =
+  | ""
+  | "in"
+  | "not"
+  | "not_in"
+  | "contains"
+  | "contains_nocase"
+  | "not_contains"
+  | "not_contains_nocase"
+  | "gt"
+  | "lt"
+  | "gte"
+  | "lte"
+  | "starts_with"
+  | "starts_with_nocase"
+  | "ends_with"
+  | "ends_with_nocase"
+  | "not_starts_with"
+  | "not_starts_with_nocase"
+  | "not_ends_with"
+  | "not_ends_with_nocase";
 
 export function getWhereOperatorAndValue({
   filterType,

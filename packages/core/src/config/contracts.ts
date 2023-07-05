@@ -1,7 +1,7 @@
 import { Abi, Address } from "abitype";
 
-import { PonderOptions } from "@/config/options";
-import { ResolvedPonderConfig } from "@/config/ponderConfig";
+import { ResolvedConfig } from "@/config/config";
+import { Options } from "@/config/options";
 
 import { buildAbi } from "./abi";
 import { buildNetwork, Network } from "./networks";
@@ -17,8 +17,8 @@ export function buildContracts({
   config,
   options,
 }: {
-  config: ResolvedPonderConfig;
-  options: PonderOptions;
+  config: ResolvedConfig;
+  options: Options;
 }): Contract[] {
   return (config.contracts ?? []).map((contract) => {
     const address = contract.address.toLowerCase() as Address;

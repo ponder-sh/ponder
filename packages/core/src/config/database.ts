@@ -2,8 +2,8 @@ import Sqlite from "better-sqlite3";
 import path from "node:path";
 import pg, { Client, DatabaseError, Pool } from "pg";
 
-import { PonderOptions } from "@/config/options";
-import { ResolvedPonderConfig } from "@/config/ponderConfig";
+import { ResolvedConfig } from "@/config/config";
+import { Options } from "@/config/options";
 import { PostgresError } from "@/errors/postgres";
 import { SqliteError } from "@/errors/sqlite";
 import { ensureDirExists } from "@/utils/exists";
@@ -89,10 +89,10 @@ export const buildDatabase = ({
   options,
   config,
 }: {
-  options: PonderOptions;
-  config: ResolvedPonderConfig;
+  options: Options;
+  config: ResolvedConfig;
 }): Database => {
-  let resolvedDatabaseConfig: NonNullable<ResolvedPonderConfig["database"]>;
+  let resolvedDatabaseConfig: NonNullable<ResolvedConfig["database"]>;
 
   const defaultSqliteFilename = path.join(options.ponderDir, "cache.db");
 

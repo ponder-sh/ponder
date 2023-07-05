@@ -148,18 +148,16 @@ export class ServerService {
 
   reload({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
     // This uses a small hack to update the GraphQL server on the fly.
-    this.graphqlMiddleware = graphqlHTTP({
+    const graphqlMiddleware = graphqlHTTP({
       schema: graphqlSchema,
-      context: {
-        store: this.userStore,
-      },
+      context: { store: this.userStore },
       graphiql: true,
     });
 
-    this.app?.use("/", (...args) => this.graphqlMiddleware?.(...args));
+    this.app?.use("/", graphqlMiddleware);
   }
 
-  async teardown() {
+  async kill() {
     await this.terminate?.();
     this.resources.logger.debug({
       service: "server",

@@ -5,10 +5,10 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore, setupUserStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
+import { schemaHeader } from "@/build/schema";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import { LogFilter } from "@/config/logFilters";
 import { EventAggregatorService } from "@/event-aggregator/service";
-import { schemaHeader } from "@/reload/readGraphqlSchema";
 import { buildSchema } from "@/schema/schema";
 
 import { EventHandlerService } from "./service";
@@ -23,6 +23,7 @@ const network = {
   pollingInterval: 1_000,
   defaultMaxBlockRange: 3,
   finalityBlockCount: 10,
+  maxRpcRequestConcurrency: 10,
 };
 
 const logFilters: LogFilter[] = [
