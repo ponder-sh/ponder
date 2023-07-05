@@ -10,6 +10,7 @@ export type Network = {
   rpcUrl?: string;
   pollingInterval: number;
   defaultMaxBlockRange: number;
+  maxRpcRequestConcurrency: number;
   finalityBlockCount: number;
 };
 
@@ -42,6 +43,7 @@ export function buildNetwork({
     rpcUrl: network.rpcUrl,
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange(network),
+    maxRpcRequestConcurrency: network.maxRpcRequestConcurrency ?? 10,
     finalityBlockCount: getFinalityBlockCount(network),
   };
 

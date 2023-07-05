@@ -196,7 +196,11 @@ export class Ponder {
   async dev() {
     const setupError = await this.setup();
     if (setupError) {
-      // this.resources.logger.logMessage("error", setupError.message);
+      this.resources.logger.error({
+        service: "app",
+        msg: setupError.message,
+        error: setupError,
+      });
       return await this.kill();
     }
 

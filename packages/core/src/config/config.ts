@@ -28,6 +28,8 @@ export type ResolvedConfig = {
     rpcUrl?: string;
     /** Polling frequency (in ms). Default: `1_000`. */
     pollingInterval?: number;
+    /** Maximum concurrency of RPC requests during the historical sync. Default: `10`. */
+    maxRpcRequestConcurrency?: number;
   }[];
   /** List of contracts to fetch & handle events from. Contracts defined here will be present in `context.contracts`. */
   contracts?: {
