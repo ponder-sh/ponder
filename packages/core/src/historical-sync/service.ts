@@ -276,11 +276,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
     };
 
-    console.log(
-      "building queue with concurrency:",
-      this.network.maxRpcRequestConcurrency
-    );
-
     const queue = createQueue<LogSyncTask | BlockSyncTask>({
       worker,
       options: {
