@@ -8,11 +8,7 @@ import {
   subgraphYamlFileNames,
 } from "@/helpers/getGraphProtocolChainId";
 import { validateGraphProtocolSource } from "@/helpers/validateGraphProtocolSource";
-import type {
-  PartialPonderConfig,
-  PonderContract,
-  PonderNetwork,
-} from "@/index";
+import type { Contract, Network, PartialConfig } from "@/index";
 
 export const fromSubgraphRepo = ({
   rootDir,
@@ -23,8 +19,8 @@ export const fromSubgraphRepo = ({
 }) => {
   const subgraphRootDir = path.resolve(subgraphPath);
 
-  const ponderNetworks: PonderNetwork[] = [];
-  let ponderContracts: PonderContract[] = [];
+  const ponderNetworks: Network[] = [];
+  let ponderContracts: Contract[] = [];
 
   // If the `--from-subgraph` option was passed, parse subgraph files
   const subgraphRootDirPath = path.resolve(subgraphRootDir);
@@ -101,7 +97,7 @@ export const fromSubgraphRepo = ({
 
       copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
 
-      return <PonderContract>{
+      return <Contract>{
         name: source.name,
         network: network,
         address: source.source.address,
@@ -111,10 +107,10 @@ export const fromSubgraphRepo = ({
     });
 
   // Build the partial ponder config.
-  const ponderConfig: PartialPonderConfig = {
+  const config: PartialConfig = {
     networks: ponderNetworks,
     contracts: ponderContracts,
   };
 
-  return ponderConfig;
+  return config;
 };

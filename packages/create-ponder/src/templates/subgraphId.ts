@@ -2,11 +2,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import fetch from "node-fetch";
 import prettier from "prettier";
-import type {
-  PartialPonderConfig,
-  PonderContract,
-  PonderNetwork,
-} from "src/index";
+import type { Contract, Network, PartialConfig } from "src/index";
 import { parse } from "yaml";
 
 import { getGraphProtocolChainId } from "@/helpers/getGraphProtocolChainId";
@@ -26,8 +22,8 @@ export const fromSubgraphId = async ({
   rootDir: string;
   subgraphId: string;
 }) => {
-  const ponderNetworks: PonderNetwork[] = [];
-  let ponderContracts: PonderContract[] = [];
+  const ponderNetworks: Network[] = [];
+  let ponderContracts: Contract[] = [];
 
   // Fetch the manifest file.
   const manifestRaw = await fetchIpfsFile(subgraphId);
@@ -82,7 +78,7 @@ export const fromSubgraphId = async ({
 
     const abiRelativePath = `./abis/${source.source.abi}.json`;
 
-    return <PonderContract>{
+    return <Contract>{
       name: source.name,
       network: network,
       address: source.source.address,
@@ -92,10 +88,10 @@ export const fromSubgraphId = async ({
   });
 
   // Build the partial ponder config.
-  const ponderConfig: PartialPonderConfig = {
+  const config: PartialConfig = {
     networks: ponderNetworks,
     contracts: ponderContracts,
   };
 
-  return ponderConfig;
+  return config;
 };
