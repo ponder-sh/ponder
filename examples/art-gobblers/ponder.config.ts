@@ -1,8 +1,8 @@
-import type { PonderConfig } from "@ponder/core";
+import type { Config } from "@ponder/core";
 
 import ArtGobblersAbi from "./abis/ArtGobblers.json";
 
-export const config: PonderConfig = {
+export const config: Config = {
   networks: [
     {
       name: "mainnet",

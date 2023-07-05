@@ -1,9 +1,9 @@
-import type { PonderConfig } from "@ponder/core";
+import type { Config } from "@ponder/core";
 
 import FileStoreAbi from "./abis/FileStore.json";
 import FileStoreFrontendAbi from "./abis/FileStoreFrontend.json";
 
-export const config: PonderConfig = {
+export const config: Config = {
   networks: [
     {
       name: "mainnet",

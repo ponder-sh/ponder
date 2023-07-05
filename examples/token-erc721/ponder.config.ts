@@ -1,6 +1,6 @@
-import type { PonderConfig } from "@ponder/core";
+import type { Config } from "@ponder/core";
 
-export const config: PonderConfig = {
+export const config: Config = {
   networks: [
     {
       name: "arbitrum",

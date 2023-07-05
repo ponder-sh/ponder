@@ -92,9 +92,9 @@ See [Deploy to production](/guides/production) for more details.
 ### Basic example
 
 ```ts filename="ponder.config.ts"
-import type { PonderConfig } from "@ponder/core";
+import type { Config } from "@ponder/core";
 
-export const config: PonderConfig = {
+export const config: Config = {
   networks: [
     {
       name: "mainnet",
@@ -117,9 +117,9 @@ export const config: PonderConfig = {
 ### Async function
 
 ```ts filename="ponder.config.ts"
-import type { PonderConfig } from "@ponder/core";
+import type { Config } from "@ponder/core";
 
-export const config: PonderConfig = async () => {
+export const config: Config = async () => {
   const startBlock = await fetch("http://...");
 
   return {
