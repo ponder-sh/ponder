@@ -118,11 +118,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         );
 
         const totalBlockCount = endBlock - startBlock + 1;
-        const cachedBlockCount = cachedRanges.reduce(
-          (acc, cur) =>
-            acc + (Number(cur.endBlock) + 1 - Number(cur.startBlock)),
+        const requiredBlockCount = requiredBlockRanges.reduce<number>(
+          (acc, range) => acc + range[1] + 1 - range[0],
           0
         );
+        const cachedBlockCount = totalBlockCount - requiredBlockCount;
+
         const cacheRate = Math.min(
           1,
           cachedBlockCount / (totalBlockCount || 1)
