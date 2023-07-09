@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.0.69
+
+### Patch Changes
+
+- [#246](https://github.com/0xOlias/ponder/pull/246) [`4edc5e2`](https://github.com/0xOlias/ponder/commit/4edc5e2e2a481944d2ea733eabbb965a8cb2b4e5) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `maxRpcRequestConcurrency` option to `networks` type in `ponder.config.ts`.
+
+- [#246](https://github.com/0xOlias/ponder/pull/246) [`4edc5e2`](https://github.com/0xOlias/ponder/commit/4edc5e2e2a481944d2ea733eabbb965a8cb2b4e5) Thanks [@0xOlias](https://github.com/0xOlias)! - Renamed types `PonderConfig` to `Config`, `ResolvedPonderConfig` to `ResolvedConfig`, and `PonderOptions` to `Options`.
+
 ## 0.0.68
 
 ### Patch Changes
@@ -181,7 +189,7 @@
 
     await MyEntity.create({
       id: setupData.id,
-      data: { ...setupData }
+      data: { ...setupData },
     });
   });
   ```
@@ -494,8 +502,8 @@
       {
         name: "mainnet",
         chainId: 1,
-        rpcUrl: process.env.PONDER_RPC_URL_1
-      }
+        rpcUrl: process.env.PONDER_RPC_URL_1,
+      },
     ],
     sources: [
       {
@@ -503,10 +511,10 @@
         network: "mainnet",
         abi: "./abis/ArtGobblers.json",
         address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: 15863321
-      }
+        startBlock: 15863321,
+      },
     ],
-    plugins: [graphqlPlugin()]
+    plugins: [graphqlPlugin()],
   };
   ```
 
@@ -524,7 +532,7 @@
       ],
       sources: [
         /* ... */
-      ]
+      ],
     };
   };
   ```
