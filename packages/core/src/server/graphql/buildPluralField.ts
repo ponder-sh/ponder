@@ -1,7 +1,6 @@
 import {
   GraphQLFieldConfig,
   GraphQLFieldResolver,
-  GraphQLID,
   GraphQLInputObjectType,
   GraphQLInputType,
   GraphQLInt,
@@ -54,36 +53,50 @@ const operators = {
   ],
 };
 
-const buildPluralField = (
-  entity: Entity,
-  entityType: GraphQLObjectType<Source, Context>
-): GraphQLFieldConfig<Source, Context> => {
+const buildPluralField = ({
+  entity,
+  entityGqlType,
+}: {
+  entity: Entity;
+  entityGqlType: GraphQLObjectType<Source, Context>;
+}): GraphQLFieldConfig<Source, Context> => {
   const filterFields: Record<string, { type: GraphQLInputType }> = {};
+
+  const deserializers: Record<string, (value: any) => any | undefined> = {};
 
   entity.fields.forEach((field) => {
     switch (field.kind) {
       case FieldKind.SCALAR: {
         // Scalar fields => universal, singular, numeric OR string depending on base type
         // Note: Booleans => universal and singular only.
+        const isBigInt = field.scalarTypeName === "BigInt";
+
         operators.universal.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
             type: field.scalarGqlType,
           };
-        });
-
-        operators.numeric.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: field.scalarGqlType,
-          };
+          if (isBigInt) deserializers[`${field.name}${suffix}`] = BigInt;
         });
 
         operators.singular.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
             type: new GraphQLList(field.scalarGqlType),
           };
+          if (isBigInt)
+            deserializers[`${field.name}${suffix}`] = (values: string[]) =>
+              values.map(BigInt);
         });
 
-        if (["String"].includes(field.scalarGqlType.name)) {
+        if (["Int", "BigInt", "Float"].includes(field.scalarTypeName)) {
+          operators.numeric.forEach((suffix) => {
+            filterFields[`${field.name}${suffix}`] = {
+              type: field.scalarGqlType,
+            };
+            if (isBigInt) deserializers[`${field.name}${suffix}`] = BigInt;
+          });
+        }
+
+        if (["String"].includes(field.scalarTypeName)) {
           operators.string.forEach((suffix) => {
             filterFields[`${field.name}${suffix}`] = {
               type: field.scalarGqlType,
@@ -108,42 +121,61 @@ const buildPluralField = (
       }
       case FieldKind.LIST: {
         // List fields => universal, plural
+        const isBigIntList = field.baseGqlType.name === "BigInt";
+
         operators.universal.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
             type: new GraphQLList(field.baseGqlType),
           };
+          if (isBigIntList)
+            deserializers[`${field.name}${suffix}`] = (values: string[]) =>
+              values.map(BigInt);
         });
 
         operators.plural.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: field.baseGqlType,
-          };
+          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
+          if (isBigIntList) deserializers[`${field.name}${suffix}`] = BigInt;
         });
         break;
       }
       case FieldKind.RELATIONSHIP: {
-        // Relationship fields => universal, numeric, singular, string ALL with ID basetype
-        operators.universal.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = { type: GraphQLID };
-        });
+        // Relationship fields => universal, singular, numeric OR string depending on base type
+        const isBigInt = field.relatedEntityIdType.name === "BigInt";
 
-        operators.numeric.forEach((suffix) => {
+        operators.universal.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
-            type: GraphQLID,
+            type: field.relatedEntityIdType,
           };
+          if (isBigInt) deserializers[`${field.name}${suffix}`] = BigInt;
         });
 
         operators.singular.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
-            type: new GraphQLList(GraphQLID),
+            type: new GraphQLList(field.relatedEntityIdType),
           };
+          if (isBigInt)
+            deserializers[`${field.name}${suffix}`] = (values: string[]) =>
+              values.map(BigInt);
         });
 
-        operators.string.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: GraphQLID,
-          };
-        });
+        if (
+          ["Int", "BigInt", "Float"].includes(field.relatedEntityIdType.name)
+        ) {
+          operators.numeric.forEach((suffix) => {
+            filterFields[`${field.name}${suffix}`] = {
+              type: field.relatedEntityIdType,
+            };
+            if (isBigInt) deserializers[`${field.name}${suffix}`] = BigInt;
+          });
+        }
+
+        if (["String"].includes(field.relatedEntityIdType.name)) {
+          operators.string.forEach((suffix) => {
+            filterFields[`${field.name}${suffix}`] = {
+              type: field.relatedEntityIdType,
+            };
+          });
+        }
 
         // TODO: Add complex "{fieldName}_" filter field.
         break;
@@ -165,11 +197,23 @@ const buildPluralField = (
 
     const filter = args;
 
+    // Any args for BigInt fields present in the where object will be serialized as
+    // strings. They need to be converted to bigints before passing to the store.
+    if (filter.where) {
+      for (const key in filter.where) {
+        filter.where[key] = deserializers[key]
+          ? deserializers[key](filter.where[key])
+          : filter.where[key];
+      }
+    }
+
     return await store.findMany({ modelName: entity.name, filter });
   };
 
   return {
-    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(entityType))),
+    type: new GraphQLNonNull(
+      new GraphQLList(new GraphQLNonNull(entityGqlType))
+    ),
     args: {
       where: { type: filterType },
       first: { type: GraphQLInt },

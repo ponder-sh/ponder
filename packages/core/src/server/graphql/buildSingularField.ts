@@ -15,10 +15,13 @@ type SingularArgs = {
 };
 type SingularResolver = GraphQLFieldResolver<Source, Context, SingularArgs>;
 
-const buildSingularField = (
-  entity: Entity,
-  entityType: GraphQLObjectType<Source, Context>
-): GraphQLFieldConfig<Source, Context> => {
+const buildSingularField = ({
+  entity,
+  entityGqlType,
+}: {
+  entity: Entity;
+  entityGqlType: GraphQLObjectType<Source, Context>;
+}): GraphQLFieldConfig<Source, Context> => {
   const resolver: SingularResolver = async (_, args, context) => {
     const { store } = context;
     const { id } = args;
@@ -27,42 +30,16 @@ const buildSingularField = (
 
     const entityInstance = await store.findUnique({
       modelName: entity.name,
-      id,
+      // If the type of the ID field is BigInt, it will be serialized as a String.
+      // Must convert it to a BigInt before passing to the store method.
+      id: entity.fieldByName.id.scalarTypeName === "BigInt" ? BigInt(id) : id,
     });
-
-    // // Build resolvers for relationship fields on the entity.
-    // entity.fields
-    //   .filter(
-    //     (field): field is RelationshipField =>
-    //       field.kind === FieldKind.RELATIONSHIP
-    //   )
-    //   .forEach((field) => {
-    //     const relatedEntityId = entityInstance[field.name];
-    //     entityInstance[field.name] = async () => {
-    //       return await store.getEntity(field.baseGqlType.name, relatedEntityId);
-    //     };
-    //   });
-
-    // // Build resolvers for derived fields on the entity.
-    // entity.fields
-    //   .filter(
-    //     (field): field is DerivedField => field.kind === FieldKind.DERIVED
-    //   )
-    //   .forEach((derivedField) => {
-    //     entityInstance[derivedField.name] = async () => {
-    //       return await store.getEntityDerivedField(
-    //         entity.name,
-    //         id,
-    //         derivedField.name
-    //       );
-    //     };
-    //   });
 
     return entityInstance;
   };
 
   return {
-    type: entityType,
+    type: entityGqlType,
     args: {
       id: { type: new GraphQLNonNull(GraphQLID) },
     },

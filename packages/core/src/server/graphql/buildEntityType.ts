@@ -12,10 +12,13 @@ import { FieldKind } from "@/schema/types";
 
 import type { Context, Source } from "./buildGqlSchema";
 
-export const buildEntityType = (
-  entity: Entity,
-  entityTypes: Record<string, GraphQLObjectType<Source, Context>>
-): GraphQLObjectType<Source, Context> => {
+export const buildEntityType = ({
+  entity,
+  entityGqlTypes,
+}: {
+  entity: Entity;
+  entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>>;
+}): GraphQLObjectType<Source, Context> => {
   return new GraphQLObjectType({
     name: entity.name,
     fields: () => {
@@ -63,12 +66,15 @@ export const buildEntityType = (
 
               return await store.findUnique({
                 modelName: field.relatedEntityName,
-                id: relatedInstanceId,
+                id:
+                  field.relatedEntityIdType.name === "BigInt"
+                    ? BigInt(relatedInstanceId)
+                    : relatedInstanceId,
               });
             };
 
             fieldConfigMap[field.name] = {
-              type: entityTypes[field.baseGqlType.name],
+              type: entityGqlTypes[field.baseGqlType.name],
               resolve: resolver,
             };
 
@@ -102,7 +108,7 @@ export const buildEntityType = (
             fieldConfigMap[field.name] = {
               type: new GraphQLNonNull(
                 new GraphQLList(
-                  new GraphQLNonNull(entityTypes[field.baseGqlType.name])
+                  new GraphQLNonNull(entityGqlTypes[field.baseGqlType.name])
                 )
               ),
               resolve: resolver,
