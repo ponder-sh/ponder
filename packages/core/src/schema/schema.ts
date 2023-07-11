@@ -126,7 +126,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
           );
         }
 
-        const relatedEntityIdField = entityBaseType.getFields()["id"].astNode;
+        const relatedEntityIdField = entityBaseType.getFields()["id"]?.astNode;
         if (!relatedEntityIdField) {
           throw new Error(
             `Related entity is missing an id field: ${entityBaseType.name}`
