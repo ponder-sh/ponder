@@ -1,7 +1,6 @@
 import type {
   GraphQLEnumType,
   GraphQLInputObjectType,
-  GraphQLInputType,
   GraphQLObjectType,
   GraphQLScalarType,
   TypeNode,
@@ -44,7 +43,7 @@ export type EnumField = {
 export type ListField = {
   name: string;
   kind: FieldKind.LIST;
-  baseGqlType: GraphQLInputType;
+  baseGqlType: GraphQLScalarType | GraphQLEnumType;
   originalFieldType: TypeNode;
   notNull: boolean;
   isListElementNotNull: boolean;
@@ -57,7 +56,7 @@ export type RelationshipField = {
   originalFieldType: TypeNode;
   notNull: boolean;
   relatedEntityName: string;
-  relatedEntityIdTypeName: ScalarTypeName;
+  relatedEntityIdType: GraphQLScalarType & { name: ScalarTypeName };
 };
 
 export type DerivedField = {
@@ -82,7 +81,7 @@ export type Entity = {
   gqlType: GraphQLObjectType;
   isImmutable: boolean;
   fields: Field[];
-  fieldByName: Record<string, Field>;
+  fieldByName: { id: ScalarField } & Record<string, Field>;
 };
 
 export type Schema = {
