@@ -345,6 +345,30 @@ test("serves relationship types correctly", async (context) => {
   await service.kill();
 });
 
+test("finds unique entity by bigint id", async (context) => {
+  const { resources, userStore } = context;
+  const { service, gql, createEntityWithBigIntId } = await setup({
+    resources,
+    userStore,
+  });
+
+  await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
+
+  const response = await gql(`
+    entityWithBigIntId(id: "0") {
+      id
+    }
+  `);
+
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { entityWithBigIntId } = response.body.data;
+
+  expect(entityWithBigIntId).toBeDefined();
+
+  await service.kill();
+});
+
 test("filters on string field equals", async (context) => {
   const { resources, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
@@ -745,7 +769,7 @@ test("filters on float field in", async (context) => {
   await service.kill();
 });
 
-test.todo("filters on bigInt field equals", async (context) => {
+test("filters on bigInt field equals", async (context) => {
   const { resources, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     resources,
@@ -774,7 +798,7 @@ test.todo("filters on bigInt field equals", async (context) => {
   await service.kill();
 });
 
-test.todo("filters on bigInt field greater than", async (context) => {
+test("filters on bigInt field greater than", async (context) => {
   const { resources, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     resources,
@@ -803,7 +827,7 @@ test.todo("filters on bigInt field greater than", async (context) => {
   await service.kill();
 });
 
-test.todo("filters on bigInt field less than or equal to", async (context) => {
+test("filters on bigInt field less than or equal to", async (context) => {
   const { resources, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     resources,
@@ -836,7 +860,7 @@ test.todo("filters on bigInt field less than or equal to", async (context) => {
   await service.kill();
 });
 
-test.todo("filters on bigInt field in", async (context) => {
+test("filters on bigInt field in", async (context) => {
   const { resources, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     resources,
