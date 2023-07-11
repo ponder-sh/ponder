@@ -130,7 +130,7 @@ export class PostgresUserStore implements UserStore {
               case FieldKind.RELATIONSHIP: {
                 tableBuilder = tableBuilder.addColumn(
                   field.name,
-                  gqlScalarToSqlType[field.relatedEntityIdTypeName],
+                  gqlScalarToSqlType[field.relatedEntityIdType.name],
                   (col) => {
                     if (field.notNull) col = col.notNull();
                     return col;
@@ -544,7 +544,10 @@ export class PostgresUserStore implements UserStore {
       }
 
       if (field.kind === FieldKind.LIST) {
-        deserializedInstance[field.name] = JSON.parse(value as string);
+        let parsedValue = JSON.parse(value as string);
+        if (field.baseGqlType.name === "BigInt")
+          parsedValue = parsedValue.map(BigInt);
+        deserializedInstance[field.name] = parsedValue;
         return;
       }
 

@@ -124,11 +124,14 @@ export function getWhereOperatorAndValue({
       return { operator, value: JSON.stringify(value) };
     }
 
+    // Handle list contains.
     return {
       operator,
       value: value.map((v) => {
         if (typeof v === "boolean") {
           return v ? 1 : 0;
+        } else if (typeof v === "bigint") {
+          return intToBlob(v);
         } else {
           return v;
         }
@@ -138,6 +141,10 @@ export function getWhereOperatorAndValue({
 
   if (typeof value === "boolean") {
     return { operator, value: value ? 1 : 0 };
+  }
+
+  if (typeof value === "bigint") {
+    return { operator, value: intToBlob(value) };
   }
 
   // At this point, treat the value as a string.
@@ -156,7 +163,11 @@ export function formatModelFieldValue({ value }: { value: unknown }) {
   } else if (typeof value === "undefined") {
     return null;
   } else if (Array.isArray(value)) {
-    return JSON.stringify(value);
+    if (typeof value[0] === "bigint") {
+      return JSON.stringify(value.map(String));
+    } else {
+      return JSON.stringify(value);
+    }
   } else {
     return value as string | number | null;
   }
