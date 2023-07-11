@@ -6,13 +6,7 @@ import type {
   TypeNode,
 } from "graphql";
 
-export enum FieldKind {
-  SCALAR,
-  ENUM,
-  LIST,
-  RELATIONSHIP,
-  DERIVED,
-}
+export type FieldKind = "SCALAR" | "ENUM" | "LIST" | "RELATIONSHIP" | "DERIVED";
 
 export type ScalarTypeName =
   | "Boolean"
@@ -24,7 +18,7 @@ export type ScalarTypeName =
 
 export type ScalarField = {
   name: string;
-  kind: FieldKind.SCALAR;
+  kind: "SCALAR";
   notNull: boolean;
   originalFieldType: TypeNode;
   scalarTypeName: ScalarTypeName;
@@ -33,7 +27,7 @@ export type ScalarField = {
 
 export type EnumField = {
   name: string;
-  kind: FieldKind.ENUM;
+  kind: "ENUM";
   notNull: boolean;
   originalFieldType: TypeNode;
   enumGqlType: GraphQLEnumType;
@@ -42,7 +36,7 @@ export type EnumField = {
 
 export type ListField = {
   name: string;
-  kind: FieldKind.LIST;
+  kind: "LIST";
   baseGqlType: GraphQLScalarType | GraphQLEnumType;
   originalFieldType: TypeNode;
   notNull: boolean;
@@ -51,7 +45,7 @@ export type ListField = {
 
 export type RelationshipField = {
   name: string;
-  kind: FieldKind.RELATIONSHIP;
+  kind: "RELATIONSHIP";
   baseGqlType: GraphQLInputObjectType;
   originalFieldType: TypeNode;
   notNull: boolean;
@@ -61,7 +55,7 @@ export type RelationshipField = {
 
 export type DerivedField = {
   name: string;
-  kind: FieldKind.DERIVED;
+  kind: "DERIVED";
   baseGqlType: GraphQLInputObjectType;
   originalFieldType: TypeNode;
   notNull: boolean;

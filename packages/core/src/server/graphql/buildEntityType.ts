@@ -8,7 +8,6 @@ import {
 } from "graphql";
 
 import type { Entity } from "@/schema/types";
-import { FieldKind } from "@/schema/types";
 
 import type { Context, Source } from "./buildGqlSchema";
 
@@ -26,7 +25,7 @@ export const buildEntityType = ({
 
       entity.fields.forEach((field) => {
         switch (field.kind) {
-          case FieldKind.SCALAR: {
+          case "SCALAR": {
             fieldConfigMap[field.name] = {
               type: field.notNull
                 ? new GraphQLNonNull(field.scalarGqlType)
@@ -41,7 +40,7 @@ export const buildEntityType = ({
             };
             break;
           }
-          case FieldKind.ENUM: {
+          case "ENUM": {
             fieldConfigMap[field.name] = {
               type: field.notNull
                 ? new GraphQLNonNull(field.enumGqlType)
@@ -49,7 +48,7 @@ export const buildEntityType = ({
             };
             break;
           }
-          case FieldKind.RELATIONSHIP: {
+          case "RELATIONSHIP": {
             const resolver: GraphQLFieldResolver<Source, Context> = async (
               parent,
               args,
@@ -80,7 +79,7 @@ export const buildEntityType = ({
 
             break;
           }
-          case FieldKind.DERIVED: {
+          case "DERIVED": {
             const resolver: GraphQLFieldResolver<Source, Context> = async (
               parent,
               args,
@@ -116,7 +115,7 @@ export const buildEntityType = ({
 
             break;
           }
-          case FieldKind.LIST: {
+          case "LIST": {
             const listType = new GraphQLList(
               field.isListElementNotNull
                 ? new GraphQLNonNull(field.baseGqlType as GraphQLOutputType)

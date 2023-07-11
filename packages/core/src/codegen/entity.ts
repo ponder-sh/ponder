@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 import { Kind } from "graphql";
 
-import { Entity, FieldKind } from "@/schema/types";
+import type { Entity } from "@/schema/types";
 
 const gqlScalarToTsType: Record<string, string | undefined> = {
   String: "string",
@@ -19,7 +18,7 @@ export const buildEntityTypes = (entities: Entity[]) => {
         ${entity.fields
           .map((field) => {
             switch (field.kind) {
-              case FieldKind.SCALAR: {
+              case "SCALAR": {
                 const scalarTsType = gqlScalarToTsType[field.scalarTypeName];
                 if (!scalarTsType) {
                   throw new Error(
@@ -30,12 +29,12 @@ export const buildEntityTypes = (entities: Entity[]) => {
                   field.notNull ? "" : "?"
                 }: ${scalarTsType};`;
               }
-              case FieldKind.ENUM: {
+              case "ENUM": {
                 return `${field.name}${
                   field.notNull ? "" : "?"
                 }: ${field.enumValues.map((val) => `"${val}"`).join(" | ")};`;
               }
-              case FieldKind.LIST: {
+              case "LIST": {
                 // This is trash
                 let tsBaseType: string;
                 if (
@@ -52,16 +51,12 @@ export const buildEntityTypes = (entities: Entity[]) => {
                   }
                   tsBaseType = scalarTsType;
                 } else if (
-                  // @ts-ignore
                   field.baseGqlType.astNode?.kind === Kind.ENUM_TYPE_DEFINITION
                 ) {
-                  const enumValues = // @ts-ignore
-                    (field.baseGqlType.astNode?.values || []).map(
-                      // @ts-ignore
-                      (v) => v.name.value
-                    );
+                  const enumValues = (
+                    field.baseGqlType.astNode?.values || []
+                  ).map((v) => v.name.value);
                   tsBaseType = `(${enumValues
-                    // @ts-ignore
                     .map((v) => `"${v}"`)
                     .join(" | ")})`;
                 } else {
@@ -78,7 +73,7 @@ export const buildEntityTypes = (entities: Entity[]) => {
                   field.notNull ? "" : "?"
                 }: ${tsBaseType}[];`;
               }
-              case FieldKind.RELATIONSHIP: {
+              case "RELATIONSHIP": {
                 return `${field.name}${field.notNull ? "" : "?"}: string;`;
               }
             }

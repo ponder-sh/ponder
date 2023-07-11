@@ -19,7 +19,6 @@ import {
   Entity,
   EnumField,
   Field,
-  FieldKind,
   ListField,
   RelationshipField,
   ScalarField,
@@ -109,7 +108,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
 
         return <DerivedField>{
           name: fieldName,
-          kind: FieldKind.DERIVED,
+          kind: "DERIVED",
           baseGqlType: baseTypeAsInputType,
           originalFieldType,
           notNull: isNotNull,
@@ -148,7 +147,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
 
         return <RelationshipField>{
           name: fieldName,
-          kind: FieldKind.RELATIONSHIP,
+          kind: "RELATIONSHIP",
           baseGqlType: entityBaseTypeAsInputType,
           originalFieldType,
           notNull: isNotNull,
@@ -162,7 +161,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         if (scalarBaseType) {
           return <ListField>{
             name: fieldName,
-            kind: FieldKind.LIST,
+            kind: "LIST",
             baseGqlType: scalarBaseType,
             originalFieldType,
             notNull: isNotNull,
@@ -173,7 +172,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         if (enumBaseType) {
           return <ListField>{
             name: fieldName,
-            kind: FieldKind.LIST,
+            kind: "LIST",
             baseGqlType: enumBaseType,
             originalFieldType,
             notNull: isNotNull,
@@ -203,7 +202,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
 
         return <ScalarField>{
           name: fieldName,
-          kind: FieldKind.SCALAR,
+          kind: "SCALAR",
           notNull: isNotNull,
           originalFieldType,
           scalarTypeName: fieldTypeName,
@@ -218,7 +217,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         );
         return <EnumField>{
           name: fieldName,
-          kind: FieldKind.ENUM,
+          kind: "ENUM",
           enumGqlType: enumBaseType,
           originalFieldType,
           notNull: isNotNull,

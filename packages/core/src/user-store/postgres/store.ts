@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
-import { type Schema, FieldKind } from "@/schema/types";
+import type { Schema } from "@/schema/types";
 import { blobToBigInt } from "@/utils/decode";
 
 import type { ModelFilter, ModelInstance, UserStore } from "../store";
@@ -89,7 +89,7 @@ export class PostgresUserStore implements UserStore {
           let tableBuilder = tx.schema.createTable(tableName);
           model.fields.forEach((field) => {
             switch (field.kind) {
-              case FieldKind.SCALAR: {
+              case "SCALAR": {
                 tableBuilder = tableBuilder.addColumn(
                   field.name,
                   gqlScalarToSqlType[field.scalarTypeName],
@@ -100,7 +100,7 @@ export class PostgresUserStore implements UserStore {
                 );
                 break;
               }
-              case FieldKind.ENUM: {
+              case "ENUM": {
                 tableBuilder = tableBuilder.addColumn(
                   field.name,
                   "text",
@@ -116,7 +116,7 @@ export class PostgresUserStore implements UserStore {
                 );
                 break;
               }
-              case FieldKind.LIST: {
+              case "LIST": {
                 tableBuilder = tableBuilder.addColumn(
                   field.name,
                   "text",
@@ -127,7 +127,7 @@ export class PostgresUserStore implements UserStore {
                 );
                 break;
               }
-              case FieldKind.RELATIONSHIP: {
+              case "RELATIONSHIP": {
                 tableBuilder = tableBuilder.addColumn(
                   field.name,
                   gqlScalarToSqlType[field.relatedEntityIdType.name],
@@ -525,25 +525,19 @@ export class PostgresUserStore implements UserStore {
         return;
       }
 
-      if (
-        field.kind === FieldKind.SCALAR &&
-        field.scalarTypeName === "Boolean"
-      ) {
+      if (field.kind === "SCALAR" && field.scalarTypeName === "Boolean") {
         deserializedInstance[field.name] = value === 1 ? true : false;
         return;
       }
 
-      if (
-        field.kind === FieldKind.SCALAR &&
-        field.scalarTypeName === "BigInt"
-      ) {
+      if (field.kind === "SCALAR" && field.scalarTypeName === "BigInt") {
         deserializedInstance[field.name] = blobToBigInt(
           value as unknown as Buffer
         );
         return;
       }
 
-      if (field.kind === FieldKind.LIST) {
+      if (field.kind === "LIST") {
         let parsedValue = JSON.parse(value as string);
         if (field.baseGqlType.name === "BigInt")
           parsedValue = parsedValue.map(BigInt);

@@ -11,7 +11,6 @@ import {
 } from "graphql";
 
 import type { Entity } from "@/schema/types";
-import { FieldKind } from "@/schema/types";
 
 import type { Context, Source } from "./buildGqlSchema";
 
@@ -66,7 +65,7 @@ const buildPluralField = ({
 
   entity.fields.forEach((field) => {
     switch (field.kind) {
-      case FieldKind.SCALAR: {
+      case "SCALAR": {
         // Scalar fields => universal, singular, numeric OR string depending on base type
         // Note: Booleans => universal and singular only.
         const isBigInt = field.scalarTypeName === "BigInt";
@@ -106,7 +105,7 @@ const buildPluralField = ({
 
         break;
       }
-      case FieldKind.ENUM: {
+      case "ENUM": {
         // Enum fields => universal, singular
         operators.universal.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = { type: field.enumGqlType };
@@ -119,7 +118,7 @@ const buildPluralField = ({
         });
         break;
       }
-      case FieldKind.LIST: {
+      case "LIST": {
         // List fields => universal, plural
         const isBigIntList = field.baseGqlType.name === "BigInt";
 
@@ -138,7 +137,7 @@ const buildPluralField = ({
         });
         break;
       }
-      case FieldKind.RELATIONSHIP: {
+      case "RELATIONSHIP": {
         // Relationship fields => universal, singular, numeric OR string depending on base type
         const isBigInt = field.relatedEntityIdType.name === "BigInt";
 
@@ -180,7 +179,7 @@ const buildPluralField = ({
         // TODO: Add complex "{fieldName}_" filter field.
         break;
       }
-      case FieldKind.DERIVED: {
+      case "DERIVED": {
         // TODO: Add derived filter fields.
         break;
       }

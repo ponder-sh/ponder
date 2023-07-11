@@ -10,7 +10,6 @@ import {
   type ListField,
   type RelationshipField,
   type ScalarField,
-  FieldKind,
 } from "./types";
 
 const buildGraphqlSchema = (source: string) => {
@@ -38,7 +37,7 @@ test("scalar fields - String field", () => {
   const schema = buildSchema(graphqlSchema);
   const entity = schema.entities.find((e) => e.name === "Entity");
   const idField = entity?.fields.find((f): f is ScalarField => f.name === "id");
-  expect(idField?.kind).toBe(FieldKind.SCALAR);
+  expect(idField?.kind).toBe("SCALAR");
   expect(idField?.scalarTypeName).toBe("String");
   expect(idField?.scalarGqlType.toString()).toBe("String");
 });
@@ -53,7 +52,7 @@ test("scalar fields - Int field", () => {
   const schema = buildSchema(graphqlSchema);
   const entity = schema.entities.find((e) => e.name === "Entity");
   const idField = entity?.fields.find((f): f is ScalarField => f.name === "id");
-  expect(idField?.kind).toBe(FieldKind.SCALAR);
+  expect(idField?.kind).toBe("SCALAR");
   expect(idField?.scalarTypeName).toBe("Int");
   expect(idField?.scalarGqlType.toString()).toBe("Int");
 });
@@ -68,7 +67,7 @@ test("scalar fields - BigInt field", () => {
   const schema = buildSchema(graphqlSchema);
   const entity = schema.entities.find((e) => e.name === "Entity");
   const idField = entity?.fields.find((f): f is ScalarField => f.name === "id");
-  expect(idField?.kind).toBe(FieldKind.SCALAR);
+  expect(idField?.kind).toBe("SCALAR");
   expect(idField?.scalarTypeName).toBe("BigInt");
   expect(idField?.scalarGqlType.toString()).toBe("String");
 });
@@ -83,7 +82,7 @@ test("scalar fields - Bytes field", () => {
   const schema = buildSchema(graphqlSchema);
   const entity = schema.entities.find((e) => e.name === "Entity");
   const idField = entity?.fields.find((f): f is ScalarField => f.name === "id");
-  expect(idField?.kind).toBe(FieldKind.SCALAR);
+  expect(idField?.kind).toBe("SCALAR");
   expect(idField?.scalarTypeName).toBe("Bytes");
   expect(idField?.scalarGqlType.toString()).toBe("String");
 });
@@ -147,7 +146,7 @@ test("enum fields - Single enum field", () => {
   const enumField = entity?.fields.find(
     (f): f is EnumField => f.name === "enum"
   );
-  expect(enumField?.kind).toBe(FieldKind.ENUM);
+  expect(enumField?.kind).toBe("ENUM");
   expect(enumField?.notNull).toBe(false);
   expect(enumField?.enumGqlType.toString()).toBe("SingleEnum");
   expect(enumField?.enumValues).toMatchObject(["VALUE"]);
@@ -170,7 +169,7 @@ test("enum fields - Multiple enum field", () => {
   const enumField = entity?.fields.find(
     (f): f is EnumField => f.name === "enum"
   );
-  expect(enumField?.kind).toBe(FieldKind.ENUM);
+  expect(enumField?.kind).toBe("ENUM");
   expect(enumField?.notNull).toBe(true);
   expect(enumField?.enumGqlType.toString()).toBe("MultipleEnum");
   expect(enumField?.enumValues).toMatchObject(["VALUE", "ANOTHER_VALUE"]);
@@ -188,7 +187,7 @@ test("list fields - List of scalars", () => {
   const listField = entity?.fields.find(
     (f): f is ListField => f.name === "list"
   );
-  expect(listField?.kind).toBe(FieldKind.LIST);
+  expect(listField?.kind).toBe("LIST");
   expect(listField?.notNull).toBe(true);
   expect(listField?.isListElementNotNull).toBe(true);
   expect(listField?.baseGqlType.toString()).toBe("String");
@@ -211,7 +210,7 @@ test("list fields - List of enums", () => {
   const listField = entity?.fields.find(
     (f): f is ListField => f.name === "list"
   );
-  expect(listField?.kind).toBe(FieldKind.LIST);
+  expect(listField?.kind).toBe("LIST");
   expect(listField?.notNull).toBe(true);
   expect(listField?.isListElementNotNull).toBe(true);
   expect(listField?.baseGqlType.toString()).toBe("MultipleEnum");
@@ -234,7 +233,7 @@ test("list fields - List of enums, element null", () => {
   const listField = entity?.fields.find(
     (f): f is ListField => f.name === "list"
   );
-  expect(listField?.kind).toBe(FieldKind.LIST);
+  expect(listField?.kind).toBe("LIST");
   expect(listField?.notNull).toBe(true);
   expect(listField?.isListElementNotNull).toBe(false);
   expect(listField?.baseGqlType.toString()).toBe("MultipleEnum");
@@ -257,7 +256,7 @@ test("list fields - List of enums, both null", () => {
   const listField = entity?.fields.find(
     (f): f is ListField => f.name === "list"
   );
-  expect(listField?.kind).toBe(FieldKind.LIST);
+  expect(listField?.kind).toBe("LIST");
   expect(listField?.notNull).toBe(false);
   expect(listField?.isListElementNotNull).toBe(false);
   expect(listField?.baseGqlType.toString()).toBe("MultipleEnum");
@@ -279,7 +278,7 @@ test("relationship fields - Related entity has String id", () => {
   const relationshipField = entity?.fields.find(
     (f): f is RelationshipField => f.name === "relatedEntity"
   );
-  expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
+  expect(relationshipField?.kind).toBe("RELATIONSHIP");
   expect(relationshipField?.notNull).toBe(true);
   expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
   expect(relationshipField?.relatedEntityIdType.name).toBe("String");
@@ -301,7 +300,7 @@ test("relationship fields - Related entity has Int id", () => {
   const relationshipField = entity?.fields.find(
     (f): f is RelationshipField => f.name === "relatedEntity"
   );
-  expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
+  expect(relationshipField?.kind).toBe("RELATIONSHIP");
   expect(relationshipField?.notNull).toBe(true);
   expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
   expect(relationshipField?.relatedEntityIdType.name).toBe("Int");
@@ -323,7 +322,7 @@ test("relationship fields - Related entity has BigInt id", () => {
   const relationshipField = entity?.fields.find(
     (f): f is RelationshipField => f.name === "relatedEntity"
   );
-  expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
+  expect(relationshipField?.kind).toBe("RELATIONSHIP");
   expect(relationshipField?.notNull).toBe(true);
   expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
   expect(relationshipField?.relatedEntityIdType.name).toBe("String");
@@ -345,7 +344,7 @@ test("relationship fields - Related entity has Bytes id", () => {
   const relationshipField = entity?.fields.find(
     (f): f is RelationshipField => f.name === "relatedEntity"
   );
-  expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
+  expect(relationshipField?.kind).toBe("RELATIONSHIP");
   expect(relationshipField?.notNull).toBe(true);
   expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
   expect(relationshipField?.relatedEntityIdType.name).toBe("String");
@@ -367,7 +366,7 @@ test("relationship fields - Related entity is nullable", () => {
   const relationshipField = entity?.fields.find(
     (f): f is RelationshipField => f.name === "relatedEntity"
   );
-  expect(relationshipField?.kind).toBe(FieldKind.RELATIONSHIP);
+  expect(relationshipField?.kind).toBe("RELATIONSHIP");
   expect(relationshipField?.notNull).toBe(false);
   expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
   expect(relationshipField?.relatedEntityIdType.name).toBe("String");
@@ -427,7 +426,7 @@ test("derivedFrom fields - Related entity is valid", () => {
   const derivedFromField = entity?.fields.find(
     (f): f is DerivedField => f.name === "entities"
   );
-  expect(derivedFromField?.kind).toBe(FieldKind.DERIVED);
+  expect(derivedFromField?.kind).toBe("DERIVED");
   expect(derivedFromField?.notNull).toBe(true);
   expect(derivedFromField?.derivedFromEntityName).toBe("Entity");
   expect(derivedFromField?.derivedFromFieldName).toBe("relatedEntity");
