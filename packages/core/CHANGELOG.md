@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.0.71
+
+### Patch Changes
+
+- [#253](https://github.com/0xOlias/ponder/pull/253) [`d96c735`](https://github.com/0xOlias/ponder/commit/d96c7359334c1991f794931f633c8d7ae1574c26) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the type of the `id` argument to singular entity fields on `Query` was hardcoded to `ID` rather than using the user-provided type of the `id` field (e.g. `String` or `BigInt`).
+
+- [#253](https://github.com/0xOlias/ponder/pull/253) [`d96c735`](https://github.com/0xOlias/ponder/commit/d96c7359334c1991f794931f633c8d7ae1574c26) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed BigInt ID bugs by adding custom serialize and parse functions at the GraphQL layer.
+
 ## 0.0.70
 
 ### Patch Changes
