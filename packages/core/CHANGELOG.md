@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.70
+
+### Patch Changes
+
+- [#249](https://github.com/0xOlias/ponder/pull/249) [`b0fddce`](https://github.com/0xOlias/ponder/commit/b0fddce3a9943da4f71b3bd87e165dc2830564ec) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed multiple schema bugs related to `BigInt` id types. Removed all `_no_case` filter field types. Fixed a graceful shutdown bug.
+
 ## 0.0.69
 
 ### Patch Changes
