@@ -10,7 +10,7 @@ const buildSchema = (source: string) => {
   return _buildSchema(_buildGraphqlSchema(schemaHeader + source));
 };
 
-test.only("filter type has correct suffixes and types", () => {
+test("filter type has correct suffixes and types", () => {
   const schema = buildSchema(`
     enum SimpleEnum {
       VALUE
