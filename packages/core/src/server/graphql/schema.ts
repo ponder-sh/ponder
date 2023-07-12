@@ -3,9 +3,9 @@ import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
 import { Schema } from "@/schema/types";
 import { UserStore } from "@/user-store/store";
 
-import { buildEntityType } from "./buildEntityType";
-import { buildPluralField } from "./buildPluralField";
-import { buildSingularField } from "./buildSingularField";
+import { buildEntityType } from "./entity";
+import { buildPluralField } from "./plural";
+import { buildSingularField } from "./singular";
 
 export type Source = { request: unknown };
 export type Context = { store: UserStore };

@@ -15,7 +15,8 @@ import {
 const buildGraphqlSchema = (source: string) => {
   return _buildGraphqlSchema(schemaHeader + source);
 };
-test("scalar fields - ID field must be a String, BigInt, Int, or Bytes", () => {
+
+test("ID field must be a String, BigInt, Int, or Bytes", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       id: ID!
@@ -27,7 +28,7 @@ test("scalar fields - ID field must be a String, BigInt, Int, or Bytes", () => {
   `);
 });
 
-test("scalar fields - String field", () => {
+test("scalar String field", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       id: String!
@@ -42,7 +43,7 @@ test("scalar fields - String field", () => {
   expect(idField?.scalarGqlType.toString()).toBe("String");
 });
 
-test("scalar fields - Int field", () => {
+test("scalar Int field", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       id: Int!
@@ -57,7 +58,25 @@ test("scalar fields - Int field", () => {
   expect(idField?.scalarGqlType.toString()).toBe("Int");
 });
 
-test("scalar fields - BigInt field", () => {
+test("scalar Float field", () => {
+  const graphqlSchema = buildGraphqlSchema(`
+    type Entity @entity {
+      id: String!
+      balance: Float!
+    }
+  `);
+
+  const schema = buildSchema(graphqlSchema);
+  const entity = schema.entities.find((e) => e.name === "Entity");
+  const idField = entity?.fields.find(
+    (f): f is ScalarField => f.name === "balance"
+  );
+  expect(idField?.kind).toBe("SCALAR");
+  expect(idField?.scalarTypeName).toBe("Float");
+  expect(idField?.scalarGqlType.toString()).toBe("Float");
+});
+
+test("scalar BigInt field", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       id: BigInt!
@@ -69,10 +88,10 @@ test("scalar fields - BigInt field", () => {
   const idField = entity?.fields.find((f): f is ScalarField => f.name === "id");
   expect(idField?.kind).toBe("SCALAR");
   expect(idField?.scalarTypeName).toBe("BigInt");
-  expect(idField?.scalarGqlType.toString()).toBe("String");
+  expect(idField?.scalarGqlType.toString()).toBe("BigInt");
 });
 
-test("scalar fields - Bytes field", () => {
+test("scalar Bytes field", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       id: Bytes!
@@ -120,7 +139,7 @@ test("non-null fields", () => {
   expect(nonNullBytesField?.notNull).toBe(true);
 });
 
-test("custom scalars - Custom scalars are not supported", () => {
+test("custom scalars are not supported", () => {
   const graphqlSchema = buildGraphqlSchema(`
     scalar CustomScalar
   `);
@@ -130,7 +149,7 @@ test("custom scalars - Custom scalars are not supported", () => {
 `);
 });
 
-test("enum fields - Single enum field", () => {
+test("enum with a single value", () => {
   const graphqlSchema = buildGraphqlSchema(`
     enum SingleEnum {
       VALUE
@@ -152,7 +171,7 @@ test("enum fields - Single enum field", () => {
   expect(enumField?.enumValues).toMatchObject(["VALUE"]);
 });
 
-test("enum fields - Multiple enum field", () => {
+test("enum with multiple values", () => {
   const graphqlSchema = buildGraphqlSchema(`
     enum MultipleEnum {
       VALUE
@@ -175,7 +194,7 @@ test("enum fields - Multiple enum field", () => {
   expect(enumField?.enumValues).toMatchObject(["VALUE", "ANOTHER_VALUE"]);
 });
 
-test("list fields - List of scalars", () => {
+test("basic list of scalars", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       list: [String!]!
@@ -193,7 +212,7 @@ test("list fields - List of scalars", () => {
   expect(listField?.baseGqlType.toString()).toBe("String");
 });
 
-test("list fields - List of enums", () => {
+test("basic list of enums", () => {
   const graphqlSchema = buildGraphqlSchema(`
     enum MultipleEnum {
       VALUE
@@ -216,7 +235,7 @@ test("list fields - List of enums", () => {
   expect(listField?.baseGqlType.toString()).toBe("MultipleEnum");
 });
 
-test("list fields - List of enums, element null", () => {
+test("basic list of enums with nullable elements", () => {
   const graphqlSchema = buildGraphqlSchema(`
     enum MultipleEnum {
       VALUE
@@ -239,7 +258,7 @@ test("list fields - List of enums, element null", () => {
   expect(listField?.baseGqlType.toString()).toBe("MultipleEnum");
 });
 
-test("list fields - List of enums, both null", () => {
+test("basic nullable list of enums with nullable elements", () => {
   const graphqlSchema = buildGraphqlSchema(`
     enum MultipleEnum {
       VALUE
@@ -262,7 +281,7 @@ test("list fields - List of enums, both null", () => {
   expect(listField?.baseGqlType.toString()).toBe("MultipleEnum");
 });
 
-test("relationship fields - Related entity has String id", () => {
+test("relationship field with String id", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       relatedEntity: RelatedEntity!
@@ -284,7 +303,7 @@ test("relationship fields - Related entity has String id", () => {
   expect(relationshipField?.relatedEntityIdType.name).toBe("String");
 });
 
-test("relationship fields - Related entity has Int id", () => {
+test("relationship field with Int id", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       relatedEntity: RelatedEntity!
@@ -306,7 +325,7 @@ test("relationship fields - Related entity has Int id", () => {
   expect(relationshipField?.relatedEntityIdType.name).toBe("Int");
 });
 
-test("relationship fields - Related entity has BigInt id", () => {
+test("relationship field with BigInt id", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       relatedEntity: RelatedEntity!
@@ -325,10 +344,10 @@ test("relationship fields - Related entity has BigInt id", () => {
   expect(relationshipField?.kind).toBe("RELATIONSHIP");
   expect(relationshipField?.notNull).toBe(true);
   expect(relationshipField?.relatedEntityName).toBe("RelatedEntity");
-  expect(relationshipField?.relatedEntityIdType.name).toBe("String");
+  expect(relationshipField?.relatedEntityIdType.name).toBe("BigInt");
 });
 
-test("relationship fields - Related entity has Bytes id", () => {
+test("relationship field with Bytes id", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       relatedEntity: RelatedEntity!
@@ -350,7 +369,7 @@ test("relationship fields - Related entity has Bytes id", () => {
   expect(relationshipField?.relatedEntityIdType.name).toBe("String");
 });
 
-test("relationship fields - Related entity is nullable", () => {
+test("relationship field with Bytes id", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       relatedEntity: RelatedEntity
@@ -372,7 +391,7 @@ test("relationship fields - Related entity is nullable", () => {
   expect(relationshipField?.relatedEntityIdType.name).toBe("String");
 });
 
-test("derivedFrom fields - Related entity is missing id field", () => {
+test("derivedFrom field with missing id field", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       relatedEntity: RelatedEntity!
@@ -388,7 +407,7 @@ test("derivedFrom fields - Related entity is missing id field", () => {
   );
 });
 
-test("derivedFrom fields - Related entity id field is not a scalar", () => {
+test("derivedFrom field where id field is not a scalar", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       relatedEntity: RelatedEntity!
@@ -409,7 +428,7 @@ test("derivedFrom fields - Related entity id field is not a scalar", () => {
   );
 });
 
-test("derivedFrom fields - Related entity is valid", () => {
+test("derivedFrom field where id field is valid", () => {
   const graphqlSchema = buildGraphqlSchema(`
     type Entity @entity {
       relatedEntity: RelatedEntity!

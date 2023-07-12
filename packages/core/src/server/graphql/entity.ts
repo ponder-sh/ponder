@@ -9,7 +9,7 @@ import {
 
 import type { Entity } from "@/schema/types";
 
-import type { Context, Source } from "./buildGqlSchema";
+import type { Context, Source } from "./schema";
 
 export const buildEntityType = ({
   entity,
@@ -65,10 +65,7 @@ export const buildEntityType = ({
 
               return await store.findUnique({
                 modelName: field.relatedEntityName,
-                id:
-                  field.relatedEntityIdType.name === "BigInt"
-                    ? BigInt(relatedInstanceId)
-                    : relatedInstanceId,
+                id: relatedInstanceId,
               });
             };
 

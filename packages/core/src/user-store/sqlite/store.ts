@@ -511,6 +511,16 @@ export class SqliteUserStore implements UserStore {
         return;
       }
 
+      if (
+        field.kind === "RELATIONSHIP" &&
+        field.relatedEntityIdType.name === "BigInt"
+      ) {
+        deserializedInstance[field.name] = blobToBigInt(
+          value as unknown as Buffer
+        );
+        return;
+      }
+
       if (field.kind === "LIST") {
         let parsedValue = JSON.parse(value as string);
         if (field.baseGqlType.name === "BigInt")

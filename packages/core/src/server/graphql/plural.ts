@@ -12,7 +12,7 @@ import {
 
 import type { Entity } from "@/schema/types";
 
-import type { Context, Source } from "./buildGqlSchema";
+import type { Context, Source } from "./schema";
 
 type WhereInputArg = {
   [key: string]: number | string;
@@ -50,29 +50,21 @@ const buildPluralField = ({
 }): GraphQLFieldConfig<Source, Context> => {
   const filterFields: Record<string, { type: GraphQLInputType }> = {};
 
-  const deserializers: Record<string, (value: any) => any | undefined> = {};
-
   entity.fields.forEach((field) => {
     switch (field.kind) {
       case "SCALAR": {
         // Scalar fields => universal, singular, numeric OR string depending on base type
         // Note: Booleans => universal and singular only.
-        const isBigInt = field.scalarTypeName === "BigInt";
-
         operators.universal.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
             type: field.scalarGqlType,
           };
-          if (isBigInt) deserializers[`${field.name}${suffix}`] = BigInt;
         });
 
         operators.singular.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
             type: new GraphQLList(field.scalarGqlType),
           };
-          if (isBigInt)
-            deserializers[`${field.name}${suffix}`] = (values: string[]) =>
-              values.map(BigInt);
         });
 
         if (["Int", "BigInt", "Float"].includes(field.scalarTypeName)) {
@@ -80,7 +72,6 @@ const buildPluralField = ({
             filterFields[`${field.name}${suffix}`] = {
               type: field.scalarGqlType,
             };
-            if (isBigInt) deserializers[`${field.name}${suffix}`] = BigInt;
           });
         }
 
@@ -109,41 +100,29 @@ const buildPluralField = ({
       }
       case "LIST": {
         // List fields => universal, plural
-        const isBigIntList = field.baseGqlType.name === "BigInt";
-
         operators.universal.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
             type: new GraphQLList(field.baseGqlType),
           };
-          if (isBigIntList)
-            deserializers[`${field.name}${suffix}`] = (values: string[]) =>
-              values.map(BigInt);
         });
 
         operators.plural.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
-          if (isBigIntList) deserializers[`${field.name}${suffix}`] = BigInt;
         });
         break;
       }
       case "RELATIONSHIP": {
         // Relationship fields => universal, singular, numeric OR string depending on base type
-        const isBigInt = field.relatedEntityIdType.name === "BigInt";
-
         operators.universal.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
             type: field.relatedEntityIdType,
           };
-          if (isBigInt) deserializers[`${field.name}${suffix}`] = BigInt;
         });
 
         operators.singular.forEach((suffix) => {
           filterFields[`${field.name}${suffix}`] = {
             type: new GraphQLList(field.relatedEntityIdType),
           };
-          if (isBigInt)
-            deserializers[`${field.name}${suffix}`] = (values: string[]) =>
-              values.map(BigInt);
         });
 
         if (
@@ -153,7 +132,6 @@ const buildPluralField = ({
             filterFields[`${field.name}${suffix}`] = {
               type: field.relatedEntityIdType,
             };
-            if (isBigInt) deserializers[`${field.name}${suffix}`] = BigInt;
           });
         }
 
@@ -184,16 +162,6 @@ const buildPluralField = ({
     const { store } = context;
 
     const filter = args;
-
-    // Any args for BigInt fields present in the where object will be serialized as
-    // strings. They need to be converted to bigints before passing to the store.
-    if (filter.where) {
-      for (const key in filter.where) {
-        filter.where[key] = deserializers[key]
-          ? deserializers[key](filter.where[key])
-          : filter.where[key];
-      }
-    }
 
     return await store.findMany({ modelName: entity.name, filter });
   };

@@ -1,14 +1,13 @@
 import {
   GraphQLFieldConfig,
   GraphQLFieldResolver,
-  GraphQLID,
   GraphQLNonNull,
   GraphQLObjectType,
 } from "graphql";
 
 import type { Entity } from "@/schema/types";
 
-import type { Context, Source } from "./buildGqlSchema";
+import type { Context, Source } from "./schema";
 
 type SingularArgs = {
   id?: string;
@@ -30,9 +29,7 @@ const buildSingularField = ({
 
     const entityInstance = await store.findUnique({
       modelName: entity.name,
-      // If the type of the ID field is BigInt, it will be serialized as a String.
-      // Must convert it to a BigInt before passing to the store method.
-      id: entity.fieldByName.id.scalarTypeName === "BigInt" ? BigInt(id) : id,
+      id: id,
     });
 
     return entityInstance;
@@ -41,7 +38,7 @@ const buildSingularField = ({
   return {
     type: entityGqlType,
     args: {
-      id: { type: new GraphQLNonNull(GraphQLID) },
+      id: { type: new GraphQLNonNull(entity.fieldByName.id.scalarGqlType) },
     },
     resolve: resolver,
   };
