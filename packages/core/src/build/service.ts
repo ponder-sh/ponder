@@ -9,7 +9,7 @@ import { UserError } from "@/errors/user";
 import { Resources } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
 import { Schema } from "@/schema/types";
-import { buildGqlSchema } from "@/server/graphql/buildGqlSchema";
+import { buildGqlSchema } from "@/server/graphql/schema";
 
 import { Handlers, readHandlers } from "./handlers";
 import { readGraphqlSchema } from "./schema";

@@ -9,7 +9,7 @@ import { buildSchema } from "@/schema/schema";
 import { UserStore } from "@/user-store/store";
 import { range } from "@/utils/range";
 
-import { buildGqlSchema } from "./graphql/buildGqlSchema";
+import { buildGqlSchema } from "./graphql/schema";
 import { ServerService } from "./service";
 
 beforeEach((context) => setupUserStore(context));

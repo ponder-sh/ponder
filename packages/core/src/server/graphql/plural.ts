@@ -12,7 +12,7 @@ import {
 
 import type { Entity } from "@/schema/types";
 
-import type { Context, Source } from "./buildGqlSchema";
+import type { Context, Source } from "./schema";
 
 type WhereInputArg = {
   [key: string]: number | string;
