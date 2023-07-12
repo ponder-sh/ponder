@@ -65,10 +65,7 @@ export const buildEntityType = ({
 
               return await store.findUnique({
                 modelName: field.relatedEntityName,
-                id:
-                  field.relatedEntityIdType.name === "BigInt"
-                    ? BigInt(relatedInstanceId)
-                    : relatedInstanceId,
+                id: relatedInstanceId,
               });
             };
 

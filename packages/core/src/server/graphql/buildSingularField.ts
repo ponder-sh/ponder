@@ -29,9 +29,7 @@ const buildSingularField = ({
 
     const entityInstance = await store.findUnique({
       modelName: entity.name,
-      // If the type of the ID field is BigInt, it will be serialized as a String.
-      // Must convert it to a BigInt before passing to the store method.
-      id: entity.fieldByName.id.scalarTypeName === "BigInt" ? BigInt(id) : id,
+      id: id,
     });
 
     return entityInstance;

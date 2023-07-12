@@ -25,13 +25,30 @@ import {
   Schema,
 } from "./types";
 
+const GraphQLBigInt = new GraphQLScalarType({
+  name: "BigInt",
+  serialize: (value) => {
+    console.log("in serialize with value", { value });
+    return String(value);
+  },
+  parseValue: (value) => {
+    console.log("in parseValue with value", { value });
+  },
+  parseLiteral: (value) => {
+    console.log("in parseLiteral with value", { value });
+    if (value.kind === "StringValue") {
+      return BigInt(value.value);
+    }
+  },
+});
+
 const gqlScalarTypeByName: Record<string, GraphQLScalarType | undefined> = {
   ID: GraphQLID,
   Int: GraphQLInt,
   Float: GraphQLFloat,
   String: GraphQLString,
   Boolean: GraphQLBoolean,
-  BigInt: GraphQLString,
+  BigInt: GraphQLBigInt,
   Bytes: GraphQLString,
 };
 
