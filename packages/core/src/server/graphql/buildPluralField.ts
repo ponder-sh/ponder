@@ -29,26 +29,15 @@ type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 const operators = {
   universal: ["", "_not"],
   singular: ["_in", "_not_in"],
-  plural: [
-    "_contains",
-    "_not_contains",
-    "_contains_nocase",
-    "_not_contains_nocase",
-  ],
+  plural: ["_contains", "_not_contains"],
   numeric: ["_gt", "_lt", "_gte", "_lte"],
   string: [
     "_contains",
-    "_contains_nocase",
     "_not_contains",
-    "_not_contains_nocase",
     "_starts_with",
-    "_starts_with_nocase",
     "_ends_with",
-    "_ends_with_nocase",
     "_not_starts_with",
-    "_not_starts_with_nocase",
     "_not_ends_with",
-    "_not_ends_with_nocase",
   ],
 };
 
@@ -95,7 +84,7 @@ const buildPluralField = ({
           });
         }
 
-        if (["String"].includes(field.scalarTypeName)) {
+        if (["String", "Bytes"].includes(field.scalarTypeName)) {
           operators.string.forEach((suffix) => {
             filterFields[`${field.name}${suffix}`] = {
               type: field.scalarGqlType,
@@ -168,7 +157,7 @@ const buildPluralField = ({
           });
         }
 
-        if (["String"].includes(field.relatedEntityIdType.name)) {
+        if (["String", "Bytes"].includes(field.relatedEntityIdType.name)) {
           operators.string.forEach((suffix) => {
             filterFields[`${field.name}${suffix}`] = {
               type: field.relatedEntityIdType,

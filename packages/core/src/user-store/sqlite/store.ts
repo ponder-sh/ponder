@@ -434,8 +434,6 @@ export class SqliteUserStore implements UserStore {
           value: rawValue,
         });
 
-        console.log("adding to query:", fieldName, operator, value);
-
         query = query.where(fieldName, operator, value);
       });
     }

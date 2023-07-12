@@ -16,17 +16,7 @@ export const filterTypes = {
   },
   // plural
   contains: { operator: "like", patternPrefix: "%", patternSuffix: "%" },
-  contains_nocase: {
-    operator: "like",
-    patternPrefix: "%",
-    patternSuffix: "%",
-  },
   not_contains: {
-    operator: "not like",
-    patternPrefix: "%",
-    patternSuffix: "%",
-  },
-  not_contains_nocase: {
     operator: "not like",
     patternPrefix: "%",
     patternSuffix: "%",
@@ -42,23 +32,8 @@ export const filterTypes = {
     patternPrefix: undefined,
     patternSuffix: "%",
   },
-  starts_with_nocase: {
-    operator: "like",
-    patternPrefix: undefined,
-    patternSuffix: "%",
-  },
   ends_with: { operator: "like", patternPrefix: "%", patternSuffix: undefined },
-  ends_with_nocase: {
-    operator: "like",
-    patternPrefix: "%",
-    patternSuffix: undefined,
-  },
   not_starts_with: {
-    operator: "not like",
-    patternPrefix: undefined,
-    patternSuffix: "%",
-  },
-  not_starts_with_nocase: {
     operator: "not like",
     patternPrefix: undefined,
     patternSuffix: "%",
@@ -68,34 +43,23 @@ export const filterTypes = {
     patternPrefix: "%",
     patternSuffix: undefined,
   },
-  not_ends_with_nocase: {
-    operator: "not like",
-    patternPrefix: "%",
-    patternSuffix: undefined,
-  },
 } as const;
 
 export type FilterType =
   | ""
-  | "in"
   | "not"
+  | "in"
   | "not_in"
   | "contains"
-  | "contains_nocase"
   | "not_contains"
-  | "not_contains_nocase"
   | "gt"
   | "lt"
   | "gte"
   | "lte"
   | "starts_with"
-  | "starts_with_nocase"
-  | "ends_with"
-  | "ends_with_nocase"
   | "not_starts_with"
-  | "not_starts_with_nocase"
-  | "not_ends_with"
-  | "not_ends_with_nocase";
+  | "ends_with"
+  | "not_ends_with";
 
 export function getWhereOperatorAndValue({
   filterType,
@@ -209,8 +173,8 @@ export function parseModelFilter(filter: ModelFilter = {}): ModelFilter {
     parsedFilter.skip = filter.skip;
   }
 
-  parsedFilter.orderBy = filter.orderBy;
-  parsedFilter.orderDirection = filter.orderDirection;
+  parsedFilter.orderBy = filter.orderBy || "id";
+  parsedFilter.orderDirection = filter.orderDirection || "asc";
   parsedFilter.where = filter.where;
 
   return parsedFilter;
