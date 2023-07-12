@@ -27,17 +27,15 @@ import {
 
 const GraphQLBigInt = new GraphQLScalarType({
   name: "BigInt",
-  serialize: (value) => {
-    console.log("in serialize with value", { value });
-    return String(value);
-  },
-  parseValue: (value) => {
-    console.log("in parseValue with value", { value });
-  },
+  serialize: (value) => String(value),
+  parseValue: (value) => BigInt(value),
   parseLiteral: (value) => {
-    console.log("in parseLiteral with value", { value });
     if (value.kind === "StringValue") {
       return BigInt(value.value);
+    } else {
+      throw new Error(
+        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`
+      );
     }
   },
 });
