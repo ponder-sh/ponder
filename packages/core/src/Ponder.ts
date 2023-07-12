@@ -54,8 +54,6 @@ export class Ponder {
   codegenService: CodegenService;
   uiService: UiService;
 
-  private killFunctions: (() => any)[] = [];
-
   constructor({
     options,
     config,
@@ -253,7 +251,6 @@ export class Ponder {
   }
 
   async kill() {
-    this.killFunctions.forEach((fn) => fn());
     this.eventAggregatorService.clearListeners();
 
     await Promise.all(

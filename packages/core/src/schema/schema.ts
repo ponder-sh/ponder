@@ -19,7 +19,6 @@ import {
   Entity,
   EnumField,
   Field,
-  FieldKind,
   ListField,
   RelationshipField,
   ScalarField,
@@ -109,7 +108,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
 
         return <DerivedField>{
           name: fieldName,
-          kind: FieldKind.DERIVED,
+          kind: "DERIVED",
           baseGqlType: baseTypeAsInputType,
           originalFieldType,
           notNull: isNotNull,
@@ -126,9 +125,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
           );
         }
 
-        const relatedEntityIdField = entityBaseType.astNode?.fields?.find(
-          (f) => f.name.value === "id"
-        );
+        const relatedEntityIdField = entityBaseType.getFields()["id"]?.astNode;
         if (!relatedEntityIdField) {
           throw new Error(
             `Related entity is missing an id field: ${entityBaseType.name}`
@@ -150,15 +147,12 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
 
         return <RelationshipField>{
           name: fieldName,
-          kind: FieldKind.RELATIONSHIP,
+          kind: "RELATIONSHIP",
           baseGqlType: entityBaseTypeAsInputType,
           originalFieldType,
           notNull: isNotNull,
           relatedEntityName: entityBaseType.name,
-          relatedEntityIdTypeName: relatedEntityIdType.name as
-            | "String"
-            | "BigInt"
-            | "Int",
+          relatedEntityIdType: relatedEntityIdType,
         };
       }
 
@@ -167,7 +161,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         if (scalarBaseType) {
           return <ListField>{
             name: fieldName,
-            kind: FieldKind.LIST,
+            kind: "LIST",
             baseGqlType: scalarBaseType,
             originalFieldType,
             notNull: isNotNull,
@@ -178,7 +172,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         if (enumBaseType) {
           return <ListField>{
             name: fieldName,
-            kind: FieldKind.LIST,
+            kind: "LIST",
             baseGqlType: enumBaseType,
             originalFieldType,
             notNull: isNotNull,
@@ -208,7 +202,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
 
         return <ScalarField>{
           name: fieldName,
-          kind: FieldKind.SCALAR,
+          kind: "SCALAR",
           notNull: isNotNull,
           originalFieldType,
           scalarTypeName: fieldTypeName,
@@ -223,7 +217,7 @@ export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
         );
         return <EnumField>{
           name: fieldName,
-          kind: FieldKind.ENUM,
+          kind: "ENUM",
           enumGqlType: enumBaseType,
           originalFieldType,
           notNull: isNotNull,

@@ -64,7 +64,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private minimumLogFilterCheckpoint = 0;
 
   private startTimestamp?: [number, number];
-  private cleanupFunctions: (() => void | Promise<void>)[] = [];
+  private killFunctions: (() => void | Promise<void>)[] = [];
 
   constructor({
     resources,
@@ -204,7 +204,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
       });
     }, 10_000);
-    this.cleanupFunctions.push(() => clearInterval(updateLogInterval));
+    this.killFunctions.push(() => {
+      clearInterval(updateLogInterval);
+    });
 
     // Edge case: If there are no tasks in the queue, this means the entire
     // requested range was cached, so the sync is complete. However, we still
@@ -225,7 +227,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }
 
   kill = async () => {
-    await Promise.all(this.cleanupFunctions);
+    for (const fn of this.killFunctions) {
+      await fn();
+    }
+
     this.queue.pause();
     this.queue.clear();
     // TODO: Figure out if it's necessary to wait for the queue to be idle before killing it.

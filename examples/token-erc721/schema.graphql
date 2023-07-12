@@ -15,6 +15,6 @@ type TransferEvent @entity {
   id: String!
   from: Account!
   to: Account!
-  tokenId: BigInt!
+  token: Token!
   timestamp: Int!
 }

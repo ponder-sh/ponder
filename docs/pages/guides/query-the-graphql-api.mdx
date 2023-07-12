@@ -2,12 +2,212 @@
 description: "API reference for the GraphQL query"
 ---
 
-# Query the GraphQL API (work in progress)
+import { Callout } from "nextra-theme-docs";
 
-For a general overview of GraphQL, please refer to [the GraphQL documentation](https://graphql.org/learn/).
+# Query the GraphQL API
 
-### Pagination
+<Callout type="info">
+  This guide assumes you have a working knowledge of GraphQL query syntax. For a
+  general overview of GraphQL, please refer to the
+  [documentation](https://graphql.org/learn/).
+</Callout>
 
-- The server by default returns the first 100 rows.
-- You can fetch at most 1000 rows in a single query.
-- You can skip at most 5000 rows in a single query.
+Ponder uses your `schema.graphql` file to generate a GraphQL API for your app. With the dev server running, open `http://localhost:42069` in your browser to use the [GraphiQL](https://github.com/graphql/graphiql/tree/main/packages/graphiql#graphiql) interface. GraphiQL is a useful tool for exploring your schema and testing queries during development.
+
+## Schema generation
+
+Ponder creates a **singular** and a **plural** query field for each entity type in your schema. For example, if your schema contains a `Person` entity, Ponder will create a `person` and a `persons` field on the root `Query` type. The singular query field returns a single entity (or null), while the plural query field returns a list of entities.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="schema.graphql"
+type Person @entity {
+  id: Int!
+  name: String!
+  age: Int!
+}
+```
+
+{/* prettier-ignore */}
+```graphql filename="Generated schema"
+type Query {
+  person(id: Int!): Person
+  persons(
+    where: PersonFilter
+    first: Int
+    skip: Int
+    orderBy: String
+    orderDirection: String
+  ): [Person!]!
+}
+```
+
+</div>
+
+## Filtering
+
+The GraphQL API supports filtering through the `where` arguments. The `where` argument is an object that contains filter options for each field you want to filter on. Here are the filter options available for each field type.
+
+| Filter option             | Available for field types                | _Include entities where..._                                      |
+| :------------------------ | :--------------------------------------- | :--------------------------------------------------------------- |
+| `{field}`                 | All                                      | \{field\} **equals** the specified value                         |
+| `{field}_not`             | All                                      | \{field\} **does not equal** the specified value                 |
+| `{field}_in`              | Scalars, enums, one-to-one relationships | \{field\} **is one of** the specified values                     |
+| `{field}_not_in`          | Scalars, enums, one-to-one relationships | \{field\} **is not one of** the specified values                 |
+| `{field}_contains`        | Lists of scalars and enums               | \{field\} **contains** the specified value as an element         |
+| `{field}_not_contains`    | Lists of scalars and enums               | \{field\} **does not contain** the specified value as an element |
+| `{field}_gt`              | Numeric scalars (Int, Float, BigInt)     | \{field\} is **greater than** specified value                    |
+| `{field}_lt`              | Numeric scalars (Int, Float, BigInt)     | \{field\} is **less than** specified value                       |
+| `{field}_gte`             | Numeric scalars (Int, Float, BigInt)     | \{field\} is **greater than or equal to** specified value        |
+| `{field}_lte`             | Numeric scalars (Int, Float, BigInt)     | \{field\} is **less than or equal to** specified value           |
+| `{field}_starts_with`     | String scalars (String, Bytes)           | \{field\} is **starts with** specified value                     |
+| `{field}_not_starts_with` | String scalars (String, Bytes)           | \{field\} is **does not start with** specified value             |
+| `{field}_ends_with`       | String scalars (String, Bytes)           | \{field\} is **ends with** specified value                       |
+| `{field}_not_ends_with`   | String scalars (String, Bytes)           | \{field\} is **does not end with** specified value               |
+
+For the following examples, assume these entities exist in your database.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```json filename="Person data"
+[
+  { "id": 1, "name": "Barry", "age": 57 },
+  { "id": 2, "name": "Lucile", "age": 32 },
+  { "id": 3, "name": "Sally", "age": 22 },
+  { "id": 4, "name": "Pablo", "age": 71 },
+]
+```
+
+<div></div>
+
+</div>
+
+Get all `Person` entities with an `age` greater than `32`:
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(where: { age_gt: 32 }) {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Barry", "age": 57 },
+    { "name": "Pablo", "age": 71 },
+  ]
+}
+```
+
+</div>
+
+Get all `Person` entities with a `name` that does not end with `"y"`:
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(where: { name_not_ends_with: "y" }) {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Lucile", "age": 32 },
+    { "name": "Pablo", "age": 71 },
+  ]
+}
+```
+
+</div>
+
+## Pagination
+
+The GraphQL API supports pagination through the `first` and `skip` arguments.
+
+| Pagination option | Default | Max  |
+| :---------------- | :------ | :--- |
+| `first`           | 100     | 1000 |
+| `skip`            | 0       | 5000 |
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(first: 2, skip: 1) {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Lucile", "age": 32 },
+    { "name": "Sally", "age": 22 },
+  ]
+}
+```
+
+</div>
+
+<Callout type="warning">
+  The default and max `first` and `skip` values are also applied to [derived
+  fields](/guides/design-your-schema#one-to-many-relationships). If you find
+  youself needing to paginate through more than 1000 items in a derived field,
+  strongly consider writing a new query that fetches those items at the root
+  level.
+</Callout>
+
+## Sorting
+
+The GraphQL API supports sorting through the `orderBy` and `orderDirection` arguments.
+
+| Pagination option | Default |
+| :---------------- | :------ |
+| `orderBy`         | `"id"`  |
+| `orderDirection`  | `"asc"` |
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(orderBy: "age", orderDirection: "desc") {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Pablo", "age": 71 },
+    { "name": "Barry", "age": 57 },
+    { "name": "Lucile", "age": 32 },
+    { "name": "Sally", "age": 22 },
+  ]
+}
+```
+
+</div>

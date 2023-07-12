@@ -16,17 +16,7 @@ export const filterTypes = {
   },
   // plural
   contains: { operator: "like", patternPrefix: "%", patternSuffix: "%" },
-  contains_nocase: {
-    operator: "like",
-    patternPrefix: "%",
-    patternSuffix: "%",
-  },
   not_contains: {
-    operator: "not like",
-    patternPrefix: "%",
-    patternSuffix: "%",
-  },
-  not_contains_nocase: {
     operator: "not like",
     patternPrefix: "%",
     patternSuffix: "%",
@@ -42,23 +32,8 @@ export const filterTypes = {
     patternPrefix: undefined,
     patternSuffix: "%",
   },
-  starts_with_nocase: {
-    operator: "like",
-    patternPrefix: undefined,
-    patternSuffix: "%",
-  },
   ends_with: { operator: "like", patternPrefix: "%", patternSuffix: undefined },
-  ends_with_nocase: {
-    operator: "like",
-    patternPrefix: "%",
-    patternSuffix: undefined,
-  },
   not_starts_with: {
-    operator: "not like",
-    patternPrefix: undefined,
-    patternSuffix: "%",
-  },
-  not_starts_with_nocase: {
     operator: "not like",
     patternPrefix: undefined,
     patternSuffix: "%",
@@ -68,34 +43,23 @@ export const filterTypes = {
     patternPrefix: "%",
     patternSuffix: undefined,
   },
-  not_ends_with_nocase: {
-    operator: "not like",
-    patternPrefix: "%",
-    patternSuffix: undefined,
-  },
 } as const;
 
 export type FilterType =
   | ""
-  | "in"
   | "not"
+  | "in"
   | "not_in"
   | "contains"
-  | "contains_nocase"
   | "not_contains"
-  | "not_contains_nocase"
   | "gt"
   | "lt"
   | "gte"
   | "lte"
   | "starts_with"
-  | "starts_with_nocase"
-  | "ends_with"
-  | "ends_with_nocase"
   | "not_starts_with"
-  | "not_starts_with_nocase"
-  | "not_ends_with"
-  | "not_ends_with_nocase";
+  | "ends_with"
+  | "not_ends_with";
 
 export function getWhereOperatorAndValue({
   filterType,
@@ -124,11 +88,14 @@ export function getWhereOperatorAndValue({
       return { operator, value: JSON.stringify(value) };
     }
 
+    // Handle list contains.
     return {
       operator,
       value: value.map((v) => {
         if (typeof v === "boolean") {
           return v ? 1 : 0;
+        } else if (typeof v === "bigint") {
+          return intToBlob(v);
         } else {
           return v;
         }
@@ -138,6 +105,10 @@ export function getWhereOperatorAndValue({
 
   if (typeof value === "boolean") {
     return { operator, value: value ? 1 : 0 };
+  }
+
+  if (typeof value === "bigint") {
+    return { operator, value: intToBlob(value) };
   }
 
   // At this point, treat the value as a string.
@@ -156,7 +127,11 @@ export function formatModelFieldValue({ value }: { value: unknown }) {
   } else if (typeof value === "undefined") {
     return null;
   } else if (Array.isArray(value)) {
-    return JSON.stringify(value);
+    if (typeof value[0] === "bigint") {
+      return JSON.stringify(value.map(String));
+    } else {
+      return JSON.stringify(value);
+    }
   } else {
     return value as string | number | null;
   }
@@ -198,8 +173,8 @@ export function parseModelFilter(filter: ModelFilter = {}): ModelFilter {
     parsedFilter.skip = filter.skip;
   }
 
-  parsedFilter.orderBy = filter.orderBy;
-  parsedFilter.orderDirection = filter.orderDirection;
+  parsedFilter.orderBy = filter.orderBy || "id";
+  parsedFilter.orderDirection = filter.orderDirection || "asc";
   parsedFilter.where = filter.where;
 
   return parsedFilter;

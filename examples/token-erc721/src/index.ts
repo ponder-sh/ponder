@@ -34,7 +34,7 @@ ponder.on("SmolBrain:Transfer", async ({ event, context }) => {
     data: {
       from: event.params.from,
       to: event.params.to,
-      tokenId: event.params.tokenId,
+      token: event.params.tokenId,
       timestamp: Number(event.block.timestamp),
     },
   });
