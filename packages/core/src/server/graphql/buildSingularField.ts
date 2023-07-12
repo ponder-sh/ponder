@@ -1,7 +1,6 @@
 import {
   GraphQLFieldConfig,
   GraphQLFieldResolver,
-  GraphQLID,
   GraphQLNonNull,
   GraphQLObjectType,
 } from "graphql";
@@ -41,7 +40,7 @@ const buildSingularField = ({
   return {
     type: entityGqlType,
     args: {
-      id: { type: new GraphQLNonNull(GraphQLID) },
+      id: { type: new GraphQLNonNull(entity.fieldByName.id.scalarGqlType) },
     },
     resolve: resolver,
   };
