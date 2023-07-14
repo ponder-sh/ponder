@@ -1,25 +1,45 @@
-import { Abi, Address } from "abitype";
+import { type Abi, type AbiEvent, Address } from "abitype";
 import { encodeEventTopics } from "viem";
 
-import { ResolvedConfig } from "@/config/config";
-import { Options } from "@/config/options";
+import type { ResolvedConfig } from "@/config/config";
+import type { Options } from "@/config/options";
 
-import { buildAbi } from "./abi";
+import { buildAbi, getEvents } from "./abi";
 import { encodeLogFilterKey } from "./logFilterKey";
 
 export type LogFilter = {
   name: string;
-  abi: Abi;
   network: string;
+  abi: Abi;
+  maxBlockRange?: number;
   filter: {
+    // Cache key used by the event store to record what historical block ranges are available for this log filter.
     key: string; // `${chainId}-${address}-${topics}`
     chainId: number;
+    // See `eth_getLogs` documentation.
     address?: `0x${string}` | `0x${string}`[];
+    // See `eth_getLogs` documentation.
     topics?: (`0x${string}` | `0x${string}`[] | null)[];
+    // See `eth_getLogs` documentation.
     startBlock: number;
+    // See `eth_getLogs` documentation.
     endBlock?: number;
   };
-  maxBlockRange?: number;
+  // All events present in the ABI, indexed by safeName.
+  events: Record<
+    string,
+    {
+      // Event name (if no overloads) or full event signature (if name is overloaded).
+      // This is the event name used when registering event handlers using `ponder.on("ContractName:EventName", ...)`
+      safeName: string;
+      // Full event signature, e.g. `event Deposit(address indexed from,bytes32 indexed id,uint value);`
+      signature: string;
+      // Keccak256 hash of the event signature (topic[0]).
+      selector: `0x${string}`;
+      // ABI item used for decoding raw logs.
+      abiItem: AbiEvent;
+    }
+  >;
 };
 
 export function buildLogFilters({
@@ -36,6 +56,8 @@ export function buildLogFilters({
         abiConfig: contract.abi,
         configFilePath: options.configFile,
       });
+
+      const events = getEvents({ abi });
 
       // Get the contract network/provider.
       const network = config.networks.find((n) => n.name === contract.network);
@@ -55,8 +77,10 @@ export function buildLogFilters({
 
       const logFilter: LogFilter = {
         name: contract.name,
-        abi,
         network: network.name,
+        abi,
+        events,
+        maxBlockRange: contract.maxBlockRange,
         filter: {
           key,
           chainId: network.chainId,
@@ -65,7 +89,6 @@ export function buildLogFilters({
           startBlock: contract.startBlock ?? 0,
           endBlock: contract.endBlock,
         },
-        maxBlockRange: contract.maxBlockRange,
       };
 
       return logFilter;
@@ -76,6 +99,8 @@ export function buildLogFilters({
       abiConfig: filter.abi,
       configFilePath: options.configFile,
     });
+
+    const events = getEvents({ abi });
 
     // Get the contract network/provider.
     const network = config.networks.find((n) => n.name === filter.network);
@@ -107,8 +132,10 @@ export function buildLogFilters({
 
     const logFilter: LogFilter = {
       name: filter.name,
-      abi,
       network: network.name,
+      abi,
+      events,
+      maxBlockRange: filter.maxBlockRange,
       filter: {
         key,
         chainId: network.chainId,
@@ -117,7 +144,6 @@ export function buildLogFilters({
         startBlock: filter.startBlock ?? 0,
         endBlock: filter.endBlock,
       },
-      maxBlockRange: filter.maxBlockRange,
     };
 
     return logFilter;
