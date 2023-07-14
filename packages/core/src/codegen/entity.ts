@@ -74,7 +74,17 @@ export const buildEntityTypes = (entities: Entity[]) => {
                 }: ${tsBaseType}[];`;
               }
               case "RELATIONSHIP": {
-                return `${field.name}${field.notNull ? "" : "?"}: string;`;
+                const relatedEntityIdTsType =
+                  gqlScalarToTsType[field.relatedEntityIdType.name];
+                if (!relatedEntityIdTsType) {
+                  throw new Error(
+                    `TypeScript type not found for related entity ID type: ${field.relatedEntityIdType.name}`
+                  );
+                }
+
+                return `${field.name}${
+                  field.notNull ? "" : "?"
+                }: ${relatedEntityIdTsType};`;
               }
             }
           })
