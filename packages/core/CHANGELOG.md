@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.72
+
+### Patch Changes
+
+- [#256](https://github.com/0xOlias/ponder/pull/256) [`1336fce`](https://github.com/0xOlias/ponder/commit/1336fce13c7ac5de9a656eabe45823b180ad6b2a) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a codegen bug where `BigInt` IDs for related entities were typed as `string`.
+
 ## 0.0.71
 
 ### Patch Changes
