@@ -39,9 +39,10 @@ type RawHandlerFunctions = {
   _meta_?: {
     setup?: SetupEventHandlerFunction;
   };
-} & {
-  [key: LogFilterName]: {
-    [key: LogEventName]: LogEventHandlerFunction;
+  logFilters: {
+    [key: LogFilterName]: {
+      [key: LogEventName]: LogEventHandlerFunction;
+    };
   };
 };
 
@@ -49,7 +50,7 @@ type RawHandlerFunctions = {
 export class PonderApp<
   EventHandlers = Record<string, LogEventHandlerFunction>
 > {
-  private handlerFunctions: RawHandlerFunctions = {};
+  private handlerFunctions: RawHandlerFunctions = { logFilters: {} };
   private errors: Error[] = [];
 
   on<EventName extends Extract<keyof EventHandlers, string>>(
@@ -68,14 +69,14 @@ export class PonderApp<
       return;
     }
 
-    this.handlerFunctions[logFilterName] ||= {};
-    if (this.handlerFunctions[logFilterName]![eventName]) {
+    this.handlerFunctions.logFilters[logFilterName] ||= {};
+    if (this.handlerFunctions.logFilters[logFilterName][eventName]) {
       this.errors.push(
         new Error(`Cannot add multiple handler functions for event: ${name}`)
       );
       return;
     }
-    this.handlerFunctions[logFilterName]![eventName] =
+    this.handlerFunctions.logFilters[logFilterName][eventName] =
       handler as LogEventHandlerFunction;
   }
 }
@@ -217,7 +218,7 @@ export const hydrateHandlerFunctions = ({
     handlerFunctions._meta_.setup = { fn: rawHandlerFunctions._meta_.setup };
   }
 
-  Object.entries(rawHandlerFunctions).forEach(
+  Object.entries(rawHandlerFunctions.logFilters).forEach(
     ([logFilterName, logFilterEventHandlerFunctions]) => {
       const logFilter = logFilters.find((l) => l.name === logFilterName);
       if (!logFilter) {
