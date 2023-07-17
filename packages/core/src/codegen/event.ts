@@ -1,16 +1,11 @@
-import { AbiEvent } from "abitype";
-
-import { LogFilter } from "@/config/logFilters";
+import { LogEventMetadata, LogFilter } from "@/config/logFilters";
 
 export const buildEventTypes = (logFilters: LogFilter[]) => {
   const allHandlers = logFilters.map((logFilter) => {
-    const abiEvents = logFilter.abi.filter(
-      (item): item is AbiEvent => item.type === "event"
-    );
-
-    return abiEvents
-      .map(({ name, inputs }) => {
-        const paramsType = `{${inputs
+    return Object.values(logFilter.events)
+      .filter((val): val is LogEventMetadata => !!val)
+      .map(({ safeName, abiItem }) => {
+        const paramsType = `{${abiItem.inputs
           .map((input, index) => {
             const inputName = input.name ? input.name : `param_${index}`;
             return `${inputName}:
@@ -18,11 +13,11 @@ export const buildEventTypes = (logFilters: LogFilter[]) => {
           })
           .join(";")}}`;
 
-        return `["${logFilter.name}:${name}"]: ({
+        return `["${logFilter.name}:${safeName}"]: ({
             event, context
             }: {
               event: {
-                name: "${name}";
+                name: "${abiItem.name}";
                 params: ${paramsType};
                 log: Log;
                 block: Block;

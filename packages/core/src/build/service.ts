@@ -5,30 +5,43 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import { Resources } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
 import { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/schema";
 
-import { Handlers, readHandlers } from "./handlers";
+import {
+  type HandlerFunctions,
+  buildRawHandlerFunctions,
+  hydrateHandlerFunctions,
+} from "./handlers";
 import { readGraphqlSchema } from "./schema";
 
 type BuildServiceEvents = {
   newConfig: undefined;
-  newHandlers: { handlers: Handlers };
+  newHandlers: { handlers: HandlerFunctions };
   newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
   private resources: Resources;
+  private logFilters: LogFilter[];
 
   private closeWatcher?: () => Promise<void>;
   private latestFileHashes: Record<string, string | undefined> = {};
 
-  constructor({ resources }: { resources: Resources }) {
+  constructor({
+    resources,
+    logFilters,
+  }: {
+    resources: Resources;
+    logFilters: LogFilter[];
+  }) {
     super();
     this.resources = resources;
+    this.logFilters = logFilters;
   }
 
   async kill() {
@@ -78,7 +91,15 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   async buildHandlers() {
     try {
-      const handlers = await readHandlers({ options: this.resources.options });
+      const rawHandlerFunctions = await buildRawHandlerFunctions({
+        options: this.resources.options,
+      });
+
+      const handlers = hydrateHandlerFunctions({
+        rawHandlerFunctions,
+        logFilters: this.logFilters,
+      });
+
       this.emit("newHandlers", { handlers });
     } catch (error_) {
       const error = error_ as Error;

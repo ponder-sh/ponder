@@ -1,5 +1,3 @@
-//
-
 /**
  * Generates an array of integers between two bounds. Exclusive on the right.
  *

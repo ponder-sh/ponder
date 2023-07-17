@@ -102,7 +102,7 @@ export interface EventStore {
       topics?: (Hex | Hex[] | null)[];
       fromBlock?: number;
       toBlock?: number;
-      handledTopic0?: Hex[];
+      includeEventSelectors?: Hex[];
     }[];
   }): Promise<{
     totalEventCount: number;
