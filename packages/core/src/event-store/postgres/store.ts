@@ -440,12 +440,12 @@ export class PostgresEventStore implements EventStore {
       topics?: (Hex | Hex[] | null)[];
       fromBlock?: number;
       toBlock?: number;
-      handledTopic0?: Hex[];
+      includeEventSelectors?: Hex[];
     }[];
   }) => {
-    const handledLogQuery = this.db
+    const includedLogQuery = this.db
       .with(
-        "logFilters(logFilter_name, logFilter_chainId, logFilter_address, logFilter_topic0, logFilter_topic1, logFilter_topic2, logFilter_topic3, logFilter_fromBlock, logFilter_toBlock, logFilter_handledTopic0)",
+        "logFilters(logFilter_name, logFilter_chainId, logFilter_address, logFilter_topic0, logFilter_topic1, logFilter_topic2, logFilter_topic3, logFilter_fromBlock, logFilter_toBlock, logFilter_includeEventSelectors)",
         () => sql`( values ${sql.join(filters.map(buildLogFilterValues))} )`
       )
       .selectFrom("logs")
@@ -547,9 +547,9 @@ export class PostgresEventStore implements EventStore {
             cmpr("blocks.number", "<=", ref("logFilter_toBlock")),
           ]),
           or([
-            cmpr("logFilter_handledTopic0", "is", null),
+            cmpr("logFilter_includeEventSelectors", "is", null),
             cmpr(
-              "logFilter_handledTopic0",
+              "logFilter_includeEventSelectors",
               "like",
               sql`'%' || logs.topic0 || '%'`
             ),
@@ -566,7 +566,7 @@ export class PostgresEventStore implements EventStore {
     // Get total count of matching logs.
     const totalLogCountQuery = this.db
       .with(
-        "logFilters(logFilter_name, logFilter_chainId, logFilter_address, logFilter_topic0, logFilter_topic1, logFilter_topic2, logFilter_topic3, logFilter_fromBlock, logFilter_toBlock, logFilter_handledTopic0)",
+        "logFilters(logFilter_name, logFilter_chainId, logFilter_address, logFilter_topic0, logFilter_topic1, logFilter_topic2, logFilter_topic3, logFilter_fromBlock, logFilter_toBlock, logFilter_includeEventSelectors)",
         () => sql`( values ${sql.join(filters.map(buildLogFilterValues))} )`
       )
       .selectFrom("logs")
@@ -611,17 +611,15 @@ export class PostgresEventStore implements EventStore {
       .where("blocks.timestamp", ">=", intToBlob(fromTimestamp))
       .where("blocks.timestamp", "<=", intToBlob(toTimestamp));
 
-    // Get handled logs.
-    const handledLogs = await handledLogQuery.execute();
+    const requestedLogs = await includedLogQuery.execute();
+    const totalLogCountResult = await totalLogCountQuery.execute();
+    const totalEventCount = Number(totalLogCountResult[0].log_count);
 
-    const totalLogCount = await totalLogCountQuery.execute();
-    const totalEventCount = Number(totalLogCount[0].log_count);
-
-    const events = handledLogs.map((result_) => {
+    const events = requestedLogs.map((result_) => {
       // Without this cast, the block_ and tx_ fields are all nullable
       // which makes this very annoying. Should probably add a runtime check
       // that those fields are indeed present before continuing here.
-      const result = result_ as NonNull<(typeof handledLogs)[number]>;
+      const result = result_ as NonNull<(typeof requestedLogs)[number]>;
 
       const event: {
         filterName: string;
@@ -749,14 +747,23 @@ export function buildLogFilterValues(filter: {
   topics?: (Hex | Hex[] | null)[];
   fromBlock?: number;
   toBlock?: number;
-  handledTopic0?: Hex[];
+  includeEventSelectors?: Hex[];
 }) {
-  const { name, chainId, address, topics, fromBlock, toBlock, handledTopic0 } =
-    filter;
+  const {
+    name,
+    chainId,
+    address,
+    topics,
+    fromBlock,
+    toBlock,
+    includeEventSelectors,
+  } = filter;
 
   const address_ = getLogFilterAddressOrTopic(address);
   const [topic0, topic1, topic2, topic3] = getLogFilterTopics(topics);
-  const handledTopic0_ = getLogFilterAddressOrTopic(handledTopic0);
+  const includeEventSelectors_ = getLogFilterAddressOrTopic(
+    includeEventSelectors
+  );
 
   return sql`(${sql.join([
     sql.val(name),
@@ -768,6 +775,6 @@ export function buildLogFilterValues(filter: {
     sql.val(topic3),
     sql`${sql.val(fromBlock ? intToBlob(fromBlock) : null)}::bytea`,
     sql`${sql.val(toBlock ? intToBlob(toBlock) : null)}::bytea`,
-    sql.val(handledTopic0_),
+    sql.val(includeEventSelectors_),
   ])})`;
 }

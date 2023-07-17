@@ -1,8 +1,8 @@
-import { AbiEvent } from "abitype";
 import Emittery from "emittery";
 import { decodeEventLog, Hex } from "viem";
 
-import { LogFilter } from "@/config/logFilters";
+import { LogFilterName } from "@/build/handlers";
+import { LogEventMetadata, LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
 import { Block } from "@/types/block";
@@ -12,7 +12,7 @@ import { Transaction } from "@/types/transaction";
 export type LogEvent = {
   logFilterName: string;
   eventName: string;
-  params: Record<string, unknown>;
+  params: any;
   log: Log;
   block: Block;
   transaction: Transaction;
@@ -97,24 +97,21 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
    *
    * @param options.fromTimestamp Timestamp to start including events (inclusive).
    * @param options.toTimestamp Timestamp to stop including events (inclusive).
-   * @param options.handledLogFilters Subset of log filters that the user has provided a handler for.
+   * @param options.includeLogFilterEvents Map of log filter name -> selector -> ABI event item for which to include full event objects.
    * @returns A promise resolving to an array of log events.
    */
   getEvents = async ({
     fromTimestamp,
     toTimestamp,
-    handledLogFilters,
+    includeLogFilterEvents,
   }: {
     fromTimestamp: number;
     toTimestamp: number;
-    handledLogFilters: Record<
-      string,
-      {
-        eventName: string;
-        topic0: Hex;
-        abiItem: AbiEvent;
-      }[]
-    >;
+    includeLogFilterEvents: {
+      [logFilterName: LogFilterName]: {
+        bySelector: { [selector: Hex]: LogEventMetadata };
+      };
+    };
   }) => {
     const { events, totalEventCount } = await this.eventStore.getLogEvents({
       fromTimestamp,
@@ -126,26 +123,32 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         topics: logFilter.filter.topics,
         fromBlock: logFilter.filter.startBlock,
         toBlock: logFilter.filter.endBlock,
-        handledTopic0: handledLogFilters[logFilter.name].map((i) => i.topic0),
+        includeEventSelectors: Object.keys(
+          includeLogFilterEvents[logFilter.name].bySelector
+        ) as Hex[],
       })),
     });
 
     const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
-      // TODO: Improve decode performance by having the specific ABI event item ready.
-      const logFilterData = handledLogFilters[event.filterName].find(
-        (i) => i.topic0 === event.log.topics[0]
-      );
+      const selector = event.log.topics[0];
+      if (!selector) {
+        // TODO: Log a warning that an anonymous event was found. This should never happen.
+        return acc;
+      }
+
+      const { abiItem, safeName } =
+        includeLogFilterEvents[event.filterName].bySelector[selector];
 
       try {
         const decodedLog = decodeEventLog({
-          abi: [logFilterData?.abiItem],
+          abi: [abiItem],
           data: event.log.data,
           topics: event.log.topics,
         });
 
         acc.push({
           logFilterName: event.filterName,
-          eventName: decodedLog.eventName,
+          eventName: safeName,
           params: decodedLog.args || {},
           log: event.log,
           block: event.block,
@@ -159,10 +162,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       return acc;
     }, []);
 
-    return {
-      totalEventCount,
-      events: decodedEvents,
-    };
+    return { events: decodedEvents, totalEventCount };
   };
 
   handleNewHistoricalCheckpoint = ({

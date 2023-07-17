@@ -130,14 +130,13 @@ export class Ponder {
       userStore: this.userStore,
       eventAggregatorService: this.eventAggregatorService,
       contracts,
-      logFilters: this.logFilters,
     });
 
     this.serverService = new ServerService({
       resources,
       userStore: this.userStore,
     });
-    this.buildService = new BuildService({ resources });
+    this.buildService = new BuildService({ resources, logFilters });
     this.codegenService = new CodegenService({
       resources,
       contracts,

@@ -1,8 +1,9 @@
-import { LogFilter } from "@/config/logFilters";
+import { LogEventMetadata, LogFilter } from "@/config/logFilters";
 
 export const buildEventTypes = (logFilters: LogFilter[]) => {
   const allHandlers = logFilters.map((logFilter) => {
     return Object.values(logFilter.events)
+      .filter((val): val is LogEventMetadata => !!val)
       .map(({ safeName, abiItem }) => {
         const paramsType = `{${abiItem.inputs
           .map((input, index) => {

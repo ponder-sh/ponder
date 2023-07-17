@@ -905,7 +905,7 @@ test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
   expect(events).toHaveLength(2);
 });
 
-test("getLogEvents returns no events if handledTopic0 is an empty array", async (context) => {
+test("getLogEvents returns no events if includeEventSelectors is an empty array", async (context) => {
   const { eventStore } = context;
 
   await eventStore.insertUnfinalizedBlock({
@@ -925,7 +925,7 @@ test("getLogEvents returns no events if handledTopic0 is an empty array", async 
   const { events } = await eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [{ name: "noFilter", chainId: 1, handledTopic0: [] }],
+    filters: [{ name: "noFilter", chainId: 1, includeEventSelectors: [] }],
   });
 
   expect(events).toHaveLength(0);

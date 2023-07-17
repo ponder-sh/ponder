@@ -3,7 +3,9 @@ import glob from "glob";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
+import { Hex } from "viem";
 
+import { LogEventMetadata, LogFilter } from "@/config/logFilters";
 import { Options } from "@/config/options";
 import { Block } from "@/types/block";
 import { Log } from "@/types/log";
@@ -17,13 +19,9 @@ export interface LogEvent {
   transaction: Transaction;
 }
 
-type SetupEventHandler = ({
-  context,
-}: {
-  context: unknown;
-}) => Promise<void> | void;
-
-type LogEventHandler = ({
+export type LogFilterName = string;
+export type LogEventName = string;
+type LogEventHandlerFunction = ({
   event,
   context,
 }: {
@@ -31,15 +29,27 @@ type LogEventHandler = ({
   context: unknown;
 }) => Promise<void> | void;
 
-type LogEventHandlers = Record<string, LogEventHandler | undefined>;
+type SetupEventHandlerFunction = ({
+  context,
+}: {
+  context: unknown;
+}) => Promise<void> | void;
 
-export type Handlers = Record<string, LogEventHandlers | undefined> & {
-  setup?: SetupEventHandler;
+type RawHandlerFunctions = {
+  _meta_?: {
+    setup?: SetupEventHandlerFunction;
+  };
+} & {
+  [key: LogFilterName]: {
+    [key: LogEventName]: LogEventHandlerFunction;
+  };
 };
 
 // @ponder/core creates an instance of this class called `ponder`
-export class PonderApp<EventHandlers = Record<string, LogEventHandler>> {
-  private handlers: Handlers = {};
+export class PonderApp<
+  EventHandlers = Record<string, LogEventHandlerFunction>
+> {
+  private handlerFunctions: RawHandlerFunctions = {};
   private errors: Error[] = [];
 
   on<EventName extends Extract<keyof EventHandlers, string>>(
@@ -47,28 +57,34 @@ export class PonderApp<EventHandlers = Record<string, LogEventHandler>> {
     handler: EventHandlers[EventName]
   ) {
     if (name === "setup") {
-      this.handlers.setup = handler as SetupEventHandler;
+      this.handlerFunctions._meta_ ||= {};
+      this.handlerFunctions._meta_.setup = handler as SetupEventHandlerFunction;
       return;
     }
 
-    const [contractName, eventName] = name.split(":");
-    if (!contractName || !eventName) {
+    const [logFilterName, eventName] = name.split(":");
+    if (!logFilterName || !eventName) {
       this.errors.push(new Error(`Invalid event name: ${name}`));
       return;
     }
 
-    this.handlers[contractName] ||= {};
-    if (this.handlers[contractName]![eventName]) {
+    this.handlerFunctions[logFilterName] ||= {};
+    if (this.handlerFunctions[logFilterName]![eventName]) {
       this.errors.push(
-        new Error(`Cannot add multiple handlers for event: ${name}`)
+        new Error(`Cannot add multiple handler functions for event: ${name}`)
       );
       return;
     }
-    this.handlers[contractName]![eventName] = handler as LogEventHandler;
+    this.handlerFunctions[logFilterName]![eventName] =
+      handler as LogEventHandlerFunction;
   }
 }
 
-export const readHandlers = async ({ options }: { options: Options }) => {
+export const buildRawHandlerFunctions = async ({
+  options,
+}: {
+  options: Options;
+}) => {
   const entryAppFilename = path.join(options.generatedDir, "index.ts");
   if (!existsSync(entryAppFilename)) {
     throw new Error(
@@ -161,7 +177,74 @@ export const readHandlers = async ({ options }: { options: Options }) => {
     throw error;
   }
 
-  const handlers = app["handlers"] as Handlers;
+  const handlers = app["handlerFunctions"] as RawHandlerFunctions;
 
   return handlers;
+};
+
+export type HandlerFunctions = {
+  _meta_: {
+    setup?: {
+      fn: SetupEventHandlerFunction;
+    };
+  };
+  logFilters: {
+    [key: LogFilterName]: {
+      // This mapping is passed from the EventHandlerService to the EventAggregatorService, which uses
+      // it to fetch from the store _only_ the events that the user has handled.
+      bySelector: { [key: Hex]: LogEventMetadata };
+      // This mapping is used by the EventHandlerService to fetch the user-provided `fn` before running it.
+      bySafeName: {
+        [key: LogEventName]: LogEventMetadata & { fn: LogEventHandlerFunction };
+      };
+    };
+  };
+};
+
+export const hydrateHandlerFunctions = ({
+  rawHandlerFunctions,
+  logFilters,
+}: {
+  rawHandlerFunctions: RawHandlerFunctions;
+  logFilters: LogFilter[];
+}) => {
+  const handlerFunctions: HandlerFunctions = {
+    _meta_: {},
+    logFilters: {},
+  };
+
+  if (rawHandlerFunctions._meta_?.setup) {
+    handlerFunctions._meta_.setup = { fn: rawHandlerFunctions._meta_.setup };
+  }
+
+  Object.entries(rawHandlerFunctions).forEach(
+    ([logFilterName, logFilterEventHandlerFunctions]) => {
+      const logFilter = logFilters.find((l) => l.name === logFilterName);
+      if (!logFilter) {
+        throw new Error(`Log filter not found in config: ${logFilterName}`);
+      }
+
+      Object.entries(logFilterEventHandlerFunctions).forEach(
+        ([logEventName, fn]) => {
+          const eventData = logFilter.events[logEventName];
+          if (!eventData) {
+            throw new Error(`Log event not found in ABI: ${logEventName}`);
+          }
+
+          handlerFunctions.logFilters[logFilterName] ||= {
+            bySafeName: {},
+            bySelector: {},
+          };
+          handlerFunctions.logFilters[logFilterName].bySelector[
+            eventData.selector
+          ] = eventData;
+          handlerFunctions.logFilters[logFilterName].bySafeName[
+            eventData.safeName
+          ] = { ...eventData, fn: fn };
+        }
+      );
+    }
+  );
+
+  return handlerFunctions;
 };

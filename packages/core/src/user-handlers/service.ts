@@ -1,12 +1,8 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-import { AbiEvent } from "abitype";
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
-import { encodeEventTopics, getAbiItem, Hex } from "viem";
 
-import type { Handlers } from "@/build/handlers";
+import type { HandlerFunctions } from "@/build/handlers";
 import type { Contract } from "@/config/contracts";
-import type { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type {
   EventAggregatorService,
@@ -38,22 +34,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private resources: Resources;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
-  private logFilters: LogFilter[];
 
   private readOnlyContracts: Record<string, ReadOnlyContract> = {};
 
   private schema?: Schema;
   private models: Record<string, Model<ModelInstance>> = {};
 
-  private handlers?: Handlers;
-  private handledLogFilters: Record<
-    string,
-    {
-      eventName: string;
-      topic0: Hex;
-      abiItem: AbiEvent;
-    }[]
-  > = {};
+  private handlers?: HandlerFunctions;
+  private includeLogFilterEvents: HandlerFunctions["logFilters"] = {};
 
   private eventProcessingMutex: Mutex;
   private queue?: EventHandlerQueue;
@@ -70,20 +58,17 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     userStore,
     eventAggregatorService,
     contracts,
-    logFilters,
   }: {
     resources: Resources;
     eventStore: EventStore;
     userStore: UserStore;
     eventAggregatorService: EventAggregatorService;
     contracts: Contract[];
-    logFilters: LogFilter[];
   }) {
     super();
     this.resources = resources;
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
-    this.logFilters = logFilters;
 
     // The read-only contract objects only depend on config, so they can
     // be built in the constructor (they can't be hot-reloaded).
@@ -117,7 +102,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     handlers: newHandlers,
     schema: newSchema,
   }: {
-    handlers?: Handlers;
+    handlers?: HandlerFunctions;
     schema?: Schema;
   } = {}) => {
     if (newSchema) {
@@ -131,29 +116,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
     if (newHandlers) {
       this.handlers = newHandlers;
-      this.handledLogFilters = {};
-
-      // Get the set of events that the user has provided a handler for.
-      this.logFilters.forEach((logFilter) => {
-        const handledEventSignatureTopics = Object.keys(
-          (this.handlers ?? {})[logFilter.name] ?? {}
-        ).map((eventName) => {
-          // TODO: Disambiguate overloaded ABI event signatures BEFORE getting here.
-          const topics = encodeEventTopics({
-            abi: logFilter.abi,
-            eventName,
-          });
-
-          const abiItem = getAbiItem({
-            abi: logFilter.abi,
-            name: eventName,
-          }) as AbiEvent;
-
-          return { eventName, topic0: topics[0], abiItem };
-        });
-
-        this.handledLogFilters[logFilter.name] = handledEventSignatureTopics;
-      });
+      this.includeLogFilterEvents = this.handlers.logFilters;
     }
 
     // If either the schema or handlers have not been provided yet,
@@ -282,7 +245,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           await this.eventAggregatorService.getEvents({
             fromTimestamp,
             toTimestamp,
-            handledLogFilters: this.handledLogFilters,
+            includeLogFilterEvents: this.includeLogFilterEvents,
           });
 
         // TODO: Add the "eventName" label here by updating getEvents
@@ -293,7 +256,10 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         );
 
         // If no events have been added yet, add the setup event.
-        if (this.eventsProcessedToTimestamp === 0 && this.handlers?.setup) {
+        if (
+          this.eventsProcessedToTimestamp === 0 &&
+          this.handlers?._meta_.setup
+        ) {
           this.queue.addTask({ kind: "SETUP" });
           this.resources.metrics.ponder_handlers_handled_events.inc({
             eventName: "setup",
@@ -337,10 +303,19 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       // Pending locks get cancelled in reset(). This is expected, so it's safe to
       // ignore the error that is thrown when a pending lock is cancelled.
       if (error !== E_CANCELED) throw error;
+
+      const userError = new UserError(
+        `Unhandled error while adding events to the queue`,
+        { cause: error }
+      );
+      this.resources.logger.error({
+        service: "handlers",
+        error: userError,
+      });
     }
   };
 
-  private createEventQueue = ({ handlers }: { handlers: Handlers }) => {
+  private createEventQueue = ({ handlers }: { handlers: HandlerFunctions }) => {
     const context = {
       contracts: this.readOnlyContracts,
       entities: this.models,
@@ -352,7 +327,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     }) => {
       switch (task.kind) {
         case "SETUP": {
-          const setupHandler = handlers["setup"];
+          const setupHandler = handlers._meta_.setup?.fn;
           if (!setupHandler) return;
 
           try {
@@ -391,8 +366,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         case "LOG": {
           const event = task.event;
 
-          const handler = handlers[event.logFilterName]?.[event.eventName];
-          if (!handler) return;
+          const handlerData =
+            this.handlers?.logFilters[event.logFilterName].bySafeName[
+              event.eventName
+            ];
+          if (!handlerData)
+            throw new Error(
+              `Internal: Handler not found for log from log filter ${event.logFilterName}`
+            );
 
           // This enables contract calls occurring within the
           // handler code to use the event block number by default.
@@ -401,7 +382,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
           try {
             // Running user code here!
-            await handler({
+            await handlerData.fn({
               event: {
                 ...event,
                 name: event.eventName,

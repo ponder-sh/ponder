@@ -1,11 +1,25 @@
-import { type Abi, type AbiEvent, Address } from "abitype";
-import { encodeEventTopics } from "viem";
+import type { Abi, AbiEvent, Address } from "abitype";
+import { type Hex, encodeEventTopics } from "viem";
 
 import type { ResolvedConfig } from "@/config/config";
 import type { Options } from "@/config/options";
 
 import { buildAbi, getEvents } from "./abi";
 import { encodeLogFilterKey } from "./logFilterKey";
+
+type SafeEventName = string;
+
+export type LogEventMetadata = {
+  // Event name (if no overloads) or full event signature (if name is overloaded).
+  // This is the event name used when registering event handlers using `ponder.on("ContractName:EventName", ...)`
+  safeName: string;
+  // Full event signature, e.g. `event Deposit(address indexed from,bytes32 indexed id,uint value);`
+  signature: string;
+  // Keccak256 hash of the event signature (topic[0]).
+  selector: Hex;
+  // ABI item used for decoding raw logs.
+  abiItem: AbiEvent;
+};
 
 export type LogFilter = {
   name: string;
@@ -25,21 +39,8 @@ export type LogFilter = {
     // See `eth_getLogs` documentation.
     endBlock?: number;
   };
-  // All events present in the ABI, indexed by safeName.
-  events: Record<
-    string,
-    {
-      // Event name (if no overloads) or full event signature (if name is overloaded).
-      // This is the event name used when registering event handlers using `ponder.on("ContractName:EventName", ...)`
-      safeName: string;
-      // Full event signature, e.g. `event Deposit(address indexed from,bytes32 indexed id,uint value);`
-      signature: string;
-      // Keccak256 hash of the event signature (topic[0]).
-      selector: `0x${string}`;
-      // ABI item used for decoding raw logs.
-      abiItem: AbiEvent;
-    }
-  >;
+  // All events present in the ABI, indexed by safe event name.
+  events: { [key: SafeEventName]: LogEventMetadata | undefined };
 };
 
 export function buildLogFilters({
