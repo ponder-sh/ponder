@@ -119,6 +119,7 @@ export class Ponder {
     });
 
     this.eventAggregatorService = new EventAggregatorService({
+      resources,
       eventStore: this.eventStore,
       networks,
       logFilters,
@@ -130,6 +131,7 @@ export class Ponder {
       userStore: this.userStore,
       eventAggregatorService: this.eventAggregatorService,
       contracts,
+      logFilters,
     });
 
     this.serverService = new ServerService({

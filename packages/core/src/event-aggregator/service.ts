@@ -5,6 +5,7 @@ import { LogFilterName } from "@/build/handlers";
 import { LogEventMetadata, LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
+import { Resources } from "@/Ponder";
 import { Block } from "@/types/block";
 import { Log } from "@/types/log";
 import { Transaction } from "@/types/transaction";
@@ -38,6 +39,7 @@ type EventAggregatorEvents = {
 type EventAggregatorMetrics = {};
 
 export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
+  private resources: Resources;
   private eventStore: EventStore;
   private logFilters: LogFilter[];
   private networks: Network[];
@@ -64,16 +66,19 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   metrics: EventAggregatorMetrics;
 
   constructor({
+    resources,
     eventStore,
     networks,
     logFilters,
   }: {
+    resources: Resources;
     eventStore: EventStore;
     networks: Network[];
     logFilters: LogFilter[];
   }) {
     super();
 
+    this.resources = resources;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.networks = networks;
@@ -100,7 +105,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
    * @param options.includeLogFilterEvents Map of log filter name -> selector -> ABI event item for which to include full event objects.
    * @returns A promise resolving to an array of log events.
    */
-  getEvents = async ({
+  async *getEvents({
     fromTimestamp,
     toTimestamp,
     includeLogFilterEvents,
@@ -112,8 +117,8 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         bySelector: { [selector: Hex]: LogEventMetadata };
       };
     };
-  }) => {
-    const { events, totalEventCount } = await this.eventStore.getLogEvents({
+  }) {
+    const iterator = this.eventStore.getLogEvents({
       fromTimestamp,
       toTimestamp,
       filters: this.logFilters.map((logFilter) => ({
@@ -129,41 +134,50 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       })),
     });
 
-    const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
-      const selector = event.log.topics[0];
-      if (!selector) {
-        // TODO: Log a warning that an anonymous event was found. This should never happen.
+    for await (const page of iterator) {
+      const { events, metadata } = page;
+
+      const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
+        const selector = event.log.topics[0];
+        if (!selector) {
+          throw new Error(
+            `Received an event log with no selector: ${event.log}`
+          );
+        }
+
+        const { abiItem, safeName } =
+          includeLogFilterEvents[event.logFilterName].bySelector[selector];
+
+        try {
+          const decodedLog = decodeEventLog({
+            abi: [abiItem],
+            data: event.log.data,
+            topics: event.log.topics,
+          });
+
+          acc.push({
+            logFilterName: event.logFilterName,
+            eventName: safeName,
+            params: decodedLog.args || {},
+            log: event.log,
+            block: event.block,
+            transaction: event.transaction,
+          });
+        } catch (err) {
+          // TODO: emit a warning here that a log was not decoded.
+          this.resources.logger.error({
+            service: "app",
+            msg: `Unable to decode log (skipping it): ${event.log}`,
+            error: err as Error,
+          });
+        }
+
         return acc;
-      }
+      }, []);
 
-      const { abiItem, safeName } =
-        includeLogFilterEvents[event.filterName].bySelector[selector];
-
-      try {
-        const decodedLog = decodeEventLog({
-          abi: [abiItem],
-          data: event.log.data,
-          topics: event.log.topics,
-        });
-
-        acc.push({
-          logFilterName: event.filterName,
-          eventName: safeName,
-          params: decodedLog.args || {},
-          log: event.log,
-          block: event.block,
-          transaction: event.transaction,
-        });
-      } catch (err) {
-        // TODO: emit a warning here that an event was not decoded.
-        // See https://github.com/0xOlias/ponder/issues/187
-      }
-
-      return acc;
-    }, []);
-
-    return { events: decodedEvents, totalEventCount };
-  };
+      yield { events: decodedEvents, metadata };
+    }
+  }
 
   handleNewHistoricalCheckpoint = ({
     chainId,

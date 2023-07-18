@@ -1,6 +1,8 @@
 import { Box, Text } from "ink";
 import React from "react";
 
+import { formatShortDate } from "@/utils/date";
+
 import { UiState } from "./app";
 import { ProgressBar } from "./ProgressBar";
 
@@ -13,52 +15,25 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
       ? `${completionDecimal}.0%`
       : `${completionDecimal}%`;
 
-  const date = new Date(ui.handlersToTimestamp * 1000);
-  const year = date.getFullYear();
-  const months = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-  const month = months[date.getMonth()];
-  const day = date.getDate();
-  const dateText = `${month} ${day}, ${year}`;
-
-  const isUpToDate =
-    ui.isHistoricalSyncComplete &&
-    ui.handlersCurrent === ui.handlersHandledTotal;
   const isStarted = ui.handlersToTimestamp > 0;
+  const isHistoricalSyncComplete = ui.isHistoricalSyncComplete;
+  const isUpToDate = ui.handlersCurrent === ui.handlersHandledTotal;
 
   const titleText = () => {
-    if (isUpToDate) return <Text color="green">(up to date)</Text>;
-    if (isStarted)
+    if (!isStarted) return <Text>(not started)</Text>;
+    if (!isHistoricalSyncComplete || !isUpToDate) {
       return (
         <Text color="yellow">
-          (up to {ui.handlersToTimestamp === 0 ? "" : dateText})
+          (up to {formatShortDate(ui.handlersToTimestamp)})
         </Text>
       );
-    return <Text>(not started)</Text>;
+    }
+    return <Text color="green">(up to date)</Text>;
   };
 
   const countText = () => {
-    if (isUpToDate)
-      return (
-        <Text>
-          {" "}
-          | {ui.handlersCurrent}/{ui.handlersHandledTotal} events (
-          {ui.handlersTotal} total)
-        </Text>
-      );
-    if (isStarted)
+    if (!isStarted) return null;
+    if (!isHistoricalSyncComplete) {
       return (
         <Text>
           {" "}
@@ -67,7 +42,14 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
           {ui.handlersTotal} total)
         </Text>
       );
-    return null;
+    }
+    return (
+      <Text>
+        {" "}
+        | {ui.handlersCurrent}/{ui.handlersHandledTotal} events (
+        {ui.handlersTotal} total)
+      </Text>
+    );
   };
 
   return (
@@ -76,7 +58,6 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
         <Text bold={true}>Event handlers </Text>
         <Text>{titleText()}</Text>
       </Box>
-      {/* {!isUpToDate && ( */}
       <Box flexDirection="row">
         <ProgressBar
           current={ui.handlersCurrent}

@@ -391,10 +391,11 @@ export class SqliteEventStore implements EventStore {
       : null;
   };
 
-  getLogEvents = async ({
+  async *getLogEvents({
     fromTimestamp,
     toTimestamp,
     filters = [],
+    pageSize = 10_000,
   }: {
     fromTimestamp: number;
     toTimestamp: number;
@@ -407,8 +408,9 @@ export class SqliteEventStore implements EventStore {
       toBlock?: number;
       includeEventSelectors?: Hex[];
     }[];
-  }) => {
-    const includedLogQuery = this.db
+    pageSize: number;
+  }) {
+    const includedLogQueryBase = this.db
       .with(
         "logFilters(logFilter_name, logFilter_chainId, logFilter_address, logFilter_topic0, logFilter_topic1, logFilter_topic2, logFilter_topic3, logFilter_fromBlock, logFilter_toBlock, logFilter_includeEventSelectors)",
         () => sql`( values ${sql.join(filters.map(buildLogFilterValues))} )`
@@ -423,7 +425,7 @@ export class SqliteEventStore implements EventStore {
         "logs.address as log_address",
         "logs.blockHash as log_blockHash",
         "logs.blockNumber as log_blockNumber",
-        // "logs.chainId as log_chainId",
+        "logs.chainId as log_chainId",
         "logs.data as log_data",
         // "logs.finalized as log_finalized",
         "logs.id as log_id",
@@ -525,11 +527,11 @@ export class SqliteEventStore implements EventStore {
       .where("blocks.timestamp", "<=", intToBlob(toTimestamp))
       .orderBy("blocks.timestamp", "asc")
       .orderBy("logs.chainId", "asc")
-      .orderBy("logs.logIndex", "asc")
-      .orderBy("logFilter_name", "asc");
+      .orderBy("blocks.number", "asc")
+      .orderBy("logs.logIndex", "asc");
 
-    // Get total count of matching logs.
-    const totalLogCountQuery = this.db
+    // Get total count of matching logs, grouped by log filter and event selector.
+    const eventCountsQuery = this.db
       .with(
         "logFilters(logFilter_name, logFilter_chainId, logFilter_address, logFilter_topic0, logFilter_topic1, logFilter_topic2, logFilter_topic3, logFilter_fromBlock, logFilter_toBlock, logFilter_includeEventSelectors)",
         () => sql`( values ${sql.join(filters.map(buildLogFilterValues))} )`
@@ -537,7 +539,11 @@ export class SqliteEventStore implements EventStore {
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .innerJoin("logFilters", (join) => join.onTrue())
-      .select(this.db.fn.count("logs.id").as("log_count"))
+      .select([
+        "logFilter_name",
+        "logs.topic0",
+        this.db.fn.count("logs.id").as("count"),
+      ])
       .where(({ and, or, cmpr, ref }) =>
         and([
           cmpr("logs.chainId", "=", ref("logFilter_chainId")),
@@ -574,120 +580,184 @@ export class SqliteEventStore implements EventStore {
         ])
       )
       .where("blocks.timestamp", ">=", intToBlob(fromTimestamp))
-      .where("blocks.timestamp", "<=", intToBlob(toTimestamp));
+      .where("blocks.timestamp", "<=", intToBlob(toTimestamp))
+      .groupBy(["logFilter_name", "logs.topic0"]);
 
-    const requestedLogs = await includedLogQuery.execute();
-    const totalLogCountResult = await totalLogCountQuery.execute();
-    const totalEventCount = Number(totalLogCountResult[0].log_count);
+    // Fetch the event counts once and include it in every response.
+    const eventCountsRaw = await eventCountsQuery.execute();
+    const eventCounts = eventCountsRaw.map((c) => ({
+      logFilterName: String(c.logFilter_name),
+      selector: c.topic0 as Hex,
+      count: Number(c.count),
+    }));
 
-    const events = requestedLogs.map((result_) => {
-      // Without this cast, the block_ and tx_ fields are all nullable
-      // which makes this very annoying. Should probably add a runtime check
-      // that those fields are indeed present before continuing here.
-      const result = result_ as NonNull<(typeof requestedLogs)[number]>;
+    let cursor:
+      | {
+          timestamp: Buffer;
+          chainId: number;
+          blockNumber: Buffer;
+          logIndex: number;
+        }
+      | undefined = undefined;
 
-      const event: {
-        filterName: string;
-        log: Log;
-        block: Block;
-        transaction: Transaction;
-      } = {
-        filterName: result.logFilter_name,
-        log: {
-          address: result.log_address,
-          blockHash: result.log_blockHash,
-          blockNumber: blobToBigInt(result.log_blockNumber),
-          data: result.log_data,
-          id: result.log_id,
-          logIndex: Number(result.log_logIndex),
-          removed: false,
-          topics: [
-            result.log_topic0,
-            result.log_topic1,
-            result.log_topic2,
-            result.log_topic3,
-          ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
-          transactionHash: result.log_transactionHash,
-          transactionIndex: Number(result.log_transactionIndex),
-        },
-        block: {
-          baseFeePerGas: result.block_baseFeePerGas
-            ? blobToBigInt(result.block_baseFeePerGas)
-            : null,
-          difficulty: blobToBigInt(result.block_difficulty),
-          extraData: result.block_extraData,
-          gasLimit: blobToBigInt(result.block_gasLimit),
-          gasUsed: blobToBigInt(result.block_gasUsed),
-          hash: result.block_hash,
-          logsBloom: result.block_logsBloom,
-          miner: result.block_miner,
-          mixHash: result.block_mixHash,
-          nonce: result.block_nonce,
-          number: blobToBigInt(result.block_number),
-          parentHash: result.block_parentHash,
-          receiptsRoot: result.block_receiptsRoot,
-          sha3Uncles: result.block_sha3Uncles,
-          size: blobToBigInt(result.block_size),
-          stateRoot: result.block_stateRoot,
-          timestamp: blobToBigInt(result.block_timestamp),
-          totalDifficulty: blobToBigInt(result.block_totalDifficulty),
-          transactionsRoot: result.block_transactionsRoot,
-        },
-        transaction: {
-          blockHash: result.tx_blockHash,
-          blockNumber: blobToBigInt(result.tx_blockNumber),
-          from: result.tx_from,
-          gas: blobToBigInt(result.tx_gas),
-          hash: result.tx_hash,
-          input: result.tx_input,
-          nonce: Number(result.tx_nonce),
-          r: result.tx_r,
-          s: result.tx_s,
-          to: result.tx_to,
-          transactionIndex: Number(result.tx_transactionIndex),
-          value: blobToBigInt(result.tx_value),
-          v: blobToBigInt(result.tx_v),
-          ...(result.tx_type === "0x0"
-            ? {
-                type: "legacy",
-                gasPrice: blobToBigInt(result.tx_gasPrice),
-              }
-            : result.tx_type === "0x1"
-            ? {
-                type: "eip2930",
-                gasPrice: blobToBigInt(result.tx_gasPrice),
-                accessList: JSON.parse(result.tx_accessList),
-              }
-            : result.tx_type === "0x2"
-            ? {
-                type: "eip1559",
-                maxFeePerGas: blobToBigInt(result.tx_maxFeePerGas),
-                maxPriorityFeePerGas: blobToBigInt(
-                  result.tx_maxPriorityFeePerGas
-                ),
-              }
-            : result.tx_type === "0x7e"
-            ? {
-                type: "deposit",
-                maxFeePerGas: blobToBigInt(result.tx_maxFeePerGas),
-                maxPriorityFeePerGas: blobToBigInt(
-                  result.tx_maxPriorityFeePerGas
-                ),
-              }
-            : {
-                type: result.tx_type,
-              }),
+    while (true) {
+      let query = includedLogQueryBase.limit(pageSize);
+      if (cursor) {
+        // See this comment for an explanation of the cursor logic.
+        // https://stackoverflow.com/a/38017813
+        // This is required to avoid skipping logs that have the same timestamp.
+        query = query.where(({ and, or, cmpr }) => {
+          const { timestamp, chainId, blockNumber, logIndex } = cursor!;
+          return and([
+            cmpr("blocks.timestamp", ">=", timestamp),
+            or([
+              cmpr("blocks.timestamp", ">", timestamp),
+              and([
+                cmpr("logs.chainId", ">=", chainId),
+                or([
+                  cmpr("logs.chainId", ">", chainId),
+                  and([
+                    cmpr("blocks.number", ">=", blockNumber),
+                    or([
+                      cmpr("blocks.number", ">", blockNumber),
+                      cmpr("logs.logIndex", ">", logIndex),
+                    ]),
+                  ]),
+                ]),
+              ]),
+            ]),
+          ]);
+        });
+      }
+
+      const requestedLogs = await query.execute();
+
+      const events = requestedLogs.map((_row) => {
+        // Without this cast, the block_ and tx_ fields are all nullable
+        // which makes this very annoying. Should probably add a runtime check
+        // that those fields are indeed present before continuing here.
+        const row = _row as NonNull<(typeof requestedLogs)[number]>;
+        return {
+          logFilterName: row.logFilter_name,
+          log: {
+            address: row.log_address,
+            blockHash: row.log_blockHash,
+            blockNumber: blobToBigInt(row.log_blockNumber),
+            data: row.log_data,
+            id: row.log_id,
+            logIndex: Number(row.log_logIndex),
+            removed: false,
+            topics: [
+              row.log_topic0,
+              row.log_topic1,
+              row.log_topic2,
+              row.log_topic3,
+            ].filter((t): t is Hex => t !== null) as [Hex, ...Hex[]] | [],
+            transactionHash: row.log_transactionHash,
+            transactionIndex: Number(row.log_transactionIndex),
+          },
+          block: {
+            baseFeePerGas: row.block_baseFeePerGas
+              ? blobToBigInt(row.block_baseFeePerGas)
+              : null,
+            difficulty: blobToBigInt(row.block_difficulty),
+            extraData: row.block_extraData,
+            gasLimit: blobToBigInt(row.block_gasLimit),
+            gasUsed: blobToBigInt(row.block_gasUsed),
+            hash: row.block_hash,
+            logsBloom: row.block_logsBloom,
+            miner: row.block_miner,
+            mixHash: row.block_mixHash,
+            nonce: row.block_nonce,
+            number: blobToBigInt(row.block_number),
+            parentHash: row.block_parentHash,
+            receiptsRoot: row.block_receiptsRoot,
+            sha3Uncles: row.block_sha3Uncles,
+            size: blobToBigInt(row.block_size),
+            stateRoot: row.block_stateRoot,
+            timestamp: blobToBigInt(row.block_timestamp),
+            totalDifficulty: blobToBigInt(row.block_totalDifficulty),
+            transactionsRoot: row.block_transactionsRoot,
+          },
+          transaction: {
+            blockHash: row.tx_blockHash,
+            blockNumber: blobToBigInt(row.tx_blockNumber),
+            from: row.tx_from,
+            gas: blobToBigInt(row.tx_gas),
+            hash: row.tx_hash,
+            input: row.tx_input,
+            nonce: Number(row.tx_nonce),
+            r: row.tx_r,
+            s: row.tx_s,
+            to: row.tx_to,
+            transactionIndex: Number(row.tx_transactionIndex),
+            value: blobToBigInt(row.tx_value),
+            v: blobToBigInt(row.tx_v),
+            ...(row.tx_type === "0x0"
+              ? {
+                  type: "legacy",
+                  gasPrice: blobToBigInt(row.tx_gasPrice),
+                }
+              : row.tx_type === "0x1"
+              ? {
+                  type: "eip2930",
+                  gasPrice: blobToBigInt(row.tx_gasPrice),
+                  accessList: JSON.parse(row.tx_accessList),
+                }
+              : row.tx_type === "0x2"
+              ? {
+                  type: "eip1559",
+                  maxFeePerGas: blobToBigInt(row.tx_maxFeePerGas),
+                  maxPriorityFeePerGas: blobToBigInt(
+                    row.tx_maxPriorityFeePerGas
+                  ),
+                }
+              : row.tx_type === "0x7e"
+              ? {
+                  type: "deposit",
+                  maxFeePerGas: blobToBigInt(row.tx_maxFeePerGas),
+                  maxPriorityFeePerGas: blobToBigInt(
+                    row.tx_maxPriorityFeePerGas
+                  ),
+                }
+              : {
+                  type: row.tx_type,
+                }),
+          },
+        } satisfies {
+          logFilterName: string;
+          log: Log;
+          block: Block;
+          transaction: Transaction;
+        };
+      });
+
+      const lastRow = requestedLogs[requestedLogs.length - 1];
+      if (lastRow) {
+        cursor = {
+          timestamp: lastRow.block_timestamp!,
+          chainId: lastRow.log_chainId,
+          blockNumber: lastRow.block_number!,
+          logIndex: lastRow.log_logIndex,
+        };
+      }
+
+      const lastEventBlockTimestamp = lastRow?.block_timestamp;
+      const pageEndsAtTimestamp = lastEventBlockTimestamp
+        ? Number(blobToBigInt(lastEventBlockTimestamp))
+        : toTimestamp;
+
+      yield {
+        events,
+        metadata: {
+          pageEndsAtTimestamp,
+          counts: eventCounts,
         },
       };
 
-      return event;
-    });
-
-    return {
-      events,
-      totalEventCount,
-    };
-  };
+      if (events.length < pageSize) break;
+    }
+  }
 }
 
 function getLogFilterAddressOrTopic(value: Hex | Hex[] | undefined | null) {

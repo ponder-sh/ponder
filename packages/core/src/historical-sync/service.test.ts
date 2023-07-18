@@ -173,7 +173,7 @@ test("start() adds events to event store", async (context) => {
   service.start();
   await service.onIdle();
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -184,6 +184,8 @@ test("start() adds events to event store", async (context) => {
       },
     ],
   });
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
 
   expect(events[0].block).toMatchObject({
     hash: "0x0d8710de44b1b42ef86da0e9bebeaacb6d1cb5603f8014dec82e429f0cbf2fe0",
