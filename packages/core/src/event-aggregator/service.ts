@@ -5,6 +5,7 @@ import { LogFilterName } from "@/build/handlers";
 import { LogEventMetadata, LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
+import { Resources } from "@/Ponder";
 import { Block } from "@/types/block";
 import { Log } from "@/types/log";
 import { Transaction } from "@/types/transaction";
@@ -38,6 +39,7 @@ type EventAggregatorEvents = {
 type EventAggregatorMetrics = {};
 
 export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
+  private resources: Resources;
   private eventStore: EventStore;
   private logFilters: LogFilter[];
   private networks: Network[];
@@ -64,16 +66,19 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   metrics: EventAggregatorMetrics;
 
   constructor({
+    resources,
     eventStore,
     networks,
     logFilters,
   }: {
+    resources: Resources;
     eventStore: EventStore;
     networks: Network[];
     logFilters: LogFilter[];
   }) {
     super();
 
+    this.resources = resources;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.networks = networks;
@@ -127,7 +132,6 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
           includeLogFilterEvents[logFilter.name].bySelector
         ) as Hex[],
       })),
-      pageSize: 100,
     });
 
     for await (const page of iterator) {
@@ -136,8 +140,9 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
         const selector = event.log.topics[0];
         if (!selector) {
-          // TODO: Log a warning that an anonymous event was found. This should never happen.
-          return acc;
+          throw new Error(
+            `Received an event log with no selector: ${event.log}`
+          );
         }
 
         const { abiItem, safeName } =
@@ -159,8 +164,12 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
             transaction: event.transaction,
           });
         } catch (err) {
-          // TODO: emit a warning here that an event was not decoded.
-          // See https://github.com/0xOlias/ponder/issues/187
+          // TODO: emit a warning here that a log was not decoded.
+          this.resources.logger.error({
+            service: "app",
+            msg: `Unable to decode log (skipping it): ${event.log}`,
+            error: err as Error,
+          });
         }
 
         return acc;
