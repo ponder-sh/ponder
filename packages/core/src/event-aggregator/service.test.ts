@@ -59,9 +59,10 @@ const logFilters: LogFilter[] = [
 ];
 
 test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new EventAggregatorService({
+    resources,
     eventStore,
     logFilters,
     networks,
@@ -81,9 +82,10 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
 });
 
 test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new EventAggregatorService({
+    resources,
     eventStore,
     logFilters,
     networks,
@@ -110,9 +112,10 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
 });
 
 test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final historical sync is complete", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new EventAggregatorService({
+    resources,
     eventStore,
     logFilters,
     networks,
@@ -137,9 +140,10 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
 });
 
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new EventAggregatorService({
+    resources,
     eventStore,
     logFilters,
     networks,
@@ -165,9 +169,10 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
 });
 
 test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is complete", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new EventAggregatorService({
+    resources,
     eventStore,
     logFilters,
     networks,
@@ -202,9 +207,10 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new EventAggregatorService({
+    resources,
     eventStore,
     logFilters,
     networks,
@@ -227,9 +233,10 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) 
 });
 
 test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequent event is earlier", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new EventAggregatorService({
+    resources,
     eventStore,
     logFilters,
     networks,
@@ -256,9 +263,10 @@ test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequ
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent event is later", async (context) => {
-  const { eventStore } = context;
+  const { resources, eventStore } = context;
 
   const service = new EventAggregatorService({
+    resources,
     eventStore,
     logFilters,
     networks,
