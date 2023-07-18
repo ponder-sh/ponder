@@ -18,6 +18,7 @@ import type { ModelInstance, UserStore } from "@/user-store/store";
 import { formatShortDate } from "@/utils/date";
 import { prettyPrint } from "@/utils/print";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
+import { wait } from "@/utils/wait";
 
 import { buildReadOnlyContracts } from "./contract";
 import { buildModels } from "./model";
@@ -319,6 +320,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
             pageEndsAtTimestamp
           );
+
+          // This is a hack to ensure that the eventsProcessed handler is called and updates
+          // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
+          // It does, however, slow down event processing a bit.
+          await wait(0);
 
           if (events.length > 0) {
             this.resources.logger.info({
