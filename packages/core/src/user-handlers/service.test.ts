@@ -86,19 +86,33 @@ const handlers: HandlerFunctions = {
   },
 };
 
-const getEvents = vi.fn(({ fromTimestamp, toTimestamp }) => ({
-  totalEventCount: toTimestamp - fromTimestamp,
-  events: [
-    {
-      logFilterName: "USDC",
-      eventName: "Transfer",
-      params: { from: "0x0", to: "0x1", amount: 100n },
-      log: { id: String(toTimestamp) },
-      block: { timestamp: BigInt(toTimestamp) },
-      transaction: {},
+const getEvents = vi.fn(async function* getEvents({
+  // fromTimestamp,
+  toTimestamp,
+}) {
+  yield {
+    events: [
+      {
+        logFilterName: "USDC",
+        eventName: "Transfer",
+        params: { from: "0x0", to: "0x1", amount: 100n },
+        log: { id: String(toTimestamp) },
+        block: { timestamp: BigInt(toTimestamp) },
+        transaction: {},
+      },
+    ],
+    metadata: {
+      pageEndsAtTimestamp: toTimestamp,
+      counts: [
+        {
+          logFilterName: "USDC",
+          selector: transferEventMetadata.selector,
+          count: 5,
+        },
+      ],
     },
-  ],
-}));
+  };
+});
 
 const eventAggregatorService = {
   getEvents,
@@ -232,14 +246,17 @@ test("processEvents() updates event count metrics", async (context) => {
 
   const matchedEventsMetric = (
     await resources.metrics.ponder_handlers_matched_events.get()
-  ).values[0].value;
-  expect(matchedEventsMetric).toBe(10);
+  ).values;
+  expect(matchedEventsMetric).toMatchObject([
+    { labels: { eventName: "setup" }, value: 1 },
+    { labels: { eventName: "USDC:Transfer" }, value: 5 },
+  ]);
 
   const handledEventsMetric = (
     await resources.metrics.ponder_handlers_handled_events.get()
   ).values;
   expect(handledEventsMetric).toMatchObject([
-    { labels: { eventName: "USDC:Transfer" }, value: 1 },
+    { labels: { eventName: "USDC:Transfer" }, value: 5 },
   ]);
 
   const processedEventsMetric = (
