@@ -467,12 +467,15 @@ test("getLogEvents returns log events", async (context) => {
     logs: blockOneLogs,
   });
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [{ name: "noFilter", chainId: 1 }],
   });
-  expect(events[0].filterName).toEqual("noFilter");
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
+
+  expect(events[0].logFilterName).toEqual("noFilter");
 
   expect(events[0].log).toMatchInlineSnapshot(`
     {
@@ -615,13 +618,15 @@ test("getLogEvents filters on log address", async (context) => {
     logs: blockOneLogs,
   });
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
       { name: "singleAddress", chainId: 1, address: blockOneLogs[0].address },
     ],
   });
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
 
   expect(events[0].log.address).toBe(blockOneLogs[0].address);
   expect(events).toHaveLength(1);
@@ -644,7 +649,7 @@ test("getLogEvents filters on multiple addresses", async (context) => {
     logs: blockTwoLogs,
   });
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -655,15 +660,17 @@ test("getLogEvents filters on multiple addresses", async (context) => {
       },
     ],
   });
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
 
   expect(events[0]).toMatchObject({
-    filterName: "multipleAddress",
+    logFilterName: "multipleAddress",
     log: {
       address: blockOneLogs[0].address,
     },
   });
   expect(events[1]).toMatchObject({
-    filterName: "multipleAddress",
+    logFilterName: "multipleAddress",
     log: {
       address: blockOneLogs[1].address,
     },
@@ -688,7 +695,7 @@ test("getLogEvents filters on single topic", async (context) => {
     logs: blockTwoLogs,
   });
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -699,15 +706,17 @@ test("getLogEvents filters on single topic", async (context) => {
       },
     ],
   });
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
 
   expect(events[0]).toMatchObject({
-    filterName: "singleTopic",
+    logFilterName: "singleTopic",
     log: {
       topics: blockOneLogs[0].topics,
     },
   });
   expect(events[1]).toMatchObject({
-    filterName: "singleTopic",
+    logFilterName: "singleTopic",
     log: {
       topics: blockTwoLogs[0].topics,
     },
@@ -732,7 +741,7 @@ test("getLogEvents filters on multiple topics", async (context) => {
     logs: blockTwoLogs,
   });
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -746,9 +755,11 @@ test("getLogEvents filters on multiple topics", async (context) => {
       },
     ],
   });
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
 
   expect(events[0]).toMatchObject({
-    filterName: "multipleTopics",
+    logFilterName: "multipleTopics",
     log: {
       topics: blockOneLogs[0].topics,
     },
@@ -773,7 +784,7 @@ test("getLogEvents filters on fromBlock", async (context) => {
     logs: blockTwoLogs,
   });
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -784,9 +795,11 @@ test("getLogEvents filters on fromBlock", async (context) => {
       },
     ],
   });
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
 
   expect(events[0]).toMatchObject({
-    filterName: "fromBlock",
+    logFilterName: "fromBlock",
     block: {
       number: 15495111n,
     },
@@ -811,7 +824,7 @@ test("getLogEvents filters on multiple filters", async (context) => {
     logs: blockTwoLogs,
   });
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [
@@ -827,21 +840,23 @@ test("getLogEvents filters on multiple filters", async (context) => {
       },
     ],
   });
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
 
   expect(events[0]).toMatchObject({
-    filterName: "singleAddress",
+    logFilterName: "singleAddress",
     log: {
       address: blockOneLogs[0].address,
     },
   });
   expect(events[1]).toMatchObject({
-    filterName: "singleTopic",
+    logFilterName: "singleTopic",
     log: {
       address: blockOneLogs[0].address,
     },
   });
   expect(events[2]).toMatchObject({
-    filterName: "singleTopic",
+    logFilterName: "singleTopic",
     log: {
       topics: blockTwoLogs[0].topics,
     },
@@ -865,11 +880,13 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
     logs: blockTwoLogs,
   });
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: hexToNumber(blockTwo.timestamp!),
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [{ name: "noFilter", chainId: 1 }],
   });
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
 
   expect(events[0].block.hash).toBe(blockTwo.hash);
   expect(events).toHaveLength(1);
@@ -892,11 +909,13 @@ test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
     logs: blockTwoLogs,
   });
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: hexToNumber(blockOne.timestamp!),
     filters: [{ name: "noFilter", chainId: 1 }],
   });
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
 
   expect(events.map((e) => e.block.hash)).toMatchObject([
     blockOne.hash,
@@ -922,11 +941,13 @@ test("getLogEvents returns no events if includeEventSelectors is an empty array"
     logs: blockTwoLogs,
   });
 
-  const { events } = await eventStore.getLogEvents({
+  const iterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     filters: [{ name: "noFilter", chainId: 1, includeEventSelectors: [] }],
   });
+  const events = [];
+  for await (const page of iterator) events.push(...page.events);
 
   expect(events).toHaveLength(0);
 });

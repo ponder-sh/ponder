@@ -130,6 +130,7 @@ export class Ponder {
       userStore: this.userStore,
       eventAggregatorService: this.eventAggregatorService,
       contracts,
+      logFilters,
     });
 
     this.serverService = new ServerService({

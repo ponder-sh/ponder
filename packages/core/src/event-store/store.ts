@@ -104,13 +104,21 @@ export interface EventStore {
       toBlock?: number;
       includeEventSelectors?: Hex[];
     }[];
-  }): Promise<{
-    totalEventCount: number;
+    pageSize?: number;
+  }): AsyncGenerator<{
     events: {
-      filterName: string;
+      logFilterName: string;
       log: Log;
       block: Block;
       transaction: Transaction;
     }[];
+    metadata: {
+      pageEndsAtTimestamp: number;
+      counts: {
+        logFilterName: string;
+        selector: Hex;
+        count: number;
+      }[];
+    };
   }>;
 }

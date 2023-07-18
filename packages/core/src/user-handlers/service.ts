@@ -3,6 +3,7 @@ import Emittery from "emittery";
 
 import type { HandlerFunctions } from "@/build/handlers";
 import type { Contract } from "@/config/contracts";
+import { LogEventMetadata, LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type {
   EventAggregatorService,
@@ -14,6 +15,7 @@ import type { Schema } from "@/schema/types";
 import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";
 import type { ModelInstance, UserStore } from "@/user-store/store";
+import { formatShortDate } from "@/utils/date";
 import { prettyPrint } from "@/utils/print";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
 
@@ -34,6 +36,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private resources: Resources;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
+  private logFilters: LogFilter[];
 
   private readOnlyContracts: Record<string, ReadOnlyContract> = {};
 
@@ -58,17 +61,20 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     userStore,
     eventAggregatorService,
     contracts,
+    logFilters,
   }: {
     resources: Resources;
     eventStore: EventStore;
     userStore: UserStore;
     eventAggregatorService: EventAggregatorService;
     contracts: Contract[];
+    logFilters: LogFilter[];
   }) {
     super();
     this.resources = resources;
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
+    this.logFilters = logFilters;
 
     // The read-only contract objects only depend on config, so they can
     // be built in the constructor (they can't be hot-reloaded).
@@ -241,77 +247,101 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
         const toTimestamp = eventsAvailableTo;
 
-        const { events, totalEventCount } =
-          await this.eventAggregatorService.getEvents({
-            fromTimestamp,
-            toTimestamp,
-            includeLogFilterEvents: this.includeLogFilterEvents,
-          });
-
-        // TODO: Add the "eventName" label here by updating getEvents
-        // implementation to return a count for each event name rather
-        // than all lumped together.
-        this.resources.metrics.ponder_handlers_matched_events.inc(
-          totalEventCount
-        );
-
-        // If no events have been added yet, add the setup event.
-        if (
-          this.eventsProcessedToTimestamp === 0 &&
-          this.handlers?._meta_.setup
-        ) {
-          this.queue.addTask({ kind: "SETUP" });
-          this.resources.metrics.ponder_handlers_handled_events.inc({
+        // If no events have been added yet, add the setup event & associated metrics.
+        if (this.eventsProcessedToTimestamp === 0) {
+          this.resources.metrics.ponder_handlers_matched_events.inc({
             eventName: "setup",
           });
+          if (this.handlers?._meta_.setup) {
+            this.queue.addTask({ kind: "SETUP" });
+            this.resources.metrics.ponder_handlers_handled_events.inc({
+              eventName: "setup",
+            });
+          }
         }
 
-        // Add new events to the queue.
-        for (const event of events) {
-          this.queue.addTask({
-            kind: "LOG",
-            event,
-          });
-          this.resources.metrics.ponder_handlers_handled_events.inc({
-            eventName: `${event.logFilterName}:${event.eventName}`,
-          });
-        }
+        const iterator = this.eventAggregatorService.getEvents({
+          fromTimestamp,
+          toTimestamp,
+          includeLogFilterEvents: this.includeLogFilterEvents,
+        });
 
-        // Process new events that were added to the queue.
-        this.queue.start();
-        await this.queue.onIdle();
-        this.queue.pause();
+        let pageIndex = 0;
+
+        for await (const page of iterator) {
+          const { events, metadata } = page;
+
+          // Increment the metrics for the total number of matching & handled events in this timestamp range.
+          if (pageIndex === 0) {
+            metadata.counts.forEach(({ logFilterName, selector, count }) => {
+              const safeName = Object.values(
+                this.logFilters.find((lf) => lf.name === logFilterName)
+                  ?.events || {}
+              )
+                .filter((m): m is LogEventMetadata => !!m)
+                .find((m) => m.selector === selector)?.safeName;
+              if (!safeName) return;
+
+              const isHandled =
+                !!this.handlers?.logFilters[logFilterName]?.bySelector?.[
+                  selector
+                ];
+
+              this.resources.metrics.ponder_handlers_matched_events.inc(
+                { eventName: `${logFilterName}:${safeName}` },
+                count
+              );
+              if (isHandled) {
+                this.resources.metrics.ponder_handlers_handled_events.inc(
+                  { eventName: `${logFilterName}:${safeName}` },
+                  count
+                );
+              }
+            });
+          }
+
+          // Add new events to the queue.
+          for (const event of events) {
+            this.queue.addTask({
+              kind: "LOG",
+              event,
+            });
+          }
+
+          // Process new events that were added to the queue.
+          this.queue.start();
+          await this.queue.onIdle();
+          this.queue.pause();
+
+          const { pageEndsAtTimestamp } = metadata;
+          this.eventsProcessedToTimestamp = pageEndsAtTimestamp;
+          this.emit("eventsProcessed", { toTimestamp: pageEndsAtTimestamp });
+          this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
+            pageEndsAtTimestamp
+          );
+
+          if (events.length > 0) {
+            this.resources.logger.info({
+              service: "handlers",
+              msg: `Processed ${
+                events.length === 1 ? "1 event" : `${events.length} events`
+              } (up to ${formatShortDate(pageEndsAtTimestamp)})`,
+            });
+          }
+
+          pageIndex += 1;
+        }
 
         this.eventsProcessedToTimestamp = toTimestamp;
-
         this.emit("eventsProcessed", { toTimestamp });
-
         this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
           toTimestamp
         );
-
-        if (events.length > 0) {
-          this.resources.logger.info({
-            service: "handlers",
-            msg: `Processed ${
-              events.length === 1 ? "1 event" : `${events.length} events`
-            }`,
-          });
-        }
       });
     } catch (error) {
       // Pending locks get cancelled in reset(). This is expected, so it's safe to
       // ignore the error that is thrown when a pending lock is cancelled.
       if (error !== E_CANCELED) throw error;
-
-      const userError = new UserError(
-        `Unhandled error while adding events to the queue`,
-        { cause: error }
-      );
-      this.resources.logger.error({
-        service: "handlers",
-        error: userError,
-      });
     }
   };
 
