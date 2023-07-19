@@ -1,4 +1,5 @@
 import {
+  type ExpressionBuilder,
   CompiledQuery,
   Kysely,
   Migrator,
@@ -16,6 +17,7 @@ import type { NonNull } from "@/types/utils";
 import { blobToBigInt } from "@/utils/decode";
 import { intToBlob } from "@/utils/encode";
 import { mergeIntervals } from "@/utils/intervals";
+import { range } from "@/utils/range";
 
 import type { EventStore } from "../store";
 import {
@@ -445,10 +447,13 @@ export class PostgresEventStore implements EventStore {
     }[];
     pageSize: number;
   }) {
-    const includedLogQueryBase = this.db
+    const baseQuery = this.db
       .with(
-        "logFilters(logFilter_name, logFilter_chainId, logFilter_address, logFilter_topic0, logFilter_topic1, logFilter_topic2, logFilter_topic3, logFilter_fromBlock, logFilter_toBlock, logFilter_includeEventSelectors)",
-        () => sql`( values ${sql.join(filters.map(buildLogFilterValues))} )`
+        "logFilters(logFilter_name)",
+        () =>
+          sql`( values ${sql.join(
+            filters.map((f) => sql`( ${sql.val(f.name)} )`)
+          )} )`
       )
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
@@ -515,107 +520,113 @@ export class PostgresEventStore implements EventStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
-      .where(({ and, or, cmpr, ref }) =>
-        and([
-          cmpr("logs.chainId", "=", ref("logFilter_chainId")),
-          or([
-            cmpr("logFilter_address", "is", null),
-            cmpr("logFilter_address", "like", sql`'%' || logs.address || '%'`),
-          ]),
-          and([
-            or([
-              cmpr("logFilter_topic0", "is", null),
-              cmpr("logFilter_topic0", "like", sql`'%' || logs.topic0 || '%'`),
-            ]),
-            or([
-              cmpr("logFilter_topic1", "is", null),
-              cmpr("logFilter_topic1", "like", sql`'%' || logs.topic1 || '%'`),
-            ]),
-            or([
-              cmpr("logFilter_topic2", "is", null),
-              cmpr("logFilter_topic2", "like", sql`'%' || logs.topic2 || '%'`),
-            ]),
-            or([
-              cmpr("logFilter_topic3", "is", null),
-              cmpr("logFilter_topic3", "like", sql`'%' || logs.topic3 || '%'`),
-            ]),
-          ]),
-          or([
-            cmpr("logFilter_fromBlock", "is", null),
-            cmpr("blocks.number", ">=", ref("logFilter_fromBlock")),
-          ]),
-          or([
-            cmpr("logFilter_toBlock", "is", null),
-            cmpr("blocks.number", "<=", ref("logFilter_toBlock")),
-          ]),
-          or([
-            cmpr("logFilter_includeEventSelectors", "is", null),
-            cmpr(
-              "logFilter_includeEventSelectors",
-              "like",
-              sql`'%' || logs.topic0 || '%'`
-            ),
-          ]),
-        ])
-      )
       .where("blocks.timestamp", ">=", intToBlob(fromTimestamp))
-      .where("blocks.timestamp", "<=", intToBlob(toTimestamp))
+      .where("blocks.timestamp", "<=", intToBlob(toTimestamp));
+
+    const buildFilterAndCmprs = (
+      where: ExpressionBuilder<any, any>,
+      filter: (typeof filters)[number]
+    ) => {
+      const { cmpr, or } = where;
+      const cmprs = [];
+
+      cmprs.push(cmpr("logFilter_name", "=", filter.name));
+      cmprs.push(
+        cmpr("logs.chainId", "=", sql`${sql.val(filter.chainId)}::integer`)
+      );
+
+      if (filter.address) {
+        // If it's an array of length 1, collapse it.
+        const address =
+          Array.isArray(filter.address) && filter.address.length === 1
+            ? filter.address[0]
+            : filter.address;
+        if (Array.isArray(address)) {
+          cmprs.push(or(address.map((a) => cmpr("logs.address", "=", a))));
+        } else {
+          cmprs.push(cmpr("logs.address", "=", address));
+        }
+      }
+
+      if (filter.topics) {
+        for (const idx_ of range(0, 4)) {
+          const idx = idx_ as 0 | 1 | 2 | 3;
+          // If it's an array of length 1, collapse it.
+          const raw = filter.topics[idx] ?? null;
+          if (raw === null) continue;
+          const topic = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
+          if (Array.isArray(topic)) {
+            cmprs.push(or(topic.map((a) => cmpr(`logs.topic${idx}`, "=", a))));
+          } else {
+            cmprs.push(cmpr(`logs.topic${idx}`, "=", topic));
+          }
+        }
+      }
+
+      if (filter.fromBlock) {
+        cmprs.push(
+          cmpr(
+            "blocks.number",
+            ">=",
+            sql`${sql.val(intToBlob(filter.fromBlock))}::bytea`
+          )
+        );
+      }
+
+      if (filter.toBlock) {
+        cmprs.push(
+          cmpr(
+            "blocks.number",
+            "<=",
+            sql`${sql.val(intToBlob(filter.toBlock))}::bytea`
+          )
+        );
+      }
+
+      return cmprs;
+    };
+
+    // Get full log objects, including the includeEventSelectors clause.
+    const includedLogsBaseQuery = baseQuery
+      .where((where) => {
+        const { cmpr, and, or } = where;
+        const cmprsForAllFilters = filters.map((filter) => {
+          const cmprsForFilter = buildFilterAndCmprs(where, filter);
+          if (filter.includeEventSelectors) {
+            cmprsForFilter.push(
+              or(
+                filter.includeEventSelectors.map((t) =>
+                  cmpr("logs.topic0", "=", t)
+                )
+              )
+            );
+          }
+          return and(cmprsForFilter);
+        });
+        return or(cmprsForAllFilters);
+      })
       .orderBy("blocks.timestamp", "asc")
       .orderBy("logs.chainId", "asc")
-      .orderBy("logs.logIndex", "asc")
-      .orderBy("logFilter_name", "asc");
+      .orderBy("blocks.number", "asc")
+      .orderBy("logs.logIndex", "asc");
 
     // Get total count of matching logs, grouped by log filter and event selector.
-    const eventCountsQuery = this.db
-      .with(
-        "logFilters(logFilter_name, logFilter_chainId, logFilter_address, logFilter_topic0, logFilter_topic1, logFilter_topic2, logFilter_topic3, logFilter_fromBlock, logFilter_toBlock, logFilter_includeEventSelectors)",
-        () => sql`( values ${sql.join(filters.map(buildLogFilterValues))} )`
-      )
-      .selectFrom("logs")
-      .leftJoin("blocks", "blocks.hash", "logs.blockHash")
-      .innerJoin("logFilters", (join) => join.onTrue())
+    const eventCountsQuery = baseQuery
+      .clearSelect()
       .select([
         "logFilter_name",
         "logs.topic0",
         this.db.fn.count("logs.id").as("count"),
       ])
-      .where(({ and, or, cmpr, ref }) =>
-        and([
-          cmpr("logs.chainId", "=", ref("logFilter_chainId")),
-          or([
-            cmpr("logFilter_address", "is", null),
-            cmpr("logFilter_address", "like", sql`'%' || logs.address || '%'`),
-          ]),
-          and([
-            or([
-              cmpr("logFilter_topic0", "is", null),
-              cmpr("logFilter_topic0", "like", sql`'%' || logs.topic0 || '%'`),
-            ]),
-            or([
-              cmpr("logFilter_topic1", "is", null),
-              cmpr("logFilter_topic1", "like", sql`'%' || logs.topic1 || '%'`),
-            ]),
-            or([
-              cmpr("logFilter_topic2", "is", null),
-              cmpr("logFilter_topic2", "like", sql`'%' || logs.topic2 || '%'`),
-            ]),
-            or([
-              cmpr("logFilter_topic3", "is", null),
-              cmpr("logFilter_topic3", "like", sql`'%' || logs.topic3 || '%'`),
-            ]),
-          ]),
-          or([
-            cmpr("logFilter_fromBlock", "is", null),
-            cmpr("blocks.number", ">=", ref("logFilter_fromBlock")),
-          ]),
-          or([
-            cmpr("logFilter_toBlock", "is", null),
-            cmpr("blocks.number", "<=", ref("logFilter_toBlock")),
-          ]),
-        ])
-      )
-      .where("blocks.timestamp", ">=", intToBlob(fromTimestamp))
-      .where("blocks.timestamp", "<=", intToBlob(toTimestamp))
+      .where((where) => {
+        const { and, or } = where;
+        const cmprsForAllFilters = filters.map((filter) => {
+          const cmprsForFilter = buildFilterAndCmprs(where, filter);
+          // NOTE: Not adding the includeEventSelectors clause here.
+          return and(cmprsForFilter);
+        });
+        return or(cmprsForAllFilters);
+      })
       .groupBy(["logFilter_name", "logs.topic0"]);
 
     // Fetch the event counts once and include it in every response.
@@ -636,7 +647,7 @@ export class PostgresEventStore implements EventStore {
       | undefined = undefined;
 
     while (true) {
-      let query = includedLogQueryBase.limit(pageSize);
+      let query = includedLogsBaseQuery.limit(pageSize);
       if (cursor) {
         // See this comment for an explanation of the cursor logic.
         // https://stackoverflow.com/a/38017813
@@ -793,58 +804,4 @@ export class PostgresEventStore implements EventStore {
       if (events.length < pageSize) break;
     }
   }
-}
-
-function getLogFilterAddressOrTopic(value: Hex | Hex[] | undefined | null) {
-  if (value === undefined || value === null) return null;
-  if (typeof value === "string") return value;
-  return value.join(",");
-}
-
-function getLogFilterTopics(topics: (Hex | Hex[] | null)[] | undefined) {
-  if (!topics) return [null, null, null, null];
-  const topic0 = getLogFilterAddressOrTopic(topics[0]);
-  const topic1 = getLogFilterAddressOrTopic(topics[1]);
-  const topic2 = getLogFilterAddressOrTopic(topics[2]);
-  const topic3 = getLogFilterAddressOrTopic(topics[3]);
-  return [topic0, topic1, topic2, topic3];
-}
-
-export function buildLogFilterValues(filter: {
-  name: string;
-  chainId: number;
-  address?: Address | Address[];
-  topics?: (Hex | Hex[] | null)[];
-  fromBlock?: number;
-  toBlock?: number;
-  includeEventSelectors?: Hex[];
-}) {
-  const {
-    name,
-    chainId,
-    address,
-    topics,
-    fromBlock,
-    toBlock,
-    includeEventSelectors,
-  } = filter;
-
-  const address_ = getLogFilterAddressOrTopic(address);
-  const [topic0, topic1, topic2, topic3] = getLogFilterTopics(topics);
-  const includeEventSelectors_ = getLogFilterAddressOrTopic(
-    includeEventSelectors
-  );
-
-  return sql`(${sql.join([
-    sql.val(name),
-    sql`${sql.val(chainId)}::integer`,
-    sql.val(address_),
-    sql.val(topic0),
-    sql.val(topic1),
-    sql.val(topic2),
-    sql.val(topic3),
-    sql`${sql.val(fromBlock ? intToBlob(fromBlock) : null)}::bytea`,
-    sql`${sql.val(toBlock ? intToBlob(toBlock) : null)}::bytea`,
-    sql.val(includeEventSelectors_),
-  ])})`;
 }
