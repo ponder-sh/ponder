@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.0.73
+
+### Patch Changes
+
+- [#261](https://github.com/0xOlias/ponder/pull/261) [`9cd3cf7`](https://github.com/0xOlias/ponder/commit/9cd3cf7c239aeec960f72eb30a11619dd4bdf142) Thanks [@0xOlias](https://github.com/0xOlias)! - Improved internal SQL query performance.
+
+- [#258](https://github.com/0xOlias/ponder/pull/258) [`07b836c`](https://github.com/0xOlias/ponder/commit/07b836c1621484ef5489a4028afcbd0e7c814ac8) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for overloaded event names. If an ABI contains overloaded event names, conflicting events will be named using the full signature, e.g. `ponder.on("MyContract:Transfer(address indexed, address indexed, uint256)", ...)` and `ponder.on("MyContract:Transfer(uint8 indexed, uint256 indexed, address)", ...)`.
+
+- [#260](https://github.com/0xOlias/ponder/pull/260) [`1e5cb06`](https://github.com/0xOlias/ponder/commit/1e5cb06e70b30ae15021bbdea0428ce40c5982ea) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where some Ponder apps would OOM soon after startup if most of the historical data was present in the cache. Also fixed an annoying behavior where the event handlers progress bar would not update during development, and the process would not handle `SIGINT` properly.
+
 ## 0.0.72
 
 ### Patch Changes
