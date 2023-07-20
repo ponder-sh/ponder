@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 lockfileVersion: '6.0'
+=======
+lockfileVersion: '6.1'
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
 
 settings:
   autoInstallPeers: true
@@ -40,6 +44,7 @@ importers:
       eslint-plugin-simple-import-sort:
         specifier: ^7.0.0
         version: 7.0.0(eslint@8.43.0)
+<<<<<<< HEAD
       lint-staged:
         specifier: ^13.2.3
         version: 13.2.3
@@ -49,6 +54,11 @@ importers:
       simple-git-hooks:
         specifier: ^2.9.0
         version: 2.9.0
+=======
+      prettier:
+        specifier: ^2.8.8
+        version: 2.8.8
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
       typescript:
         specifier: ^5.1.3
         version: 5.1.3
@@ -61,9 +71,12 @@ importers:
       '@graphprotocol/graph-ts':
         specifier: ^0.31.0
         version: 0.31.0
+<<<<<<< HEAD
       '@ponder/core':
         specifier: workspace:latest
         version: link:../packages/core
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
       '@types/node':
         specifier: ^18.16.18
         version: 18.16.18
@@ -89,6 +102,7 @@ importers:
   docs:
     dependencies:
       next:
+<<<<<<< HEAD
         specifier: ^13.4.12
         version: 13.4.12(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0)
       nextra:
@@ -97,6 +111,16 @@ importers:
       nextra-theme-docs:
         specifier: ^2.10.0
         version: 2.10.0(next@13.4.12)(nextra@2.10.0)(react-dom@18.2.0)(react@18.2.0)
+=======
+        specifier: ^12.2.0
+        version: 12.3.4(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0)
+      nextra:
+        specifier: ^2.0.1
+        version: 2.0.1(next@12.3.4)(react-dom@18.2.0)(react@18.2.0)
+      nextra-theme-docs:
+        specifier: ^2.0.1
+        version: 2.0.1(next@12.3.4)(react-dom@18.2.0)(react@18.2.0)
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
       react:
         specifier: ^18.1.0
         version: 18.2.0
@@ -232,9 +256,12 @@ importers:
       chokidar:
         specifier: ^3.5.3
         version: 3.5.3
+<<<<<<< HEAD
       conf:
         specifier: ^10
         version: 10.2.0
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
       cors:
         specifier: ^2.8.5
         version: 2.8.5
@@ -1723,10 +1750,13 @@ packages:
       '@babel/helper-validator-identifier': 7.19.1
       to-fast-properties: 2.0.0
 
+<<<<<<< HEAD
   /@braintree/sanitize-url@6.0.2:
     resolution: {integrity: sha512-Tbsj02wXCbqGmzdnXNk0SOF19ChhRU70BsroIi4Pm6Ehp56in6vch94mfbdQ17DozxkL3BAVjbZ4Qc1a0HFRAg==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /@changesets/apply-release-plan@6.1.3:
     resolution: {integrity: sha512-ECDNeoc3nfeAe1jqJb5aFQX7CqzQhD2klXRez2JDb/aVpGUbX673HgKrnrgJRuQR/9f2TtLoYIzrGB9qwD77mg==}
     dependencies:
@@ -2812,8 +2842,13 @@ packages:
       assemblyscript: 0.19.10
     dev: true
 
+<<<<<<< HEAD
   /@headlessui/react@1.7.15(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-OTO0XtoRQ6JPB1cKNFYBZv2Q0JMqMGNhYP1CjPvcJvjz8YGokz8oAj89HIYZGN0gZzn/4kk9iUpmMF4Q21Gsqw==}
+=======
+  /@headlessui/react@1.7.4(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-D8n5yGCF3WIkPsjEYeM8knn9jQ70bigGGb5aUvN6y4BGxcT3OcOQOKcM3zRGllRCZCFxCZyQvYJF6ZE7bQUOyQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>=10'}
     peerDependencies:
       react: ^16 || ^17 || ^18
@@ -2971,8 +3006,13 @@ packages:
       read-yaml-file: 1.1.0
     dev: true
 
+<<<<<<< HEAD
   /@mdx-js/mdx@2.3.0:
     resolution: {integrity: sha512-jLuwRlz8DQfQNiUCJR50Y09CGPq3fLtmtUQfVrj79E0JWu3dvsVcxVIcfhR5h0iXu+/z++zDrYeiJqifRynJkA==}
+=======
+  /@mdx-js/mdx@2.1.5:
+    resolution: {integrity: sha512-zEG0lt+Bl/r5U6e0TOS7qDbsXICtemfAPquxWFsMbdzrvlWaqMGemLl+sjVpqlyaaiCiGVQBSGdCk0t1qXjkQg==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree-jsx': 1.0.0
       '@types/mdx': 2.0.5
@@ -3005,6 +3045,7 @@ packages:
       react: 18.2.0
     dev: true
 
+<<<<<<< HEAD
   /@mdx-js/react@2.3.0(react@18.2.0):
     resolution: {integrity: sha512-zQH//gdOmuu7nt2oJR29vFhDv88oGPmVw6BggmrHeMI+xgEkp1B2dX9/bMBSYtK0dyLX/aOmesKS09g222K1/g==}
     peerDependencies:
@@ -3015,6 +3056,8 @@ packages:
       react: 18.2.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /@napi-rs/simple-git-android-arm-eabi@0.1.8:
     resolution: {integrity: sha512-JJCejHBB1G6O8nxjQLT4quWCcvLpC3oRdJJ9G3MFYSCoYS8i1bWCWeU+K7Br+xT+D6s1t9q8kNJAwJv9Ygpi0g==}
     engines: {node: '>= 10'}
@@ -3131,8 +3174,13 @@ packages:
       '@napi-rs/simple-git-win32-x64-msvc': 0.1.8
     dev: false
 
+<<<<<<< HEAD
   /@next/env@13.4.12:
     resolution: {integrity: sha512-RmHanbV21saP/6OEPBJ7yJMuys68cIf8OBBWd7+uj40LdpmswVAwe1uzeuFyUsd6SfeITWT3XnQfn6wULeKwDQ==}
+=======
+  /@next/env@12.3.4:
+    resolution: {integrity: sha512-H/69Lc5Q02dq3o+dxxy5O/oNxFsZpdL6WREtOOtOM1B/weonIwDXkekr1KV5DPVPr12IHFPrMrcJQ6bgPMfn7A==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dev: false
 
   /@next/eslint-plugin-next@13.0.5:
@@ -3141,8 +3189,31 @@ packages:
       glob: 7.1.7
     dev: true
 
+<<<<<<< HEAD
   /@next/swc-darwin-arm64@13.4.12:
     resolution: {integrity: sha512-deUrbCXTMZ6ZhbOoloqecnUeNpUOupi8SE2tx4jPfNS9uyUR9zK4iXBvH65opVcA/9F5I/p8vDXSYbUlbmBjZg==}
+=======
+  /@next/swc-android-arm-eabi@12.3.4:
+    resolution: {integrity: sha512-cM42Cw6V4Bz/2+j/xIzO8nK/Q3Ly+VSlZJTa1vHzsocJRYz8KT6MrreXaci2++SIZCF1rVRCDgAg5PpqRibdIA==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [android]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@next/swc-android-arm64@12.3.4:
+    resolution: {integrity: sha512-5jf0dTBjL+rabWjGj3eghpLUxCukRhBcEJgwLedewEA/LJk2HyqCvGIwj5rH+iwmq1llCWbOky2dO3pVljrapg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [android]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@next/swc-darwin-arm64@12.3.4:
+    resolution: {integrity: sha512-DqsSTd3FRjQUR6ao0E1e2OlOcrF5br+uegcEGPVonKYJpcr0MJrtYmPxd4v5T6UCJZ+XzydF7eQo5wdGvSZAyA==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
@@ -3150,8 +3221,13 @@ packages:
     dev: false
     optional: true
 
+<<<<<<< HEAD
   /@next/swc-darwin-x64@13.4.12:
     resolution: {integrity: sha512-WRvH7RxgRHlC1yb5oG0ZLx8F7uci9AivM5/HGGv9ZyG2Als8Ij64GC3d+mQ5sJhWjusyU6T6V1WKTUoTmOB0zQ==}
+=======
+  /@next/swc-darwin-x64@12.3.4:
+    resolution: {integrity: sha512-PPF7tbWD4k0dJ2EcUSnOsaOJ5rhT3rlEt/3LhZUGiYNL8KvoqczFrETlUx0cUYaXe11dRA3F80Hpt727QIwByQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -3159,8 +3235,31 @@ packages:
     dev: false
     optional: true
 
+<<<<<<< HEAD
   /@next/swc-linux-arm64-gnu@13.4.12:
     resolution: {integrity: sha512-YEKracAWuxp54tKiAvvq73PUs9lok57cc8meYRibTWe/VdPB2vLgkTVWFcw31YDuRXdEhdX0fWS6Q+ESBhnEig==}
+=======
+  /@next/swc-freebsd-x64@12.3.4:
+    resolution: {integrity: sha512-KM9JXRXi/U2PUM928z7l4tnfQ9u8bTco/jb939pdFUHqc28V43Ohd31MmZD1QzEK4aFlMRaIBQOWQZh4D/E5lQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [freebsd]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@next/swc-linux-arm-gnueabihf@12.3.4:
+    resolution: {integrity: sha512-3zqD3pO+z5CZyxtKDTnOJ2XgFFRUBciOox6EWkoZvJfc9zcidNAQxuwonUeNts6Xbm8Wtm5YGIRC0x+12YH7kw==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@next/swc-linux-arm64-gnu@12.3.4:
+    resolution: {integrity: sha512-kiX0vgJGMZVv+oo1QuObaYulXNvdH/IINmvdZnVzMO/jic/B8EEIGlZ8Bgvw8LCjH3zNVPO3mGrdMvnEEPEhKA==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -3168,8 +3267,13 @@ packages:
     dev: false
     optional: true
 
+<<<<<<< HEAD
   /@next/swc-linux-arm64-musl@13.4.12:
     resolution: {integrity: sha512-LhJR7/RAjdHJ2Isl2pgc/JaoxNk0KtBgkVpiDJPVExVWA1c6gzY57+3zWuxuyWzTG+fhLZo2Y80pLXgIJv7g3g==}
+=======
+  /@next/swc-linux-arm64-musl@12.3.4:
+    resolution: {integrity: sha512-EETZPa1juczrKLWk5okoW2hv7D7WvonU+Cf2CgsSoxgsYbUCZ1voOpL4JZTOb6IbKMDo6ja+SbY0vzXZBUMvkQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -3177,8 +3281,13 @@ packages:
     dev: false
     optional: true
 
+<<<<<<< HEAD
   /@next/swc-linux-x64-gnu@13.4.12:
     resolution: {integrity: sha512-1DWLL/B9nBNiQRng+1aqs3OaZcxC16Nf+mOnpcrZZSdyKHek3WQh6j/fkbukObgNGwmCoVevLUa/p3UFTTqgqg==}
+=======
+  /@next/swc-linux-x64-gnu@12.3.4:
+    resolution: {integrity: sha512-4csPbRbfZbuWOk3ATyWcvVFdD9/Rsdq5YHKvRuEni68OCLkfy4f+4I9OBpyK1SKJ00Cih16NJbHE+k+ljPPpag==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -3186,8 +3295,13 @@ packages:
     dev: false
     optional: true
 
+<<<<<<< HEAD
   /@next/swc-linux-x64-musl@13.4.12:
     resolution: {integrity: sha512-kEAJmgYFhp0VL+eRWmUkVxLVunn7oL9Mdue/FS8yzRBVj7Z0AnIrHpTIeIUl1bbdQq1VaoOztnKicAjfkLTRCQ==}
+=======
+  /@next/swc-linux-x64-musl@12.3.4:
+    resolution: {integrity: sha512-YeBmI+63Ro75SUiL/QXEVXQ19T++58aI/IINOyhpsRL1LKdyfK/35iilraZEFz9bLQrwy1LYAR5lK200A9Gjbg==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -3195,8 +3309,13 @@ packages:
     dev: false
     optional: true
 
+<<<<<<< HEAD
   /@next/swc-win32-arm64-msvc@13.4.12:
     resolution: {integrity: sha512-GMLuL/loR6yIIRTnPRY6UGbLL9MBdw2anxkOnANxvLvsml4F0HNIgvnU3Ej4BjbqMTNjD4hcPFdlEow4XHPdZA==}
+=======
+  /@next/swc-win32-arm64-msvc@12.3.4:
+    resolution: {integrity: sha512-Sd0qFUJv8Tj0PukAYbCCDbmXcMkbIuhnTeHm9m4ZGjCf6kt7E/RMs55Pd3R5ePjOkN7dJEuxYBehawTR/aPDSQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
@@ -3204,8 +3323,13 @@ packages:
     dev: false
     optional: true
 
+<<<<<<< HEAD
   /@next/swc-win32-ia32-msvc@13.4.12:
     resolution: {integrity: sha512-PhgNqN2Vnkm7XaMdRmmX0ZSwZXQAtamBVSa9A/V1dfKQCV1rjIZeiy/dbBnVYGdj63ANfsOR/30XpxP71W0eww==}
+=======
+  /@next/swc-win32-ia32-msvc@12.3.4:
+    resolution: {integrity: sha512-rt/vv/vg/ZGGkrkKcuJ0LyliRdbskQU+91bje+PgoYmxTZf/tYs6IfbmgudBJk6gH3QnjHWbkphDdRQrseRefQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>= 10'}
     cpu: [ia32]
     os: [win32]
@@ -3213,8 +3337,13 @@ packages:
     dev: false
     optional: true
 
+<<<<<<< HEAD
   /@next/swc-win32-x64-msvc@13.4.12:
     resolution: {integrity: sha512-Z+56e/Ljt0bUs+T+jPjhFyxYBcdY2RIq9ELFU+qAMQMteHo7ymbV7CKmlcX59RI9C4YzN8PgMgLyAoi916b5HA==}
+=======
+  /@next/swc-win32-x64-msvc@12.3.4:
+    resolution: {integrity: sha512-DQ20JEfTBZAgF8QCjYfJhv2/279M6onxFjdG/+5B0Cyj00/EdBxiWb2eGGFgQhrBbNv/lsvzFbbi0Ptf8Vw/bg==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -3380,6 +3509,33 @@ packages:
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
     dev: true
 
+<<<<<<< HEAD
+=======
+  /@reach/skip-nav@0.17.0(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-wkkpQK3ffczzGHis6TaUvpOabuAL9n9Kh5vr4h56XPIJP3X77VcHUDk7MK3HbV1mTgamGxc9Hbd1sXKSWLu3yA==}
+    peerDependencies:
+      react: ^16.8.0 || 17.x
+      react-dom: ^16.8.0 || 17.x
+    dependencies:
+      '@reach/utils': 0.17.0(react-dom@18.2.0)(react@18.2.0)
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      tslib: 2.4.0
+    dev: false
+
+  /@reach/utils@0.17.0(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-M5y8fCBbrWeIsxedgcSw6oDlAMQDkl5uv3VnMVJ7guwpf4E48Xlh1v66z/1BgN/WYe2y8mB/ilFD2nysEfdGeA==}
+    peerDependencies:
+      react: ^16.8.0 || 17.x
+      react-dom: ^16.8.0 || 17.x
+    dependencies:
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      tiny-warning: 1.0.3
+      tslib: 2.4.0
+    dev: false
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /@rescript/std@9.0.0:
     resolution: {integrity: sha512-zGzFsgtZ44mgL4Xef2gOy1hrRVdrs9mcxCOOKZrIPsmbZW14yTkaF591GXxpQvjXiHtgZ/iA9qLyWH6oSReIxQ==}
     dev: true
@@ -3557,12 +3713,18 @@ packages:
       - supports-color
     dev: true
 
+<<<<<<< HEAD
   /@swc/helpers@0.5.1:
     resolution: {integrity: sha512-sJ902EfIzn1Fa+qYmjdQqh8tPsoxyBz+8yBKC2HKUxyezKJFwPGOn7pv4WY6QuQW//ySQi5lJjA/ZT9sNWWNTg==}
+=======
+  /@swc/helpers@0.4.11:
+    resolution: {integrity: sha512-rEUrBSGIoSFuYxwBYtlUFMlE2CwGhmW+w9355/5oduSw8e5h2+Tj4UrAGNNgP9915++wj5vkQo0UuOBqOAq4nw==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       tslib: 2.5.3
     dev: false
 
+<<<<<<< HEAD
   /@theguild/remark-mermaid@0.0.4(react@18.2.0):
     resolution: {integrity: sha512-C1gssw07eURtCwzXqZZdvyV/eawQ/cXfARaXIgBU9orffox+/YQ+exxmNu9v16NSGzAVsGF4qEVHvCOcCR/FpQ==}
     peerDependencies:
@@ -3582,6 +3744,8 @@ packages:
       unist-util-visit: 5.0.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /@trysound/sax@0.2.0:
     resolution: {integrity: sha512-L7z9BgrNEcYyUYtF+HaEfiS5ebkh9jXqbszz7pC0hRBPaatV0XjSD3+eHrpqFemQfgwiFF0QPIarnIihIDn7OA==}
     engines: {node: '>=10.13.0'}
@@ -3674,12 +3838,15 @@ packages:
       '@types/ms': 0.7.31
     dev: false
 
+<<<<<<< HEAD
   /@types/debug@4.1.8:
     resolution: {integrity: sha512-/vPO1EPOs306Cvhwv7KfVfYvOJqA/S/AXjaHQiJboCZzcNDb+TIJFN9/2C9DZ//ijSKWioNyUxD792QmDJ+HKQ==}
     dependencies:
       '@types/ms': 0.7.31
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /@types/detect-port@1.3.2:
     resolution: {integrity: sha512-xxgAGA2SAU4111QefXPSp5eGbDm/hW6zhvYl9IeEPZEry9F4d66QAHm5qpUXjb6IsevZV/7emAEx5MhP6O192g==}
     dev: true
@@ -3690,8 +3857,13 @@ packages:
       '@types/estree': 1.0.1
     dev: false
 
+<<<<<<< HEAD
   /@types/estree@1.0.1:
     resolution: {integrity: sha512-LG4opVs2ANWZ1TJoKc937iMmNstM/d0ae1vNbnBvBhqCSezgVUOzcLCqbI5elV8Vy6WKwKjaqR+zO9VKirBBCA==}
+=======
+  /@types/estree@1.0.0:
+    resolution: {integrity: sha512-WulqXMDUTYAXCjZnk6JtIHPigp55cVtDgDrO2gHRwhyJto21+1zbVCtOYB2L1F9w4qCQ0rOGWBnBe0FNTiEJIQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dev: false
 
   /@types/express-serve-static-core@4.17.30:
@@ -3724,8 +3896,13 @@ packages:
       '@types/node': 18.16.18
     dev: true
 
+<<<<<<< HEAD
   /@types/hast@2.3.5:
     resolution: {integrity: sha512-SvQi0L/lNpThgPoleH53cdjB3y9zpLlVjRbqB3rH8hx1jiRSBGAhyjV3H+URFjNVRqt2EdYNrbZE5IsGlNfpRg==}
+=======
+  /@types/hast@2.3.4:
+    resolution: {integrity: sha512-wLEm0QvaoawEDoTRwzTXp4b4jpwiJDvR5KMnFnVodm3scufTlBOWRD6N1OBf9TZMhjlNsSfcO5V+7AF4+Vy+9g==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/unist': 2.0.7
     dev: false
@@ -3736,10 +3913,13 @@ packages:
       ci-info: 3.8.0
     dev: true
 
+<<<<<<< HEAD
   /@types/js-yaml@4.0.5:
     resolution: {integrity: sha512-FhpRzf927MNQdRZP0J5DLIdTXhjLYzeUTmLAu69mnVksLH9CJY3IuSeEgbKUki7GQZm0WqDkGzyxju2EZGD2wA==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /@types/json-schema@7.0.12:
     resolution: {integrity: sha512-Hr5Jfhc9eYOQNPYO5WLDq/n4jqijdHNlDXjuAQkkt+mWdQR+XJToOHrsD4cPaMXpn6KO7y2+wM8AZEs8VpBLVA==}
     dev: true
@@ -3748,6 +3928,7 @@ packages:
     resolution: {integrity: sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==}
     dev: true
 
+<<<<<<< HEAD
   /@types/katex@0.14.0:
     resolution: {integrity: sha512-+2FW2CcT0K3P+JMR8YG846bmDwplKUTsWgT2ENwdQ1UdVfRk3GQrh6Mi4sTopy30gI8Uau5CEqHTDZ6YvWIUPA==}
     dev: false
@@ -3756,6 +3937,8 @@ packages:
     resolution: {integrity: sha512-cwglq2A63Yk082CQk0t8LIoDhZAVgJqkumLyk3grpg3K8sevaDW//Qsspmxj9Sf+97biqt79CfAlPrvizHlP0w==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /@types/long@4.0.2:
     resolution: {integrity: sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==}
     dev: true
@@ -3766,6 +3949,7 @@ packages:
       '@types/unist': 2.0.6
     dev: false
 
+<<<<<<< HEAD
   /@types/mdast@3.0.12:
     resolution: {integrity: sha512-DT+iNIRNX884cx0/Q1ja7NyUPpZuv0KPyL5rGNxm1WC1OtHstl7n4Jb7nk+xacNShQMbczJjt8uFzznpp6kYBg==}
     dependencies:
@@ -3780,6 +3964,11 @@ packages:
     resolution: {integrity: sha512-76CqzuD6Q7LC+AtbPqrvD9AqsN0k8bsYo2bM2J8pmNldP1aIPAbzUQ7QbobyXL4eLr1wK5x8FZFe8eF/ubRuBg==}
     dev: false
 
+=======
+  /@types/mdx@2.0.3:
+    resolution: {integrity: sha512-IgHxcT3RC8LzFLhKwP3gbMPeaK7BM9eBH46OdapPA7yvuIUJ8H6zHZV53J8hGZcTSnt95jANt+rTBNUUc22ACQ==}
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /@types/mime@3.0.1:
     resolution: {integrity: sha512-Y4XFY5VJAuw0FgAqPNd6NNoV44jbq9Bz2L7Rh/J6jLTiHBSBJa9fxqQIvkIld4GsoDOcCbvzOUAbLPsSKKg+uA==}
     dev: true
@@ -3933,6 +4122,7 @@ packages:
     resolution: {integrity: sha512-PBjIUxZHOuj0R15/xuwJYjFi+KZdNFrehocChv4g5hu6aFroHue8m0lBP0POdK2nKzbw0cgV1mws8+V/JAcEkQ==}
     dev: false
 
+<<<<<<< HEAD
   /@types/unist@2.0.7:
     resolution: {integrity: sha512-cputDpIbFgLUaGQn6Vqg3/YsJwxUwHLO13v3i5ouxT4lat0khip9AEWxtERujXV9wxIB1EyF97BSJFt6vpdI8g==}
     dev: false
@@ -3941,6 +4131,8 @@ packages:
     resolution: {integrity: sha512-MFETx3tbTjE7Uk6vvnWINA/1iJ7LuMdO4fcq8UfF0pRbj01aGLduVvQcRyswuACJdpnHgg8E3rQLhaRdNEJS0w==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /@types/ws@7.4.7:
     resolution: {integrity: sha512-JQbbmxZTZehdc2iszGKs5oC3NFnjeay7mtAWrdt7qNtAVK0g19muApzAy4bm9byz79xa2ZnO/BOBC2R8RC5Lww==}
     dependencies:
@@ -4079,7 +4271,11 @@ packages:
       debug: 4.3.4(supports-color@8.1.1)
       globby: 11.1.0
       is-glob: 4.0.3
+<<<<<<< HEAD
       semver: 7.5.2
+=======
+      semver: 7.3.8
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
       tsutils: 3.21.0(typescript@4.9.5)
       typescript: 4.9.5
     transitivePeerDependencies:
@@ -4298,6 +4494,7 @@ packages:
       negotiator: 0.6.3
     dev: false
 
+<<<<<<< HEAD
   /acorn-jsx@5.3.2(acorn@8.10.0):
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
     peerDependencies:
@@ -4306,6 +4503,8 @@ packages:
       acorn: 8.10.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /acorn-jsx@5.3.2(acorn@8.8.2):
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
     peerDependencies:
@@ -4327,12 +4526,15 @@ packages:
     engines: {node: '>=0.4.0'}
     dev: true
 
+<<<<<<< HEAD
   /acorn@8.10.0:
     resolution: {integrity: sha512-F0SAmZ8iUtS//m8DmCTA0jlh6TDKkHQyK6xc6V4KDTyZKA9dnvX9/3sRTVQrWm79glUAZbnmmNcdYwUIHWVybw==}
     engines: {node: '>=0.4.0'}
     hasBin: true
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /acorn@8.8.2:
     resolution: {integrity: sha512-xjIYgE8HBrkpd/sJqOGNspf8uHG+NOHGOw6a/Urj8taM2EXfdNAH2oFcPeIFfsv3+kz/mJrS5VuMqbNLjCa2vw==}
     engines: {node: '>=0.4.0'}
@@ -4345,6 +4547,7 @@ packages:
     hasBin: true
     dev: true
 
+<<<<<<< HEAD
   /aggregate-error@3.1.0:
     resolution: {integrity: sha512-4I7Td01quW/RpocfNayFdFVk1qSuoh0E7JrbRJ16nH01HhKFQ88INq9Sd+nd72zqRySlr9BmDA8xlEJ6vJMrYA==}
     engines: {node: '>=8'}
@@ -4364,6 +4567,8 @@ packages:
       ajv: 8.12.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /ajv@6.12.6:
     resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
     dependencies:
@@ -4372,6 +4577,7 @@ packages:
       json-schema-traverse: 0.4.1
       uri-js: 4.4.1
 
+<<<<<<< HEAD
   /ajv@8.12.0:
     resolution: {integrity: sha512-sRu1kpcO9yLtYxBKvqfTeh9KzZEwO3STyX1HT+4CaDzC6HpTGYhIhPIzj9XuKU7KYDwnaeh5hcOwjy1QuJzBPA==}
     dependencies:
@@ -4381,6 +4587,8 @@ packages:
       uri-js: 4.4.1
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /ansi-colors@4.1.3:
     resolution: {integrity: sha512-/6w/C21Pm1A7aZitlI5Ni/2J6FFQN8i1Cvz3kHABAAbw93v/NlvKdVOqz7CCWz/3iv/JplRSEEZ83XION15ovw==}
     engines: {node: '>=6'}
@@ -4410,10 +4618,13 @@ packages:
     resolution: {integrity: sha512-n5M855fKb2SsfMIiFFoVrABHJC8QtHwVx+mHWP3QcEqBHYienj5dHSgjbxtC0WEZXYt4wcD6zrQElDPhFuZgfA==}
     engines: {node: '>=12'}
 
+<<<<<<< HEAD
   /ansi-sequence-parser@1.1.0:
     resolution: {integrity: sha512-lEm8mt52to2fT8GhciPCGeCXACSz2UwIN4X2e2LJSnZ5uAbn2/dsYdOmUXq0AtWS5cpAupysIneExOgH0Vd2TQ==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /ansi-styles@3.2.1:
     resolution: {integrity: sha512-VT0ZI6kZRdTh8YyJw3SMbYm/u+NqfsAxEpWO0Pf9sq8/e94WxxOpPKx9FR1FlyCtOVDNOQ+8ntlqFxiRc+r5qA==}
     engines: {node: '>=4'}
@@ -4625,8 +4836,13 @@ packages:
     resolution: {integrity: sha512-Z7tMw1ytTXt5jqMcOP+OQteU1VuNK9Y02uuJtKQ1Sv69jXQKKg5cibLwGJow8yzZP+eAc18EmLGPal0bp36rvQ==}
     engines: {node: '>=8'}
 
+<<<<<<< HEAD
   /astring@1.8.6:
     resolution: {integrity: sha512-ISvCdHdlTDlH5IpxQJIex7BWBywFWgjJSVdwst+/iQCoEYnyOaQ95+X1JGshuBjGp6nxKUy1jMgE3zPqN7fQdg==}
+=======
+  /astring@1.8.3:
+    resolution: {integrity: sha512-sRpyiNrx2dEYIMmUXprS8nlpRg2Drs8m9ElX9vVEXaCB4XEAJhKfs7IcX0IwShjuOAjLR6wzIrgoptz1n19i1A==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     hasBin: true
     dev: false
 
@@ -4654,11 +4870,14 @@ packages:
     engines: {node: '>=8.0.0'}
     dev: false
 
+<<<<<<< HEAD
   /atomically@1.7.0:
     resolution: {integrity: sha512-Xcz9l0z7y9yQ9rdDaxlmaI4uJHf/T8g9hOEzJcsEqX2SjCj4J20uK7+ldkDHMbpJDK76wF7xEIgxc/vSlsfw5w==}
     engines: {node: '>=10.12.0'}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /auto-bind@4.0.0:
     resolution: {integrity: sha512-Hdw8qdNiqdJ8LqT0iK0sVzkFbzg6fhnQqqfWhBDxcHZvU75+B+ayzTy8x+k5Ix0Y92XOhOUlx74ps+bA6BeYMQ==}
     engines: {node: '>=8'}
@@ -5109,11 +5328,14 @@ packages:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
 
+<<<<<<< HEAD
   /chalk@5.2.0:
     resolution: {integrity: sha512-ree3Gqw/nazQAPuJJEy+avdl7QfZMcUvmHIKgEZkGL+xOBzRvup5Hxo6LHuMceSxOabuJLJm5Yp/92R9eMmMvA==}
     engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /character-entities-html4@2.1.0:
     resolution: {integrity: sha512-1v7fgQRj6hnSwFpq1Eu0ynr/CDEw0rXo2B61qXrLNdHZmPKgb7fqS1a2JwF0rISo9q77jDI8VMEHoApn8qDoZA==}
     dev: false
@@ -5176,11 +5398,14 @@ packages:
       safe-buffer: 5.2.1
     dev: true
 
+<<<<<<< HEAD
   /clean-stack@2.2.0:
     resolution: {integrity: sha512-4diC9HaTE+KRAMWhDhrGOECgWZxoevMc5TlkObMqNSsVU62PYzXZ/SMTjzyGAFF1YusgxGcSWTEXBhp0CPwQ1A==}
     engines: {node: '>=6'}
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /clean-stack@3.0.1:
     resolution: {integrity: sha512-lR9wNiMRcVQjSB3a7xXGLuz4cr4wJuuXlaAEbRutGowQTmlp7R72/DOgN21e8jdwblMWl9UOJMJXarX94pzKdg==}
     engines: {node: '>=10'}
@@ -5299,10 +5524,13 @@ packages:
   /color-name@1.1.4:
     resolution: {integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==}
 
+<<<<<<< HEAD
   /colorette@2.0.20:
     resolution: {integrity: sha512-IfEDxwoWIjkeXL1eXcDiow4UbKjhLdq6/EuSVR9GMN7KVH3r9gQ83e73hsz1Nd1T3ijd5xv1wcWRYO+D6kCI2w==}
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /colors@1.4.0:
     resolution: {integrity: sha512-a+UqTh4kgZg/SlGvfbzDHpgRu7AAQOmmqRHJnxhRZICKFUT91brVhNNt58CMWU9PsBbv3PDCZUHbVxuDiH2mtA==}
     engines: {node: '>=0.1.90'}
@@ -5319,11 +5547,14 @@ packages:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
     dev: false
 
+<<<<<<< HEAD
   /commander@10.0.1:
     resolution: {integrity: sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==}
     engines: {node: '>=14'}
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
     dev: true
@@ -5337,11 +5568,14 @@ packages:
     resolution: {integrity: sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw==}
     engines: {node: '>= 10'}
 
+<<<<<<< HEAD
   /commander@8.3.0:
     resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
     engines: {node: '>= 12'}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /commander@9.5.0:
     resolution: {integrity: sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ==}
     engines: {node: ^12.20.0 || >=14}
@@ -5351,8 +5585,13 @@ packages:
     resolution: {integrity: sha512-Rd3se6QB+sO1TwqZjscQrurpEPIfO0/yYnSin6Q/rD3mOutHvUrCAhJub3r90uNb+SESBuE0QYoB90YdfatsRg==}
     dev: true
 
+<<<<<<< HEAD
   /compute-scroll-into-view@3.0.3:
     resolution: {integrity: sha512-nadqwNxghAGTamwIqQSG433W6OADZx2vCo3UXHNrzTRHK/htu+7+L0zhjEoaeaQVNAi3YgqWDv8+tzf0hRfR+A==}
+=======
+  /compute-scroll-into-view@1.0.20:
+    resolution: {integrity: sha512-UCB0ioiyj8CRjtrvaceBLqqhZCVP+1B8+NWQhmdsm0VXOJtobBCf1dBQmebCCo34qZmUwZfIH2MZLqNHazrfjg==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dev: false
 
   /concat-map@0.0.1:
@@ -5369,6 +5608,7 @@ packages:
       typedarray: 0.0.6
     dev: true
 
+<<<<<<< HEAD
   /conf@10.2.0:
     resolution: {integrity: sha512-8fLl9F04EJqjSqH+QjITQfJF8BrOVaYr1jewVgSRAEWePfxT0sku4w2hrGQ60BC/TNLGQ2pgxNlTbWQmMPFvXg==}
     engines: {node: '>=12'}
@@ -5385,6 +5625,8 @@ packages:
       semver: 7.5.2
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /content-disposition@0.5.4:
     resolution: {integrity: sha512-FveZTNuGw04cxlAiWbzi6zTAL/lhehaWbTtgluJh4/E95DqMwTmha3KZN1aAWA8cFIhHzMZUvLevkw5Rqk+tSQ==}
     engines: {node: '>= 0.6'}
@@ -5447,6 +5689,7 @@ packages:
       vary: 1.1.2
     dev: false
 
+<<<<<<< HEAD
   /cose-base@1.0.3:
     resolution: {integrity: sha512-s9whTXInMSgAp/NVXVNuVxVKzGH2qck3aQlVHxDCdAEPgtMKwc4Wq6/QKhgdEdgbLSi9rBTAcPoRa6JpiG4ksg==}
     dependencies:
@@ -5459,6 +5702,8 @@ packages:
       layout-base: 2.0.1
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /cosmiconfig@7.0.1:
     resolution: {integrity: sha512-a1YWNUV2HwGimB7dU2s1wUMurNKjpx60HxBB6xUM8Re+2s1g1IIfJvFR0/iCF+XHdE0GMTKTuLR32UQff4TEyQ==}
     engines: {node: '>=10'}
@@ -5587,6 +5832,7 @@ packages:
       stream-transform: 2.1.3
     dev: true
 
+<<<<<<< HEAD
   /cytoscape-cose-bilkent@4.1.0(cytoscape@3.25.0):
     resolution: {integrity: sha512-wgQlVIUJF13Quxiv5e1gstZ08rnZj2XaLHGoFMYXz7SkNfCDOOteKBE6SYRfA9WxxI/iBc3ajfDoc6hb/MRAHQ==}
     peerDependencies:
@@ -5868,6 +6114,8 @@ packages:
       lodash-es: 4.17.21
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /damerau-levenshtein@1.0.8:
     resolution: {integrity: sha512-sdQSFB7+llfUcQHUQO3+B8ERRj0Oa4w9POWMI/puGtuf7gFywGmkaLCElnudfTiKZV+NvHqL0ifzdrI8Ro7ESA==}
     dev: true
@@ -5888,6 +6136,7 @@ packages:
     resolution: {integrity: sha512-68s5jYdlvasItOJnCuI2Q9s4q98g0pCyL3HrcKJu8KNugUl8ahgmZYg38ysLTgQjjXX3H8CJLkAvWrclWfcalw==}
     dev: true
 
+<<<<<<< HEAD
   /dayjs@1.11.9:
     resolution: {integrity: sha512-QvzAURSbQ0pKdIye2txOzNaHmxtUBXerpY0FJsFXUMKbIZeFm5ht1LS/jFsrncjnmtv8HsG0W2g6c0zUjZWmpA==}
     dev: false
@@ -5899,6 +6148,8 @@ packages:
       mimic-fn: 3.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
     peerDependencies:
@@ -6004,12 +6255,15 @@ packages:
       has-property-descriptors: 1.0.0
       object-keys: 1.1.1
 
+<<<<<<< HEAD
   /delaunator@5.0.0:
     resolution: {integrity: sha512-AyLvtyJdbv/U1GkiS6gUUzclRoAY4Gs75qkMygJJhU75LW4DNuSF2RMzpxs9jw9Oz1BobHjTdkG3zdP55VxAqw==}
     dependencies:
       robust-predicates: 3.0.2
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /delay@5.0.0:
     resolution: {integrity: sha512-ReEBKkIfe4ya47wlPYf/gu5ib6yUG0/Aez0JQZQz94kiWtRQvZIQbTiehsnwHvLSWJnQdhVeqYue7Id1dKr0qw==}
     engines: {node: '>=10'}
@@ -6152,10 +6406,13 @@ packages:
       domelementtype: 2.3.0
     dev: true
 
+<<<<<<< HEAD
   /dompurify@3.0.3:
     resolution: {integrity: sha512-axQ9zieHLnAnHh0sfAamKYiqXMJAVwu+LM/alQ7WDagoWessyWvMSFyW65CqF3owufNu8HBcE4cM2Vflu7YWcQ==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /domutils@2.8.0:
     resolution: {integrity: sha512-w96Cjofp72M5IIhpjgobBimYEfoPjx1Vx0BSX9P30WBdZW2WIKU0T1Bd0kz2eNZ9ikjKgHbEyKx8BB6H1L3h3A==}
     dependencies:
@@ -6164,6 +6421,7 @@ packages:
       domhandler: 4.3.1
     dev: true
 
+<<<<<<< HEAD
   /dot-prop@6.0.1:
     resolution: {integrity: sha512-tE7ztYzXHIeyvc7N+hR3oi7FIbf/NIjVP9hmAt3yMXzrQ072/fpjGLx2GxNxGxUl5V73MEqYzioOMoVhGMJ5cA==}
     engines: {node: '>=10'}
@@ -6171,6 +6429,8 @@ packages:
       is-obj: 2.0.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /dotenv@16.0.1:
     resolution: {integrity: sha512-1K6hR6wtk2FviQ4kEiSjFiH5rpzEVi8WW0x96aztHVMhEspNpc4DVOUTEHtEva5VThQ8IaBX1Pe4gSzpVVUsKQ==}
     engines: {node: '>=12'}
@@ -6221,10 +6481,13 @@ packages:
   /electron-to-chromium@1.4.320:
     resolution: {integrity: sha512-h70iRscrNluMZPVICXYl5SSB+rBKo22XfuIS1ER0OQxQZpKTnFpuS6coj7wY9M/3trv7OR88rRMOlKmRvDty7Q==}
 
+<<<<<<< HEAD
   /elkjs@0.8.2:
     resolution: {integrity: sha512-L6uRgvZTH+4OF5NE/MBbzQx/WYpru1xCBE9respNj6qznEewGUIfhzmm7horWWxbNO2M0WckQypGctR8lH79xQ==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /elliptic@6.5.4:
     resolution: {integrity: sha512-iLhC6ULemrljPZb+QutR5TQGB+pdW6KGD5RSegS+8sorOZT+rdQFbsQFJgvN3eRqNALqJer4oQ16YvJHlU8hzQ==}
     dependencies:
@@ -6288,6 +6551,7 @@ packages:
     engines: {node: '>=0.12'}
     dev: true
 
+<<<<<<< HEAD
   /entities@4.5.0:
     resolution: {integrity: sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==}
     engines: {node: '>=0.12'}
@@ -6298,6 +6562,8 @@ packages:
     engines: {node: '>=6'}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /err-code@3.0.1:
     resolution: {integrity: sha512-GiaH0KJUewYok+eeY05IIgjtAe4Yltygk9Wqp1V5yVWLdhf0hYZchRjNIT9bb0mSwRcIusT3cx7PJUf3zEIfUA==}
     dev: true
@@ -7205,30 +7471,52 @@ packages:
     engines: {node: '>=4.0'}
     dev: true
 
+<<<<<<< HEAD
   /estree-util-attach-comments@2.1.1:
     resolution: {integrity: sha512-+5Ba/xGGS6mnwFbXIuQiDPTbuTxuMCooq3arVv7gPZtYpjp+VXH/NkHAP35OOefPhNG/UGqU3vt/LTABwcHX0w==}
+=======
+  /estree-util-attach-comments@2.1.0:
+    resolution: {integrity: sha512-rJz6I4L0GaXYtHpoMScgDIwM0/Vwbu5shbMeER596rB2D1EWF6+Gj0e0UKzJPZrpoOc87+Q2kgVFHfjAymIqmw==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree': 1.0.1
     dev: false
 
+<<<<<<< HEAD
   /estree-util-build-jsx@2.2.2:
     resolution: {integrity: sha512-m56vOXcOBuaF+Igpb9OPAy7f9w9OIkb5yhjsZuaPm7HoGi4oTOQi0h2+yZ+AtKklYFZ+rPC4n0wYCJCEU1ONqg==}
+=======
+  /estree-util-build-jsx@2.2.0:
+    resolution: {integrity: sha512-apsfRxF9uLrqosApvHVtYZjISPvTJ+lBiIydpC+9wE6cF6ssbhnjyQLqaIjgzGxvC2Hbmec1M7g91PoBayYoQQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree-jsx': 1.0.0
       estree-util-is-identifier-name: 2.1.0
       estree-walker: 3.0.3
     dev: false
 
+<<<<<<< HEAD
+=======
+  /estree-util-is-identifier-name@1.1.0:
+    resolution: {integrity: sha512-OVJZ3fGGt9By77Ix9NhaRbzfbDV/2rx9EP7YIDJTmsZSEc5kYn2vWcNccYyahJL2uAQZK2a5Or2i0wtIKTPoRQ==}
+    dev: false
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /estree-util-is-identifier-name@2.0.1:
     resolution: {integrity: sha512-rxZj1GkQhY4x1j/CSnybK9cGuMFQYFPLq0iNyopqf14aOVLFtMv7Esika+ObJWPWiOHuMOAHz3YkWoLYYRnzWQ==}
     dev: false
 
+<<<<<<< HEAD
   /estree-util-is-identifier-name@2.1.0:
     resolution: {integrity: sha512-bEN9VHRyXAUOjkKVQVvArFym08BTWB0aJPppZZr0UNyAqWsLaVfAqP7hbaTJjzHifmB5ebnR8Wm7r7yGN/HonQ==}
     dev: false
 
   /estree-util-to-js@1.2.0:
     resolution: {integrity: sha512-IzU74r1PK5IMMGZXUVZbmiu4A1uhiPgW5hm1GjcOfr4ZzHaMPpLNJjR7HjXiIOzi25nZDrgFTobHTkV5Q6ITjA==}
+=======
+  /estree-util-to-js@1.1.0:
+    resolution: {integrity: sha512-490lbfCcpLk+ofK6HCgqDfYs4KAfq6QVvDw3+Bm1YoKRgiOjKiKYGAVQE1uwh7zVxBgWhqp4FDtp5SqunpUk1A==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree-jsx': 1.0.0
       astring: 1.8.6
@@ -7242,17 +7530,27 @@ packages:
       is-plain-obj: 3.0.0
     dev: false
 
+<<<<<<< HEAD
   /estree-util-visit@1.2.1:
     resolution: {integrity: sha512-xbgqcrkIVbIG+lI/gzbvd9SGTJL4zqJKBFttUl5pP27KhAjtMKbX/mQXJ7qgyXpMgVy/zvpm0xoQQaGL8OloOw==}
+=======
+  /estree-util-visit@1.2.0:
+    resolution: {integrity: sha512-wdsoqhWueuJKsh5hqLw3j8lwFqNStm92VcwtAOAny8g/KS/l5Y8RISjR4k5W6skCj3Nirag/WUCMS0Nfy3sgsg==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree-jsx': 1.0.0
       '@types/unist': 2.0.7
     dev: false
 
+<<<<<<< HEAD
   /estree-walker@3.0.3:
     resolution: {integrity: sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g==}
     dependencies:
       '@types/estree': 1.0.1
+=======
+  /estree-walker@3.0.1:
+    resolution: {integrity: sha512-woY0RUD87WzMBUiZLx8NsYr23N5BKsOMZHhu2hoNRVh6NXGfoiT1KOL8G3UHlJAnEDGmfa5ubNA/AacfG+Kb0g==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dev: false
 
   /esutils@2.0.3:
@@ -7591,6 +7889,7 @@ packages:
       locate-path: 2.0.0
     dev: true
 
+<<<<<<< HEAD
   /find-up@3.0.0:
     resolution: {integrity: sha512-1yD6RmLI1XBfxugvORwlck6f75tYL+iR0jqwsOrOxMZyGYqUuDhJ0l4AXdO1iX/FTs9cBAMEk1gWSEx1kSbylg==}
     engines: {node: '>=6'}
@@ -7598,6 +7897,8 @@ packages:
       locate-path: 3.0.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /find-up@4.1.0:
     resolution: {integrity: sha512-PpOwAdQ/YlXQ2vj8a3h8IipDuYRi3wceVQQGYWxNINccq40Anw7BlsEXCMbt1Zt+OLA6Fq9suIpIWD0OsnISlw==}
     engines: {node: '>=8'}
@@ -7893,8 +8194,13 @@ packages:
     resolution: {integrity: sha512-SyHy3T1v2NUXn29OsWdxmK6RwHD+vkj3v8en8AOBZ1wBQ/hCAQ5bAQTD02kW4W9tUp/3Qh6J8r9EvntiyCmOOw==}
     dev: false
 
+<<<<<<< HEAD
   /github-slugger@2.0.0:
     resolution: {integrity: sha512-IaOQ9puYtjrkq7Y0Ygl9KDZnrf/aiUJYUpVf89y8kyaxbRG7Y1SrX/jaumrv81vc61+kiMempujsM3Yw7w5qcw==}
+=======
+  /github-slugger@1.5.0:
+    resolution: {integrity: sha512-wIh+gKBI9Nshz2o46B0B3f5k/W+WI9ZAv6y5Dn5WJ5SK1t0TnDimB4WE5rmTD05ZAIn8HALCZVmCsvj0w0v0lw==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dev: false
 
   /glob-parent@5.1.2:
@@ -7910,10 +8216,13 @@ packages:
       is-glob: 4.0.3
     dev: true
 
+<<<<<<< HEAD
   /glob-to-regexp@0.4.1:
     resolution: {integrity: sha512-lkX1HJXwyMcprw/5YUZc2s7DrpAiHB21/V+E1rHUrVNokkvB6bqMzT0VfV6/86ZNabt1k14YOIaT7nDvOX3Iiw==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /glob@10.3.1:
     resolution: {integrity: sha512-9BKYcEeIs7QwlCYs+Y3GBvqAMISufUS0i2ELd11zpZjxI5V9iyRj0HgzB5/cLf2NY4vcYBTYzJ7GIui7j/4DOw==}
     engines: {node: '>=16 || 14 >=14.17'}
@@ -8080,11 +8389,19 @@ packages:
 
   /graceful-fs@4.2.10:
     resolution: {integrity: sha512-9ByhssR2fPVsNZj478qUUbKfmL0+t5BDVyjShtyZZLiK7ZDAArFFfopyOTj0M05wE2tJPisA4iTnnXl2YoPvOA==}
+<<<<<<< HEAD
     dev: true
 
   /graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
+=======
+
+  /graceful-fs@4.2.11:
+    resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
+    dev: true
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /grapheme-splitter@1.0.4:
     resolution: {integrity: sha512-bzh50DW9kTPM00T8y4o8vQg89Di9oLJVLW/KaOGIXJWP/iqCN6WKYkbNOF04vFLJhwcpYUh9ydh/+5vpOqV4YQ==}
     dev: true
@@ -8198,6 +8515,7 @@ packages:
       safe-buffer: 5.2.1
     dev: true
 
+<<<<<<< HEAD
   /hash-obj@4.0.0:
     resolution: {integrity: sha512-FwO1BUVWkyHasWDW4S8o0ssQXjvyghLV2rfVhnN36b2bbcj45eGiuzdn9XOvOpjV3TKQD7Gm2BWNXdE9V4KKYg==}
     engines: {node: '>=12'}
@@ -8207,6 +8525,8 @@ packages:
       type-fest: 1.4.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /hash.js@1.1.7:
     resolution: {integrity: sha512-taOaskGt4z4SOANNseOviYDvjEJinIkRgmp7LbKP2YTTmVxWBl87s/uzK9r+44BclBSp2X7K1hqeNfz9JbBeXA==}
     dependencies:
@@ -8214,8 +8534,13 @@ packages:
       minimalistic-assert: 1.0.1
     dev: true
 
+<<<<<<< HEAD
   /hast-util-from-dom@4.2.0:
     resolution: {integrity: sha512-t1RJW/OpJbCAJQeKi3Qrj1cAOLA0+av/iPFori112+0X7R3wng+jxLA+kXec8K4szqPRGI8vPxbbpEYvvpwaeQ==}
+=======
+  /hast-util-to-estree@2.1.0:
+    resolution: {integrity: sha512-Vwch1etMRmm89xGgz+voWXvVHba2iiMdGMKmaMfYt35rbVtFDq8JNwwAIvi8zHMkO6Gvqo9oTMwJTmzVRfXh4g==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       hastscript: 7.2.0
       web-namespaces: 2.0.1
@@ -8287,6 +8612,7 @@ packages:
       - supports-color
     dev: false
 
+<<<<<<< HEAD
   /hast-util-to-text@3.1.2:
     resolution: {integrity: sha512-tcllLfp23dJJ+ju5wCCZHVpzsQQ43+moJbqVX3jNWPB7z/KFC4FyZD6R7y94cHL6MQ33YtMZL8Z0aIXXI4XFTw==}
     dependencies:
@@ -8314,6 +8640,16 @@ packages:
     resolution: {integrity: sha512-2bsegYkkHO+h/9MGbn6KWcE45cHZgPANo5LXF7EvWdT0yT2EguSVO1nDgU5c8+ZOPwp2vMNa7YFsJhVcDR9Sdg==}
     dev: false
 
+=======
+  /hast-util-to-string@1.0.4:
+    resolution: {integrity: sha512-eK0MxRX47AV2eZ+Lyr18DCpQgodvaS3fAQO2+b9Two9F5HEoRPhiUMNzoXArMJfZi2yieFzUBMRl3HNJ3Jus3w==}
+    dev: false
+
+  /hast-util-whitespace@2.0.0:
+    resolution: {integrity: sha512-Pkw+xBHuV6xFeJprJe2BBEoDV+AvQySaz3pPDRUs5PNZEMQjpXJJueqrpcHIXxnWTcAGi/UOCgVShlkY6kLoqg==}
+    dev: false
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /hexoid@1.0.0:
     resolution: {integrity: sha512-QFLV0taWQOZtvIRIAdBChesmogZrtuXvVWsFHZTk2SU+anspqZ2vMnoLg7IE1+Uk16N19APic1BuF8bC8c2m5g==}
     engines: {node: '>=8'}
@@ -8548,11 +8884,14 @@ packages:
       side-channel: 1.0.4
     dev: true
 
+<<<<<<< HEAD
   /internmap@2.0.3:
     resolution: {integrity: sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==}
     engines: {node: '>=12'}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /intersection-observer@0.12.2:
     resolution: {integrity: sha512-7m1vEcPCxXYI8HqnL8CKI6siDyD+eIWSwgB3DZA+ZTogxk9I4CDnj4wilt9x/+/QbHI4YG5YZNmC6458/e9Ktg==}
     dev: false
@@ -8832,6 +9171,7 @@ packages:
     resolution: {integrity: sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==}
     engines: {node: '>=0.12.0'}
 
+<<<<<<< HEAD
   /is-obj@2.0.0:
     resolution: {integrity: sha512-drqDG3cbczxxEJRoOXcOjtdp1J/lyp1mNn0xaznRs8+muBhgQcrnbspox5X5fOw0HnMnbfDzvnEMEtqDEJEo8w==}
     engines: {node: '>=8'}
@@ -8842,6 +9182,8 @@ packages:
     engines: {node: '>=12'}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /is-path-inside@3.0.3:
     resolution: {integrity: sha512-Fd4gABb+ycGAmKou8eMftCupSir5lRxqf4aD/vd0cD2qc4HL07OjCeuHMr8Ro4CoMaeCKDB0/ECBOVWjTwUvPQ==}
     engines: {node: '>=8'}
@@ -8867,8 +9209,13 @@ packages:
     engines: {node: '>=12'}
     dev: false
 
+<<<<<<< HEAD
   /is-reference@3.0.1:
     resolution: {integrity: sha512-baJJdQLiYaJdvFbJqXrcGv3WU3QCzBlUcI5QhbesIm6/xPsvmO+2CDoi/GMOFBQEQm+PXkwOPrp9KK5ozZsp2w==}
+=======
+  /is-reference@3.0.0:
+    resolution: {integrity: sha512-Eo1W3wUoHWoCoVM4GVl/a+K0IgiqE5aIo4kJABFyMum1ZORlPkC+UC357sSQUL5w5QCE5kCC9upl75b7+7CY/Q==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree': 1.0.1
     dev: false
@@ -9120,6 +9467,7 @@ packages:
   /json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
 
+<<<<<<< HEAD
   /json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
     dev: false
@@ -9128,6 +9476,8 @@ packages:
     resolution: {integrity: sha512-7DE8mpG+/fVw+dTpjbxnx47TaMnDfOI1jwft9g1VybltZCduyRQPJPvc+zzKY9WPHxhPWczyFuYa6I8Mw4iU5A==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /json-schema@0.4.0:
     resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
     dev: true
@@ -9199,6 +9549,7 @@ packages:
       object.assign: 4.1.4
     dev: true
 
+<<<<<<< HEAD
   /katex@0.16.8:
     resolution: {integrity: sha512-ftuDnJbcbOckGY11OO+zg3OofESlbR5DRl2cmN8HeWeeFIV7wTXvAOx8kEjZjobhA+9wh2fbKeO6cdcA9Mnovg==}
     hasBin: true
@@ -9206,6 +9557,8 @@ packages:
       commander: 8.3.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /keccak@3.0.3:
     resolution: {integrity: sha512-JZrLIAJWuZxKbCilMpNz5Vj7Vtb4scDG3dMXLOsbzBmQGyjwE61BbW7bJkfKKCShXiQZt3T6sBgALRtmd+nZaQ==}
     engines: {node: '>=10.0.0'}
@@ -9216,10 +9569,13 @@ packages:
       readable-stream: 3.6.2
     dev: true
 
+<<<<<<< HEAD
   /khroma@2.0.0:
     resolution: {integrity: sha512-2J8rDNlQWbtiNYThZRvmMv5yt44ZakX+Tz5ZIp/mN1pt4snn+m030Va5Z4v8xA0cQFDXBwO/8i42xL4QPsVk3g==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
     engines: {node: '>=0.10.0'}
@@ -9247,6 +9603,7 @@ packages:
       language-subtag-registry: 0.3.22
     dev: true
 
+<<<<<<< HEAD
   /layout-base@1.0.2:
     resolution: {integrity: sha512-8h2oVEZNktL4BH2JCOI90iD1yXwL6iNW7KcCKT2QZgQJR2vbqDsldCTPRU9NifTCqHZci57XvQQ15YTu+sTYPg==}
     dev: false
@@ -9255,6 +9612,8 @@ packages:
     resolution: {integrity: sha512-dp3s92+uNI1hWIpPGH3jK2kxE2lMjdXdr+DH8ynZHpd6PUlH6x6cbuXnoMmiNumznqaNO31xu9e79F0uuZ0JFg==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
@@ -9272,6 +9631,7 @@ packages:
     resolution: {integrity: sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==}
     dev: true
 
+<<<<<<< HEAD
   /lint-staged@13.2.3:
     resolution: {integrity: sha512-zVVEXLuQIhr1Y7R7YAWx4TZLdvuzk7DnmrsTNL0fax6Z3jrpFcas+vKbzxhhvp6TA55m1SQuWkpzI1qbfDZbAg==}
     engines: {node: ^14.13.1 || >=16.0.0}
@@ -9314,6 +9674,8 @@ packages:
       wrap-ansi: 7.0.0
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /load-tsconfig@0.2.5:
     resolution: {integrity: sha512-IXO6OCs9yg8tMKzfPZ1YmheJbZCiEsnBdcB03l0OcfK9prKnJb96siuHCr5Fl37/yo9DnKU+TLpxzTUspw9shg==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
@@ -9342,6 +9704,7 @@ packages:
       path-exists: 3.0.0
     dev: true
 
+<<<<<<< HEAD
   /locate-path@3.0.0:
     resolution: {integrity: sha512-7AO748wWnIhNqAuaty2ZWHkQHRSNfPVIsPIfwEOWO22AmaoVrWavlOcMR5nzTLNYvp36X220/maaRsrec1G65A==}
     engines: {node: '>=6'}
@@ -9350,6 +9713,8 @@ packages:
       path-exists: 3.0.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /locate-path@5.0.0:
     resolution: {integrity: sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g==}
     engines: {node: '>=8'}
@@ -9364,10 +9729,13 @@ packages:
       p-locate: 5.0.0
     dev: true
 
+<<<<<<< HEAD
   /lodash-es@4.17.21:
     resolution: {integrity: sha512-mKnC+QJ9pWVzv+C4/U3rRsHapFfHvQFoFB92e52xeyGMcX6/OlIl78je1u8vePzYZSkkogMPJ2yjxxsb89cxyw==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /lodash.camelcase@4.3.0:
     resolution: {integrity: sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA==}
     dev: true
@@ -9376,10 +9744,13 @@ packages:
     resolution: {integrity: sha512-FT1yDzDYEoYWhnSGnpE/4Kj1fLZkDFyqRb7fNt6FdYOSxlUWAtp42Eh6Wb0rGIv/m9Bgo7x4GhQbm5Ys4SG5ow==}
     dev: true
 
+<<<<<<< HEAD
   /lodash.get@4.4.2:
     resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /lodash.kebabcase@4.1.1:
     resolution: {integrity: sha512-N8XRTIMMqqDgSy4VLKPnJ/+hpGZN+PHQiJnSenYqPaVV/NCqEogTnAdZLQiGKhxX+JCs8waWq2t1XHWKOmlY8g==}
     dev: true
@@ -9455,6 +9826,7 @@ packages:
       chalk: 2.4.2
     dev: true
 
+<<<<<<< HEAD
   /log-update@4.0.0:
     resolution: {integrity: sha512-9fkkDevMefjg0mmzWFBW8YkFP91OrizzkW3diF7CpG+S2EYdy4+TVfGwz1zeF8x7hCx1ovSPTOE9Ngib74qqUg==}
     engines: {node: '>=10'}
@@ -9465,6 +9837,8 @@ packages:
       wrap-ansi: 6.2.0
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /long@4.0.0:
     resolution: {integrity: sha512-XsP+KhQif4bjX1kbuSiySJFNAehNxgLb6hPRGJ9QsUr8ajHkuXGdrHmFUTUUXhDwVX2R5bY4JNZEwbUiMhV+MA==}
     dev: true
@@ -9548,8 +9922,13 @@ packages:
       safe-buffer: 5.2.1
     dev: true
 
+<<<<<<< HEAD
   /mdast-util-definitions@5.1.2:
     resolution: {integrity: sha512-8SVPMuHqlPME/z3gqVwWY4zVXn8lqKv/pAhC57FuJ40ImXyBpmO5ukh98zB2v7Blql2FiHjHv9LVztSIqjY+MA==}
+=======
+  /mdast-util-definitions@5.1.1:
+    resolution: {integrity: sha512-rQ+Gv7mHttxHOBx2dkF4HWTg+EE+UR78ptQWDylzPKaQuVGdG4HIoY3SrS/pCp80nZ04greFvXbVFHT+uf0JVQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/mdast': 3.0.12
       '@types/unist': 2.0.7
@@ -9583,6 +9962,7 @@ packages:
       - supports-color
     dev: false
 
+<<<<<<< HEAD
   /mdast-util-from-markdown@1.3.1:
     resolution: {integrity: sha512-4xTO/M8c82qBcnQc1tgpNtubGUW/Y1tBQ1B0i5CtSoelOLKFYlElIr3bvgREYYO5iRqbMY1YuqZng0GVOI8Qww==}
     dependencies:
@@ -9602,6 +9982,8 @@ packages:
       - supports-color
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /mdast-util-gfm-autolink-literal@1.0.2:
     resolution: {integrity: sha512-FzopkOd4xTTBeGXhXSBU0OCDDh5lUj2rd+HQqG92Ld+jL4lpUfgX2AT2OHAVP9aEeDKp7G92fuooSZcYJA3cRg==}
     dependencies:
@@ -9658,6 +10040,7 @@ packages:
       - supports-color
     dev: false
 
+<<<<<<< HEAD
   /mdast-util-math@2.0.2:
     resolution: {integrity: sha512-8gmkKVp9v6+Tgjtq6SYx9kGPpTf6FVYRa53/DLh479aldR9AyP48qeVOgNZ5X7QUK7nOy4yw7vg6mbiGcs9jWQ==}
     dependencies:
@@ -9668,6 +10051,10 @@ packages:
 
   /mdast-util-mdx-expression@1.3.2:
     resolution: {integrity: sha512-xIPmR5ReJDu/DHH1OoIT1HkuybIfRGYRywC+gJtI7qHjCJp/M9jrmBEJW22O8lskDWm562BX2W8TiAwRTb0rKA==}
+=======
+  /mdast-util-mdx-expression@1.3.1:
+    resolution: {integrity: sha512-TTb6cKyTA1RD+1su1iStZ5PAv3rFfOUKcoU5EstUpv/IZo63uDX03R8+jXjMEhcobXnNOiG6/ccekvVl4eV1zQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree-jsx': 1.0.0
       '@types/hast': 2.3.5
@@ -9678,8 +10065,13 @@ packages:
       - supports-color
     dev: false
 
+<<<<<<< HEAD
   /mdast-util-mdx-jsx@2.1.4:
     resolution: {integrity: sha512-DtMn9CmVhVzZx3f+optVDF8yFgQVt7FghCRNdlIaS3X5Bnym3hZwPbg/XW86vdpKjlc1PVj26SpnLGeJBXD3JA==}
+=======
+  /mdast-util-mdx-jsx@2.1.0:
+    resolution: {integrity: sha512-KzgzfWMhdteDkrY4mQtyvTU5bc/W4ppxhe9SzelO6QUUiwLAM+Et2Dnjjprik74a336kHdo0zKm7Tp+n6FFeRg==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree-jsx': 1.0.0
       '@types/hast': 2.3.5
@@ -9690,13 +10082,28 @@ packages:
       mdast-util-to-markdown: 1.5.0
       parse-entities: 4.0.1
       stringify-entities: 4.0.3
+<<<<<<< HEAD
       unist-util-remove-position: 4.0.2
       unist-util-stringify-position: 3.0.3
       vfile-message: 3.1.4
+=======
+      unist-util-remove-position: 4.0.1
+      unist-util-stringify-position: 3.0.2
+      vfile-message: 3.1.3
+    dev: false
+
+  /mdast-util-mdx@2.0.0:
+    resolution: {integrity: sha512-M09lW0CcBT1VrJUaF/PYxemxxHa7SLDHdSn94Q9FhxjCQfuW7nMAWKWimTmA3OyDMSTH981NN1csW1X+HPSluw==}
+    dependencies:
+      mdast-util-mdx-expression: 1.3.1
+      mdast-util-mdx-jsx: 2.1.0
+      mdast-util-mdxjs-esm: 1.3.0
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     transitivePeerDependencies:
       - supports-color
     dev: false
 
+<<<<<<< HEAD
   /mdast-util-mdx@2.0.1:
     resolution: {integrity: sha512-38w5y+r8nyKlGvNjSEqWrhG0w5PmnRA+wnBvm+ulYCct7nsGYhFVb0lljS9bQav4psDAS1eGkP2LMVcZBi/aqw==}
     dependencies:
@@ -9711,6 +10118,10 @@ packages:
 
   /mdast-util-mdxjs-esm@1.3.1:
     resolution: {integrity: sha512-SXqglS0HrEvSdUEfoXFtcg7DRl7S2cwOXc7jkuusG472Mmjag34DUDeOJUZtl+BVnyeO1frIgVpHlNRWc2gk/w==}
+=======
+  /mdast-util-mdxjs-esm@1.3.0:
+    resolution: {integrity: sha512-7N5ihsOkAEGjFotIX9p/YPdl4TqUoMxL4ajNz7PbT89BqsdWJuBC9rvgt6wpbwTZqWWR0jKWqQbwsOWDBUZv4g==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree-jsx': 1.0.0
       '@types/hast': 2.3.5
@@ -9721,13 +10132,19 @@ packages:
       - supports-color
     dev: false
 
+<<<<<<< HEAD
   /mdast-util-phrasing@3.0.1:
     resolution: {integrity: sha512-WmI1gTXUBJo4/ZmSk79Wcb2HcjPJBzM1nlI/OUWA8yk2X9ik3ffNbBGsU+09BFmXaL1IBb9fiuvq6/KMiNycSg==}
+=======
+  /mdast-util-to-hast@12.2.4:
+    resolution: {integrity: sha512-a21xoxSef1l8VhHxS1Dnyioz6grrJkoaCUgGzMD/7dWHvboYX3VW53esRUfB5tgTyz4Yos1n25SPcj35dJqmAg==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/mdast': 3.0.12
       unist-util-is: 5.2.1
     dev: false
 
+<<<<<<< HEAD
   /mdast-util-to-hast@12.3.0:
     resolution: {integrity: sha512-pits93r8PhnIoU4Vy9bjW39M2jJ6/tdHyja9rrot9uujkN7UTU9SDnE6WNJz/IGyQk3XHX6yNNtrBH6cQzm8Hw==}
     dependencies:
@@ -9741,6 +10158,8 @@ packages:
       unist-util-visit: 4.1.2
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /mdast-util-to-markdown@1.3.0:
     resolution: {integrity: sha512-6tUSs4r+KK4JGTTiQ7FfHmVOaDrLQJPmpjD6wPMlHGUVXoG9Vjc3jIeP+uyBWRf8clwB2blM+W7+KrlMYQnftA==}
     dependencies:
@@ -9753,6 +10172,7 @@ packages:
       zwitch: 2.0.4
     dev: false
 
+<<<<<<< HEAD
   /mdast-util-to-markdown@1.5.0:
     resolution: {integrity: sha512-bbv7TPv/WC49thZPg3jXuqzuvI45IL2EVAr/KxF0BSdHsU0ceFHOmwQn6evxAh1GaoK/6GQ1wp4R4oW2+LFL/A==}
     dependencies:
@@ -9766,16 +10186,21 @@ packages:
       zwitch: 2.0.4
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /mdast-util-to-string@3.1.0:
     resolution: {integrity: sha512-n4Vypz/DZgwo0iMHLQL49dJzlp7YtAJP+N07MZHpjPf/5XJuHUWstviF4Mn2jEiR/GNmtnRRqnwsXExk3igfFA==}
     dev: false
 
+<<<<<<< HEAD
   /mdast-util-to-string@3.2.0:
     resolution: {integrity: sha512-V4Zn/ncyN1QNSqSBxTrMOLpjr+IKdHl2v3KVLoWmDPscP4r9GcCi71gjgvUV1SFSKh92AjAG4peFuBl2/YgCJg==}
     dependencies:
       '@types/mdast': 3.0.12
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /mdn-data@2.0.14:
     resolution: {integrity: sha512-dn6wd0uw5GsdswPFfsgMp5NSB0/aDe6fK94YJV/AJDYXL6HVLWBsxeq7js7Ad+mU2K9LAlwpk6kN2D5mwCPVow==}
     dev: true
@@ -9820,6 +10245,7 @@ packages:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
 
+<<<<<<< HEAD
   /mermaid@10.2.4:
     resolution: {integrity: sha512-zHGjEI7lBvWZX+PQYmlhSA2p40OzW6QbGodTCSzDeVpqaTnyAC+2sRGqrpXO+uQk3CnoeClHQPraQUMStdqy2g==}
     dependencies:
@@ -9844,6 +10270,8 @@ packages:
       - supports-color
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /methods@1.1.2:
     resolution: {integrity: sha512-iclAHeNqNm68zFtnZ0e+1L2yUIdvzNoauKU4WBA3VvH/vPFieF7qfRlwUZU+DA9P9bPXIS90ulxoUoCH23sV2w==}
     engines: {node: '>= 0.6'}
@@ -9869,6 +10297,7 @@ packages:
       uvu: 0.5.6
     dev: false
 
+<<<<<<< HEAD
   /micromark-core-commonmark@1.1.0:
     resolution: {integrity: sha512-BgHO1aRbolh2hcrzL2d1La37V0Aoz73ymF8rAcKnohLy93titmv62E0gP8Hrx9PKcKrqCZ1BbLGbP3bEhoXYlw==}
     dependencies:
@@ -9890,6 +10319,8 @@ packages:
       uvu: 0.5.6
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-extension-gfm-autolink-literal@1.0.3:
     resolution: {integrity: sha512-i3dmvU0htawfWED8aHMMAzAVp/F0Z+0bPh3YrbTPPL1v4YAlCZpy5rBO5p0LPYiZo0zFVkoYh7vDU7yQSiCMjg==}
     dependencies:
@@ -9963,8 +10394,13 @@ packages:
       micromark-util-types: 1.0.2
     dev: false
 
+<<<<<<< HEAD
   /micromark-extension-math@2.1.2:
     resolution: {integrity: sha512-es0CcOV89VNS9wFmyn+wyFTKweXGW4CEvdaAca6SWRWPyYCbBisnjaHLjWO4Nszuiud84jCpkHsqAJoa768Pvg==}
+=======
+  /micromark-extension-mdx-expression@1.0.3:
+    resolution: {integrity: sha512-TjYtjEMszWze51NJCZmhv7MEBcgYRgb3tJeMAJ+HQCAaZHHRBaDCccqQzGizR/H4ODefP44wRTgOn2vE5I6nZA==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/katex': 0.16.1
       katex: 0.16.8
@@ -9975,6 +10411,7 @@ packages:
       uvu: 0.5.6
     dev: false
 
+<<<<<<< HEAD
   /micromark-extension-mdx-expression@1.0.8:
     resolution: {integrity: sha512-zZpeQtc5wfWKdzDsHRBY003H2Smg+PUi2REhqgIhdzAa5xonhP03FcXxqFSerFiNUr5AWmHpaNPQTBVOS4lrXw==}
     dependencies:
@@ -9990,6 +10427,10 @@ packages:
 
   /micromark-extension-mdx-jsx@1.0.5:
     resolution: {integrity: sha512-gPH+9ZdmDflbu19Xkb8+gheqEDqkSpdCEubQyxuz/Hn8DOXiXvrXeikOoBA71+e8Pfi0/UYmU3wW3H58kr7akA==}
+=======
+  /micromark-extension-mdx-jsx@1.0.3:
+    resolution: {integrity: sha512-VfA369RdqUISF0qGgv2FfV7gGjHDfn9+Qfiv5hEwpyr1xscRj/CiVRkU7rywGFCO7JwJ5L0e7CJz60lY52+qOA==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/acorn': 4.0.6
       '@types/estree': 1.0.1
@@ -10003,14 +10444,24 @@ packages:
       vfile-message: 3.1.4
     dev: false
 
+<<<<<<< HEAD
   /micromark-extension-mdx-md@1.0.1:
     resolution: {integrity: sha512-7MSuj2S7xjOQXAjjkbjBsHkMtb+mDGVW6uI2dBL9snOBCbZmoNgDAeZ0nSn9j3T42UE/g2xVNMn18PJxZvkBEA==}
+=======
+  /micromark-extension-mdx-md@1.0.0:
+    resolution: {integrity: sha512-xaRAMoSkKdqZXDAoSgp20Azm0aRQKGOl0RrS81yGu8Hr/JhMsBmfs4wR7m9kgVUIO36cMUQjNyiyDKPrsv8gOw==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       micromark-util-types: 1.1.0
     dev: false
 
+<<<<<<< HEAD
   /micromark-extension-mdxjs-esm@1.0.5:
     resolution: {integrity: sha512-xNRBw4aoURcyz/S69B19WnZAkWJMxHMT5hE36GtDAyhoyn/8TuAeqjFJQlwk+MKQsUD7b3l7kFX+vlfVWgcX1w==}
+=======
+  /micromark-extension-mdxjs-esm@1.0.3:
+    resolution: {integrity: sha512-2N13ol4KMoxb85rdDwTAC6uzs8lMX0zeqpcyx7FhS7PxXomOnLactu8WI8iBNXW8AVyea3KIJd/1CKnUmwrK9A==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree': 1.0.1
       micromark-core-commonmark: 1.1.0
@@ -10023,6 +10474,7 @@ packages:
       vfile-message: 3.1.4
     dev: false
 
+<<<<<<< HEAD
   /micromark-extension-mdxjs@1.0.1:
     resolution: {integrity: sha512-7YA7hF6i5eKOfFUzZ+0z6avRG52GpWR8DL+kN47y3f2KhxbBZMhmxe7auOeaTBrW2DenbbZTf1ea9tA2hDpC2Q==}
     dependencies:
@@ -10034,6 +10486,19 @@ packages:
       micromark-extension-mdxjs-esm: 1.0.5
       micromark-util-combine-extensions: 1.1.0
       micromark-util-types: 1.1.0
+=======
+  /micromark-extension-mdxjs@1.0.0:
+    resolution: {integrity: sha512-TZZRZgeHvtgm+IhtgC2+uDMR7h8eTKF0QUX9YsgoL9+bADBpBY6SiLvWqnBlLbCEevITmTqmEuY3FoxMKVs1rQ==}
+    dependencies:
+      acorn: 8.8.2
+      acorn-jsx: 5.3.2(acorn@8.8.2)
+      micromark-extension-mdx-expression: 1.0.3
+      micromark-extension-mdx-jsx: 1.0.3
+      micromark-extension-mdx-md: 1.0.0
+      micromark-extension-mdxjs-esm: 1.0.3
+      micromark-util-combine-extensions: 1.0.0
+      micromark-util-types: 1.0.2
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dev: false
 
   /micromark-factory-destination@1.0.0:
@@ -10044,6 +10509,7 @@ packages:
       micromark-util-types: 1.0.2
     dev: false
 
+<<<<<<< HEAD
   /micromark-factory-destination@1.1.0:
     resolution: {integrity: sha512-XaNDROBgx9SgSChd69pjiGKbV+nfHGDPVYFs5dOoDd7ZnMAE+Cuu91BCpsY8RT2NP9vo/B8pds2VQNCLiu0zhg==}
     dependencies:
@@ -10052,6 +10518,8 @@ packages:
       micromark-util-types: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-factory-label@1.0.2:
     resolution: {integrity: sha512-CTIwxlOnU7dEshXDQ+dsr2n+yxpP0+fn271pu0bwDIS8uqfFcumXpj5mLn3hSC8iw2MUr6Gx8EcKng1dD7i6hg==}
     dependencies:
@@ -10061,8 +10529,13 @@ packages:
       uvu: 0.5.6
     dev: false
 
+<<<<<<< HEAD
   /micromark-factory-label@1.1.0:
     resolution: {integrity: sha512-OLtyez4vZo/1NjxGhcpDSbHQ+m0IIGnT8BoPamh+7jVlzLJBH98zzuCoUeMxvM6WsNeh8wx8cKvqLiPHEACn0w==}
+=======
+  /micromark-factory-mdx-expression@1.0.6:
+    resolution: {integrity: sha512-WRQIc78FV7KrCfjsEf/sETopbYjElh3xAmNpLkd1ODPqxEngP42eVRGbiPEQWpRV27LzqW+XVTvQAMIIRLPnNA==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       micromark-util-character: 1.2.0
       micromark-util-symbol: 1.1.0
@@ -10070,6 +10543,7 @@ packages:
       uvu: 0.5.6
     dev: false
 
+<<<<<<< HEAD
   /micromark-factory-mdx-expression@1.0.9:
     resolution: {integrity: sha512-jGIWzSmNfdnkJq05c7b0+Wv0Kfz3NJ3N4cBjnbO4zjXIlxJr+f8lk+5ZmwFvqdAbUy2q6B5rCY//g0QAAaXDWA==}
     dependencies:
@@ -10083,6 +10557,8 @@ packages:
       vfile-message: 3.1.4
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-factory-space@1.0.0:
     resolution: {integrity: sha512-qUmqs4kj9a5yBnk3JMLyjtWYN6Mzfcx8uJfi5XAveBniDevmZasdGBba5b4QsvRcAkmvGo5ACmSUmyGiKTLZew==}
     dependencies:
@@ -10090,6 +10566,7 @@ packages:
       micromark-util-types: 1.0.2
     dev: false
 
+<<<<<<< HEAD
   /micromark-factory-space@1.1.0:
     resolution: {integrity: sha512-cRzEj7c0OL4Mw2v6nwzttyOZe8XY/Z8G0rzmWQZTBi/jjwyw/U4uqKtUORXQrR5bAZZnbTI/feRV/R7hc4jQYQ==}
     dependencies:
@@ -10097,6 +10574,8 @@ packages:
       micromark-util-types: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-factory-title@1.0.2:
     resolution: {integrity: sha512-zily+Nr4yFqgMGRKLpTVsNl5L4PMu485fGFDOQJQBl2NFpjGte1e86zC0da93wf97jrc4+2G2GQudFMHn3IX+A==}
     dependencies:
@@ -10107,6 +10586,7 @@ packages:
       uvu: 0.5.6
     dev: false
 
+<<<<<<< HEAD
   /micromark-factory-title@1.1.0:
     resolution: {integrity: sha512-J7n9R3vMmgjDOCY8NPw55jiyaQnH5kBdV2/UXCtZIpnHH3P6nHUKaH7XXEYuWwx/xUJcawa8plLBEjMPU24HzQ==}
     dependencies:
@@ -10116,6 +10596,8 @@ packages:
       micromark-util-types: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-factory-whitespace@1.0.0:
     resolution: {integrity: sha512-Qx7uEyahU1lt1RnsECBiuEbfr9INjQTGa6Err+gF3g0Tx4YEviPbqqGKNv/NrBaE7dVHdn1bVZKM/n5I/Bak7A==}
     dependencies:
@@ -10125,6 +10607,7 @@ packages:
       micromark-util-types: 1.0.2
     dev: false
 
+<<<<<<< HEAD
   /micromark-factory-whitespace@1.1.0:
     resolution: {integrity: sha512-v2WlmiymVSp5oMg+1Q0N1Lxmt6pMhIHD457whWM7/GUlEks1hI9xj5w3zbc4uuMKXGisksZk8DzP2UyGbGqNsQ==}
     dependencies:
@@ -10134,6 +10617,8 @@ packages:
       micromark-util-types: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-character@1.1.0:
     resolution: {integrity: sha512-agJ5B3unGNJ9rJvADMJ5ZiYjBRyDpzKAOk01Kpi1TKhlT1APx3XZk6eN7RtSz1erbWHC2L8T3xLZ81wdtGRZzg==}
     dependencies:
@@ -10141,6 +10626,7 @@ packages:
       micromark-util-types: 1.0.2
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-character@1.2.0:
     resolution: {integrity: sha512-lXraTwcX3yH/vMDaFWCQJP1uIszLVebzUa3ZHdrgxr7KEU/9mL4mVgCpGbyhvNLNlauROiNUq7WN5u7ndbY6xg==}
     dependencies:
@@ -10148,18 +10634,23 @@ packages:
       micromark-util-types: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-chunked@1.0.0:
     resolution: {integrity: sha512-5e8xTis5tEZKgesfbQMKRCyzvffRRUX+lK/y+DvsMFdabAicPkkZV6gO+FEWi9RfuKKoxxPwNL+dFF0SMImc1g==}
     dependencies:
       micromark-util-symbol: 1.0.1
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-chunked@1.1.0:
     resolution: {integrity: sha512-Ye01HXpkZPNcV6FiyoW2fGZDUw4Yc7vT0E9Sad83+bEDiCJ1uXu0S3mr8WLpsz3HaG3x2q0HM6CTuPdcZcluFQ==}
     dependencies:
       micromark-util-symbol: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-classify-character@1.0.0:
     resolution: {integrity: sha512-F8oW2KKrQRb3vS5ud5HIqBVkCqQi224Nm55o5wYLzY/9PwHGXC01tr3d7+TqHHz6zrKQ72Okwtvm/xQm6OVNZA==}
     dependencies:
@@ -10168,6 +10659,7 @@ packages:
       micromark-util-types: 1.0.2
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-classify-character@1.1.0:
     resolution: {integrity: sha512-SL0wLxtKSnklKSUplok1WQFoGhUdWYKggKUiqhX+Swala+BtptGCu5iPRc+xvzJ4PXE/hwM3FNXsfEVgoZsWbw==}
     dependencies:
@@ -10176,6 +10668,8 @@ packages:
       micromark-util-types: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-combine-extensions@1.0.0:
     resolution: {integrity: sha512-J8H058vFBdo/6+AsjHp2NF7AJ02SZtWaVUjsayNFeAiydTxUwViQPxN0Hf8dp4FmCQi0UUFovFsEyRSUmFH3MA==}
     dependencies:
@@ -10183,6 +10677,7 @@ packages:
       micromark-util-types: 1.0.2
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-combine-extensions@1.1.0:
     resolution: {integrity: sha512-Q20sp4mfNf9yEqDL50WwuWZHUrCO4fEyeDCnMGmG5Pr0Cz15Uo7KBs6jq+dq0EgX4DPwwrh9m0X+zPV1ypFvUA==}
     dependencies:
@@ -10190,18 +10685,23 @@ packages:
       micromark-util-types: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-decode-numeric-character-reference@1.0.0:
     resolution: {integrity: sha512-OzO9AI5VUtrTD7KSdagf4MWgHMtET17Ua1fIpXTpuhclCqD8egFWo85GxSGvxgkGS74bEahvtM0WP0HjvV0e4w==}
     dependencies:
       micromark-util-symbol: 1.0.1
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-decode-numeric-character-reference@1.1.0:
     resolution: {integrity: sha512-m9V0ExGv0jB1OT21mrWcuf4QhP46pH1KkfWy9ZEezqHKAxkj4mPCy3nIH1rkbdMlChLHX531eOrymlwyZIf2iw==}
     dependencies:
       micromark-util-symbol: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-decode-string@1.0.2:
     resolution: {integrity: sha512-DLT5Ho02qr6QWVNYbRZ3RYOSSWWFuH3tJexd3dgN1odEuPNxCngTCXJum7+ViRAd9BbdxCvMToPOD/IvVhzG6Q==}
     dependencies:
@@ -10211,6 +10711,7 @@ packages:
       micromark-util-symbol: 1.0.1
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-decode-string@1.1.0:
     resolution: {integrity: sha512-YphLGCK8gM1tG1bd54azwyrQRjCFcmgj2S2GoJDNnh4vYtnL38JS8M4gpxzOPNyHdNEpheyWXCTnnTDY3N+NVQ==}
     dependencies:
@@ -10220,10 +10721,13 @@ packages:
       micromark-util-symbol: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-encode@1.0.1:
     resolution: {integrity: sha512-U2s5YdnAYexjKDel31SVMPbfi+eF8y1U4pfiRW/Y8EFVCy/vgxk/2wWTxzcqE71LHtCuCzlBDRU2a5CQ5j+mQA==}
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-encode@1.1.0:
     resolution: {integrity: sha512-EuEzTWSTAj9PA5GOAs992GzNh2dGQO52UvAbtSOMvXTxv3Criqb6IOzJUBCmEqrrXSblJIJBbFFv6zPxpreiJw==}
     dev: false
@@ -10241,38 +10745,61 @@ packages:
       vfile-message: 3.1.4
     dev: false
 
+=======
+  /micromark-util-events-to-acorn@1.2.0:
+    resolution: {integrity: sha512-WWp3bf7xT9MppNuw3yPjpnOxa8cj5ACivEzXJKu0WwnjBYfzaBvIAT9KfeyI0Qkll+bfQtfftSwdgTH6QhTOKw==}
+    dependencies:
+      '@types/acorn': 4.0.6
+      '@types/estree': 1.0.0
+      estree-util-visit: 1.2.0
+      micromark-util-types: 1.0.2
+      uvu: 0.5.6
+      vfile-location: 4.0.1
+      vfile-message: 3.1.3
+    dev: false
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-html-tag-name@1.1.0:
     resolution: {integrity: sha512-BKlClMmYROy9UiV03SwNmckkjn8QHVaWkqoAqzivabvdGcwNGMMMH/5szAnywmsTBUzDsU57/mFi0sp4BQO6dA==}
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-html-tag-name@1.2.0:
     resolution: {integrity: sha512-VTQzcuQgFUD7yYztuQFKXT49KghjtETQ+Wv/zUjGSGBioZnkA4P1XXZPT1FHeJA6RwRXSF47yvJ1tsJdoxwO+Q==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-normalize-identifier@1.0.0:
     resolution: {integrity: sha512-yg+zrL14bBTFrQ7n35CmByWUTFsgst5JhA4gJYoty4Dqzj4Z4Fr/DHekSS5aLfH9bdlfnSvKAWsAgJhIbogyBg==}
     dependencies:
       micromark-util-symbol: 1.0.1
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-normalize-identifier@1.1.0:
     resolution: {integrity: sha512-N+w5vhqrBihhjdpM8+5Xsxy71QWqGn7HYNUvch71iV2PM7+E3uWGox1Qp90loa1ephtCxG2ftRV/Conitc6P2Q==}
     dependencies:
       micromark-util-symbol: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-resolve-all@1.0.0:
     resolution: {integrity: sha512-CB/AGk98u50k42kvgaMM94wzBqozSzDDaonKU7P7jwQIuH2RU0TeBqGYJz2WY1UdihhjweivStrJ2JdkdEmcfw==}
     dependencies:
       micromark-util-types: 1.0.2
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-resolve-all@1.1.0:
     resolution: {integrity: sha512-b/G6BTMSg+bX+xVCshPTPyAu2tmA0E4X98NSR7eIbeC6ycCqCeE7wjfDIgzEbkzdEVJXRtOG4FbEm/uGbCRouA==}
     dependencies:
       micromark-util-types: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-sanitize-uri@1.1.0:
     resolution: {integrity: sha512-RoxtuSCX6sUNtxhbmsEFQfWzs8VN7cTctmBPvYivo98xb/kDEoTCtJQX5wyzIYEmk/lvNFTat4hL8oW0KndFpg==}
     dependencies:
@@ -10281,6 +10808,7 @@ packages:
       micromark-util-symbol: 1.0.1
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-sanitize-uri@1.2.0:
     resolution: {integrity: sha512-QO4GXv0XZfWey4pYFndLUKEAktKkG5kZTdUNaTAkzbuJxn2tNBOr+QtxR2XpWaMhbImT2dPzyLrPXLlPhph34A==}
     dependencies:
@@ -10289,6 +10817,8 @@ packages:
       micromark-util-symbol: 1.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-subtokenize@1.0.2:
     resolution: {integrity: sha512-d90uqCnXp/cy4G881Ub4psE57Sf8YD0pim9QdjCRNjfas2M1u6Lbt+XZK9gnHL2XFhnozZiEdCa9CNfXSfQ6xA==}
     dependencies:
@@ -10298,6 +10828,7 @@ packages:
       uvu: 0.5.6
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-subtokenize@1.1.0:
     resolution: {integrity: sha512-kUQHyzRoxvZO2PuLzMt2P/dwVsTiivCK8icYTeR+3WgbuPqfHgPPy7nFKbeqRivBvn/3N3GBiNC+JRTMSxEC7A==}
     dependencies:
@@ -10307,22 +10838,30 @@ packages:
       uvu: 0.5.6
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-symbol@1.0.1:
     resolution: {integrity: sha512-oKDEMK2u5qqAptasDAwWDXq0tG9AssVwAx3E9bBF3t/shRIGsWIRG+cGafs2p/SnDSOecnt6hZPCE2o6lHfFmQ==}
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-symbol@1.1.0:
     resolution: {integrity: sha512-uEjpEYY6KMs1g7QfJ2eX1SQEV+ZT4rUD3UcF6l57acZvLNK7PBZL+ty82Z1qhK1/yXIY4bdx04FKMgR0g4IAag==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark-util-types@1.0.2:
     resolution: {integrity: sha512-DCfg/T8fcrhrRKTPjRrw/5LLvdGV7BHySf/1LOZx7TzWZdYRjogNtyNq885z3nNallwr3QUKARjqvHqX1/7t+w==}
     dev: false
 
+<<<<<<< HEAD
   /micromark-util-types@1.1.0:
     resolution: {integrity: sha512-ukRBgie8TIAcacscVHSiddHjO4k/q3pnedmzMQ4iwDcK0FtFCohKOlFbaOL/mPgfnPsL3C1ZyxJa4sbWrBl3jg==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromark@3.1.0:
     resolution: {integrity: sha512-6Mj0yHLdUZjHnOPgr5xfWIMqMWS12zDN6iws9SLuSz76W8jTtAv24MN4/CL7gJrl5vtxGInkkqDv/JIoRsQOvA==}
     dependencies:
@@ -10347,6 +10886,7 @@ packages:
       - supports-color
     dev: false
 
+<<<<<<< HEAD
   /micromark@3.2.0:
     resolution: {integrity: sha512-uD66tJj54JLYq0De10AhWycZWGQNUvDI55xPgk2sQM5kn1JYlhbCMTtEeT27+vAhW2FBQxLlOmS3pmA7/2z4aA==}
     dependencies:
@@ -10371,6 +10911,8 @@ packages:
       - supports-color
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /micromatch@4.0.5:
     resolution: {integrity: sha512-DMy+ERcEW2q8Z2Po+WNXuw3c5YaUSFjAO5GsJqfEl7UjvtIuFKO6ZrKvcItdy98dwFI2N1tg3zNIdKaQT+aNdA==}
     engines: {node: '>=8.6'}
@@ -10404,6 +10946,7 @@ packages:
     resolution: {integrity: sha512-OqbOk5oEQeAZ8WXWydlu9HJjz9WVdEIvamMCcXmuqUYjTknH/sqsWvhQ3vgwKFRR1HpjvNBKQ37nbJgYzGqGcg==}
     engines: {node: '>=6'}
 
+<<<<<<< HEAD
   /mimic-fn@3.1.0:
     resolution: {integrity: sha512-Ysbi9uYW9hFyfrThdDEQuykN4Ey6BuwPD2kpI5ES/nFTDn/98yxYNLZJcgUAKPT/mcrLLKaGzJR9YVxJrIdASQ==}
     engines: {node: '>=8'}
@@ -10413,6 +10956,13 @@ packages:
     resolution: {integrity: sha512-vqiC06CuhBTUdZH+RYl8sFrL096vA45Ok5ISO6sE/Mr1jRbGH4Csnhi8f3wKVl7x8mO4Au7Ir9D3Oyv1VYMFJw==}
     engines: {node: '>=12'}
 
+=======
+  /mimic-fn@4.0.0:
+    resolution: {integrity: sha512-vqiC06CuhBTUdZH+RYl8sFrL096vA45Ok5ISO6sE/Mr1jRbGH4Csnhi8f3wKVl7x8mO4Au7Ir9D3Oyv1VYMFJw==}
+    engines: {node: '>=12'}
+    dev: false
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /mimic-response@3.1.0:
     resolution: {integrity: sha512-z0yWI+4FDrrweS8Zmt4Ej5HdJmky15+L2e6Wgn3+iK5fWzb6T3fhNFq2+MeTRb064c6Wr4N/wv0DzQTjNzHNGQ==}
     engines: {node: '>=10'}
@@ -10597,6 +11147,7 @@ packages:
     resolution: {integrity: sha512-MqBkQh/OHTS2egovRtLk45wEyNXwF+cokD+1YPf9u5VfJiRdAiRwB2froX5Co9Rh20xs4siNPm8naNotSD6RBw==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
+<<<<<<< HEAD
     dev: true
 
   /nanoid@3.3.6:
@@ -10604,6 +11155,15 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
+=======
+
+  /nanoid@3.3.6:
+    resolution: {integrity: sha512-BGcqMMJuToF7i1rt+2PWSNVnWIkGCU78jBG3RxO/bZlnZPK2Cmi2QaffxGO/2RvWi9sL+FAiRiXMgsyxQ1DIDA==}
+    engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+    dev: true
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /napi-build-utils@1.0.2:
     resolution: {integrity: sha512-ONmRUqK7zj7DWX0D9ADe03wbwOBZxNAfF20PlGfCWQcD3+/MakShIHrMqx9YwPTfxDdF1zLeL+RGZiR9kGMLdg==}
     dev: false
@@ -10641,6 +11201,7 @@ packages:
     engines: {node: '>= 0.6'}
     dev: false
 
+<<<<<<< HEAD
   /next-mdx-remote@4.4.1(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-1BvyXaIou6xy3XoNF4yaMZUCb6vD2GTAa5ciOa6WoO+gAUTYsb1K4rI/HSC2ogAWLrb/7VSV52skz07vOzmqIQ==}
     engines: {node: '>=14', npm: '>=7'}
@@ -10660,31 +11221,53 @@ packages:
 
   /next-seo@6.1.0(next@13.4.12)(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-iMBpFoJsR5zWhguHJvsoBDxDSmdYTHtnVPB1ij+CD0NReQCP78ZxxbdL9qkKIf4oEuZEqZkrjAQLB0bkII7RYA==}
+=======
+  /next-seo@5.14.1(next@12.3.4)(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-NiJeQbxYP3z+EMp52q8k3Q+OfX2+Yv2WehERDj98r2wjXxL+woKpRBdsSVYolTD0Hm8IWs42SzaISE93RoQdOw==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     peerDependencies:
       next: ^8.1.1-canary.54 || >=9.0.0
       react: '>=16.0.0'
       react-dom: '>=16.0.0'
     dependencies:
+<<<<<<< HEAD
       next: 13.4.12(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0)
+=======
+      next: 12.3.4(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0)
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
     dev: false
 
+<<<<<<< HEAD
   /next-themes@0.2.1(next@13.4.12)(react-dom@18.2.0)(react@18.2.0):
+=======
+  /next-themes@0.2.1(next@12.3.4)(react-dom@18.2.0)(react@18.2.0):
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     resolution: {integrity: sha512-B+AKNfYNIzh0vqQQKqQItTS8evEouKD7H5Hj3kmuPERwddR2TxvDSFZuTj6T7Jfn1oyeUyJMydPl1Bkxkh0W7A==}
     peerDependencies:
       next: '*'
       react: '*'
       react-dom: '*'
     dependencies:
+<<<<<<< HEAD
       next: 13.4.12(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0)
+=======
+      next: 12.3.4(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0)
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
     dev: false
 
+<<<<<<< HEAD
   /next@13.4.12(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-eHfnru9x6NRmTMcjQp6Nz0J4XH9OubmzOa7CkWL+AUrUxpibub3vWwttjduu9No16dug1kq04hiUUpo7J3m3Xw==}
     engines: {node: '>=16.8.0'}
+=======
+  /next@12.3.4(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-VcyMJUtLZBGzLKo3oMxrEF0stxh8HwuW976pAzlHhI3t8qJ4SROjCrSh1T24bhrbjw55wfZXAbXPGwPt5FLRfQ==}
+    engines: {node: '>=12.22.0'}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     hasBin: true
     peerDependencies:
       '@opentelemetry/api': ^1.1.0
@@ -10707,9 +11290,14 @@ packages:
       postcss: 8.4.14
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
+<<<<<<< HEAD
       styled-jsx: 5.1.1(@babel/core@7.21.0)(react@18.2.0)
       watchpack: 2.4.0
       zod: 3.21.4
+=======
+      styled-jsx: 5.0.7(@babel/core@7.21.0)(react@18.2.0)
+      use-sync-external-store: 1.2.0(react@18.2.0)
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     optionalDependencies:
       '@next/swc-darwin-arm64': 13.4.12
       '@next/swc-darwin-x64': 13.4.12
@@ -10725,22 +11313,35 @@ packages:
       - babel-plugin-macros
     dev: false
 
+<<<<<<< HEAD
   /nextra-theme-docs@2.10.0(next@13.4.12)(nextra@2.10.0)(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-uXoqRoewbu0JoqQ1m67aIztWe9/nEhcSeHMimhLxZghKZxkYN0kTR5y5jmrwOHRPuJUTLL2YFwy1rvWJIZS2lw==}
+=======
+  /nextra-theme-docs@2.0.1(next@12.3.4)(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-vrxSQjfG5hcWXd0foVUgRu1T9rD+dQdVnKzJhpEG+ncAIYTT/o7GajvYUEPPZMYvvZwehmNIUhSTDN9unnVsxw==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     peerDependencies:
       next: '>=9.5.3'
       nextra: 2.10.0
       react: '>=16.13.1'
       react-dom: '>=16.13.1'
     dependencies:
+<<<<<<< HEAD
       '@headlessui/react': 1.7.15(react-dom@18.2.0)(react@18.2.0)
       '@popperjs/core': 2.11.6
+=======
+      '@headlessui/react': 1.7.4(react-dom@18.2.0)(react@18.2.0)
+      '@mdx-js/react': 2.1.5(react@18.2.0)
+      '@popperjs/core': 2.11.6
+      '@reach/skip-nav': 0.17.0(react-dom@18.2.0)(react@18.2.0)
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
       clsx: 1.2.1
       flexsearch: 0.7.31
       focus-visible: 5.2.0
       git-url-parse: 13.1.0
       intersection-observer: 0.12.2
       match-sorter: 6.3.1
+<<<<<<< HEAD
       next: 13.4.12(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0)
       next-seo: 6.1.0(next@13.4.12)(react-dom@18.2.0)(react@18.2.0)
       next-themes: 0.2.1(next@13.4.12)(react-dom@18.2.0)(react@18.2.0)
@@ -10754,6 +11355,18 @@ packages:
   /nextra@2.10.0(next@13.4.12)(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-euv93UnWpdth8slMRJLqMrWvCCzR/VTVH6DPrn1JW7hZS03c2lzG2q+fsiYULGiy/kFyysmlxd4Nx5KGB1Txwg==}
     engines: {node: '>=16'}
+=======
+      next: 12.3.4(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0)
+      next-seo: 5.14.1(next@12.3.4)(react-dom@18.2.0)(react@18.2.0)
+      next-themes: 0.2.1(next@12.3.4)(react-dom@18.2.0)(react@18.2.0)
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      scroll-into-view-if-needed: 2.2.31
+    dev: false
+
+  /nextra@2.0.1(next@12.3.4)(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-IOBwqMREnadxGryNHvwr3sZuD90uyaTxCWi9yxDB56UndsLBTulKwXNIOdW1FV+vKTbSGpz89wNe665Moli7Kw==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     peerDependencies:
       next: '>=9.5.3'
       react: '>=16.13.1'
@@ -10769,6 +11382,7 @@ packages:
       github-slugger: 2.0.0
       graceful-fs: 4.2.11
       gray-matter: 4.0.3
+<<<<<<< HEAD
       katex: 0.16.8
       lodash.get: 4.4.2
       next: 13.4.12(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0)
@@ -10778,6 +11392,13 @@ packages:
       react-dom: 18.2.0(react@18.2.0)
       rehype-katex: 6.0.3
       rehype-pretty-code: 0.9.11(shiki@0.14.3)
+=======
+      next: 12.3.4(@babel/core@7.21.0)(react-dom@18.2.0)(react@18.2.0)
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      rehype-mdx-title: 1.0.0
+      rehype-pretty-code: 0.2.4(shiki@0.10.1)
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
       remark-gfm: 3.0.1
       remark-math: 5.1.1
       remark-reading-time: 2.0.1
@@ -10838,10 +11459,13 @@ packages:
   /node-releases@2.0.10:
     resolution: {integrity: sha512-5GFldHPXVG/YZmFzJvKK2zDSzPKhEp0+ZR5SVaoSag9fsL5YgHbUHDfnG5494ISANDcK4KwPXAx2xqVEydmd7w==}
 
+<<<<<<< HEAD
   /non-layered-tidy-tree-layout@2.0.2:
     resolution: {integrity: sha512-gkXMxRzUH+PB0ax9dUN0yYF0S25BqeAYqhgMaLUFmpXLEk7Fcu8f4emJuOAY0V8kjDICxROIKsTAKsV/v355xw==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /normalize-package-data@2.5.0:
     resolution: {integrity: sha512-/5CMN3T0R4XTj4DcGaexo+roZSdSFW/0AOOTROrjxzCG1wrWXEsGbRKevjlIL+ZDE4sZlJr5ED4YW0yqmkK+eA==}
     dependencies:
@@ -10901,6 +11525,13 @@ packages:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
     engines: {node: '>=0.10.0'}
 
+<<<<<<< HEAD
+=======
+  /object-inspect@1.12.2:
+    resolution: {integrity: sha512-z+cPxW0QGUp0mcqcsgQyLVRDoXFQbXOwBaqyF7VIgI4TWNQsDHrBpUQslRmIfAoYWdYzs6UlKJtB2XJpTaNSpQ==}
+    dev: true
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /object-inspect@1.12.3:
     resolution: {integrity: sha512-geUvdk7c+eizMNUDkRpW1wJwgfOiOeHbxBR/hLXK1aT6zmVSO0jsQcs7fj6MGw89jC/cjGfLcNOrtMYtGqm81g==}
 
@@ -11085,6 +11716,7 @@ packages:
       p-limit: 1.3.0
     dev: true
 
+<<<<<<< HEAD
   /p-locate@3.0.0:
     resolution: {integrity: sha512-x+12w/To+4GFfgJhBEpiDcLozRJGegY+Ei7/z0tSLkMmxGZNybVMSfWj9aJn8Z5Fc7dBUNJOOVgPv2H7IwulSQ==}
     engines: {node: '>=6'}
@@ -11092,6 +11724,8 @@ packages:
       p-limit: 2.3.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /p-locate@4.1.0:
     resolution: {integrity: sha512-R79ZZ/0wAxKGu3oYMlz8jy/kbhsNrS7SKZ7PxEHBgJ5+F2mtFW2fK2cOtBh1cHYkQsbzFV7I+EoRKe6Yt0oK7A==}
     engines: {node: '>=8'}
@@ -11111,6 +11745,7 @@ packages:
     engines: {node: '>=6'}
     dev: true
 
+<<<<<<< HEAD
   /p-map@4.0.0:
     resolution: {integrity: sha512-/bjOqmgETBYB5BoEeGVea8dmvHb2m9GLy1E9W43yeyfP6QQCZGFNa+XRceJEuDB6zqr+gKpIAmlLebMpykw/MQ==}
     engines: {node: '>=10'}
@@ -11118,6 +11753,8 @@ packages:
       aggregate-error: 3.1.0
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /p-queue@6.6.2:
     resolution: {integrity: sha512-RwFpb72c/BhQLEXIZ5K2e+AhgNVmIejGlTgiB9MzZ0e93GRvqZ7uSi0dvRF7/XIXDeNkra2fNHBxTyPDGySpjQ==}
     engines: {node: '>=8'}
@@ -11168,8 +11805,13 @@ packages:
     resolution: {integrity: sha512-z6t9dvSJYaPoQq7quMzdEagSFtpGu+utzHqqxmpVWNNZRIXnvqyCvn9XsTdh7c/w0Bqmdz3RB3YnRaKtpRtEXQ==}
     dev: true
 
+<<<<<<< HEAD
   /parse-entities@4.0.1:
     resolution: {integrity: sha512-SWzvYcSJh4d/SGLIOQfZ/CoNv6BTlI6YEQ7Nj82oDVnRpwe/Z/F1EMx42x3JAOwGBlCjeCH0BRJQbQ/opHL17w==}
+=======
+  /parse-entities@4.0.0:
+    resolution: {integrity: sha512-5nk9Fn03x3rEhGaX1FU6IDwG/k+GxLXlFAkgrbM1asuAFl3BhdQWvASaIsmwWypRNcZKHPYnIuOSfIWEyEQnPQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/unist': 2.0.7
       character-entities: 2.0.2
@@ -11213,12 +11855,15 @@ packages:
       parse-path: 7.0.0
     dev: false
 
+<<<<<<< HEAD
   /parse5@7.1.2:
     resolution: {integrity: sha512-Czj1WaSVpaoj0wbhMzLmWD69anp2WH7FXMB9n1Sy8/ZFF9jolSQVMu1Ij5WIyGmcBmhk7EOndpO4mIpihVqAXw==}
     dependencies:
       entities: 4.5.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /parseurl@1.3.3:
     resolution: {integrity: sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==}
     engines: {node: '>= 0.8'}
@@ -11313,8 +11958,13 @@ packages:
     resolution: {integrity: sha512-7EAHlyLHI56VEIdK57uwHdHKIaAGbnXPiw0yWbarQZOKaKpvUIgW0jWRVLiatnM+XXlSwsanIBH/hzGMJulMow==}
     dev: true
 
+<<<<<<< HEAD
   /periscopic@3.1.0:
     resolution: {integrity: sha512-vKiQ8RRtkl9P+r/+oefh25C3fhybptkHKCZSPlcXiJux2tJF55GnEj3BVn4A5gKfq9NWWXXrxkHBwVPUfH0opw==}
+=======
+  /periscopic@3.0.4:
+    resolution: {integrity: sha512-SFx68DxCv0Iyo6APZuw/AKewkkThGwssmU0QWtTlvov3VAtPX+QJ4CadwSaz8nrT5jPIuxdvJWB4PnD2KNDxQg==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/estree': 1.0.1
       estree-walker: 3.0.3
@@ -11381,12 +12031,15 @@ packages:
     resolution: {integrity: sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==}
     engines: {node: '>=8.6'}
 
+<<<<<<< HEAD
   /pidtree@0.6.0:
     resolution: {integrity: sha512-eG2dWTVw5bzqGRztnHExczNxt5VGsE6OwTeCG3fdUf9KBsZzO3R5OIIIzWR+iZA0NtZ+RDVdaoE2dK1cn6jH4g==}
     engines: {node: '>=0.10'}
     hasBin: true
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /pify@4.0.1:
     resolution: {integrity: sha512-uB80kBFb/tfd68bVleG9T5GGsGPjJrLAUpR5PZIrhBnIaRTQRjqdJSsIKkOP6OAIFbj7GOrcudc5pNjZ+geV2g==}
     engines: {node: '>=6'}
@@ -11440,6 +12093,7 @@ packages:
       pathe: 1.1.0
     dev: true
 
+<<<<<<< HEAD
   /pkg-up@3.1.0:
     resolution: {integrity: sha512-nDywThFk1i4BQK4twPQ6TA4RT8bDY96yeuCVBWL3ePARCiEKDRSrNGbFIgUJpLp+XeIR65v8ra7WuJOFUBtkMA==}
     engines: {node: '>=8'}
@@ -11447,6 +12101,8 @@ packages:
       find-up: 3.0.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /plimit-lit@1.5.0:
     resolution: {integrity: sha512-Eb/MqCb1Iv/ok4m1FqIXqvUKPISufcjZ605hl3KM/n8GaX8zfhtgdLwZU3vKjuHGh2O9Rjog/bHTq8ofIShdng==}
     dependencies:
@@ -12010,8 +12666,14 @@ packages:
       jsesc: 0.5.0
     dev: true
 
+<<<<<<< HEAD
   /rehype-katex@6.0.3:
     resolution: {integrity: sha512-ByZlRwRUcWegNbF70CVRm2h/7xy7jQ3R9LaY4VVSvjnoVWwWVhNL60DiZsBpC5tSzYQOCvDbzncIpIjPZWodZA==}
+=======
+  /rehype-mdx-title@1.0.0:
+    resolution: {integrity: sha512-5B/53Y+KQHm4/nrE6pIIPc9Ie2fbPMCLs8WwMGYWWHr+5g3TkmEijRkr8TGYHULtc+C7bOoPR8LIF5DpGROIDg==}
+    engines: {node: '>=12.2.0'}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/hast': 2.3.5
       '@types/katex': 0.14.0
@@ -12021,9 +12683,15 @@ packages:
       unist-util-visit: 4.1.2
     dev: false
 
+<<<<<<< HEAD
   /rehype-pretty-code@0.9.11(shiki@0.14.3):
     resolution: {integrity: sha512-Eq90eCYXQJISktfRZ8PPtwc5SUyH6fJcxS8XOMnHPUQZBtC6RYo67gGlley9X2nR8vlniPj0/7oCDEYHKQa/oA==}
     engines: {node: '>=16'}
+=======
+  /rehype-pretty-code@0.2.4(shiki@0.10.1):
+    resolution: {integrity: sha512-vbqwIa4cNwRaVur9caUw/b0jOQR88Svrs9c9RaQoogvbBxs5X9bWrSe5oFypaRTTq2cpZ45YzJQ7UUPO76LMKA==}
+    engines: {node: ^12.16.0 || >=13.2.0}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     peerDependencies:
       shiki: '*'
     dependencies:
@@ -12044,8 +12712,13 @@ packages:
       - supports-color
     dev: false
 
+<<<<<<< HEAD
   /remark-math@5.1.1:
     resolution: {integrity: sha512-cE5T2R/xLVtfFI4cCePtiRn+e6jKMtFDR3P8V3qpv8wpKjwvHoBA4eJzvX+nVrnlNy0911bdGmuspCSwetfYHw==}
+=======
+  /remark-mdx@2.1.5:
+    resolution: {integrity: sha512-A8vw5s+BgOa968Irt8BO7DfWJTE0Fe7Ge3hX8zzDB1DnwMZTNdK6qF2IcFao+/7nzk1vSysKcFp+3ku4vhMpaQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/mdast': 3.0.12
       mdast-util-math: 2.0.2
@@ -12062,8 +12735,13 @@ packages:
       - supports-color
     dev: false
 
+<<<<<<< HEAD
   /remark-parse@10.0.2:
     resolution: {integrity: sha512-3ydxgHa/ZQzG8LvC7jTXccARYDcRld3VfcgIIFs7bI6vbRSxJJmzgLEIIoYKyrfhaY+ujuWaf/PJiMZXoiCXgw==}
+=======
+  /remark-parse@10.0.1:
+    resolution: {integrity: sha512-1fUyHr2jLsVOkhbvPRBJ5zTKZZyD6yZzYaWCS6BPBdQ8vEMBCH+9zNCDA6tET/zHCi/jLqjCWtlJZUPk+DbnFw==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/mdast': 3.0.12
       mdast-util-from-markdown: 1.3.1
@@ -12126,11 +12804,14 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: true
 
+<<<<<<< HEAD
   /require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
     engines: {node: '>=0.10.0'}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /require-main-filename@2.0.0:
     resolution: {integrity: sha512-NKN5kMDylKuldxYLSUfrbo5Tuzh4hd+2E8NPPX02mZtn1VuREQToYe/ZdlJy+J3uCpfaiGF05e7B8W0iXbQHmg==}
     dev: true
@@ -12247,10 +12928,13 @@ packages:
       semver-compare: 1.0.0
     dev: false
 
+<<<<<<< HEAD
   /robust-predicates@3.0.2:
     resolution: {integrity: sha512-IXgzBWvWQwE6PrDI05OvmXUIruQTcoMDzRsOd5CDvHCVLcLHMTSYvOK5Cm46kWqlV3yAbuSpBZdJ5oP5OUoStg==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /rollup@3.18.0:
     resolution: {integrity: sha512-J8C6VfEBjkvYPESMQYxKHxNOh4A5a3FlP+0BETGo34HEcE4eTlgCrO2+eWzlu2a/sHs2QUkZco+wscH7jhhgWg==}
     engines: {node: '>=14.18.0', npm: '>=8.0.0'}
@@ -12272,6 +12956,7 @@ packages:
     dependencies:
       queue-microtask: 1.2.3
 
+<<<<<<< HEAD
   /rw@1.3.3:
     resolution: {integrity: sha512-PdhdWy89SiZogBLaw42zdeqtRJ//zFd2PgQavcICDUgJT5oW10QCRKbJ6bg4r0/UY2M6BWd5tkxuGFRvCkgfHQ==}
     dev: false
@@ -12282,6 +12967,8 @@ packages:
       tslib: 2.5.3
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /sade@1.8.1:
     resolution: {integrity: sha512-xal3CZX1Xlo/k4ApwCFrHVACi9fBqJ7V+mwhBsuf/1IOKbBy098Fex+Wa/5QMubw09pSZ/u8EY8PWgevJsXp1A==}
     engines: {node: '>=6'}
@@ -12324,8 +13011,13 @@ packages:
       loose-envify: 1.4.0
     dev: false
 
+<<<<<<< HEAD
   /scroll-into-view-if-needed@3.0.10:
     resolution: {integrity: sha512-t44QCeDKAPf1mtQH3fYpWz8IM/DyvHLjs8wUvvwMYxk5moOqCzrMSxK6HQVD0QVmVjXFavoFIPRVrMuJPKAvtg==}
+=======
+  /scroll-into-view-if-needed@2.2.31:
+    resolution: {integrity: sha512-dGCXy99wZQivjmjIqihaBQNjryrz5rueJY7eHfTdyWEiR4ttYpsajb14rn9s5d4DY4EcY6+4+U/maARBXJedkA==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       compute-scroll-into-view: 3.0.3
     dev: false
@@ -12387,6 +13079,7 @@ packages:
     hasBin: true
     dependencies:
       lru-cache: 6.0.0
+<<<<<<< HEAD
     dev: true
 
   /semver@7.5.2:
@@ -12396,6 +13089,17 @@ packages:
     dependencies:
       lru-cache: 6.0.0
 
+=======
+
+  /semver@7.5.2:
+    resolution: {integrity: sha512-SoftuTROv/cRjCze/scjGyiDtcUyxw1rgYQSZY7XTmtR5hX+dm76iDbTH8TkLPHCQmlbQVSSbNZCPM2hb0knnQ==}
+    engines: {node: '>=10'}
+    hasBin: true
+    dependencies:
+      lru-cache: 6.0.0
+    dev: true
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /send@0.18.0:
     resolution: {integrity: sha512-qqWzuOjSFOuqPjFe4NOsMLafToQQwBSOEpS+FwEt3A2V3vKubTquT3vmLTQpFgMXp8AlFWFuP1qKaJZOtPpVXg==}
     engines: {node: '>= 0.8.0'}
@@ -12477,8 +13181,13 @@ packages:
     resolution: {integrity: sha512-8o/QEhSSRb1a5i7TFR0iM4G16Z0vYB2OQVs4G3aAFXjn3T6yEx8AZxy1PgDF7I00LZHYA3WxaSYIf5e5sAX8Rw==}
     dev: false
 
+<<<<<<< HEAD
   /shiki@0.14.3:
     resolution: {integrity: sha512-U3S/a+b0KS+UkTyMjoNojvTgrBHjgp7L6ovhFVZsXmBGnVdQ4K4U9oK0z63w538S91ATngv1vXigHCSWOwnr+g==}
+=======
+  /shiki@0.10.1:
+    resolution: {integrity: sha512-VsY7QJVzU51j5o1+DguUd+6vmCmZ5v/6gYu4vyYAhzjuNQU6P/vmSy4uQaOhvje031qQMiW0d2BwgMH52vqMng==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       ansi-sequence-parser: 1.1.0
       jsonc-parser: 3.2.0
@@ -12517,12 +13226,15 @@ packages:
       simple-concat: 1.0.1
     dev: false
 
+<<<<<<< HEAD
   /simple-git-hooks@2.9.0:
     resolution: {integrity: sha512-waSQ5paUQtyGC0ZxlHmcMmD9I1rRXauikBwX31bX58l5vTOhCEcBC5Bi+ZDkPXTjDnZAF8TbCqKBY+9+sVPScw==}
     hasBin: true
     requiresBuild: true
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /sisteransi@1.0.5:
     resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
     dev: false
@@ -12544,6 +13256,7 @@ packages:
       astral-regex: 2.0.0
       is-fullwidth-code-point: 3.0.0
 
+<<<<<<< HEAD
   /slice-ansi@4.0.0:
     resolution: {integrity: sha512-qMCMfhY040cVHT43K9BFygqYbUPFZKHOg7K73mtTWJRb8pyP3fzf4Ixd5SzdEJQ6MRUg/WBnOLxghZtKKurENQ==}
     engines: {node: '>=10'}
@@ -12553,6 +13266,8 @@ packages:
       is-fullwidth-code-point: 3.0.0
     dev: true
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /slice-ansi@5.0.0:
     resolution: {integrity: sha512-FC+lgizVPfie0kkhqUScwRu1O/lF6NOgJmlCgK+/LYxDCTk8sGelYaHDhFcDN+Sn3Cv+3VSa4Byeo+IMCzpMgQ==}
     engines: {node: '>=12'}
@@ -12580,6 +13295,7 @@ packages:
       atomic-sleep: 1.0.0
     dev: false
 
+<<<<<<< HEAD
   /sort-keys@5.0.0:
     resolution: {integrity: sha512-Pdz01AvCAottHTPQGzndktFNdbRA75BgOfeT1hH+AMnJFv8lynkPi42rfeEhpx1saTEI3YNMWxfqu0sFD1G8pw==}
     engines: {node: '>=12'}
@@ -12587,6 +13303,8 @@ packages:
       is-plain-obj: 4.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /source-map-js@1.0.2:
     resolution: {integrity: sha512-R0XvVJ9WusLiqTCEiGCmICCMplcCkIwwR11mOSD9CR5u+IXYdiseeEuXCVAjS54zqwkLcPNnmU4OeJ6tUrWhDw==}
     engines: {node: '>=0.10.0'}
@@ -12903,14 +13621,24 @@ packages:
       acorn: 8.8.2
     dev: true
 
+<<<<<<< HEAD
   /style-to-object@0.4.1:
     resolution: {integrity: sha512-HFpbb5gr2ypci7Qw+IOhnP2zOU7e77b+rzM+wTzXzfi1PrtBCX0E7Pk4wL4iTLnhzZ+JgEGAhX81ebTg/aYjQw==}
+=======
+  /style-to-object@0.3.0:
+    resolution: {integrity: sha512-CzFnRRXhzWIdItT3OmF8SQfWyahHhjq3HwcMNCNLn+N7klOOqPjMeG/4JSu77D7ypZdGvSzvkrbyeTMizz2VrA==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       inline-style-parser: 0.1.1
     dev: false
 
+<<<<<<< HEAD
   /styled-jsx@5.1.1(@babel/core@7.21.0)(react@18.2.0):
     resolution: {integrity: sha512-pW7uC1l4mBZ8ugbiZrcIsiIvVx1UmTfw7UkC3Um2tmfUq9Bhk8IiyEIPl6F8agHgjzku6j0xQEZbfA5uSgSaCw==}
+=======
+  /styled-jsx@5.0.7(@babel/core@7.21.0)(react@18.2.0):
+    resolution: {integrity: sha512-b3sUzamS086YLRuvnaDigdAewz1/EFYlHpYBP5mZovKEdQQOIIYq8lApylub3HHZ6xFjV051kkGU7cudJmrXEA==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     engines: {node: '>= 12.0.0'}
     peerDependencies:
       '@babel/core': '*'
@@ -12923,6 +13651,7 @@ packages:
         optional: true
     dependencies:
       '@babel/core': 7.21.0
+<<<<<<< HEAD
       client-only: 0.0.1
       react: 18.2.0
     dev: false
@@ -12931,6 +13660,11 @@ packages:
     resolution: {integrity: sha512-E87pIogpwUsUwXw7dNyU4QDjdgVMy52m+XEOPEKUn161cCzWjjhPSQhByfd1CcNvrOLnXQ6OnnZDwnJrz/Z4YQ==}
     dev: false
 
+=======
+      react: 18.2.0
+    dev: false
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /sucrase@3.29.0:
     resolution: {integrity: sha512-bZPAuGA5SdFHuzqIhTAqt9fvNEo9rESqXIG3oiKdF8K4UmkQxC4KlNL3lVyAErXp+mPvUqZ5l13qx6TrDIGf3A==}
     engines: {node: '>=8'}
@@ -13194,6 +13928,13 @@ packages:
       globrex: 0.1.2
     dev: true
 
+<<<<<<< HEAD
+=======
+  /tiny-warning@1.0.3:
+    resolution: {integrity: sha512-lBN9zLN/oAf68o3zNXYrdCt1kP8WsiGW8Oo2ka41b2IM5JL/S1CTyX1rW0mb/zSuJun0ZUrDxx4sqvYS2FWzPA==}
+    dev: false
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /tinybench@2.4.0:
     resolution: {integrity: sha512-iyziEiyFxX4kyxSp+MtY1oCH/lvjH3PxFN8PGCDeqcZWAJ/i+9y+nL85w99PxVzrIvew/GSkSbDYtiGVa85Afg==}
     dev: true
@@ -13302,11 +14043,14 @@ packages:
     resolution: {integrity: sha512-AqTiAOLcj85xS7vQ8QkAV41hPDIJ71XJB4RCUrzo/1GM2CQwhkJGaf9Hgr7BOugMRpgGUrqRg/DrBDl4H40+8g==}
     dev: false
 
+<<<<<<< HEAD
   /ts-dedent@2.2.0:
     resolution: {integrity: sha512-q5W7tVM71e2xjHZTlgfTDoPF/SmqKG5hddq9SzR49CH2hayqRKJtQ4mtRlSxKaJlR/+9rEM+mnBHf7I2/BQcpQ==}
     engines: {node: '>=6.10'}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /ts-interface-checker@0.1.13:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
     dev: true
@@ -13580,11 +14324,14 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
+<<<<<<< HEAD
   /type-fest@1.4.0:
     resolution: {integrity: sha512-yGSza74xk0UG8k+pLh5oeoYirvIiWo5t0/o3zHHAO2tRDiZcxWP7fywNlXhqb6/r6sWvwi+RsyQMWhVLe4BVuA==}
     engines: {node: '>=10'}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /type-fest@2.19.0:
     resolution: {integrity: sha512-RAH822pAdBgcNMAfWnCBU3CFZcfZ/i1eZjwFU/dsLKumyuuP3niueg2UAukXYF0E2AAoc82ZSSf9J0WQBinzHA==}
     engines: {node: '>=12.20'}
@@ -13675,39 +14422,71 @@ packages:
       vfile: 5.3.6
     dev: false
 
+<<<<<<< HEAD
   /unist-util-find-after@4.0.1:
     resolution: {integrity: sha512-QO/PuPMm2ERxC6vFXEPtmAutOopy5PknD+Oq64gGwxKtk4xwo9Z97t9Av1obPmGU0IyTa6EKYUfTrK2QJS3Ozw==}
+=======
+  /unist-builder@3.0.0:
+    resolution: {integrity: sha512-GFxmfEAa0vi9i5sd0R2kcrI9ks0r82NasRq5QHh2ysGngrc6GiqD5CDf1FjPenY4vApmFASBIIlk/jj5J5YbmQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/unist': 2.0.7
       unist-util-is: 5.2.1
     dev: false
 
+<<<<<<< HEAD
   /unist-util-generated@2.0.1:
     resolution: {integrity: sha512-qF72kLmPxAw0oN2fwpWIqbXAVyEqUzDHMsbtPvOudIlUzXYFIeQIuxXQCRCFh22B7cixvU0MG7m3MW8FTq/S+A==}
     dev: false
 
+=======
+  /unist-util-generated@2.0.0:
+    resolution: {integrity: sha512-TiWE6DVtVe7Ye2QxOVW9kqybs6cZexNwTwSMVgkfjEReqy/xwGpAXb99OxktoWwmL+Z+Epb0Dn8/GNDYP1wnUw==}
+    dev: false
+
+  /unist-util-is@4.1.0:
+    resolution: {integrity: sha512-ZOQSsnce92GrxSqlnEEseX0gi7GH9zTJZ0p9dtu87WRb/37mMPO2Ilx1s/t9vBHrFhbgweUwb+t7cIn5dxPhZg==}
+    dev: false
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /unist-util-is@5.1.1:
     resolution: {integrity: sha512-F5CZ68eYzuSvJjGhCLPL3cYx45IxkqXSetCcRgUXtbcm50X2L9oOWQlfUfDdAf+6Pd27YDblBfdtmsThXmwpbQ==}
     dev: false
 
+<<<<<<< HEAD
   /unist-util-is@5.2.1:
     resolution: {integrity: sha512-u9njyyfEh43npf1M+yGKDGVPbY/JWEemg5nH05ncKPfi+kBbKBJoTdsogMu33uhytuLlv9y0O7GH7fEdwLdLQw==}
+=======
+  /unist-util-position-from-estree@1.1.1:
+    resolution: {integrity: sha512-xtoY50b5+7IH8tFbkw64gisG9tMSpxDjhX9TmaJJae/XuxQ9R/Kc8Nv1eOsf43Gt4KV/LkriMy9mptDr7XLcaw==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/unist': 2.0.7
     dev: false
 
+<<<<<<< HEAD
   /unist-util-is@6.0.0:
     resolution: {integrity: sha512-2qCTHimwdxLfz+YzdGfkqNlH0tLi9xjTnHddPmJwtIG9MGsdbutfTc4P+haPD7l7Cjxf/WZj+we5qfVPvvxfYw==}
+=======
+  /unist-util-position@4.0.3:
+    resolution: {integrity: sha512-p/5EMGIa1qwbXjA+QgcBXaPWjSnZfQ2Sc3yBEEfgPwsEmJd8Qh+DSk3LGnmOM4S1bY2C0AjmMnB8RuEYxpPwXQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/unist': 3.0.0
     dev: false
 
+<<<<<<< HEAD
   /unist-util-position-from-estree@1.1.2:
     resolution: {integrity: sha512-poZa0eXpS+/XpoQwGwl79UUdea4ol2ZuCYguVaJS4qzIOMDzbqz8a3erUCOmubSZkaOuGamb3tX790iwOIROww==}
+=======
+  /unist-util-remove-position@4.0.1:
+    resolution: {integrity: sha512-0yDkppiIhDlPrfHELgB+NLQD5mfjup3a8UYclHruTJWmY74je8g+CIFr79x5f6AkmzSwlvKLbs63hC0meOMowQ==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/unist': 2.0.7
     dev: false
 
+<<<<<<< HEAD
   /unist-util-position@4.0.4:
     resolution: {integrity: sha512-kUBE91efOWfIVBo8xzh/uZQ7p9ffYRtUbMRZBNFYwf0RK8koUMx6dGUfwylLOKmaT2cs4wSW96QoYUSXAyEtpg==}
     dependencies:
@@ -13729,14 +14508,21 @@ packages:
       unist-util-visit-parents: 6.0.1
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /unist-util-stringify-position@3.0.2:
     resolution: {integrity: sha512-7A6eiDCs9UtjcwZOcCpM4aPII3bAAGv13E96IkawkOAW0OhH+yRxtY0lzo8KiHpzEMfH7Q+FizUmwp8Iqy5EWg==}
     dependencies:
       '@types/unist': 2.0.6
     dev: false
 
+<<<<<<< HEAD
   /unist-util-stringify-position@3.0.3:
     resolution: {integrity: sha512-k5GzIBZ/QatR8N5X2y+drfpWG8IDBzdnVj6OInRNWm1oXrzydiaAT2OQiA8DPRRZyAKb9b6I2a6PxYklZD0gKg==}
+=======
+  /unist-util-visit-parents@3.1.1:
+    resolution: {integrity: sha512-1KROIZWo6bcMrZEwiH2UrXDyalAa0uqzWCxCJj6lPOvTve2WkfgCytoDTPaMnodXh1WrXOq0haVYHj99ynJlsg==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/unist': 2.0.7
     dev: false
@@ -13755,13 +14541,19 @@ packages:
       unist-util-is: 5.1.1
     dev: false
 
+<<<<<<< HEAD
   /unist-util-visit-parents@5.1.3:
     resolution: {integrity: sha512-x6+y8g7wWMyQhL1iZfhIPhDAs7Xwbn9nRosDXl7qoPTSCy0yNxnKc+hWokFifWQIDGi154rdUqKvbCa4+1kLhg==}
+=======
+  /unist-util-visit@2.0.3:
+    resolution: {integrity: sha512-iJ4/RczbJMkD0712mGktuGpm/U4By4FfDonL7N/9tATGIF4imikjOuagyMY53tnZq3NP6BcmlrHhEKAfGWjh7Q==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/unist': 2.0.7
       unist-util-is: 5.2.1
     dev: false
 
+<<<<<<< HEAD
   /unist-util-visit-parents@6.0.1:
     resolution: {integrity: sha512-L/PqWzfTP9lzzEa6CKs0k2nARxTdZduw3zyh8d2NVBnsyvHjSX4TWse388YrrQKbvI8w20fGjGlhgT96WwKykw==}
     dependencies:
@@ -13769,6 +14561,8 @@ packages:
       unist-util-is: 6.0.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /unist-util-visit@3.1.0:
     resolution: {integrity: sha512-Szoh+R/Ll68QWAyQyZZpQzZQm2UPbxibDvaY8Xc9SUtYgPsDzx5AWSk++UUt2hJuow8mvwR+rG+LQLw+KsuAKA==}
     dependencies:
@@ -13777,14 +14571,20 @@ packages:
       unist-util-visit-parents: 4.1.1
     dev: false
 
+<<<<<<< HEAD
   /unist-util-visit@4.1.2:
     resolution: {integrity: sha512-MSd8OUGISqHdVvfY9TPhyK2VdUrPgxkUtWSuMHF6XAAFuL4LokseigBnZtPnJMu+FbynTkFNnFlyjxpVKujMRg==}
+=======
+  /unist-util-visit@4.1.1:
+    resolution: {integrity: sha512-n9KN3WV9k4h1DxYR1LoajgN93wpEi/7ZplVe02IoB4gH5ctI1AaF2670BLHQYbwj+pY83gFtyeySFiyMHJklrg==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/unist': 2.0.7
       unist-util-is: 5.2.1
       unist-util-visit-parents: 5.1.3
     dev: false
 
+<<<<<<< HEAD
   /unist-util-visit@5.0.0:
     resolution: {integrity: sha512-MR04uvD+07cwl/yhVuVWAtw+3GOR/knlL55Nd/wAdblk27GCVt3lqpTivy/tkJcZoNPzTwS1Y+KMojlLDhoTzg==}
     dependencies:
@@ -13793,6 +14593,8 @@ packages:
       unist-util-visit-parents: 6.0.1
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /universalify@0.1.2:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
@@ -13827,6 +14629,17 @@ packages:
     resolution: {integrity: sha512-Qp95D4TPJl1kC9SKigDcqgyM2VDVO4RiJc2d4qe5GrYm+zbIQCWWKAFaJNQ4BhdFeDGwBmAxqJBwWSJDb9T3BQ==}
     dev: true
 
+<<<<<<< HEAD
+=======
+  /use-sync-external-store@1.2.0(react@18.2.0):
+    resolution: {integrity: sha512-eEgnFxGQ1Ife9bzYs6VLi8/4X6CObHMw9Qr9tPY43iKwsPw8xE8+EFsf/2cFZ5S3esXgpWgtSCtLNS41F+sKPA==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0
+    dependencies:
+      react: 18.2.0
+    dev: false
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /utf8@3.0.0:
     resolution: {integrity: sha512-E8VjFIQ/TyQgp+TZfS6l8yp/xWppSAHzidGiRrqe4bK4XP9pTRyKFgGJpO3SN7zdX4DeomTrwaseCHovfpFcqQ==}
     dev: true
@@ -13850,11 +14663,14 @@ packages:
     hasBin: true
     dev: true
 
+<<<<<<< HEAD
   /uuid@9.0.0:
     resolution: {integrity: sha512-MXcSTerfPa4uqyzStbRoTgt5XIe3x5+42+q1sDuy3R5MDk66URdLMOZe5aPX/SQd+kuYAh0FdP/pO28IkQyTeg==}
     hasBin: true
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /uvu@0.5.6:
     resolution: {integrity: sha512-+g8ENReyr8YsOc6fv/NVJs2vFdHBnBNdfE49rshrTzDWOlUx4Gq7KOS2GD8eqhy2j+Ejq29+SbKH8yjkAqXqoA==}
     engines: {node: '>=8'}
@@ -13899,13 +14715,19 @@ packages:
       extsprintf: 1.3.0
     dev: true
 
+<<<<<<< HEAD
   /vfile-location@4.1.0:
     resolution: {integrity: sha512-YF23YMyASIIJXpktBa4vIGLJ5Gs88UB/XePgqPmTa7cDA+JeO3yclbpheQYCHjVHBn/yePzrXuygIL+xbvRYHw==}
+=======
+  /vfile-location@4.0.1:
+    resolution: {integrity: sha512-JDxPlTbZrZCQXogGheBHjbRWjESSPEak770XwWPfw5mTc1v1nWGLB/apzZxsx8a0SJVfF8HK8ql8RD308vXRUw==}
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
     dependencies:
       '@types/unist': 2.0.7
       vfile: 5.3.7
     dev: false
 
+<<<<<<< HEAD
   /vfile-matter@3.0.1:
     resolution: {integrity: sha512-CAAIDwnh6ZdtrqAuxdElUqQRQDQgbbIrYtDYI8gCjXS1qQ+1XdLoK8FIZWxJwn0/I+BkSSZpar3SOgjemQz4fg==}
     dependencies:
@@ -13914,6 +14736,8 @@ packages:
       js-yaml: 4.1.0
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /vfile-message@3.1.3:
     resolution: {integrity: sha512-0yaU+rj2gKAyEk12ffdSbBfjnnj+b1zqTBv3OQCTn8yEB02bsPizwdBPrLJjHnK+cU9EMMcUnNv938XcZIkmdA==}
     dependencies:
@@ -13921,6 +14745,7 @@ packages:
       unist-util-stringify-position: 3.0.2
     dev: false
 
+<<<<<<< HEAD
   /vfile-message@3.1.4:
     resolution: {integrity: sha512-fa0Z6P8HUrQN4BZaX05SIVXic+7kE3b05PWAtPuYP9QLHsLKYR7/AlLW3NtOrpXRLeawpDLMsVkmk5DG0NXgWw==}
     dependencies:
@@ -13928,6 +14753,8 @@ packages:
       unist-util-stringify-position: 3.0.3
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /vfile@5.3.6:
     resolution: {integrity: sha512-ADBsmerdGBs2WYckrLBEmuETSPyTD4TuLxTrw0DvjirxW1ra4ZwkbzG8ndsv3Q57smvHxo677MHaQrY9yxH8cA==}
     dependencies:
@@ -13937,6 +14764,7 @@ packages:
       vfile-message: 3.1.3
     dev: false
 
+<<<<<<< HEAD
   /vfile@5.3.7:
     resolution: {integrity: sha512-r7qlzkgErKjobAmyNIkkSpizsFPYiUPuJb5pNW1RB4JcYVZhs4lIbVqk8XPk033CV/1z8ss5pkax8SuhGpcG8g==}
     dependencies:
@@ -13946,6 +14774,8 @@ packages:
       vfile-message: 3.1.4
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /viem@0.3.50(typescript@5.1.3):
     resolution: {integrity: sha512-s+LxCYZTR9F/qPk1/n1YDVAX9vSeVz7GraqBZWGrDuenCJxo9ArCoIceJ6ksI0WwSeNzcZ0VVbD/kWRzTxkipw==}
     dependencies:
@@ -14133,6 +14963,7 @@ packages:
     resolution: {integrity: sha512-L9WMGRfrjOhgHSdOYgCt/yRMsXzLDJSL7BPrOZt73gU0iWO4mpqzqQzOz5srxqTvMBaR0XZTSrVWo4j55Rc6cA==}
     dev: false
 
+<<<<<<< HEAD
   /vscode-textmate@8.0.0:
     resolution: {integrity: sha512-AFbieoL7a5LMqcnOF04ji+rpXadgOXnZsxQr//r83kLPr7biP7am3g9zbaZIaBGwBRWeSvoMD4mgPdX3e4NWBg==}
     dev: false
@@ -14145,25 +14976,37 @@ packages:
       graceful-fs: 4.2.11
     dev: false
 
+=======
+  /vscode-textmate@5.2.0:
+    resolution: {integrity: sha512-Uw5ooOQxRASHgu6C7GVvUxisKXfSgW4oFlO+aa+PAkgmH89O3CXxEEzNRNtHSqtXFTl0nAC1uYj0GMSH27uwtQ==}
+    dev: false
+
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /wcwidth@1.0.1:
     resolution: {integrity: sha512-XHPEwS0q6TaxcvG85+8EYkbiCux2XtWG2mkc47Ng2A77BQu9+DqIOJldST4HgPkuea7dvKSj5VgX3P1d4rW8Tg==}
     dependencies:
       defaults: 1.0.4
     dev: true
 
+<<<<<<< HEAD
   /web-namespaces@2.0.1:
     resolution: {integrity: sha512-bKr1DkiNa2krS7qxNtdrtHAmzuYGFQLiQ13TsorsdT6ULTkPLKuu5+GsFpDlg6JFjUTwX2DyhMPG2be8uPrqsQ==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /web-streams-polyfill@3.2.1:
     resolution: {integrity: sha512-e0MO3wdXWKrLbL0DgGnUV7WHVuw9OUvL4hjgnPkIeEvESk74gAITi5G606JtZPp39cd8HA9VQzCIvA49LpPN5Q==}
     engines: {node: '>= 8'}
     dev: true
 
+<<<<<<< HEAD
   /web-worker@1.2.0:
     resolution: {integrity: sha512-PgF341avzqyx60neE9DD+XS26MMNMoUQRz9NOZwW32nPQrF6p77f1htcnjBSEV8BGMKZ16choqUG4hyI0Hx7mA==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /web3-eth-abi@1.7.0:
     resolution: {integrity: sha512-heqR0bWxgCJwjWIhq2sGyNj9bwun5+Xox/LdZKe+WMyTSy0cXDXEAgv3XKNkXC4JqdDt/ZlbTEx4TWak4TRMSg==}
     engines: {node: '>=8.0.0'}
@@ -14453,10 +15296,13 @@ packages:
       '@types/yoga-layout': 1.9.2
     dev: false
 
+<<<<<<< HEAD
   /zod@3.21.4:
     resolution: {integrity: sha512-m46AKbrzKVzOzs/DZgVnG5H55N1sv1M8qZU3A8RIKbs3mrACDNeIOeilDymVb2HdmP8uwshOCF4uJ8uM9rCqJw==}
     dev: false
 
+=======
+>>>>>>> 5a5bd68 (add links to schema design tips to generated schema)
   /zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
     dev: false
