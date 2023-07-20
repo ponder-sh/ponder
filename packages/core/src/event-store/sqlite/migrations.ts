@@ -125,11 +125,61 @@ const migrations: Record<string, Migration> = {
         .columns(["filterKey"])
         .execute();
     },
-
     async down(db: Kysely<any>) {
       await db.schema.dropIndex("log_events_index").execute();
-      await db.schema.dropIndex("logFilterCachedRanges_index").execute();
       await db.schema.dropIndex("blocks_index").execute();
+      await db.schema.dropIndex("logFilterCachedRanges_index").execute();
+    },
+  },
+  ["2023_07_18_0_better_indices"]: {
+    async up(db: Kysely<any>) {
+      // Drop old indices.
+      await db.schema.dropIndex("log_events_index").execute();
+      await db.schema.dropIndex("blocks_index").execute();
+
+      // Block hash is a join key.
+      await db.schema
+        .createIndex("log_block_hash_index")
+        .on("logs")
+        .column("blockHash")
+        .execute();
+
+      // Chain ID, address and topic0 are all used in WHERE clauses.
+      await db.schema
+        .createIndex("log_chain_id_index")
+        .on("logs")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("log_address_index")
+        .on("logs")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("log_topic0_index")
+        .on("logs")
+        .column("topic0")
+        .execute();
+
+      // Block timestamp and number are both used in WHERE and SORT clauses.
+      await db.schema
+        .createIndex("block_timestamp_index")
+        .on("blocks")
+        .column("timestamp")
+        .execute();
+      await db.schema
+        .createIndex("block_number_index")
+        .on("blocks")
+        .column("number")
+        .execute();
+    },
+    async down(db: Kysely<any>) {
+      await db.schema.dropIndex("log_block_hash_index").execute();
+      await db.schema.dropIndex("log_chain_id_index").execute();
+      await db.schema.dropIndex("log_address_index").execute();
+      await db.schema.dropIndex("log_topic0_index").execute();
+      await db.schema.dropIndex("block_timestamp_index").execute();
+      await db.schema.dropIndex("block_number_index").execute();
     },
   },
 };
