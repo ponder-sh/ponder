@@ -8,7 +8,7 @@ export const config: Config = {
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: process.env.PONDER_RPC_URL_1,
+      rpcUrl: process.env.ANVIL_FORK_URL,
     },
   ],
   contracts: [

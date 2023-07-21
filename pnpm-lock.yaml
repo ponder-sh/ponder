@@ -37,6 +37,7 @@ importers:
     specifiers:
       '@graphprotocol/graph-cli': ^0.51.1
       '@graphprotocol/graph-ts': ^0.31.0
+      '@ponder/core': workspace:latest
       '@types/node': ^18.16.18
       execa: ^5.1.1
       node-fetch: ^2.6.11
@@ -47,6 +48,7 @@ importers:
     devDependencies:
       '@graphprotocol/graph-cli': 0.51.1_abeepsrynann33voqrzxqgefmu
       '@graphprotocol/graph-ts': 0.31.0
+      '@ponder/core': link:../packages/core
       '@types/node': 18.16.18
       execa: 5.1.1
       node-fetch: 2.6.11
