@@ -1401,6 +1401,39 @@ test("serves plural entities versioned at specified timestamp", async (context) 
   await userStore.teardown();
 });
 
+test("derived field respects skip argument", async (context) => {
+  const { resources, userStore } = context;
+  const { service, gql, createTestEntity, createEntityWithBigIntId } =
+    await setup({
+      resources,
+      userStore,
+    });
+
+  await createTestEntity({ id: 0 });
+  await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
+  await createEntityWithBigIntId({ id: BigInt(1), testEntityId: "0" });
+  await createEntityWithBigIntId({ id: BigInt(2), testEntityId: "0" });
+
+  const response = await gql(`
+    testEntitys {
+      id
+      derived(skip: 2) {
+        id
+      }
+    }
+  `);
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const testEntitys = response.body.data.testEntitys;
+  expect(testEntitys[0].derived).toHaveLength(1);
+  expect(testEntitys[0].derived[0]).toMatchObject({
+    id: "2",
+  });
+
+  await service.kill();
+  await userStore.teardown();
+});
+
 // This is a known limitation for now, which is that the timestamp version of entities
 // returned in derived fields does not inherit the timestamp argument provided to the parent.
 // So, if you want to use time-travel queries with derived fields, you need to manually
