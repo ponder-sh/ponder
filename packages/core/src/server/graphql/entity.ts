@@ -35,7 +35,9 @@ export const buildEntityType = ({
               // Convert bigints to strings for GraphQL responses.
               resolve:
                 field.scalarTypeName === "BigInt"
-                  ? (parent) => (parent[field.name] as bigint).toString()
+                  ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                    (parent) => (parent[field.name] as bigint).toString()
                   : undefined,
             };
             break;
