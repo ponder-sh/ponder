@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.0.75
+
+### Patch Changes
+
+- [#267](https://github.com/0xOlias/ponder/pull/267) [`a683c22`](https://github.com/0xOlias/ponder/commit/a683c2281950cd99b7f74eec78128655993f7ff5) Thanks [@0xOlias](https://github.com/0xOlias)! - Added validations for log filter start blocks. Fixed a bug where, if the start block of a log filter was in the unfinalized range, the app would fail.
+
+- [#267](https://github.com/0xOlias/ponder/pull/267) [`a683c22`](https://github.com/0xOlias/ponder/commit/a683c2281950cd99b7f74eec78128655993f7ff5) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where if a network is present in config that doesn't have any log filters associated with it, the entire app would fail to process events in real-time.
+
+- [#267](https://github.com/0xOlias/ponder/pull/267) [`a683c22`](https://github.com/0xOlias/ponder/commit/a683c2281950cd99b7f74eec78128655993f7ff5) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where errors encountered during setup would not be logged when using `ponder start`.
+
 ## 0.0.74
 
 ### Patch Changes
