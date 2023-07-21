@@ -147,7 +147,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           if (userDefinedEndBlock > finalizedBlockNumber) {
             throw new Error(
-              `End block number (${userDefinedEndBlock}) cannot be unfinalized (${latestBlockNumber}).
+              `End block number (${userDefinedEndBlock}) cannot be greater than finalized block number (${finalizedBlockNumber}).
                Are you sure the RPC endpoint is for the correct network?`
             );
           }
