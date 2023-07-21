@@ -1300,8 +1300,11 @@ test("limits and skips together as expected", async (context) => {
 });
 
 test("serves singular entity versioned at specified timestamp", async (context) => {
-  const { userStore } = context;
-  const { service, gql, createTestEntity } = await setup({ userStore });
+  const { resources, userStore } = context;
+  const { service, gql, createTestEntity } = await setup({
+    resources,
+    userStore,
+  });
 
   await createTestEntity({ id: 1 });
   await userStore.update({
@@ -1335,13 +1338,16 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   const testEntity = response.body.data.testEntity;
   expect(testEntity.string).toBe("updated");
 
-  await service.teardown();
+  await service.kill();
   await userStore.teardown();
 });
 
 test("serves plural entities versioned at specified timestamp", async (context) => {
-  const { userStore } = context;
-  const { service, gql, createTestEntity } = await setup({ userStore });
+  const { resources, userStore } = context;
+  const { service, gql, createTestEntity } = await setup({
+    resources,
+    userStore,
+  });
 
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 2 });
@@ -1391,14 +1397,17 @@ test("serves plural entities versioned at specified timestamp", async (context) 
     { id: "2", string: "updated" },
   ]);
 
-  await service.teardown();
+  await service.kill();
   await userStore.teardown();
 });
 
-test.only("serves derived entities versioned at provided timestamp", async (context) => {
-  const { userStore } = context;
+test("serves derived entities versioned at provided timestamp", async (context) => {
+  const { resources, userStore } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
-    await setup({ userStore });
+    await setup({
+      resources,
+      userStore,
+    });
 
   await createTestEntity({ id: 0 });
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
@@ -1446,6 +1455,6 @@ test.only("serves derived entities versioned at provided timestamp", async (cont
     derived: [],
   });
 
-  await service.teardown();
+  await service.kill();
   await userStore.teardown();
 });
