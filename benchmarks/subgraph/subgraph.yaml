@@ -3,11 +3,11 @@ schema:
   file: ./schema.graphql
 dataSources:
   - kind: ethereum
-    name: WETH
+    name: RocketTokenRETH
     network: mainnet
     source:
-      address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
-      abi: WETH
+      address: "0xae78736cd615f374d3085123a210448e74fc6393"
+      abi: RocketTokenRETH
       startBlock: 17500000
     mapping:
       kind: ethereum/events
@@ -16,18 +16,12 @@ dataSources:
       entities:
         - Approval
         - Transfer
-        - Deposit
-        - Withdrawal
       abis:
-        - name: WETH
-          file: ./abis/WETH.json
+        - name: RocketTokenRETH
+          file: ./abis/RocketTokenRETH.json
       eventHandlers:
         - event: Approval(indexed address,indexed address,uint256)
           handler: handleApproval
         - event: Transfer(indexed address,indexed address,uint256)
           handler: handleTransfer
-        - event: Deposit(indexed address,uint256)
-          handler: handleDeposit
-        - event: Withdrawal(indexed address,uint256)
-          handler: handleWithdrawal
-      file: ./src/weth.ts
+      file: ./src/mapping.ts
