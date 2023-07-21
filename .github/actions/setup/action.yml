@@ -22,3 +22,7 @@ runs:
     - name: Build
       shell: bash
       run: pnpm build
+
+    - name: Link workspace binaries
+      shell: bash
+      run: pnpm install
