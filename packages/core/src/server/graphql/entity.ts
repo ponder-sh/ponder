@@ -1,10 +1,12 @@
 import {
   GraphQLFieldConfigMap,
   GraphQLFieldResolver,
+  GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
   GraphQLOutputType,
+  GraphQLString,
 } from "graphql";
 
 import type { Entity } from "@/schema/types";
@@ -91,13 +93,18 @@ export const buildEntityType = ({
               // @ts-ignore
               const entityId = parent.id;
 
+              const filter = args;
+
               return await store.findMany({
                 modelName: field.derivedFromEntityName,
                 filter: {
-                  where: {
-                    [field.derivedFromFieldName]: entityId,
-                  },
+                  where: { [field.derivedFromFieldName]: entityId },
+                  skip: filter.skip,
+                  first: filter.first,
+                  orderBy: filter.orderBy,
+                  orderDirection: filter.orderDirection,
                 },
+                timestamp: filter.timestamp ? filter.timestamp : undefined,
               });
             };
 
@@ -107,6 +114,13 @@ export const buildEntityType = ({
                   new GraphQLNonNull(entityGqlTypes[field.baseGqlType.name])
                 )
               ),
+              args: {
+                skip: { type: GraphQLInt, defaultValue: 0 },
+                first: { type: GraphQLInt, defaultValue: 100 },
+                orderBy: { type: GraphQLString, defaultValue: "id" },
+                orderDirection: { type: GraphQLString, defaultValue: "asc" },
+                timestamp: { type: GraphQLInt },
+              },
               resolve: resolver,
             };
 

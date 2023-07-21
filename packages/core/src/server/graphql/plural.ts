@@ -23,6 +23,7 @@ type PluralArgs = {
   skip?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
+  timestamp?: number;
 };
 type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
@@ -163,7 +164,17 @@ const buildPluralField = ({
 
     const filter = args;
 
-    return await store.findMany({ modelName: entity.name, filter });
+    return await store.findMany({
+      modelName: entity.name,
+      filter: {
+        skip: filter.skip,
+        first: filter.first,
+        orderBy: filter.orderBy,
+        orderDirection: filter.orderDirection,
+        where: filter.where,
+      },
+      timestamp: filter.timestamp ? filter.timestamp : undefined,
+    });
   };
 
   return {
@@ -171,11 +182,12 @@ const buildPluralField = ({
       new GraphQLList(new GraphQLNonNull(entityGqlType))
     ),
     args: {
+      skip: { type: GraphQLInt, defaultValue: 0 },
+      first: { type: GraphQLInt, defaultValue: 100 },
+      orderBy: { type: GraphQLString, defaultValue: "id" },
+      orderDirection: { type: GraphQLString, defaultValue: "asc" },
       where: { type: filterType },
-      first: { type: GraphQLInt },
-      skip: { type: GraphQLInt },
-      orderBy: { type: GraphQLString },
-      orderDirection: { type: GraphQLString },
+      timestamp: { type: GraphQLInt },
     },
     resolve: resolver,
   };

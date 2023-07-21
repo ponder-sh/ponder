@@ -32,13 +32,15 @@ type Person @entity {
 {/* prettier-ignore */}
 ```graphql filename="Generated schema"
 type Query {
-  person(id: Int!): Person
+  person(id: Int!, timestamp: Int): Person
+
   persons(
-    where: PersonFilter
-    first: Int
-    skip: Int
-    orderBy: String
-    orderDirection: String
+    skip: Int = 0
+    first: Int = 100
+    orderBy: String = "id"
+    orderDirection: String = "asc"
+    where: PersonFilter,
+    timestamp: Int
   ): [Person!]!
 }
 ```
@@ -47,7 +49,7 @@ type Query {
 
 ## Filtering
 
-The GraphQL API supports filtering through the `where` arguments. The `where` argument is an object that contains filter options for each field you want to filter on. Here are the filter options available for each field type.
+The GraphQL API supports filtering through the `where` argument. The `where` argument type contains filter options for every field defined on your entity. Here are the filter options available for each field type.
 
 | Filter option             | Available for field types                | _Include entities where..._                                      |
 | :------------------------ | :--------------------------------------- | :--------------------------------------------------------------- |
@@ -66,7 +68,7 @@ The GraphQL API supports filtering through the `where` arguments. The `where` ar
 | `{field}_ends_with`       | String scalars (String, Bytes)           | \{field\} is **ends with** specified value                       |
 | `{field}_not_ends_with`   | String scalars (String, Bytes)           | \{field\} is **does not end with** specified value               |
 
-For the following examples, assume these entities exist in your database.
+For all following examples, assume these entities exist in your database.
 
 <div className="code-columns">
 
@@ -179,7 +181,7 @@ query {
 
 ## Sorting
 
-The GraphQL API supports sorting through the `orderBy` and `orderDirection` arguments.
+Use the `orderBy` and `orderDirection` arguments to sort entities by a scalar field. String scalars (String, Bytes) use a lexicographic sort.
 
 | Pagination option | Default |
 | :---------------- | :------ |
@@ -207,6 +209,88 @@ query {
     { "name": "Lucile", "age": 32 },
     { "name": "Sally", "age": 22 },
   ]
+}
+```
+
+</div>
+
+## Time-travel queries
+
+Using time-travel queries, you can query the state of your app's database at any point in history. To construct a time-travel query, pass a Unix timestamp to the `timestamp` argument on any of the root query types.
+
+| Time-travel option | Default                |
+| :----------------- | :--------------------- |
+| `timestamp`        | `undefined` ("latest") |
+
+In this example, consider that only Pablo had been added to the database at the specified timestamp, and his age at that time was 42. The other entities were inserted later.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(timestamp: 1689910567) {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Pablo", "age": 42 },
+  ]
+}
+```
+
+</div>
+
+## Derived fields
+
+Derived fields return the list of child/derived entities that "belong" to the parent. They're very similar to the plural query field that, except derived fields are automatically filtered by the parent's ID.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="schema.graphql"
+type Person @entity {
+  id: Int!
+  pets: [Pet!]! @derivedFrom(field: "ownerId")
+}
+
+type Pet @entity {
+  id: Int!
+  name: String!
+  ownerId: Int!
+}
+```
+
+{/* prettier-ignore */}
+```graphql filename="Generated schema"
+type Query {
+  # ...
+  persons(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: String = "id"
+    orderDirection: String = "asc"
+    where: PersonFilter,
+    timestamp: Int
+  ): [Person!]!
+}
+
+type Person {
+  id: Int!
+  pets(
+    skip: Int = 0
+    first: Int = 100
+    orderBy: String = "id"
+    orderDirection: String = "asc"
+    where: PetFilter, # This automatically has { ownerId: person.id } applied
+    timestamp: Int
+  ): [Pet!]!
 }
 ```
 

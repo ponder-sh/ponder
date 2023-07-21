@@ -71,7 +71,7 @@ const setup = async ({
   const createTestEntity = async ({ id }: { id: number }) => {
     await userStore.create({
       modelName: "TestEntity",
-      timestamp: id,
+      timestamp: 0,
       id: String(id),
       data: {
         string: String(id),
@@ -99,7 +99,7 @@ const setup = async ({
   }) => {
     await userStore.create({
       modelName: "EntityWithBigIntId",
-      timestamp: Number(id),
+      timestamp: 0,
       id,
       data: {
         testEntity: testEntityId,
@@ -288,14 +288,7 @@ test("serves derived types correctly", async (context) => {
   expect(testEntitys).toHaveLength(1);
   expect(testEntitys[0]).toMatchObject({
     id: "0",
-    derived: [
-      {
-        id: "0",
-      },
-      {
-        id: "1",
-      },
-    ],
+    derived: [{ id: "0" }, { id: "1" }],
   });
 
   await service.kill();
@@ -391,9 +384,7 @@ test("filters on string field equals", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "123",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "123" });
 
   await service.kill();
 });
@@ -420,12 +411,8 @@ test("filters on string field in", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({
-    id: "123",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "125",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "123" });
+  expect(testEntitys[1]).toMatchObject({ id: "125" });
 
   await service.kill();
 });
@@ -452,9 +439,7 @@ test("filters on string field contains", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "125",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "125" });
 
   await service.kill();
 });
@@ -481,12 +466,8 @@ test("filters on string field starts with", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({
-    id: "123",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "125",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "123" });
+  expect(testEntitys[1]).toMatchObject({ id: "125" });
 
   await service.kill();
 });
@@ -513,12 +494,8 @@ test("filters on string field not ends with", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({
-    id: "123",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "130",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "123" });
+  expect(testEntitys[1]).toMatchObject({ id: "130" });
 
   await service.kill();
 });
@@ -545,9 +522,7 @@ test("filters on integer field equals", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "0",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "0" });
 
   await service.kill();
 });
@@ -574,9 +549,7 @@ test("filters on integer field greater than", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "2",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -603,12 +576,8 @@ test("filters on integer field less than or equal to", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({
-    id: "0",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "1",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "0" });
+  expect(testEntitys[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -635,12 +604,8 @@ test("filters on integer field in", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({
-    id: "0",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "2",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "0" });
+  expect(testEntitys[1]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -696,9 +661,7 @@ test("filters on float field greater than", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "2",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -726,12 +689,8 @@ test("filters on float field less than or equal to", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({
-    id: "0",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "1",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "0" });
+  expect(testEntitys[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -759,12 +718,8 @@ test("filters on float field in", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({
-    id: "0",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "2",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "0" });
+  expect(testEntitys[1]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -820,9 +775,7 @@ test("filters on bigInt field greater than", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "2",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -850,12 +803,8 @@ test("filters on bigInt field less than or equal to", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({
-    id: "0",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "1",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "0" });
+  expect(testEntitys[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -883,12 +832,8 @@ test("filters on bigInt field in", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({
-    id: "0",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "2",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "0" });
+  expect(testEntitys[1]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -915,9 +860,7 @@ test("filters on string list field equals", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "1",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -944,9 +887,7 @@ test("filters on string list field contains", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "2",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "2" });
 
   await service.kill();
 });
@@ -973,9 +914,7 @@ test("filters on enum field equals", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "1",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1002,12 +941,8 @@ test("filters on enum field in", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(2);
-  expect(testEntitys[0]).toMatchObject({
-    id: "0",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "1",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "0" });
+  expect(testEntitys[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1066,12 +1001,8 @@ test("filters on relationship field in", async (context) => {
   const { entityWithBigIntIds } = response.body.data;
 
   expect(entityWithBigIntIds).toHaveLength(2);
-  expect(entityWithBigIntIds[0]).toMatchObject({
-    id: "0",
-  });
-  expect(entityWithBigIntIds[1]).toMatchObject({
-    id: "1",
-  });
+  expect(entityWithBigIntIds[0]).toMatchObject({ id: "0" });
+  expect(entityWithBigIntIds[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1097,12 +1028,8 @@ test("filters on relationship field in", async (context) => {
   const { entityWithBigIntIds } = response.body.data;
 
   expect(entityWithBigIntIds).toHaveLength(2);
-  expect(entityWithBigIntIds[0]).toMatchObject({
-    id: "0",
-  });
-  expect(entityWithBigIntIds[1]).toMatchObject({
-    id: "1",
-  });
+  expect(entityWithBigIntIds[0]).toMatchObject({ id: "0" });
+  expect(entityWithBigIntIds[1]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1129,15 +1056,9 @@ test("orders by on int field ascending", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({
-    id: "1",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "12",
-  });
-  expect(testEntitys[2]).toMatchObject({
-    id: "123",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "1" });
+  expect(testEntitys[1]).toMatchObject({ id: "12" });
+  expect(testEntitys[2]).toMatchObject({ id: "123" });
 
   await service.kill();
 });
@@ -1164,15 +1085,9 @@ test("orders by on int field descending", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({
-    id: "123",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "12",
-  });
-  expect(testEntitys[2]).toMatchObject({
-    id: "1",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "123" });
+  expect(testEntitys[1]).toMatchObject({ id: "12" });
+  expect(testEntitys[2]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1199,15 +1114,9 @@ test("orders by on bigInt field ascending", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({
-    id: "1",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "12",
-  });
-  expect(testEntitys[2]).toMatchObject({
-    id: "123",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "1" });
+  expect(testEntitys[1]).toMatchObject({ id: "12" });
+  expect(testEntitys[2]).toMatchObject({ id: "123" });
 
   await service.kill();
 });
@@ -1234,15 +1143,9 @@ test("orders by on bigInt field descending", async (context) => {
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({
-    id: "123",
-  });
-  expect(testEntitys[1]).toMatchObject({
-    id: "12",
-  });
-  expect(testEntitys[2]).toMatchObject({
-    id: "1",
-  });
+  expect(testEntitys[0]).toMatchObject({ id: "123" });
+  expect(testEntitys[1]).toMatchObject({ id: "12" });
+  expect(testEntitys[2]).toMatchObject({ id: "1" });
 
   await service.kill();
 });
@@ -1394,4 +1297,201 @@ test("limits and skips together as expected", async (context) => {
   expect(testEntitys[9]).toMatchObject({ id: "59" });
 
   await service.kill();
+});
+
+test("serves singular entity versioned at specified timestamp", async (context) => {
+  const { resources, userStore } = context;
+  const { service, gql, createTestEntity } = await setup({
+    resources,
+    userStore,
+  });
+
+  await createTestEntity({ id: 1 });
+  await userStore.update({
+    modelName: "TestEntity",
+    timestamp: 10,
+    id: String(1),
+    data: {
+      string: "updated",
+    },
+  });
+
+  const responseOld = await gql(`
+    testEntity(id: "1", timestamp: 5) {
+      id
+      string
+    }
+  `);
+  expect(responseOld.body.errors).toBe(undefined);
+  expect(responseOld.statusCode).toBe(200);
+  const testEntityOld = responseOld.body.data.testEntity;
+  expect(testEntityOld.string).toBe("1");
+
+  const response = await gql(`
+    testEntity(id: "1", timestamp: 15) {
+      id
+      string
+    }
+  `);
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const testEntity = response.body.data.testEntity;
+  expect(testEntity.string).toBe("updated");
+
+  await service.kill();
+  await userStore.teardown();
+});
+
+test("serves plural entities versioned at specified timestamp", async (context) => {
+  const { resources, userStore } = context;
+  const { service, gql, createTestEntity } = await setup({
+    resources,
+    userStore,
+  });
+
+  await createTestEntity({ id: 1 });
+  await createTestEntity({ id: 2 });
+
+  await userStore.update({
+    modelName: "TestEntity",
+    timestamp: 10,
+    id: String(1),
+    data: {
+      string: "updated",
+    },
+  });
+  await userStore.update({
+    modelName: "TestEntity",
+    timestamp: 15,
+    id: String(2),
+    data: {
+      string: "updated",
+    },
+  });
+
+  const responseOld = await gql(`
+    testEntitys(timestamp: 12, orderBy: "int") {
+      id
+      string
+    }
+  `);
+  expect(responseOld.body.errors).toBe(undefined);
+  expect(responseOld.statusCode).toBe(200);
+  const testEntitysOld = responseOld.body.data.testEntitys;
+  expect(testEntitysOld).toMatchObject([
+    { id: "1", string: "updated" },
+    { id: "2", string: "2" },
+  ]);
+
+  const response = await gql(`
+    testEntitys(orderBy: "int") {
+      id
+      string
+    }
+  `);
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const testEntitys = response.body.data.testEntitys;
+  expect(testEntitys).toMatchObject([
+    { id: "1", string: "updated" },
+    { id: "2", string: "updated" },
+  ]);
+
+  await service.kill();
+  await userStore.teardown();
+});
+
+test("derived field respects skip argument", async (context) => {
+  const { resources, userStore } = context;
+  const { service, gql, createTestEntity, createEntityWithBigIntId } =
+    await setup({
+      resources,
+      userStore,
+    });
+
+  await createTestEntity({ id: 0 });
+  await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
+  await createEntityWithBigIntId({ id: BigInt(1), testEntityId: "0" });
+  await createEntityWithBigIntId({ id: BigInt(2), testEntityId: "0" });
+
+  const response = await gql(`
+    testEntitys {
+      id
+      derived(skip: 2) {
+        id
+      }
+    }
+  `);
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const testEntitys = response.body.data.testEntitys;
+  expect(testEntitys[0].derived).toHaveLength(1);
+  expect(testEntitys[0].derived[0]).toMatchObject({
+    id: "2",
+  });
+
+  await service.kill();
+  await userStore.teardown();
+});
+
+// This is a known limitation for now, which is that the timestamp version of entities
+// returned in derived fields does not inherit the timestamp argument provided to the parent.
+// So, if you want to use time-travel queries with derived fields, you need to manually
+// include the desired timestamp at every level of the query.
+test.skip("serves derived entities versioned at provided timestamp", async (context) => {
+  const { resources, userStore } = context;
+  const { service, gql, createTestEntity, createEntityWithBigIntId } =
+    await setup({
+      resources,
+      userStore,
+    });
+
+  await createTestEntity({ id: 0 });
+  await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
+
+  await userStore.update({
+    modelName: "EntityWithBigIntId",
+    timestamp: 10,
+    id: BigInt(0),
+    data: {
+      testEntity: "2",
+    },
+  });
+
+  const responseOld = await gql(`
+    testEntitys(timestamp: 5) {
+      id
+      derived {
+        id
+      }
+    }
+  `);
+  expect(responseOld.body.errors).toBe(undefined);
+  expect(responseOld.statusCode).toBe(200);
+  const testEntitysOld = responseOld.body.data.testEntitys;
+  expect(testEntitysOld).toHaveLength(1);
+  expect(testEntitysOld[0]).toMatchObject({
+    id: "0",
+    derived: [{ id: "0" }],
+  });
+
+  const response = await gql(`
+    testEntitys {
+      id
+      derived {
+        id
+      }
+    }
+  `);
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { testEntitys } = response.body.data;
+  expect(testEntitys).toHaveLength(1);
+  expect(testEntitys[0]).toMatchObject({
+    id: "0",
+    derived: [],
+  });
+
+  await service.kill();
+  await userStore.teardown();
 });

@@ -94,7 +94,7 @@ export class CodegenService extends Emittery {
     `;
 
     const body = printSchema(graphqlSchema);
-    const final = header + body;
+    const final = formatPrettier(header + body, { parser: "graphql" });
 
     const filePath = path.join(
       this.resources.options.generatedDir,
