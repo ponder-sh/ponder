@@ -60,6 +60,9 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
+      - name: Install again after build
+        run: pnpm install
+
       - name: Bench
         run: pnpm bench:ci
         env:
