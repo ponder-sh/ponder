@@ -100,6 +100,14 @@ export class Ponder {
       const logFiltersForNetwork = logFilters.filter(
         (logFilter) => logFilter.network === network.name
       );
+      if (logFiltersForNetwork.length === 0) {
+        this.resources.logger.warn({
+          service: "realtime",
+          msg: `No log filters found (network=${network.name})`,
+        });
+        return;
+      }
+
       this.networkSyncServices.push({
         network,
         logFilters: logFiltersForNetwork,
