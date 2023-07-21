@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.74
+
+### Patch Changes
+
+- [#234](https://github.com/0xOlias/ponder/pull/234) [`0e90313`](https://github.com/0xOlias/ponder/commit/0e9031337b07a7b79503f472684be6fb34c426f7) Thanks [@r0ohafza](https://github.com/r0ohafza)! - Added support for passing arguments to derived fields. This means you can paginate entities returned in a derived field. Also added support for time-travel queries via the `timestamp` argument to all GraphQL root query types. NOTE: There is currently a limitation where `timestamp` arguments are not automatically passed to derived fields. If you are using time-travel queries on entities with derived fields, be sure the pass the same `timestamp` as an argument to the derived field. This will be fixed in a future release.
+
 ## 0.0.73
 
 ### Patch Changes
