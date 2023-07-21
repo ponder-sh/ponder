@@ -31,23 +31,163 @@ const rpcRequestSpy = vi.spyOn(
   "request"
 );
 
+const usdcFilter = {
+  key: encodeLogFilterKey({
+    chainId: network.chainId,
+    address: usdcContractConfig.address,
+  }),
+  chainId: network.chainId,
+  startBlock: 16369950,
+};
+
 const logFilters: LogFilter[] = [
   {
     name: "USDC",
     ...usdcContractConfig,
     network: network.name,
-    filter: {
-      key: encodeLogFilterKey({
-        chainId: network.chainId,
-        address: usdcContractConfig.address,
-      }),
-      chainId: network.chainId,
-      startBlock: 16369950,
-      // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
-      endBlock: undefined,
-    },
+    filter: usdcFilter,
   },
 ];
+
+const blockNumbers = {
+  latestBlockNumber: 16369965,
+  finalizedBlockNumber: 16369955,
+};
+
+test("setup() throws if log filter start block is greater than latest block", async (context) => {
+  const { resources, eventStore } = context;
+
+  const service = new HistoricalSyncService({
+    resources,
+    eventStore,
+    logFilters,
+    network,
+  });
+
+  await expect(() =>
+    service.setup({
+      latestBlockNumber: 16369945,
+      finalizedBlockNumber: 16369935,
+    })
+  ).rejects.toThrow(
+    /Start block number \(16369950\) cannot be greater than latest block number \(16369945\)/
+  );
+
+  await service.kill();
+});
+
+test("setup() succeeds if log filter start block is greater than finalized block", async (context) => {
+  const { resources, eventStore } = context;
+
+  const service = new HistoricalSyncService({
+    resources,
+    eventStore,
+    logFilters,
+    network,
+  });
+
+  await service.setup({
+    latestBlockNumber: 16369955,
+    finalizedBlockNumber: 16369945,
+  });
+
+  const totalBlocksMetric = (
+    await resources.metrics.ponder_historical_total_blocks.get()
+  ).values;
+  expect(totalBlocksMetric).toMatchObject([
+    { labels: { network: "mainnet", logFilter: "USDC" }, value: 0 },
+  ]);
+
+  await service.kill();
+});
+
+test("setup() throws if log filter end block is greater than start block", async (context) => {
+  const { resources, eventStore } = context;
+
+  const logFilters_ = [
+    {
+      name: "USDC",
+      ...usdcContractConfig,
+      network: network.name,
+      filter: { ...usdcFilter, startBlock: 16369950, endBlock: 16369940 },
+    },
+  ];
+
+  const service = new HistoricalSyncService({
+    resources,
+    eventStore,
+    logFilters: logFilters_,
+    network,
+  });
+
+  await expect(() => service.setup(blockNumbers)).rejects.toThrow(
+    /End block number \(16369940\) cannot be less than start block number \(16369950\)/
+  );
+
+  await service.kill();
+});
+
+test("setup() throws if log filter end block is greater than latest block", async (context) => {
+  const { resources, eventStore } = context;
+
+  const logFilters_ = [
+    {
+      name: "USDC",
+      ...usdcContractConfig,
+      network: network.name,
+      filter: { ...usdcFilter, startBlock: 16369950, endBlock: 16369980 },
+    },
+  ];
+
+  const service = new HistoricalSyncService({
+    resources,
+    eventStore,
+    logFilters: logFilters_,
+    network,
+  });
+
+  await expect(() =>
+    service.setup({
+      latestBlockNumber: 16369975,
+      finalizedBlockNumber: 16369965,
+    })
+  ).rejects.toThrow(
+    /End block number \(16369980\) cannot be greater than latest block number \(16369975\)/
+  );
+
+  await service.kill();
+});
+
+test("setup() throws if log filter end block is greater than finalized block", async (context) => {
+  const { resources, eventStore } = context;
+
+  const logFilters_ = [
+    {
+      name: "USDC",
+      ...usdcContractConfig,
+      network: network.name,
+      filter: { ...usdcFilter, startBlock: 16369950, endBlock: 16369980 },
+    },
+  ];
+
+  const service = new HistoricalSyncService({
+    resources,
+    eventStore,
+    logFilters: logFilters_,
+    network,
+  });
+
+  await expect(() =>
+    service.setup({
+      latestBlockNumber: 16369985,
+      finalizedBlockNumber: 16369975,
+    })
+  ).rejects.toThrow(
+    /End block number \(16369980\) cannot be greater than finalized block number \(16369975\)/
+  );
+
+  await service.kill();
+});
 
 test("setup() updates cached block, total block, and scheduled task metrics", async (context) => {
   const { resources, eventStore } = context;
@@ -58,7 +198,7 @@ test("setup() updates cached block, total block, and scheduled task metrics", as
     logFilters,
     network,
   });
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
 
   const cachedBlocksMetric = (
     await resources.metrics.ponder_historical_cached_blocks.get()
@@ -93,7 +233,7 @@ test("start() updates completed tasks and completed blocks metrics", async (cont
     logFilters,
     network,
   });
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
   service.start();
 
   await service.onIdle();
@@ -131,7 +271,7 @@ test("start() updates rpc request duration metrics", async (context) => {
     logFilters,
     network,
   });
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
   service.start();
 
   await service.onIdle();
@@ -169,7 +309,7 @@ test("start() adds events to event store", async (context) => {
     logFilters,
     network,
   });
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
 
@@ -223,7 +363,7 @@ test("start() inserts cached ranges", async (context) => {
     logFilters,
     network,
   });
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
 
@@ -254,7 +394,7 @@ test("start() retries errors", async (context) => {
     logFilters,
     network,
   });
-  await service.setup({ finalizedBlockNumber: 16369951 }); // Two blocks
+  await service.setup({ ...blockNumbers, finalizedBlockNumber: 16369951 }); // Only process two blocks
   service.start();
   await service.onIdle();
 
@@ -282,7 +422,7 @@ test("start() updates failed task metrics", async (context) => {
     logFilters,
     network,
   });
-  await service.setup({ finalizedBlockNumber: 16369951 }); // Two blocks
+  await service.setup({ ...blockNumbers, finalizedBlockNumber: 16369951 }); // Only process two blocks
   service.start();
   await service.onIdle();
 
@@ -325,7 +465,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
     logFilters,
     network,
   });
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
 
@@ -358,7 +498,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
     logFilters,
     network,
   });
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
 
@@ -385,7 +525,7 @@ test("start() emits sync completed event", async (context) => {
   });
   const emitSpy = vi.spyOn(service, "emit");
 
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
   service.start();
 
   await service.onIdle();
@@ -404,7 +544,7 @@ test("start() emits checkpoit and sync completed event if 100% cached", async (c
     network,
   });
 
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
   await service.kill();
@@ -418,7 +558,7 @@ test("start() emits checkpoit and sync completed event if 100% cached", async (c
 
   const emitSpy = vi.spyOn(service, "emit");
 
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
 
@@ -442,7 +582,7 @@ test("start() emits historicalCheckpoint event", async (context) => {
   });
   const emitSpy = vi.spyOn(service, "emit");
 
-  await service.setup({ finalizedBlockNumber: 16369955 });
+  await service.setup(blockNumbers);
   service.start();
 
   await service.onIdle();

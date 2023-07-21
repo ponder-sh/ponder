@@ -79,9 +79,21 @@ export class Ponder {
     const logFilters = buildLogFilters({ options, config });
     this.logFilters = logFilters;
     const contracts = buildContracts({ options, config });
-    const networks = config.networks.map((network) =>
-      buildNetwork({ network })
-    );
+
+    const networks = config.networks
+      .map((network) => buildNetwork({ network }))
+      .filter((network) => {
+        const hasLogFilters = logFilters.some(
+          (logFilter) => logFilter.network === network.name
+        );
+        if (!hasLogFilters) {
+          this.resources.logger.warn({
+            service: "app",
+            msg: `No log filters found (network=${network.name})`,
+          });
+        }
+        return hasLogFilters;
+      });
 
     const database = buildDatabase({ options, config });
     this.eventStore =
@@ -206,8 +218,8 @@ export class Ponder {
     await Promise.all(
       this.networkSyncServices.map(
         async ({ historicalSyncService, realtimeSyncService }) => {
-          const { finalizedBlockNumber } = await realtimeSyncService.setup();
-          await historicalSyncService.setup({ finalizedBlockNumber });
+          const blockNumbers = await realtimeSyncService.setup();
+          await historicalSyncService.setup(blockNumbers);
 
           historicalSyncService.start();
           realtimeSyncService.start();
@@ -221,15 +233,19 @@ export class Ponder {
   async start() {
     const setupError = await this.setup();
     if (setupError) {
-      // this.resources.logger.error("error", setupError.message);
+      this.resources.logger.error({
+        service: "app",
+        msg: setupError.message,
+        error: setupError,
+      });
       return await this.kill();
     }
 
     await Promise.all(
       this.networkSyncServices.map(
         async ({ historicalSyncService, realtimeSyncService }) => {
-          const { finalizedBlockNumber } = await realtimeSyncService.setup();
-          await historicalSyncService.setup({ finalizedBlockNumber });
+          const blockNumbers = await realtimeSyncService.setup();
+          await historicalSyncService.setup(blockNumbers);
 
           historicalSyncService.start();
           realtimeSyncService.start();

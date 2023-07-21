@@ -88,12 +88,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   setup = async () => {
     // Fetch the latest block for the network.
     const latestBlock = await this.getLatestBlock();
+    const latestBlockNumber = hexToNumber(latestBlock.number);
 
     this.resources.logger.info({
       service: "realtime",
-      msg: `Fetched latest block at ${hexToNumber(
-        latestBlock.number
-      )} (network=${this.network.name})`,
+      msg: `Fetched latest block at ${latestBlockNumber} (network=${this.network.name})`,
     });
 
     this.resources.metrics.ponder_realtime_is_connected.set(
@@ -105,16 +104,16 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // If the finality block count is greater than the latest block number, set to zero.
     const finalizedBlockNumber = Math.max(
       0,
-      hexToNumber(latestBlock.number) - this.network.finalityBlockCount
+      latestBlockNumber - this.network.finalityBlockCount
     );
     this.finalizedBlockNumber = finalizedBlockNumber;
 
     // Add the latest block to the unfinalized block queue.
     // The queue won't start immediately; see syncUnfinalizedData for details.
-    const priority = Number.MAX_SAFE_INTEGER - hexToNumber(latestBlock.number);
+    const priority = Number.MAX_SAFE_INTEGER - latestBlockNumber;
     this.queue.addTask(latestBlock, { priority });
 
-    return { finalizedBlockNumber };
+    return { latestBlockNumber, finalizedBlockNumber };
   };
 
   start = async () => {

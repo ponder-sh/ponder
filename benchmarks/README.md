@@ -4,7 +4,9 @@ This directory contains tooling to benchmark Ponder against the Graph Protocol's
 
 ### Run benchmarks locally
 
-To run benchmarks locally, just run `pnpm bench` in this directory or at the workspace root. This command uses `docker-compose` to start a Graph Node instance, then runs `src/bench.ts` to run the benchmarks. The script builds and deploys a subgraph to the Graph Node and records how long it takes for the subgraph to sync, as well as how many RPC requests were made. Then, it runs a
+> Due to an issue with the Graph Node, the benchmark script fails on M1 Macs ([graphprotocol/graph-node#4740](https://github.com/graphprotocol/graph-node/issues/4740)). For now, run the benchmarks in CI instead.
+
+To run benchmarks locally, just run `pnpm bench` in this directory or at the workspace root. This command uses `docker-compose` to start a Graph Node instance, then runs `src/bench.ts` to run the benchmarks. The script builds and deploys a subgraph to the Graph Node and records how long it takes for the subgraph to sync, as well as how many RPC requests were made. Then, it does the same for a Ponder app.
 
 ### Run benchmarks in CI
 
