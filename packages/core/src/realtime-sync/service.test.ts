@@ -53,7 +53,7 @@ const sendUsdcTransferTransaction = async () => {
   });
 };
 
-test("setup() returns the finalized block number", async (context) => {
+test("setup() returns block numbers", async (context) => {
   const { resources, eventStore } = context;
 
   const service = new RealtimeSyncService({
@@ -63,8 +63,9 @@ test("setup() returns the finalized block number", async (context) => {
     network,
   });
 
-  const { finalizedBlockNumber } = await service.setup();
+  const { latestBlockNumber, finalizedBlockNumber } = await service.setup();
 
+  expect(latestBlockNumber).toEqual(16380000); // ANVIL_FORK_BLOCK
   expect(finalizedBlockNumber).toEqual(16379995); // ANVIL_FORK_BLOCK - finalityBlockCount
 
   await service.kill();

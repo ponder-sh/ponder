@@ -93,20 +93,70 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.registerMetricCollectMethods();
   }
 
-  async setup({ finalizedBlockNumber }: { finalizedBlockNumber: number }) {
+  async setup({
+    latestBlockNumber,
+    finalizedBlockNumber,
+  }: {
+    latestBlockNumber: number;
+    finalizedBlockNumber: number;
+  }) {
     await Promise.all(
       this.logFilters.map(async (logFilter) => {
         const { startBlock, endBlock: userDefinedEndBlock } = logFilter.filter;
-        const endBlock = userDefinedEndBlock ?? finalizedBlockNumber;
-        const maxBlockRange =
-          logFilter.maxBlockRange ?? this.network.defaultMaxBlockRange;
 
-        if (startBlock > endBlock) {
+        if (startBlock > latestBlockNumber) {
           throw new Error(
-            `Start block number (${startBlock}) is greater than end block number (${endBlock}).
+            `Start block number (${startBlock}) cannot be greater than latest block number (${latestBlockNumber}).
              Are you sure the RPC endpoint is for the correct network?`
           );
         }
+
+        if (startBlock > finalizedBlockNumber) {
+          // If the start block is in the unfinalized range, the historical sync is not needed.
+          // Set the checkpoint to the current timestamp, then return (don't create the queue).
+          const now = Math.round(Date.now() / 1000);
+          this.logFilterCheckpoints[logFilter.name] = now;
+          this.resources.metrics.ponder_historical_total_blocks.set(
+            {
+              network: this.network.name,
+              logFilter: logFilter.name,
+            },
+            0
+          );
+          this.resources.logger.warn({
+            service: "historical",
+            msg: `Start block is not finalized, skipping historical sync (logFilter=${logFilter.name})`,
+          });
+          return;
+        }
+
+        if (userDefinedEndBlock) {
+          if (userDefinedEndBlock < startBlock) {
+            throw new Error(
+              `End block number (${userDefinedEndBlock}) cannot be less than start block number (${startBlock}).
+               Are you sure the RPC endpoint is for the correct network?`
+            );
+          }
+
+          if (userDefinedEndBlock > latestBlockNumber) {
+            throw new Error(
+              `End block number (${userDefinedEndBlock}) cannot be greater than latest block number (${latestBlockNumber}).
+               Are you sure the RPC endpoint is for the correct network?`
+            );
+          }
+
+          if (userDefinedEndBlock > finalizedBlockNumber) {
+            throw new Error(
+              `End block number (${userDefinedEndBlock}) cannot be unfinalized (${latestBlockNumber}).
+               Are you sure the RPC endpoint is for the correct network?`
+            );
+          }
+        }
+
+        const endBlock = userDefinedEndBlock ?? finalizedBlockNumber;
+
+        const maxBlockRange =
+          logFilter.maxBlockRange ?? this.network.defaultMaxBlockRange;
 
         const cachedRanges = await this.eventStore.getLogFilterCachedRanges({
           filterKey: logFilter.filter.key,
@@ -644,10 +694,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         completedBlocksMetric.find((m) => m.labels.logFilter === name)?.value ??
         0;
 
+      // If the total_blocks metric is set and equals zero, the sync was skipped and
+      // should be considered complete.
+      if (totalBlocks === 0) {
+        return { logFilter: name, rate: 1, eta: 0 };
+      }
+
       // Any of these mean setup is not complete.
       if (
         totalBlocks === undefined ||
-        totalBlocks === 0 ||
         cachedBlocks === undefined ||
         !this.startTimestamp
       ) {
