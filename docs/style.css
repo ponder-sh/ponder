@@ -47,20 +47,22 @@
 /* CODE COLUMNS STYLES */
 .code-columns {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: row;
   gap: 0rem 1.5rem;
   margin-top: 1.5rem;
 }
-.code-columns div {
-  flex: 1;
-  max-width: 100%;
+.code-columns > div {
+  width: calc(50% - 0.75rem);
   margin-top: 0rem;
 }
-
-/* On the fence about this! */
-/* .code-columns div pre {
-  height: calc(100% - 1rem);
-} */
+@media (max-width: 768px) {
+  .code-columns {
+    flex-direction: column;
+  }
+  .code-columns > div {
+    width: unset;
+  }
+}
 
 /* EXCALIDRAW DIAGRAM */
 .excalidraw {

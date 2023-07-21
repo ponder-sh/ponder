@@ -1,15 +1,20 @@
 # Ponder
 
 [![CI status][ci-badge]][ci-url]
-[![License][license-badge]][license-url]
 [![Version][version-badge]][version-url]
+
 [![Telegram chat][tg-badge]][tg-url]
+[![License][license-badge]][license-url]
 
 Ponder is an open-source framework for blockchain application backends.
 
 ## Documentation
 
 Visit [ponder.sh](https://ponder.sh) for documentation, guides, and the API reference.
+
+## Support
+
+Join [Ponder's telegram chat](https://t.me/ponder_sh) for support, feedback, and general chatter.
 
 ## Features
 
@@ -20,7 +25,7 @@ Visit [ponder.sh](https://ponder.sh) for documentation, guides, and the API refe
 ✅ &nbsp;Easy to deploy anywhere using Node.js/Docker<br/>
 ✅ &nbsp;Supports all Ethereum-based blockchains, including test nodes like [Anvil](https://book.getfoundry.sh/anvil)<br/>
 ✅ &nbsp;Index events from multiple chains in the same app<br/>
-🏗️ &nbsp;Reconciles chain reorganization<br/>
+✅ &nbsp;Reconciles chain reorganization<br/>
 🏗️ &nbsp;Transaction call event handlers<br/>
 🏗️ &nbsp;Support for factory contracts like Uniswap V2/V3<br/>
 
@@ -164,9 +169,9 @@ Ponder is MIT-licensed open-source software.
 
 [ci-badge]: https://github.com/0xOlias/ponder/actions/workflows/main.yml/badge.svg
 [ci-url]: https://github.com/0xOlias/ponder/actions/workflows/main.yml
-[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=Support&url=https%3A%2F%2Fmogyo.ro%2Fquart-apis%2Ftgmembercount%3Fchat_id%3Dponder_sh
+[tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=Chat&url=https%3A%2F%2Fmogyo.ro%2Fquart-apis%2Ftgmembercount%3Fchat_id%3Dponder_sh
 [tg-url]: https://t.me/ponder_sh
-[license-badge]: https://img.shields.io/npm/l/@ponder/core
+[license-badge]: https://img.shields.io/npm/l/@ponder/core?label=License
 [license-url]: https://github.com/0xOlias/ponder/blob/main/LICENSE
 [version-badge]: https://img.shields.io/npm/v/@ponder/core
 [version-url]: https://github.com/0xOlias/ponder/releases

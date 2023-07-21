@@ -35,10 +35,10 @@ type Query {
   person(id: Int!, timestamp: Int): Person
 
   persons(
-    skip: Int = 0
-    first: Int = 100
-    orderBy: String = "id"
-    orderDirection: String = "asc"
+    skip: Int = 0,
+    first: Int = 100,
+    orderBy: String = "id",
+    orderDirection: String = "asc",
     where: PersonFilter,
     timestamp: Int
   ): [Person!]!
@@ -269,26 +269,15 @@ type Pet @entity {
 
 {/* prettier-ignore */}
 ```graphql filename="Generated schema"
-type Query {
-  # ...
-  persons(
-    skip: Int = 0
-    first: Int = 100
-    orderBy: String = "id"
-    orderDirection: String = "asc"
-    where: PersonFilter,
-    timestamp: Int
-  ): [Person!]!
-}
-
 type Person {
   id: Int!
   pets(
-    skip: Int = 0
-    first: Int = 100
-    orderBy: String = "id"
-    orderDirection: String = "asc"
-    where: PetFilter, # This automatically has { ownerId: person.id } applied
+    skip: Int = 0,
+    first: Int = 100,
+    orderBy: String = "id",
+    orderDirection: String = "asc",
+    # This automatically has { ownerId: person.id } applied
+    where: PetFilter, 
     timestamp: Int
   ): [Pet!]!
 }
