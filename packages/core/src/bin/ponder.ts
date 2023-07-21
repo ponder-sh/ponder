@@ -36,7 +36,7 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    const configFile = path.resolve(cliOptions.configFile);
+    const configFile = path.resolve(cliOptions.rootDir, cliOptions.configFile);
     const config = await buildConfig({ configFile });
     const options = buildOptions({ cliOptions, configOptions: config.options });
 
@@ -52,7 +52,7 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    const configFile = path.resolve(cliOptions.configFile);
+    const configFile = path.resolve(cliOptions.rootDir, cliOptions.configFile);
     const config = await buildConfig({ configFile });
     const options = buildOptions({ cliOptions, configOptions: config.options });
 
@@ -68,7 +68,7 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    const configFile = path.resolve(cliOptions.configFile);
+    const configFile = path.resolve(cliOptions.rootDir, cliOptions.configFile);
     const config = await buildConfig({ configFile });
     const options = buildOptions({ cliOptions, configOptions: config.options });
 
