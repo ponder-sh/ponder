@@ -321,11 +321,6 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             pageEndsAtTimestamp
           );
 
-          // This is a hack to ensure that the eventsProcessed handler is called and updates
-          // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
-          // It does, however, slow down event processing a bit.
-          await wait(0);
-
           if (events.length > 0) {
             this.resources.logger.info({
               service: "handlers",
@@ -361,6 +356,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       task,
       queue,
     }) => {
+      // This is a hack to ensure that the eventsProcessed handler is called and updates
+      // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
+      // It does, however, slow down event processing a bit.
+      await wait(0);
+
       switch (task.kind) {
         case "SETUP": {
           const setupHandler = handlers._meta_.setup?.fn;
