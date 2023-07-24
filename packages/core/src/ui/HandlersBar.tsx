@@ -15,7 +15,7 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
       ? `${completionDecimal}.0%`
       : `${completionDecimal}%`;
 
-  const isStarted = ui.handlersToTimestamp > 0;
+  const isStarted = ui.handlersTotal > 0;
   const isHistoricalSyncComplete = ui.isHistoricalSyncComplete;
   const isUpToDate = ui.handlersCurrent === ui.handlersHandledTotal;
 
