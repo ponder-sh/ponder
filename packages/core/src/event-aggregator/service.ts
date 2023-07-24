@@ -113,9 +113,11 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     fromTimestamp: number;
     toTimestamp: number;
     includeLogFilterEvents: {
-      [logFilterName: LogFilterName]: {
-        bySelector: { [selector: Hex]: LogEventMetadata };
-      };
+      [logFilterName: LogFilterName]:
+        | {
+            bySelector: { [selector: Hex]: LogEventMetadata };
+          }
+        | undefined;
     };
   }) {
     const iterator = this.eventStore.getLogEvents({
@@ -129,7 +131,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         fromBlock: logFilter.filter.startBlock,
         toBlock: logFilter.filter.endBlock,
         includeEventSelectors: Object.keys(
-          includeLogFilterEvents[logFilter.name].bySelector
+          includeLogFilterEvents[logFilter.name]?.bySelector ?? {}
         ) as Hex[],
       })),
     });
@@ -145,8 +147,14 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
           );
         }
 
-        const { abiItem, safeName } =
-          includeLogFilterEvents[event.logFilterName].bySelector[selector];
+        const logEventMetadata =
+          includeLogFilterEvents[event.logFilterName]?.bySelector[selector];
+        if (!logEventMetadata) {
+          throw new Error(
+            `Metadata for event ${event.logFilterName}:${selector} not found in includeLogFilterEvents`
+          );
+        }
+        const { abiItem, safeName } = logEventMetadata;
 
         try {
           const decodedLog = decodeEventLog({
