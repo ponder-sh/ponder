@@ -5,12 +5,12 @@ import type { GraphQLSchema } from "graphql";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
-import { Resources } from "@/Ponder";
+import { Common } from "@/Ponder";
 import { UserStore } from "@/user-store/store";
 import { startClock } from "@/utils/timer";
 
 export class ServerService {
-  private resources: Resources;
+  private common: Common;
   private userStore: UserStore;
 
   private port: number;
@@ -21,16 +21,10 @@ export class ServerService {
 
   isHistoricalEventProcessingComplete = false;
 
-  constructor({
-    resources,
-    userStore,
-  }: {
-    resources: Resources;
-    userStore: UserStore;
-  }) {
-    this.resources = resources;
+  constructor({ common, userStore }: { common: Common; userStore: UserStore }) {
+    this.common = common;
     this.userStore = userStore;
-    this.port = this.resources.options.port;
+    this.port = this.common.options.port;
   }
 
   async start() {
@@ -53,18 +47,18 @@ export class ServerService {
             : "5XX";
 
         const requestSize = Number(req.get("Content-Length") ?? 0);
-        this.resources.metrics.ponder_server_request_size.observe(
+        this.common.metrics.ponder_server_request_size.observe(
           { method, path, status },
           Number(requestSize)
         );
 
         const responseSize = Number(res.get("Content-Length") ?? 0);
-        this.resources.metrics.ponder_server_response_size.observe(
+        this.common.metrics.ponder_server_response_size.observe(
           { method, path, status },
           Number(responseSize)
         );
 
-        this.resources.metrics.ponder_server_response_duration.observe(
+        this.common.metrics.ponder_server_response_duration.observe(
           { method, path, status },
           responseDuration
         );
@@ -76,7 +70,7 @@ export class ServerService {
       const server = createServer(this.app)
         .on("error", (error) => {
           if ((error as any).code === "EADDRINUSE") {
-            this.resources.logger.warn({
+            this.common.logger.warn({
               service: "server",
               msg: `Port ${this.port} was in use, trying port ${this.port + 1}`,
             });
@@ -90,7 +84,7 @@ export class ServerService {
           }
         })
         .on("listening", () => {
-          this.resources.metrics.ponder_server_port.set(this.port);
+          this.common.metrics.ponder_server_port.set(this.port);
           resolve(server);
         })
         .listen(this.port);
@@ -99,7 +93,7 @@ export class ServerService {
     const terminator = createHttpTerminator({ server });
     this.terminate = () => terminator.terminate();
 
-    this.resources.logger.info({
+    this.common.logger.info({
       service: "server",
       msg: `Started listening on port ${this.port}`,
     });
@@ -107,7 +101,7 @@ export class ServerService {
     this.app.post("/metrics", async (_, res) => {
       try {
         res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-        res.end(await this.resources.metrics.getMetrics());
+        res.end(await this.common.metrics.getMetrics());
       } catch (error) {
         res.status(500).end(error);
       }
@@ -116,7 +110,7 @@ export class ServerService {
     this.app.get("/metrics", async (_, res) => {
       try {
         res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-        res.end(await this.resources.metrics.getMetrics());
+        res.end(await this.common.metrics.getMetrics());
       } catch (error) {
         res.status(500).end(error);
       }
@@ -131,11 +125,11 @@ export class ServerService {
         return res.status(200).send();
       }
 
-      const max = this.resources.options.maxHealthcheckDuration;
+      const max = this.common.options.maxHealthcheckDuration;
       const elapsed = Math.floor(process.uptime());
 
       if (elapsed > max) {
-        this.resources.logger.warn({
+        this.common.logger.warn({
           service: "server",
           msg: `Historical sync duration has exceeded the max healthcheck duration of ${max} seconds (current: ${elapsed}). Sevice is now responding as healthy and may serve incomplete data.`,
         });
@@ -159,7 +153,7 @@ export class ServerService {
 
   async kill() {
     await this.terminate?.();
-    this.resources.logger.debug({
+    this.common.logger.debug({
       service: "server",
       msg: `Stopped listening on port ${this.port}`,
     });
@@ -168,7 +162,7 @@ export class ServerService {
   setIsHistoricalEventProcessingComplete() {
     this.isHistoricalEventProcessingComplete = true;
 
-    this.resources.logger.info({
+    this.common.logger.info({
       service: "server",
       msg: `Started responding as healthy`,
     });

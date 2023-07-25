@@ -11,7 +11,7 @@ import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
-import { Resources } from "@/Ponder";
+import { Common } from "@/Ponder";
 import { formatEta, formatPercentage } from "@/utils/format";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
 import { hrTimeToMs, startClock } from "@/utils/timer";
@@ -53,7 +53,7 @@ type BlockSyncTask = {
 type HistoricalSyncQueue = Queue<LogSyncTask | BlockSyncTask>;
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
-  private resources: Resources;
+  private common: Common;
   private eventStore: EventStore;
   private logFilters: LogFilter[];
   private network: Network;
@@ -67,19 +67,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private killFunctions: (() => void | Promise<void>)[] = [];
 
   constructor({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
   }: {
-    resources: Resources;
+    common: Common;
     eventStore: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
-    this.resources = resources;
+    this.common = common;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
@@ -116,14 +116,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           // Set the checkpoint to the current timestamp, then return (don't create the queue).
           const now = Math.round(Date.now() / 1000);
           this.logFilterCheckpoints[logFilter.name] = now;
-          this.resources.metrics.ponder_historical_total_blocks.set(
+          this.common.metrics.ponder_historical_total_blocks.set(
             {
               network: this.network.name,
               logFilter: logFilter.name,
             },
             0
           );
-          this.resources.logger.warn({
+          this.common.logger.warn({
             service: "historical",
             msg: `Start block is not finalized, skipping historical sync (logFilter=${logFilter.name})`,
           });
@@ -179,14 +179,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           cachedBlockCount / (totalBlockCount || 1)
         );
 
-        this.resources.metrics.ponder_historical_total_blocks.set(
+        this.common.metrics.ponder_historical_total_blocks.set(
           {
             network: this.network.name,
             logFilter: logFilter.name,
           },
           totalBlockCount
         );
-        this.resources.metrics.ponder_historical_cached_blocks.set(
+        this.common.metrics.ponder_historical_cached_blocks.set(
           {
             network: this.network.name,
             logFilter: logFilter.name,
@@ -194,7 +194,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           cachedBlockCount
         );
 
-        this.resources.logger.info({
+        this.common.logger.info({
           service: "historical",
           msg: `Started sync with ${formatPercentage(
             cacheRate
@@ -223,7 +223,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 priority: Number.MAX_SAFE_INTEGER - fromBlock,
               }
             );
-            this.resources.metrics.ponder_historical_scheduled_tasks.inc({
+            this.common.metrics.ponder_historical_scheduled_tasks.inc({
               network: this.network.name,
               kind: "log",
             });
@@ -245,7 +245,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       completionStats.forEach(({ logFilter, rate, eta }) => {
         if (rate === 1) return;
-        this.resources.logger.info({
+        this.common.logger.info({
           service: "historical",
           msg: `Sync is ${formatPercentage(rate)} complete${
             eta !== undefined ? ` with ~${formatEta(eta)} remaining` : ""
@@ -266,7 +266,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       const now = Math.round(Date.now() / 1000);
       this.emit("historicalCheckpoint", { timestamp: now });
       this.emit("syncComplete");
-      this.resources.logger.info({
+      this.common.logger.info({
         service: "historical",
         msg: `Completed sync (network=${this.network.name})`,
         network: this.network.name,
@@ -285,7 +285,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.queue.clear();
     // TODO: Figure out if it's necessary to wait for the queue to be idle before killing it.
     // await this.onIdle();
-    this.resources.logger.debug({
+    this.common.logger.debug({
       service: "historical",
       msg: `Killed historical sync service (network=${this.network.name})`,
     });
@@ -322,7 +322,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       this.emit("syncComplete");
       const duration = hrTimeToMs(process.hrtime(this.startTimestamp));
-      this.resources.logger.info({
+      this.common.logger.info({
         service: "historical",
         msg: `Completed sync in ${formatEta(duration)} (network=${
           this.network.name
@@ -342,13 +342,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         const { logFilter } = task;
 
         if (task.kind === "BLOCK_SYNC") {
-          this.resources.metrics.ponder_historical_completed_tasks.inc({
+          this.common.metrics.ponder_historical_completed_tasks.inc({
             network: this.network.name,
             kind: "block",
             status: "success",
           });
 
-          this.resources.logger.trace({
+          this.common.logger.trace({
             service: "historical",
             msg: `Completed block sync task`,
             network: this.network.name,
@@ -360,7 +360,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           // When a block task completes, a cached range record gets inserted.
           // Update the block range progress metric accordingly.
-          this.resources.metrics.ponder_historical_completed_blocks.inc(
+          this.common.metrics.ponder_historical_completed_blocks.inc(
             {
               network: this.network.name,
               logFilter: logFilter.name,
@@ -370,13 +370,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         }
 
         if (task.kind === "LOG_SYNC") {
-          this.resources.metrics.ponder_historical_completed_tasks.inc({
+          this.common.metrics.ponder_historical_completed_tasks.inc({
             network: this.network.name,
             kind: "log",
             status: "success",
           });
 
-          this.resources.logger.trace({
+          this.common.logger.trace({
             service: "historical",
             msg: `Completed log sync task`,
             network: this.network.name,
@@ -389,7 +389,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onError: ({ error, task, queue }) => {
         const { logFilter } = task;
 
-        this.resources.metrics.ponder_historical_completed_tasks.inc({
+        this.common.metrics.ponder_historical_completed_tasks.inc({
           network: this.network.name,
           kind: task.kind === "LOG_SYNC" ? "log" : "block",
           status: "failure",
@@ -416,7 +416,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             { priority: Number.MAX_SAFE_INTEGER - safeEnd + 1 }
           );
           // Splitting the task into two parts increases the total count by 1.
-          this.resources.metrics.ponder_historical_scheduled_tasks.inc({
+          this.common.metrics.ponder_historical_scheduled_tasks.inc({
             network: this.network.name,
             kind: "log",
           });
@@ -441,7 +441,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             { priority: Number.MAX_SAFE_INTEGER - midpoint + 1 }
           );
           // Splitting the task into two parts increases the total count by 1.
-          this.resources.metrics.ponder_historical_scheduled_tasks.inc({
+          this.common.metrics.ponder_historical_scheduled_tasks.inc({
             network: this.network.name,
             kind: "log",
           });
@@ -468,7 +468,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             { priority: Number.MAX_SAFE_INTEGER - midpoint + 1 }
           );
           // Splitting the task into two parts increases the total count by 1.
-          this.resources.metrics.ponder_historical_scheduled_tasks.inc({
+          this.common.metrics.ponder_historical_scheduled_tasks.inc({
             network: this.network.name,
             kind: "log",
           });
@@ -487,7 +487,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         this.emit("error", { error: queueError });
 
         if (task.kind === "LOG_SYNC") {
-          this.resources.logger.error({
+          this.common.logger.error({
             service: "historical",
             msg: `Log sync task failed (network=${this.network.name}, logFilter=${logFilter.name})`,
             error,
@@ -499,7 +499,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         }
 
         if (task.kind === "BLOCK_SYNC") {
-          this.resources.logger.error({
+          this.common.logger.error({
             service: "historical",
             msg: `Block sync task failed (network=${this.network.name}, logFilter=${logFilter.name})`,
             error,
@@ -539,7 +539,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         },
       ],
     });
-    this.resources.metrics.ponder_historical_rpc_request_duration.observe(
+    this.common.metrics.ponder_historical_rpc_request_duration.observe(
       {
         method: "eth_getLogs",
         network: this.network.name,
@@ -598,7 +598,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       this.queue.addTask(blockTask, { priority });
     }
 
-    this.resources.metrics.ponder_historical_scheduled_tasks.inc(
+    this.common.metrics.ponder_historical_scheduled_tasks.inc(
       {
         network: this.network.name,
         kind: "block",
@@ -617,7 +617,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       params: [toHex(blockNumber), true],
     });
 
-    this.resources.metrics.ponder_historical_rpc_request_duration.observe(
+    this.common.metrics.ponder_historical_rpc_request_duration.observe(
       {
         method: "eth_getBlockByNumber",
         network: this.network.name,
@@ -674,13 +674,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private getCompletionStats = async () => {
     const cachedBlocksMetric = (
-      await this.resources.metrics.ponder_historical_cached_blocks.get()
+      await this.common.metrics.ponder_historical_cached_blocks.get()
     ).values;
     const totalBlocksMetric = (
-      await this.resources.metrics.ponder_historical_total_blocks.get()
+      await this.common.metrics.ponder_historical_total_blocks.get()
     ).values;
     const completedBlocksMetric = (
-      await this.resources.metrics.ponder_historical_completed_blocks.get()
+      await this.common.metrics.ponder_historical_completed_blocks.get()
     ).values;
 
     return this.logFilters.map(({ name }) => {
@@ -733,11 +733,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    this.resources.metrics.ponder_historical_completion_rate.collect =
+    this.common.metrics.ponder_historical_completion_rate.collect =
       async () => {
         const completionStats = await this.getCompletionStats();
         completionStats.forEach(({ logFilter, rate }) => {
-          this.resources.metrics.ponder_historical_completion_rate.set(
+          this.common.metrics.ponder_historical_completion_rate.set(
             { logFilter, network: this.network.name },
             rate
           );
@@ -746,18 +746,17 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    this.resources.metrics.ponder_historical_completion_eta.collect =
-      async () => {
-        const completionStats = await this.getCompletionStats();
-        completionStats.forEach(({ logFilter, eta }) => {
-          // If no progress has been made, can't calculate an accurate ETA.
-          if (eta) {
-            this.resources.metrics.ponder_historical_completion_eta.set(
-              { logFilter, network: this.network.name },
-              eta
-            );
-          }
-        });
-      };
+    this.common.metrics.ponder_historical_completion_eta.collect = async () => {
+      const completionStats = await this.getCompletionStats();
+      completionStats.forEach(({ logFilter, eta }) => {
+        // If no progress has been made, can't calculate an accurate ETA.
+        if (eta) {
+          this.common.metrics.ponder_historical_completion_eta.set(
+            { logFilter, network: this.network.name },
+            eta
+          );
+        }
+      });
+    };
   };
 }

@@ -1,10 +1,10 @@
 import { LogFilter } from "@/config/logFilters";
-import { Resources } from "@/Ponder";
+import { Common } from "@/Ponder";
 
 import { buildUiState, setupInkApp, UiState } from "./app";
 
 export class UiService {
-  private resources: Resources;
+  private common: Common;
   private logFilters: LogFilter[];
 
   ui: UiState;
@@ -13,18 +13,18 @@ export class UiService {
   unmount: () => void;
 
   constructor({
-    resources,
+    common,
     logFilters,
   }: {
-    resources: Resources;
+    common: Common;
     logFilters: LogFilter[];
   }) {
-    this.resources = resources;
+    this.common = common;
     this.logFilters = logFilters;
 
     this.ui = buildUiState({ logFilters: this.logFilters });
 
-    if (this.resources.options.uiEnabled) {
+    if (this.common.options.uiEnabled) {
       const { render, unmount } = setupInkApp(this.ui);
       this.render = () => render(this.ui);
       this.unmount = unmount;
@@ -38,10 +38,10 @@ export class UiService {
 
       // Historical sync
       const rateMetric = (
-        await this.resources.metrics.ponder_historical_completion_rate.get()
+        await this.common.metrics.ponder_historical_completion_rate.get()
       ).values;
       const etaMetric = (
-        await this.resources.metrics.ponder_historical_completion_eta.get()
+        await this.common.metrics.ponder_historical_completion_eta.get()
       ).values;
 
       logFilterNames.forEach((name) => {
@@ -66,7 +66,7 @@ export class UiService {
 
       // Realtime sync
       const connectedNetworks = (
-        await this.resources.metrics.ponder_realtime_is_connected.get()
+        await this.common.metrics.ponder_realtime_is_connected.get()
       ).values
         .filter((m) => m.value === 1)
         .map((m) => m.labels.network)
@@ -76,17 +76,17 @@ export class UiService {
 
       // Handlers
       const matchedEvents = (
-        await this.resources.metrics.ponder_handlers_matched_events.get()
+        await this.common.metrics.ponder_handlers_matched_events.get()
       ).values.reduce((a, v) => a + v.value, 0);
       const handledEvents = (
-        await this.resources.metrics.ponder_handlers_handled_events.get()
+        await this.common.metrics.ponder_handlers_handled_events.get()
       ).values.reduce((a, v) => a + v.value, 0);
       const processedEvents = (
-        await this.resources.metrics.ponder_handlers_processed_events.get()
+        await this.common.metrics.ponder_handlers_processed_events.get()
       ).values.reduce((a, v) => a + v.value, 0);
       const latestProcessedTimestamp =
         (
-          await this.resources.metrics.ponder_handlers_latest_processed_timestamp.get()
+          await this.common.metrics.ponder_handlers_latest_processed_timestamp.get()
         ).values[0].value ?? 0;
       this.ui.handlersTotal = matchedEvents;
       this.ui.handlersHandledTotal = handledEvents;
@@ -94,10 +94,10 @@ export class UiService {
       this.ui.handlersToTimestamp = latestProcessedTimestamp;
 
       // Errors
-      this.ui.handlerError = this.resources.errors.hasUserError;
+      this.ui.handlerError = this.common.errors.hasUserError;
 
       // Server
-      const port = (await this.resources.metrics.ponder_server_port.get())
+      const port = (await this.common.metrics.ponder_server_port.get())
         .values[0].value;
       this.ui.port = port;
 

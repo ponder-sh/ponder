@@ -14,7 +14,7 @@ import { SqliteEventStore } from "@/event-store/sqlite/store";
 import type { EventStore } from "@/event-store/store";
 import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
-import { Resources } from "@/Ponder";
+import { Common } from "@/Ponder";
 import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import type { UserStore } from "@/user-store/store";
@@ -38,14 +38,14 @@ moduleAlias.addAlias("@ponder/core", ponderCoreDir);
  */
 declare module "vitest" {
   export interface TestContext {
-    resources: Resources;
+    common: Common;
     eventStore: EventStore;
     userStore: UserStore;
   }
 }
 
 beforeEach((context) => {
-  context.resources = {
+  context.common = {
     options: buildOptions({ cliOptions: { configFile: "", rootDir: "" } }),
     logger: new LoggerService({ level: "silent" }),
     errors: new UserErrorService(),

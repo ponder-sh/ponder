@@ -6,7 +6,7 @@ import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
-import { Resources } from "@/Ponder";
+import { Common } from "@/Ponder";
 import { poll } from "@/utils/poll";
 import { type Queue, createQueue } from "@/utils/queue";
 import { range } from "@/utils/range";
@@ -47,7 +47,7 @@ type RealtimeBlockTask = BlockWithTransactions;
 type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
-  private resources: Resources;
+  private common: Common;
   private eventStore: EventStore;
   private logFilters: LogFilter[];
   private network: Network;
@@ -64,19 +64,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private unpoll?: () => any | Promise<any>;
 
   constructor({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
   }: {
-    resources: Resources;
+    common: Common;
     eventStore: EventStore;
     logFilters: LogFilter[];
     network: Network;
   }) {
     super();
 
-    this.resources = resources;
+    this.common = common;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
@@ -90,12 +90,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     const latestBlock = await this.getLatestBlock();
     const latestBlockNumber = hexToNumber(latestBlock.number);
 
-    this.resources.logger.info({
+    this.common.logger.info({
       service: "realtime",
       msg: `Fetched latest block at ${latestBlockNumber} (network=${this.network.name})`,
     });
 
-    this.resources.metrics.ponder_realtime_is_connected.set(
+    this.common.metrics.ponder_realtime_is_connected.set(
       { network: this.network.name },
       1
     );
@@ -127,11 +127,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           endBlock !== undefined && endBlock < this.finalizedBlockNumber
       )
     ) {
-      this.resources.logger.warn({
+      this.common.logger.warn({
         service: "realtime",
         msg: `No realtime log filters found (network=${this.network.name})`,
       });
-      this.resources.metrics.ponder_realtime_is_connected.set(
+      this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },
         0
       );
@@ -152,7 +152,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       params: [numberToHex(this.finalizedBlockNumber), false],
     });
     if (!finalizedBlock) throw new Error(`Unable to fetch finalized block`);
-    this.resources.metrics.ponder_realtime_rpc_request_duration.observe(
+    this.common.metrics.ponder_realtime_rpc_request_duration.observe(
       {
         method: "eth_getBlockByNumber",
         network: this.network.name,
@@ -160,7 +160,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       stopClock()
     );
 
-    this.resources.logger.info({
+    this.common.logger.info({
       service: "realtime",
       msg: `Fetched finalized block at ${hexToNumber(
         finalizedBlock.number!
@@ -194,7 +194,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // TODO: Figure out if it's necessary to wait for the queue to be idle before killing it.
     // await this.onIdle();
 
-    this.resources.logger.debug({
+    this.common.logger.debug({
       service: "realtime",
       msg: `Killed realtime sync service (network=${this.network.name})`,
     });
@@ -212,7 +212,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       params: ["latest", true],
     });
     if (!latestBlock_) throw new Error(`Unable to fetch latest block`);
-    this.resources.metrics.ponder_realtime_rpc_request_duration.observe(
+    this.common.metrics.ponder_realtime_rpc_request_duration.observe(
       {
         method: "eth_getBlockByNumber",
         network: this.network.name,
@@ -265,7 +265,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // 1) We already saw and handled this block. No-op.
     if (this.blocks.find((b) => b.hash === newBlock.hash)) {
-      this.resources.logger.debug({
+      this.common.logger.debug({
         service: "realtime",
         msg: `Already processed block at ${newBlock.number} (network=${this.network.name})`,
       });
@@ -296,7 +296,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             },
           ],
         });
-        this.resources.metrics.ponder_realtime_rpc_request_duration.observe(
+        this.common.metrics.ponder_realtime_rpc_request_duration.observe(
           {
             method: "eth_getLogs",
             network: this.network.name,
@@ -338,22 +338,22 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       // Add this block the local chain.
       this.blocks.push(newBlock);
 
-      this.resources.metrics.ponder_realtime_latest_block_number.set(
+      this.common.metrics.ponder_realtime_latest_block_number.set(
         { network: this.network.name },
         newBlock.number
       );
-      this.resources.metrics.ponder_realtime_latest_block_timestamp.set(
+      this.common.metrics.ponder_realtime_latest_block_timestamp.set(
         { network: this.network.name },
         newBlock.timestamp
       );
 
-      this.resources.logger.debug({
+      this.common.logger.debug({
         service: "realtime",
         msg: `Processed new head block at ${newBlock.number} (network=${this.network.name})`,
       });
 
       if (matchedLogCount > 0) {
-        this.resources.logger.info({
+        this.common.logger.info({
           service: "realtime",
           msg: `Found ${
             matchedLogCount === 1
@@ -408,7 +408,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           timestamp: newFinalizedBlock.timestamp,
         });
 
-        this.resources.logger.debug({
+        this.common.logger.debug({
           service: "realtime",
           msg: `Updated finality checkpoint to ${newFinalizedBlock.number} (network=${this.network.name})`,
           matchedLogCount,
@@ -438,7 +438,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           if (!block) {
             throw new Error(`Failed to fetch block number: ${number}`);
           }
-          this.resources.metrics.ponder_realtime_rpc_request_duration.observe(
+          this.common.metrics.ponder_realtime_rpc_request_duration.observe(
             {
               method: "eth_getBlockByNumber",
               network: this.network.name,
@@ -457,7 +457,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.queue.addTask(block, { priority });
       }
 
-      this.resources.logger.info({
+      this.common.logger.info({
         service: "realtime",
         msg: `Fetched unfinalized block range [${missingBlockNumbers[0]}, ${
           missingBlockNumbers[missingBlockNumbers.length - 1]
@@ -517,7 +517,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           commonAncestorTimestamp: commonAncestorBlock.timestamp,
         });
 
-        this.resources.logger.info({
+        this.common.logger.info({
           service: "realtime",
           msg: `Reconciled ${depth}-block reorg with common ancestor block ${commonAncestorBlock.number} (network=${this.network.name})`,
         });
@@ -531,7 +531,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         method: "eth_getBlockByHash",
         params: [canonicalBlock.parentHash, true],
       });
-      this.resources.metrics.ponder_realtime_rpc_request_duration.observe(
+      this.common.metrics.ponder_realtime_rpc_request_duration.observe(
         {
           method: "eth_getBlockByHash",
           network: this.network.name,
@@ -557,7 +557,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       minimumDepth: depth,
     });
 
-    this.resources.logger.warn({
+    this.common.logger.warn({
       service: "realtime",
       msg: `Unable to reconcile >${depth}-block reorg (network=${this.network.name})`,
     });

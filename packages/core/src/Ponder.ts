@@ -24,7 +24,7 @@ import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { type UserStore } from "@/user-store/store";
 
-export type Resources = {
+export type Common = {
   options: Options;
   logger: LoggerService;
   errors: UserErrorService;
@@ -32,7 +32,7 @@ export type Resources = {
 };
 
 export class Ponder {
-  resources: Resources;
+  common: Common;
   logFilters: LogFilter[];
 
   eventStore: EventStore;
@@ -73,8 +73,8 @@ export class Ponder {
     const errors = new UserErrorService();
     const metrics = new MetricsService();
 
-    const resources = { options, logger, errors, metrics };
-    this.resources = resources;
+    const common = { options, logger, errors, metrics };
+    this.common = common;
 
     const logFilters = buildLogFilters({ options, config });
     this.logFilters = logFilters;
@@ -87,7 +87,7 @@ export class Ponder {
           (logFilter) => logFilter.network === network.name
         );
         if (!hasLogFilters) {
-          this.resources.logger.warn({
+          this.common.logger.warn({
             service: "app",
             msg: `No log filters found (network=${network.name})`,
           });
@@ -116,13 +116,13 @@ export class Ponder {
         network,
         logFilters: logFiltersForNetwork,
         historicalSyncService: new HistoricalSyncService({
-          resources,
+          common,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
-          resources,
+          common,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
@@ -131,14 +131,14 @@ export class Ponder {
     });
 
     this.eventAggregatorService = new EventAggregatorService({
-      resources,
+      common,
       eventStore: this.eventStore,
       networks,
       logFilters,
     });
 
     this.eventHandlerService = new EventHandlerService({
-      resources,
+      common,
       eventStore: this.eventStore,
       userStore: this.userStore,
       eventAggregatorService: this.eventAggregatorService,
@@ -147,24 +147,24 @@ export class Ponder {
     });
 
     this.serverService = new ServerService({
-      resources,
+      common,
       userStore: this.userStore,
     });
-    this.buildService = new BuildService({ resources, logFilters });
+    this.buildService = new BuildService({ common, logFilters });
     this.codegenService = new CodegenService({
-      resources,
+      common,
       contracts,
       logFilters,
     });
-    this.uiService = new UiService({ resources, logFilters });
+    this.uiService = new UiService({ common, logFilters });
   }
 
   async setup() {
-    this.resources.logger.debug({
+    this.common.logger.debug({
       service: "app",
       msg: `Started using config file: ${path.relative(
-        this.resources.options.rootDir,
-        this.resources.options.configFile
+        this.common.options.rootDir,
+        this.common.options.configFile
       )}`,
     });
 
@@ -207,7 +207,7 @@ export class Ponder {
   async dev() {
     const setupError = await this.setup();
     if (setupError) {
-      this.resources.logger.error({
+      this.common.logger.error({
         service: "app",
         msg: setupError.message,
         error: setupError,
@@ -233,7 +233,7 @@ export class Ponder {
   async start() {
     const setupError = await this.setup();
     if (setupError) {
-      this.resources.logger.error({
+      this.common.logger.error({
         service: "app",
         msg: setupError.message,
         error: setupError,
@@ -285,7 +285,7 @@ export class Ponder {
     await this.serverService.kill();
     await this.userStore.teardown();
 
-    this.resources.logger.debug({
+    this.common.logger.debug({
       service: "app",
       msg: `Finished shutdown sequence`,
     });
@@ -293,7 +293,7 @@ export class Ponder {
 
   private registerServiceDependencies() {
     this.buildService.on("newConfig", async () => {
-      this.resources.logger.fatal({
+      this.common.logger.fatal({
         service: "build",
         msg: "Detected change in ponder.config.ts",
       });

@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { Contract } from "@/config/contracts";
 import { LogFilter } from "@/config/logFilters";
-import { Resources } from "@/Ponder";
+import { Common } from "@/Ponder";
 import { Schema } from "@/schema/types";
 import { ensureDirExists } from "@/utils/exists";
 
@@ -15,21 +15,21 @@ import { buildEventTypes } from "./event";
 import { formatPrettier } from "./prettier";
 
 export class CodegenService extends Emittery {
-  private resources: Resources;
+  private common: Common;
   private contracts: Contract[];
   private logFilters: LogFilter[];
 
   constructor({
-    resources,
+    common,
     contracts,
     logFilters,
   }: {
-    resources: Resources;
+    common: Common;
     contracts: Contract[];
     logFilters: LogFilter[];
   }) {
     super();
-    this.resources = resources;
+    this.common = common;
     this.contracts = contracts;
     this.logFilters = logFilters;
   }
@@ -78,11 +78,11 @@ export class CodegenService extends Emittery {
 
     const final = formatPrettier(raw);
 
-    const filePath = path.join(this.resources.options.generatedDir, "index.ts");
+    const filePath = path.join(this.common.options.generatedDir, "index.ts");
     ensureDirExists(filePath);
     writeFileSync(filePath, final, "utf8");
 
-    this.resources.logger.debug({
+    this.common.logger.debug({
       service: "codegen",
       msg: `Wrote new file at generated/index.ts`,
     });
@@ -97,13 +97,13 @@ export class CodegenService extends Emittery {
     const final = formatPrettier(header + body, { parser: "graphql" });
 
     const filePath = path.join(
-      this.resources.options.generatedDir,
+      this.common.options.generatedDir,
       "schema.graphql"
     );
     ensureDirExists(filePath);
     writeFileSync(filePath, final, "utf8");
 
-    this.resources.logger.debug({
+    this.common.logger.debug({
       service: "codegen",
       msg: `Wrote new file at generated/schema.graphql`,
     });
