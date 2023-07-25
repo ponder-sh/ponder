@@ -55,10 +55,10 @@ const blockNumbers = {
 };
 
 test("setup() throws if log filter start block is greater than latest block", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -77,10 +77,10 @@ test("setup() throws if log filter start block is greater than latest block", as
 });
 
 test("setup() succeeds if log filter start block is greater than finalized block", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -92,7 +92,7 @@ test("setup() succeeds if log filter start block is greater than finalized block
   });
 
   const totalBlocksMetric = (
-    await resources.metrics.ponder_historical_total_blocks.get()
+    await common.metrics.ponder_historical_total_blocks.get()
   ).values;
   expect(totalBlocksMetric).toMatchObject([
     { labels: { network: "mainnet", logFilter: "USDC" }, value: 0 },
@@ -102,7 +102,7 @@ test("setup() succeeds if log filter start block is greater than finalized block
 });
 
 test("setup() throws if log filter end block is greater than start block", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const logFilters_ = [
     {
@@ -114,7 +114,7 @@ test("setup() throws if log filter end block is greater than start block", async
   ];
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters: logFilters_,
     network,
@@ -128,7 +128,7 @@ test("setup() throws if log filter end block is greater than start block", async
 });
 
 test("setup() throws if log filter end block is greater than latest block", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const logFilters_ = [
     {
@@ -140,7 +140,7 @@ test("setup() throws if log filter end block is greater than latest block", asyn
   ];
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters: logFilters_,
     network,
@@ -159,7 +159,7 @@ test("setup() throws if log filter end block is greater than latest block", asyn
 });
 
 test("setup() throws if log filter end block is greater than finalized block", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const logFilters_ = [
     {
@@ -171,7 +171,7 @@ test("setup() throws if log filter end block is greater than finalized block", a
   ];
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters: logFilters_,
     network,
@@ -190,10 +190,10 @@ test("setup() throws if log filter end block is greater than finalized block", a
 });
 
 test("setup() updates cached block, total block, and scheduled task metrics", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -201,21 +201,21 @@ test("setup() updates cached block, total block, and scheduled task metrics", as
   await service.setup(blockNumbers);
 
   const cachedBlocksMetric = (
-    await resources.metrics.ponder_historical_cached_blocks.get()
+    await common.metrics.ponder_historical_cached_blocks.get()
   ).values;
   expect(cachedBlocksMetric).toMatchObject([
     { labels: { network: "mainnet", logFilter: "USDC" }, value: 0 },
   ]);
 
   const totalBlocksMetric = (
-    await resources.metrics.ponder_historical_total_blocks.get()
+    await common.metrics.ponder_historical_total_blocks.get()
   ).values;
   expect(totalBlocksMetric).toMatchObject([
     { labels: { network: "mainnet", logFilter: "USDC" }, value: 6 },
   ]);
 
   const scheduledTaskMetric = (
-    await resources.metrics.ponder_historical_scheduled_tasks.get()
+    await common.metrics.ponder_historical_scheduled_tasks.get()
   ).values;
   expect(scheduledTaskMetric).toMatchObject([
     { labels: { network: "mainnet", kind: "log" }, value: 2 },
@@ -225,10 +225,10 @@ test("setup() updates cached block, total block, and scheduled task metrics", as
 });
 
 test("start() updates completed tasks and completed blocks metrics", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -239,7 +239,7 @@ test("start() updates completed tasks and completed blocks metrics", async (cont
   await service.onIdle();
 
   const completedTasksMetric = (
-    await resources.metrics.ponder_historical_completed_tasks.get()
+    await common.metrics.ponder_historical_completed_tasks.get()
   ).values;
   expect(completedTasksMetric).toMatchObject([
     {
@@ -253,7 +253,7 @@ test("start() updates completed tasks and completed blocks metrics", async (cont
   ]);
 
   const totalBlocksMetric = (
-    await resources.metrics.ponder_historical_completed_blocks.get()
+    await common.metrics.ponder_historical_completed_blocks.get()
   ).values;
   expect(totalBlocksMetric).toMatchObject([
     { labels: { network: "mainnet", logFilter: "USDC" }, value: 6 },
@@ -263,10 +263,10 @@ test("start() updates completed tasks and completed blocks metrics", async (cont
 });
 
 test("start() updates rpc request duration metrics", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -277,7 +277,7 @@ test("start() updates rpc request duration metrics", async (context) => {
   await service.onIdle();
 
   const requestsDurationMetric = (
-    await resources.metrics.ponder_historical_rpc_request_duration.get()
+    await common.metrics.ponder_historical_rpc_request_duration.get()
   ).values;
 
   expect(requestsDurationMetric).toMatchObject(
@@ -301,10 +301,10 @@ test("start() updates rpc request duration metrics", async (context) => {
 });
 
 test("start() adds events to event store", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -355,10 +355,10 @@ test("start() adds events to event store", async (context) => {
 });
 
 test("start() inserts cached ranges", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -383,13 +383,13 @@ test("start() inserts cached ranges", async (context) => {
 });
 
 test("start() retries errors", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const spy = vi.spyOn(eventStore, "insertFinalizedLogs");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -411,13 +411,13 @@ test("start() retries errors", async (context) => {
 });
 
 test("start() updates failed task metrics", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const spy = vi.spyOn(eventStore, "insertFinalizedLogs");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -427,7 +427,7 @@ test("start() updates failed task metrics", async (context) => {
   await service.onIdle();
 
   const completedTasksMetric = (
-    await resources.metrics.ponder_historical_completed_tasks.get()
+    await common.metrics.ponder_historical_completed_tasks.get()
   ).values;
   expect(completedTasksMetric).toMatchObject([
     {
@@ -448,7 +448,7 @@ test("start() updates failed task metrics", async (context) => {
 });
 
 test("start() handles Alchemy 'Log response size exceeded' error", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   rpcRequestSpy.mockRejectedValueOnce(
     new InvalidParamsRpcError(
@@ -460,7 +460,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   );
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -482,7 +482,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
 });
 
 test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 10,000 blocks range' error", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   rpcRequestSpy.mockRejectedValueOnce(
     new HttpRequestError({
@@ -493,7 +493,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   );
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -515,10 +515,10 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
 });
 
 test("start() emits sync completed event", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -535,10 +535,10 @@ test("start() emits sync completed event", async (context) => {
 });
 
 test("start() emits checkpoit and sync completed event if 100% cached", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   let service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -550,7 +550,7 @@ test("start() emits checkpoit and sync completed event if 100% cached", async (c
   await service.kill();
 
   service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -572,10 +572,10 @@ test("start() emits checkpoit and sync completed event if 100% cached", async (c
 });
 
 test("start() emits historicalCheckpoint event", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,

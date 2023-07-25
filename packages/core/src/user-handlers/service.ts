@@ -10,7 +10,7 @@ import type {
   LogEvent,
 } from "@/event-aggregator/service";
 import type { EventStore } from "@/event-store/store";
-import type { Resources } from "@/Ponder";
+import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
 import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";
@@ -34,7 +34,7 @@ type EventHandlerTask = SetupTask | LogEventTask;
 type EventHandlerQueue = Queue<EventHandlerTask>;
 
 export class EventHandlerService extends Emittery<EventHandlerEvents> {
-  private resources: Resources;
+  private common: Common;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
   private logFilters: LogFilter[];
@@ -57,14 +57,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private currentEventTimestamp = 0;
 
   constructor({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
     contracts,
     logFilters,
   }: {
-    resources: Resources;
+    common: Common;
     eventStore: EventStore;
     userStore: UserStore;
     eventAggregatorService: EventAggregatorService;
@@ -72,7 +72,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     logFilters: LogFilter[];
   }) {
     super();
-    this.resources = resources;
+    this.common = common;
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
     this.logFilters = logFilters;
@@ -92,7 +92,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.queue?.clear();
     this.eventProcessingMutex.cancel();
 
-    this.resources.logger.debug({
+    this.common.logger.debug({
       service: "handlers",
       msg: `Killed user handler service`,
     });
@@ -137,14 +137,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.queue = this.createEventQueue({ handlers: this.handlers });
 
     this.hasError = false;
-    this.resources.metrics.ponder_handlers_has_error.set(0);
+    this.common.metrics.ponder_handlers_has_error.set(0);
 
-    this.resources.metrics.ponder_handlers_matched_events.reset();
-    this.resources.metrics.ponder_handlers_handled_events.reset();
-    this.resources.metrics.ponder_handlers_processed_events.reset();
+    this.common.metrics.ponder_handlers_matched_events.reset();
+    this.common.metrics.ponder_handlers_handled_events.reset();
+    this.common.metrics.ponder_handlers_processed_events.reset();
 
     await this.userStore.reload({ schema: this.schema });
-    this.resources.logger.debug({
+    this.common.logger.debug({
       service: "handlers",
       msg: `Reset user store (versionId=${this.userStore.versionId})`,
     });
@@ -152,7 +152,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     // When we call userStore.reload() above, the user store is dropped.
     // Set the latest processed timestamp to zero accordingly.
     this.eventsProcessedToTimestamp = 0;
-    this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(0);
+    this.common.metrics.ponder_handlers_latest_processed_timestamp.set(0);
   };
 
   /**
@@ -184,7 +184,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
         if (this.eventsProcessedToTimestamp <= commonAncestorTimestamp) {
           // No unsafe events have been processed, so no need to revert (case 1 & case 2).
-          this.resources.logger.debug({
+          this.common.logger.debug({
             service: "handlers",
             msg: `No unsafe events were detected while reconciling a reorg, no-op`,
           });
@@ -196,7 +196,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           });
 
           this.eventsProcessedToTimestamp = commonAncestorTimestamp;
-          this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
+          this.common.metrics.ponder_handlers_latest_processed_timestamp.set(
             commonAncestorTimestamp
           );
 
@@ -204,7 +204,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           // during the reorg reconciliation, so the event count metrics
           // (e.g. ponder_handlers_processed_events) will be slightly inflated.
 
-          this.resources.logger.debug({
+          this.common.logger.debug({
             service: "handlers",
             msg: `Reverted user store to safe timestamp ${commonAncestorTimestamp}`,
           });
@@ -250,12 +250,12 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
         // If no events have been added yet, add the setup event & associated metrics.
         if (this.eventsProcessedToTimestamp === 0) {
-          this.resources.metrics.ponder_handlers_matched_events.inc({
+          this.common.metrics.ponder_handlers_matched_events.inc({
             eventName: "setup",
           });
           if (this.handlers?._meta_.setup) {
             this.queue.addTask({ kind: "SETUP" });
-            this.resources.metrics.ponder_handlers_handled_events.inc({
+            this.common.metrics.ponder_handlers_handled_events.inc({
               eventName: "setup",
             });
           }
@@ -288,12 +288,12 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
                   selector
                 ];
 
-              this.resources.metrics.ponder_handlers_matched_events.inc(
+              this.common.metrics.ponder_handlers_matched_events.inc(
                 { eventName: `${logFilterName}:${safeName}` },
                 count
               );
               if (isHandled) {
-                this.resources.metrics.ponder_handlers_handled_events.inc(
+                this.common.metrics.ponder_handlers_handled_events.inc(
                   { eventName: `${logFilterName}:${safeName}` },
                   count
                 );
@@ -315,7 +315,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           this.queue.pause();
 
           if (events.length > 0) {
-            this.resources.logger.info({
+            this.common.logger.info({
               service: "handlers",
               msg: `Processed ${
                 events.length === 1 ? "1 event" : `${events.length} events`
@@ -331,7 +331,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
         // Note that this happens both here and in the log event handler function.
         // They must also happen here to handle the case where no events were processed.
-        this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
+        this.common.metrics.ponder_handlers_latest_processed_timestamp.set(
           toTimestamp
         );
       });
@@ -366,7 +366,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             // Running user code here!
             await setupHandler({ context });
 
-            this.resources.metrics.ponder_handlers_processed_events.inc({
+            this.common.metrics.ponder_handlers_processed_events.inc({
               eventName: "setup",
             });
           } catch (error_) {
@@ -374,10 +374,10 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             queue.clear();
 
             this.hasError = true;
-            this.resources.metrics.ponder_handlers_has_error.set(1);
+            this.common.metrics.ponder_handlers_has_error.set(1);
 
             const error = error_ as Error;
-            const trace = getStackTrace(error, this.resources.options);
+            const trace = getStackTrace(error, this.common.options);
 
             const message = `Error while handling "setup" event: ${error.message}`;
 
@@ -386,11 +386,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
               cause: error,
             });
 
-            this.resources.logger.error({
+            this.common.logger.error({
               service: "handlers",
               error: userError,
             });
-            this.resources.errors.submitUserError({ error: userError });
+            this.common.errors.submitUserError({ error: userError });
           }
 
           break;
@@ -426,10 +426,10 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             queue.clear();
 
             this.hasError = true;
-            this.resources.metrics.ponder_handlers_has_error.set(1);
+            this.common.metrics.ponder_handlers_has_error.set(1);
 
             const error = error_ as Error;
-            const trace = getStackTrace(error, this.resources.options);
+            const trace = getStackTrace(error, this.common.options);
 
             const message = `Error while handling "${event.logFilterName}:${
               event.eventName
@@ -443,17 +443,17 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
               cause: error,
             });
 
-            this.resources.logger.error({
+            this.common.logger.error({
               service: "handlers",
               error: userError,
             });
-            this.resources.errors.submitUserError({ error: userError });
+            this.common.errors.submitUserError({ error: userError });
           }
 
-          this.resources.metrics.ponder_handlers_processed_events.inc({
+          this.common.metrics.ponder_handlers_processed_events.inc({
             eventName: `${event.logFilterName}:${event.eventName}`,
           });
-          this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
+          this.common.metrics.ponder_handlers_latest_processed_timestamp.set(
             this.currentEventTimestamp
           );
 

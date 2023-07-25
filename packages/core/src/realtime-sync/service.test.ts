@@ -54,10 +54,10 @@ const sendUsdcTransferTransaction = async () => {
 };
 
 test("setup() returns block numbers", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -72,10 +72,10 @@ test("setup() returns block numbers", async (context) => {
 });
 
 test("fetches blocks from finalized to latest", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -93,10 +93,10 @@ test("fetches blocks from finalized to latest", async (context) => {
 });
 
 test("fetches transactions from finalized to latest", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -125,10 +125,10 @@ test("fetches transactions from finalized to latest", async (context) => {
 });
 
 test("fetches logs from finalized to latest", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -172,10 +172,10 @@ test("fetches logs from finalized to latest", async (context) => {
 });
 
 test("handles new blocks", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -226,10 +226,10 @@ test("handles new blocks", async (context) => {
 });
 
 test("emits realtimeCheckpoint events", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -263,10 +263,10 @@ test("emits realtimeCheckpoint events", async (context) => {
 });
 
 test("marks block data as finalized", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -307,10 +307,10 @@ test("marks block data as finalized", async (context) => {
 });
 
 test("handles 1 block shallow reorg", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -367,10 +367,10 @@ test("handles 1 block shallow reorg", async (context) => {
 });
 
 test("handles 3 block shallow reorg", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,
@@ -453,10 +453,10 @@ test("handles 3 block shallow reorg", async (context) => {
 });
 
 test("handles deep reorg", async (context) => {
-  const { resources, eventStore } = context;
+  const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
-    resources,
+    common,
     eventStore,
     logFilters,
     network,

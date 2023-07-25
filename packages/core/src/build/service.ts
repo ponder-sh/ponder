@@ -7,7 +7,7 @@ import path from "node:path";
 
 import { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
-import { Resources } from "@/Ponder";
+import { Common } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
 import { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/schema";
@@ -26,27 +26,27 @@ type BuildServiceEvents = {
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
-  private resources: Resources;
+  private common: Common;
   private logFilters: LogFilter[];
 
   private closeWatcher?: () => Promise<void>;
   private latestFileHashes: Record<string, string | undefined> = {};
 
   constructor({
-    resources,
+    common,
     logFilters,
   }: {
-    resources: Resources;
+    common: Common;
     logFilters: LogFilter[];
   }) {
     super();
-    this.resources = resources;
+    this.common = common;
     this.logFilters = logFilters;
   }
 
   async kill() {
     this.closeWatcher?.();
-    this.resources.logger.debug({
+    this.common.logger.debug({
       service: "build",
       msg: `Killed build service`,
     });
@@ -54,9 +54,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   watch() {
     const watchFiles = [
-      this.resources.options.configFile,
-      this.resources.options.schemaFile,
-      this.resources.options.srcDir,
+      this.common.options.configFile,
+      this.common.options.schemaFile,
+      this.common.options.srcDir,
     ];
 
     const watcher = chokidar.watch(watchFiles);
@@ -65,7 +65,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     };
 
     watcher.on("change", async (filePath) => {
-      if (filePath === this.resources.options.configFile) {
+      if (filePath === this.common.options.configFile) {
         this.emit("newConfig");
         return;
       }
@@ -73,14 +73,14 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       if (this.isFileChanged(filePath)) {
         const fileName = path.basename(filePath);
 
-        this.resources.logger.info({
+        this.common.logger.info({
           service: "build",
           msg: `Detected change in ${fileName}`,
         });
 
-        this.resources.errors.hasUserError = false;
+        this.common.errors.hasUserError = false;
 
-        if (filePath === this.resources.options.schemaFile) {
+        if (filePath === this.common.options.schemaFile) {
           this.buildSchema();
         } else {
           await this.buildHandlers();
@@ -92,7 +92,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   async buildHandlers() {
     try {
       const rawHandlerFunctions = await buildRawHandlerFunctions({
-        options: this.resources.options,
+        options: this.common.options,
       });
 
       const handlers = hydrateHandlerFunctions({
@@ -101,7 +101,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       });
 
       if (Object.values(handlers.logFilters).length === 0) {
-        this.resources.logger.warn({
+        this.common.logger.warn({
           service: "build",
           msg: "No event handler functions found",
         });
@@ -118,18 +118,18 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         stack: error.stack,
       });
 
-      this.resources.logger.error({
+      this.common.logger.error({
         service: "build",
         error: userError,
       });
-      this.resources.errors.submitUserError({ error: userError });
+      this.common.errors.submitUserError({ error: userError });
     }
   }
 
   buildSchema() {
     try {
       const userGraphqlSchema = readGraphqlSchema({
-        options: this.resources.options,
+        options: this.common.options,
       });
       const schema = buildSchema(userGraphqlSchema);
       const graphqlSchema = buildGqlSchema(schema);
@@ -148,11 +148,11 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         stack: error.stack,
       });
 
-      this.resources.logger.error({
+      this.common.logger.error({
         service: "build",
         error: userError,
       });
-      this.resources.errors.submitUserError({ error: userError });
+      this.common.errors.submitUserError({ error: userError });
     }
   }
 

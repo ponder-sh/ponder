@@ -126,10 +126,10 @@ beforeEach(() => {
 });
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
-  const { resources, eventStore, userStore } = context;
+  const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -165,10 +165,10 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 });
 
 test("processEvents() calls event handler functions with correct arguments", async (context) => {
-  const { resources, eventStore, userStore } = context;
+  const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -203,10 +203,10 @@ test("processEvents() calls event handler functions with correct arguments", asy
 });
 
 test("processEvents() model methods insert data into the user store", async (context) => {
-  const { resources, eventStore, userStore } = context;
+  const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -228,10 +228,10 @@ test("processEvents() model methods insert data into the user store", async (con
 });
 
 test("processEvents() updates event count metrics", async (context) => {
-  const { resources, eventStore, userStore } = context;
+  const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -245,7 +245,7 @@ test("processEvents() updates event count metrics", async (context) => {
   await service.processEvents();
 
   const matchedEventsMetric = (
-    await resources.metrics.ponder_handlers_matched_events.get()
+    await common.metrics.ponder_handlers_matched_events.get()
   ).values;
   expect(matchedEventsMetric).toMatchObject([
     { labels: { eventName: "setup" }, value: 1 },
@@ -253,14 +253,14 @@ test("processEvents() updates event count metrics", async (context) => {
   ]);
 
   const handledEventsMetric = (
-    await resources.metrics.ponder_handlers_handled_events.get()
+    await common.metrics.ponder_handlers_handled_events.get()
   ).values;
   expect(handledEventsMetric).toMatchObject([
     { labels: { eventName: "USDC:Transfer" }, value: 5 },
   ]);
 
   const processedEventsMetric = (
-    await resources.metrics.ponder_handlers_processed_events.get()
+    await common.metrics.ponder_handlers_processed_events.get()
   ).values;
   expect(processedEventsMetric).toMatchObject([
     { labels: { eventName: "USDC:Transfer" }, value: 1 },
@@ -270,10 +270,10 @@ test("processEvents() updates event count metrics", async (context) => {
 });
 
 test("reset() reloads the user store", async (context) => {
-  const { resources, eventStore, userStore } = context;
+  const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -306,10 +306,10 @@ test("reset() reloads the user store", async (context) => {
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { resources, eventStore, userStore } = context;
+  const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -323,14 +323,14 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   await service.processEvents();
 
   const latestProcessedTimestampMetric = (
-    await resources.metrics.ponder_handlers_latest_processed_timestamp.get()
+    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetric).toBe(10);
 
   await service.reset({ schema, handlers });
 
   const latestProcessedTimestampMetricAfterReset = (
-    await resources.metrics.ponder_handlers_latest_processed_timestamp.get()
+    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReset).toBe(0);
 
@@ -338,10 +338,10 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 });
 
 test("handleReorg() reverts the user store", async (context) => {
-  const { resources, eventStore, userStore } = context;
+  const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -364,10 +364,10 @@ test("handleReorg() reverts the user store", async (context) => {
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
-  const { resources, eventStore, userStore } = context;
+  const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -394,10 +394,10 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
-  const { resources, eventStore, userStore } = context;
+  const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -434,10 +434,10 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { resources, eventStore, userStore } = context;
+  const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
-    resources,
+    common,
     eventStore,
     userStore,
     eventAggregatorService,
@@ -451,7 +451,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   await service.processEvents();
 
   const latestProcessedTimestampMetric = (
-    await resources.metrics.ponder_handlers_latest_processed_timestamp.get()
+    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetric).toBe(10);
 
@@ -461,7 +461,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   await service.handleReorg({ commonAncestorTimestamp: 6 });
 
   const latestProcessedTimestampMetricAfterReorg = (
-    await resources.metrics.ponder_handlers_latest_processed_timestamp.get()
+    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReorg).toBe(6);
 
