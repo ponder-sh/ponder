@@ -314,32 +314,23 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           await this.queue.onIdle();
           this.queue.pause();
 
-          const { pageEndsAtTimestamp } = metadata;
-          this.eventsProcessedToTimestamp = pageEndsAtTimestamp;
-          this.emit("eventsProcessed", { toTimestamp: pageEndsAtTimestamp });
-          this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
-            pageEndsAtTimestamp
-          );
-
-          // This is a hack to ensure that the eventsProcessed handler is called and updates
-          // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
-          // It does, however, slow down event processing a bit.
-          await wait(0);
-
           if (events.length > 0) {
             this.resources.logger.info({
               service: "handlers",
               msg: `Processed ${
                 events.length === 1 ? "1 event" : `${events.length} events`
-              } (up to ${formatShortDate(pageEndsAtTimestamp)})`,
+              } (up to ${formatShortDate(metadata.pageEndsAtTimestamp)})`,
             });
           }
 
           pageIndex += 1;
         }
 
-        this.eventsProcessedToTimestamp = toTimestamp;
         this.emit("eventsProcessed", { toTimestamp });
+        this.eventsProcessedToTimestamp = toTimestamp;
+
+        // Note that this happens both here and in the log event handler function.
+        // They must also happen here to handle the case where no events were processed.
         this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
           toTimestamp
         );
@@ -361,6 +352,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       task,
       queue,
     }) => {
+      // This is a hack to ensure that the eventsProcessed handler is called and updates
+      // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
+      // It does, however, slow down event processing a bit.
+      await wait(0);
+
       switch (task.kind) {
         case "SETUP": {
           const setupHandler = handlers._meta_.setup?.fn;
@@ -425,10 +421,6 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
               },
               context,
             });
-
-            this.resources.metrics.ponder_handlers_processed_events.inc({
-              eventName: `${event.logFilterName}:${event.eventName}`,
-            });
           } catch (error_) {
             // Remove all remaining tasks from the queue.
             queue.clear();
@@ -457,6 +449,13 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             });
             this.resources.errors.submitUserError({ error: userError });
           }
+
+          this.resources.metrics.ponder_handlers_processed_events.inc({
+            eventName: `${event.logFilterName}:${event.eventName}`,
+          });
+          this.resources.metrics.ponder_handlers_latest_processed_timestamp.set(
+            this.currentEventTimestamp
+          );
 
           break;
         }

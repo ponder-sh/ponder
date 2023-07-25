@@ -100,6 +100,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         logFilters: this.logFilters,
       });
 
+      if (Object.values(handlers.logFilters).length === 0) {
+        this.resources.logger.warn({
+          service: "build",
+          msg: "No event handler functions found",
+        });
+      }
+
       this.emit("newHandlers", { handlers });
     } catch (error_) {
       const error = error_ as Error;
