@@ -6,15 +6,11 @@ ponder.on("SmolBrain:Transfer", async ({ event, context }) => {
   // Create an Account for the sender, or update the balance if it already exists.
   await Account.upsert({
     id: event.params.from,
-    create: {},
-    update: {},
   });
 
   // Create an Account for the recipient, or update the balance if it already exists.
   await Account.upsert({
     id: event.params.to,
-    create: {},
-    update: {},
   });
 
   // Create or update a Token.
