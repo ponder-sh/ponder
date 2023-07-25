@@ -432,7 +432,7 @@ export const contractReadResultOne: ContractReadResult = {
 
 export const logFilterCachedRangeOne: LogFilterCachedRange = {
   filterKey: '1-0x93d4c048f83bd7e37d49ea4c83a07267ec4203da-["0x1",null,"0x3"]',
-  startBlock: BigInt(16000010),
-  endBlock: BigInt(16000090),
-  endBlockTimestamp: BigInt(16000010),
+  startBlock: 16000010,
+  endBlock: 16000090,
+  endBlockTimestamp: 16000010,
 };
