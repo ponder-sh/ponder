@@ -11,9 +11,9 @@ import type { Transaction } from "@/types/transaction";
  */
 export type LogFilterCachedRange = {
   filterKey: string;
-  startBlock: bigint;
-  endBlock: bigint;
-  endBlockTimestamp: bigint;
+  startBlock: number;
+  endBlock: number;
+  endBlockTimestamp: number;
 };
 
 /**

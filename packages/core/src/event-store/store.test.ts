@@ -89,15 +89,67 @@ test("insertHistoricalBlock inserts a log filter cached interval", async (contex
   });
 
   expect(logFilterCachedRanges[0]).toMatchObject({
-    endBlock: 15495110n,
-    endBlockTimestamp: 1662619503n,
+    endBlock: 15495110,
+    endBlockTimestamp: 1662619503,
     filterKey: "test-filter-key",
-    startBlock: 15131900n,
+    startBlock: 15131900,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 });
 
-test("mergeLogFilterCachedIntervals merges cached intervals", async (context) => {
+test("insertLogFilterCachedRanges inserts many cached intervals", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertLogFilterCachedRanges({
+    logFilterKeys: ["test-filter-key-1", "test-filter-key-2"],
+    startBlock: 15131900,
+    endBlock: 15495111,
+    endBlockTimestamp: 1662619504,
+  });
+
+  const logFilterCachedRanges1 = await eventStore.getLogFilterCachedRanges({
+    logFilterKey: "test-filter-key-1",
+  });
+
+  expect(logFilterCachedRanges1).toHaveLength(1);
+  expect(logFilterCachedRanges1[0]).toMatchObject({
+    endBlock: 15495111,
+    endBlockTimestamp: 1662619504,
+    filterKey: "test-filter-key-1",
+    startBlock: 15131900,
+  });
+
+  const logFilterCachedRanges2 = await eventStore.getLogFilterCachedRanges({
+    logFilterKey: "test-filter-key-2",
+  });
+
+  expect(logFilterCachedRanges2).toHaveLength(1);
+  expect(logFilterCachedRanges2[0]).toMatchObject({
+    endBlock: 15495111,
+    endBlockTimestamp: 1662619504,
+    filterKey: "test-filter-key-2",
+    startBlock: 15131900,
+  });
+});
+
+test("insertLogFilterCachedRanges inserts zero cached intervals without error", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertLogFilterCachedRanges({
+    logFilterKeys: [],
+    startBlock: 15131900,
+    endBlock: 15495111,
+    endBlockTimestamp: 1662619504,
+  });
+
+  const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
+    logFilterKey: "test-filter-key-1",
+  });
+
+  expect(logFilterCachedRanges).toHaveLength(0);
+});
+
+test("mergeLogFilterCachedRanges merges cached intervals", async (context) => {
   const { eventStore } = context;
 
   await eventStore.insertHistoricalBlock({
@@ -130,15 +182,15 @@ test("mergeLogFilterCachedIntervals merges cached intervals", async (context) =>
   });
 
   expect(logFilterCachedRanges[0]).toMatchObject({
-    endBlock: 15495111n,
-    endBlockTimestamp: 1662619504n,
+    endBlock: 15495111,
+    endBlockTimestamp: 1662619504,
     filterKey: "test-filter-key",
-    startBlock: 15131900n,
+    startBlock: 15131900,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 });
 
-test("mergeLogFilterCachedIntervals returns the startingRangeEndTimestamp", async (context) => {
+test("mergeLogFilterCachedRanges returns the startingRangeEndTimestamp", async (context) => {
   const { eventStore } = context;
 
   await eventStore.insertHistoricalBlock({

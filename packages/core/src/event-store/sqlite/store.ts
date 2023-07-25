@@ -323,9 +323,9 @@ export class SqliteEventStore implements EventStore {
 
     return results.map((range) => ({
       filterKey: range.filterKey,
-      startBlock: blobToBigInt(range.startBlock),
-      endBlock: blobToBigInt(range.endBlock),
-      endBlockTimestamp: blobToBigInt(range.endBlockTimestamp),
+      startBlock: Number(blobToBigInt(range.startBlock)),
+      endBlock: Number(blobToBigInt(range.endBlock)),
+      endBlockTimestamp: Number(blobToBigInt(range.endBlockTimestamp)),
     }));
   };
 

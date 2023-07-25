@@ -164,7 +164,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
         const requiredBlockRanges = findMissingIntervals(
           [startBlock, endBlock],
-          cachedRanges.map((r) => [Number(r.startBlock), Number(r.endBlock)])
+          cachedRanges.map((r) => [r.startBlock, r.endBlock])
         );
 
         const totalBlockCount = endBlock - startBlock + 1;

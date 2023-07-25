@@ -227,8 +227,6 @@ test("handles new blocks", async (context) => {
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(7);
 
-  console.log(blocks.map((block) => blobToBigInt(block.number)));
-
   expect(blocks.map((block) => blobToBigInt(block.number))).toMatchObject([
     16379996n,
     16379997n,
@@ -311,9 +309,9 @@ test("inserts cached range records for finalized blocks", async (context) => {
   expect(cachedRanges).toMatchObject([
     {
       filterKey: '1-"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"-null',
-      startBlock: 16379996n,
-      endBlock: 16380000n,
-      endBlockTimestamp: 1673397071n,
+      startBlock: 16379996,
+      endBlock: 16380000,
+      endBlockTimestamp: 1673397071,
     },
   ]);
 

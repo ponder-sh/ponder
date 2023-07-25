@@ -373,9 +373,9 @@ test("start() inserts cached ranges", async (context) => {
 
   expect(logFilterCachedRanges[0]).toMatchObject({
     filterKey: '1-"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"-null',
-    startBlock: 16369950n,
-    endBlock: 16369955n,
-    endBlockTimestamp: 1673275859n,
+    startBlock: 16369950,
+    endBlock: 16369955,
+    endBlockTimestamp: 1673275859,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 
@@ -402,8 +402,8 @@ test("start() retries errors", async (context) => {
     logFilterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
-    startBlock: 16369950n,
-    endBlock: 16369951n,
+    startBlock: 16369950,
+    endBlock: 16369951,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 
@@ -473,8 +473,8 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
     logFilterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
-    startBlock: 16369950n,
-    endBlock: 16369955n,
+    startBlock: 16369950,
+    endBlock: 16369955,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 
@@ -506,8 +506,8 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
     logFilterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
-    startBlock: 16369950n,
-    endBlock: 16369955n,
+    startBlock: 16369950,
+    endBlock: 16369955,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 
