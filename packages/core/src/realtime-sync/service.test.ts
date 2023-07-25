@@ -71,7 +71,7 @@ test("setup() returns block numbers", async (context) => {
   await service.kill();
 });
 
-test("fetches blocks from finalized to latest", async (context) => {
+test("adds blocks to the store from finalized to latest", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
@@ -87,12 +87,18 @@ test("fetches blocks from finalized to latest", async (context) => {
 
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(5);
-  blocks.forEach((block) => expect(Number(block.finalized)).toEqual(0));
+  expect(blocks.map((block) => blobToBigInt(block.number))).toMatchObject([
+    16379996n,
+    16379997n,
+    16379998n,
+    16379999n,
+    16380000n,
+  ]);
 
   await service.kill();
 });
 
-test("fetches transactions from finalized to latest", async (context) => {
+test("adds all required transactions to the store", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
@@ -115,16 +121,14 @@ test("fetches transactions from finalized to latest", async (context) => {
     .execute();
 
   expect(transactions.length).toEqual(requiredTransactionHashes.size);
-
   transactions.forEach((transaction) => {
-    expect(Number(transaction.finalized)).toEqual(0);
     expect(requiredTransactionHashes.has(transaction.hash)).toEqual(true);
   });
 
   await service.kill();
 });
 
-test("fetches logs from finalized to latest", async (context) => {
+test("adds all matched logs to the store", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
@@ -164,7 +168,6 @@ test("fetches logs from finalized to latest", async (context) => {
   const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(79);
   logs.forEach((log) => {
-    expect(Number(log.finalized)).toEqual(0);
     expect(log.address).toEqual(usdcContractConfig.address);
   });
 
@@ -184,13 +187,16 @@ test("handles new blocks", async (context) => {
   await service.setup();
   await service.start();
 
+  // Block 16380001 has 1 matched logs
   await sendUsdcTransferTransaction();
   await testClient.mine({ blocks: 1 });
   await service.addNewLatestBlock();
 
+  // Block 16380002 has 0 matched logs
   await testClient.mine({ blocks: 1 });
   await service.addNewLatestBlock();
 
+  // Block 16380003 has 3 matched logs
   await sendUsdcTransferTransaction();
   await sendUsdcTransferTransaction();
   await testClient.mine({ blocks: 1 });
@@ -220,7 +226,19 @@ test("handles new blocks", async (context) => {
 
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(7);
-  blocks.forEach((block) => expect(Number(block.finalized)).toEqual(0));
+
+  console.log(blocks.map((block) => blobToBigInt(block.number)));
+
+  expect(blocks.map((block) => blobToBigInt(block.number))).toMatchObject([
+    16379996n,
+    16379997n,
+    16379998n,
+    16379999n,
+    16380000n,
+    16380001n,
+    // 16380002n <- Not added to the store, because it has no matched logs.
+    16380003n,
+  ]);
 
   await service.kill();
 });
@@ -262,7 +280,7 @@ test("emits realtimeCheckpoint events", async (context) => {
   await service.kill();
 });
 
-test("marks block data as finalized", async (context) => {
+test("inserts cached range records for finalized blocks", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
@@ -274,8 +292,7 @@ test("marks block data as finalized", async (context) => {
 
   const emitSpy = vi.spyOn(service, "emit");
 
-  const { finalizedBlockNumber: originalFinalizedBlockNumber } =
-    await service.setup();
+  await service.setup();
   await service.start();
 
   // Mine 8 blocks, which should trigger the finality checkpoint (after 5).
@@ -287,17 +304,18 @@ test("marks block data as finalized", async (context) => {
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
-  blocks.forEach((block) => {
-    if (
-      Number(blobToBigInt(block.number)) <=
-      originalFinalizedBlockNumber + 5
-    ) {
-      expect(Number(block.finalized)).toEqual(1);
-    } else {
-      expect(Number(block.finalized)).toEqual(0);
-    }
+  const cachedRanges = await eventStore.getLogFilterCachedRanges({
+    logFilterKey: logFilters[0].filter.key,
   });
+
+  expect(cachedRanges).toMatchObject([
+    {
+      filterKey: '1-"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"-null',
+      startBlock: 16379996n,
+      endBlock: 16380000n,
+      endBlockTimestamp: 1673397071n,
+    },
+  ]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
     timestamp: 1673397071, // Timestamp of 16380000
@@ -479,7 +497,6 @@ test("handles deep reorg", async (context) => {
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  // Confirm that the service has finalized blocks.
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
     // Note that the precise number can change depending on how long it takes to
     // mine each block above.
