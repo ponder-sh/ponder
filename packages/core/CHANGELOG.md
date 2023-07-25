@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.76
+
+### Patch Changes
+
+- [#270](https://github.com/0xOlias/ponder/pull/270) [`9919db8`](https://github.com/0xOlias/ponder/commit/9919db807e546d220d92706f00910afaa4424ea2) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the server would crash if no event handlers were registered in a file that had `import { ponder } from "@/generated"`
+
 ## 0.0.75
 
 ### Patch Changes
