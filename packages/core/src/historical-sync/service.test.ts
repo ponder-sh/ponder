@@ -368,7 +368,7 @@ test("start() inserts cached ranges", async (context) => {
   await service.onIdle();
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
-    filterKey: logFilters[0].filter.key,
+    logFilterKey: logFilters[0].filter.key,
   });
 
   expect(logFilterCachedRanges[0]).toMatchObject({
@@ -385,7 +385,7 @@ test("start() inserts cached ranges", async (context) => {
 test("start() retries errors", async (context) => {
   const { common, eventStore } = context;
 
-  const spy = vi.spyOn(eventStore, "insertFinalizedLogs");
+  const spy = vi.spyOn(eventStore, "insertHistoricalLogs");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const service = new HistoricalSyncService({
@@ -399,7 +399,7 @@ test("start() retries errors", async (context) => {
   await service.onIdle();
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
-    filterKey: logFilters[0].filter.key,
+    logFilterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
     startBlock: 16369950n,
@@ -413,7 +413,7 @@ test("start() retries errors", async (context) => {
 test("start() updates failed task metrics", async (context) => {
   const { common, eventStore } = context;
 
-  const spy = vi.spyOn(eventStore, "insertFinalizedLogs");
+  const spy = vi.spyOn(eventStore, "insertHistoricalLogs");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const service = new HistoricalSyncService({
@@ -470,7 +470,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   await service.onIdle();
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
-    filterKey: logFilters[0].filter.key,
+    logFilterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
     startBlock: 16369950n,
@@ -503,7 +503,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   await service.onIdle();
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
-    filterKey: logFilters[0].filter.key,
+    logFilterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
     startBlock: 16369950n,

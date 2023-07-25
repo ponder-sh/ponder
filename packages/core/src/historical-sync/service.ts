@@ -159,7 +159,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           logFilter.maxBlockRange ?? this.network.defaultMaxBlockRange;
 
         const cachedRanges = await this.eventStore.getLogFilterCachedRanges({
-          filterKey: logFilter.filter.key,
+          logFilterKey: logFilter.filter.key,
         });
 
         const requiredBlockRanges = findMissingIntervals(
@@ -547,7 +547,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       stopClock()
     );
 
-    await this.eventStore.insertFinalizedLogs({
+    await this.eventStore.insertHistoricalLogs({
       chainId: this.network.chainId,
       logs,
     });
@@ -632,7 +632,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       requiredTxHashes.has(tx.hash)
     );
 
-    await this.eventStore.insertFinalizedBlock({
+    await this.eventStore.insertHistoricalBlock({
       chainId: this.network.chainId,
       block,
       transactions,
