@@ -32,6 +32,7 @@ import {
 import { migrationProvider } from "./migrations";
 
 export class PostgresEventStore implements EventStore {
+  kind = "postgres" as const;
   db: Kysely<EventStoreTables>;
   migrator: Migrator;
 
@@ -77,131 +78,7 @@ export class PostgresEventStore implements EventStore {
     if (error) throw error;
   };
 
-  insertUnfinalizedBlock = async ({
-    chainId,
-    block: rpcBlock,
-    transactions: rpcTransactions,
-    logs: rpcLogs,
-  }: {
-    chainId: number;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    logs: RpcLog[];
-  }) => {
-    const block: InsertableBlock = {
-      ...rpcToPostgresBlock(rpcBlock),
-      chainId,
-      finalized: 0,
-    };
-
-    const transactions: InsertableTransaction[] = rpcTransactions.map(
-      (transaction) => ({
-        ...rpcToPostgresTransaction(transaction),
-        chainId,
-        finalized: 0,
-      })
-    );
-
-    const logs: InsertableLog[] = rpcLogs.map((log) => ({
-      ...rpcToPostgresLog({ log }),
-      chainId,
-      finalized: 0,
-    }));
-
-    await this.db.transaction().execute(async (tx) => {
-      await tx
-        .insertInto("blocks")
-        .values(block)
-        .onConflict((oc) => oc.column("hash").doNothing())
-        .execute();
-      if (transactions.length > 0) {
-        await tx
-          .insertInto("transactions")
-          .values(transactions)
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute();
-      }
-      if (logs.length > 0) {
-        await tx
-          .insertInto("logs")
-          .values(logs)
-          .onConflict((oc) => oc.column("id").doNothing())
-          .execute();
-      }
-    });
-  };
-
-  deleteUnfinalizedData = async ({
-    chainId,
-    fromBlockNumber,
-  }: {
-    chainId: number;
-    fromBlockNumber: number;
-  }) => {
-    await this.db.transaction().execute(async (tx) => {
-      await tx
-        .deleteFrom("blocks")
-        .where("number", ">=", intToBlob(fromBlockNumber))
-        .where("finalized", "=", 0)
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .deleteFrom("transactions")
-        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
-        .where("finalized", "=", 0)
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .deleteFrom("logs")
-        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
-        .where("finalized", "=", 0)
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .deleteFrom("contractReadResults")
-        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
-        .where("finalized", "=", 0)
-        .where("chainId", "=", chainId)
-        .execute();
-    });
-  };
-
-  finalizeData = async ({
-    chainId,
-    toBlockNumber,
-  }: {
-    chainId: number;
-    toBlockNumber: number;
-  }) => {
-    await this.db.transaction().execute(async (tx) => {
-      await tx
-        .updateTable("blocks")
-        .set({ finalized: 1 })
-        .where("number", "<=", intToBlob(toBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .updateTable("transactions")
-        .set({ finalized: 1 })
-        .where("blockNumber", "<=", intToBlob(toBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .updateTable("logs")
-        .set({ finalized: 1 })
-        .where("blockNumber", "<=", intToBlob(toBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .updateTable("contractReadResults")
-        .set({ finalized: 1 })
-        .where("blockNumber", "<=", intToBlob(toBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-    });
-  };
-
-  insertFinalizedLogs = async ({
+  insertHistoricalLogs = async ({
     chainId,
     logs: rpcLogs,
   }: {
@@ -212,9 +89,8 @@ export class PostgresEventStore implements EventStore {
       const batchIndex = Math.floor(index / 1000);
       acc[batchIndex] = acc[batchIndex] ?? [];
       acc[batchIndex].push({
-        ...rpcToPostgresLog({ log }),
+        ...rpcToPostgresLog(log),
         chainId,
-        finalized: 1,
       });
       return acc;
     }, []);
@@ -230,7 +106,7 @@ export class PostgresEventStore implements EventStore {
     );
   };
 
-  insertFinalizedBlock = async ({
+  insertHistoricalBlock = async ({
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
@@ -247,14 +123,12 @@ export class PostgresEventStore implements EventStore {
     const block: InsertableBlock = {
       ...rpcToPostgresBlock(rpcBlock),
       chainId,
-      finalized: 1,
     };
 
     const transactions: InsertableTransaction[] = rpcTransactions.map(
       (transaction) => ({
         ...rpcToPostgresTransaction(transaction),
         chainId,
-        finalized: 1,
       })
     );
 
@@ -282,6 +156,116 @@ export class PostgresEventStore implements EventStore {
         .insertInto("logFilterCachedRanges")
         .values(logFilterCachedRange)
         .execute();
+    });
+  };
+
+  insertRealtimeBlock = async ({
+    chainId,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    logs: rpcLogs,
+  }: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logs: RpcLog[];
+  }) => {
+    const block: InsertableBlock = {
+      ...rpcToPostgresBlock(rpcBlock),
+      chainId,
+    };
+
+    const transactions: InsertableTransaction[] = rpcTransactions.map(
+      (transaction) => ({
+        ...rpcToPostgresTransaction(transaction),
+        chainId,
+      })
+    );
+
+    const logs: InsertableLog[] = rpcLogs.map((log) => ({
+      ...rpcToPostgresLog(log),
+      chainId,
+    }));
+
+    await this.db.transaction().execute(async (tx) => {
+      await tx
+        .insertInto("blocks")
+        .values(block)
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
+      if (transactions.length > 0) {
+        await tx
+          .insertInto("transactions")
+          .values(transactions)
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+      }
+      if (logs.length > 0) {
+        await tx
+          .insertInto("logs")
+          .values(logs)
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      }
+    });
+  };
+
+  deleteRealtimeData = async ({
+    chainId,
+    fromBlockNumber,
+  }: {
+    chainId: number;
+    fromBlockNumber: number;
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await tx
+        .deleteFrom("blocks")
+        .where("number", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+      await tx
+        .deleteFrom("transactions")
+        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+      await tx
+        .deleteFrom("logs")
+        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+      await tx
+        .deleteFrom("contractReadResults")
+        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+    });
+  };
+
+  insertLogFilterCachedRanges = async ({
+    logFilterKeys,
+    startBlock,
+    endBlock,
+    endBlockTimestamp,
+  }: {
+    logFilterKeys: string[];
+    startBlock: number;
+    endBlock: number;
+    endBlockTimestamp: number;
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await Promise.all(
+        logFilterKeys.map((logFilterKey) =>
+          tx
+            .insertInto("logFilterCachedRanges")
+            .values({
+              filterKey: logFilterKey,
+              startBlock: intToBlob(startBlock),
+              endBlock: intToBlob(endBlock),
+              endBlockTimestamp: intToBlob(endBlockTimestamp),
+            })
+            .execute()
+        )
+      );
     });
   };
 
@@ -353,15 +337,19 @@ export class PostgresEventStore implements EventStore {
     return { startingRangeEndTimestamp };
   };
 
-  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
+  getLogFilterCachedRanges = async ({
+    logFilterKey,
+  }: {
+    logFilterKey: string;
+  }) => {
     const results = await this.db
       .selectFrom("logFilterCachedRanges")
-      .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
-      .where("filterKey", "=", filterKey)
+      .selectAll()
+      .where("filterKey", "=", logFilterKey)
       .execute();
 
     return results.map((range) => ({
-      ...range,
+      filterKey: range.filterKey,
       startBlock: blobToBigInt(range.startBlock),
       endBlock: blobToBigInt(range.endBlock),
       endBlockTimestamp: blobToBigInt(range.endBlockTimestamp),
@@ -373,14 +361,12 @@ export class PostgresEventStore implements EventStore {
     blockNumber,
     chainId,
     data,
-    finalized,
     result,
   }: {
     address: string;
     blockNumber: bigint;
     chainId: number;
     data: Hex;
-    finalized: boolean;
     result: Hex;
   }) => {
     await this.db
@@ -390,7 +376,6 @@ export class PostgresEventStore implements EventStore {
         blockNumber: intToBlob(blockNumber),
         chainId,
         data,
-        finalized: finalized ? 1 : 0,
         result,
       })
       .onConflict((oc) =>
@@ -423,7 +408,6 @@ export class PostgresEventStore implements EventStore {
       ? {
           ...contractReadResult,
           blockNumber: blobToBigInt(contractReadResult.blockNumber),
-          finalized: contractReadResult.finalized === 1,
         }
       : null;
   };
@@ -467,7 +451,6 @@ export class PostgresEventStore implements EventStore {
         "logs.blockNumber as log_blockNumber",
         "logs.chainId as log_chainId",
         "logs.data as log_data",
-        // "logs.finalized as log_finalized",
         "logs.id as log_id",
         "logs.logIndex as log_logIndex",
         "logs.topic0 as log_topic0",
@@ -481,7 +464,6 @@ export class PostgresEventStore implements EventStore {
         // "blocks.chainId as block_chainId",
         "blocks.difficulty as block_difficulty",
         "blocks.extraData as block_extraData",
-        // "blocks.finalized as block_finalized",
         "blocks.gasLimit as block_gasLimit",
         "blocks.gasUsed as block_gasUsed",
         "blocks.hash as block_hash",
@@ -503,7 +485,6 @@ export class PostgresEventStore implements EventStore {
         "transactions.blockHash as tx_blockHash",
         "transactions.blockNumber as tx_blockNumber",
         // "transactions.chainId as tx_chainId",
-        // "transactions.finalized as tx_finalized",
         "transactions.from as tx_from",
         "transactions.gas as tx_gas",
         "transactions.gasPrice as tx_gasPrice",

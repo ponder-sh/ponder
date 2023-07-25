@@ -11,7 +11,6 @@ import {
   usdcContractConfig,
 } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
-import { blobToBigInt } from "@/utils/decode";
 
 beforeEach((context) => setupEventStore(context));
 
@@ -27,10 +26,10 @@ test("setup creates tables", async (context) => {
   expect(tableNames).toContain("transactions");
 });
 
-test("insertUnfinalizedBlock inserts block", async (context) => {
+test("insertRealtimeBlock inserts block", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: [],
@@ -41,10 +40,10 @@ test("insertUnfinalizedBlock inserts block", async (context) => {
   expect(blocks).toHaveLength(1);
 });
 
-test("insertUnfinalizedBlock inserts transactions", async (context) => {
+test("insertRealtimeBlock inserts transactions", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -58,10 +57,10 @@ test("insertUnfinalizedBlock inserts transactions", async (context) => {
   expect(transactions).toHaveLength(2);
 });
 
-test("insertUnfinalizedBlock inserts logs", async (context) => {
+test("insertRealtimeBlock inserts logs", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -72,97 +71,10 @@ test("insertUnfinalizedBlock inserts logs", async (context) => {
   expect(logs).toHaveLength(2);
 });
 
-test("insertFinalizedLogs inserts logs as finalized", async (context) => {
+test("insertHistoricalBlock inserts a log filter cached interval", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertFinalizedLogs({
-    chainId: 1,
-    logs: blockOneLogs,
-  });
-
-  const logs = await eventStore.db
-    .selectFrom("logs")
-    .select(["address", "finalized"])
-    .execute();
-
-  expect(
-    logs.map((l) => ({ ...l, finalized: Number(l.finalized) }))
-  ).toMatchObject([
-    {
-      address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
-      finalized: 1,
-    },
-    {
-      address: "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
-      finalized: 1,
-    },
-  ]);
-});
-
-test("insertFinalizedBlock inserts block as finalized", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertFinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logFilterRange: {
-      logFilterKey: "test-filter-key",
-      blockNumberToCacheFrom: 15131900,
-    },
-  });
-
-  const blocks = await eventStore.db
-    .selectFrom("blocks")
-    .select(["hash", "finalized"])
-    .execute();
-
-  expect(
-    blocks.map((b) => ({ ...b, finalized: Number(b.finalized) }))
-  ).toMatchObject([
-    {
-      finalized: 1,
-      hash: "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-    },
-  ]);
-});
-
-test("insertFinalizedBlock inserts transactions as finalized", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertFinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logFilterRange: {
-      logFilterKey: "test-filter-key",
-      blockNumberToCacheFrom: 15131900,
-    },
-  });
-
-  const transactions = await eventStore.db
-    .selectFrom("transactions")
-    .select(["hash", "finalized"])
-    .execute();
-
-  expect(
-    transactions.map((t) => ({ ...t, finalized: Number(t.finalized) }))
-  ).toMatchObject([
-    {
-      finalized: 1,
-      hash: "0xa4b1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-    },
-    {
-      finalized: 1,
-      hash: "0xc3f1f606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
-    },
-  ]);
-});
-
-test("insertFinalizedBlock inserts a log filter cached interval", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertFinalizedBlock({
+  await eventStore.insertHistoricalBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -173,7 +85,7 @@ test("insertFinalizedBlock inserts a log filter cached interval", async (context
   });
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
-    filterKey: "test-filter-key",
+    logFilterKey: "test-filter-key",
   });
 
   expect(logFilterCachedRanges[0]).toMatchObject({
@@ -188,7 +100,7 @@ test("insertFinalizedBlock inserts a log filter cached interval", async (context
 test("mergeLogFilterCachedIntervals merges cached intervals", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertFinalizedBlock({
+  await eventStore.insertHistoricalBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -198,7 +110,7 @@ test("mergeLogFilterCachedIntervals merges cached intervals", async (context) =>
     },
   });
 
-  await eventStore.insertFinalizedBlock({
+  await eventStore.insertHistoricalBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -214,7 +126,7 @@ test("mergeLogFilterCachedIntervals merges cached intervals", async (context) =>
   });
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
-    filterKey: "test-filter-key",
+    logFilterKey: "test-filter-key",
   });
 
   expect(logFilterCachedRanges[0]).toMatchObject({
@@ -229,7 +141,7 @@ test("mergeLogFilterCachedIntervals merges cached intervals", async (context) =>
 test("mergeLogFilterCachedIntervals returns the startingRangeEndTimestamp", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertFinalizedBlock({
+  await eventStore.insertHistoricalBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -247,7 +159,7 @@ test("mergeLogFilterCachedIntervals returns the startingRangeEndTimestamp", asyn
 
   expect(startingRangeEndTimestamp).toBe(hexToNumber(blockOne.timestamp));
 
-  await eventStore.insertFinalizedBlock({
+  await eventStore.insertHistoricalBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -266,75 +178,6 @@ test("mergeLogFilterCachedIntervals returns the startingRangeEndTimestamp", asyn
   expect(startingRangeEndTimestamp2).toBe(hexToNumber(blockTwo.timestamp));
 });
 
-test("finalizeData updates unfinalized blocks", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
-  });
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
-  });
-
-  await eventStore.finalizeData({
-    chainId: 1,
-    toBlockNumber: hexToNumber(blockOne.number!),
-  });
-
-  const blocks = await eventStore.db
-    .selectFrom("blocks")
-    .select(["hash", "finalized"])
-    .execute();
-
-  expect(blocks.find((b) => b.hash === blockOne.hash)?.finalized).toBe(1);
-  expect(blocks.find((b) => b.hash === blockTwo.hash)?.finalized).toBe(0);
-});
-
-test("finalizeData updates unfinalized logs", async (context) => {
-  const { eventStore } = context;
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockOne,
-    transactions: blockOneTransactions,
-    logs: blockOneLogs,
-  });
-
-  await eventStore.insertUnfinalizedBlock({
-    chainId: 1,
-    block: blockTwo,
-    transactions: blockTwoTransactions,
-    logs: blockTwoLogs,
-  });
-
-  await eventStore.finalizeData({
-    chainId: 1,
-    toBlockNumber: hexToNumber(blockOne.number!),
-  });
-
-  const logs = await eventStore.db
-    .selectFrom("logs")
-    .select(["blockNumber", "finalized"])
-    .execute();
-
-  logs.forEach((log) => {
-    if (
-      Number(blobToBigInt(log.blockNumber)) <= hexToNumber(blockOne.number!)
-    ) {
-      expect(log.finalized).toEqual(1);
-    } else {
-      expect(log.finalized).toEqual(0);
-    }
-  });
-});
-
 test("insertContractReadResult inserts a contract call", async (context) => {
   const { eventStore } = context;
 
@@ -343,7 +186,6 @@ test("insertContractReadResult inserts a contract call", async (context) => {
     chainId: 1,
     data: "0x123",
     blockNumber: 100n,
-    finalized: false,
     result: "0x789",
   });
 
@@ -357,7 +199,6 @@ test("insertContractReadResult inserts a contract call", async (context) => {
     address: usdcContractConfig.address,
     chainId: 1,
     data: "0x123",
-    finalized: 0,
     result: "0x789",
   });
 });
@@ -370,7 +211,6 @@ test("insertContractReadResult upserts on conflict", async (context) => {
     chainId: 1,
     data: "0x123",
     blockNumber: 100n,
-    finalized: false,
     result: "0x789",
   });
 
@@ -390,7 +230,6 @@ test("insertContractReadResult upserts on conflict", async (context) => {
     chainId: 1,
     data: "0x123",
     blockNumber: 100n,
-    finalized: false,
     result: "0x789123",
   });
 
@@ -414,7 +253,6 @@ test("getContractReadResult returns data", async (context) => {
     chainId: 1,
     data: "0x123",
     blockNumber: 100n,
-    finalized: false,
     result: "0x789",
   });
 
@@ -430,7 +268,6 @@ test("getContractReadResult returns data", async (context) => {
     chainId: 1,
     data: "0x123",
     blockNumber: 100n,
-    finalized: false,
     result: "0x789",
   });
 });
@@ -443,7 +280,6 @@ test("getContractReadResult returns null if not found", async (context) => {
     chainId: 1,
     data: "0x123",
     blockNumber: 100n,
-    finalized: false,
     result: "0x789",
   });
 
@@ -460,7 +296,7 @@ test("getContractReadResult returns null if not found", async (context) => {
 test("getLogEvents returns log events", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -611,7 +447,7 @@ test("getLogEvents returns log events", async (context) => {
 test("getLogEvents filters on log address", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
@@ -635,14 +471,14 @@ test("getLogEvents filters on log address", async (context) => {
 test("getLogEvents filters on multiple addresses", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -681,14 +517,14 @@ test("getLogEvents filters on multiple addresses", async (context) => {
 test("getLogEvents filters on single topic", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -727,14 +563,14 @@ test("getLogEvents filters on single topic", async (context) => {
 test("getLogEvents filters on multiple topics", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -770,14 +606,14 @@ test("getLogEvents filters on multiple topics", async (context) => {
 test("getLogEvents filters on fromBlock", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -810,14 +646,14 @@ test("getLogEvents filters on fromBlock", async (context) => {
 test("getLogEvents filters on multiple filters", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -866,14 +702,14 @@ test("getLogEvents filters on multiple filters", async (context) => {
 test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -895,14 +731,14 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
 test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -927,14 +763,14 @@ test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
 test("getLogEvents returns no events if includeEventSelectors is an empty array", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertUnfinalizedBlock({
+  await eventStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,

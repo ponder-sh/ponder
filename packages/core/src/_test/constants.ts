@@ -1,6 +1,7 @@
 import { RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import { getEvents } from "@/config/abi";
+import { ContractReadResult, LogFilterCachedRange } from "@/event-store/store";
 
 if (!process.env.ANVIL_FORK_URL) {
   throw new Error('Missing environment variable "ANVIL_FORK_URL"');
@@ -420,3 +421,18 @@ export const blockTwoLogs: RpcLog[] = [
     transactionIndex: "0x1",
   },
 ];
+
+export const contractReadResultOne: ContractReadResult = {
+  address: "0x93d4c048f83bd7e37d49ea4c83a07267ec4203da",
+  blockNumber: BigInt(16000010),
+  data: "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
+  result: "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
+  chainId: 1,
+};
+
+export const logFilterCachedRangeOne: LogFilterCachedRange = {
+  filterKey: '1-0x93d4c048f83bd7e37d49ea4c83a07267ec4203da-["0x1",null,"0x3"]',
+  startBlock: BigInt(16000010),
+  endBlock: BigInt(16000090),
+  endBlockTimestamp: BigInt(16000010),
+};

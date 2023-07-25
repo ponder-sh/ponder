@@ -1,4 +1,4 @@
-import { Generated, Insertable, Selectable } from "kysely";
+import { Generated, Insertable } from "kysely";
 import {
   type RpcBlock,
   type RpcLog,
@@ -31,14 +31,13 @@ type BlocksTable = {
   transactionsRoot: Hash;
 
   chainId: number;
-  finalized: number;
 };
 
 export type InsertableBlock = Insertable<BlocksTable>;
 
 export function rpcToSqliteBlock(
   block: RpcBlock
-): Omit<InsertableBlock, "chainId" | "finalized"> {
+): Omit<InsertableBlock, "chainId"> {
   return {
     baseFeePerGas: block.baseFeePerGas ? intToBlob(block.baseFeePerGas) : null,
     difficulty: intToBlob(block.difficulty),
@@ -84,14 +83,13 @@ type TransactionsTable = {
   accessList: string | null;
 
   chainId: number;
-  finalized: number;
 };
 
 export type InsertableTransaction = Insertable<TransactionsTable>;
 
 export function rpcToSqliteTransaction(
   transaction: RpcTransaction
-): Omit<InsertableTransaction, "chainId" | "finalized"> {
+): Omit<InsertableTransaction, "chainId"> {
   return {
     accessList: transaction.accessList
       ? JSON.stringify(transaction.accessList)
@@ -136,16 +134,11 @@ type LogsTable = {
   topic3: string | null;
 
   chainId: number;
-  finalized: number;
 };
 
 export type InsertableLog = Insertable<LogsTable>;
 
-export function rpcToSqliteLog({
-  log,
-}: {
-  log: RpcLog;
-}): Omit<InsertableLog, "chainId" | "finalized"> {
+export function rpcToSqliteLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   return {
     address: log.address,
     blockHash: log.blockHash!,
@@ -167,7 +160,6 @@ type ContractReadResultsTable = {
   blockNumber: Buffer; // BigInt
   chainId: number;
   data: Hex;
-  finalized: number; // Boolean (0 or 1).
   result: Hex;
 };
 
@@ -178,11 +170,6 @@ type LogFilterCachedRangesTable = {
   endBlock: Buffer; // BigInt
   endBlockTimestamp: Buffer; // BigInt
 };
-
-export type LogFilterCachedRange = Omit<
-  Selectable<LogFilterCachedRangesTable>,
-  "id"
->;
 
 export type EventStoreTables = {
   blocks: BlocksTable;
