@@ -123,7 +123,6 @@ export function buildReadOnlyContracts({
               blockNumber,
               chainId,
               data: calldata,
-              finalized: false,
               result: rawResult,
             });
 
