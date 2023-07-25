@@ -182,6 +182,38 @@ const migrations: Record<string, Migration> = {
       await db.schema.dropIndex("block_number_index").execute();
     },
   },
+  ["2023_07_24_0_drop_finalized"]: {
+    async up(db: Kysely<any>) {
+      await db.schema.alterTable("blocks").dropColumn("finalized").execute();
+      await db.schema
+        .alterTable("transactions")
+        .dropColumn("finalized")
+        .execute();
+      await db.schema.alterTable("logs").dropColumn("finalized").execute();
+      await db.schema
+        .alterTable("contractReadResults")
+        .dropColumn("finalized")
+        .execute();
+    },
+    async down(db: Kysely<any>) {
+      await db.schema
+        .alterTable("blocks")
+        .addColumn("finalized", "integer", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .alterTable("transactions")
+        .addColumn("finalized", "integer", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .alterTable("logs")
+        .addColumn("finalized", "integer", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .alterTable("contractReadResults")
+        .addColumn("finalized", "integer", (col) => col.notNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

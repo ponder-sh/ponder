@@ -11,9 +11,9 @@ import type { Transaction } from "@/types/transaction";
  */
 export type LogFilterCachedRange = {
   filterKey: string;
-  startBlock: bigint;
-  endBlock: bigint;
-  endBlockTimestamp: bigint;
+  startBlock: number;
+  endBlock: number;
+  endBlockTimestamp: number;
 };
 
 /**
@@ -24,23 +24,23 @@ export type ContractReadResult = {
   blockNumber: bigint;
   chainId: number;
   data: Hex;
-  finalized: boolean;
   result: Hex;
 };
 
 export interface EventStore {
+  kind: "sqlite" | "postgres";
   db: Kysely<any>;
   migrator: Migrator;
 
   migrateUp(): Promise<void>;
   migrateDown(): Promise<void>;
 
-  insertFinalizedLogs(options: {
+  insertHistoricalLogs(options: {
     chainId: number;
     logs: RpcLog[];
   }): Promise<void>;
 
-  insertFinalizedBlock(options: {
+  insertHistoricalBlock(options: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
@@ -50,38 +50,39 @@ export interface EventStore {
     };
   }): Promise<void>;
 
-  mergeLogFilterCachedRanges(options: {
-    logFilterKey: string;
-    logFilterStartBlockNumber: number;
-  }): Promise<{ startingRangeEndTimestamp: number }>;
-
-  getLogFilterCachedRanges(options: {
-    filterKey: string;
-  }): Promise<LogFilterCachedRange[]>;
-
-  insertUnfinalizedBlock(options: {
+  insertRealtimeBlock(options: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logs: RpcLog[];
   }): Promise<void>;
 
-  deleteUnfinalizedData(options: {
+  deleteRealtimeData(options: {
     chainId: number;
     fromBlockNumber: number;
   }): Promise<void>;
 
-  finalizeData(options: {
-    chainId: number;
-    toBlockNumber: number;
+  insertLogFilterCachedRanges(options: {
+    logFilterKeys: string[];
+    startBlock: number;
+    endBlock: number;
+    endBlockTimestamp: number;
   }): Promise<void>;
+
+  mergeLogFilterCachedRanges(options: {
+    logFilterKey: string;
+    logFilterStartBlockNumber: number;
+  }): Promise<{ startingRangeEndTimestamp: number }>;
+
+  getLogFilterCachedRanges(options: {
+    logFilterKey: string;
+  }): Promise<LogFilterCachedRange[]>;
 
   insertContractReadResult(options: {
     address: string;
     blockNumber: bigint;
     chainId: number;
     data: Hex;
-    finalized: boolean;
     result: Hex;
   }): Promise<void>;
 

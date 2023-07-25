@@ -130,11 +130,20 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     // we're not ready to process events. Just return early.
     if (!this.schema || !this.handlers) return;
 
-    // Cancel all pending calls to processEvents, reset the mutex, and create
-    // a new queue using the latest available handlers and schema.
+    // Cancel all pending calls to processEvents and reset the mutex.
     this.eventProcessingMutex.cancel();
     this.eventProcessingMutex = new Mutex();
+
+    // Pause the old queue, (maybe) wait for the current event handler to finish,
+    // then create a new queue using the new handlers.
+    this.queue?.clear();
+    this.queue?.pause();
+    await this.queue?.onIdle();
     this.queue = this.createEventQueue({ handlers: this.handlers });
+    this.common.logger.debug({
+      service: "handlers",
+      msg: `Paused event queue (versionId=${this.userStore.versionId})`,
+    });
 
     this.hasError = false;
     this.common.metrics.ponder_handlers_has_error.set(0);
@@ -312,6 +321,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           // Process new events that were added to the queue.
           this.queue.start();
           await this.queue.onIdle();
+
+          // If the queue is already paused here, it means that reset() was called, interrupting
+          // event processing. When this happens, we want to return early.
+          if (this.queue.isPaused) return;
+
           this.queue.pause();
 
           if (events.length > 0) {

@@ -322,7 +322,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         // If there are indeed any matched logs, insert them into the store.
         if (filteredLogs.length > 0) {
-          await this.eventStore.insertUnfinalizedBlock({
+          await this.eventStore.insertRealtimeBlock({
             chainId: this.network.chainId,
             block: newBlockWithTransactions,
             transactions: filteredTransactions,
@@ -374,7 +374,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       };
 
       // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
-      // and mark data as finalized in the store.
+      // and mark data as cached in the store.
       if (
         newBlock.number >
         this.finalizedBlockNumber + 2 * this.network.finalityBlockCount
@@ -397,9 +397,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           }
         }
 
-        await this.eventStore.finalizeData({
-          chainId: this.network.chainId,
-          toBlockNumber: newFinalizedBlock.number,
+        await this.eventStore.insertLogFilterCachedRanges({
+          logFilterKeys: this.logFilters.map((l) => l.filter.key),
+          startBlock: this.finalizedBlockNumber + 1,
+          endBlock: newFinalizedBlock.number,
+          endBlockTimestamp: newFinalizedBlock.timestamp,
         });
 
         this.finalizedBlockNumber = newFinalizedBlock.number;
@@ -495,7 +497,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           (block) => block.number <= commonAncestorBlock.number
         );
 
-        await this.eventStore.deleteUnfinalizedData({
+        await this.eventStore.deleteRealtimeData({
           chainId: this.network.chainId,
           fromBlockNumber: commonAncestorBlock.number + 1,
         });

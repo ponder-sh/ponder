@@ -368,14 +368,14 @@ test("start() inserts cached ranges", async (context) => {
   await service.onIdle();
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
-    filterKey: logFilters[0].filter.key,
+    logFilterKey: logFilters[0].filter.key,
   });
 
   expect(logFilterCachedRanges[0]).toMatchObject({
     filterKey: '1-"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"-null',
-    startBlock: 16369950n,
-    endBlock: 16369955n,
-    endBlockTimestamp: 1673275859n,
+    startBlock: 16369950,
+    endBlock: 16369955,
+    endBlockTimestamp: 1673275859,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 
@@ -385,7 +385,7 @@ test("start() inserts cached ranges", async (context) => {
 test("start() retries errors", async (context) => {
   const { common, eventStore } = context;
 
-  const spy = vi.spyOn(eventStore, "insertFinalizedLogs");
+  const spy = vi.spyOn(eventStore, "insertHistoricalLogs");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const service = new HistoricalSyncService({
@@ -399,11 +399,11 @@ test("start() retries errors", async (context) => {
   await service.onIdle();
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
-    filterKey: logFilters[0].filter.key,
+    logFilterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
-    startBlock: 16369950n,
-    endBlock: 16369951n,
+    startBlock: 16369950,
+    endBlock: 16369951,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 
@@ -413,7 +413,7 @@ test("start() retries errors", async (context) => {
 test("start() updates failed task metrics", async (context) => {
   const { common, eventStore } = context;
 
-  const spy = vi.spyOn(eventStore, "insertFinalizedLogs");
+  const spy = vi.spyOn(eventStore, "insertHistoricalLogs");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const service = new HistoricalSyncService({
@@ -470,11 +470,11 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
   await service.onIdle();
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
-    filterKey: logFilters[0].filter.key,
+    logFilterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
-    startBlock: 16369950n,
-    endBlock: 16369955n,
+    startBlock: 16369950,
+    endBlock: 16369955,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 
@@ -503,11 +503,11 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
   await service.onIdle();
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
-    filterKey: logFilters[0].filter.key,
+    logFilterKey: logFilters[0].filter.key,
   });
   expect(logFilterCachedRanges[0]).toMatchObject({
-    startBlock: 16369950n,
-    endBlock: 16369955n,
+    startBlock: 16369950,
+    endBlock: 16369955,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 

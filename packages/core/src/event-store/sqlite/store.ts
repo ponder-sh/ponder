@@ -31,6 +31,7 @@ import {
 import { migrationProvider } from "./migrations";
 
 export class SqliteEventStore implements EventStore {
+  kind = "sqlite" as const;
   db: Kysely<EventStoreTables>;
   migrator: Migrator;
 
@@ -55,133 +56,7 @@ export class SqliteEventStore implements EventStore {
     if (error) throw error;
   };
 
-  insertUnfinalizedBlock = async ({
-    chainId,
-    block: rpcBlock,
-    transactions: rpcTransactions,
-    logs: rpcLogs,
-  }: {
-    chainId: number;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    logs: RpcLog[];
-  }) => {
-    const block: InsertableBlock = {
-      ...rpcToSqliteBlock(rpcBlock),
-      chainId,
-      finalized: 0,
-    };
-
-    const transactions: InsertableTransaction[] = rpcTransactions.map(
-      (transaction) => ({
-        ...rpcToSqliteTransaction(transaction),
-        chainId,
-        finalized: 0,
-      })
-    );
-
-    const logs: InsertableLog[] = rpcLogs.map((log) => ({
-      ...rpcToSqliteLog({ log }),
-      chainId,
-      finalized: 0,
-    }));
-
-    await this.db.transaction().execute(async (tx) => {
-      await Promise.all([
-        tx
-          .insertInto("blocks")
-          .values(block)
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute(),
-        ...transactions.map((transaction) =>
-          tx
-            .insertInto("transactions")
-            .values(transaction)
-            .onConflict((oc) => oc.column("hash").doNothing())
-            .execute()
-        ),
-        ...logs.map((log) =>
-          tx
-            .insertInto("logs")
-            .values(log)
-            .onConflict((oc) => oc.column("id").doNothing())
-            .execute()
-        ),
-      ]);
-    });
-  };
-
-  deleteUnfinalizedData = async ({
-    chainId,
-    fromBlockNumber,
-  }: {
-    chainId: number;
-    fromBlockNumber: number;
-  }) => {
-    await this.db.transaction().execute(async (tx) => {
-      await tx
-        .deleteFrom("blocks")
-        .where("number", ">=", intToBlob(fromBlockNumber))
-        .where("finalized", "=", 0)
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .deleteFrom("transactions")
-        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
-        .where("finalized", "=", 0)
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .deleteFrom("logs")
-        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
-        .where("finalized", "=", 0)
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .deleteFrom("contractReadResults")
-        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
-        .where("finalized", "=", 0)
-        .where("chainId", "=", chainId)
-        .execute();
-    });
-  };
-
-  finalizeData = async ({
-    chainId,
-    toBlockNumber,
-  }: {
-    chainId: number;
-    toBlockNumber: number;
-  }) => {
-    await this.db.transaction().execute(async (tx) => {
-      await tx
-        .updateTable("blocks")
-        .set({ finalized: 1 })
-        .where("number", "<=", intToBlob(toBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .updateTable("transactions")
-        .set({ finalized: 1 })
-        .where("blockNumber", "<=", intToBlob(toBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .updateTable("logs")
-        .set({ finalized: 1 })
-        .where("blockNumber", "<=", intToBlob(toBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .updateTable("contractReadResults")
-        .set({ finalized: 1 })
-        .where("blockNumber", "<=", intToBlob(toBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-    });
-  };
-
-  insertFinalizedLogs = async ({
+  insertHistoricalLogs = async ({
     chainId,
     logs: rpcLogs,
   }: {
@@ -189,9 +64,8 @@ export class SqliteEventStore implements EventStore {
     logs: RpcLog[];
   }) => {
     const logs: InsertableLog[] = rpcLogs.map((log) => ({
-      ...rpcToSqliteLog({ log }),
+      ...rpcToSqliteLog(log),
       chainId,
-      finalized: 1,
     }));
 
     await Promise.all(
@@ -205,7 +79,7 @@ export class SqliteEventStore implements EventStore {
     );
   };
 
-  insertFinalizedBlock = async ({
+  insertHistoricalBlock = async ({
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
@@ -219,14 +93,12 @@ export class SqliteEventStore implements EventStore {
     const block: InsertableBlock = {
       ...rpcToSqliteBlock(rpcBlock),
       chainId,
-      finalized: 1,
     };
 
     const transactions: InsertableTransaction[] = rpcTransactions.map(
       (transaction) => ({
         ...rpcToSqliteTransaction(transaction),
         chainId,
-        finalized: 1,
       })
     );
 
@@ -256,6 +128,118 @@ export class SqliteEventStore implements EventStore {
           .values(logFilterCachedRange)
           .execute(),
       ]);
+    });
+  };
+
+  insertRealtimeBlock = async ({
+    chainId,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    logs: rpcLogs,
+  }: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logs: RpcLog[];
+  }) => {
+    const block: InsertableBlock = {
+      ...rpcToSqliteBlock(rpcBlock),
+      chainId,
+    };
+
+    const transactions: InsertableTransaction[] = rpcTransactions.map(
+      (transaction) => ({
+        ...rpcToSqliteTransaction(transaction),
+        chainId,
+      })
+    );
+
+    const logs: InsertableLog[] = rpcLogs.map((log) => ({
+      ...rpcToSqliteLog(log),
+      chainId,
+    }));
+
+    await this.db.transaction().execute(async (tx) => {
+      await Promise.all([
+        tx
+          .insertInto("blocks")
+          .values(block)
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute(),
+        ...transactions.map((transaction) =>
+          tx
+            .insertInto("transactions")
+            .values(transaction)
+            .onConflict((oc) => oc.column("hash").doNothing())
+            .execute()
+        ),
+        ...logs.map((log) =>
+          tx
+            .insertInto("logs")
+            .values(log)
+            .onConflict((oc) => oc.column("id").doNothing())
+            .execute()
+        ),
+      ]);
+    });
+  };
+
+  deleteRealtimeData = async ({
+    chainId,
+    fromBlockNumber,
+  }: {
+    chainId: number;
+    fromBlockNumber: number;
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await tx
+        .deleteFrom("blocks")
+        .where("number", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+      await tx
+        .deleteFrom("transactions")
+        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+      await tx
+        .deleteFrom("logs")
+        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+      await tx
+        .deleteFrom("contractReadResults")
+        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+    });
+  };
+
+  insertLogFilterCachedRanges = async ({
+    logFilterKeys,
+    startBlock,
+    endBlock,
+    endBlockTimestamp,
+  }: {
+    logFilterKeys: string[];
+    startBlock: number;
+    endBlock: number;
+    endBlockTimestamp: number;
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await Promise.all(
+        logFilterKeys.map((logFilterKey) =>
+          tx
+            .insertInto("logFilterCachedRanges")
+            .values({
+              filterKey: logFilterKey,
+              startBlock: intToBlob(startBlock),
+              endBlock: intToBlob(endBlock),
+              endBlockTimestamp: intToBlob(endBlockTimestamp),
+            })
+            .execute()
+        )
+      );
     });
   };
 
@@ -326,18 +310,22 @@ export class SqliteEventStore implements EventStore {
     return { startingRangeEndTimestamp };
   };
 
-  getLogFilterCachedRanges = async ({ filterKey }: { filterKey: string }) => {
+  getLogFilterCachedRanges = async ({
+    logFilterKey,
+  }: {
+    logFilterKey: string;
+  }) => {
     const results = await this.db
       .selectFrom("logFilterCachedRanges")
-      .select(["filterKey", "startBlock", "endBlock", "endBlockTimestamp"])
-      .where("filterKey", "=", filterKey)
+      .selectAll()
+      .where("filterKey", "=", logFilterKey)
       .execute();
 
     return results.map((range) => ({
-      ...range,
-      startBlock: blobToBigInt(range.startBlock),
-      endBlock: blobToBigInt(range.endBlock),
-      endBlockTimestamp: blobToBigInt(range.endBlockTimestamp),
+      filterKey: range.filterKey,
+      startBlock: Number(blobToBigInt(range.startBlock)),
+      endBlock: Number(blobToBigInt(range.endBlock)),
+      endBlockTimestamp: Number(blobToBigInt(range.endBlockTimestamp)),
     }));
   };
 
@@ -346,14 +334,12 @@ export class SqliteEventStore implements EventStore {
     blockNumber,
     chainId,
     data,
-    finalized,
     result,
   }: {
     address: string;
     blockNumber: bigint;
     chainId: number;
     data: Hex;
-    finalized: boolean;
     result: Hex;
   }) => {
     await this.db
@@ -363,7 +349,6 @@ export class SqliteEventStore implements EventStore {
         blockNumber: intToBlob(blockNumber),
         chainId,
         data,
-        finalized: finalized ? 1 : 0,
         result,
       })
       .onConflict((oc) => oc.doUpdateSet({ result }))
@@ -394,7 +379,6 @@ export class SqliteEventStore implements EventStore {
       ? {
           ...contractReadResult,
           blockNumber: blobToBigInt(contractReadResult.blockNumber),
-          finalized: contractReadResult.finalized === 1,
         }
       : null;
   };
@@ -438,7 +422,6 @@ export class SqliteEventStore implements EventStore {
         "logs.blockNumber as log_blockNumber",
         "logs.chainId as log_chainId",
         "logs.data as log_data",
-        // "logs.finalized as log_finalized",
         "logs.id as log_id",
         "logs.logIndex as log_logIndex",
         "logs.topic0 as log_topic0",
@@ -452,7 +435,6 @@ export class SqliteEventStore implements EventStore {
         // "blocks.chainId as block_chainId",
         "blocks.difficulty as block_difficulty",
         "blocks.extraData as block_extraData",
-        // "blocks.finalized as block_finalized",
         "blocks.gasLimit as block_gasLimit",
         "blocks.gasUsed as block_gasUsed",
         "blocks.hash as block_hash",
@@ -474,7 +456,6 @@ export class SqliteEventStore implements EventStore {
         "transactions.blockHash as tx_blockHash",
         "transactions.blockNumber as tx_blockNumber",
         // "transactions.chainId as tx_chainId",
-        // "transactions.finalized as tx_finalized",
         "transactions.from as tx_from",
         "transactions.gas as tx_gas",
         "transactions.gasPrice as tx_gasPrice",
