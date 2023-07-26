@@ -25,7 +25,7 @@ export class TelemetryService {
     return randomBytes(16).toString("hex");
   }
 
-  async recordEvent(_events: TelemetryEvent | TelemetryEvent[]) {
+  async record(_events: TelemetryEvent | TelemetryEvent[]) {
     const events = Array.isArray(_events) ? _events : [_events];
     return this.submitEvents(events);
   }
