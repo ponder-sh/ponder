@@ -1,4 +1,3 @@
-import { exec } from "child_process";
 import Conf from "conf";
 import { randomBytes } from "crypto";
 import { createHash } from "node:crypto";
@@ -6,6 +5,7 @@ import pc from "picocolors";
 
 import { type Options } from "@/config/options";
 import { getAnonymousMeta } from "@/telemetry/anonymous-meta";
+import { getGitRemoteUrl } from "@/telemetry/remote";
 
 type TelemetryEvent = {
   eventName: string;
@@ -19,49 +19,14 @@ type TelemetryConfig = {
   salt: string;
 };
 
-async function _getProjectIdByGit() {
-  try {
-    let resolve: (value: Buffer | string) => void, reject: (err: Error) => void;
-    const promise = new Promise<Buffer | string>((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-
-    exec(
-      `git config --local --get remote.origin.url`,
-      {
-        timeout: 1000,
-        windowsHide: true,
-      },
-      (error: null | Error, stdout: Buffer | string) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(stdout);
-      }
-    );
-
-    return String(await promise).trim();
-  } catch (_) {
-    return null;
-  }
-}
-
-async function getRawProjectId(): Promise<string> {
-  return (await _getProjectIdByGit()) ?? process.cwd();
-}
-
 export class TelemetryService {
   private readonly conf: Conf<TelemetryConfig>;
   private readonly sessionId: string;
   private readonly TELEMETRY_DISABLED: boolean;
-  private distDir: string;
-  private loadProjectId: string | null = null;
+  private rawProjectId: string | null = null;
 
-  constructor(options: Options) {
+  constructor({ options }: { options: Options }) {
     this.conf = new Conf({ projectName: "ponder", cwd: options.ponderDir });
-    this.distDir = options.ponderDir;
     this.TELEMETRY_DISABLED = Boolean(process.env.TELEMETRY_DISABLED);
     this.sessionId = randomBytes(32).toString("hex");
     this.notify();
@@ -91,6 +56,10 @@ export class TelemetryService {
     return createdSalt;
   }
 
+  get disabled() {
+    return this.TELEMETRY_DISABLED || !this.conf.get("enabled");
+  }
+
   async record(_events: TelemetryEvent | TelemetryEvent[]) {
     const events = Array.isArray(_events) ? _events : [_events];
     return this.submitEvents(events);
@@ -110,16 +79,15 @@ export class TelemetryService {
   }
 
   private async getProjectId() {
-    this.loadProjectId = this.loadProjectId ?? (await getRawProjectId());
-    return this.oneWayHash(this.loadProjectId);
-  }
-
-  private get isDisabled() {
-    return this.TELEMETRY_DISABLED || !this.conf.get("enabled");
+    if (this.rawProjectId) {
+      return this.oneWayHash(this.rawProjectId);
+    }
+    this.rawProjectId = (await getGitRemoteUrl()) ?? process.cwd();
+    return this.oneWayHash(this.rawProjectId);
   }
 
   private notify() {
-    if (this.isDisabled || this.conf.get("notifiedAt")) {
+    if (this.disabled || this.conf.get("notifiedAt")) {
       return;
     }
 
@@ -136,7 +104,7 @@ export class TelemetryService {
   }
 
   private async submitEvents(events: TelemetryEvent[]) {
-    if (this.isDisabled) {
+    if (this.disabled) {
       return;
     }
 
