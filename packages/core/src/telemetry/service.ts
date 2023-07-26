@@ -12,6 +12,7 @@ export class TelemetryService {
   private loadProjectId: string | null = null;
 
   constructor({ distDir }: { distDir: string }) {
+    // we want to persist the config across restarts
     this.distDir = distDir;
     this.TELEMETRY_DISABLED = Boolean(process.env.TELEMETRY_DISABLED);
     this.sessionId = randomBytes(32).toString("hex");
