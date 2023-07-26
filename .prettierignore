@@ -1,0 +1,4 @@
+pnpm-lock.yaml
+**/generated
+**/.next
+**/dist
