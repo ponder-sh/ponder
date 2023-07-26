@@ -2,6 +2,7 @@
 description: "A guide for deploying Ponder apps to production"
 ---
 
+import { Steps } from "nextra/components";
 import { Callout } from "nextra-theme-docs";
 
 # Deploy to production
@@ -10,7 +11,7 @@ import { Callout } from "nextra-theme-docs";
 
 [Railway](https://railway.app) is currently the best place to deploy Ponder apps. Most Ponder apps cost ~$5 per month, and the deployment process is simple.
 
-<div className="steps-container">
+<Steps>
 
 ### Sign up or log in to Railway
 
@@ -40,7 +41,7 @@ From the Railway console:
 
 After a moment, your Ponder service should redeploy successfully. Check the **Build Logs** and **Deploy Logs** tabs to debug any issues.
 
-</div>
+</Steps>
 
 ### Zero-downtime deployments
 

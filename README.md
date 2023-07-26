@@ -67,8 +67,8 @@ export const config = {
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/..."
-    }
+      rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/...",
+    },
   ],
   contracts: [
     {
@@ -76,9 +76,9 @@ export const config = {
       network: "mainnet",
       abi: "./abis/BaseRegistrar.json",
       address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-      startBlock: 9380410
-    }
-  ]
+      startBlock: 9380410,
+    },
+  ],
 };
 ```
 
@@ -115,8 +115,8 @@ ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
     data: {
       name: name,
       owner: owner,
-      registeredAt: event.block.timestamp
-    }
+      registeredAt: event.block.timestamp,
+    },
   });
 });
 ```

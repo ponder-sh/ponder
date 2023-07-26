@@ -64,8 +64,8 @@ await Account.create({
     totalUsdValue: 17.38,
     lastActiveAt: 1679337733,
     isAdmin: true,
-    graffiti: "LGTM"
-  }
+    graffiti: "LGTM",
+  },
 });
 ```
 
@@ -93,8 +93,8 @@ type Cat @entity {
 await Cat.create({
   id: "Fluffy",
   data: {
-    color: "ORANGE"
-  }
+    color: "ORANGE",
+  },
 });
 ```
 
@@ -124,8 +124,8 @@ await FancyCat.create({
   id: "Fluffy",
   data: {
     colors: ["ORANGE", "BLACK"],
-    favoriteNumbers: [7, 420, 69]
-  }
+    favoriteNumbers: [7, 420, 69],
+  },
 });
 ```
 
@@ -157,12 +157,12 @@ type Person @entity {
 ```ts filename="src/index.ts"
 await Person.create({
   id: "Bob",
-  data: { age: 22 }
+  data: { age: 22 },
 });
 
 await Dog.create({
   id: "Chip",
-  data: { owner: "Bob" }
+  data: { owner: "Bob" },
 });
 ```
 
@@ -218,17 +218,17 @@ type Person @entity {
 
 ```ts filename="src/index.ts"
 await Person.create({
-  id: "Bob"
+  id: "Bob",
 });
 
 await Dog.create({
   id: "Chip",
-  data: { owner: "Bob" }
+  data: { owner: "Bob" },
 });
 
 await Dog.create({
   id: "Spike",
-  data: { owner: "Bob" }
+  data: { owner: "Bob" },
 });
 ```
 
@@ -271,8 +271,8 @@ Note that you cannot directly get or set the `dogs` field on `Person`. Fields ma
 await Person.create({
   id: "Bob",
   data: {
-    dogs: ["Chip", "Bob"] // WRONG, will throw an error.
-  }
+    dogs: ["Chip", "Bob"], // WRONG, will throw an error.
+  },
 });
 ```
 

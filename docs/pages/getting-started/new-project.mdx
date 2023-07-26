@@ -2,12 +2,13 @@
 description: "A guide for creating a new Ponder project"
 ---
 
+import { Steps } from "nextra/components";
 import { Callout } from "nextra-theme-docs";
-import { Tabs, Tab } from "nextra-theme-docs";
+import { Tabs, Tab } from "nextra/components";
 
 # Quickstart
 
-<div className="steps-container">
+<Steps>
 
 ### Run the `create-ponder` CLI tool
 
@@ -102,8 +103,8 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
   await BlitmapToken.create({
     id: event.params.tokenId,
     data: {
-      owner: event.params.to
-    }
+      owner: event.params.to,
+    },
   });
 });
 ```
@@ -138,4 +139,4 @@ query {
 
 </div>
 
-</div>
+</Steps>
