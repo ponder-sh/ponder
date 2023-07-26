@@ -52,7 +52,7 @@ beforeEach((context) => {
     logger: new LoggerService({ level: "silent" }),
     errors: new UserErrorService(),
     metrics: new MetricsService(),
-    telemetry: new TelemetryService(options),
+    telemetry: new TelemetryService({ options }),
   };
 });
 
