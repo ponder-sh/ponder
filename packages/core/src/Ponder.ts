@@ -18,6 +18,7 @@ import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { RealtimeSyncService } from "@/realtime-sync/service";
 import { ServerService } from "@/server/service";
+import { TelemetryService } from "@/telemetry/service";
 import { UiService } from "@/ui/service";
 import { EventHandlerService } from "@/user-handlers/service";
 import { PostgresUserStore } from "@/user-store/postgres/store";
@@ -29,6 +30,7 @@ export type Common = {
   logger: LoggerService;
   errors: UserErrorService;
   metrics: MetricsService;
+  telemetry: TelemetryService;
 };
 
 export class Ponder {
@@ -72,8 +74,9 @@ export class Ponder {
     });
     const errors = new UserErrorService();
     const metrics = new MetricsService();
+    const telemetry = new TelemetryService({ options });
 
-    const common = { options, logger, errors, metrics };
+    const common = { options, logger, errors, metrics, telemetry };
     this.common = common;
 
     const logFilters = buildLogFilters({ options, config });

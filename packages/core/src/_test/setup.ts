@@ -15,6 +15,7 @@ import type { EventStore } from "@/event-store/store";
 import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { Common } from "@/Ponder";
+import { TelemetryService } from "@/telemetry/service";
 import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import type { UserStore } from "@/user-store/store";
@@ -45,11 +46,13 @@ declare module "vitest" {
 }
 
 beforeEach((context) => {
+  const options = buildOptions({ cliOptions: { configFile: "", rootDir: "" } });
   context.common = {
-    options: buildOptions({ cliOptions: { configFile: "", rootDir: "" } }),
+    options,
     logger: new LoggerService({ level: "silent" }),
     errors: new UserErrorService(),
     metrics: new MetricsService(),
+    telemetry: new TelemetryService({ options }),
   };
 });
 
