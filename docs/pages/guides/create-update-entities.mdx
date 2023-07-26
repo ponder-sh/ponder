@@ -49,8 +49,8 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
     id: event.params.tokenId,
     data: {
       mintedBy: event.params.to,
-      mintedAt: event.block.timestamp
-    }
+      mintedAt: event.block.timestamp,
+    },
   });
   // { id: 7777, mintedBy: "0x7Df1...", mintedAt: 1679507353 }
 });
@@ -92,8 +92,8 @@ ponder.on("Blitmap:MetadataUpdate", async ({ event, context }) => {
   const token = await Token.update({
     id: event.params.tokenId,
     data: {
-      metadataUpdatedAt: event.block.timestamp
-    }
+      metadataUpdatedAt: event.block.timestamp,
+    },
   });
   // { id: 7777, mintedBy: "0x1bA3...", updatedAt: 1679507354 }
 });
@@ -139,11 +139,11 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
     id: event.params.tokenId,
     create: {
       mintedBy: event.params.to,
-      ownedBy: event.params.to
+      ownedBy: event.params.to,
     },
     update: {
-      ownedBy: event.params.to
-    }
+      ownedBy: event.params.to,
+    },
   });
   // { id: 7777, mintedBy: "0x1bA3...", ownedBy: "0x7F4d..." }
 });

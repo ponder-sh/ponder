@@ -204,7 +204,7 @@ ponder.on("MyERC20:Transfer", async ({ event, context }) => {
   // This read will occur at the latest block number when this function
   // runs, and will not be cached. Avoid this pattern.
   const currentBalance = await MyERC20.read.balanceOf("0xFa3...", {
-    blockTag: "latest"
+    blockTag: "latest",
   });
 });
 ```
