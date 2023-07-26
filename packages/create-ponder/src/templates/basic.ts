@@ -1,13 +1,13 @@
-import { writeFileSync } from 'node:fs';
-import path from 'node:path';
-import prettier from 'prettier';
+import { writeFileSync } from "node:fs";
+import path from "node:path";
+import prettier from "prettier";
 
-import type { PartialConfig } from '@/index';
+import type { PartialConfig } from "@/index";
 
 export const fromBasic = ({ rootDir }: { rootDir: string }) => {
   const abiFileContents = `[]`;
 
-  const abiRelativePath = './abis/ExampleContract.json';
+  const abiRelativePath = "./abis/ExampleContract.json";
   const abiAbsolutePath = path.join(rootDir, abiRelativePath);
   writeFileSync(abiAbsolutePath, abiFileContents);
 
@@ -28,26 +28,26 @@ export const fromBasic = ({ rootDir }: { rootDir: string }) => {
   `;
 
   // Generate the schema.graphql file.
-  const ponderSchemaFilePath = path.join(rootDir, 'schema.graphql');
+  const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
   writeFileSync(
     ponderSchemaFilePath,
-    prettier.format(schemaGraphqlFileContents, { parser: 'graphql' })
+    prettier.format(schemaGraphqlFileContents, { parser: "graphql" })
   );
 
   // Build the partial ponder config.
   const config: PartialConfig = {
     networks: [
       {
-        name: 'mainnet',
+        name: "mainnet",
         chainId: 1,
         rpcUrl: `process.env.PONDER_RPC_URL_1`,
       },
     ],
     contracts: [
       {
-        name: 'ExampleContract',
-        network: 'mainnet',
-        address: '0x0',
+        name: "ExampleContract",
+        network: "mainnet",
+        address: "0x0",
         abi: abiRelativePath,
         startBlock: 1234567,
       },
