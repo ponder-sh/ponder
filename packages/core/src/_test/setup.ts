@@ -46,12 +46,13 @@ declare module "vitest" {
 }
 
 beforeEach((context) => {
+  const options = buildOptions({ cliOptions: { configFile: "", rootDir: "" } });
   context.common = {
-    options: buildOptions({ cliOptions: { configFile: "", rootDir: "" } }),
+    options,
     logger: new LoggerService({ level: "silent" }),
     errors: new UserErrorService(),
     metrics: new MetricsService(),
-    telemetry: new TelemetryService({ distDir: "./telemetry" }),
+    telemetry: new TelemetryService(options),
   };
 });
 
