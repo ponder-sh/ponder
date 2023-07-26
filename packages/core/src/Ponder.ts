@@ -74,7 +74,7 @@ export class Ponder {
     });
     const errors = new UserErrorService();
     const metrics = new MetricsService();
-    const telemetry = new TelemetryService({ distDir: "./telemetry" });
+    const telemetry = new TelemetryService(options);
 
     const common = { options, logger, errors, metrics, telemetry };
     this.common = common;
