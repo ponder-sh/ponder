@@ -3,6 +3,7 @@ description: "An introduction to Ponder"
 title: "Introduction"
 ---
 
+import { Steps } from "nextra/components";
 import { Callout } from "nextra-theme-docs";
 import Architecture from "../public/architecture.svg";
 
@@ -25,10 +26,10 @@ Ponder is an open-source framework for blockchain application backends. With Pon
 ## Architecture
 
 <Architecture className="excalidraw" role="img" />
-<p className="caption">
+<div className="caption">
   Data flows from smart contracts → event handler functions → application data
-  store → GraphQL API → client applications
-</p>
+  store → GraphQL API → client applications.
+</div>
 
 ## Example: ENS
 
@@ -54,7 +55,7 @@ contract BaseRegistrar {
 }
 ```
 
-<div className="steps-container">
+<Steps>
 
 ### Ponder config
 
@@ -154,7 +155,7 @@ query GetEnsNames {
 
 The GraphQL API includes useful features like pagination, sorting, and complex filters for each entity defined in `schema.graphql`.
 
-</div>
+</Steps>
 
 ## Get started
 

@@ -2,11 +2,12 @@
 description: "A guide for migrating a Graph Protocol subgraph to Ponder"
 ---
 
-import { Tabs, Tab } from "nextra-theme-docs";
+import { Steps } from "nextra/components";
+import { Tabs, Tab } from "nextra/components";
 
 # Migrate a Graph Protocol subgraph
 
-<div className="steps-container">
+<Steps>
 
 ### Run the `create-ponder` CLI tool
 
@@ -33,11 +34,11 @@ Enter a project name, then select the **Subgraph ID** template option and paste 
 
 ![Subgraph ID screenshot](/subgraph-id.png)
 
-<p className="caption">
+<div className="caption">
   [MakerDAO's
   subgraph](https://thegraph.com/hosted-service/subgraph/protofire/makerdao-governance)
   on the Graph Protocol's hosted service.
-</p>
+</div>
 
 The newly generated Ponder app will use your subgraph's `schema.graphql` as well as the addresses, ABIs, and start blocks for each event source defined in `subgraph.yaml`.
 
@@ -89,7 +90,7 @@ See [tips for migrating mapping functions](/getting-started/migrate-subgraph#tip
 
 As you migrate your event handlers and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
 
-</div>
+</Steps>
 
 ## Tips for migrating mapping functions
 
