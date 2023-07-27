@@ -1,38 +1,44 @@
 import { Analytics } from "@segment/analytics-node";
-import { NextApiRequest, NextApiResponse } from "next";
+import { NextRequest, NextResponse } from "next/server";
 
-export default async function forwardTelemetry(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
+export const config = {
+  runtime: "edge",
+};
 
+export default async function forwardTelemetry(req: NextRequest) {
   if (!process.env.SEGMENT_WRITE_KEY) {
     console.error('Missing required environment variable "SEGMENT_WRITE_KEY".');
-    return res
-      .status(500)
-      .json({ error: "An error occurred while processing telemetry data." });
+    return NextResponse.json(
+      {
+        error: `Server error`,
+      },
+      { status: 500 }
+    );
   }
 
-  try {
-    const analytics = new Analytics({
-      writeKey: process.env.SEGMENT_WRITE_KEY,
-    });
+  if (req.method !== "POST") {
+    return NextResponse.json(
+      {
+        error: `Method ${req.method} Not Allowed`,
+      },
+      { status: 405 }
+    );
+  }
 
-    await analytics.track({
-      ...req.body,
-    });
+  const analytics = new Analytics({
+    writeKey: process.env.SEGMENT_WRITE_KEY,
+  });
 
-    res.status(200).json({
+  const data = await req.json();
+
+  NextResponse.json(
+    {
       message: "Telemetry data processed successfully.",
-    });
-  } catch (error) {
-    console.error("Error forwarding telemetry data to Segment API:", error);
-    res
-      .status(500)
-      .json({ error: "An error occurred while processing telemetry data." });
-  }
+    },
+    { status: 200 }
+  );
+
+  await analytics.track({
+    ...data,
+  });
 }
