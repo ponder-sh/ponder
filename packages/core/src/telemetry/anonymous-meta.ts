@@ -1,6 +1,6 @@
 import os from "os";
 
-type AnonymousMeta = {
+export type AnonymousMeta = {
   systemPlatform: NodeJS.Platform;
   systemRelease: string;
   systemArchitecture: string;

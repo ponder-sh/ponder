@@ -1,16 +1,27 @@
 import Conf from "conf";
 import { randomBytes } from "crypto";
 import { createHash } from "node:crypto";
+import PQueue from "p-queue";
 import pc from "picocolors";
 
 import { type Options } from "@/config/options";
-import { getAnonymousMeta } from "@/telemetry/anonymous-meta";
+import { AnonymousMeta, getAnonymousMeta } from "@/telemetry/anonymous-meta";
+import { postPayload } from "@/telemetry/post-payload";
 import { getGitRemoteUrl } from "@/telemetry/remote";
 
 type TelemetryEvent = {
   eventName: string;
   payload: object;
 };
+
+type Context = {
+  sessionId: string;
+  anonymousId: string;
+  projectId: string;
+  meta: AnonymousMeta;
+};
+
+type SerializableTelemetryEvent = TelemetryEvent & Context;
 
 type TelemetryConfig = {
   enabled: boolean;
@@ -24,6 +35,10 @@ export class TelemetryService {
   private readonly sessionId: string;
   private readonly TELEMETRY_DISABLED: boolean;
   private rawProjectId: string | null = null;
+  private queue = new PQueue({ concurrency: 1 });
+  private controller = new AbortController();
+  private events: SerializableTelemetryEvent[] = [];
+  private context?: Context;
 
   constructor({ options }: { options: Options }) {
     this.conf = new Conf({ projectName: "ponder", cwd: options.ponderDir });
@@ -60,13 +75,41 @@ export class TelemetryService {
     return this.TELEMETRY_DISABLED || !this.conf.get("enabled");
   }
 
-  async record(_events: TelemetryEvent | TelemetryEvent[]) {
-    const events = Array.isArray(_events) ? _events : [_events];
-    return this.submitEvents(events);
+  async getContext() {
+    if (this.context) {
+      return this.context;
+    }
+
+    this.context = {
+      sessionId: this.sessionId,
+      projectId: await this.getProjectId(),
+      anonymousId: this.anonymousId,
+      meta: getAnonymousMeta(),
+    };
+
+    return this.context;
+  }
+
+  async record(event: TelemetryEvent) {
+    if (this.disabled) {
+      return;
+    }
+
+    const context = await this.getContext();
+    const serializedEvent = { ...event, ...context };
+
+    this.events.push(serializedEvent);
+    await this.queue.add(async () => this.processEvent());
   }
 
   setEnabled(enabled: boolean) {
     this.conf.set("enabled", enabled);
+  }
+
+  async kill() {
+    this.queue.pause();
+    await this.controller.abort();
+    await this.queue.onIdle();
   }
 
   oneWayHash(value: string) {
@@ -103,31 +146,24 @@ export class TelemetryService {
     );
   }
 
-  private async submitEvents(events: TelemetryEvent[]) {
-    if (this.disabled) {
+  private async processEvent() {
+    const event = this.events.pop();
+
+    if (!event) {
       return;
     }
 
-    const context = {
-      sessionId: this.sessionId,
-      projectId: await this.getProjectId(),
-      anonymousId: this.anonymousId,
-    };
-
-    const meta = getAnonymousMeta();
-    const payload = {
-      events,
-      context,
-      meta,
-    };
-
-    console.log({ payload });
-
-    // TODO: uncomment this when we're ready to send telemetry
-    // return postPayload({
-    //   endpoint: "https://telemetry.ponder.sh/api/record",
-    //   payload,
-    //   signal: controller.signal,
-    // });
+    try {
+      await postPayload({
+        endpoint: "https://telemetry.ponder.sh/api/record",
+        payload: event,
+        signal: this.controller.signal,
+      });
+    } catch (e) {
+      const error = e as { name: string };
+      if (error.name === "AbortError") {
+        this.events.push(event);
+      }
+    }
   }
 }
