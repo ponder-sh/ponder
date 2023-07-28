@@ -198,7 +198,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           service: "historical",
           msg: `Started sync with ${formatPercentage(
             cacheRate
-          )} cached (network=${this.network.name})`,
+          )} cached (logFilter=${logFilter.name} network=${this.network.name})`,
           network: this.network.name,
           logFilter: logFilter.name,
           totalBlockCount,
@@ -350,7 +350,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           this.common.logger.trace({
             service: "historical",
-            msg: `Completed block sync task`,
+            msg: `Completed block sync task ${task.blockNumber}, cached from ${task.blockNumberToCacheFrom} (logFilter=${logFilter.name}, network=${this.network.name})`,
             network: this.network.name,
             logFilter: logFilter.name,
             blockNumberToCacheFrom: task.blockNumberToCacheFrom,
@@ -378,7 +378,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           this.common.logger.trace({
             service: "historical",
-            msg: `Completed log sync task`,
+            msg: `Completed log sync task [${task.fromBlock}, ${task.toBlock}] (logFilter=${logFilter.name}, network=${this.network.name})`,
             network: this.network.name,
             logFilter: logFilter.name,
             fromBlock: task.fromBlock,

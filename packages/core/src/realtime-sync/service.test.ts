@@ -143,26 +143,11 @@ test("adds all matched logs to the store", async (context) => {
   await service.onIdle();
 
   expect(service.stats.blocks).toMatchObject({
-    16379996: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 18,
-    },
-    16379997: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 32,
-    },
-    16379998: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 7,
-    },
-    16379999: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 9,
-    },
-    16380000: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 13,
-    },
+    16379996: { matchedLogCount: 18 },
+    16379997: { matchedLogCount: 32 },
+    16379998: { matchedLogCount: 7 },
+    16379999: { matchedLogCount: 9 },
+    16380000: { matchedLogCount: 13 },
   });
 
   const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
@@ -206,22 +191,10 @@ test("handles new blocks", async (context) => {
 
   expect(service.stats.blocks).toMatchObject({
     // ... previous blocks omitted for brevity
-    16380000: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 13,
-    },
-    16380001: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 1,
-    },
-    16380002: {
-      bloom: { hit: false, falsePositive: false },
-      matchedLogCount: 0,
-    },
-    16380003: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 2,
-    },
+    16380000: { matchedLogCount: 13 },
+    16380001: { matchedLogCount: 1 },
+    16380002: { matchedLogCount: 0 },
+    16380003: { matchedLogCount: 2 },
   });
 
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
@@ -349,18 +322,9 @@ test("handles 1 block shallow reorg", async (context) => {
 
   expect(service.stats.blocks).toMatchObject({
     // ... previous blocks omitted for brevity
-    16380001: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 1,
-    },
-    16380002: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 1,
-    },
-    16380003: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 1,
-    },
+    16380001: { matchedLogCount: 1 },
+    16380002: { matchedLogCount: 1 },
+    16380003: { matchedLogCount: 1 },
   });
 
   // Now, revert to the original snapshot and mine one empty block.
@@ -373,10 +337,7 @@ test("handles 1 block shallow reorg", async (context) => {
 
   expect(service.stats.blocks).toMatchObject({
     // ... previous blocks omitted for brevity
-    16380001: {
-      bloom: { hit: false, falsePositive: false },
-      matchedLogCount: 0,
-    },
+    16380001: { matchedLogCount: 0 },
   });
 
   await service.kill();
@@ -411,18 +372,9 @@ test("handles 3 block shallow reorg", async (context) => {
 
   expect(service.stats.blocks).toMatchObject({
     // ... previous blocks omitted for brevity
-    16380001: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 1,
-    },
-    16380002: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 1,
-    },
-    16380003: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 1,
-    },
+    16380001: { matchedLogCount: 1 },
+    16380002: { matchedLogCount: 1 },
+    16380003: { matchedLogCount: 1 },
   });
 
   // Now, revert to the original snapshot and mine 5 blocks, each containing 2 transactions.
@@ -439,26 +391,11 @@ test("handles 3 block shallow reorg", async (context) => {
 
   expect(service.stats.blocks).toMatchObject({
     // ... previous blocks omitted for brevity
-    16380001: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 2,
-    },
-    16380002: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 2,
-    },
-    16380003: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 2,
-    },
-    16380004: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 2,
-    },
-    16380005: {
-      bloom: { hit: true, falsePositive: false },
-      matchedLogCount: 2,
-    },
+    16380001: { matchedLogCount: 2 },
+    16380002: { matchedLogCount: 2 },
+    16380003: { matchedLogCount: 2 },
+    16380004: { matchedLogCount: 2 },
+    16380005: { matchedLogCount: 2 },
   });
 
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {

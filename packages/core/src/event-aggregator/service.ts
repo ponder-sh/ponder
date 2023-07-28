@@ -9,6 +9,7 @@ import { Common } from "@/Ponder";
 import { Block } from "@/types/block";
 import { Log } from "@/types/log";
 import { Transaction } from "@/types/transaction";
+import { formatShortDate } from "@/utils/date";
 
 export type LogEvent = {
   logFilterName: string;
@@ -195,6 +196,14 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     timestamp: number;
   }) => {
     this.networkCheckpoints[chainId].historicalCheckpoint = timestamp;
+
+    this.common.logger.trace({
+      service: "aggregator",
+      msg: `New historical checkpoint at ${timestamp} [${formatShortDate(
+        timestamp
+      )}] (chainId=${chainId})`,
+    });
+
     this.recalculateCheckpoint();
   };
 
@@ -209,6 +218,11 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         ...networkCheckpoints.map((n) => n.historicalCheckpoint)
       );
       this.historicalSyncCompletedAt = maxHistoricalCheckpoint;
+
+      this.common.logger.debug({
+        service: "aggregator",
+        msg: `Completed historical sync across all networks`,
+      });
     }
   };
 
@@ -220,6 +234,14 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     timestamp: number;
   }) => {
     this.networkCheckpoints[chainId].realtimeCheckpoint = timestamp;
+
+    this.common.logger.trace({
+      service: "aggregator",
+      msg: `New realtime checkpoint at ${timestamp} [${formatShortDate(
+        timestamp
+      )}] (chainId=${chainId})`,
+    });
+
     this.recalculateCheckpoint();
   };
 
@@ -252,6 +274,14 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
 
     if (newCheckpoint > this.checkpoint) {
       this.checkpoint = newCheckpoint;
+
+      this.common.logger.trace({
+        service: "aggregator",
+        msg: `New event checkpoint at ${this.checkpoint} [${formatShortDate(
+          this.checkpoint
+        )}]`,
+      });
+
       this.emit("newCheckpoint", { timestamp: this.checkpoint });
     }
   };
@@ -263,6 +293,14 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
 
     if (newFinalityCheckpoint > this.finalityCheckpoint) {
       this.finalityCheckpoint = newFinalityCheckpoint;
+
+      this.common.logger.trace({
+        service: "aggregator",
+        msg: `New finality checkpoint at ${
+          this.finalityCheckpoint
+        } [${formatShortDate(this.finalityCheckpoint)}]`,
+      });
+
       this.emit("newFinalityCheckpoint", {
         timestamp: this.finalityCheckpoint,
       });
