@@ -99,7 +99,7 @@ export class TelemetryService {
     const serializedEvent = { ...event, ...context };
 
     this.events.push(serializedEvent);
-    await this.queue.add(async () => this.processEvent());
+    await this.queue.add(() => this.processEvent());
   }
 
   setEnabled(enabled: boolean) {
