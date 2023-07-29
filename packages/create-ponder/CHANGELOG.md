@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.77
+
+### Patch Changes
+
+- [#265](https://github.com/0xOlias/ponder/pull/265) [`16edcce`](https://github.com/0xOlias/ponder/commit/16edcce73c733d6489bf348cc636cdbcb98bbdbd) Thanks [@salieflewis](https://github.com/salieflewis)! - Added schema design tips and links to further documentation on schema design to the generated `schema.graphql` file.
+
 ## 0.0.76
 
 ## 0.0.75

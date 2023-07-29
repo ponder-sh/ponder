@@ -1,5 +1,17 @@
 # @ponder/core
 
+## 0.0.77
+
+### Patch Changes
+
+- [#274](https://github.com/0xOlias/ponder/pull/274) [`7a0057e`](https://github.com/0xOlias/ponder/commit/7a0057e1c20cb05081656b68c554f3ef3a10ecc4) Thanks [@0xOlias](https://github.com/0xOlias)! - Made internal improvements to the real-time sync service to properly reflect the data that is fetched and cached during the real-time sync. Also added a new cleanup migration that removes the `finalized` column from all tables.
+
+- [#274](https://github.com/0xOlias/ponder/pull/274) [`7a0057e`](https://github.com/0xOlias/ponder/commit/7a0057e1c20cb05081656b68c554f3ef3a10ecc4) Thanks [@0xOlias](https://github.com/0xOlias)! - Removed export of internal `Ponder` and `Options` types.
+
+- [#282](https://github.com/0xOlias/ponder/pull/282) [`4224d75`](https://github.com/0xOlias/ponder/commit/4224d75dc6feb1510d5153c9b2ade5dd6fe159df) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where Ponder apps with multiple contracts would not process events in real-time.
+
+- [#274](https://github.com/0xOlias/ponder/pull/274) [`7a0057e`](https://github.com/0xOlias/ponder/commit/7a0057e1c20cb05081656b68c554f3ef3a10ecc4) Thanks [@0xOlias](https://github.com/0xOlias)! - Improve `Model` type to not require data/create/update fields if the entity only has an ID.
+
 ## 0.0.76
 
 ### Patch Changes
