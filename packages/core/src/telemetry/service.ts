@@ -1,12 +1,13 @@
 import Conf from "conf";
 import { randomBytes } from "crypto";
+import * as fs from "fs";
 import { createHash } from "node:crypto";
+import os from "os";
 import PQueue from "p-queue";
 import pc from "picocolors";
 
 import { type Options } from "@/config/options";
-import { AnonymousMeta, getAnonymousMeta } from "@/telemetry/anonymous-meta";
-import { postPayload } from "@/telemetry/post-payload";
+import { postEvent } from "@/telemetry/post-event";
 import { getGitRemoteUrl } from "@/telemetry/remote";
 
 type TelemetryEvent = {
@@ -30,24 +31,61 @@ type TelemetryConfig = {
   salt: string;
 };
 
+type AnonymousMeta = {
+  // Software information
+  systemPlatform: NodeJS.Platform;
+  systemRelease: string;
+  systemArchitecture: string;
+  // Machine information
+  cpuCount: number;
+  cpuModel: string | null;
+  cpuSpeed: number | null;
+  memoryInMb: number;
+  // TODO: detect docker
+  // isDocker: boolean;
+  // isNowDev: boolean;
+  // isWsl: boolean;
+  // isCI: boolean;
+  // ciName: string | null;
+  // nextVersion: string;
+};
+
 export class TelemetryService {
   private readonly conf: Conf<TelemetryConfig>;
   private readonly sessionId: string;
   private readonly TELEMETRY_DISABLED: boolean;
   private rawProjectId: string | null = null;
   private queue = new PQueue({ concurrency: 1 });
+  private distDir: string;
   private controller = new AbortController();
   private events: SerializableTelemetryEvent[] = [];
   private context?: Context;
+  private metadata?: AnonymousMeta;
 
   constructor({ options }: { options: Options }) {
-    this.conf = new Conf({ projectName: "ponder", cwd: options.ponderDir });
+    this.conf = new Conf({
+      projectName: "ponder",
+      cwd: options.ponderDir,
+      configName: "telemetry-config",
+    });
+    this.distDir = options.ponderDir;
     this.TELEMETRY_DISABLED = Boolean(process.env.TELEMETRY_DISABLED);
     this.sessionId = randomBytes(32).toString("hex");
     this.notify();
   }
 
-  get anonymousId(): string {
+  get disabled() {
+    return (
+      this.TELEMETRY_DISABLED ||
+      (this.conf.has("enabled") && !this.conf.get("enabled"))
+    );
+  }
+
+  get eventsCount() {
+    return this.events.length;
+  }
+
+  private get anonymousId() {
     const storedId = this.conf.get("anonymousId");
 
     if (storedId) {
@@ -59,7 +97,27 @@ export class TelemetryService {
     return createdId;
   }
 
-  get salt(): string {
+  private get anonymousMeta() {
+    if (this.metadata) {
+      return this.metadata;
+    }
+
+    const cpus = os.cpus() || [];
+
+    this.metadata = {
+      systemPlatform: os.platform(),
+      systemRelease: os.release(),
+      systemArchitecture: os.arch(),
+      cpuCount: cpus.length,
+      cpuModel: cpus.length ? cpus[0].model : null,
+      cpuSpeed: cpus.length ? cpus[0].speed : null,
+      memoryInMb: Math.trunc(os.totalmem() / Math.pow(1024, 2)),
+    };
+
+    return this.metadata;
+  }
+
+  private get salt() {
     const storedSalt = this.conf.get("salt");
 
     if (storedSalt) {
@@ -71,25 +129,6 @@ export class TelemetryService {
     return createdSalt;
   }
 
-  get disabled() {
-    return this.TELEMETRY_DISABLED || !this.conf.get("enabled");
-  }
-
-  async getContext() {
-    if (this.context) {
-      return this.context;
-    }
-
-    this.context = {
-      sessionId: this.sessionId,
-      projectId: await this.getProjectId(),
-      anonymousId: this.anonymousId,
-      meta: getAnonymousMeta(),
-    };
-
-    return this.context;
-  }
-
   async record(event: TelemetryEvent) {
     if (this.disabled) {
       return;
@@ -99,7 +138,7 @@ export class TelemetryService {
     const serializedEvent = { ...event, ...context };
 
     this.events.push(serializedEvent);
-    await this.queue.add(() => this.processEvent());
+    return this.queue.add(() => this.processEvent());
   }
 
   setEnabled(enabled: boolean) {
@@ -110,6 +149,7 @@ export class TelemetryService {
     this.queue.pause();
     await this.controller.abort();
     await this.queue.onIdle();
+    this.flushDetached();
   }
 
   oneWayHash(value: string) {
@@ -119,6 +159,27 @@ export class TelemetryService {
     hash.update(this.salt);
     hash.update(value);
     return hash.digest("hex");
+  }
+
+  private flushDetached() {
+    const serializedEvents = JSON.stringify(this.events);
+    const fileName = `${this.distDir}/telemetry-events.json`;
+    fs.writeFileSync(fileName, serializedEvents);
+  }
+
+  private async getContext() {
+    if (this.context) {
+      return this.context;
+    }
+
+    this.context = {
+      sessionId: this.sessionId,
+      projectId: await this.getProjectId(),
+      anonymousId: this.anonymousId,
+      meta: this.anonymousMeta,
+    };
+
+    return this.context;
   }
 
   private async getProjectId() {
@@ -154,11 +215,7 @@ export class TelemetryService {
     }
 
     try {
-      await postPayload({
-        endpoint: "https://telemetry.ponder.sh/api/record",
-        payload: event,
-        signal: this.controller.signal,
-      });
+      await postEvent({ payload: event, signal: this.controller.signal });
     } catch (e) {
       const error = e as { name: string };
       if (error.name === "AbortError") {
