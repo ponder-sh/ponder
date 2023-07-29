@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "name": "ponder-examples-art-gobblers",
   "private": true,
   "scripts": {
     "dev": "ponder dev",

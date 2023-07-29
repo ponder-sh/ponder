@@ -1,4 +1,5 @@
 {
+  "name": "ponder-examples-token-reth",
   "private": true,
   "scripts": {
     "dev": "ponder dev",

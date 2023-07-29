@@ -1,4 +1,5 @@
 {
+  "name": "ponder-examples-token-erc721",
   "private": true,
   "scripts": {
     "dev": "ponder dev",

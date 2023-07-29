@@ -12,9 +12,9 @@ export function filterLogs({
 }) {
   return logs.filter((log) => {
     for (const { address, topics } of logFilters) {
-      if (!isLogMatchedByFilter({ log, address, topics })) return false;
+      if (isLogMatchedByFilter({ log, address, topics })) return true;
     }
-    return true;
+    return false;
   });
 }
 
