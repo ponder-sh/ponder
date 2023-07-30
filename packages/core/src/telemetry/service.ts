@@ -1,10 +1,13 @@
+import * as child_process from "child_process";
 import Conf from "conf";
 import { randomBytes } from "crypto";
 import * as fs from "fs";
 import { createHash } from "node:crypto";
 import os from "os";
 import PQueue from "p-queue";
+import path from "path";
 import pc from "picocolors";
+import * as process from "process";
 
 import { type Options } from "@/config/options";
 import { postEvent } from "@/telemetry/post-event";
@@ -22,7 +25,7 @@ type Context = {
   meta: AnonymousMeta;
 };
 
-type SerializableTelemetryEvent = TelemetryEvent & Context;
+export type SerializableTelemetryEvent = TelemetryEvent & Context;
 
 type TelemetryConfig = {
   enabled: boolean;
@@ -54,9 +57,9 @@ export class TelemetryService {
   private readonly conf: Conf<TelemetryConfig>;
   private readonly sessionId: string;
   private readonly TELEMETRY_DISABLED: boolean;
+  private readonly options: Options;
   private rawProjectId: string | null = null;
   private queue = new PQueue({ concurrency: 1 });
-  private distDir: string;
   private controller = new AbortController();
   private events: SerializableTelemetryEvent[] = [];
   private context?: Context;
@@ -68,7 +71,7 @@ export class TelemetryService {
       cwd: options.ponderDir,
       configName: "telemetry-config",
     });
-    this.distDir = options.ponderDir;
+    this.options = options;
     this.TELEMETRY_DISABLED = Boolean(process.env.TELEMETRY_DISABLED);
     this.sessionId = randomBytes(32).toString("hex");
     this.notify();
@@ -163,8 +166,11 @@ export class TelemetryService {
 
   private flushDetached() {
     const serializedEvents = JSON.stringify(this.events);
-    const fileName = `${this.distDir}/telemetry-events.json`;
+    const fileName = `${this.options.ponderDir}/telemetry-events.json`;
     fs.writeFileSync(fileName, serializedEvents);
+    child_process.spawn(process.execPath, [
+      path.join(this.options.rootDir + "dist/telemetry/flush-detached.js"),
+    ]);
   }
 
   private async getContext() {

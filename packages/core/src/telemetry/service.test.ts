@@ -9,6 +9,12 @@ import { TelemetryService } from "@/telemetry/service";
 
 const cpus = os.cpus() || [];
 
+const spawn = vi.fn();
+
+vi.mock("child_process", () => ({
+  spawn: spawn,
+}));
+
 const options = buildOptions({
   cliOptions: { configFile: "", rootDir: "" },
 });
@@ -116,6 +122,8 @@ test("kill method should persis events queue and trigger detached flush", async 
   );
 
   expect(events.length).toBe(10);
+
+  expect(spawn).toHaveBeenCalled();
 
   fetchMocker.resetMocks();
   fs.unlinkSync(persistedEventsPath);
