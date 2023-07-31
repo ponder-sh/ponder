@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.78
+
+### Patch Changes
+
+- [#285](https://github.com/0xOlias/ponder/pull/285) [`f8803bf`](https://github.com/0xOlias/ponder/commit/f8803bf7839128bd069cbb119c65c9bd5619dbfb) Thanks [@0xOlias](https://github.com/0xOlias)! - Added trace-level logs for more handler and store actions.
+
 ## 0.0.77
 
 ### Patch Changes
