@@ -1,10 +1,18 @@
-import { postEvent } from "@/telemetry/post-event";
-import { SerializableTelemetryEvent } from "@/telemetry/service";
+function postEvent({ payload }) {
+  return fetch("https://ponder.sh/api/telemetry", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+}
 
 async function detachedFlush() {
   const args = [...process.argv];
+  console.log("args", args);
   const [eventsFile] = args.splice(2);
-  const events: SerializableTelemetryEvent[] = JSON.parse(eventsFile);
+  const events = JSON.parse(eventsFile);
   await Promise.all(events.map((event) => postEvent(event)));
 }
 

@@ -14,7 +14,7 @@
     "/dist"
   ],
   "scripts": {
-    "build": "tsup-node",
+    "build": "tsc",
     "test": "export $(grep -v '^#' .env.local | xargs) && vitest",
     "test:ci": "CI=true vitest",
     "typecheck": "tsc --noEmit"

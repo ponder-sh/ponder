@@ -1,7 +1,7 @@
-import * as child_process from "child_process";
 import Conf from "conf";
 import { randomBytes } from "crypto";
 import * as fs from "fs";
+import child_process from "node:child_process";
 import { createHash } from "node:crypto";
 import os from "os";
 import PQueue from "p-queue";
@@ -66,11 +66,7 @@ export class TelemetryService {
   private metadata?: AnonymousMeta;
 
   constructor({ options }: { options: Options }) {
-    this.conf = new Conf({
-      projectName: "ponder",
-      cwd: options.ponderDir,
-      configName: "telemetry-config",
-    });
+    this.conf = new Conf({ projectName: "ponder" });
     this.options = options;
     this.TELEMETRY_DISABLED = Boolean(process.env.TELEMETRY_DISABLED);
     this.sessionId = randomBytes(32).toString("hex");
@@ -141,7 +137,7 @@ export class TelemetryService {
     const serializedEvent = { ...event, ...context };
 
     this.events.push(serializedEvent);
-    return this.queue.add(() => this.processEvent());
+    this.queue.add(() => this.processEvent());
   }
 
   setEnabled(enabled: boolean) {
@@ -169,7 +165,7 @@ export class TelemetryService {
     const fileName = `${this.options.ponderDir}/telemetry-events.json`;
     fs.writeFileSync(fileName, serializedEvents);
     child_process.spawn(process.execPath, [
-      path.join(this.options.rootDir + "dist/telemetry/flush-detached.js"),
+      path.join(__dirname, "flush-detached.js"),
     ]);
   }
 

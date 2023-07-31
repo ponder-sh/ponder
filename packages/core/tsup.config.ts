@@ -1,12 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: [
-    "src/index.ts",
-    "src/bin/ponder.ts",
-    "src/telemetry/detached-flush.ts",
-    "src/telemetry/post-event.ts",
-  ],
+  entry: ["src/index.ts", "src/bin/ponder.ts"],
   bundle: true,
   format: ["cjs", "esm"],
   sourcemap: true,
