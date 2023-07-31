@@ -115,6 +115,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     if (newSchema) {
       this.schema = newSchema;
       this.models = buildModels({
+        common: this.common,
         userStore: this.userStore,
         schema: this.schema,
         getCurrentEventTimestamp: () => this.currentEventTimestamp,
@@ -377,8 +378,18 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           if (!setupHandler) return;
 
           try {
+            this.common.logger.trace({
+              service: "handlers",
+              msg: `Started handler (event="setup")`,
+            });
+
             // Running user code here!
             await setupHandler({ context });
+
+            this.common.logger.trace({
+              service: "handlers",
+              msg: `Completed handler (event="setup")`,
+            });
 
             this.common.metrics.ponder_handlers_processed_events.inc({
               eventName: "setup",
@@ -389,6 +400,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
             this.hasError = true;
             this.common.metrics.ponder_handlers_has_error.set(1);
+
+            this.common.logger.trace({
+              service: "handlers",
+              msg: `Failed while running handler (event="setup")`,
+            });
 
             const error = error_ as Error;
             const trace = getStackTrace(error, this.common.options);
@@ -427,6 +443,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           this.currentEventTimestamp = Number(event.block.timestamp);
 
           try {
+            this.common.logger.trace({
+              service: "handlers",
+              msg: `Started handler (event="${event.logFilterName}:${event.eventName}", block=${event.block.number})`,
+            });
+
             // Running user code here!
             await handlerData.fn({
               event: {
@@ -435,12 +456,22 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
               },
               context,
             });
+
+            this.common.logger.trace({
+              service: "handlers",
+              msg: `Completed handler (event="${event.logFilterName}:${event.eventName}", block=${event.block.number})`,
+            });
           } catch (error_) {
             // Remove all remaining tasks from the queue.
             queue.clear();
 
             this.hasError = true;
             this.common.metrics.ponder_handlers_has_error.set(1);
+
+            this.common.logger.trace({
+              service: "handlers",
+              msg: `Failed while running handler (event="${event.logFilterName}:${event.eventName}", block=${event.block.number})`,
+            });
 
             const error = error_ as Error;
             const trace = getStackTrace(error, this.common.options);
