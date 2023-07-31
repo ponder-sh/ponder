@@ -4,18 +4,18 @@ import "@/utils/globals";
 
 import { cac } from "cac";
 import dotenv from "dotenv";
-import path from "node:path";
+import * as path from "node:path";
 
-import { buildConfig } from "@/config/config";
-import { buildOptions } from "@/config/options";
-import { Ponder } from "@/Ponder";
+import { buildConfig } from "@/config/config.js";
+import { buildOptions } from "@/config/options.js";
+import { Ponder } from "@/Ponder.js";
 
-import packageJson from "../../package.json" assert { type: "json" };
+const VERSION = "0.0.77";
 
 dotenv.config({ path: ".env.local" });
 
 const cli = cac("ponder")
-  .version(packageJson.version)
+  .version(VERSION)
   .usage("<command> [options]")
   .help()
   .option("--config-file [path]", `Path to config file`, {

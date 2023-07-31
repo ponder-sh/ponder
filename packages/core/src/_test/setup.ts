@@ -2,26 +2,26 @@ import "@/utils/globals";
 
 import SqliteDatabase from "better-sqlite3";
 import moduleAlias from "module-alias";
-import path from "node:path";
+import * as path from "node:path";
 import { Pool } from "pg";
 import { type TestContext, beforeEach } from "vitest";
 
-import { patchSqliteDatabase } from "@/config/database";
-import { buildOptions } from "@/config/options";
-import { UserErrorService } from "@/errors/service";
-import { PostgresEventStore } from "@/event-store/postgres/store";
-import { SqliteEventStore } from "@/event-store/sqlite/store";
-import type { EventStore } from "@/event-store/store";
-import { LoggerService } from "@/logs/service";
-import { MetricsService } from "@/metrics/service";
-import { Common } from "@/Ponder";
-import { TelemetryService } from "@/telemetry/service";
-import { PostgresUserStore } from "@/user-store/postgres/store";
-import { SqliteUserStore } from "@/user-store/sqlite/store";
-import type { UserStore } from "@/user-store/store";
+import { patchSqliteDatabase } from "@/config/database.js";
+import { buildOptions } from "@/config/options.js";
+import { UserErrorService } from "@/errors/service.js";
+import { PostgresEventStore } from "@/event-store/postgres/store.js";
+import { SqliteEventStore } from "@/event-store/sqlite/store.js";
+import type { EventStore } from "@/event-store/store.js";
+import { LoggerService } from "@/logs/service.js";
+import { MetricsService } from "@/metrics/service.js";
+import type { Common } from "@/Ponder.js";
+import { TelemetryService } from "@/telemetry/service.js";
+import { PostgresUserStore } from "@/user-store/postgres/store.js";
+import { SqliteUserStore } from "@/user-store/sqlite/store.js";
+import type { UserStore } from "@/user-store/store.js";
 
-import { FORK_BLOCK_NUMBER, FORK_URL, vitalik } from "./constants";
-import { poolId, testClient } from "./utils";
+import { FORK_BLOCK_NUMBER, FORK_URL, vitalik } from "./constants.js";
+import { poolId, testClient } from "./utils.js";
 
 /**
  * Set up a package alias so we can reference `@ponder/core` by name in test files.

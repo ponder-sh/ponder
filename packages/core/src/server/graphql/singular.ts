@@ -1,14 +1,14 @@
 import {
-  GraphQLFieldConfig,
-  GraphQLFieldResolver,
+  type GraphQLFieldConfig,
+  type GraphQLFieldResolver,
   GraphQLInt,
   GraphQLNonNull,
   GraphQLObjectType,
 } from "graphql";
 
-import type { Entity } from "@/schema/types";
+import type { Entity } from "@/schema/types.js";
 
-import type { Context, Source } from "./schema";
+import type { Context, Source } from "./schema.js";
 
 type SingularArgs = {
   id?: string;

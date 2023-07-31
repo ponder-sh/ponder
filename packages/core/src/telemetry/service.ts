@@ -10,9 +10,9 @@ import path from "path";
 import pc from "picocolors";
 import * as process from "process";
 
-import { type Options } from "@/config/options";
-import { postEvent } from "@/telemetry/post-event";
-import { getGitRemoteUrl } from "@/telemetry/remote";
+import type { Options } from "@/config/options.js";
+import { getAnonymousMeta } from "@/telemetry/anonymous-meta.js";
+import { getGitRemoteUrl } from "@/telemetry/remote.js";
 
 type TelemetryEvent = {
   eventName: string;

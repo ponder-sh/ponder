@@ -1,5 +1,5 @@
 export class UserError extends Error {
-  name = "UserError";
+  override name = "UserError";
 
   meta?: string;
 

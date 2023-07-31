@@ -1,5 +1,6 @@
 import {
-  FieldDefinitionNode,
+  type FieldDefinitionNode,
+  type StringValueNode,
   GraphQLBoolean,
   GraphQLEnumType,
   GraphQLFloat,
@@ -11,10 +12,9 @@ import {
   GraphQLSchema,
   GraphQLString,
   Kind,
-  StringValueNode,
 } from "graphql";
 
-import {
+import type {
   DerivedField,
   Entity,
   EnumField,
@@ -23,7 +23,7 @@ import {
   RelationshipField,
   ScalarField,
   Schema,
-} from "./types";
+} from "./types.js";
 
 const GraphQLBigInt = new GraphQLScalarType({
   name: "BigInt",

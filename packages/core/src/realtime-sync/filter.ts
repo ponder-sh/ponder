@@ -1,4 +1,4 @@
-import { Address, Hex, RpcLog } from "viem";
+import type { Address, Hex, RpcLog } from "viem";
 
 export function filterLogs({
   logs,

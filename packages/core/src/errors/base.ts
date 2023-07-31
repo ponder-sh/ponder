@@ -18,7 +18,7 @@ export class BaseError extends Error {
   metaMessages?: string[];
   shortMessage: string;
 
-  name = "PonderError";
+  override name = "PonderError";
 
   constructor(shortMessage: string, args: BaseErrorParameters = {}) {
     const details =

@@ -2,10 +2,10 @@ import type Sqlite from "better-sqlite3";
 import { randomBytes } from "crypto";
 import { Kysely, sql, SqliteDialect } from "kysely";
 
-import type { Schema } from "@/schema/types";
-import { blobToBigInt } from "@/utils/decode";
+import type { Schema } from "@/schema/types.js";
+import { blobToBigInt } from "@/utils/decode.js";
 
-import type { ModelFilter, ModelInstance, UserStore } from "../store";
+import type { ModelFilter, ModelInstance, UserStore } from "../store.js";
 import {
   type FilterType,
   formatModelFieldValue,
@@ -13,7 +13,7 @@ import {
   getWhereOperatorAndValue,
   MAX_INTEGER,
   validateFilter,
-} from "../utils";
+} from "../utils.js";
 
 const gqlScalarToSqlType = {
   Boolean: "integer",

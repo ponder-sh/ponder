@@ -3,21 +3,21 @@ import Emittery from "emittery";
 import { GraphQLSchema } from "graphql";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import path from "node:path";
+import * as path from "node:path";
 
-import { LogFilter } from "@/config/logFilters";
-import { UserError } from "@/errors/user";
-import { Common } from "@/Ponder";
-import { buildSchema } from "@/schema/schema";
-import { Schema } from "@/schema/types";
-import { buildGqlSchema } from "@/server/graphql/schema";
+import type { LogFilter } from "@/config/logFilters.js";
+import { UserError } from "@/errors/user.js";
+import type { Common } from "@/Ponder.js";
+import { buildSchema } from "@/schema/schema.js";
+import type { Schema } from "@/schema/types.js";
+import { buildGqlSchema } from "@/server/graphql/schema.js";
 
 import {
   type HandlerFunctions,
   buildRawHandlerFunctions,
   hydrateHandlerFunctions,
-} from "./handlers";
-import { readGraphqlSchema } from "./schema";
+} from "./handlers.js";
+import { readGraphqlSchema } from "./schema.js";
 
 type BuildServiceEvents = {
   newConfig: undefined;
@@ -153,6 +153,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         error: userError,
       });
       this.common.errors.submitUserError({ error: userError });
+      return undefined;
     }
   }
 

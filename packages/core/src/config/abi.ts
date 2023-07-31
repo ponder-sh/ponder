@@ -1,11 +1,11 @@
 import { type Abi, type AbiEvent, formatAbiItem } from "abitype";
 import { readFileSync } from "node:fs";
-import path from "node:path";
+import * as path from "node:path";
 import { getEventSelector } from "viem";
 
-import { getDuplicateElements } from "@/utils/duplicates";
+import { getDuplicateElements } from "@/utils/duplicates.js";
 
-import type { LogFilter } from "./logFilters";
+import type { LogFilter } from "./logFilters.js";
 
 export const buildAbi = ({
   abiConfig,

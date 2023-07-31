@@ -2,7 +2,7 @@ import {
   isContractAddressInBloom,
   isTopicInBloom,
 } from "ethereum-bloom-filters";
-import { Address, Hex } from "viem";
+import type { Address, Hex } from "viem";
 
 export function isMatchedLogInBloomFilter({
   bloom,

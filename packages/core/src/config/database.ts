@@ -1,12 +1,12 @@
 import Sqlite from "better-sqlite3";
-import path from "node:path";
+import * as path from "node:path";
 import pg, { Client, DatabaseError, Pool } from "pg";
 
-import { ResolvedConfig } from "@/config/config";
-import { Options } from "@/config/options";
-import { PostgresError } from "@/errors/postgres";
-import { SqliteError } from "@/errors/sqlite";
-import { ensureDirExists } from "@/utils/exists";
+import type { ResolvedConfig } from "@/config/config.js";
+import type { Options } from "@/config/options.js";
+import { PostgresError } from "@/errors/postgres.js";
+import { SqliteError } from "@/errors/sqlite.js";
+import { ensureDirExists } from "@/utils/exists.js";
 
 export interface SqliteDb {
   kind: "sqlite";

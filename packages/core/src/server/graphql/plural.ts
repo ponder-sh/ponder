@@ -1,8 +1,8 @@
 import {
-  GraphQLFieldConfig,
-  GraphQLFieldResolver,
+  type GraphQLFieldConfig,
+  type GraphQLFieldResolver,
+  type GraphQLInputType,
   GraphQLInputObjectType,
-  GraphQLInputType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
@@ -10,9 +10,9 @@ import {
   GraphQLString,
 } from "graphql";
 
-import type { Entity } from "@/schema/types";
+import type { Entity } from "@/schema/types.js";
 
-import type { Context, Source } from "./schema";
+import type { Context, Source } from "./schema.js";
 
 type WhereInputArg = {
   [key: string]: number | string;

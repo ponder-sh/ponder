@@ -1,6 +1,6 @@
-import path from "node:path";
+import * as path from "node:path";
 import pc from "picocolors";
-import pino, { type LevelWithSilent, type Logger } from "pino";
+import { type LevelWithSilent, type Logger, pino } from "pino";
 
 type LogOptions = { msg?: string; service?: string } & { [key: string]: any };
 

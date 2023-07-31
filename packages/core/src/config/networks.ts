@@ -1,7 +1,7 @@
-import { createPublicClient, http, PublicClient } from "viem";
+import { type PublicClient, createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
 
-import { ResolvedConfig } from "@/config/config";
+import type { ResolvedConfig } from "@/config/config.js";
 
 export type Network = {
   name: string;

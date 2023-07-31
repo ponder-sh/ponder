@@ -1,6 +1,6 @@
 import { Kind } from "graphql";
 
-import type { Entity } from "@/schema/types";
+import type { Entity } from "@/schema/types.js";
 
 const gqlScalarToTsType: Record<string, string | undefined> = {
   String: "string",
@@ -85,6 +85,10 @@ export const buildEntityTypes = (entities: Entity[]) => {
                 return `${field.name}${
                   field.notNull ? "" : "?"
                 }: ${relatedEntityIdTsType};`;
+              }
+              case "DERIVED": {
+                // Derived fields are virtual, so they are not included in TypeScript entity types.
+                return "";
               }
             }
           })

@@ -1,9 +1,9 @@
-import { AbiEvent } from "abitype";
+import type { AbiEvent } from "abitype";
 import { build } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
-import path from "path";
+import * as path from "path";
 
-import { ensureDirExists } from "@/utils/exists";
+import { ensureDirExists } from "@/utils/exists.js";
 
 export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */

@@ -1,18 +1,18 @@
 import Emittery from "emittery";
 import { GraphQLSchema, printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
-import path from "node:path";
+import * as path from "node:path";
 
-import { Contract } from "@/config/contracts";
-import { LogFilter } from "@/config/logFilters";
-import { Common } from "@/Ponder";
-import { Schema } from "@/schema/types";
-import { ensureDirExists } from "@/utils/exists";
+import type { Contract } from "@/config/contracts.js";
+import type { LogFilter } from "@/config/logFilters.js";
+import type { Common } from "@/Ponder.js";
+import type { Schema } from "@/schema/types.js";
+import { ensureDirExists } from "@/utils/exists.js";
 
-import { buildContractTypes } from "./contract";
-import { buildEntityTypes } from "./entity";
-import { buildEventTypes } from "./event";
-import { formatPrettier } from "./prettier";
+import { buildContractTypes } from "./contract.js";
+import { buildEntityTypes } from "./entity.js";
+import { buildEventTypes } from "./event.js";
+import { formatPrettier } from "./prettier.js";
 
 export class CodegenService extends Emittery {
   private common: Common;

@@ -1,4 +1,4 @@
-import { Prettify } from "./utils";
+import type { Prettify } from "./utils.js";
 
 type HasOnlyIdProperty<T> = Exclude<keyof T, "id"> extends never ? true : false;
 

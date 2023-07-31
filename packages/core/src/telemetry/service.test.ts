@@ -4,8 +4,8 @@ import * as fs from "node:fs";
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import createFetchMock from "vitest-fetch-mock";
 
-import { buildOptions } from "@/config/options";
-import { TelemetryService } from "@/telemetry/service";
+import { buildOptions } from "@/config/options.js";
+import { TelemetryService } from "@/telemetry/service.js";
 
 const fetchMocker = createFetchMock(vi);
 const conf = new Conf({ projectName: "ponder" });

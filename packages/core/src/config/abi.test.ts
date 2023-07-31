@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import path from "node:path";
+import * as path from "node:path";
 import { beforeEach, expect, test } from "vitest";
 
-import { buildAbi, getEvents } from "./abi";
+import { buildAbi, getEvents } from "./abi.js";
 
 const abiSimple = [
   {

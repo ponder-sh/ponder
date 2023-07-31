@@ -3,7 +3,7 @@ import prettier from "prettier";
 let prettierConfig: prettier.Options = { parser: "typescript" };
 
 const loadPrettierConfig = async () => {
-  if (prettierConfig) return prettierConfig;
+  if (prettierConfig) return;
 
   const configFile = await prettier.resolveConfigFile();
   if (configFile) {

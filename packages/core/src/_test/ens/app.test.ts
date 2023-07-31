@@ -1,5 +1,5 @@
 import { rmSync } from "node:fs";
-import path from "node:path";
+import * as path from "node:path";
 import request from "supertest";
 import { afterEach, beforeEach, expect, test, TestContext } from "vitest";
 

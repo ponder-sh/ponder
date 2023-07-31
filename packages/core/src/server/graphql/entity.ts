@@ -1,17 +1,17 @@
 import {
-  GraphQLFieldConfigMap,
-  GraphQLFieldResolver,
+  type GraphQLFieldConfigMap,
+  type GraphQLFieldResolver,
+  type GraphQLOutputType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
-  GraphQLOutputType,
   GraphQLString,
 } from "graphql";
 
-import type { Entity } from "@/schema/types";
+import type { Entity } from "@/schema/types.js";
 
-import type { Context, Source } from "./schema";
+import type { Context, Source } from "./schema.js";
 
 export const buildEntityType = ({
   entity,
@@ -53,7 +53,7 @@ export const buildEntityType = ({
           case "RELATIONSHIP": {
             const resolver: GraphQLFieldResolver<Source, Context> = async (
               parent,
-              args,
+              _args,
               context
             ) => {
               const { store } = context;

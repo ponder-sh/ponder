@@ -1,16 +1,16 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { accounts, usdcContractConfig, vitalik } from "@/_test/constants";
-import { resetTestClient, setupEventStore } from "@/_test/setup";
-import { publicClient, testClient, walletClient } from "@/_test/utils";
-import { encodeLogFilterKey } from "@/config/logFilterKey";
-import { LogFilter } from "@/config/logFilters";
-import { Network } from "@/config/networks";
-import { blobToBigInt } from "@/utils/decode";
-import { range } from "@/utils/range";
+import { accounts, usdcContractConfig, vitalik } from "@/_test/constants.js";
+import { resetTestClient, setupEventStore } from "@/_test/setup.js";
+import { publicClient, testClient, walletClient } from "@/_test/utils.js";
+import { encodeLogFilterKey } from "@/config/logFilterKey.js";
+import type { LogFilter } from "@/config/logFilters.js";
+import type { Network } from "@/config/networks.js";
+import { blobToBigInt } from "@/utils/decode.js";
+import { range } from "@/utils/range.js";
 
-import { RealtimeSyncService } from "./service";
+import { RealtimeSyncService } from "./service.js";
 
 beforeEach((context) => setupEventStore(context));
 beforeEach(async () => await resetTestClient());

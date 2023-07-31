@@ -12,8 +12,8 @@ import {
   getContractError,
 } from "viem";
 
-import type { Contract } from "@/config/contracts";
-import type { EventStore } from "@/event-store/store";
+import type { Contract } from "@/config/contracts.js";
+import type { EventStore } from "@/event-store/store.js";
 
 export function buildReadOnlyContracts({
   contracts,
@@ -23,7 +23,7 @@ export function buildReadOnlyContracts({
   contracts: Contract[];
   eventStore: EventStore;
   getCurrentBlockNumber: () => bigint;
-}) {
+}): Record<string, GetContractReturnType<Abi, PublicClient>> {
   return contracts.reduce<
     Record<string, GetContractReturnType<Abi, PublicClient>>
   >((acc, { name, abi, address, network }) => {

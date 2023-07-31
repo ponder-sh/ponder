@@ -1,8 +1,12 @@
-import PQueue, { DefaultAddOptions, Options, Queue as TPQueue } from "p-queue";
+import PQueue, {
+  type DefaultAddOptions,
+  type Options,
+  type Queue as TPQueue,
+} from "p-queue";
 import retry, { type CreateTimeoutOptions } from "retry";
 import { setTimeout } from "timers/promises";
 
-import { Prettify } from "@/types/utils";
+import type { Prettify } from "@/types/utils.js";
 
 type TaskOptions = { priority?: number; retry?: boolean };
 

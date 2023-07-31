@@ -1,10 +1,10 @@
 import { Box, Text } from "ink";
 import React from "react";
 
-import { formatShortDate } from "@/utils/date";
+import { formatShortDate } from "@/utils/date.js";
 
-import { UiState } from "./app";
-import { ProgressBar } from "./ProgressBar";
+import type { UiState } from "./app.js";
+import { ProgressBar } from "./ProgressBar.js";
 
 export const HandlersBar = ({ ui }: { ui: UiState }) => {
   const completionRate =

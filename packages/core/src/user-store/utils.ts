@@ -1,7 +1,7 @@
-import { BaseError } from "@/errors/base";
-import { intToBlob } from "@/utils/encode";
+import { BaseError } from "@/errors/base.js";
+import { intToBlob } from "@/utils/encode.js";
 
-import { ModelFilter, ModelInstance } from "./store";
+import type { ModelFilter, ModelInstance } from "./store.js";
 
 export const MAX_INTEGER = 2_147_483_647 as const;
 

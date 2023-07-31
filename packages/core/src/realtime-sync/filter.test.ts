@@ -1,7 +1,7 @@
-import { RpcLog } from "viem";
+import type { RpcLog } from "viem";
 import { expect, test } from "vitest";
 
-import { filterLogs } from "./filter";
+import { filterLogs } from "./filter.js";
 
 export const logs: RpcLog[] = [
   {
