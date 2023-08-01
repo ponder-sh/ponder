@@ -1,8 +1,8 @@
 import Conf from "conf";
 import { randomBytes } from "crypto";
-import * as fs from "fs";
 import child_process from "node:child_process";
 import { createHash } from "node:crypto";
+import * as fs from "node:fs";
 import os from "os";
 import PQueue from "p-queue";
 import path from "path";
@@ -44,38 +44,58 @@ type AnonymousMeta = {
   cpuModel: string | null;
   cpuSpeed: number | null;
   memoryInMb: number;
-  // TODO: detect docker
-  // isDocker: boolean;
-  // isNowDev: boolean;
-  // isWsl: boolean;
-  // isCI: boolean;
-  // ciName: string | null;
-  // nextVersion: string;
+  // package.json information
+  ponderVersion: string;
+  nodeVersion: string;
+  packageManager: string;
+  packageManagerVersion: string;
 };
+
+function getPackageManagerAndVersion() {
+  if (fs.existsSync("yarn.lock")) {
+    const yarnVersion = child_process
+      .execSync("yarn --version")
+      .toString()
+      .trim();
+    return { packageManager: "yarn", version: yarnVersion };
+  }
+
+  if (fs.existsSync("package-lock.json")) {
+    const npmVersion = require("child_process")
+      .execSync("npm --version")
+      .toString()
+      .trim();
+    return { packageManager: "npm", version: npmVersion };
+  }
+
+  if (fs.existsSync("pnpm-lock.yaml")) {
+    const pnpmVersion = require("child_process")
+      .execSync("pnpm --version")
+      .toString()
+      .trim();
+    return { packageManager: "pnpm", version: pnpmVersion };
+  }
+
+  return { packageManager: "unknown", version: "unknown" };
+}
 
 export class TelemetryService {
   private readonly conf: Conf<TelemetryConfig>;
-  private readonly sessionId: string;
-  private readonly TELEMETRY_DISABLED: boolean;
   private readonly options: Options;
-  private rawProjectId: string | null = null;
   private queue = new PQueue({ concurrency: 1 });
   private controller = new AbortController();
   private events: SerializableTelemetryEvent[] = [];
   private context?: Context;
-  private metadata?: AnonymousMeta;
 
   constructor({ options }: { options: Options }) {
     this.conf = new Conf({ projectName: "ponder" });
     this.options = options;
-    this.TELEMETRY_DISABLED = Boolean(process.env.TELEMETRY_DISABLED);
-    this.sessionId = randomBytes(32).toString("hex");
     this.notify();
   }
 
   get disabled() {
     return (
-      this.TELEMETRY_DISABLED ||
+      this.options.telemetryDisabled ||
       (this.conf.has("enabled") && !this.conf.get("enabled"))
     );
   }
@@ -94,26 +114,6 @@ export class TelemetryService {
     const createdId = randomBytes(32).toString("hex");
     this.conf.set("anonymousId", createdId);
     return createdId;
-  }
-
-  private get anonymousMeta() {
-    if (this.metadata) {
-      return this.metadata;
-    }
-
-    const cpus = os.cpus() || [];
-
-    this.metadata = {
-      systemPlatform: os.platform(),
-      systemRelease: os.release(),
-      systemArchitecture: os.arch(),
-      cpuCount: cpus.length,
-      cpuModel: cpus.length ? cpus[0].model : null,
-      cpuSpeed: cpus.length ? cpus[0].speed : null,
-      memoryInMb: Math.trunc(os.totalmem() / Math.pow(1024, 2)),
-    };
-
-    return this.metadata;
   }
 
   private get salt() {
@@ -174,22 +174,31 @@ export class TelemetryService {
       return this.context;
     }
 
+    const projectId = (await getGitRemoteUrl()) ?? process.cwd();
+    const cpus = os.cpus() || [];
+    const { packageManager, version } = getPackageManagerAndVersion();
+    const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+
     this.context = {
-      sessionId: this.sessionId,
-      projectId: await this.getProjectId(),
       anonymousId: this.anonymousId,
-      meta: this.anonymousMeta,
+      sessionId: randomBytes(32).toString("hex"),
+      projectId: this.oneWayHash(projectId),
+      meta: {
+        systemPlatform: os.platform(),
+        systemRelease: os.release(),
+        systemArchitecture: os.arch(),
+        cpuCount: cpus.length,
+        cpuModel: cpus.length ? cpus[0].model : null,
+        cpuSpeed: cpus.length ? cpus[0].speed : null,
+        memoryInMb: Math.trunc(os.totalmem() / Math.pow(1024, 2)),
+        ponderVersion: packageJson["version"],
+        nodeVersion: process.version,
+        packageManager,
+        packageManagerVersion: version,
+      },
     };
 
     return this.context;
-  }
-
-  private async getProjectId() {
-    if (this.rawProjectId) {
-      return this.oneWayHash(this.rawProjectId);
-    }
-    this.rawProjectId = (await getGitRemoteUrl()) ?? process.cwd();
-    return this.oneWayHash(this.rawProjectId);
   }
 
   private notify() {

@@ -1,93 +1,93 @@
+import Conf from "conf";
 import child_process from "node:child_process";
 import * as fs from "node:fs";
-import { afterAll, afterEach, beforeAll, expect, test, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import createFetchMock from "vitest-fetch-mock";
 
 import { buildOptions } from "@/config/options";
 import { TelemetryService } from "@/telemetry/service";
 
-const options = buildOptions({
-  cliOptions: { configFile: "", rootDir: "" },
-});
-
 const fetchMocker = createFetchMock(vi);
+const conf = new Conf({ projectName: "ponder" });
+const logMock = vi.spyOn(console, "log").mockImplementation(() => vi.fn());
 
 beforeAll(() => {
   fetchMocker.enableMocks();
 });
 
-afterEach(() => {
-  // fs.unlinkSync(options.ponderDir + "/telemetry-config.json");
+beforeEach(() => {
+  conf.clear();
+  fetchMocker.resetMocks();
 });
 
 afterAll(() => {
+  conf.clear();
   fetchMocker.disableMocks();
+  logMock.mockRestore();
 });
 
-// test("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => {
-//   process.env.PONDER_TELEMETRY_DISABLED = "true";
-//   const telemetry = new TelemetryService({ options });
-//   expect(telemetry.disabled).toBe(true);
-//   delete process.env.PONDER_TELEMETRY_DISABLED;
-// });
-//
-// test("should be enabled PONDER_TELEMETRY_DISABLED flag is not set", async () => {
-//   const telemetry = new TelemetryService({ options });
-//   expect(telemetry.disabled).toBe(false);
-// });
-//
-// test("should create telemetry config file if it does not exist", async () => {
-//   new TelemetryService({ options });
-//   expect(fs.existsSync(options.ponderDir + "/telemetry-config.json")).toBe(
-//     true
-//   );
-// });
-//
-// test("events are processed", async () => {
-//   const telemetry = new TelemetryService({ options });
-//   await telemetry.record({ eventName: "test", payload: {} });
-//   const args = fetchMocker.mock.calls[0][1];
-//
-//   if (!args || !args.body) {
-//     throw new Error("No payload sent to telemetry API");
-//   }
-//
-//   const body = JSON.parse(args.body.toString());
-//
-//   expect(body["payload"]).toEqual({});
-//   expect(body["eventName"]).toEqual("test");
-//   expect(body["meta"]).toEqual(metadata);
-//   expect(body).toHaveProperty("sessionId");
-//   expect(body).toHaveProperty("anonymousId");
-//   expect(body).toHaveProperty("projectId");
-// });
-//
-// test("events are not processed if telemetry is disabled", async () => {
-//   const telemetry = new TelemetryService({ options });
-//   telemetry.setEnabled(false);
-//   await telemetry.record({ eventName: "test", payload: {} });
-//
-//   expect(fetchMocker).not.toHaveBeenCalled();
-// });
-//
-// test("events are put back in queue if telemetry service is killed", async () => {
-//   const telemetry = new TelemetryService({ options });
-//
-//   fetchMocker.mockImplementationOnce(() => {
-//     throw { name: "AbortError" };
-//   });
-//
-//   await telemetry.record({ eventName: "test", payload: {} });
-//
-//   expect(telemetry.eventsCount).toBe(1);
-// });
+test("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => {
+  process.env.PONDER_TELEMETRY_DISABLED = "true";
+  // we're not using the options from the context because we want to test that
+  // build options will correctly set the telemetry service as disabled if the
+  // env var is set
+  const options = buildOptions({ cliOptions: { configFile: "", rootDir: "" } });
+  const telemetry = new TelemetryService({ options });
+  expect(telemetry.disabled).toBe(true);
+  delete process.env.PONDER_TELEMETRY_DISABLED;
+});
 
-test("kill method should persis events queue and trigger detached flush", async () => {
+test("events are processed", async ({ common: { options } }) => {
+  const telemetry = new TelemetryService({ options });
+  await telemetry.record({ eventName: "test", payload: {} });
+  const args = fetchMocker.mock.calls[0][1];
+
+  if (!args || !args.body) {
+    throw new Error("No payload sent to telemetry API");
+  }
+
+  const body = JSON.parse(args.body.toString());
+
+  expect(body["payload"]).toEqual({});
+  expect(body["eventName"]).toEqual("test");
+  expect(body).toHaveProperty("meta");
+  expect(body).toHaveProperty("sessionId");
+  expect(body).toHaveProperty("anonymousId");
+  expect(body).toHaveProperty("projectId");
+});
+
+test("events are not processed if telemetry is disabled", async ({
+  common: { options },
+}) => {
+  const telemetry = new TelemetryService({ options });
+  telemetry.setEnabled(false);
+  await telemetry.record({ eventName: "test", payload: {} });
+  expect(fetchMocker).not.toHaveBeenCalled();
+});
+
+test("events are put back in queue if telemetry service is killed", async ({
+  common: { options },
+}) => {
+  const telemetry = new TelemetryService({ options });
+
+  fetchMocker.mockImplementationOnce(() => {
+    throw { name: "AbortError" };
+  });
+
+  await telemetry.record({ eventName: "test", payload: {} });
+
+  expect(telemetry.eventsCount).toBe(1);
+});
+
+test("kill method should persis events queue and trigger detached flush", async ({
+  common: { options },
+}) => {
   const spawn = vi.spyOn(child_process, "spawn");
-
   const persistedEventsPath = options.ponderDir + "/telemetry-events.json";
   const telemetry = new TelemetryService({ options });
 
+  // we need to mock the fetch call to throw an AbortError so that the event is
+  // put back in the queue
   fetchMocker.mockImplementation(() => {
     throw { name: "AbortError" };
   });
@@ -105,9 +105,8 @@ test("kill method should persis events queue and trigger detached flush", async 
   );
 
   expect(events.length).toBe(10);
-
   expect(spawn).toHaveBeenCalled();
+  expect(fetchMocker).toHaveBeenCalledTimes(10);
 
-  fetchMocker.resetMocks();
-  // fs.unlinkSync(persistedEventsPath);
+  fs.unlinkSync(persistedEventsPath);
 });
