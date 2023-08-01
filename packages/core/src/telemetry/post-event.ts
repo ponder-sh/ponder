@@ -1,11 +1,11 @@
-type PostPayload = {
-  endpoint: string;
+export function postEvent({
+  payload,
+  signal,
+}: {
   payload: object;
   signal?: AbortSignal;
-};
-
-export function postPayload({ endpoint, payload, signal }: PostPayload) {
-  return fetch(endpoint, {
+}) {
+  return fetch("https://ponder.sh/api/telemetry", {
     method: "POST",
     body: JSON.stringify(payload),
     headers: {

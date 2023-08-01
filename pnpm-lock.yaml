@@ -244,6 +244,9 @@ importers:
       data-uri-to-buffer:
         specifier: 3.0.1
         version: 3.0.1
+      detect-package-manager:
+        specifier: ^2.0.1
+        version: 2.0.1
       dotenv:
         specifier: ^16.0.1
         version: 16.0.1
@@ -377,6 +380,9 @@ importers:
       vitest:
         specifier: ^0.29.2
         version: 0.29.2
+      vitest-fetch-mock:
+        specifier: ^0.2.2
+        version: 0.2.2(vitest@0.29.2)
 
   packages/create-ponder:
     dependencies:
@@ -5540,6 +5546,14 @@ packages:
 
   /create-require@1.1.1:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
+    dev: true
+
+  /cross-fetch@3.1.8:
+    resolution: {integrity: sha512-cvA+JwZoU0Xq+h6WkMvAUqPEYy92Obet6UdKLfW60qn99ftItKjB5T+BkyWOFWe2pUyfQ+IJHmpOTznqk1M6Kg==}
+    dependencies:
+      node-fetch: 2.6.12
+    transitivePeerDependencies:
+      - encoding
     dev: true
 
   /cross-spawn@5.1.0:
@@ -10858,6 +10872,18 @@ packages:
     dependencies:
       whatwg-url: 5.0.0
 
+  /node-fetch@2.6.12:
+    resolution: {integrity: sha512-C/fGU2E8ToujUivIO0H+tpQ6HWo4eEmchoPIoXtxCrVghxdKq+QOHqEZW7tuP3KlV3bC8FRMO5nMCC7Zm1VP6g==}
+    engines: {node: 4.x || >=6.0.0}
+    peerDependencies:
+      encoding: ^0.1.0
+    peerDependenciesMeta:
+      encoding:
+        optional: true
+    dependencies:
+      whatwg-url: 5.0.0
+    dev: true
+
   /node-fetch@2.6.7:
     resolution: {integrity: sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==}
     engines: {node: 4.x || >=6.0.0}
@@ -14112,6 +14138,18 @@ packages:
       rollup: 3.18.0
     optionalDependencies:
       fsevents: 2.3.2
+    dev: true
+
+  /vitest-fetch-mock@0.2.2(vitest@0.29.2):
+    resolution: {integrity: sha512-XmH6QgTSjCWrqXoPREIdbj40T7i1xnGmAsTAgfckoO75W1IEHKR8hcPCQ7SO16RsdW1t85oUm6pcQRLeBgjVYQ==}
+    engines: {node: '>=14.14.0'}
+    peerDependencies:
+      vitest: '>=0.16.0'
+    dependencies:
+      cross-fetch: 3.1.8
+      vitest: 0.29.2
+    transitivePeerDependencies:
+      - encoding
     dev: true
 
   /vitest@0.29.2:
