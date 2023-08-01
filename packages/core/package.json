@@ -1,9 +1,8 @@
 {
   "name": "@ponder/core",
   "version": "0.0.78",
-  "description": "API builder for blockchain apps",
+  "description": "An open-source framework for crypto application backends",
   "license": "MIT",
-  "author": "olias.eth",
   "files": [
     "dist",
     "src/**/*.ts",
@@ -17,8 +16,8 @@
   "types": "./dist/index.d.ts",
   "typings": "./dist/index.d.ts",
   "exports": {
-    "types": "./dist/index.d.ts",
-    "default": "./dist/index.js"
+    "default": "./dist/index.js",
+    "types": "./dist/index.d.ts"
   },
   "scripts": {
     "build": "pnpm clean && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
@@ -80,6 +79,7 @@
     "@types/supertest": "^2.0.12",
     "@viem/anvil": "^0.0.6",
     "abitype": "^0.8.11",
+    "concurrently": "^8.2.0",
     "module-alias": "^2.2.2",
     "rimraf": "^5.0.1",
     "supertest": "^6.3.3",
