@@ -244,6 +244,9 @@ importers:
       data-uri-to-buffer:
         specifier: 3.0.1
         version: 3.0.1
+      detect-package-manager:
+        specifier: ^2.0.1
+        version: 2.0.1
       dotenv:
         specifier: ^16.0.1
         version: 16.0.1

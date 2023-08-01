@@ -1,5 +1,6 @@
 import Conf from "conf";
 import { randomBytes } from "crypto";
+import { detect, getNpmVersion } from "detect-package-manager";
 import child_process from "node:child_process";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
@@ -50,34 +51,6 @@ type AnonymousMeta = {
   packageManager: string;
   packageManagerVersion: string;
 };
-
-function getPacketManagerInfo() {
-  if (fs.existsSync("yarn.lock")) {
-    const yarnVersion = child_process
-      .execSync("yarn --version")
-      .toString()
-      .trim();
-    return { name: "yarn", version: yarnVersion };
-  }
-
-  if (fs.existsSync("package-lock.json")) {
-    const npmVersion = require("child_process")
-      .execSync("npm --version")
-      .toString()
-      .trim();
-    return { name: "npm", version: npmVersion };
-  }
-
-  if (fs.existsSync("pnpm-lock.yaml")) {
-    const pnpmVersion = require("child_process")
-      .execSync("pnpm --version")
-      .toString()
-      .trim();
-    return { name: "pnpm", version: pnpmVersion };
-  }
-
-  return { name: "unknown", version: "unknown" };
-}
 
 export class TelemetryService {
   private readonly conf: Conf<TelemetryConfig>;
@@ -161,8 +134,12 @@ export class TelemetryService {
   }
 
   private flushDetached() {
+    if (this.events.length === 0) {
+      return;
+    }
+
     const serializedEvents = JSON.stringify(this.events);
-    const fileName = `${this.options.ponderDir}/telemetry-events.json`;
+    const fileName = path.join(this.options.ponderDir, "telemetry-events.json");
     fs.writeFileSync(fileName, serializedEvents);
     child_process.spawn(process.execPath, [
       path.join(__dirname, "flush-detached.js"),
@@ -177,8 +154,8 @@ export class TelemetryService {
 
     const projectId = (await getGitRemoteUrl()) ?? process.cwd();
     const cpus = os.cpus() || [];
-    const packageManagerInfo = getPacketManagerInfo();
     const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    const packageManager = await detect();
 
     this.context = {
       anonymousId: this.anonymousId,
@@ -194,8 +171,8 @@ export class TelemetryService {
         memoryInMb: Math.trunc(os.totalmem() / Math.pow(1024, 2)),
         ponderVersion: packageJson["version"],
         nodeVersion: process.version,
-        packageManager: packageManagerInfo.name,
-        packageManagerVersion: packageManagerInfo.version,
+        packageManager,
+        packageManagerVersion: await getNpmVersion(packageManager),
       },
     };
 
