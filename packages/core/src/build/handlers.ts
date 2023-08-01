@@ -133,7 +133,7 @@ export const buildRawHandlerFunctions = async ({
     );
   }
 
-  const outGlob = buildDir + "/**/*";
+  const outGlob = buildDir + "/**/*.js";
   const outFilenames = glob.sync(outGlob);
 
   // Remove all out modules from the require cache, because we are loading

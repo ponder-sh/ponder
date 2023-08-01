@@ -17,7 +17,7 @@
     "clean": "rimraf ./dist",
     "test": "export $(grep -v '^#' .env.local | xargs) && vitest --no-threads",
     "test:ci": "vitest --no-threads",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
     "cac": "^6.7.14",
