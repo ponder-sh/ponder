@@ -8,17 +8,14 @@ import { TelemetryService } from "@/telemetry/service";
 
 const conf = new Conf({ projectName: "ponder" });
 
-let latestFetchBody: any = undefined;
-const fetchSpy = vi.fn().mockImplementation((_url, args) => {
-  latestFetchBody = JSON.parse(args.body);
-});
+const fetchSpy = vi.fn().mockImplementation(() => vi.fn());
 
 beforeEach(() => {
   conf.clear();
+  fetchSpy.mockReset();
   vi.stubGlobal("fetch", fetchSpy);
 
   return () => {
-    latestFetchBody = undefined;
     vi.unstubAllGlobals();
   };
 });
@@ -37,9 +34,9 @@ test("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => 
 test("events are processed", async ({ common: { options } }) => {
   const telemetry = new TelemetryService({ options });
   await telemetry.record({ eventName: "test", payload: {} });
-
+  const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]["body"]);
   expect(fetchSpy).toHaveBeenCalled();
-  expect(latestFetchBody).toMatchObject({
+  expect(fetchBody).toMatchObject({
     eventName: "test",
     payload: {},
     meta: expect.anything(),
@@ -49,7 +46,7 @@ test("events are processed", async ({ common: { options } }) => {
   });
 });
 
-test.skip("events are not processed if telemetry is disabled", async ({
+test("events are not processed if telemetry is disabled", async ({
   common: { options },
 }) => {
   const telemetry = new TelemetryService({ options });
@@ -59,7 +56,7 @@ test.skip("events are not processed if telemetry is disabled", async ({
   expect(fetchSpy).not.toHaveBeenCalled();
 });
 
-test.skip("events are put back in queue if telemetry service is killed", async ({
+test("events are put back in queue if telemetry service is killed", async ({
   common: { options },
 }) => {
   const telemetry = new TelemetryService({ options });
@@ -73,7 +70,7 @@ test.skip("events are put back in queue if telemetry service is killed", async (
   expect(telemetry.eventsCount).toBe(1);
 });
 
-test.skip("kill method should persis events queue and trigger detached flush", async ({
+test("kill method should persis events queue and trigger detached flush", async ({
   common: { options },
 }) => {
   const spawn = vi.spyOn(child_process, "spawn");
