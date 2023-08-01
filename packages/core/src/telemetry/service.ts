@@ -133,7 +133,7 @@ export class TelemetryService {
     return hash.digest("hex");
   }
 
-  private async flushDetached() {
+  private flushDetached() {
     if (this.events.length === 0) {
       return;
     }
