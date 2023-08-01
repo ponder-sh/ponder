@@ -7,7 +7,7 @@ import {
   hexToNumber,
 } from "viem";
 
-import { intToBlob } from "@/utils/encode.js";
+import { intToBlob } from "@/utils/encode";
 
 type BlocksTable = {
   baseFeePerGas: Buffer | null; // BigInt

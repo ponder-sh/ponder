@@ -1,4 +1,4 @@
-import { wait } from "./wait.js";
+import { wait } from "./wait";
 
 // Adapted from viem.
 // https://github.com/wagmi-dev/viem/blob/38422ac7617022761ee7aa87310dd89adb34573c/src/utils/poll.ts

@@ -1,10 +1,10 @@
 import { Box, Text } from "ink";
 import React from "react";
 
-import { formatEta, formatPercentage } from "@/utils/format.js";
+import { formatEta, formatPercentage } from "@/utils/format";
 
-import type { UiState } from "./app.js";
-import { ProgressBar } from "./ProgressBar.js";
+import type { UiState } from "./app";
+import { ProgressBar } from "./ProgressBar";
 
 export const HistoricalBar = ({
   title,

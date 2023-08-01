@@ -5,9 +5,9 @@ import type { GraphQLSchema } from "graphql";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
-import type { Common } from "@/Ponder.js";
-import type { UserStore } from "@/user-store/store.js";
-import { startClock } from "@/utils/timer.js";
+import type { Common } from "@/Ponder";
+import type { UserStore } from "@/user-store/store";
+import { startClock } from "@/utils/timer";
 
 export class ServerService {
   private common: Common;

@@ -1,9 +1,9 @@
 import path from "node:path";
 import type { LevelWithSilent } from "pino";
 
-import type { CliOptions } from "@/bin/ponder.js";
+import type { CliOptions } from "@/bin/ponder";
 
-import type { ResolvedConfig } from "./config.js";
+import type { ResolvedConfig } from "./config";
 
 export type Options = {
   configFile: string;

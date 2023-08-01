@@ -23,7 +23,7 @@ import type {
   RelationshipField,
   ScalarField,
   Schema,
-} from "./types.js";
+} from "./types";
 
 const GraphQLBigInt = new GraphQLScalarType({
   name: "BigInt",

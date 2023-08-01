@@ -1,13 +1,13 @@
 import { getFunctionSelector, hexToBigInt } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { usdcContractConfig } from "@/_test/constants.js";
-import { setupEventStore } from "@/_test/setup.js";
-import { publicClient } from "@/_test/utils.js";
-import type { Contract } from "@/config/contracts.js";
-import type { Network } from "@/config/networks.js";
+import { usdcContractConfig } from "@/_test/constants";
+import { setupEventStore } from "@/_test/setup";
+import { publicClient } from "@/_test/utils";
+import type { Contract } from "@/config/contracts";
+import type { Network } from "@/config/networks";
 
-import { buildReadOnlyContracts } from "./contract.js";
+import { buildReadOnlyContracts } from "./contract";
 
 beforeEach((context) => setupEventStore(context));
 

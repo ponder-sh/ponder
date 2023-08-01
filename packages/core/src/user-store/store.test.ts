@@ -1,9 +1,9 @@
 import { buildSchema as buildGraphqlSchema } from "graphql";
 import { beforeEach, expect, test } from "vitest";
 
-import { setupUserStore } from "@/_test/setup.js";
-import { schemaHeader } from "@/build/schema.js";
-import { buildSchema } from "@/schema/schema.js";
+import { setupUserStore } from "@/_test/setup";
+import { schemaHeader } from "@/build/schema";
+import { buildSchema } from "@/schema/schema";
 
 beforeEach((context) => setupUserStore(context));
 

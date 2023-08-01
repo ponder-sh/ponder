@@ -5,11 +5,11 @@ import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
 import type { Hex } from "viem";
 
-import type { LogEventMetadata, LogFilter } from "@/config/logFilters.js";
-import type { Options } from "@/config/options.js";
-import type { Block } from "@/types/block.js";
-import type { Log } from "@/types/log.js";
-import type { Transaction } from "@/types/transaction.js";
+import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
+import type { Options } from "@/config/options";
+import type { Block } from "@/types/block";
+import type { Log } from "@/types/log";
+import type { Transaction } from "@/types/transaction";
 
 export interface LogEvent {
   name: string;
@@ -133,7 +133,7 @@ export const buildRawHandlerFunctions = async ({
     );
   }
 
-  const outGlob = buildDir + "/**/*.js";
+  const outGlob = buildDir + "/**/*";
   const outFilenames = glob.sync(outGlob);
 
   // Remove all out modules from the require cache, because we are loading

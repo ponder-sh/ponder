@@ -6,9 +6,9 @@ import {
   GraphQLObjectType,
 } from "graphql";
 
-import type { Entity } from "@/schema/types.js";
+import type { Entity } from "@/schema/types";
 
-import type { Context, Source } from "./schema.js";
+import type { Context, Source } from "./schema";
 
 type SingularArgs = {
   id?: string;

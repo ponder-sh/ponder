@@ -5,19 +5,19 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import type { LogFilter } from "@/config/logFilters.js";
-import { UserError } from "@/errors/user.js";
-import type { Common } from "@/Ponder.js";
-import { buildSchema } from "@/schema/schema.js";
-import type { Schema } from "@/schema/types.js";
-import { buildGqlSchema } from "@/server/graphql/schema.js";
+import type { LogFilter } from "@/config/logFilters";
+import { UserError } from "@/errors/user";
+import type { Common } from "@/Ponder";
+import { buildSchema } from "@/schema/schema";
+import type { Schema } from "@/schema/types";
+import { buildGqlSchema } from "@/server/graphql/schema";
 
 import {
   type HandlerFunctions,
   buildRawHandlerFunctions,
   hydrateHandlerFunctions,
-} from "./handlers.js";
-import { readGraphqlSchema } from "./schema.js";
+} from "./handlers";
+import { readGraphqlSchema } from "./schema";
 
 type BuildServiceEvents = {
   newConfig: undefined;

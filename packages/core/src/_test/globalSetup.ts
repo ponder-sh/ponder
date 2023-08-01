@@ -1,6 +1,6 @@
 import { startProxy } from "@viem/anvil";
 
-import { FORK_BLOCK_NUMBER, FORK_URL } from "./constants.js";
+import { FORK_BLOCK_NUMBER, FORK_URL } from "./constants";
 
 export default async function () {
   return await startProxy({

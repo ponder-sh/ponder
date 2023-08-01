@@ -1,6 +1,6 @@
 import { Kind } from "graphql";
 
-import type { Entity } from "@/schema/types.js";
+import type { Entity } from "@/schema/types";
 
 const gqlScalarToTsType: Record<string, string | undefined> = {
   String: "string",

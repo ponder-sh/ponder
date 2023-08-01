@@ -3,7 +3,7 @@ import { build } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import { ensureDirExists } from "@/utils/exists.js";
+import { ensureDirExists } from "@/utils/exists";
 
 export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */

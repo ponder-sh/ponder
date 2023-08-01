@@ -1,6 +1,6 @@
 import type { AbiParameter } from "abitype";
 
-import type { Contract } from "@/config/contracts.js";
+import type { Contract } from "@/config/contracts";
 
 type AbiReadOrViewFunction = {
   type: "function";

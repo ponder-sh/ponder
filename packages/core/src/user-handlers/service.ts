@@ -1,28 +1,28 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
 
-import type { HandlerFunctions } from "@/build/handlers.js";
-import type { Contract } from "@/config/contracts.js";
-import type { LogEventMetadata, LogFilter } from "@/config/logFilters.js";
-import { UserError } from "@/errors/user.js";
+import type { HandlerFunctions } from "@/build/handlers";
+import type { Contract } from "@/config/contracts";
+import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
+import { UserError } from "@/errors/user";
 import type {
   EventAggregatorService,
   LogEvent,
-} from "@/event-aggregator/service.js";
-import type { EventStore } from "@/event-store/store.js";
-import type { Common } from "@/Ponder.js";
-import type { Schema } from "@/schema/types.js";
-import type { ReadOnlyContract } from "@/types/contract.js";
-import type { Model } from "@/types/model.js";
-import type { ModelInstance, UserStore } from "@/user-store/store.js";
-import { formatShortDate } from "@/utils/date.js";
-import { prettyPrint } from "@/utils/print.js";
-import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { wait } from "@/utils/wait.js";
+} from "@/event-aggregator/service";
+import type { EventStore } from "@/event-store/store";
+import type { Common } from "@/Ponder";
+import type { Schema } from "@/schema/types";
+import type { ReadOnlyContract } from "@/types/contract";
+import type { Model } from "@/types/model";
+import type { ModelInstance, UserStore } from "@/user-store/store";
+import { formatShortDate } from "@/utils/date";
+import { prettyPrint } from "@/utils/print";
+import { type Queue, type Worker, createQueue } from "@/utils/queue";
+import { wait } from "@/utils/wait";
 
-import { buildReadOnlyContracts } from "./contract.js";
-import { buildModels } from "./model.js";
-import { getStackTrace } from "./trace.js";
+import { buildReadOnlyContracts } from "./contract";
+import { buildModels } from "./model";
+import { getStackTrace } from "./trace";
 
 type EventHandlerEvents = {
   eventsProcessed: { toTimestamp: number };

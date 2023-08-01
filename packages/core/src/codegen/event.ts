@@ -1,4 +1,4 @@
-import type { LogEventMetadata, LogFilter } from "@/config/logFilters.js";
+import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
 
 export const buildEventTypes = (logFilters: LogFilter[]) => {
   const allHandlers = logFilters.map((logFilter) => {

@@ -1,6 +1,6 @@
-import type { Schema } from "@/schema/types.js";
+import type { Schema } from "@/schema/types";
 
-import type { FilterType } from "./utils.js";
+import type { FilterType } from "./utils";
 
 export type WhereFieldValue =
   | number

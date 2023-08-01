@@ -3,11 +3,11 @@ import path from "node:path";
 import request from "supertest";
 import { type TestContext, afterEach, beforeEach, expect, test } from "vitest";
 
-import { setupEventStore, setupUserStore } from "@/_test/setup.js";
-import { testNetworkConfig } from "@/_test/utils.js";
-import { buildConfig } from "@/config/config.js";
-import { buildOptions } from "@/config/options.js";
-import { Ponder } from "@/Ponder.js";
+import { setupEventStore, setupUserStore } from "@/_test/setup";
+import { testNetworkConfig } from "@/_test/utils";
+import { buildConfig } from "@/config/config";
+import { buildOptions } from "@/config/options";
+import { Ponder } from "@/Ponder";
 
 beforeEach((context) => setupEventStore(context));
 beforeEach((context) => setupUserStore(context));

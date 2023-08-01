@@ -1,8 +1,8 @@
 import { DatabaseError } from "pg";
 
-import { prettyPrint } from "@/utils/print.js";
+import { prettyPrint } from "@/utils/print";
 
-import { BaseError } from "./base.js";
+import { BaseError } from "./base";
 
 export class PostgresError extends BaseError {
   override name = "PostgresError";

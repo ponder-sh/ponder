@@ -2,15 +2,15 @@ import { buildSchema as buildGraphqlSchema } from "graphql";
 import request from "supertest";
 import { beforeEach, expect, test } from "vitest";
 
-import { setupUserStore } from "@/_test/setup.js";
-import { schemaHeader } from "@/build/schema.js";
-import type { Common } from "@/Ponder.js";
-import { buildSchema } from "@/schema/schema.js";
-import type { UserStore } from "@/user-store/store.js";
-import { range } from "@/utils/range.js";
+import { setupUserStore } from "@/_test/setup";
+import { schemaHeader } from "@/build/schema";
+import type { Common } from "@/Ponder";
+import { buildSchema } from "@/schema/schema";
+import type { UserStore } from "@/user-store/store";
+import { range } from "@/utils/range";
 
-import { buildGqlSchema } from "./graphql/schema.js";
-import { ServerService } from "./service.js";
+import { buildGqlSchema } from "./graphql/schema";
+import { ServerService } from "./service";
 
 beforeEach((context) => setupUserStore(context));
 

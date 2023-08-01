@@ -2,10 +2,10 @@ import { randomBytes } from "crypto";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
-import type { Schema } from "@/schema/types.js";
-import { blobToBigInt } from "@/utils/decode.js";
+import type { Schema } from "@/schema/types";
+import { blobToBigInt } from "@/utils/decode";
 
-import type { ModelFilter, ModelInstance, UserStore } from "../store.js";
+import type { ModelFilter, ModelInstance, UserStore } from "../store";
 import {
   type FilterType,
   formatModelFieldValue,
@@ -13,7 +13,7 @@ import {
   getWhereOperatorAndValue,
   MAX_INTEGER,
   validateFilter,
-} from "../utils.js";
+} from "../utils";
 
 const gqlScalarToSqlType = {
   Boolean: "integer",

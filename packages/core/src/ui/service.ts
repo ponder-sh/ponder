@@ -1,7 +1,7 @@
-import type { LogFilter } from "@/config/logFilters.js";
-import type { Common } from "@/Ponder.js";
+import type { LogFilter } from "@/config/logFilters";
+import type { Common } from "@/Ponder";
 
-import { type UiState, buildUiState, setupInkApp } from "./app.js";
+import { type UiState, buildUiState, setupInkApp } from "./app";
 
 export class UiService {
   private common: Common;

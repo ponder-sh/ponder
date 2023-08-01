@@ -1,11 +1,11 @@
 import type { Abi, AbiEvent, Address } from "abitype";
 import { type Hex, encodeEventTopics } from "viem";
 
-import type { ResolvedConfig } from "@/config/config.js";
-import type { Options } from "@/config/options.js";
+import type { ResolvedConfig } from "@/config/config";
+import type { Options } from "@/config/options";
 
-import { buildAbi, getEvents } from "./abi.js";
-import { encodeLogFilterKey } from "./logFilterKey.js";
+import { buildAbi, getEvents } from "./abi";
+import { encodeLogFilterKey } from "./logFilterKey";
 
 type SafeEventName = string;
 

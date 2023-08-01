@@ -1,6 +1,6 @@
-import { prettyPrint } from "@/utils/print.js";
+import { prettyPrint } from "@/utils/print";
 
-import { BaseError } from "./base.js";
+import { BaseError } from "./base";
 
 export class QueueError extends BaseError {
   override name = "QueueError";

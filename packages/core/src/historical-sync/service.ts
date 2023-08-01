@@ -7,16 +7,16 @@ import {
   toHex,
 } from "viem";
 
-import type { LogFilter } from "@/config/logFilters.js";
-import type { Network } from "@/config/networks.js";
-import { QueueError } from "@/errors/queue.js";
-import type { EventStore } from "@/event-store/store.js";
-import type { Common } from "@/Ponder.js";
-import { formatEta, formatPercentage } from "@/utils/format.js";
-import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
-import { hrTimeToMs, startClock } from "@/utils/timer.js";
+import type { LogFilter } from "@/config/logFilters";
+import type { Network } from "@/config/networks";
+import { QueueError } from "@/errors/queue";
+import type { EventStore } from "@/event-store/store";
+import type { Common } from "@/Ponder";
+import { formatEta, formatPercentage } from "@/utils/format";
+import { type Queue, type Worker, createQueue } from "@/utils/queue";
+import { hrTimeToMs, startClock } from "@/utils/timer";
 
-import { findMissingIntervals } from "./intervals.js";
+import { findMissingIntervals } from "./intervals";
 
 type HistoricalSyncEvents = {
   /**

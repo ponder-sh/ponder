@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, expect, test } from "vitest";
 
-import { buildAbi, getEvents } from "./abi.js";
+import { buildAbi, getEvents } from "./abi";
 
 const abiSimple = [
   {

@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { validateFilter } from "./utils.js";
+import { validateFilter } from "./utils";
 
 test("parser should only allow 1000 records", async () => {
   expect(() => validateFilter({ first: 1001 })).toThrowError(

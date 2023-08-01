@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
-import "@/utils/globals.js";
+import "@/utils/globals";
 
 import { cac } from "cac";
 import dotenv from "dotenv";
 import path from "node:path";
 
-import { buildConfig } from "@/config/config.js";
-import { buildOptions } from "@/config/options.js";
-import { Ponder } from "@/Ponder.js";
+import { buildConfig } from "@/config/config";
+import { buildOptions } from "@/config/options";
+import { Ponder } from "@/Ponder";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment

@@ -1,6 +1,6 @@
 import type { AccessList, Address, Hash, Hex } from "viem";
 
-import type { Prettify } from "./utils.js";
+import type { Prettify } from "./utils";
 
 /**
  * A confirmed Ethereum transaction. Contains `legacy`, `EIP-1559`, or `EIP-2930` fee values depending on the transaction `type`.

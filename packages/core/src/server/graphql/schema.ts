@@ -4,12 +4,12 @@ import {
   GraphQLSchema,
 } from "graphql";
 
-import type { Schema } from "@/schema/types.js";
-import type { UserStore } from "@/user-store/store.js";
+import type { Schema } from "@/schema/types";
+import type { UserStore } from "@/user-store/store";
 
-import { buildEntityType } from "./entity.js";
-import { buildPluralField } from "./plural.js";
-import { buildSingularField } from "./singular.js";
+import { buildEntityType } from "./entity";
+import { buildPluralField } from "./plural";
+import { buildSingularField } from "./singular";
 
 export type Source = { request: unknown };
 export type Context = { store: UserStore };
