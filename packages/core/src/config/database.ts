@@ -1,5 +1,5 @@
 import Sqlite from "better-sqlite3";
-import * as path from "node:path";
+import path from "node:path";
 import pg, { Client, DatabaseError, Pool } from "pg";
 
 import type { ResolvedConfig } from "@/config/config.js";

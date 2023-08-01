@@ -3,7 +3,7 @@ import Emittery from "emittery";
 import { GraphQLSchema } from "graphql";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import * as path from "node:path";
+import path from "node:path";
 
 import type { LogFilter } from "@/config/logFilters.js";
 import { UserError } from "@/errors/user.js";

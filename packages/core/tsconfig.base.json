@@ -1,5 +1,6 @@
 {
   // This tsconfig file contains the shared config for the build (tsconfig.build.json) and type checking (tsconfig.json) config.
+  // Adapted from viem (https://github.com/wagmi-dev/viem/blob/ed779e9d5667704fd7cfc5a2af032f7a2c3cae9e/tsconfig.base.json).
   "include": [],
   "compilerOptions": {
     // Type checking
@@ -20,17 +21,15 @@
     "checkJs": false,
     "jsx": "react",
 
-    // Interop constraints
-    "esModuleInterop": false,
-    "allowSyntheticDefaultImports": false,
-    "forceConsistentCasingInFileNames": true,
-    "verbatimModuleSyntax": true,
-    "importHelpers": true, // This is only used for build validation. Since we do not have `tslib` installed, this will fail if we accidentally make use of anything that'd require injection of helpers.
+    // Interop constraints. These will remain loose until we start emitting ESM.
+    "verbatimModuleSyntax": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
 
     // Language and environment
     "moduleResolution": "NodeNext",
     "module": "ESNext",
-    "target": "ESNext", // Setting this to `ES2021` enables native support for `Node v16+`: https://github.com/microsoft/TypeScript/wiki/Node-Target-Mapping.
+    "target": "ESNext",
     "lib": [
       "ES2022", // By using ES2022 we get access to the `.cause` property on `Error` instances.
       "DOM" // We are adding `DOM` here to get the `fetch`, etc. types. This should be removed once these types are available via DefinitelyTyped.
@@ -39,7 +38,7 @@
     // Skip type checking for node modules
     "skipLibCheck": true,
 
-    // File path settings
+    // File path alias support
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] }
   }

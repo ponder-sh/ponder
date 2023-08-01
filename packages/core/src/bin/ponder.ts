@@ -4,7 +4,7 @@ import "@/utils/globals.js";
 
 import { cac } from "cac";
 import dotenv from "dotenv";
-import * as path from "node:path";
+import path from "node:path";
 
 import { buildConfig } from "@/config/config.js";
 import { buildOptions } from "@/config/options.js";

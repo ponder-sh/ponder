@@ -1,8 +1,8 @@
-import "@/utils/globals";
+import "@/utils/globals.js";
 
 import SqliteDatabase from "better-sqlite3";
 import moduleAlias from "module-alias";
-import * as path from "node:path";
+import path from "node:path";
 import { Pool } from "pg";
 import { type TestContext, beforeEach } from "vitest";
 

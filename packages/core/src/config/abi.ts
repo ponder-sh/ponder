@@ -1,6 +1,6 @@
 import { type Abi, type AbiEvent, formatAbiItem } from "abitype";
 import { readFileSync } from "node:fs";
-import * as path from "node:path";
+import path from "node:path";
 import { getEventSelector } from "viem";
 
 import { getDuplicateElements } from "@/utils/duplicates.js";

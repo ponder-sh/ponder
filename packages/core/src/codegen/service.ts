@@ -1,7 +1,7 @@
 import Emittery from "emittery";
 import { GraphQLSchema, printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
-import * as path from "node:path";
+import path from "node:path";
 
 import type { Contract } from "@/config/contracts.js";
 import type { LogFilter } from "@/config/logFilters.js";

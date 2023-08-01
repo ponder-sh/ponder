@@ -1,7 +1,7 @@
 import { type Message, build, formatMessagesSync } from "esbuild";
 import glob from "glob";
 import { existsSync, rmSync } from "node:fs";
-import * as path from "node:path";
+import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
 import type { Hex } from "viem";
 

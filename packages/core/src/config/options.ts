@@ -1,4 +1,4 @@
-import * as path from "node:path";
+import path from "node:path";
 import type { LevelWithSilent } from "pino";
 
 import type { CliOptions } from "@/bin/ponder.js";

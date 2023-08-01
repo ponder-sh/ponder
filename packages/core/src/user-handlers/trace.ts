@@ -8,7 +8,7 @@ import {
 import type { MimeBuffer } from "data-uri-to-buffer";
 import dataUriToBuffer from "data-uri-to-buffer";
 import { readFileSync } from "node:fs";
-import * as path from "node:path";
+import path from "node:path";
 import { type StackFrame, parse as parseStackTrace } from "stacktrace-parser";
 
 import type { Options } from "@/config/options.js";

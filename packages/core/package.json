@@ -4,7 +4,6 @@
   "description": "API builder for blockchain apps",
   "license": "MIT",
   "author": "olias.eth",
-  "type": "module",
   "files": [
     "dist",
     "src/**/*.ts",
@@ -22,7 +21,9 @@
     "default": "./dist/index.js"
   },
   "scripts": {
-    "build": "rimraf ./dist && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
+    "build": "pnpm clean && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
+    "build:watch": "concurrently \"tsc --project tsconfig.build.json --watch\" \"tsc-alias --project tsconfig.build.json --watch\"",
+    "clean": "rimraf ./dist",
     "test": "export $(grep -v '^#' .env.local | xargs) && vitest",
     "test:ci": "CI=true vitest",
     "typecheck": "tsc --project tsconfig.json --noEmit"
@@ -34,7 +35,7 @@
     "better-sqlite3": "7",
     "cac": "^6.7.14",
     "chokidar": "^3.5.3",
-    "conf": "^11.0.2",
+    "conf": "^10.2.0",
     "cors": "^2.8.5",
     "data-uri-to-buffer": "3.0.1",
     "detect-package-manager": "^2.0.1",
@@ -51,7 +52,7 @@
     "kysely": "^0.24.2",
     "node-fetch": "^2.6.7",
     "p-limit": "3",
-    "p-queue": "^7.3.4",
+    "p-queue": "^6.6.2",
     "pg": "^8.9.0",
     "picocolors": "^1.0.0",
     "pino": "^8.14.1",

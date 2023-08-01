@@ -1,4 +1,4 @@
-import * as os from "os";
+import os from "os";
 
 type AnonymousMeta = {
   systemPlatform: NodeJS.Platform;

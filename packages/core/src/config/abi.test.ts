@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import * as path from "node:path";
+import path from "node:path";
 import { beforeEach, expect, test } from "vitest";
 
 import { buildAbi, getEvents } from "./abi.js";
