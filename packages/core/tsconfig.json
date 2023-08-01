@@ -2,5 +2,6 @@
   // This configuration is used for local development and type checking.
   "extends": "./tsconfig.base.json",
   "include": ["src"],
-  "exclude": []
+  // Exclude end-to-end test project files.
+  "exclude": ["src/_test/**/app/*"]
 }
