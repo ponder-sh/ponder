@@ -1,6 +1,4 @@
 {
-  "name": "ponder-monorepo",
-  "version": "0.0.0",
   "private": true,
   "scripts": {
     "bench": "pnpm --filter './benchmarks' bench",
