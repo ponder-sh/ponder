@@ -10,7 +10,6 @@ function postEvent({ payload }) {
 
 async function detachedFlush() {
   const args = [...process.argv];
-  console.log("args", args);
   const [eventsFile] = args.splice(2);
   const events = JSON.parse(eventsFile);
   await Promise.all(events.map((event) => postEvent(event)));

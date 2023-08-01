@@ -166,6 +166,7 @@ export class TelemetryService {
     fs.writeFileSync(fileName, serializedEvents);
     child_process.spawn(process.execPath, [
       path.join(__dirname, "flush-detached.js"),
+      fileName,
     ]);
   }
 
