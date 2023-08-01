@@ -25,6 +25,7 @@
     "verbatimModuleSyntax": false,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
 
     // Language and environment
     "moduleResolution": "NodeNext",
