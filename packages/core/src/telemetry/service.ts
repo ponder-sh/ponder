@@ -51,13 +51,13 @@ type AnonymousMeta = {
   packageManagerVersion: string;
 };
 
-function getPackageManagerAndVersion() {
+function getPacketManagerInfo() {
   if (fs.existsSync("yarn.lock")) {
     const yarnVersion = child_process
       .execSync("yarn --version")
       .toString()
       .trim();
-    return { packageManager: "yarn", version: yarnVersion };
+    return { name: "yarn", version: yarnVersion };
   }
 
   if (fs.existsSync("package-lock.json")) {
@@ -65,7 +65,7 @@ function getPackageManagerAndVersion() {
       .execSync("npm --version")
       .toString()
       .trim();
-    return { packageManager: "npm", version: npmVersion };
+    return { name: "npm", version: npmVersion };
   }
 
   if (fs.existsSync("pnpm-lock.yaml")) {
@@ -73,10 +73,10 @@ function getPackageManagerAndVersion() {
       .execSync("pnpm --version")
       .toString()
       .trim();
-    return { packageManager: "pnpm", version: pnpmVersion };
+    return { name: "pnpm", version: pnpmVersion };
   }
 
-  return { packageManager: "unknown", version: "unknown" };
+  return { name: "unknown", version: "unknown" };
 }
 
 export class TelemetryService {
@@ -176,7 +176,7 @@ export class TelemetryService {
 
     const projectId = (await getGitRemoteUrl()) ?? process.cwd();
     const cpus = os.cpus() || [];
-    const { packageManager, version } = getPackageManagerAndVersion();
+    const packageManagerInfo = getPacketManagerInfo();
     const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
     this.context = {
@@ -193,8 +193,8 @@ export class TelemetryService {
         memoryInMb: Math.trunc(os.totalmem() / Math.pow(1024, 2)),
         ponderVersion: packageJson["version"],
         nodeVersion: process.version,
-        packageManager,
-        packageManagerVersion: version,
+        packageManager: packageManagerInfo.name,
+        packageManagerVersion: packageManagerInfo.version,
       },
     };
 
