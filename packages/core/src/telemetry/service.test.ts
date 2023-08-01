@@ -9,7 +9,6 @@ import { TelemetryService } from "@/telemetry/service";
 
 const fetchMocker = createFetchMock(vi);
 const conf = new Conf({ projectName: "ponder" });
-const logMock = vi.spyOn(console, "log").mockImplementation(() => vi.fn());
 
 beforeAll(() => {
   fetchMocker.enableMocks();
@@ -23,7 +22,6 @@ beforeEach(() => {
 afterAll(() => {
   conf.clear();
   fetchMocker.disableMocks();
-  logMock.mockRestore();
 });
 
 test("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => {

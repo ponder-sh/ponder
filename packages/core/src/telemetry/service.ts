@@ -180,7 +180,11 @@ export class TelemetryService {
   }
 
   private notify() {
-    if (this.disabled || this.conf.get("notifiedAt")) {
+    if (
+      this.disabled ||
+      this.conf.get("notifiedAt") ||
+      process.env.NODE_ENV === "test"
+    ) {
       return;
     }
 
