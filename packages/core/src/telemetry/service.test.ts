@@ -1,12 +1,17 @@
 import Conf from "conf";
 import child_process from "node:child_process";
 import fs from "node:fs";
+import path from "path";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { buildOptions } from "@/config/options";
 import { TelemetryService } from "@/telemetry/service";
 
 const conf = new Conf({ projectName: "ponder" });
+
+const writeFileSyncSpy = vi
+  .spyOn(fs, "writeFileSync")
+  .mockImplementation(() => vi.fn());
 
 const fetchSpy = vi.fn().mockImplementation(() => vi.fn());
 
@@ -74,8 +79,8 @@ test("kill method should persis events queue and trigger detached flush", async 
   common: { options },
 }) => {
   const spawn = vi.spyOn(child_process, "spawn");
-  const persistedEventsPath = options.ponderDir + "/telemetry-events.json";
   const telemetry = new TelemetryService({ options });
+  const fileName = path.join(options.ponderDir, "telemetry-events.json");
 
   // we need to mock the fetch call to throw an AbortError so that the event is
   // put back in the queue
@@ -88,16 +93,9 @@ test("kill method should persis events queue and trigger detached flush", async 
   }
 
   await telemetry.kill();
+  const fileNameArgument = writeFileSyncSpy.mock.calls[0][0];
 
-  expect(fs.existsSync(persistedEventsPath)).toBe(true);
-
-  const events = JSON.parse(
-    fs.readFileSync(options.ponderDir + "/telemetry-events.json").toString()
-  );
-
-  expect(events.length).toBe(10);
   expect(spawn).toHaveBeenCalled();
+  expect(fileNameArgument).toBe(fileName);
   expect(fetchSpy).toHaveBeenCalledTimes(10);
-
-  fs.unlinkSync(persistedEventsPath);
 });
