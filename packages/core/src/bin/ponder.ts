@@ -10,7 +10,10 @@ import { buildConfig } from "@/config/config";
 import { buildOptions } from "@/config/options";
 import { Ponder } from "@/Ponder";
 
-import packageJson from "../../package.json" assert { type: "json" };
+// NOTE: This is a workaround for tsconfig `rootDir` nonsense.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import packageJson from "../../package.json";
 
 dotenv.config({ path: ".env.local" });
 

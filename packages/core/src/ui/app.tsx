@@ -1,7 +1,7 @@
 import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
-import { LogFilter } from "@/config/logFilters";
+import type { LogFilter } from "@/config/logFilters";
 
 import { HandlersBar } from "./HandlersBar";
 import { HistoricalBar } from "./HistoricalBar";

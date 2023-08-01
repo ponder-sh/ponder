@@ -23,7 +23,7 @@ export function buildReadOnlyContracts({
   contracts: Contract[];
   eventStore: EventStore;
   getCurrentBlockNumber: () => bigint;
-}) {
+}): Record<string, GetContractReturnType<Abi, PublicClient>> {
   return contracts.reduce<
     Record<string, GetContractReturnType<Abi, PublicClient>>
   >((acc, { name, abi, address, network }) => {

@@ -1,4 +1,4 @@
-import { AbiParameter } from "abitype";
+import type { AbiParameter } from "abitype";
 
 import type { Contract } from "@/config/contracts";
 

@@ -1,7 +1,10 @@
-import { RpcBlock, RpcLog, RpcTransaction } from "viem";
+import type { RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import { getEvents } from "@/config/abi";
-import { ContractReadResult, LogFilterCachedRange } from "@/event-store/store";
+import type {
+  ContractReadResult,
+  LogFilterCachedRange,
+} from "@/event-store/store";
 
 if (!process.env.ANVIL_FORK_URL) {
   throw new Error('Missing environment variable "ANVIL_FORK_URL"');

@@ -1,6 +1,6 @@
 import { codeFrameColumns } from "@babel/code-frame";
 import {
-  DecodedSourceMap,
+  type DecodedSourceMap,
   originalPositionFor,
   sourceContentFor,
   TraceMap,
@@ -9,9 +9,9 @@ import type { MimeBuffer } from "data-uri-to-buffer";
 import dataUriToBuffer from "data-uri-to-buffer";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { parse as parseStackTrace, StackFrame } from "stacktrace-parser";
+import { type StackFrame, parse as parseStackTrace } from "stacktrace-parser";
 
-import { Options } from "@/config/options";
+import type { Options } from "@/config/options";
 
 export const getStackTrace = (error: Error, options: Options) => {
   if (!error.stack) return undefined;

@@ -14,7 +14,7 @@ import { SqliteEventStore } from "@/event-store/sqlite/store";
 import type { EventStore } from "@/event-store/store";
 import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
-import { Common } from "@/Ponder";
+import type { Common } from "@/Ponder";
 import { TelemetryService } from "@/telemetry/service";
 import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
@@ -75,9 +75,7 @@ export async function setupEventStore(
     const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
     context.eventStore = new PostgresEventStore({ pool, databaseSchema });
 
-    if (!options.skipMigrateUp) {
-      await context.eventStore.migrateUp();
-    }
+    if (!options.skipMigrateUp) await context.eventStore.migrateUp();
 
     return async () => {
       await pool.query(`DROP SCHEMA IF EXISTS "${databaseSchema}" CASCADE`);
@@ -87,9 +85,9 @@ export async function setupEventStore(
     const db = patchSqliteDatabase({ db: rawSqliteDb });
     context.eventStore = new SqliteEventStore({ db });
 
-    if (!options.skipMigrateUp) {
-      await context.eventStore.migrateUp();
-    }
+    if (!options.skipMigrateUp) await context.eventStore.migrateUp();
+
+    return;
   }
 }
 

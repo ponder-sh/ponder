@@ -3,7 +3,7 @@ import Emittery from "emittery";
 
 import type { HandlerFunctions } from "@/build/handlers";
 import type { Contract } from "@/config/contracts";
-import { LogEventMetadata, LogFilter } from "@/config/logFilters";
+import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type {
   EventAggregatorService,

@@ -5,8 +5,8 @@ import { accounts, usdcContractConfig, vitalik } from "@/_test/constants";
 import { resetTestClient, setupEventStore } from "@/_test/setup";
 import { publicClient, testClient, walletClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
-import { LogFilter } from "@/config/logFilters";
-import { Network } from "@/config/networks";
+import type { LogFilter } from "@/config/logFilters";
+import type { Network } from "@/config/networks";
 import { blobToBigInt } from "@/utils/decode";
 import { range } from "@/utils/range";
 

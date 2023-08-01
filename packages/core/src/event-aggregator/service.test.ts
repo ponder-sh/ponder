@@ -4,8 +4,8 @@ import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
-import { LogFilter } from "@/config/logFilters";
-import { Network } from "@/config/networks";
+import type { LogFilter } from "@/config/logFilters";
+import type { Network } from "@/config/networks";
 
 import { EventAggregatorService } from "./service";
 

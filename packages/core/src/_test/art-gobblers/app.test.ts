@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import path from "node:path";
 import request from "supertest";
-import { afterEach, beforeEach, expect, test, TestContext } from "vitest";
+import { type TestContext, afterEach, beforeEach, expect, test } from "vitest";
 
 import { setupEventStore, setupUserStore } from "@/_test/setup";
 import { testNetworkConfig } from "@/_test/utils";

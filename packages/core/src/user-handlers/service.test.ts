@@ -4,10 +4,10 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore, setupUserStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
-import { HandlerFunctions } from "@/build/handlers";
+import type { HandlerFunctions } from "@/build/handlers";
 import { schemaHeader } from "@/build/schema";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
-import { LogEventMetadata } from "@/config/logFilters";
+import type { LogEventMetadata } from "@/config/logFilters";
 import { EventAggregatorService } from "@/event-aggregator/service";
 import { buildSchema } from "@/schema/schema";
 

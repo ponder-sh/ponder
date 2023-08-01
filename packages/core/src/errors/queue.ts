@@ -3,7 +3,7 @@ import { prettyPrint } from "@/utils/print";
 import { BaseError } from "./base";
 
 export class QueueError extends BaseError {
-  name = "QueueError";
+  override name = "QueueError";
 
   constructor({
     queueName,

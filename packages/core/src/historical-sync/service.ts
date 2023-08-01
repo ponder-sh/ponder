@@ -11,7 +11,7 @@ import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
-import { Common } from "@/Ponder";
+import type { Common } from "@/Ponder";
 import { formatEta, formatPercentage } from "@/utils/format";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
 import { hrTimeToMs, startClock } from "@/utils/timer";

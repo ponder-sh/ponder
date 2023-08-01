@@ -3,7 +3,7 @@ import React from "react";
 
 import { formatEta, formatPercentage } from "@/utils/format";
 
-import { UiState } from "./app";
+import type { UiState } from "./app";
 import { ProgressBar } from "./ProgressBar";
 
 export const HistoricalBar = ({

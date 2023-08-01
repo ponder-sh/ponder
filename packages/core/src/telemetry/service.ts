@@ -3,14 +3,14 @@ import { randomBytes } from "crypto";
 import { detect, getNpmVersion } from "detect-package-manager";
 import child_process from "node:child_process";
 import { createHash } from "node:crypto";
-import * as fs from "node:fs";
+import fs from "node:fs";
 import os from "os";
 import PQueue from "p-queue";
 import path from "path";
 import pc from "picocolors";
-import * as process from "process";
+import process from "process";
 
-import { type Options } from "@/config/options";
+import type { Options } from "@/config/options";
 import { postEvent } from "@/telemetry/post-event";
 import { getGitRemoteUrl } from "@/telemetry/remote";
 
@@ -119,7 +119,7 @@ export class TelemetryService {
 
   async kill() {
     this.queue.pause();
-    await this.controller.abort();
+    this.controller.abort();
     await this.queue.onIdle();
     this.flushDetached();
   }
@@ -155,7 +155,14 @@ export class TelemetryService {
     const projectId = (await getGitRemoteUrl()) ?? process.cwd();
     const cpus = os.cpus() || [];
     const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
-    const packageManager = await detect();
+    let packageManager: any = "unknown";
+    let packageManagerVersion: any = "unknown";
+    try {
+      packageManager = await detect();
+      packageManagerVersion = await getNpmVersion(packageManager);
+    } catch (e) {
+      // Ignore
+    }
 
     this.context = {
       anonymousId: this.anonymousId,
@@ -172,7 +179,7 @@ export class TelemetryService {
         ponderVersion: packageJson["version"],
         nodeVersion: process.version,
         packageManager,
-        packageManagerVersion: await getNpmVersion(packageManager),
+        packageManagerVersion,
       },
     };
 

@@ -1,11 +1,11 @@
-import { Generated, Insertable } from "kysely";
+import type { Generated, Insertable } from "kysely";
+import type { Address, Hash, Hex } from "viem";
 import {
   type RpcBlock,
   type RpcLog,
   type RpcTransaction,
   hexToNumber,
 } from "viem";
-import { Address, Hash, Hex } from "viem";
 
 import { intToBlob } from "@/utils/encode";
 

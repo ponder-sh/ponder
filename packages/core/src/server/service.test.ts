@@ -4,9 +4,9 @@ import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
 import { schemaHeader } from "@/build/schema";
-import { Common } from "@/Ponder";
+import type { Common } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
-import { UserStore } from "@/user-store/store";
+import type { UserStore } from "@/user-store/store";
 import { range } from "@/utils/range";
 
 import { buildGqlSchema } from "./graphql/schema";

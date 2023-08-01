@@ -1,33 +1,40 @@
 {
   "name": "@ponder/core",
   "version": "0.0.78",
-  "description": "API builder for blockchain apps",
+  "description": "An open-source framework for crypto application backends",
   "license": "MIT",
-  "author": "olias.eth",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
-  "bin": {
-    "ponder": "dist/bin/ponder.js"
-  },
   "files": [
-    "/dist"
+    "dist",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!src/_test/**/*"
   ],
+  "bin": {
+    "ponder": "./dist/bin/ponder.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "typings": "./dist/index.d.ts",
+  "exports": {
+    "default": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "pnpm clean && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
+    "build:watch": "concurrently \"tsc --project tsconfig.build.json --watch\" \"tsc-alias --project tsconfig.build.json --watch\"",
+    "clean": "rimraf ./dist",
     "test": "export $(grep -v '^#' .env.local | xargs) && vitest",
     "test:ci": "CI=true vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
     "@babel/code-frame": "^7.18.6",
     "@jridgewell/trace-mapping": "^0.3.17",
-    "@viem/anvil": "^0.0.5",
     "async-mutex": "^0.4.0",
     "better-sqlite3": "7",
     "cac": "^6.7.14",
     "chokidar": "^3.5.3",
-    "conf": "^10",
+    "conf": "^10.2.0",
     "cors": "^2.8.5",
     "data-uri-to-buffer": "3.0.1",
     "detect-package-manager": "^2.0.1",
@@ -70,13 +77,14 @@
     "@types/react": "^18.0.25",
     "@types/retry": "^0.12.2",
     "@types/supertest": "^2.0.12",
+    "@viem/anvil": "^0.0.6",
     "abitype": "^0.8.11",
+    "concurrently": "^8.2.0",
     "module-alias": "^2.2.2",
+    "rimraf": "^5.0.1",
     "supertest": "^6.3.3",
-    "tsup": "^6.7.0",
     "typescript": "^5.1.3",
     "vite": "^4.1.4",
-    "vitest": "^0.29.2",
-    "vitest-fetch-mock": "^0.2.2"
+    "vitest": "^0.29.2"
   }
 }

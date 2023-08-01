@@ -1,15 +1,15 @@
-import { build, formatMessagesSync, Message } from "esbuild";
+import { type Message, build, formatMessagesSync } from "esbuild";
 import glob from "glob";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
-import { Hex } from "viem";
+import type { Hex } from "viem";
 
-import { LogEventMetadata, LogFilter } from "@/config/logFilters";
-import { Options } from "@/config/options";
-import { Block } from "@/types/block";
-import { Log } from "@/types/log";
-import { Transaction } from "@/types/transaction";
+import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
+import type { Options } from "@/config/options";
+import type { Block } from "@/types/block";
+import type { Log } from "@/types/log";
+import type { Transaction } from "@/types/transaction";
 
 export interface LogEvent {
   name: string;
@@ -152,6 +152,7 @@ export const buildRawHandlerFunctions = async ({
     .map((file) => {
       try {
         require(file);
+        return undefined;
       } catch (err) {
         return err as Error;
       }

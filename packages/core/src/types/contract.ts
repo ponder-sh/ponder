@@ -1,5 +1,5 @@
-import { Abi, Address, ExtractAbiFunctionNames } from "abitype";
-import { GetContractReturnType, PublicClient } from "viem";
+import type { Abi, Address, ExtractAbiFunctionNames } from "abitype";
+import type { GetContractReturnType, PublicClient } from "viem";
 
 export type ReadOnlyContract<
   TAbi extends Abi = Abi,

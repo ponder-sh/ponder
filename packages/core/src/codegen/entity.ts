@@ -86,6 +86,10 @@ export const buildEntityTypes = (entities: Entity[]) => {
                   field.notNull ? "" : "?"
                 }: ${relatedEntityIdTsType};`;
               }
+              case "DERIVED": {
+                // Derived fields are virtual, so they are not included in TypeScript entity types.
+                return "";
+              }
             }
           })
           .join("")}

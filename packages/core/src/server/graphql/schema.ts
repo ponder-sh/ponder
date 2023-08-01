@@ -1,7 +1,11 @@
-import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql";
+import {
+  type GraphQLFieldConfig,
+  GraphQLObjectType,
+  GraphQLSchema,
+} from "graphql";
 
-import { Schema } from "@/schema/types";
-import { UserStore } from "@/user-store/store";
+import type { Schema } from "@/schema/types";
+import type { UserStore } from "@/user-store/store";
 
 import { buildEntityType } from "./entity";
 import { buildPluralField } from "./plural";

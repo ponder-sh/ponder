@@ -205,6 +205,8 @@ export class Ponder {
     // are triggered by changes to project files (handled in BuildService).
     this.buildService.buildSchema();
     await this.buildService.buildHandlers();
+
+    return undefined;
   }
 
   async dev() {

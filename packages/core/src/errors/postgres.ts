@@ -5,7 +5,7 @@ import { prettyPrint } from "@/utils/print";
 import { BaseError } from "./base";
 
 export class PostgresError extends BaseError {
-  name = "PostgresError";
+  override name = "PostgresError";
 
   constructor({
     statement,

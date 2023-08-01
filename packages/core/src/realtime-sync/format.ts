@@ -1,6 +1,11 @@
-import { type Hash, type RpcBlock, hexToNumber, RpcTransaction } from "viem";
+import {
+  type Hash,
+  type RpcBlock,
+  type RpcTransaction,
+  hexToNumber,
+} from "viem";
 
-import { Prettify } from "@/types/utils";
+import type { Prettify } from "@/types/utils";
 
 export type LightBlock = {
   hash: Hash;

@@ -3,10 +3,10 @@ import { GraphQLSchema, printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { Contract } from "@/config/contracts";
-import { LogFilter } from "@/config/logFilters";
-import { Common } from "@/Ponder";
-import { Schema } from "@/schema/types";
+import type { Contract } from "@/config/contracts";
+import type { LogFilter } from "@/config/logFilters";
+import type { Common } from "@/Ponder";
+import type { Schema } from "@/schema/types";
 import { ensureDirExists } from "@/utils/exists";
 
 import { buildContractTypes } from "./contract";

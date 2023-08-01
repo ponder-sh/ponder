@@ -1,5 +1,5 @@
 import {
-  EIP1193RequestFn,
+  type EIP1193RequestFn,
   HttpRequestError,
   InvalidParamsRpcError,
 } from "viem";
@@ -9,8 +9,8 @@ import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
-import { LogFilter } from "@/config/logFilters";
-import { Network } from "@/config/networks";
+import type { LogFilter } from "@/config/logFilters";
+import type { Network } from "@/config/networks";
 
 import { HistoricalSyncService } from "./service";
 
@@ -325,7 +325,9 @@ test("start() adds events to event store", async (context) => {
     ],
   });
   const events = [];
-  for await (const page of iterator) events.push(...page.events);
+  for await (const page of iterator) {
+    events.push(...page.events);
+  }
 
   expect(events[0].block).toMatchObject({
     hash: "0x0d8710de44b1b42ef86da0e9bebeaacb6d1cb5603f8014dec82e429f0cbf2fe0",

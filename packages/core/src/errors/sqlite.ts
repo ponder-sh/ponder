@@ -3,7 +3,7 @@ import { prettyPrint } from "@/utils/print";
 import { BaseError } from "./base";
 
 export class SqliteError extends BaseError {
-  name = "SqliteError";
+  override name = "SqliteError";
 
   constructor({
     statement,

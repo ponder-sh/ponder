@@ -5,8 +5,8 @@ import type { GraphQLSchema } from "graphql";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
-import { Common } from "@/Ponder";
-import { UserStore } from "@/user-store/store";
+import type { Common } from "@/Ponder";
+import type { UserStore } from "@/user-store/store";
 import { startClock } from "@/utils/timer";
 
 export class ServerService {
@@ -17,7 +17,6 @@ export class ServerService {
   app?: express.Express;
 
   private terminate?: () => Promise<void>;
-  private graphqlMiddleware?: express.Handler;
 
   isHistoricalEventProcessingComplete = false;
 

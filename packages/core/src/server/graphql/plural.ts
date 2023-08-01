@@ -1,8 +1,8 @@
 import {
-  GraphQLFieldConfig,
-  GraphQLFieldResolver,
+  type GraphQLFieldConfig,
+  type GraphQLFieldResolver,
+  type GraphQLInputType,
   GraphQLInputObjectType,
-  GraphQLInputType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,

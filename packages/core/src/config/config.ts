@@ -1,7 +1,7 @@
-import { AbiEvent } from "abitype";
+import type { AbiEvent } from "abitype";
 import { build } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
-import path from "path";
+import path from "node:path";
 
 import { ensureDirExists } from "@/utils/exists";
 

@@ -4,12 +4,12 @@ import { expect, test } from "vitest";
 import { schemaHeader } from "@/build/schema";
 
 import { buildSchema } from "./schema";
-import {
-  type DerivedField,
-  type EnumField,
-  type ListField,
-  type RelationshipField,
-  type ScalarField,
+import type {
+  DerivedField,
+  EnumField,
+  ListField,
+  RelationshipField,
+  ScalarField,
 } from "./types";
 
 const buildGraphqlSchema = (source: string) => {

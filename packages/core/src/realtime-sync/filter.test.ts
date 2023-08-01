@@ -1,4 +1,4 @@
-import { RpcLog } from "viem";
+import type { RpcLog } from "viem";
 import { expect, test } from "vitest";
 
 import { filterLogs } from "./filter";

@@ -1,4 +1,4 @@
-import { buildSchema as _buildGraphqlSchema, GraphQLType } from "graphql";
+import { type GraphQLType, buildSchema as _buildGraphqlSchema } from "graphql";
 import { expect, test } from "vitest";
 
 import { schemaHeader } from "@/build/schema";

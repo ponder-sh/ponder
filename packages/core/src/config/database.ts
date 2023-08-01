@@ -2,8 +2,8 @@ import Sqlite from "better-sqlite3";
 import path from "node:path";
 import pg, { Client, DatabaseError, Pool } from "pg";
 
-import { ResolvedConfig } from "@/config/config";
-import { Options } from "@/config/options";
+import type { ResolvedConfig } from "@/config/config";
+import type { Options } from "@/config/options";
 import { PostgresError } from "@/errors/postgres";
 import { SqliteError } from "@/errors/sqlite";
 import { ensureDirExists } from "@/utils/exists";
