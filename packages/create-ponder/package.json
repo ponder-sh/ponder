@@ -4,13 +4,17 @@
   "description": "A CLI tool to create Ponder apps",
   "license": "MIT",
   "files": [
-    "dist"
+    "dist",
+    "src/**/*.ts",
+    "!src/**/*.test.ts"
   ],
   "bin": {
-    "create-ponder": "dist/create-ponder.js"
+    "ponder": "./dist/bin/create-ponder.js"
   },
   "scripts": {
-    "build": "tsup-node",
+    "build": "pnpm clean && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
+    "build:watch": "concurrently \"tsc --project tsconfig.build.json --watch\" \"tsc-alias --project tsconfig.build.json --watch\"",
+    "clean": "rimraf ./dist",
     "test": "export $(grep -v '^#' .env.local | xargs) && vitest --no-threads",
     "test:ci": "vitest --no-threads",
     "typecheck": "tsc --noEmit"
@@ -23,7 +27,6 @@
     "picocolors": "^1.0.0",
     "prettier": "^2.6.2",
     "prompts": "^2.4.2",
-    "rimraf": "^5.0.1",
     "yaml": "^2.1.1"
   },
   "devDependencies": {
@@ -33,8 +36,10 @@
     "@types/prettier": "^2.7.1",
     "@types/prompts": "^2.4.2",
     "abitype": "^0.6.7",
-    "tsup": "^6.6.3",
-    "typescript": "^4.5.5",
+    "concurrently": "^8.2.0",
+    "rimraf": "^5.0.1",
+    "tsc-alias": "^1.8.2",
+    "typescript": "^5.1.3",
     "vitest": "^0.29.2"
   }
 }
