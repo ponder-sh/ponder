@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import "@/utils/globals";
+import "@/utils/globals.js";
 
 import { cac } from "cac";
 import dotenv from "dotenv";

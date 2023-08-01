@@ -5,6 +5,5 @@
   "exclude": ["src/_test", "src/**/*.test.ts"],
   "compilerOptions": {
     "sourceMap": true
-    // "rootDir": "./src"
   }
 }

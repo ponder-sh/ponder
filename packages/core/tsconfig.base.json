@@ -43,7 +43,7 @@
     // Skip type checking for node modules
     "skipLibCheck": true,
 
-    // Path alias
+    // File path settings
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] }
   }
