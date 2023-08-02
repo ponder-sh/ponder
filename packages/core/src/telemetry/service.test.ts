@@ -47,7 +47,7 @@ test("events are processed", async ({ common: { options } }) => {
   const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]["body"]);
   expect(fetchSpy).toHaveBeenCalled();
   expect(fetchBody).toMatchObject({
-    eventName: "test",
+    event: "test",
     payload: {},
     meta: expect.anything(),
     sessionId: expect.anything(),
@@ -119,7 +119,7 @@ test("detached flush script should run without errors", async ({
   );
 
   const events = Array.from({ length: 10 }, () => ({
-    eventName: "test",
+    event: "test",
     payload: {},
   }));
 
