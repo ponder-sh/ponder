@@ -16,7 +16,7 @@ async function detachedFlush() {
   const [eventsFile] = args.splice(2);
   const eventsContent = fs.readFileSync(eventsFile, "utf8");
   const events = JSON.parse(eventsContent);
-  await Promise.all(events.map((event) => postEvent(event))).catch(null);
+  await Promise.all(events.map((event) => postEvent(event)));
 }
 
 detachedFlush()
