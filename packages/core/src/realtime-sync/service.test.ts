@@ -142,14 +142,6 @@ test("adds all matched logs to the store", async (context) => {
   await service.start();
   await service.onIdle();
 
-  expect(service.stats.blocks).toMatchObject({
-    16379996: { matchedLogCount: 18 },
-    16379997: { matchedLogCount: 32 },
-    16379998: { matchedLogCount: 7 },
-    16379999: { matchedLogCount: 9 },
-    16380000: { matchedLogCount: 13 },
-  });
-
   const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(79);
   logs.forEach((log) => {
@@ -188,14 +180,6 @@ test("handles new blocks", async (context) => {
   await service.addNewLatestBlock();
 
   await service.onIdle();
-
-  expect(service.stats.blocks).toMatchObject({
-    // ... previous blocks omitted for brevity
-    16380000: { matchedLogCount: 13 },
-    16380001: { matchedLogCount: 1 },
-    16380002: { matchedLogCount: 0 },
-    16380003: { matchedLogCount: 2 },
-  });
 
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(7);
@@ -295,7 +279,7 @@ test("inserts cached range records for finalized blocks", async (context) => {
   await service.kill();
 });
 
-test("handles 1 block shallow reorg", async (context) => {
+test("removes data from the store after 3 block shallow reorg", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
@@ -320,30 +304,52 @@ test("handles 1 block shallow reorg", async (context) => {
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  expect(service.stats.blocks).toMatchObject({
-    // ... previous blocks omitted for brevity
-    16380001: { matchedLogCount: 1 },
-    16380002: { matchedLogCount: 1 },
-    16380003: { matchedLogCount: 1 },
-  });
+  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  expect(blocks.map((block) => blobToBigInt(block.number))).toMatchObject([
+    16379996n,
+    16379997n,
+    16379998n,
+    16379999n,
+    16380000n,
+    16380001n,
+    16380002n,
+    16380003n,
+  ]);
 
-  // Now, revert to the original snapshot and mine one empty block.
+  // Now, revert to the original snapshot.
   await testClient.revert({ id: originalSnapshotId });
+
+  // Add one empty block (16380001).
   await testClient.mine({ blocks: 1 });
 
-  // Allow the service to process the new block, detecting a reorg.
+  // Add one block with one transaction (16380002).
+  await sendUsdcTransferTransaction();
+  await testClient.mine({ blocks: 1 });
+
+  // Allow the service to process the new blocks.
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  expect(service.stats.blocks).toMatchObject({
-    // ... previous blocks omitted for brevity
-    16380001: { matchedLogCount: 0 },
-  });
+  const blocksAfterReorg = await eventStore.db
+    .selectFrom("blocks")
+    .selectAll()
+    .execute();
+  expect(
+    blocksAfterReorg.map((block) => blobToBigInt(block.number))
+  ).toMatchObject([
+    16379996n,
+    16379997n,
+    16379998n,
+    16379999n,
+    16380000n,
+    // 16380001n <- Not added to the store, because it has no matched logs.
+    16380002n,
+  ]);
 
   await service.kill();
 });
 
-test("handles 3 block shallow reorg", async (context) => {
+test("emits shallowReorg event after 3 block shallow reorg", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
@@ -370,33 +376,13 @@ test("handles 3 block shallow reorg", async (context) => {
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  expect(service.stats.blocks).toMatchObject({
-    // ... previous blocks omitted for brevity
-    16380001: { matchedLogCount: 1 },
-    16380002: { matchedLogCount: 1 },
-    16380003: { matchedLogCount: 1 },
-  });
-
-  // Now, revert to the original snapshot and mine 5 blocks, each containing 2 transactions.
+  // Now, revert to the original snapshot.
   await testClient.revert({ id: originalSnapshotId });
-  for (const _ in range(0, 5)) {
-    await sendUsdcTransferTransaction();
-    await sendUsdcTransferTransaction();
-    await testClient.mine({ blocks: 1 });
-  }
+  await testClient.mine({ blocks: 1 });
 
-  // Allow the service to process the new block, detecting a reorg.
+  // Add one new empty block (16380001).
   await service.addNewLatestBlock();
   await service.onIdle();
-
-  expect(service.stats.blocks).toMatchObject({
-    // ... previous blocks omitted for brevity
-    16380001: { matchedLogCount: 2 },
-    16380002: { matchedLogCount: 2 },
-    16380003: { matchedLogCount: 2 },
-    16380004: { matchedLogCount: 2 },
-    16380005: { matchedLogCount: 2 },
-  });
 
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
     commonAncestorTimestamp: 1673397071, // Timestamp of 16380000
@@ -405,7 +391,7 @@ test("handles 3 block shallow reorg", async (context) => {
   await service.kill();
 });
 
-test("handles deep reorg", async (context) => {
+test("emits deepReorg event after deep reorg", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({

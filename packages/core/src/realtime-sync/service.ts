@@ -28,17 +28,6 @@ type RealtimeSyncEvents = {
   error: { error: Error };
 };
 
-type RealtimeSyncStats = {
-  // Block number -> log filter name -> matched log count.
-  // Note that finalized blocks are removed from this object.
-  blocks: Record<
-    number,
-    {
-      matchedLogCount: number;
-    }
-  >;
-};
-
 type RealtimeBlockTask = BlockWithTransactions;
 type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
@@ -47,8 +36,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private eventStore: EventStore;
   private logFilters: LogFilter[];
   private network: Network;
-
-  stats: RealtimeSyncStats;
 
   // Queue of unprocessed blocks.
   private queue: RealtimeSyncQueue;
@@ -78,7 +65,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.network = network;
 
     this.queue = this.buildQueue();
-    this.stats = { blocks: {} };
   }
 
   setup = async () => {
@@ -149,10 +135,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
     if (!finalizedBlock) throw new Error(`Unable to fetch finalized block`);
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
-      {
-        method: "eth_getBlockByNumber",
-        network: this.network.name,
-      },
+      { method: "eth_getBlockByNumber", network: this.network.name },
       stopClock()
     );
 
@@ -176,10 +159,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       async () => {
         await this.addNewLatestBlock();
       },
-      {
-        emitOnBegin: false,
-        interval: this.network.pollingInterval,
-      }
+      { emitOnBegin: false, interval: this.network.pollingInterval }
     );
   };
 
@@ -187,9 +167,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.unpoll?.();
     this.queue.pause();
     this.queue.clear();
-    // TODO: Figure out if it's necessary to wait for the queue to be idle before killing it.
-    // await this.onIdle();
-
     this.common.logger.debug({
       service: "realtime",
       msg: `Killed realtime sync service (network=${this.network.name})`,
@@ -209,15 +186,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
     if (!latestBlock_) throw new Error(`Unable to fetch latest block`);
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
-      {
-        method: "eth_getBlockByNumber",
-        network: this.network.name,
-      },
+      { method: "eth_getBlockByNumber", network: this.network.name },
       stopClock()
     );
     return latestBlock_ as BlockWithTransactions;
   };
 
+  // This method is only public for to support the tests.
   addNewLatestBlock = async () => {
     const block = await this.getLatestBlock();
     const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
@@ -284,42 +259,44 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         logFilters: this.logFilters.map((l) => l.filter),
       });
 
-      let matchedLogCount = 0;
+      if (!isMatchedLogPresentInBlock) {
+        this.common.logger.debug({
+          service: "realtime",
+          msg: `No logs found in block ${newBlock.number} using bloom filter (network=${this.network.name})`,
+        });
+      }
 
       if (isMatchedLogPresentInBlock) {
         // If there's a potential match, fetch the logs from the block.
         const stopClock = startClock();
         const logs = await this.network.client.request({
           method: "eth_getLogs",
-          params: [
-            {
-              blockHash: newBlock.hash,
-            },
-          ],
+          params: [{ blockHash: newBlock.hash }],
         });
         this.common.metrics.ponder_realtime_rpc_request_duration.observe(
-          {
-            method: "eth_getLogs",
-            network: this.network.name,
-          },
+          { method: "eth_getLogs", network: this.network.name },
           stopClock()
         );
 
         // Filter logs down to those that actually match the registered filters.
-        const filteredLogs = filterLogs({
+        const matchedLogs = filterLogs({
           logs,
           logFilters: this.logFilters.map((l) => l.filter),
         });
-        matchedLogCount = filteredLogs.length;
+        const matchedLogCount = matchedLogs.length;
+        const matchedLogCountText =
+          matchedLogCount === 1
+            ? "1 matched log"
+            : `${matchedLogCount} matched logs`;
 
         this.common.logger.debug({
           service: "realtime",
-          msg: `Found ${logs.length} total and ${matchedLogCount} matched logs in block ${newBlock.number} (network=${this.network.name})`,
+          msg: `Found ${logs.length} total and ${matchedLogCountText} in block ${newBlock.number} (network=${this.network.name})`,
         });
 
         // Filter transactions down to those that are required by the matched logs.
         const requiredTransactionHashes = new Set(
-          filteredLogs.map((l) => l.transactionHash)
+          matchedLogs.map((l) => l.transactionHash)
         );
         const filteredTransactions =
           newBlockWithTransactions.transactions.filter((t) =>
@@ -327,25 +304,25 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           );
 
         // If there are indeed any matched logs, insert them into the store.
-        if (filteredLogs.length > 0) {
+        if (matchedLogCount > 0) {
           await this.eventStore.insertRealtimeBlock({
             chainId: this.network.chainId,
             block: newBlockWithTransactions,
             transactions: filteredTransactions,
-            logs: filteredLogs,
+            logs: matchedLogs,
+          });
+
+          this.common.logger.info({
+            service: "realtime",
+            msg: `Found ${matchedLogCountText} in new head block ${newBlock.number} (network=${this.network.name})`,
           });
         } else {
-          // If there are not, this was a false positive.
+          // If there are not, this was a false positive on the bloom filter.
           this.common.logger.debug({
             service: "realtime",
             msg: `Logs bloom for block ${newBlock.number} was a false positive (network=${this.network.name})`,
           });
         }
-      } else {
-        this.common.logger.debug({
-          service: "realtime",
-          msg: `No logs found in block ${newBlock.number} using bloom filter (network=${this.network.name})`,
-        });
       }
 
       this.emit("realtimeCheckpoint", {
@@ -364,24 +341,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         newBlock.timestamp
       );
 
-      if (matchedLogCount > 0) {
-        this.common.logger.info({
-          service: "realtime",
-          msg: `Found ${
-            matchedLogCount === 1
-              ? "1 matched log"
-              : `${matchedLogCount} matched logs`
-          } in new head block ${newBlock.number} (network=${
-            this.network.name
-          })`,
-        });
-      }
-
-      // TODO: Remove this entirely.
-      this.stats.blocks[newBlock.number] = {
-        matchedLogCount,
-      };
-
       // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
       // and mark data as cached in the store.
       if (
@@ -399,13 +358,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           (block) => block.number >= newFinalizedBlock.number
         );
 
-        // Clean up metrics for now-finalized blocks.
-        for (const blockNumber in this.stats.blocks) {
-          if (Number(blockNumber) < newFinalizedBlock.number) {
-            delete this.stats.blocks[blockNumber];
-          }
-        }
-
         await this.eventStore.insertLogFilterCachedRanges({
           logFilterKeys: this.logFilters.map((l) => l.filter.key),
           startBlock: this.finalizedBlockNumber + 1,
@@ -422,7 +374,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.common.logger.debug({
           service: "realtime",
           msg: `Updated finality checkpoint to ${newFinalizedBlock.number} (network=${this.network.name})`,
-          matchedLogCount,
         });
       }
 
@@ -434,7 +385,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       return;
     }
 
-    // 3) At least one block is missing. Note that this is the happy path for the first task after setup.
+    // 3) At least one block is missing.
+    // Note that this is the happy path for the first task after setup, because
+    // the unfinalized block range must be fetched (eg 32 blocks on mainnet).
     if (newBlock.number > previousHeadBlock.number + 1) {
       const missingBlockNumbers = range(
         previousHeadBlock.number + 1,

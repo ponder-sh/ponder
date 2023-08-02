@@ -8,21 +8,16 @@ If you want to contribute, but aren't sure where to start, reach out in Ponder's
 
 This guide is intended to help you get started with contributing. By following these steps, you will understand the development process and workflow.
 
-- [Contributing](#contributing)
-  - [Get started](#get-started)
-  - [Fork the repository](#fork-the-repository)
-  - [Install Node.js and pnpm](#install-nodejs-and-pnpm)
-  - [Install Foundry](#install-foundry)
-  - [Install dependencies](#install-dependencies)
-  - [Run the test suite](#run-the-test-suite)
-    - [Environment variables](#environment-variables)
-    - [Running tests](#running-tests)
-  - [Write documentation](#write-documentation)
-  - [Submit a pull request](#submit-a-pull-request)
-  - [Versioning and releases](#versioning-and-releases)
-    - [Changesets workflow](#changesets-workflow)
-    - [Releases](#releases)
-  - [That's it!](#thats-it)
+- [Fork the repository](#fork-the-repository)
+- [Install Node.js and pnpm](#install-nodejs-and-pnpm)
+- [Install Foundry](#install-foundry)
+- [Install dependencies](#install-dependencies)
+- [Build packages](#build-packages)
+- [Run the test suite](#run-the-test-suite)
+- [Write documentation](#write-documentation)
+- [Submit a pull request](#submit-a-pull-request)
+- [Versioning and releases](#versioning-and-releases)
+- [That's it!](#thats-it)
 
 <br>
 
@@ -32,13 +27,13 @@ This guide is intended to help you get started with contributing. By following t
 
 ## Fork the repository
 
-To start contributing to the project, use the [GitHub CLI](https://cli.github.com) to create a fork and clone it to your local machine:
+To start contributing to the project, [create a fork](https://github.com/0xOlias/ponder/fork) and clone it to your machine using `git clone`.
+
+Or, use the [GitHub CLI](https://cli.github.com) to create a fork and clone it in one command:
 
 ```bash
 gh repo fork 0xOlias/ponder --clone
 ```
-
-Or, manually create a fork using the button at the top of the repo on GitHub, then clone it to your local machine using `git clone {your-fork-url}`.
 
 <div align="right">
   <a href="#get-started">&uarr; back to top</a></b>
@@ -80,13 +75,25 @@ curl -L https://foundry.paradigm.xyz | bash
 
 ## Install dependencies
 
-In the project's root directory, run the following command to install the project's dependencies:
+In the root directory, run the following command to install the project's dependencies:
 
 ```bash
 pnpm install
 ```
 
-After the install completes, pnpm links packages across the project for development. This means that if you run any of the projects in the `examples/` directory, they will use the local version of `@ponder/core`.
+<div align="right">
+  <a href="#get-started">&uarr; back to top</a></b>
+</div>
+
+## Build packages
+
+In the root directory, run the build command:
+
+```bash
+pnpm build
+```
+
+After the build completes, pnpm links packages across the project for development. This means that if you run any of the projects in the `examples/` directory, they will use the local version of `@ponder/core`.
 
 <div align="right">
   <a href="#get-started">&uarr; back to top</a></b>
@@ -98,7 +105,13 @@ After the install completes, pnpm links packages across the project for developm
 
 The test suite uses [mainnet forking](https://book.getfoundry.sh/tutorials/forking-mainnet-with-cast-anvil) to test against real-world data. To get this working, you'll need to set up environment variables.
 
-First, create a `env.local` file using the provided template.
+First, cd into the package you're working on.
+
+```bash
+cd packages/core
+```
+
+Then, create a `env.local` file using the provided template.
 
 ```bash
 cp .env.example .env.local
@@ -113,10 +126,13 @@ The test suite uses [vitest](https://vitest.dev/guide) in concurrent mode as a t
 
 Herea are some commands to get you started.
 
-- `pnpm build` - required for a fresh install
-- `pnpm test` — run all tests in watch mode
-- `pnpm test path/to/file.test.ts` — run a single test file
-- `pnpm test path/to/dir` — run all test files in a directory
+```bash
+# run all tests in watch mode
+pnpm test
+
+# run a single test file
+pnpm test path/to/file.test.ts
+```
 
 When adding new features or fixing bugs, it's important to add test cases to cover any new or updated behavior.
 
@@ -129,7 +145,9 @@ When adding new features or fixing bugs, it's important to add test cases to cov
 Ponder uses [Nextra](https://nextra.site) and Markdown for the documentation website (located at [`docs`](../docs)). To start the docs website in dev mode, run:
 
 ```bash
-cd docs && pnpm dev
+cd docs
+
+pnpm dev
 ```
 
 <div align="right">
