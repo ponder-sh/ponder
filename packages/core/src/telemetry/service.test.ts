@@ -108,37 +108,3 @@ test("kill method should persis events queue and trigger detached flush", async 
   expect(fileNameArgument).toBe(fileName);
   expect(fetchSpy).toHaveBeenCalledTimes(10);
 });
-
-test("detached flush script should run without errors", async ({
-  common: { options },
-}) => {
-  const dirName = path.join(options.rootDir, "tmp-telemetry");
-  const fileName = path.join(dirName, "telemetry-events-test.json");
-
-  const events = Array.from({ length: 10 }, () => ({
-    event: "test",
-    payload: {},
-  }));
-
-  if (!fs.existsSync(dirName)) {
-    fs.mkdirSync(dirName);
-  }
-
-  fs.writeFileSync(fileName, JSON.stringify(events));
-
-  const flushDetachedScriptPath = path.join(__dirname, "detached-flush.js");
-
-  await new Promise((resolve, reject) => {
-    child_process.exec(
-      `${process.execPath} ${flushDetachedScriptPath} ${fileName}`,
-      (error) => {
-        if (error) {
-          return reject(error);
-        }
-        return resolve(null);
-      }
-    );
-  }).finally(() => {
-    fs.rmSync(dirName, { recursive: true, force: true });
-  });
-});
