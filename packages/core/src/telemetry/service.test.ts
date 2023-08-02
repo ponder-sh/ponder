@@ -43,7 +43,7 @@ test("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => 
 
 test("events are processed", async ({ common: { options } }) => {
   const telemetry = new TelemetryService({ options });
-  await telemetry.record({ eventName: "test", payload: {} });
+  await telemetry.record({ event: "test", payload: {} });
   const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]["body"]);
   expect(fetchSpy).toHaveBeenCalled();
   expect(fetchBody).toMatchObject({
@@ -61,7 +61,7 @@ test("events are not processed if telemetry is disabled", async ({
 }) => {
   const telemetry = new TelemetryService({ options });
   telemetry.setEnabled(false);
-  await telemetry.record({ eventName: "test", payload: {} });
+  await telemetry.record({ event: "test", payload: {} });
 
   expect(fetchSpy).not.toHaveBeenCalled();
 });
@@ -75,7 +75,7 @@ test("events are put back in queue if telemetry service is killed", async ({
     throw { name: "AbortError" };
   });
 
-  await telemetry.record({ eventName: "test", payload: {} });
+  await telemetry.record({ event: "test", payload: {} });
 
   expect(telemetry.eventsCount).toBe(1);
 });
@@ -98,7 +98,7 @@ test("kill method should persis events queue and trigger detached flush", async 
   });
 
   for (let i = 0; i < 10; i++) {
-    await telemetry.record({ eventName: "test", payload: {} });
+    await telemetry.record({ event: "test", payload: {} });
   }
 
   await telemetry.kill();
