@@ -1,5 +1,8 @@
+const fs = require("fs");
+const fetch = require("node-fetch");
+
 function postEvent({ payload }) {
-  return fetch("https://ponder.sh/api/telemetry", {
+  return fetch("http://localhost:3000/api/telemetry", {
     method: "POST",
     body: JSON.stringify(payload),
     headers: {
@@ -11,8 +14,9 @@ function postEvent({ payload }) {
 async function detachedFlush() {
   const args = [...process.argv];
   const [eventsFile] = args.splice(2);
-  const events = JSON.parse(eventsFile);
-  await Promise.all(events.map((event) => postEvent(event)));
+  const eventsContent = fs.readFileSync(eventsFile, "utf8");
+  const events = JSON.parse(eventsContent);
+  await Promise.all(events.map((event) => postEvent(event))).catch(null);
 }
 
 detachedFlush()

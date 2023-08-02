@@ -2,17 +2,18 @@ import Conf from "conf";
 import child_process from "node:child_process";
 import fs from "node:fs";
 import path from "path";
-import { beforeEach, expect, test, vi } from "vitest";
+import process from "process";
+import { afterAll, beforeEach, expect, test, vi } from "vitest";
 
 import { buildOptions } from "@/config/options";
 import { TelemetryService } from "@/telemetry/service";
 
+// prevents the detached-flush script from sending events to API during tests
+vi.mock("node-fetch");
+
 const conf = new Conf({ projectName: "ponder" });
 
-const writeFileSyncSpy = vi
-  .spyOn(fs, "writeFileSync")
-  .mockImplementation(() => vi.fn());
-
+// this is to spy the fetch function in the telemetry service
 const fetchSpy = vi.fn().mockImplementation(() => vi.fn());
 
 beforeEach(() => {
@@ -23,6 +24,10 @@ beforeEach(() => {
   return () => {
     vi.unstubAllGlobals();
   };
+});
+
+afterAll(() => {
+  vi.restoreAllMocks();
 });
 
 test("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => {
@@ -82,6 +87,10 @@ test("kill method should persis events queue and trigger detached flush", async 
   const telemetry = new TelemetryService({ options });
   const fileName = path.join(options.ponderDir, "telemetry-events.json");
 
+  const writeFileSyncSpy = vi
+    .spyOn(fs, "writeFileSync")
+    .mockImplementationOnce(() => vi.fn());
+
   // we need to mock the fetch call to throw an AbortError so that the event is
   // put back in the queue
   fetchSpy.mockImplementation(() => {
@@ -98,4 +107,37 @@ test("kill method should persis events queue and trigger detached flush", async 
   expect(spawn).toHaveBeenCalled();
   expect(fileNameArgument).toBe(fileName);
   expect(fetchSpy).toHaveBeenCalledTimes(10);
+});
+
+test("detached flush script should run without errors", async ({
+  common: { options },
+}) => {
+  const fileName = path.join(
+    options.rootDir,
+    "tmp",
+    "telemetry-events-test.json"
+  );
+
+  const events = Array.from({ length: 10 }, () => ({
+    eventName: "test",
+    payload: {},
+  }));
+
+  fs.writeFileSync(fileName, JSON.stringify(events));
+
+  const flushDetachedScriptPath = path.join(__dirname, "detached-flush.js");
+
+  await new Promise((resolve, reject) => {
+    child_process.exec(
+      `${process.execPath} ${flushDetachedScriptPath} ${fileName}`,
+      (error) => {
+        if (error) {
+          return reject(error);
+        }
+        return resolve(null);
+      }
+    );
+  }).finally(() => {
+    fs.unlinkSync(fileName);
+  });
 });
