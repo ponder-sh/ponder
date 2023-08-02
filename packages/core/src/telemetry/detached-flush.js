@@ -2,7 +2,7 @@ const fs = require("fs");
 const fetch = require("node-fetch");
 
 function postEvent({ payload }) {
-  return fetch("http://localhost:3000/api/telemetry", {
+  return fetch("https://ponder.sh/api/telemetry", {
     method: "POST",
     body: JSON.stringify(payload),
     headers: {
