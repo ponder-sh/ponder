@@ -112,16 +112,17 @@ test("kill method should persis events queue and trigger detached flush", async 
 test("detached flush script should run without errors", async ({
   common: { options },
 }) => {
-  const fileName = path.join(
-    options.rootDir,
-    "tmp",
-    "telemetry-events-test.json"
-  );
+  const dirName = path.join(options.rootDir, "tmp-telemetry");
+  const fileName = path.join(dirName, "telemetry-events-test.json");
 
   const events = Array.from({ length: 10 }, () => ({
     event: "test",
     payload: {},
   }));
+
+  if (!fs.existsSync(dirName)) {
+    fs.mkdirSync(dirName);
+  }
 
   fs.writeFileSync(fileName, JSON.stringify(events));
 
@@ -138,6 +139,6 @@ test("detached flush script should run without errors", async ({
       }
     );
   }).finally(() => {
-    fs.unlinkSync(fileName);
+    fs.rmSync(dirName, { recursive: true, force: true });
   });
 });
