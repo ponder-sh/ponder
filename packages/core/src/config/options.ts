@@ -16,6 +16,7 @@ export type Options = {
 
   port: number;
   maxHealthcheckDuration: number;
+  telemetryUrl: string;
   telemetryDisabled: boolean;
 
   logLevel: LevelWithSilent;
@@ -50,10 +51,13 @@ export const buildOptions = ({
     generatedDir: "generated",
     ponderDir: ".ponder",
     logDir: ".ponder/logs",
-    telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),
+
     port: Number(process.env.PORT ?? 42069),
     maxHealthcheckDuration:
       configOptions?.maxHealthcheckDuration ?? railwayHealthcheckTimeout ?? 240,
+
+    telemetryUrl: "https://ponder.sh/api/telemetry",
+    telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),
 
     logLevel,
     uiEnabled: true,

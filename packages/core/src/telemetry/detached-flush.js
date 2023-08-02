@@ -1,18 +1,31 @@
-function postEvent({ payload }) {
-  return fetch("https://ponder.sh/api/telemetry", {
-    method: "POST",
-    body: JSON.stringify(payload),
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-}
+const fs = require("fs");
+
+// eslint-disable-next-line no-undef
+const fetch = globalThis.fetch ?? require("node-fetch");
 
 async function detachedFlush() {
   const args = [...process.argv];
-  const [eventsFile] = args.splice(2);
-  const events = JSON.parse(eventsFile);
-  await Promise.all(events.map((event) => postEvent(event)));
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_execPath, _scriptPath, telemetryUrl, eventsFilePath] = args;
+
+  const eventsContent = fs.readFileSync(eventsFilePath, "utf8");
+  const events = JSON.parse(eventsContent);
+
+  console.log(
+    `Sending ${events.length} telemetry events to ${telemetryUrl} from temporary file ${eventsFilePath}`
+  );
+
+  await Promise.all(
+    events.map(async (event) => {
+      await fetch(telemetryUrl, {
+        method: "POST",
+        body: JSON.stringify(event.payload),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+    })
+  );
 }
 
 detachedFlush()

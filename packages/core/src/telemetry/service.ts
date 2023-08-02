@@ -11,11 +11,10 @@ import pc from "picocolors";
 import process from "process";
 
 import type { Options } from "@/config/options";
-import { postEvent } from "@/telemetry/post-event";
 import { getGitRemoteUrl } from "@/telemetry/remote";
 
 type TelemetryEvent = {
-  eventName: string;
+  event: string;
   payload: object;
 };
 
@@ -134,23 +133,24 @@ export class TelemetryService {
   }
 
   private flushDetached() {
-    if (this.events.length === 0) {
-      return;
-    }
+    if (this.events.length === 0) return;
 
     const serializedEvents = JSON.stringify(this.events);
-    const fileName = path.join(this.options.ponderDir, "telemetry-events.json");
-    fs.writeFileSync(fileName, serializedEvents);
+    const telemetryEventsFilePath = path.join(
+      this.options.ponderDir,
+      "telemetry-events.json"
+    );
+    fs.writeFileSync(telemetryEventsFilePath, serializedEvents);
+
     child_process.spawn(process.execPath, [
       path.join(__dirname, "flush-detached.js"),
-      fileName,
+      this.options.telemetryUrl,
+      telemetryEventsFilePath,
     ]);
   }
 
   private async getContext() {
-    if (this.context) {
-      return this.context;
-    }
+    if (this.context) return this.context;
 
     const projectId = (await getGitRemoteUrl()) ?? process.cwd();
     const cpus = os.cpus() || [];
@@ -209,13 +209,15 @@ export class TelemetryService {
 
   private async processEvent() {
     const event = this.events.pop();
-
-    if (!event) {
-      return;
-    }
+    if (!event) return;
 
     try {
-      await postEvent({ payload: event, signal: this.controller.signal });
+      await fetch(this.options.telemetryUrl, {
+        method: "POST",
+        body: JSON.stringify(event),
+        headers: { "Content-Type": "application/json" },
+        signal: this.controller.signal,
+      });
     } catch (e) {
       const error = e as { name: string };
       if (error.name === "AbortError") {
