@@ -22,13 +22,11 @@ export default async function forwardTelemetry(
     writeKey: process.env.SEGMENT_WRITE_KEY,
   });
 
-  const data = req.body;
-
   res.status(200).json({
     message: "Telemetry data processed successfully.",
   });
 
   await analytics.track({
-    ...data,
+    ...req.body,
   });
 }
