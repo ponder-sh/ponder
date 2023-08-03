@@ -1,5 +1,4 @@
 const fs = require("fs");
-const { error } = require("lint-staged/lib/figures");
 
 // eslint-disable-next-line no-undef
 const fetch = globalThis.fetch ?? require("node-fetch");
@@ -29,10 +28,10 @@ async function detachedFlush() {
       })
     );
   } catch (e) {
-    console.error(error);
+    console.error(e);
   }
 
-  fs.unlinkSync(eventsFilePath);
+  fs.rmSync(eventsFilePath);
 }
 
 detachedFlush()
