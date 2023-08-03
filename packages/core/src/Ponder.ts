@@ -57,8 +57,6 @@ export class Ponder {
   codegenService: CodegenService;
   uiService: UiService;
 
-  processStartTime = process.hrtime();
-
   constructor({
     options,
     config,
@@ -285,7 +283,7 @@ export class Ponder {
     this.common.telemetry.record({
       event: "App Killed",
       payload: {
-        processDuration: process.hrtime(this.processStartTime)[1] / 1e6, // nano to ms
+        processDuration: process.uptime(),
       },
     });
 
