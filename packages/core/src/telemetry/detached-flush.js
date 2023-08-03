@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { error } = require("lint-staged/lib/figures");
 
 // eslint-disable-next-line no-undef
 const fetch = globalThis.fetch ?? require("node-fetch");
@@ -15,19 +16,23 @@ async function detachedFlush() {
     `Sending ${events.length} telemetry events to ${telemetryUrl} from temporary file ${eventsFilePath}`
   );
 
-  await Promise.all(
-    events.map(async (event) => {
-      await fetch(telemetryUrl, {
-        method: "POST",
-        body: JSON.stringify(event),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    })
-  ).finally(() => {
-    fs.rmSync(eventsFilePath);
-  });
+  try {
+    await Promise.all(
+      events.map(async (event) => {
+        await fetch(telemetryUrl, {
+          method: "POST",
+          body: JSON.stringify(event),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      })
+    );
+  } catch (e) {
+    console.error(error);
+  }
+
+  fs.unlinkSync(eventsFilePath);
 }
 
 detachedFlush()
