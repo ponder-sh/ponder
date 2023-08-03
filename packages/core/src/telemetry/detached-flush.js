@@ -25,7 +25,9 @@ async function detachedFlush() {
         },
       });
     })
-  );
+  ).finally(() => {
+    fs.rmSync(eventsFilePath);
+  });
 }
 
 detachedFlush()
