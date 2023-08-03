@@ -1,5 +1,5 @@
 import child_process from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -27,11 +27,7 @@ test("detached flush script should run without error", async ({ common }) => {
     );
   });
 
-  // if the script ran successfully, the temporary file should be deleted
-  if (existsSync(telemetryEventsFilePath)) {
-    rmSync(telemetryEventsFilePath);
-  }
-
+  expect(existsSync(telemetryEventsFilePath)).toBeFalsy();
   expect(stderr).toBe("");
   expect(error).toBe(null);
   expect(stdout).toContain(
