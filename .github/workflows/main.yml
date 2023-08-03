@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [16, 18]
+        node-version: [16, 18, 20]
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [16, 18]
+        node-version: [16, 18, 20]
         database: [postgres, sqlite]
     services:
       postgres:
@@ -74,7 +74,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [16, 18]
+        node-version: [16, 18, 20]
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
