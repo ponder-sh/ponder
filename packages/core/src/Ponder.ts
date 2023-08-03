@@ -1,4 +1,5 @@
 import path from "node:path";
+import process from "node:process";
 
 import { BuildService } from "@/build/service";
 import { CodegenService } from "@/codegen/service";
@@ -171,6 +172,10 @@ export class Ponder {
       )}`,
     });
 
+    this.common.telemetry.record({
+      event: "App Started",
+    });
+
     this.registerServiceDependencies();
 
     // If any of the provided networks do not have a valid RPC url,
@@ -274,6 +279,13 @@ export class Ponder {
 
   async kill() {
     this.eventAggregatorService.clearListeners();
+
+    this.common.telemetry.record({
+      event: "App Killed",
+      payload: {
+        processDuration: process.uptime(),
+      },
+    });
 
     await Promise.all(
       this.networkSyncServices.map(

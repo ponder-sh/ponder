@@ -15,17 +15,23 @@ async function detachedFlush() {
     `Sending ${events.length} telemetry events to ${telemetryUrl} from temporary file ${eventsFilePath}`
   );
 
-  await Promise.all(
-    events.map(async (event) => {
-      await fetch(telemetryUrl, {
-        method: "POST",
-        body: JSON.stringify(event.payload),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    })
-  );
+  try {
+    await Promise.all(
+      events.map(async (event) => {
+        await fetch(telemetryUrl, {
+          method: "POST",
+          body: JSON.stringify(event),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      })
+    );
+  } catch (e) {
+    console.error(e);
+  }
+
+  fs.rmSync(eventsFilePath);
 }
 
 detachedFlush()
