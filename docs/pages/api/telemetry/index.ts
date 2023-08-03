@@ -1,42 +1,32 @@
 import { Analytics } from "@segment/analytics-node";
-import { NextRequest, NextResponse } from "next/server";
+import { NextApiRequest, NextApiResponse } from "next";
 
-export const config = {
-  runtime: "edge",
-};
-
-export default async function forwardTelemetry(req: NextRequest) {
+export default async function forwardTelemetry(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   if (!process.env.SEGMENT_WRITE_KEY) {
     console.error('Missing required environment variable "SEGMENT_WRITE_KEY".');
-    return NextResponse.json(
-      {
-        error: `Server error`,
-      },
-      { status: 500 }
-    );
+    return res.status(500).json({
+      error: `Server error`,
+    });
   }
 
   if (req.method !== "POST") {
-    return NextResponse.json(
-      {
-        error: `Method ${req.method} Not Allowed`,
-      },
-      { status: 405 }
-    );
+    return res.status(405).json({
+      error: `Method ${req.method} Not Allowed`,
+    });
   }
 
   const analytics = new Analytics({
     writeKey: process.env.SEGMENT_WRITE_KEY,
   });
 
-  const data = await req.json();
+  const data = req.body;
 
-  NextResponse.json(
-    {
-      message: "Telemetry data processed successfully.",
-    },
-    { status: 200 }
-  );
+  res.status(200).json({
+    message: "Telemetry data processed successfully.",
+  });
 
   await analytics.track({
     ...data,
