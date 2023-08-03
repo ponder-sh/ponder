@@ -23,7 +23,5 @@ export default async function forwardTelemetry(
     message: "Telemetry data processed successfully.",
   });
 
-  await analytics.track({
-    ...req.body,
-  });
+  await analytics.track(req.body);
 }
