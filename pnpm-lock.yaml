@@ -215,7 +215,7 @@ importers:
   examples/with-docker:
     dependencies:
       '@ponder/core':
-        specifier: workspace:latest
+        specifier: latest
         version: link:../../packages/core
     devDependencies:
       abitype:
