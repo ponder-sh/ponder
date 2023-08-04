@@ -4,6 +4,11 @@ services:
   db:
     image: postgres:14.1-alpine
     restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -14,9 +19,9 @@ services:
       - db:/var/lib/postgresql/data
 
   app:
-    entrypoint: "./scripts/start.sh"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     container_name: ponder
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/ponder
