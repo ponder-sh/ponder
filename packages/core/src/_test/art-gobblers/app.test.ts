@@ -28,7 +28,7 @@ const setup = async ({ context }: { context: TestContext }) => {
   const testOptions = {
     ...options,
     uiEnabled: false,
-    logLevel: "trace",
+    logLevel: "info",
   } as const;
 
   const ponder = new Ponder({
