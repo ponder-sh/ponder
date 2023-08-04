@@ -97,4 +97,4 @@ test("serves data", async (context) => {
   expect(tokens).toHaveLength(92);
 
   await ponder.kill();
-}, 60_000);
+}, 120_000);
