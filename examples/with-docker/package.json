@@ -1,0 +1,18 @@
+{
+  "name": "ponder-examples-token-erc20-with-docker",
+  "private": true,
+  "scripts": {
+    "dev:up": "docker-compose -f local.yml --env-file .env.local up",
+    "dev:down": "docker-compose -f local.yml down",
+    "prod:up": "docker-compose -f production.yml --env-file .env.production up -d",
+    "prod:down": "docker-compose -f production.yml down --volumes"
+  },
+  "dependencies": {
+    "@ponder/core": "latest"
+  },
+  "devDependencies": {
+    "abitype": "^0.8.11",
+    "typescript": "^5.1.3",
+    "viem": "^1.2.6"
+  }
+}

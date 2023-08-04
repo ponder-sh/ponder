@@ -1,0 +1,30 @@
+version: "3.8"
+name: ponder-prod
+services:
+  db:
+    image: postgres:14.1-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ponder
+    ports:
+      - "5432:5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+
+  app:
+    entrypoint: "./scripts/start.sh"
+    depends_on:
+      - db
+    container_name: ponder
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ponder
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "42069:42069"
+volumes:
+  db:
+    driver: local

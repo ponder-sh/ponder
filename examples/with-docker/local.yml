@@ -1,0 +1,9 @@
+version: "3.8"
+name: ponder-local
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile-Local
+    ports:
+      - "42069:42069"
