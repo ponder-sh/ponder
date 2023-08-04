@@ -105,6 +105,8 @@ export class TelemetryService {
       return;
     }
 
+    console.log(pc.dim(`[telemetry] ${event.event}`));
+
     const context = await this.getContext();
     const serializedEvent = { ...event, ...context };
 
@@ -119,7 +121,7 @@ export class TelemetryService {
   async kill() {
     this.queue.pause();
     this.controller.abort();
-    // this.queue.onIdle();
+    await this.queue.onIdle();
     this.flushDetached();
   }
 
