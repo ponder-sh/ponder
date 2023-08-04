@@ -301,7 +301,7 @@ export class Ponder {
     this.eventHandlerService.kill();
     await this.serverService.kill();
     await this.userStore.teardown();
-    await this.common.telemetry.kill();
+    this.common.telemetry.kill();
 
     this.common.logger.debug({
       service: "app",
