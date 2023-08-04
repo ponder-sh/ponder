@@ -10,7 +10,7 @@ import { Tabs, Tab } from "nextra/components";
 Ponder's configuration file file contains smart contract addresses, paths to ABIs, RPC URLs, and database connection details.
 
 - `ponder.config.ts` must provide a **named export called `config`**, not a default export.
-- By default, `ponder {dev/start/codegen}` looks for `ponder.config.ts` in the current working directory, but you can specify a different path with the `--config-file` option to `ponder dev` or `ponder start`.
+- By default, `ponder {dev/start/codegen}` looks for `ponder.config.ts` in the current working directory, but you can specify a different path with the `--config-file` option.
 - The `config` variable exported by `ponder.config.ts` can be an object, a function, or a function returning a Promise (you can do async stuff to determine your config).
 
 ## Fields
@@ -50,7 +50,7 @@ Contracts are smart contracts deployed to a network. All contracts defined here 
 
 ### Filters
 
-Filters are custom event log filters. Ponder will fetch and handle event logs that match the `filter` field.
+Filters are custom event log filters that are more flexible than `contracts`. Ponder will fetch and handle event logs that match the `filter` field.
 | field | type | |
 | :------------- | :--------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **name** | `string` | A unique name for the custom filter. Must be unique across all contracts & filters. |
@@ -71,13 +71,13 @@ Filters are custom event log filters. Ponder will fetch and handle event logs th
 
 ### Database
 
-Ponder uses a SQL database to cache blockchain data and store entity data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder needs a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
+Ponder uses a SQL database to cache blockchain data and store entity data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder works best with a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
 
 See [Deploy to production](/guides/production) for more details.
 
 | field                |           type           |                                                                                                                |
 | :------------------- | :----------------------: | :------------------------------------------------------------------------------------------------------------- |
-| **kind**             | `"sqlite" \| "postgres"` | Database connector to be used.                                                                                 |
+| **kind**             | `"sqlite" \| "postgres"` | Database connector to use.                                                                                     |
 | **filename**         |  `string \| undefined`   | **Default: `.ponder/cache.db`**. Path to a SQLite database file. Only used if `kind: "sqlite"`.                |
 | **connectionString** |  `string \| undefined`   | **Default: `process.env.DATABASE_URL`**. Postgres database connection string. Only used if `kind: "postgres"`. |
 
@@ -116,6 +116,7 @@ export const config: Config = {
 
 ### Async function
 
+{/* prettier-ignore */}
 ```ts filename="ponder.config.ts"
 import type { Config } from "@ponder/core";
 
@@ -123,18 +124,16 @@ export const config: Config = async () => {
   const startBlock = await fetch("http://...");
 
   return {
-    networks: [
-      /* ... */
-    ],
+    networks: [ /* ... */ ],
     contracts: [
       {
         name: "ArtGobblers",
         network: "mainnet",
         abi: "./abis/ArtGobblers.json",
         address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
-        startBlock: startBlock,
-      },
-    ],
+        startBlock: startBlock
+      }
+    ]
   };
 };
 ```

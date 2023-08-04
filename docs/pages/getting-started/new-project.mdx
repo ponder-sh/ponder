@@ -2,15 +2,14 @@
 description: "A guide for creating a new Ponder project"
 ---
 
-import { Steps } from "nextra/components";
+import { Steps, Tabs, Tab } from "nextra/components";
 import { Callout } from "nextra-theme-docs";
-import { Tabs, Tab } from "nextra/components";
 
 # Quickstart
 
 <Steps>
 
-### Run the `create-ponder` CLI tool
+### Run the `create-ponder` CLI
 
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
@@ -31,12 +30,17 @@ npm create ponder@latest
 </Tab>
 </Tabs>
 
-You will be asked for a project name, and if you are using a [template](/api-reference/create-ponder#templates) (recommended). The tool will then create a project directory, install dependencies, and initialize a git repository.
+You will be asked for a project name, and if you are using a [template](/api-reference/create-ponder#templates) (recommended). Then, it will create a project directory, install dependencies, and initialize a git repository.
 
-<Callout>
-  If you're building a Ponder app for a contract that has already been deployed,
-  use the [Etherscan contract link
-  template](/api-reference/create-ponder#etherscan-contract-link).
+<Callout type="info">
+  If the contract you're indexing has already been deployed, use the [Etherscan
+  contract link template](/api-reference/create-ponder#etherscan-contract-link).
+</Callout>
+
+<Callout type="warning">
+  Ponder requires `node-gyp` to be installed globally. If you encounter an
+  installation error, try `pnpm install -g node-gyp` and then run
+  `create-ponder` again.
 </Callout>
 
 ### Start the development server
@@ -68,7 +72,7 @@ npm run dev
 
 Ponder fetches data using the standard Ethereum RPC API. To get started, you'll need an RPC URL from a provider like Alchemy or Infura.
 
-Open up `.env.local` and paste in RPC URLs for any networks that your project uses:
+Open `.env.local` and paste in RPC URLs for any networks that your project uses:
 
 {/* prettier-ignore */}
 ```js filename=".env.local"
@@ -88,9 +92,9 @@ type BlitmapToken @entity {
 
 See [Design your schema](/guides/design-your-schema) for a detailed guide on schema design.
 
-### Write event handlers
+### Write event handler functions
 
-Files in the `src/` directory contain event handlers. Event handlers are TypeScript functions that process a contract event. The purpose of event handler functions is to insert data into the entity store.
+Files in the `src/` directory contain **event handler functions**, which are simply TypeScript functions that process a contract event. The purpose of event handler functions is to insert data into the entity store.
 
 Here's a sample event handler for an ERC721 `Transfer` event.
 
