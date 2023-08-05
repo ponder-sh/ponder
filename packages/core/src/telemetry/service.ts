@@ -122,6 +122,7 @@ export class TelemetryService {
     this.queue.pause();
     this.controller.abort();
     await this.queue.onIdle();
+    console.log(pc.dim("[telemetry] queue flushed"));
     this.flushDetached();
   }
 
