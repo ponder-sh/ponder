@@ -24,11 +24,11 @@ type HistoricalSyncEvents = {
    */
   syncComplete: undefined;
   /**
-   * Emitted when the minimum cached timestamp among all registered log filters moves forward.
+   * Emitted when the minimum cached block number among all registered log filters moves forward.
    * This indicates to consumers that the connected event store now contains a complete history
-   * of events for all registered log filters between their start block and this timestamp (inclusive).
+   * of events for all registered log filters between their start block and this block (inclusive).
    */
-  historicalCheckpoint: { timestamp: number };
+  historicalCheckpoint: { blockNumber: number };
   /**
    * Emitted when a historical sync task fails.
    */
@@ -198,7 +198,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           service: "historical",
           msg: `Started sync with ${formatPercentage(
             cacheRate
-          )} cached (logFilter=${logFilter.name} network=${this.network.name})`,
+          )} cached (logFilter=${logFilter.name})`,
           network: this.network.name,
           logFilter: logFilter.name,
           totalBlockCount,
@@ -234,6 +234,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         }
       })
     );
+
+    // Edge case: If there are no tasks in the queue, this means the entire
+    // requested range was cached, so the sync is complete. However, we still
+    // need to emit the historicalCheckpoint event.
+    if (this.queue.size === 0) {
+      this.emit("historicalCheckpoint", { blockNumber: finalizedBlockNumber });
+      this.emit("syncComplete");
+      this.common.logger.info({
+        service: "historical",
+        msg: `Completed sync`,
+        network: this.network.name,
+      });
+    }
   }
 
   start() {
@@ -258,21 +271,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       clearInterval(updateLogInterval);
     });
 
-    // Edge case: If there are no tasks in the queue, this means the entire
-    // requested range was cached, so the sync is complete. However, we still
-    // need to emit the historicalCheckpoint event with some timestamp. It should
-    // be safe to use the current timestamp.
-    if (this.queue.size === 0) {
-      const now = Math.round(Date.now() / 1000);
-      this.emit("historicalCheckpoint", { timestamp: now });
-      this.emit("syncComplete");
-      this.common.logger.info({
-        service: "historical",
-        msg: `Completed sync (network=${this.network.name})`,
-        network: this.network.name,
-      });
-    }
-
     this.queue.start();
   }
 
@@ -287,7 +285,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // await this.onIdle();
     this.common.logger.debug({
       service: "historical",
-      msg: `Killed historical sync service (network=${this.network.name})`,
+      msg: `Killed historical sync service`,
     });
   };
 
@@ -350,7 +348,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           this.common.logger.trace({
             service: "historical",
-            msg: `Completed block sync task ${task.blockNumber}, cached from ${task.blockNumberToCacheFrom} (logFilter=${logFilter.name}, network=${this.network.name})`,
+            msg: `Completed block sync task ${task.blockNumber}, cached from ${task.blockNumberToCacheFrom} (logFilter=${logFilter.name})`,
             network: this.network.name,
             logFilter: logFilter.name,
             blockNumberToCacheFrom: task.blockNumberToCacheFrom,
@@ -378,7 +376,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           this.common.logger.trace({
             service: "historical",
-            msg: `Completed log sync task [${task.fromBlock}, ${task.toBlock}] (logFilter=${logFilter.name}, network=${this.network.name})`,
+            msg: `Completed log sync task [${task.fromBlock}, ${task.toBlock}] (logFilter=${logFilter.name})`,
             network: this.network.name,
             logFilter: logFilter.name,
             fromBlock: task.fromBlock,
@@ -489,7 +487,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         if (task.kind === "LOG_SYNC") {
           this.common.logger.error({
             service: "historical",
-            msg: `Log sync task failed (network=${this.network.name}, logFilter=${logFilter.name})`,
+            msg: `Log sync task failed (logFilter=${logFilter.name})`,
             error,
             network: this.network.name,
             logFilter: logFilter.name,
@@ -501,7 +499,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         if (task.kind === "BLOCK_SYNC") {
           this.common.logger.error({
             service: "historical",
-            msg: `Block sync task failed (network=${this.network.name}, logFilter=${logFilter.name})`,
+            msg: `Block sync task failed (logFilter=${logFilter.name})`,
             error,
             network: this.network.name,
             logFilter: logFilter.name,
@@ -650,7 +648,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }: {
     logFilter: LogFilter;
   }) => {
-    const { startingRangeEndTimestamp } =
+    const { startingRangeEndBlockNumber } =
       await this.eventStore.mergeLogFilterCachedRanges({
         logFilterKey: logFilter.filter.key,
         logFilterStartBlockNumber: logFilter.filter.startBlock,
@@ -658,7 +656,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     this.logFilterCheckpoints[logFilter.name] = Math.max(
       this.logFilterCheckpoints[logFilter.name],
-      startingRangeEndTimestamp
+      startingRangeEndBlockNumber
     );
 
     const historicalCheckpoint = Math.min(
@@ -667,7 +665,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     if (historicalCheckpoint > this.minimumLogFilterCheckpoint) {
       this.minimumLogFilterCheckpoint = historicalCheckpoint;
       this.emit("historicalCheckpoint", {
-        timestamp: this.minimumLogFilterCheckpoint,
+        blockNumber: this.minimumLogFilterCheckpoint,
       });
     }
   };

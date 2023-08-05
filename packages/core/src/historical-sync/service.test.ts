@@ -314,12 +314,12 @@ test("start() adds events to event store", async (context) => {
   await service.onIdle();
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    chainId: network.chainId,
+    fromBlockNumber: 0,
+    toBlockNumber: Number.MAX_SAFE_INTEGER,
     filters: [
       {
         name: "usdc",
-        chainId: network.chainId,
         address: usdcContractConfig.address,
       },
     ],
@@ -377,7 +377,6 @@ test("start() inserts cached ranges", async (context) => {
     filterKey: '1-"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"-null',
     startBlock: 16369950,
     endBlock: 16369955,
-    endBlockTimestamp: 1673275859,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 
@@ -565,7 +564,7 @@ test("start() emits checkpoit and sync completed event if 100% cached", async (c
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
-    timestamp: expect.any(Number),
+    blockNumber: blockNumbers.finalizedBlockNumber,
   });
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
   expect(emitSpy).toHaveBeenCalledTimes(2);
@@ -590,7 +589,7 @@ test("start() emits historicalCheckpoint event", async (context) => {
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
-    timestamp: 1673275859, // Block timestamp of block 16369955
+    blockNumber: 16369955,
   });
 
   await service.kill();
