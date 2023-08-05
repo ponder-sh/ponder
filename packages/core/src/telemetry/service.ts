@@ -121,7 +121,11 @@ export class TelemetryService {
   async kill() {
     this.queue.pause();
     this.controller.abort();
-    await this.queue.onIdle();
+    try {
+      await this.queue.onIdle();
+    } catch (e) {
+      console.error(e);
+    }
     console.log(pc.dim("[telemetry] queue flushed"));
     this.flushDetached();
   }
