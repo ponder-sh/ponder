@@ -122,6 +122,7 @@ export class TelemetryService {
     this.queue.pause();
     this.controller.abort();
     try {
+      console.log(`[telemetry] queue size:`, this.queue.size);
       await this.queue.onIdle();
     } catch (e) {
       console.error(e);
