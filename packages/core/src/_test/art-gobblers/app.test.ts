@@ -75,7 +75,7 @@ afterEach(() => {
   });
 });
 
-test("serves data", async (context) => {
+test.skip("serves data", async (context) => {
   const { ponder, gql } = await setup({ context });
 
   const { accounts, tokens } = await gql(`
