@@ -105,8 +105,6 @@ export class TelemetryService {
       return;
     }
 
-    console.log(pc.dim(`[telemetry] ${event.event}`));
-
     const context = await this.getContext();
     const serializedEvent = { ...event, ...context };
 
@@ -228,6 +226,7 @@ export class TelemetryService {
       });
     } catch (e) {
       const error = e as { name: string };
+      console.log(`[telemetry] ${event.event} failed: ${error.name}, ${error}`);
       if (error.name === "AbortError") {
         this.events.push(event);
       }
