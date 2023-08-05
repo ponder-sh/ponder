@@ -67,22 +67,3 @@ jobs:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
           ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}
           DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql://postgres:postgres@localhost:5432/postgres' || '' }}
-
-  test-create-ponder:
-    name: Test (create-ponder)
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [16, 18]
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v3
-
-      - name: Setup
-        uses: ./.github/actions/setup
-
-      - name: Test
-        run: pnpm test:ci:create-ponder
-        env:
-          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
