@@ -7,7 +7,7 @@ import { type ResolvedConfig } from "@/config/config";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
 import { type LogFilter, buildLogFilters } from "@/config/logFilters";
-import { type Network, buildNetwork } from "@/config/networks";
+import { type Network, buildNetwork } from "@/config/network";
 import { type Options } from "@/config/options";
 import { UserErrorService } from "@/errors/service";
 import { EventAggregatorService } from "@/event-aggregator/service";
@@ -36,18 +36,14 @@ export type Common = {
 
 export class Ponder {
   common: Common;
+  network: Network;
   logFilters: LogFilter[];
 
   eventStore: EventStore;
   userStore: UserStore;
 
-  // List of indexing-related services. One per configured network.
-  networkSyncServices: {
-    network: Network;
-    logFilters: LogFilter[];
-    historicalSyncService: HistoricalSyncService;
-    realtimeSyncService: RealtimeSyncService;
-  }[] = [];
+  historicalSyncService: HistoricalSyncService;
+  realtimeSyncService: RealtimeSyncService;
 
   eventAggregatorService: EventAggregatorService;
   eventHandlerService: EventHandlerService;
@@ -80,24 +76,9 @@ export class Ponder {
     const common = { options, logger, errors, metrics, telemetry };
     this.common = common;
 
-    const logFilters = buildLogFilters({ options, config });
-    this.logFilters = logFilters;
-    const contracts = buildContracts({ options, config });
-
-    const networks = config.networks
-      .map((network) => buildNetwork({ network }))
-      .filter((network) => {
-        const hasLogFilters = logFilters.some(
-          (logFilter) => logFilter.network === network.name
-        );
-        if (!hasLogFilters) {
-          this.common.logger.warn({
-            service: "app",
-            msg: `No log filters found (network=${network.name})`,
-          });
-        }
-        return hasLogFilters;
-      });
+    const network = buildNetwork({ network: config.network });
+    const logFilters = buildLogFilters({ options, config, network });
+    const contracts = buildContracts({ options, config, network });
 
     const database = buildDatabase({ options, config });
     this.eventStore =
@@ -112,32 +93,24 @@ export class Ponder {
         ? new SqliteUserStore({ db: database.db })
         : new PostgresUserStore({ pool: database.pool }));
 
-    networks.forEach((network) => {
-      const logFiltersForNetwork = logFilters.filter(
-        (logFilter) => logFilter.network === network.name
-      );
-      this.networkSyncServices.push({
-        network,
-        logFilters: logFiltersForNetwork,
-        historicalSyncService: new HistoricalSyncService({
-          common,
-          eventStore: this.eventStore,
-          network,
-          logFilters: logFiltersForNetwork,
-        }),
-        realtimeSyncService: new RealtimeSyncService({
-          common,
-          eventStore: this.eventStore,
-          network,
-          logFilters: logFiltersForNetwork,
-        }),
-      });
+    this.historicalSyncService = new HistoricalSyncService({
+      common,
+      eventStore: this.eventStore,
+      network,
+      logFilters,
+    });
+
+    this.realtimeSyncService = new RealtimeSyncService({
+      common,
+      eventStore: this.eventStore,
+      network,
+      logFilters,
     });
 
     this.eventAggregatorService = new EventAggregatorService({
       common,
       eventStore: this.eventStore,
-      networks,
+      network,
       logFilters,
     });
 
@@ -150,17 +123,20 @@ export class Ponder {
       logFilters,
     });
 
-    this.serverService = new ServerService({
-      common,
-      userStore: this.userStore,
-    });
     this.buildService = new BuildService({ common, logFilters });
     this.codegenService = new CodegenService({
       common,
       contracts,
       logFilters,
     });
+    this.serverService = new ServerService({
+      common,
+      userStore: this.userStore,
+    });
     this.uiService = new UiService({ common, logFilters });
+
+    this.logFilters = logFilters;
+    this.network = network;
   }
 
   async setup() {
@@ -174,21 +150,12 @@ export class Ponder {
 
     this.registerServiceDependencies();
 
-    // If any of the provided networks do not have a valid RPC url,
-    // kill the app here. This happens here rather than in the constructor because
-    // `ponder codegen` should still be able to if an RPC url is missing. In fact,
-    // that is part of the happy path for `create-ponder`.
-    const networksMissingRpcUrl: Network[] = [];
-    this.networkSyncServices.forEach(({ network }) => {
-      if (!network.rpcUrl) {
-        networksMissingRpcUrl.push(network);
-      }
-    });
-    if (networksMissingRpcUrl.length > 0) {
+    // If the user did not provide a valid RPC url, kill the app here.
+    // This happens here rather than in the constructor because `ponder codegen`
+    // should still be able to if an RPC url is missing.
+    if (!this.network.rpcUrl) {
       return new Error(
-        `missing RPC URL for networks (${networksMissingRpcUrl.map(
-          (n) => `"${n.name}"`
-        )}). Did you forget to add an RPC URL in .env.local?`
+        `missing RPC URL for network "${this.network.name}". Did you forget to include one in .env.local?`
       );
     }
 
@@ -232,17 +199,10 @@ export class Ponder {
       return await this.kill();
     }
 
-    await Promise.all(
-      this.networkSyncServices.map(
-        async ({ historicalSyncService, realtimeSyncService }) => {
-          const blockNumbers = await realtimeSyncService.setup();
-          await historicalSyncService.setup(blockNumbers);
-
-          historicalSyncService.start();
-          realtimeSyncService.start();
-        }
-      )
-    );
+    const blockNumbers = await this.realtimeSyncService.setup();
+    await this.historicalSyncService.setup(blockNumbers);
+    this.historicalSyncService.start();
+    this.realtimeSyncService.start();
 
     this.buildService.watch();
   }
@@ -269,17 +229,10 @@ export class Ponder {
       return await this.kill();
     }
 
-    await Promise.all(
-      this.networkSyncServices.map(
-        async ({ historicalSyncService, realtimeSyncService }) => {
-          const blockNumbers = await realtimeSyncService.setup();
-          await historicalSyncService.setup(blockNumbers);
-
-          historicalSyncService.start();
-          realtimeSyncService.start();
-        }
-      )
-    );
+    const blockNumbers = await this.realtimeSyncService.setup();
+    await this.historicalSyncService.setup(blockNumbers);
+    this.historicalSyncService.start();
+    this.realtimeSyncService.start();
   }
 
   async codegen() {
@@ -305,14 +258,8 @@ export class Ponder {
       },
     });
 
-    await Promise.all(
-      this.networkSyncServices.map(
-        async ({ realtimeSyncService, historicalSyncService }) => {
-          await realtimeSyncService.kill();
-          await historicalSyncService.kill();
-        }
-      )
-    );
+    await this.realtimeSyncService.kill();
+    await this.historicalSyncService.kill();
 
     await this.buildService.kill?.();
     this.uiService.kill();
@@ -351,41 +298,34 @@ export class Ponder {
       await this.eventHandlerService.processEvents();
     });
 
-    this.networkSyncServices.forEach((networkSyncService) => {
-      const { chainId } = networkSyncService.network;
-      const { historicalSyncService, realtimeSyncService } = networkSyncService;
-
-      historicalSyncService.on("historicalCheckpoint", ({ timestamp }) => {
-        this.eventAggregatorService.handleNewHistoricalCheckpoint({
-          chainId,
-          timestamp,
-        });
-      });
-
-      historicalSyncService.on("syncComplete", () => {
-        this.eventAggregatorService.handleHistoricalSyncComplete({
-          chainId,
-        });
-      });
-
-      realtimeSyncService.on("realtimeCheckpoint", ({ timestamp }) => {
-        this.eventAggregatorService.handleNewRealtimeCheckpoint({
-          chainId,
-          timestamp,
-        });
-      });
-
-      realtimeSyncService.on("finalityCheckpoint", ({ timestamp }) => {
-        this.eventAggregatorService.handleNewFinalityCheckpoint({
-          chainId,
-          timestamp,
-        });
-      });
-
-      realtimeSyncService.on("shallowReorg", ({ commonAncestorTimestamp }) => {
-        this.eventAggregatorService.handleReorg({ commonAncestorTimestamp });
+    this.historicalSyncService.on("historicalCheckpoint", ({ blockNumber }) => {
+      this.eventAggregatorService.handleNewHistoricalCheckpoint({
+        blockNumber,
       });
     });
+
+    this.historicalSyncService.on("syncComplete", () => {
+      this.eventAggregatorService.handleHistoricalSyncComplete();
+    });
+
+    this.realtimeSyncService.on("realtimeCheckpoint", ({ blockNumber }) => {
+      this.eventAggregatorService.handleNewRealtimeCheckpoint({
+        blockNumber,
+      });
+    });
+
+    this.realtimeSyncService.on("finalityCheckpoint", ({ blockNumber }) => {
+      this.eventAggregatorService.handleNewFinalityCheckpoint({
+        blockNumber,
+      });
+    });
+
+    this.realtimeSyncService.on(
+      "shallowReorg",
+      ({ commonAncestorBlockNumber }) => {
+        this.eventAggregatorService.handleReorg({ commonAncestorBlockNumber });
+      }
+    );
 
     this.eventAggregatorService.on("newCheckpoint", async () => {
       await this.eventHandlerService.processEvents();

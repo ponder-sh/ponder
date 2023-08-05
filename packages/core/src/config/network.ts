@@ -19,7 +19,7 @@ const clients: Record<number, PublicClient | undefined> = {};
 export function buildNetwork({
   network,
 }: {
-  network: ResolvedConfig["networks"][0];
+  network: ResolvedConfig["network"];
 }) {
   let client = clients[network.chainId];
 

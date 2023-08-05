@@ -8,7 +8,7 @@ import {
 } from "viem";
 
 import type { LogFilter } from "@/config/logFilters";
-import type { Network } from "@/config/networks";
+import type { Network } from "@/config/network";
 import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";

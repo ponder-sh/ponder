@@ -5,7 +5,7 @@ import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import type { Contract } from "@/config/contracts";
-import type { Network } from "@/config/networks";
+import type { Network } from "@/config/network";
 
 import { buildReadOnlyContracts } from "./contract";
 

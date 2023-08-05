@@ -3,7 +3,7 @@ import { type Hex, decodeEventLog } from "viem";
 
 import type { LogFilterName } from "@/build/handlers";
 import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
-import type { Network } from "@/config/networks";
+import type { Network } from "@/config/network";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import type { Block } from "@/types/block";

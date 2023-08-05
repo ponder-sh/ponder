@@ -19,8 +19,8 @@ export type ResolvedConfig = {
         connectionString?: string;
       };
   /** List of blockchain networks. */
-  networks: {
-    /** Network name. Must be unique across all networks. */
+  network: {
+    /** Network name. */
     name: string;
     /** Chain ID of the network. */
     chainId: number;
@@ -30,7 +30,7 @@ export type ResolvedConfig = {
     pollingInterval?: number;
     /** Maximum concurrency of RPC requests during the historical sync. Default: `10`. */
     maxRpcRequestConcurrency?: number;
-  }[];
+  };
   /** List of contracts to fetch & handle events from. Contracts defined here will be present in `context.contracts`. */
   contracts?: {
     /** Contract name. Must be unique across `contracts` and `filters`. */

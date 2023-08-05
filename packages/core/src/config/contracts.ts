@@ -4,7 +4,7 @@ import type { ResolvedConfig } from "@/config/config";
 import type { Options } from "@/config/options";
 
 import { buildAbi } from "./abi";
-import { type Network, buildNetwork } from "./networks";
+import type { Network } from "./network";
 
 export type Contract = {
   name: string;
@@ -16,9 +16,11 @@ export type Contract = {
 export function buildContracts({
   config,
   options,
+  network,
 }: {
   config: ResolvedConfig;
   options: Options;
+  network: Network;
 }): Contract[] {
   return (config.contracts ?? []).map((contract) => {
     const address = contract.address.toLowerCase() as Address;
@@ -27,16 +29,6 @@ export function buildContracts({
       abiConfig: contract.abi,
       configFilePath: options.configFile,
     });
-
-    // Get the contract network/provider.
-    const rawNetwork = config.networks.find((n) => n.name === contract.network);
-    if (!rawNetwork) {
-      throw new Error(
-        `Network [${contract.network}] not found for contract: ${contract.name}`
-      );
-    }
-
-    const network = buildNetwork({ network: rawNetwork });
 
     return {
       name: contract.name,

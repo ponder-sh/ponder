@@ -10,7 +10,7 @@ import { setupEventStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import type { LogFilter } from "@/config/logFilters";
-import type { Network } from "@/config/networks";
+import type { Network } from "@/config/network";
 
 import { HistoricalSyncService } from "./service";
 

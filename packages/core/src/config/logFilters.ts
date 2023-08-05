@@ -6,6 +6,7 @@ import type { Options } from "@/config/options";
 
 import { buildAbi, getEvents } from "./abi";
 import { encodeLogFilterKey } from "./logFilterKey";
+import { Network } from "./network";
 
 type SafeEventName = string;
 
@@ -46,9 +47,11 @@ export type LogFilter = {
 export function buildLogFilters({
   config,
   options,
+  network,
 }: {
   config: ResolvedConfig;
   options: Options;
+  network: Network;
 }) {
   const contractLogFilters = (config.contracts ?? [])
     .filter((contract) => contract.isLogEventSource ?? true)
@@ -59,14 +62,6 @@ export function buildLogFilters({
       });
 
       const events = getEvents({ abi });
-
-      // Get the contract network/provider.
-      const network = config.networks.find((n) => n.name === contract.network);
-      if (!network) {
-        throw new Error(
-          `Network [${contract.network}] not found for contract: ${contract.name}`
-        );
-      }
 
       const address = contract.address.toLowerCase() as Address;
       const topics = undefined;
@@ -102,14 +97,6 @@ export function buildLogFilters({
     });
 
     const events = getEvents({ abi });
-
-    // Get the contract network/provider.
-    const network = config.networks.find((n) => n.name === filter.network);
-    if (!network) {
-      throw new Error(
-        `Network [${filter.network}] not found for filter: ${filter.name}`
-      );
-    }
 
     const address = Array.isArray(filter.filter.address)
       ? filter.filter.address.map((a) => a.toLowerCase() as Address)

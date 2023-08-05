@@ -6,7 +6,7 @@ import { resetTestClient, setupEventStore } from "@/_test/setup";
 import { publicClient, testClient, walletClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import type { LogFilter } from "@/config/logFilters";
-import type { Network } from "@/config/networks";
+import type { Network } from "@/config/network";
 import { blobToBigInt } from "@/utils/decode";
 import { range } from "@/utils/range";
 
