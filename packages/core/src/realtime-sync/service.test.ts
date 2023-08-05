@@ -223,13 +223,13 @@ test("emits realtimeCheckpoint events", async (context) => {
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    timestamp: 1673397023, // Timestamp of 16379995
+    blockNumber: 16379996, // 16379995 is the finalized block, this is the next block.
   });
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    timestamp: 1673397071, // Timestamp of 16380000
+    blockNumber: 16380000,
   });
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    timestamp: 1673397078, // Timestamp of 16380008 (1s block time via Anvil)
+    blockNumber: 16380008,
   });
 
   await service.kill();
@@ -273,7 +273,7 @@ test("inserts cached range records for finalized blocks", async (context) => {
   ]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    timestamp: 1673397071, // Timestamp of 16380000
+    blockNumber: 16380000,
   });
 
   await service.kill();
@@ -385,7 +385,7 @@ test("emits shallowReorg event after 3 block shallow reorg", async (context) => 
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
-    commonAncestorTimestamp: 1673397071, // Timestamp of 16380000
+    commonAncestorBlockNumber: 16380000,
   });
 
   await service.kill();
@@ -421,7 +421,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
     // Note that the precise number can change depending on how long it takes to
     // mine each block above.
-    timestamp: expect.any(Number),
+    blockNumber: 16380005,
   });
 
   // Now, revert to the original snapshot and mine 13 blocks, each containing 2 transactions.

@@ -21,9 +21,9 @@ import {
 } from "./format";
 
 type RealtimeSyncEvents = {
-  realtimeCheckpoint: { timestamp: number };
-  finalityCheckpoint: { timestamp: number };
-  shallowReorg: { commonAncestorTimestamp: number };
+  realtimeCheckpoint: { blockNumber: number };
+  finalityCheckpoint: { blockNumber: number };
+  shallowReorg: { commonAncestorBlockNumber: number };
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
   error: { error: Error };
 };
@@ -326,7 +326,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       }
 
       this.emit("realtimeCheckpoint", {
-        timestamp: hexToNumber(newBlockWithTransactions.timestamp),
+        blockNumber: hexToNumber(newBlockWithTransactions.number),
       });
 
       // Add this block the local chain.
@@ -368,7 +368,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.finalizedBlockNumber = newFinalizedBlock.number;
 
         this.emit("finalityCheckpoint", {
-          timestamp: newFinalizedBlock.timestamp,
+          blockNumber: newFinalizedBlock.number,
         });
 
         this.common.logger.debug({
@@ -493,7 +493,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // start fetching any newer blocks on the canonical chain.
         await this.addNewLatestBlock();
         this.emit("shallowReorg", {
-          commonAncestorTimestamp: commonAncestorBlock.timestamp,
+          commonAncestorBlockNumber: commonAncestorBlock.number,
         });
 
         this.common.logger.info({
