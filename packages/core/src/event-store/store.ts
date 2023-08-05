@@ -92,11 +92,11 @@ export interface EventStore {
   }): Promise<ContractReadResult | null>;
 
   getLogEvents(arg: {
-    fromTimestamp: number;
-    toTimestamp: number;
+    chainId: number;
+    fromBlockNumber: number;
+    toBlockNumber: number;
     filters?: {
       name: string;
-      chainId: number;
       address?: Address | Address[];
       topics?: (Hex | Hex[] | null)[];
       fromBlock?: number;
@@ -104,6 +104,10 @@ export interface EventStore {
       includeEventSelectors?: Hex[];
     }[];
     pageSize?: number;
+    cursor?: {
+      blockNumber: number;
+      logIndex: number;
+    };
   }): AsyncGenerator<{
     events: {
       logFilterName: string;
@@ -111,13 +115,16 @@ export interface EventStore {
       block: Block;
       transaction: Transaction;
     }[];
-    metadata: {
-      pageEndsAtTimestamp: number;
-      counts: {
-        logFilterName: string;
-        selector: Hex;
-        count: number;
-      }[];
-    };
+    counts: {
+      logFilterName: string;
+      selector: Hex;
+      count: number;
+    }[];
+    cursor:
+      | {
+          blockNumber: number;
+          logIndex: number;
+        }
+      | undefined;
   }>;
 }

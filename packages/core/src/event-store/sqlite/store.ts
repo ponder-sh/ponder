@@ -371,16 +371,18 @@ export class SqliteEventStore implements EventStore {
   };
 
   async *getLogEvents({
-    fromTimestamp,
-    toTimestamp,
+    chainId,
+    fromBlockNumber,
+    toBlockNumber,
     filters = [],
     pageSize = 10_000,
+    cursor = undefined,
   }: {
-    fromTimestamp: number;
-    toTimestamp: number;
-    filters?: {
+    chainId: number;
+    fromBlockNumber: number;
+    toBlockNumber: number;
+    filters: {
       name: string;
-      chainId: number;
       address?: Address | Address[];
       topics?: (Hex | Hex[] | null)[];
       fromBlock?: number;
@@ -388,6 +390,12 @@ export class SqliteEventStore implements EventStore {
       includeEventSelectors?: Hex[];
     }[];
     pageSize: number;
+    cursor:
+      | {
+          blockNumber: number;
+          logIndex: number;
+        }
+      | undefined;
   }) {
     const baseQuery = this.db
       .with(
@@ -407,7 +415,7 @@ export class SqliteEventStore implements EventStore {
         "logs.address as log_address",
         "logs.blockHash as log_blockHash",
         "logs.blockNumber as log_blockNumber",
-        "logs.chainId as log_chainId",
+        // "logs.chainId as log_chainId",
         "logs.data as log_data",
         "logs.id as log_id",
         "logs.logIndex as log_logIndex",
@@ -459,12 +467,8 @@ export class SqliteEventStore implements EventStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
-      .where("blocks.timestamp", ">=", intToBlob(fromTimestamp))
-      .where("blocks.timestamp", "<=", intToBlob(toTimestamp))
-      .orderBy("blocks.timestamp", "asc")
-      .orderBy("logs.chainId", "asc")
-      .orderBy("blocks.number", "asc")
-      .orderBy("logs.logIndex", "asc");
+      .where("blocks.number", ">=", intToBlob(fromBlockNumber))
+      .where("blocks.number", "<=", intToBlob(toBlockNumber));
 
     const buildFilterAndCmprs = (
       where: ExpressionBuilder<any, any>,
@@ -475,11 +479,7 @@ export class SqliteEventStore implements EventStore {
 
       cmprs.push(cmpr("logFilter_name", "=", filter.name));
       cmprs.push(
-        cmpr(
-          "logs.chainId",
-          "=",
-          sql`cast (${sql.val(filter.chainId)} as integer)`
-        )
+        cmpr("logs.chainId", "=", sql`cast (${sql.val(chainId)} as integer)`)
       );
 
       if (filter.address) {
@@ -551,8 +551,6 @@ export class SqliteEventStore implements EventStore {
         });
         return or(cmprsForAllFilters);
       })
-      .orderBy("blocks.timestamp", "asc")
-      .orderBy("logs.chainId", "asc")
       .orderBy("blocks.number", "asc")
       .orderBy("logs.logIndex", "asc");
 
@@ -583,15 +581,6 @@ export class SqliteEventStore implements EventStore {
       count: Number(c.count),
     }));
 
-    let cursor:
-      | {
-          timestamp: Buffer;
-          chainId: number;
-          blockNumber: Buffer;
-          logIndex: number;
-        }
-      | undefined = undefined;
-
     while (true) {
       let query = includedLogsBaseQuery.limit(pageSize);
       if (cursor) {
@@ -599,24 +588,12 @@ export class SqliteEventStore implements EventStore {
         // https://stackoverflow.com/a/38017813
         // This is required to avoid skipping logs that have the same timestamp.
         query = query.where(({ and, or, cmpr }) => {
-          const { timestamp, chainId, blockNumber, logIndex } = cursor!;
+          const { blockNumber, logIndex } = cursor!;
           return and([
-            cmpr("blocks.timestamp", ">=", timestamp),
+            cmpr("blocks.number", ">=", intToBlob(blockNumber)),
             or([
-              cmpr("blocks.timestamp", ">", timestamp),
-              and([
-                cmpr("logs.chainId", ">=", chainId),
-                or([
-                  cmpr("logs.chainId", ">", chainId),
-                  and([
-                    cmpr("blocks.number", ">=", blockNumber),
-                    or([
-                      cmpr("blocks.number", ">", blockNumber),
-                      cmpr("logs.logIndex", ">", logIndex),
-                    ]),
-                  ]),
-                ]),
-              ]),
+              cmpr("blocks.number", ">", intToBlob(blockNumber)),
+              cmpr("logs.logIndex", ">", logIndex),
             ]),
           ]);
         });
@@ -725,26 +702,17 @@ export class SqliteEventStore implements EventStore {
       });
 
       const lastRow = requestedLogs[requestedLogs.length - 1];
-      if (lastRow) {
-        cursor = {
-          timestamp: lastRow.block_timestamp!,
-          chainId: lastRow.log_chainId,
-          blockNumber: lastRow.block_number!,
-          logIndex: lastRow.log_logIndex,
-        };
-      }
-
-      const lastEventBlockTimestamp = lastRow?.block_timestamp;
-      const pageEndsAtTimestamp = lastEventBlockTimestamp
-        ? Number(blobToBigInt(lastEventBlockTimestamp))
-        : toTimestamp;
+      cursor = lastRow
+        ? {
+            blockNumber: Number(blobToBigInt(lastRow.block_number!)),
+            logIndex: lastRow.log_logIndex,
+          }
+        : undefined;
 
       yield {
         events,
-        metadata: {
-          pageEndsAtTimestamp,
-          counts: eventCounts,
-        },
+        counts: eventCounts,
+        cursor,
       };
 
       if (events.length < pageSize) break;

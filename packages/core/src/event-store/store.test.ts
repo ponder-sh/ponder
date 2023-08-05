@@ -350,9 +350,10 @@ test("getLogEvents returns log events", async (context) => {
   });
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [{ name: "noFilter", chainId: 1 }],
+    chainId: 1,
+    fromBlockNumber: 0,
+    toBlockNumber: Number.MAX_SAFE_INTEGER,
+    filters: [{ name: "noFilter" }],
   });
   const events = [];
   for await (const page of iterator) events.push(...page.events);
@@ -501,11 +502,10 @@ test("getLogEvents filters on log address", async (context) => {
   });
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [
-      { name: "singleAddress", chainId: 1, address: blockOneLogs[0].address },
-    ],
+    chainId: 1,
+    fromBlockNumber: 0,
+    toBlockNumber: Number.MAX_SAFE_INTEGER,
+    filters: [{ name: "singleAddress", address: blockOneLogs[0].address }],
   });
   const events = [];
   for await (const page of iterator) events.push(...page.events);
@@ -532,12 +532,12 @@ test("getLogEvents filters on multiple addresses", async (context) => {
   });
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    chainId: 1,
+    fromBlockNumber: 0,
+    toBlockNumber: Number.MAX_SAFE_INTEGER,
     filters: [
       {
         name: "multipleAddress",
-        chainId: 1,
         address: [blockOneLogs[0].address, blockOneLogs[1].address],
       },
     ],
@@ -578,12 +578,12 @@ test("getLogEvents filters on single topic", async (context) => {
   });
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    chainId: 1,
+    fromBlockNumber: 0,
+    toBlockNumber: Number.MAX_SAFE_INTEGER,
     filters: [
       {
         name: "singleTopic",
-        chainId: 1,
         topics: [blockOneLogs[0].topics[0] as `0x${string}`],
       },
     ],
@@ -624,12 +624,12 @@ test("getLogEvents filters on multiple topics", async (context) => {
   });
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    chainId: 1,
+    fromBlockNumber: 0,
+    toBlockNumber: Number.MAX_SAFE_INTEGER,
     filters: [
       {
         name: "multipleTopics",
-        chainId: 1,
         topics: [
           blockOneLogs[0].topics[0] as `0x${string}`,
           blockOneLogs[0].topics[1] as `0x${string}`,
@@ -667,12 +667,12 @@ test("getLogEvents filters on fromBlock", async (context) => {
   });
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    chainId: 1,
+    fromBlockNumber: 0,
+    toBlockNumber: Number.MAX_SAFE_INTEGER,
     filters: [
       {
         name: "fromBlock",
-        chainId: 1,
         fromBlock: 15495111,
       },
     ],
@@ -707,17 +707,16 @@ test("getLogEvents filters on multiple filters", async (context) => {
   });
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    chainId: 1,
+    fromBlockNumber: 0,
+    toBlockNumber: Number.MAX_SAFE_INTEGER,
     filters: [
       {
         name: "singleAddress", // This should match blockOneLogs[0]
-        chainId: 1,
         address: blockOneLogs[0].address,
       },
       {
         name: "singleTopic", // This should match blockOneLogs[0] AND blockTwoLogs[0]
-        chainId: 1,
         topics: [blockOneLogs[0].topics[0] as `0x${string}`],
       },
     ],
@@ -763,9 +762,10 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
   });
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: hexToNumber(blockTwo.timestamp!),
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [{ name: "noFilter", chainId: 1 }],
+    chainId: 1,
+    fromBlockNumber: hexToNumber(blockTwo.number!),
+    toBlockNumber: Number.MAX_SAFE_INTEGER,
+    filters: [{ name: "noFilter" }],
   });
   const events = [];
   for await (const page of iterator) events.push(...page.events);
@@ -792,9 +792,10 @@ test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
   });
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: hexToNumber(blockOne.timestamp!),
-    filters: [{ name: "noFilter", chainId: 1 }],
+    chainId: 1,
+    fromBlockNumber: 0,
+    toBlockNumber: hexToNumber(blockOne.number!),
+    filters: [{ name: "noFilter" }],
   });
   const events = [];
   for await (const page of iterator) events.push(...page.events);
@@ -824,9 +825,10 @@ test("getLogEvents returns no events if includeEventSelectors is an empty array"
   });
 
   const iterator = eventStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
-    filters: [{ name: "noFilter", chainId: 1, includeEventSelectors: [] }],
+    chainId: 1,
+    fromBlockNumber: 0,
+    toBlockNumber: Number.MAX_SAFE_INTEGER,
+    filters: [{ name: "noFilter", includeEventSelectors: [] }],
   });
   const events = [];
   for await (const page of iterator) events.push(...page.events);
