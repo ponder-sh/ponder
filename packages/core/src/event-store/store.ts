@@ -13,7 +13,6 @@ export type LogFilterCachedRange = {
   filterKey: string;
   startBlock: number;
   endBlock: number;
-  endBlockTimestamp: number;
 };
 
 /**
@@ -66,13 +65,12 @@ export interface EventStore {
     logFilterKeys: string[];
     startBlock: number;
     endBlock: number;
-    endBlockTimestamp: number;
   }): Promise<void>;
 
   mergeLogFilterCachedRanges(options: {
     logFilterKey: string;
     logFilterStartBlockNumber: number;
-  }): Promise<{ startingRangeEndTimestamp: number }>;
+  }): Promise<{ startingRangeEndBlockNumber: number }>;
 
   getLogFilterCachedRanges(options: {
     logFilterKey: string;

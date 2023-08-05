@@ -90,7 +90,6 @@ test("insertHistoricalBlock inserts a log filter cached interval", async (contex
 
   expect(logFilterCachedRanges[0]).toMatchObject({
     endBlock: 15495110,
-    endBlockTimestamp: 1662619503,
     filterKey: "test-filter-key",
     startBlock: 15131900,
   });
@@ -104,7 +103,6 @@ test("insertLogFilterCachedRanges inserts many cached intervals", async (context
     logFilterKeys: ["test-filter-key-1", "test-filter-key-2"],
     startBlock: 15131900,
     endBlock: 15495111,
-    endBlockTimestamp: 1662619504,
   });
 
   const logFilterCachedRanges1 = await eventStore.getLogFilterCachedRanges({
@@ -114,7 +112,6 @@ test("insertLogFilterCachedRanges inserts many cached intervals", async (context
   expect(logFilterCachedRanges1).toHaveLength(1);
   expect(logFilterCachedRanges1[0]).toMatchObject({
     endBlock: 15495111,
-    endBlockTimestamp: 1662619504,
     filterKey: "test-filter-key-1",
     startBlock: 15131900,
   });
@@ -126,7 +123,6 @@ test("insertLogFilterCachedRanges inserts many cached intervals", async (context
   expect(logFilterCachedRanges2).toHaveLength(1);
   expect(logFilterCachedRanges2[0]).toMatchObject({
     endBlock: 15495111,
-    endBlockTimestamp: 1662619504,
     filterKey: "test-filter-key-2",
     startBlock: 15131900,
   });
@@ -139,7 +135,6 @@ test("insertLogFilterCachedRanges inserts zero cached intervals without error", 
     logFilterKeys: [],
     startBlock: 15131900,
     endBlock: 15495111,
-    endBlockTimestamp: 1662619504,
   });
 
   const logFilterCachedRanges = await eventStore.getLogFilterCachedRanges({
@@ -183,14 +178,13 @@ test("mergeLogFilterCachedRanges merges cached intervals", async (context) => {
 
   expect(logFilterCachedRanges[0]).toMatchObject({
     endBlock: 15495111,
-    endBlockTimestamp: 1662619504,
     filterKey: "test-filter-key",
     startBlock: 15131900,
   });
   expect(logFilterCachedRanges).toHaveLength(1);
 });
 
-test("mergeLogFilterCachedRanges returns the startingRangeEndTimestamp", async (context) => {
+test("mergeLogFilterCachedRanges returns the startingRangeEndBlockNumber", async (context) => {
   const { eventStore } = context;
 
   await eventStore.insertHistoricalBlock({
@@ -203,13 +197,13 @@ test("mergeLogFilterCachedRanges returns the startingRangeEndTimestamp", async (
     },
   });
 
-  const { startingRangeEndTimestamp } =
+  const { startingRangeEndBlockNumber } =
     await eventStore.mergeLogFilterCachedRanges({
       logFilterKey: "test-filter-key",
       logFilterStartBlockNumber: 15131900,
     });
 
-  expect(startingRangeEndTimestamp).toBe(hexToNumber(blockOne.timestamp));
+  expect(startingRangeEndBlockNumber).toBe(hexToNumber(blockOne.number!));
 
   await eventStore.insertHistoricalBlock({
     chainId: 1,
@@ -221,13 +215,13 @@ test("mergeLogFilterCachedRanges returns the startingRangeEndTimestamp", async (
     },
   });
 
-  const { startingRangeEndTimestamp: startingRangeEndTimestamp2 } =
+  const { startingRangeEndBlockNumber: startingRangeEndBlockNumber2 } =
     await eventStore.mergeLogFilterCachedRanges({
       logFilterKey: "test-filter-key",
       logFilterStartBlockNumber: 15131900,
     });
 
-  expect(startingRangeEndTimestamp2).toBe(hexToNumber(blockTwo.timestamp));
+  expect(startingRangeEndBlockNumber2).toBe(hexToNumber(blockTwo.number!));
 });
 
 test("insertContractReadResult inserts a contract call", async (context) => {

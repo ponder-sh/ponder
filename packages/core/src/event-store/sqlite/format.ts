@@ -168,7 +168,6 @@ type LogFilterCachedRangesTable = {
   filterKey: string;
   startBlock: Buffer; // BigInt
   endBlock: Buffer; // BigInt
-  endBlockTimestamp: Buffer; // BigInt
 };
 
 export type EventStoreTables = {

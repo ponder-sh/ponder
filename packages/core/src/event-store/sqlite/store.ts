@@ -106,7 +106,6 @@ export class SqliteEventStore implements EventStore {
       filterKey: logFilterKey,
       startBlock: intToBlob(blockNumberToCacheFrom),
       endBlock: block.number,
-      endBlockTimestamp: block.timestamp,
     };
 
     await this.db.transaction().execute(async (tx) => {
@@ -219,12 +218,10 @@ export class SqliteEventStore implements EventStore {
     logFilterKeys,
     startBlock,
     endBlock,
-    endBlockTimestamp,
   }: {
     logFilterKeys: string[];
     startBlock: number;
     endBlock: number;
-    endBlockTimestamp: number;
   }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
@@ -235,7 +232,6 @@ export class SqliteEventStore implements EventStore {
               filterKey: logFilterKey,
               startBlock: intToBlob(startBlock),
               endBlock: intToBlob(endBlock),
-              endBlockTimestamp: intToBlob(endBlockTimestamp),
             })
             .execute()
         )
@@ -250,7 +246,7 @@ export class SqliteEventStore implements EventStore {
     logFilterKey: string;
     logFilterStartBlockNumber: number;
   }) => {
-    const startingRangeEndTimestamp = await this.db
+    const startingRangeEndBlockNumber = await this.db
       .transaction()
       .execute(async (tx) => {
         const existingRanges = await tx
@@ -268,18 +264,10 @@ export class SqliteEventStore implements EventStore {
 
         const mergedRanges = mergedIntervals.map((interval) => {
           const [startBlock, endBlock] = interval;
-          // For each new merged range, its endBlock will be found EITHER in the newly
-          // added range OR among the endBlocks of the removed ranges.
-          // Find it so we can propogate the endBlockTimestamp correctly.
-          const endBlockTimestamp = existingRanges.find(
-            (r) => Number(blobToBigInt(r.endBlock)) === endBlock
-          )!.endBlockTimestamp;
-
           return {
             filterKey: logFilterKey,
             startBlock: intToBlob(startBlock),
             endBlock: intToBlob(endBlock),
-            endBlockTimestamp: endBlockTimestamp,
           };
         });
 
@@ -303,11 +291,11 @@ export class SqliteEventStore implements EventStore {
           // many block tasks run concurrently and the one containing the log filter start block number is late.
           return 0;
         } else {
-          return Number(blobToBigInt(startingRange.endBlockTimestamp));
+          return Number(blobToBigInt(startingRange.endBlock));
         }
       });
 
-    return { startingRangeEndTimestamp };
+    return { startingRangeEndBlockNumber };
   };
 
   getLogFilterCachedRanges = async ({
@@ -325,7 +313,6 @@ export class SqliteEventStore implements EventStore {
       filterKey: range.filterKey,
       startBlock: Number(blobToBigInt(range.startBlock)),
       endBlock: Number(blobToBigInt(range.endBlock)),
-      endBlockTimestamp: Number(blobToBigInt(range.endBlockTimestamp)),
     }));
   };
 
