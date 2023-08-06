@@ -84,14 +84,14 @@ export class UiService {
       const processedEvents = (
         await this.common.metrics.ponder_handlers_processed_events.get()
       ).values.reduce((a, v) => a + v.value, 0);
-      const latestProcessedTimestamp =
+      const latestProcessedBlockNumber =
         (
-          await this.common.metrics.ponder_handlers_latest_processed_timestamp.get()
+          await this.common.metrics.ponder_handlers_latest_processed_block_number.get()
         ).values[0].value ?? 0;
       this.ui.handlersTotal = matchedEvents;
       this.ui.handlersHandledTotal = handledEvents;
       this.ui.handlersCurrent = processedEvents;
-      this.ui.handlersToTimestamp = latestProcessedTimestamp;
+      this.ui.handlersToBlockNumber = latestProcessedBlockNumber;
 
       // Errors
       this.ui.handlerError = this.common.errors.hasUserError;

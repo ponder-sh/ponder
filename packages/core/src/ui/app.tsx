@@ -23,7 +23,7 @@ export type UiState = {
   handlersCurrent: number;
   handlersTotal: number;
   handlersHandledTotal: number;
-  handlersToTimestamp: number;
+  handlersToBlockNumber: number;
 
   networks: string[];
 };
@@ -40,7 +40,7 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
     handlersCurrent: 0,
     handlersTotal: 0,
     handlersHandledTotal: 0,
-    handlersToTimestamp: 0,
+    handlersToBlockNumber: 0,
 
     networks: [],
   };

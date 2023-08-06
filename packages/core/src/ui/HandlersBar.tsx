@@ -1,8 +1,6 @@
 import { Box, Text } from "ink";
 import React from "react";
 
-import { formatShortDate } from "@/utils/date";
-
 import type { UiState } from "./app";
 import { ProgressBar } from "./ProgressBar";
 
@@ -22,13 +20,9 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
   const titleText = () => {
     if (!isStarted) return <Text>(not started)</Text>;
     if (!isHistoricalSyncComplete || !isUpToDate) {
-      return (
-        <Text color="yellow">
-          (up to {formatShortDate(ui.handlersToTimestamp)})
-        </Text>
-      );
+      return <Text color="yellow">(up to {ui.handlersToBlockNumber})</Text>;
     }
-    return <Text color="green">(up to date)</Text>;
+    return <Text color="green">(up to latest)</Text>;
   };
 
   const countText = () => {
