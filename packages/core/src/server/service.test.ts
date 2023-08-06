@@ -71,7 +71,7 @@ const setup = async ({
   const createTestEntity = async ({ id }: { id: number }) => {
     await userStore.create({
       modelName: "TestEntity",
-      timestamp: 0,
+      blockNumber: 0,
       id: String(id),
       data: {
         string: String(id),
@@ -99,7 +99,7 @@ const setup = async ({
   }) => {
     await userStore.create({
       modelName: "EntityWithBigIntId",
-      timestamp: 0,
+      blockNumber: 0,
       id,
       data: {
         testEntity: testEntityId,
@@ -1299,7 +1299,7 @@ test("limits and skips together as expected", async (context) => {
   await service.kill();
 });
 
-test("serves singular entity versioned at specified timestamp", async (context) => {
+test("serves singular entity versioned at specified block number", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
@@ -1309,7 +1309,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   await createTestEntity({ id: 1 });
   await userStore.update({
     modelName: "TestEntity",
-    timestamp: 10,
+    blockNumber: 10,
     id: String(1),
     data: {
       string: "updated",
@@ -1317,7 +1317,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   });
 
   const responseOld = await gql(`
-    testEntity(id: "1", timestamp: 5) {
+    testEntity(id: "1", blockNumber: 5) {
       id
       string
     }
@@ -1328,7 +1328,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   expect(testEntityOld.string).toBe("1");
 
   const response = await gql(`
-    testEntity(id: "1", timestamp: 15) {
+    testEntity(id: "1", blockNumber: 15) {
       id
       string
     }
@@ -1342,7 +1342,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   await userStore.teardown();
 });
 
-test("serves plural entities versioned at specified timestamp", async (context) => {
+test("serves plural entities versioned at specified block number", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
@@ -1354,7 +1354,7 @@ test("serves plural entities versioned at specified timestamp", async (context) 
 
   await userStore.update({
     modelName: "TestEntity",
-    timestamp: 10,
+    blockNumber: 10,
     id: String(1),
     data: {
       string: "updated",
@@ -1362,7 +1362,7 @@ test("serves plural entities versioned at specified timestamp", async (context) 
   });
   await userStore.update({
     modelName: "TestEntity",
-    timestamp: 15,
+    blockNumber: 15,
     id: String(2),
     data: {
       string: "updated",
@@ -1370,7 +1370,7 @@ test("serves plural entities versioned at specified timestamp", async (context) 
   });
 
   const responseOld = await gql(`
-    testEntitys(timestamp: 12, orderBy: "int") {
+    testEntitys(blockNumber: 12, orderBy: "int") {
       id
       string
     }
@@ -1434,11 +1434,11 @@ test("derived field respects skip argument", async (context) => {
   await userStore.teardown();
 });
 
-// This is a known limitation for now, which is that the timestamp version of entities
-// returned in derived fields does not inherit the timestamp argument provided to the parent.
+// This is a known limitation for now, which is that the block number version of entities
+// returned in derived fields does not inherit the block number argument provided to the parent.
 // So, if you want to use time-travel queries with derived fields, you need to manually
-// include the desired timestamp at every level of the query.
-test.skip("serves derived entities versioned at provided timestamp", async (context) => {
+// include the desired block number at every level of the query.
+test.skip("serves derived entities versioned at provided block number", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({
@@ -1451,7 +1451,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
 
   await userStore.update({
     modelName: "EntityWithBigIntId",
-    timestamp: 10,
+    blockNumber: 10,
     id: BigInt(0),
     data: {
       testEntity: "2",
@@ -1459,7 +1459,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   });
 
   const responseOld = await gql(`
-    testEntitys(timestamp: 5) {
+    testEntitys(blockNumber: 5) {
       id
       derived {
         id

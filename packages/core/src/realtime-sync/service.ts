@@ -362,7 +362,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           logFilterKeys: this.logFilters.map((l) => l.filter.key),
           startBlock: this.finalizedBlockNumber + 1,
           endBlock: newFinalizedBlock.number,
-          endBlockTimestamp: newFinalizedBlock.timestamp,
         });
 
         this.finalizedBlockNumber = newFinalizedBlock.number;

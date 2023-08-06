@@ -97,6 +97,9 @@ export const buildEntityType = ({
 
               return await store.findMany({
                 modelName: field.derivedFromEntityName,
+                blockNumber: filter.blockNumber
+                  ? filter.blockNumber
+                  : undefined,
                 filter: {
                   where: { [field.derivedFromFieldName]: entityId },
                   skip: filter.skip,
@@ -104,7 +107,6 @@ export const buildEntityType = ({
                   orderBy: filter.orderBy,
                   orderDirection: filter.orderDirection,
                 },
-                timestamp: filter.timestamp ? filter.timestamp : undefined,
               });
             };
 
@@ -119,7 +121,7 @@ export const buildEntityType = ({
                 first: { type: GraphQLInt, defaultValue: 100 },
                 orderBy: { type: GraphQLString, defaultValue: "id" },
                 orderDirection: { type: GraphQLString, defaultValue: "asc" },
-                timestamp: { type: GraphQLInt },
+                blockNumber: { type: GraphQLInt },
               },
               resolve: resolver,
             };

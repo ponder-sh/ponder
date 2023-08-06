@@ -23,7 +23,7 @@ type PluralArgs = {
   skip?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
-  timestamp?: number;
+  blockNumber?: number;
 };
 type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
@@ -173,7 +173,7 @@ const buildPluralField = ({
         orderDirection: filter.orderDirection,
         where: filter.where,
       },
-      timestamp: filter.timestamp ? filter.timestamp : undefined,
+      blockNumber: filter.blockNumber ? filter.blockNumber : undefined,
     });
   };
 
@@ -187,7 +187,7 @@ const buildPluralField = ({
       orderBy: { type: GraphQLString, defaultValue: "id" },
       orderDirection: { type: GraphQLString, defaultValue: "asc" },
       where: { type: filterType },
-      timestamp: { type: GraphQLInt },
+      blockNumber: { type: GraphQLInt },
     },
     resolve: resolver,
   };

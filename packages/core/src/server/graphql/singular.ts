@@ -12,7 +12,7 @@ import type { Context, Source } from "./schema";
 
 type SingularArgs = {
   id?: string;
-  timestamp?: number;
+  blockNumber?: number;
 };
 type SingularResolver = GraphQLFieldResolver<Source, Context, SingularArgs>;
 
@@ -25,14 +25,14 @@ const buildSingularField = ({
 }): GraphQLFieldConfig<Source, Context> => {
   const resolver: SingularResolver = async (_, args, context) => {
     const { store } = context;
-    const { id, timestamp } = args;
+    const { id, blockNumber } = args;
 
     if (!id) return null;
 
     const entityInstance = await store.findUnique({
       modelName: entity.name,
       id,
-      timestamp,
+      blockNumber,
     });
 
     return entityInstance;
@@ -42,7 +42,7 @@ const buildSingularField = ({
     type: entityGqlType,
     args: {
       id: { type: new GraphQLNonNull(entity.fieldByName.id.scalarGqlType) },
-      timestamp: { type: GraphQLInt },
+      blockNumber: { type: GraphQLInt },
     },
     resolve: resolver,
   };
