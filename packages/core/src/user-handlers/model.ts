@@ -7,12 +7,12 @@ export function buildModels({
   common,
   userStore,
   schema,
-  getCurrentEventTimestamp,
+  getCurrentBlockNumber,
 }: {
   common: Common;
   userStore: UserStore;
   schema: Schema;
-  getCurrentEventTimestamp: () => number;
+  getCurrentBlockNumber: () => number;
 }) {
   return schema.entities.reduce<Record<string, Model<ModelInstance>>>(
     (acc, { name: modelName }) => {
@@ -24,7 +24,7 @@ export function buildModels({
           });
           return userStore.findUnique({
             modelName,
-            timestamp: getCurrentEventTimestamp(),
+            blockNumber: getCurrentBlockNumber(),
             id,
           });
         },
@@ -35,7 +35,7 @@ export function buildModels({
           });
           return userStore.create({
             modelName,
-            timestamp: getCurrentEventTimestamp(),
+            blockNumber: getCurrentBlockNumber(),
             id,
             data,
           });
@@ -47,7 +47,7 @@ export function buildModels({
           });
           return userStore.update({
             modelName,
-            timestamp: getCurrentEventTimestamp(),
+            blockNumber: getCurrentBlockNumber(),
             id,
             data,
           });
@@ -59,7 +59,7 @@ export function buildModels({
           });
           return userStore.upsert({
             modelName,
-            timestamp: getCurrentEventTimestamp(),
+            blockNumber: getCurrentBlockNumber(),
             id,
             create,
             update,
@@ -72,7 +72,7 @@ export function buildModels({
           });
           return userStore.delete({
             modelName,
-            timestamp: getCurrentEventTimestamp(),
+            blockNumber: getCurrentBlockNumber(),
             id,
           });
         },

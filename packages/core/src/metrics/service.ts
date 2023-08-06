@@ -37,7 +37,7 @@ export class MetricsService {
   ponder_handlers_handled_events: prometheus.Gauge<"eventName">;
   ponder_handlers_processed_events: prometheus.Gauge<"eventName">;
   ponder_handlers_has_error: prometheus.Gauge;
-  ponder_handlers_latest_processed_timestamp: prometheus.Gauge;
+  ponder_handlers_latest_processed_block_number: prometheus.Gauge;
 
   ponder_server_port: prometheus.Gauge;
   ponder_server_request_size: prometheus.Histogram<
@@ -157,9 +157,9 @@ export class MetricsService {
       help: "Boolean (0 or 1) indicating if an error was encountered while running handlers",
       registers: [this.registry],
     });
-    this.ponder_handlers_latest_processed_timestamp = new prometheus.Gauge({
-      name: "ponder_handlers_latest_processed_timestamp",
-      help: "Block timestamp of the latest processed event",
+    this.ponder_handlers_latest_processed_block_number = new prometheus.Gauge({
+      name: "ponder_handlers_latest_processed_block_number",
+      help: "Block number of the latest processed event",
       registers: [this.registry],
     });
 

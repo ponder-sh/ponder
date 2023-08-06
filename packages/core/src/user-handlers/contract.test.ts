@@ -39,7 +39,7 @@ test("getInjectedContract() returns data", async (context) => {
 
   const readOnlyContracts = buildReadOnlyContracts({
     contracts,
-    getCurrentBlockNumber: () => 16375000n,
+    getCurrentBlockNumber: () => 16375000,
     eventStore,
   });
   const contract = readOnlyContracts["USDC"];
@@ -53,7 +53,7 @@ test("getInjectedContract() uses current block number if no overrides are provid
 
   const readOnlyContracts = buildReadOnlyContracts({
     contracts,
-    getCurrentBlockNumber: () => 16375000n,
+    getCurrentBlockNumber: () => 16375000,
     eventStore,
   });
   const contract = readOnlyContracts["USDC"];
@@ -70,7 +70,7 @@ test("getInjectedContract() caches the read result if no overrides are provided"
 
   const readOnlyContracts = buildReadOnlyContracts({
     contracts,
-    getCurrentBlockNumber: () => 16375000n,
+    getCurrentBlockNumber: () => 16375000,
     eventStore,
   });
   const contract = readOnlyContracts["USDC"];
@@ -99,7 +99,7 @@ test("getInjectedContract() uses blockTag override if provided", async (context)
 
   const readOnlyContracts = buildReadOnlyContracts({
     contracts,
-    getCurrentBlockNumber: () => 16375000n,
+    getCurrentBlockNumber: () => 16375000,
     eventStore,
   });
   const contract = readOnlyContracts["USDC"];
@@ -116,7 +116,7 @@ test("getInjectedContract() does not cache data if blockTag override is provided
 
   const readOnlyContracts = buildReadOnlyContracts({
     contracts,
-    getCurrentBlockNumber: () => 16375000n,
+    getCurrentBlockNumber: () => 16375000,
     eventStore,
   });
   const contract = readOnlyContracts["USDC"];

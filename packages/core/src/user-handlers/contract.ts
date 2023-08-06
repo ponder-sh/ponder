@@ -22,7 +22,7 @@ export function buildReadOnlyContracts({
 }: {
   contracts: Contract[];
   eventStore: EventStore;
-  getCurrentBlockNumber: () => bigint;
+  getCurrentBlockNumber: () => number;
 }): Record<string, GetContractReturnType<Abi, PublicClient>> {
   return contracts.reduce<
     Record<string, GetContractReturnType<Abi, PublicClient>>
@@ -59,7 +59,8 @@ export function buildReadOnlyContracts({
 
             // If the user specified a block number, use it, otherwise use the
             // block number of the current event being handled.
-            const blockNumber = options?.blockNumber ?? getCurrentBlockNumber();
+            const blockNumber =
+              options?.blockNumber ?? BigInt(getCurrentBlockNumber());
 
             const calldata = encodeFunctionData({ abi, args, functionName });
 

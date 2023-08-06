@@ -1,5 +1,4 @@
 import { E_CANCELED, Mutex } from "async-mutex";
-import Emittery from "emittery";
 
 import type { HandlerFunctions } from "@/build/handlers";
 import type { Contract } from "@/config/contracts";
@@ -15,7 +14,6 @@ import type { Schema } from "@/schema/types";
 import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";
 import type { ModelInstance, UserStore } from "@/user-store/store";
-import { formatShortDate } from "@/utils/date";
 import { prettyPrint } from "@/utils/print";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
 import { wait } from "@/utils/wait";
@@ -24,16 +22,12 @@ import { buildReadOnlyContracts } from "./contract";
 import { buildModels } from "./model";
 import { getStackTrace } from "./trace";
 
-type EventHandlerEvents = {
-  eventsProcessed: { toTimestamp: number };
-};
-
 type SetupTask = { kind: "SETUP" };
 type LogEventTask = { kind: "LOG"; event: LogEvent };
 type EventHandlerTask = SetupTask | LogEventTask;
 type EventHandlerQueue = Queue<EventHandlerTask>;
 
-export class EventHandlerService extends Emittery<EventHandlerEvents> {
+export class EventHandlerService {
   private common: Common;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
@@ -50,11 +44,9 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private eventProcessingMutex: Mutex;
   private queue?: EventHandlerQueue;
 
-  private eventsProcessedToTimestamp = 0;
+  private eventsProcessedToBlockNumber = 0;
+  private currentEventBlockNumber = 0;
   private hasError = false;
-
-  private currentEventBlockNumber = 0n;
-  private currentEventTimestamp = 0;
 
   constructor({
     common,
@@ -71,7 +63,6 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     contracts: Contract[];
     logFilters: LogFilter[];
   }) {
-    super();
     this.common = common;
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
@@ -118,7 +109,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         common: this.common,
         userStore: this.userStore,
         schema: this.schema,
-        getCurrentEventTimestamp: () => this.currentEventTimestamp,
+        getCurrentBlockNumber: () => this.currentEventBlockNumber,
       });
     }
 
@@ -160,39 +151,39 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     });
 
     // When we call userStore.reload() above, the user store is dropped.
-    // Set the latest processed timestamp to zero accordingly.
-    this.eventsProcessedToTimestamp = 0;
-    this.common.metrics.ponder_handlers_latest_processed_timestamp.set(0);
+    // Set the latest processed block number to zero accordingly.
+    this.eventsProcessedToBlockNumber = 0;
+    this.common.metrics.ponder_handlers_latest_processed_block_number.set(0);
   };
 
   /**
-   * This method is triggered by the realtime sync service detecting a reorg,
+   * This method is triggered when the realtime sync service detects a reorg,
    * which can happen at any time. The event queue and the user store can be
    * in one of several different states that we need to keep in mind:
    *
    * 1) No events have been added to the queue yet.
-   * 2) No unsafe events have been processed (eventsProcessedToTimestamp <= commonAncestorTimestamp).
-   * 3) Unsafe events may have been processed (eventsProcessedToTimestamp > commonAncestorTimestamp).
+   * 2) No unsafe events have been processed (eventsProcessedToBlockNumber <= commonAncestorBlockNumber).
+   * 3) Unsafe events may have been processed (eventsProcessedToBlockNumber > commonAncestorBlockNumber).
    * 4) The queue has encountered a user error and is waiting for a reload.
    *
    * Note: It's crucial that we acquire a mutex lock while handling the reorg.
    * This will only ever run while the queue is idle, so we can be confident
-   * that eventsProcessedToTimestamp matches the current state of the user store,
+   * that eventsProcessedToBlockNumber matches the current state of the user store,
    * and that no unsafe events will get processed after handling the reorg.
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
   handleReorg = async ({
-    commonAncestorTimestamp,
+    commonAncestorBlockNumber,
   }: {
-    commonAncestorTimestamp: number;
+    commonAncestorBlockNumber: number;
   }) => {
     try {
       await this.eventProcessingMutex.runExclusive(async () => {
         // If there is a user error, the queue & user store will be wiped on reload (case 4).
         if (this.hasError) return;
 
-        if (this.eventsProcessedToTimestamp <= commonAncestorTimestamp) {
+        if (this.eventsProcessedToBlockNumber <= commonAncestorBlockNumber) {
           // No unsafe events have been processed, so no need to revert (case 1 & case 2).
           this.common.logger.debug({
             service: "handlers",
@@ -202,21 +193,22 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           // Unsafe events have been processed, must revert the user store and update
           // eventsProcessedToTimestamp accordingly (case 3).
           await this.userStore.revert({
-            safeTimestamp: commonAncestorTimestamp,
+            safeBlockNumber: commonAncestorBlockNumber,
           });
 
-          this.eventsProcessedToTimestamp = commonAncestorTimestamp;
-          this.common.metrics.ponder_handlers_latest_processed_timestamp.set(
-            commonAncestorTimestamp
+          this.eventsProcessedToBlockNumber = commonAncestorBlockNumber;
+          this.common.metrics.ponder_handlers_latest_processed_block_number.set(
+            commonAncestorBlockNumber
           );
 
           // Note: There's currently no way to know how many events are "thrown out"
           // during the reorg reconciliation, so the event count metrics
           // (e.g. ponder_handlers_processed_events) will be slightly inflated.
+          // This could potentially be returned by the UserStore.revert method.
 
           this.common.logger.debug({
             service: "handlers",
-            msg: `Reverted user store to safe timestamp ${commonAncestorTimestamp}`,
+            msg: `Reverted user store to common ancestor block ${commonAncestorBlockNumber}`,
           });
         }
       });
@@ -239,27 +231,28 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       await this.eventProcessingMutex.runExclusive(async () => {
         if (this.hasError || !this.queue) return;
 
-        const eventsAvailableTo = this.eventAggregatorService.checkpoint;
+        const eventsAvailableToBlockNumber =
+          this.eventAggregatorService.checkpoint;
 
         // If we have already added events to the queue for the current checkpoint,
         // do nothing and return. This can happen if a number of calls to processEvents
         // "stack up" while one is being processed, and then they all run sequentially
         // but the event aggregator service checkpoint has not moved.
-        if (this.eventsProcessedToTimestamp >= eventsAvailableTo) {
+        if (this.eventsProcessedToBlockNumber >= eventsAvailableToBlockNumber) {
           return;
         }
 
         // The getEvents method is inclusive on both sides, so we need to add 1 here
         // to avoid fetching the same event twice.
-        const fromTimestamp =
-          this.eventsProcessedToTimestamp === 0
+        const fromBlockNumber =
+          this.eventsProcessedToBlockNumber === 0
             ? 0
-            : this.eventsProcessedToTimestamp + 1;
+            : this.eventsProcessedToBlockNumber + 1;
 
-        const toTimestamp = eventsAvailableTo;
+        const toBlockNumber = eventsAvailableToBlockNumber;
 
         // If no events have been added yet, add the setup event & associated metrics.
-        if (this.eventsProcessedToTimestamp === 0) {
+        if (this.eventsProcessedToBlockNumber === 0) {
           this.common.metrics.ponder_handlers_matched_events.inc({
             eventName: "setup",
           });
@@ -272,19 +265,19 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         }
 
         const iterator = this.eventAggregatorService.getEvents({
-          fromTimestamp,
-          toTimestamp,
+          fromBlockNumber,
+          toBlockNumber,
           includeLogFilterEvents: this.includeLogFilterEvents,
         });
 
         let pageIndex = 0;
 
         for await (const page of iterator) {
-          const { events, metadata } = page;
+          const { events, counts, pageEndsAtBlockNumber } = page;
 
           // Increment the metrics for the total number of matching & handled events in this timestamp range.
           if (pageIndex === 0) {
-            metadata.counts.forEach(({ logFilterName, selector, count }) => {
+            counts.forEach(({ logFilterName, selector, count }) => {
               const safeName = Object.values(
                 this.logFilters.find((lf) => lf.name === logFilterName)
                   ?.events || {}
@@ -334,20 +327,19 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
               service: "handlers",
               msg: `Processed ${
                 events.length === 1 ? "1 event" : `${events.length} events`
-              } (up to ${formatShortDate(metadata.pageEndsAtTimestamp)})`,
+              } (up to ${pageEndsAtBlockNumber})`,
             });
           }
 
           pageIndex += 1;
         }
 
-        this.emit("eventsProcessed", { toTimestamp });
-        this.eventsProcessedToTimestamp = toTimestamp;
+        this.eventsProcessedToBlockNumber = toBlockNumber;
 
         // Note that this happens both here and in the log event handler function.
-        // They must also happen here to handle the case where no events were processed.
-        this.common.metrics.ponder_handlers_latest_processed_timestamp.set(
-          toTimestamp
+        // Must happen here to handle the case where no events were processed.
+        this.common.metrics.ponder_handlers_latest_processed_block_number.set(
+          toBlockNumber
         );
       });
     } catch (error) {
@@ -439,8 +431,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
           // This enables contract calls occurring within the
           // handler code to use the event block number by default.
-          this.currentEventBlockNumber = event.block.number;
-          this.currentEventTimestamp = Number(event.block.timestamp);
+          this.currentEventBlockNumber = Number(event.block.number);
 
           try {
             this.common.logger.trace({
@@ -498,8 +489,8 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           this.common.metrics.ponder_handlers_processed_events.inc({
             eventName: `${event.logFilterName}:${event.eventName}`,
           });
-          this.common.metrics.ponder_handlers_latest_processed_timestamp.set(
-            this.currentEventTimestamp
+          this.common.metrics.ponder_handlers_latest_processed_block_number.set(
+            this.currentEventBlockNumber
           );
 
           break;

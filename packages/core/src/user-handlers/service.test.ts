@@ -51,7 +51,7 @@ const schema = buildSchema(
   buildGraphqlSchema(`${schemaHeader}
     type TransferEvent @entity {
       id: String!
-      timestamp: Int!
+      blockNumber: Int!
     }
   `)
 );
@@ -60,7 +60,7 @@ const transferHandler = vi.fn(async ({ event, context }) => {
   await context.entities.TransferEvent.create({
     id: event.log.id,
     data: {
-      timestamp: Number(event.block.timestamp),
+      blockNumber: Number(event.block.number),
     },
   });
 });
@@ -87,30 +87,28 @@ const handlers: HandlerFunctions = {
 };
 
 const getEvents = vi.fn(async function* getEvents({
-  // fromTimestamp,
-  toTimestamp,
+  // fromBlockNumber,
+  toBlockNumber,
 }) {
   yield {
+    pageEndsAtBlockNumber: toBlockNumber,
     events: [
       {
         logFilterName: "USDC",
         eventName: "Transfer",
         params: { from: "0x0", to: "0x1", amount: 100n },
-        log: { id: String(toTimestamp) },
-        block: { timestamp: BigInt(toTimestamp) },
+        log: { id: String(toBlockNumber) },
+        block: { number: BigInt(toBlockNumber) },
         transaction: {},
       },
     ],
-    metadata: {
-      pageEndsAtTimestamp: toTimestamp,
-      counts: [
-        {
-          logFilterName: "USDC",
-          selector: transferEventMetadata.selector,
-          count: 5,
-        },
-      ],
-    },
+    counts: [
+      {
+        logFilterName: "USDC",
+        selector: transferEventMetadata.selector,
+        count: 5,
+      },
+    ],
   };
 });
 
@@ -125,7 +123,7 @@ beforeEach(() => {
   eventAggregatorService.checkpoint = 0;
 });
 
-test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
+test("processEvents() calls getEvents with sequential block ranges", async (context) => {
   const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
@@ -146,8 +144,8 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 0,
-      toTimestamp: 10,
+      fromBlockNumber: 0,
+      toBlockNumber: 10,
     })
   );
 
@@ -156,8 +154,8 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 11,
-      toTimestamp: 50,
+      fromBlockNumber: 11,
+      toBlockNumber: 50,
     })
   );
 
@@ -188,7 +186,7 @@ test("processEvents() calls event handler functions with correct arguments", asy
         eventName: "Transfer",
         params: { from: "0x0", to: "0x1", amount: 100n },
         log: { id: "10" },
-        block: { timestamp: 10n },
+        block: { number: 10n },
         transaction: {},
         name: "Transfer",
       },
@@ -305,7 +303,7 @@ test("reset() reloads the user store", async (context) => {
   service.kill();
 });
 
-test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
+test("handleReorg() updates ponder_handlers_latest_processed_block_number metric", async (context) => {
   const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
@@ -322,17 +320,17 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
-  const latestProcessedTimestampMetric = (
-    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
+  const latestProcessedBlockNumberMetric = (
+    await common.metrics.ponder_handlers_latest_processed_block_number.get()
   ).values[0].value;
-  expect(latestProcessedTimestampMetric).toBe(10);
+  expect(latestProcessedBlockNumberMetric).toBe(10);
 
   await service.reset({ schema, handlers });
 
-  const latestProcessedTimestampMetricAfterReset = (
-    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
+  const latestProcessedBlockNumberMetricAfterReset = (
+    await common.metrics.ponder_handlers_latest_processed_block_number.get()
   ).values[0].value;
-  expect(latestProcessedTimestampMetricAfterReset).toBe(0);
+  expect(latestProcessedBlockNumberMetricAfterReset).toBe(0);
 
   service.kill();
 });
@@ -356,9 +354,9 @@ test("handleReorg() reverts the user store", async (context) => {
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  await service.handleReorg({ commonAncestorBlockNumber: 6 });
 
-  expect(userStoreRevertSpy).toHaveBeenLastCalledWith({ safeTimestamp: 6 });
+  expect(userStoreRevertSpy).toHaveBeenLastCalledWith({ safeBlockNumber: 6 });
 
   service.kill();
 });
@@ -386,7 +384,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  await service.handleReorg({ commonAncestorBlockNumber: 6 });
 
   expect(userStoreRevertSpy).not.toHaveBeenCalled();
 
@@ -412,28 +410,28 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 0,
-      toTimestamp: 10,
+      fromBlockNumber: 0,
+      toBlockNumber: 10,
     })
   );
 
   // This simulates a scenario where there was a reorg back to 6
   // and the new latest block is 9.
   eventAggregatorService.checkpoint = 9;
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  await service.handleReorg({ commonAncestorBlockNumber: 6 });
   await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 7,
-      toTimestamp: 9,
+      fromBlockNumber: 7,
+      toBlockNumber: 9,
     })
   );
 
   service.kill();
 });
 
-test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
+test("handleReorg() updates ponder_handlers_latest_processed_block_number metric", async (context) => {
   const { common, eventStore, userStore } = context;
 
   const service = new EventHandlerService({
@@ -450,20 +448,20 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
-  const latestProcessedTimestampMetric = (
-    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
+  const latestProcessedBlockNumberMetric = (
+    await common.metrics.ponder_handlers_latest_processed_block_number.get()
   ).values[0].value;
-  expect(latestProcessedTimestampMetric).toBe(10);
+  expect(latestProcessedBlockNumberMetric).toBe(10);
 
   // This simulates a scenario where there was a reorg back to 6
   // and the new latest block is 9.
   eventAggregatorService.checkpoint = 9;
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  await service.handleReorg({ commonAncestorBlockNumber: 6 });
 
-  const latestProcessedTimestampMetricAfterReorg = (
-    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
+  const latestProcessedBlockNumberMetricAfterReorg = (
+    await common.metrics.ponder_handlers_latest_processed_block_number.get()
   ).values[0].value;
-  expect(latestProcessedTimestampMetricAfterReorg).toBe(6);
+  expect(latestProcessedBlockNumberMetricAfterReorg).toBe(6);
 
   service.kill();
 });
