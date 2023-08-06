@@ -104,11 +104,8 @@ export interface EventStore {
       includeEventSelectors?: Hex[];
     }[];
     pageSize?: number;
-    cursor?: {
-      blockNumber: number;
-      logIndex: number;
-    };
   }): AsyncGenerator<{
+    pageEndsAtBlockNumber: number | undefined;
     events: {
       logFilterName: string;
       log: Log;
@@ -120,11 +117,5 @@ export interface EventStore {
       selector: Hex;
       count: number;
     }[];
-    cursor:
-      | {
-          blockNumber: number;
-          logIndex: number;
-        }
-      | undefined;
   }>;
 }

@@ -126,7 +126,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     });
 
     for await (const page of iterator) {
-      const { events, counts } = page;
+      const { events, counts, pageEndsAtBlockNumber } = page;
 
       const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
         const selector = event.log.topics[0];
@@ -172,7 +172,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         return acc;
       }, []);
 
-      yield { events: decodedEvents, counts };
+      yield { events: decodedEvents, counts, pageEndsAtBlockNumber };
     }
   }
 

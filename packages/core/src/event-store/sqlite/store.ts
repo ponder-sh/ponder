@@ -376,7 +376,6 @@ export class SqliteEventStore implements EventStore {
     toBlockNumber,
     filters = [],
     pageSize = 10_000,
-    cursor = undefined,
   }: {
     chainId: number;
     fromBlockNumber: number;
@@ -390,12 +389,6 @@ export class SqliteEventStore implements EventStore {
       includeEventSelectors?: Hex[];
     }[];
     pageSize: number;
-    cursor:
-      | {
-          blockNumber: number;
-          logIndex: number;
-        }
-      | undefined;
   }) {
     const baseQuery = this.db
       .with(
@@ -581,6 +574,13 @@ export class SqliteEventStore implements EventStore {
       count: Number(c.count),
     }));
 
+    let cursor:
+      | {
+          blockNumber: number;
+          logIndex: number;
+        }
+      | undefined = undefined;
+
     while (true) {
       let query = includedLogsBaseQuery.limit(pageSize);
       if (cursor) {
@@ -702,20 +702,20 @@ export class SqliteEventStore implements EventStore {
       });
 
       const lastRow = requestedLogs[requestedLogs.length - 1];
-      cursor = lastRow
-        ? {
-            blockNumber: Number(blobToBigInt(lastRow.block_number!)),
-            logIndex: lastRow.log_logIndex,
-          }
+      const lastRowBlockNumber = lastRow?.block_number
+        ? Number(blobToBigInt(lastRow.block_number))
         : undefined;
+      const lastRowLogIndex = lastRow?.log_logIndex;
 
       yield {
         events,
         counts: eventCounts,
-        cursor,
+        pageEndsAtBlockNumber: lastRowBlockNumber,
       };
 
       if (events.length < pageSize) break;
+
+      cursor = { blockNumber: lastRowBlockNumber!, logIndex: lastRowLogIndex };
     }
   }
 }
