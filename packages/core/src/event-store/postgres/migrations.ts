@@ -214,6 +214,20 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  ["2023_08_05_0_drop_cached_range_end_block_timestamp"]: {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("logFilterCachedRanges")
+        .dropColumn("endBlockTimestamp")
+        .execute();
+    },
+    async down(db: Kysely<any>) {
+      await db.schema
+        .alterTable("logFilterCachedRanges")
+        .addColumn("endBlockTimestamp", "blob", (col) => col.notNull()) // BigInt
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

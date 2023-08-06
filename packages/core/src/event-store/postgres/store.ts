@@ -136,7 +136,6 @@ export class PostgresEventStore implements EventStore {
       filterKey: logFilterKey,
       startBlock: intToBlob(blockNumberToCacheFrom),
       endBlock: block.number,
-      endBlockTimestamp: block.timestamp,
     };
 
     await this.db.transaction().execute(async (tx) => {
@@ -245,12 +244,10 @@ export class PostgresEventStore implements EventStore {
     logFilterKeys,
     startBlock,
     endBlock,
-    endBlockTimestamp,
   }: {
     logFilterKeys: string[];
     startBlock: number;
     endBlock: number;
-    endBlockTimestamp: number;
   }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
@@ -261,7 +258,6 @@ export class PostgresEventStore implements EventStore {
               filterKey: logFilterKey,
               startBlock: intToBlob(startBlock),
               endBlock: intToBlob(endBlock),
-              endBlockTimestamp: intToBlob(endBlockTimestamp),
             })
             .execute()
         )
@@ -276,7 +272,7 @@ export class PostgresEventStore implements EventStore {
     logFilterKey: string;
     logFilterStartBlockNumber: number;
   }) => {
-    const startingRangeEndTimestamp = await this.db
+    const startingRangeEndBlockNumber = await this.db
       .transaction()
       .execute(async (tx) => {
         const existingRanges = await tx
@@ -294,18 +290,10 @@ export class PostgresEventStore implements EventStore {
 
         const mergedRanges = mergedIntervals.map((interval) => {
           const [startBlock, endBlock] = interval;
-          // For each new merged range, its endBlock will be found EITHER in the newly
-          // added range OR among the endBlocks of the removed ranges.
-          // Find it so we can propogate the endBlockTimestamp correctly.
-          const endBlockTimestamp = existingRanges.find(
-            (r) => Number(blobToBigInt(r.endBlock)) === endBlock
-          )!.endBlockTimestamp;
-
           return {
             filterKey: logFilterKey,
             startBlock: intToBlob(startBlock),
             endBlock: intToBlob(endBlock),
-            endBlockTimestamp: endBlockTimestamp,
           };
         });
 
@@ -330,11 +318,11 @@ export class PostgresEventStore implements EventStore {
           // many block tasks run concurrently and the one containing the log filter start block number is late.
           return 0;
         } else {
-          return Number(blobToBigInt(startingRange.endBlockTimestamp));
+          return Number(blobToBigInt(startingRange.endBlock));
         }
       });
 
-    return { startingRangeEndTimestamp };
+    return { startingRangeEndBlockNumber };
   };
 
   getLogFilterCachedRanges = async ({
@@ -352,7 +340,6 @@ export class PostgresEventStore implements EventStore {
       filterKey: range.filterKey,
       startBlock: Number(blobToBigInt(range.startBlock)),
       endBlock: Number(blobToBigInt(range.endBlock)),
-      endBlockTimestamp: Number(blobToBigInt(range.endBlockTimestamp)),
     }));
   };
 
@@ -413,16 +400,17 @@ export class PostgresEventStore implements EventStore {
   };
 
   async *getLogEvents({
-    fromTimestamp,
-    toTimestamp,
+    chainId,
+    fromBlockNumber,
+    toBlockNumber,
     filters = [],
     pageSize = 10_000,
   }: {
-    fromTimestamp: number;
-    toTimestamp: number;
-    filters?: {
+    chainId: number;
+    fromBlockNumber: number;
+    toBlockNumber: number;
+    filters: {
       name: string;
-      chainId: number;
       address?: Address | Address[];
       topics?: (Hex | Hex[] | null)[];
       fromBlock?: number;
@@ -449,7 +437,7 @@ export class PostgresEventStore implements EventStore {
         "logs.address as log_address",
         "logs.blockHash as log_blockHash",
         "logs.blockNumber as log_blockNumber",
-        "logs.chainId as log_chainId",
+        // "logs.chainId as log_chainId",
         "logs.data as log_data",
         "logs.id as log_id",
         "logs.logIndex as log_logIndex",
@@ -501,8 +489,8 @@ export class PostgresEventStore implements EventStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
-      .where("blocks.timestamp", ">=", intToBlob(fromTimestamp))
-      .where("blocks.timestamp", "<=", intToBlob(toTimestamp));
+      .where("blocks.number", ">=", intToBlob(fromBlockNumber))
+      .where("blocks.number", "<=", intToBlob(toBlockNumber));
 
     const buildFilterAndCmprs = (
       where: ExpressionBuilder<any, any>,
@@ -512,9 +500,7 @@ export class PostgresEventStore implements EventStore {
       const cmprs = [];
 
       cmprs.push(cmpr("logFilter_name", "=", filter.name));
-      cmprs.push(
-        cmpr("logs.chainId", "=", sql`${sql.val(filter.chainId)}::integer`)
-      );
+      cmprs.push(cmpr("logs.chainId", "=", sql`${sql.val(chainId)}::integer`));
 
       if (filter.address) {
         // If it's an array of length 1, collapse it.
@@ -586,8 +572,6 @@ export class PostgresEventStore implements EventStore {
         });
         return or(cmprsForAllFilters);
       })
-      .orderBy("blocks.timestamp", "asc")
-      .orderBy("logs.chainId", "asc")
       .orderBy("blocks.number", "asc")
       .orderBy("logs.logIndex", "asc");
 
@@ -620,9 +604,7 @@ export class PostgresEventStore implements EventStore {
 
     let cursor:
       | {
-          timestamp: Buffer;
-          chainId: number;
-          blockNumber: Buffer;
+          blockNumber: number;
           logIndex: number;
         }
       | undefined = undefined;
@@ -634,24 +616,12 @@ export class PostgresEventStore implements EventStore {
         // https://stackoverflow.com/a/38017813
         // This is required to avoid skipping logs that have the same timestamp.
         query = query.where(({ and, or, cmpr }) => {
-          const { timestamp, chainId, blockNumber, logIndex } = cursor!;
+          const { blockNumber, logIndex } = cursor!;
           return and([
-            cmpr("blocks.timestamp", ">=", timestamp),
+            cmpr("blocks.number", ">=", intToBlob(blockNumber)),
             or([
-              cmpr("blocks.timestamp", ">", timestamp),
-              and([
-                cmpr("logs.chainId", ">=", chainId),
-                or([
-                  cmpr("logs.chainId", ">", chainId),
-                  and([
-                    cmpr("blocks.number", ">=", blockNumber),
-                    or([
-                      cmpr("blocks.number", ">", blockNumber),
-                      cmpr("logs.logIndex", ">", logIndex),
-                    ]),
-                  ]),
-                ]),
-              ]),
+              cmpr("blocks.number", ">", intToBlob(blockNumber)),
+              cmpr("logs.logIndex", ">", logIndex),
             ]),
           ]);
         });
@@ -760,29 +730,20 @@ export class PostgresEventStore implements EventStore {
       });
 
       const lastRow = requestedLogs[requestedLogs.length - 1];
-      if (lastRow) {
-        cursor = {
-          timestamp: lastRow.block_timestamp!,
-          chainId: lastRow.log_chainId,
-          blockNumber: lastRow.block_number!,
-          logIndex: lastRow.log_logIndex,
-        };
-      }
-
-      const lastEventBlockTimestamp = lastRow?.block_timestamp;
-      const pageEndsAtTimestamp = lastEventBlockTimestamp
-        ? Number(blobToBigInt(lastEventBlockTimestamp))
-        : toTimestamp;
+      const lastRowBlockNumber = lastRow?.block_number
+        ? Number(blobToBigInt(lastRow.block_number))
+        : undefined;
+      const lastRowLogIndex = lastRow?.log_logIndex;
 
       yield {
         events,
-        metadata: {
-          pageEndsAtTimestamp,
-          counts: eventCounts,
-        },
+        counts: eventCounts,
+        pageEndsAtBlockNumber: lastRowBlockNumber,
       };
 
       if (events.length < pageSize) break;
+
+      cursor = { blockNumber: lastRowBlockNumber!, logIndex: lastRowLogIndex };
     }
   }
 }
