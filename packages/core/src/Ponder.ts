@@ -333,24 +333,16 @@ export class Ponder {
 
     this.eventAggregatorService.on(
       "reorg",
-      async ({ commonAncestorTimestamp }) => {
-        await this.eventHandlerService.handleReorg({ commonAncestorTimestamp });
+      async ({ commonAncestorBlockNumber }) => {
+        await this.eventHandlerService.handleReorg({
+          commonAncestorBlockNumber,
+        });
         await this.eventHandlerService.processEvents();
       }
     );
 
-    this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
-      if (this.serverService.isHistoricalEventProcessingComplete) return;
-
-      // If a batch of events are processed AND the historical sync is complete AND
-      // the new toTimestamp is greater than the historical sync completion timestamp,
-      // historical event processing is complete, and the server should begin responding as healthy.
-      if (
-        this.eventAggregatorService.historicalSyncCompletedAt &&
-        toTimestamp >= this.eventAggregatorService.historicalSyncCompletedAt
-      ) {
-        this.serverService.setIsHistoricalEventProcessingComplete();
-      }
+    this.eventHandlerService.on("historicalEventProcessingCompleted", () => {
+      this.serverService.setIsHistoricalEventProcessingComplete();
     });
   }
 }
