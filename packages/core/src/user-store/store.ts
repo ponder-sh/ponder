@@ -18,7 +18,7 @@ export type ModelFilter = {
   skip?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
-  timestamp?: number;
+  blockNumber?: number;
 };
 
 export type ModelInstance = {
@@ -39,37 +39,37 @@ export interface UserStore {
   reload(options?: { schema?: Schema }): Promise<void>;
   teardown(): Promise<void>;
 
-  revert(options: { safeTimestamp: number }): Promise<void>;
+  revert(options: { safeBlockNumber: number }): Promise<void>;
 
   findUnique(options: {
     modelName: string;
-    timestamp?: number;
+    blockNumber?: number;
     id: string | number | bigint;
   }): Promise<ModelInstance | null>;
 
   findMany(options: {
     modelName: string;
-    timestamp?: number;
+    blockNumber?: number;
     filter?: ModelFilter;
   }): Promise<ModelInstance[]>;
 
   create(options: {
     modelName: string;
-    timestamp: number;
+    blockNumber: number;
     id: string | number | bigint;
     data?: Omit<ModelInstance, "id">;
   }): Promise<ModelInstance>;
 
   update(options: {
     modelName: string;
-    timestamp: number;
+    blockNumber: number;
     id: string | number | bigint;
     data?: Partial<Omit<ModelInstance, "id">>;
   }): Promise<ModelInstance>;
 
   upsert(options: {
     modelName: string;
-    timestamp: number;
+    blockNumber: number;
     id: string | number | bigint;
     create?: Omit<ModelInstance, "id">;
     update?: Partial<Omit<ModelInstance, "id">>;
@@ -77,7 +77,7 @@ export interface UserStore {
 
   delete(options: {
     modelName: string;
-    timestamp: number;
+    blockNumber: number;
     id: string | number | bigint;
   }): Promise<boolean>;
 }
