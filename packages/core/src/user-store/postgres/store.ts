@@ -140,7 +140,7 @@ export class PostgresUserStore implements UserStore {
             }
           });
 
-          // Add the effective timestamp columns.
+          // Add the effective block number columns.
           tableBuilder = tableBuilder.addColumn(
             "effectiveFrom",
             "integer",
@@ -183,11 +183,11 @@ export class PostgresUserStore implements UserStore {
 
   findUnique = async ({
     modelName,
-    timestamp = MAX_INTEGER,
+    blockNumber = MAX_INTEGER,
     id,
   }: {
     modelName: string;
-    timestamp?: number;
+    blockNumber?: number;
     id: string | number | bigint;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
@@ -197,8 +197,8 @@ export class PostgresUserStore implements UserStore {
       .selectFrom(tableName)
       .selectAll()
       .where("id", "=", formattedId)
-      .where("effectiveFrom", "<=", timestamp)
-      .where("effectiveTo", ">=", timestamp)
+      .where("effectiveFrom", "<=", blockNumber)
+      .where("effectiveTo", ">=", blockNumber)
       .execute();
 
     if (instances.length > 1) {
@@ -212,12 +212,12 @@ export class PostgresUserStore implements UserStore {
 
   create = async ({
     modelName,
-    timestamp,
+    blockNumber,
     id,
     data = {},
   }: {
     modelName: string;
-    timestamp: number;
+    blockNumber: number;
     id: string | number | bigint;
     data?: Omit<ModelInstance, "id">;
   }) => {
@@ -228,7 +228,7 @@ export class PostgresUserStore implements UserStore {
       .insertInto(tableName)
       .values({
         ...createInstance,
-        effectiveFrom: timestamp,
+        effectiveFrom: blockNumber,
         effectiveTo: MAX_INTEGER,
       })
       .returningAll()
@@ -239,12 +239,12 @@ export class PostgresUserStore implements UserStore {
 
   update = async ({
     modelName,
-    timestamp,
+    blockNumber,
     id,
     data = {},
   }: {
     modelName: string;
-    timestamp: number;
+    blockNumber: number;
     id: string | number | bigint;
     data?: Partial<Omit<ModelInstance, "id">>;
   }) => {
@@ -261,27 +261,27 @@ export class PostgresUserStore implements UserStore {
         .orderBy("effectiveTo", "desc")
         .executeTakeFirstOrThrow();
 
-      // If the latest version has the same effectiveFrom timestamp as the update,
+      // If the latest version has the same effectiveFrom blockNumber as the update,
       // this update is occurring within the same block/second. Update in place.
-      if (latestInstance.effectiveFrom === timestamp) {
+      if (latestInstance.effectiveFrom === blockNumber) {
         return await tx
           .updateTable(tableName)
           .set(updateInstance)
           .where("id", "=", formattedId)
-          .where("effectiveFrom", "=", timestamp)
+          .where("effectiveFrom", "=", blockNumber)
           .returningAll()
           .executeTakeFirstOrThrow();
       }
 
-      if (latestInstance.effectiveFrom > timestamp) {
+      if (latestInstance.effectiveFrom > blockNumber) {
         throw new Error(`Cannot update an instance in the past`);
       }
 
-      // If the latest version has an earlier effectiveFrom timestamp than the update,
+      // If the latest version has an earlier effectiveFrom block number than the update,
       // we need to update the latest version AND insert a new version.
       await tx
         .updateTable(tableName)
-        .set({ effectiveTo: timestamp - 1 })
+        .set({ effectiveTo: blockNumber - 1 })
         .where("id", "=", formattedId)
         .where("effectiveTo", "=", MAX_INTEGER)
         .execute();
@@ -291,7 +291,7 @@ export class PostgresUserStore implements UserStore {
         .values({
           ...latestInstance,
           ...updateInstance,
-          effectiveFrom: timestamp,
+          effectiveFrom: blockNumber,
           effectiveTo: MAX_INTEGER,
         })
         .returningAll()
@@ -303,13 +303,13 @@ export class PostgresUserStore implements UserStore {
 
   upsert = async ({
     modelName,
-    timestamp,
+    blockNumber,
     id,
     create = {},
     update = {},
   }: {
     modelName: string;
-    timestamp: number;
+    blockNumber: number;
     id: string | number | bigint;
     create?: Omit<ModelInstance, "id">;
     update?: Partial<Omit<ModelInstance, "id">>;
@@ -334,34 +334,34 @@ export class PostgresUserStore implements UserStore {
           .insertInto(tableName)
           .values({
             ...createInstance,
-            effectiveFrom: timestamp,
+            effectiveFrom: blockNumber,
             effectiveTo: MAX_INTEGER,
           })
           .returningAll()
           .executeTakeFirstOrThrow();
       }
 
-      // If the latest version has the same effectiveFrom timestamp as the update,
+      // If the latest version has the same effectiveFrom block number as the update,
       // this update is occurring within the same block/second. Update in place.
-      if (latestInstance.effectiveFrom === timestamp) {
+      if (latestInstance.effectiveFrom === blockNumber) {
         return await tx
           .updateTable(tableName)
           .set(updateInstance)
           .where("id", "=", formattedId)
-          .where("effectiveFrom", "=", timestamp)
+          .where("effectiveFrom", "=", blockNumber)
           .returningAll()
           .executeTakeFirstOrThrow();
       }
 
-      if (latestInstance.effectiveFrom > timestamp) {
+      if (latestInstance.effectiveFrom > blockNumber) {
         throw new Error(`Cannot update an instance in the past`);
       }
 
-      // If the latest version has an earlier effectiveFrom timestamp than the update,
+      // If the latest version has an earlier effectiveFrom block number than the update,
       // we need to update the latest version AND insert a new version.
       await tx
         .updateTable(tableName)
-        .set({ effectiveTo: timestamp - 1 })
+        .set({ effectiveTo: blockNumber - 1 })
         .where("id", "=", formattedId)
         .where("effectiveTo", "=", MAX_INTEGER)
         .execute();
@@ -371,7 +371,7 @@ export class PostgresUserStore implements UserStore {
         .values({
           ...latestInstance,
           ...updateInstance,
-          effectiveFrom: timestamp,
+          effectiveFrom: blockNumber,
           effectiveTo: MAX_INTEGER,
         })
         .returningAll()
@@ -383,33 +383,33 @@ export class PostgresUserStore implements UserStore {
 
   delete = async ({
     modelName,
-    timestamp,
+    blockNumber,
     id,
   }: {
     modelName: string;
-    timestamp: number;
+    blockNumber: number;
     id: string | number | bigint;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
     const formattedId = formatModelFieldValue({ value: id });
 
     const instance = await this.db.transaction().execute(async (tx) => {
-      // Update the latest version to be effective until the delete timestamp.
+      // Update the latest version to be effective until the delete block number.
       const deletedInstance = await tx
         .updateTable(tableName)
-        .set({ effectiveTo: timestamp - 1 })
+        .set({ effectiveTo: blockNumber - 1 })
         .where("id", "=", formattedId)
         .where("effectiveTo", "=", MAX_INTEGER)
         .returning(["id", "effectiveFrom"])
         .executeTakeFirst();
 
       // If, after the update, the latest version is only effective from
-      // the delete timestamp, delete the instance in place. It "never existed".
-      if (deletedInstance?.effectiveFrom === timestamp) {
+      // the delete block number, delete the instance in place. It "never existed".
+      if (deletedInstance?.effectiveFrom === blockNumber) {
         await tx
           .deleteFrom(tableName)
           .where("id", "=", formattedId)
-          .where("effectiveFrom", "=", timestamp)
+          .where("effectiveFrom", "=", blockNumber)
           .returning(["id"])
           .executeTakeFirst();
       }
@@ -422,22 +422,22 @@ export class PostgresUserStore implements UserStore {
 
   findMany = async ({
     modelName,
-    timestamp = MAX_INTEGER,
+    blockNumber = MAX_INTEGER,
     filter = {},
   }: {
     modelName: string;
-    timestamp: number;
+    blockNumber: number;
     filter?: ModelFilter;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
 
-    if (filter.timestamp) timestamp = filter.timestamp;
+    if (filter.blockNumber) blockNumber = filter.blockNumber;
 
     let query = this.db
       .selectFrom(tableName)
       .selectAll()
-      .where("effectiveFrom", "<=", timestamp)
-      .where("effectiveTo", ">=", timestamp);
+      .where("effectiveFrom", "<=", blockNumber)
+      .where("effectiveTo", ">=", blockNumber);
 
     const { where, first, skip, orderBy, orderDirection } =
       validateFilter(filter);
@@ -482,24 +482,24 @@ export class PostgresUserStore implements UserStore {
     );
   };
 
-  revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
+  revert = async ({ safeBlockNumber }: { safeBlockNumber: number }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
         (this.schema?.entities ?? []).map(async (entity) => {
           const modelName = entity.name;
           const tableName = `${modelName}_${this.versionId}`;
 
-          // Delete any versions that are newer than the safe timestamp.
+          // Delete any versions that are newer than the safe block number.
           await tx
             .deleteFrom(tableName)
-            .where("effectiveFrom", ">", safeTimestamp)
+            .where("effectiveFrom", ">", safeBlockNumber)
             .execute();
 
           // Now, any versions that have effectiveTo greater than or equal
-          // to the safe timestamp are the new latest version.
+          // to the safe block number are the new latest version.
           await tx
             .updateTable(tableName)
-            .where("effectiveTo", ">=", safeTimestamp)
+            .where("effectiveTo", ">=", safeBlockNumber)
             .set({ effectiveTo: MAX_INTEGER })
             .execute();
         })
