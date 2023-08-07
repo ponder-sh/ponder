@@ -1,4 +1,5 @@
 import { E_CANCELED, Mutex } from "async-mutex";
+import Emittery from "emittery";
 
 import type { HandlerFunctions } from "@/build/handlers";
 import type { Contract } from "@/config/contracts";
@@ -27,7 +28,14 @@ type LogEventTask = { kind: "LOG"; event: LogEvent };
 type EventHandlerTask = SetupTask | LogEventTask;
 type EventHandlerQueue = Queue<EventHandlerTask>;
 
-export class EventHandlerService {
+type EventHandlerEvents = {
+  /**
+   * Emitted when all historical events have been processed.
+   */
+  historicalEventProcessingCompleted: undefined;
+};
+
+export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private common: Common;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
@@ -63,6 +71,7 @@ export class EventHandlerService {
     contracts: Contract[];
     logFilters: LogFilter[];
   }) {
+    super();
     this.common = common;
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
@@ -341,6 +350,15 @@ export class EventHandlerService {
         this.common.metrics.ponder_handlers_latest_processed_block_number.set(
           toBlockNumber
         );
+
+        // If all historical events have now been processed, emit the event.
+        if (
+          this.eventAggregatorService.isHistoricalSyncComplete &&
+          this.eventsProcessedToBlockNumber >=
+            this.eventAggregatorService.historicalSyncFinalBlockNumber!
+        ) {
+          this.emit("historicalEventProcessingCompleted");
+        }
       });
     } catch (error) {
       // Pending locks get cancelled in reset(). This is expected, so it's safe to

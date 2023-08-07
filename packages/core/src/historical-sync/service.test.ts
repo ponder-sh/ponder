@@ -530,12 +530,14 @@ test("start() emits sync completed event", async (context) => {
   service.start();
 
   await service.onIdle();
-  expect(emitSpy).toHaveBeenCalledWith("syncComplete");
+  expect(emitSpy).toHaveBeenCalledWith("syncComplete", {
+    blockNumber: blockNumbers.finalizedBlockNumber,
+  });
 
   await service.kill();
 });
 
-test("start() emits checkpoit and sync completed event if 100% cached", async (context) => {
+test("start() emits sync completed event if 100% cached", async (context) => {
   const { common, eventStore } = context;
 
   let service = new HistoricalSyncService({
@@ -563,11 +565,10 @@ test("start() emits checkpoit and sync completed event if 100% cached", async (c
   service.start();
   await service.onIdle();
 
-  expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
+  expect(emitSpy).toHaveBeenCalledWith("syncComplete", {
     blockNumber: blockNumbers.finalizedBlockNumber,
   });
-  expect(emitSpy).toHaveBeenCalledWith("syncComplete");
-  expect(emitSpy).toHaveBeenCalledTimes(2);
+  expect(emitSpy).toHaveBeenCalledTimes(1);
 
   await service.kill();
 });

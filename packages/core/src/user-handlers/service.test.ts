@@ -225,6 +225,33 @@ test("processEvents() model methods insert data into the user store", async (con
   service.kill();
 });
 
+test("processEvents() emits historicalEventProcessingCompleted", async (context) => {
+  const { common, eventStore, userStore } = context;
+
+  const service = new EventHandlerService({
+    common,
+    eventStore,
+    userStore,
+    eventAggregatorService,
+    contracts,
+    logFilters,
+  });
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await service.reset({ schema, handlers });
+
+  eventAggregatorService.isHistoricalSyncComplete = true;
+  eventAggregatorService.historicalSyncFinalBlockNumber = 10;
+
+  eventAggregatorService.checkpoint = 10;
+
+  await service.processEvents();
+
+  expect(emitSpy).toHaveBeenCalledWith("historicalEventProcessingCompleted");
+
+  service.kill();
+});
+
 test("processEvents() updates event count metrics", async (context) => {
   const { common, eventStore, userStore } = context;
 

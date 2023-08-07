@@ -42,11 +42,8 @@ const setup = async ({ context }: { context: TestContext }) => {
 
   // Wait for historical sync event processing to complete.
   await new Promise<void>((resolve) => {
-    ponder.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
-      // Block 16370020
-      if (toTimestamp >= 1673276663) {
-        resolve();
-      }
+    ponder.eventHandlerService.on("historicalEventProcessingCompleted", () => {
+      resolve();
     });
   });
 

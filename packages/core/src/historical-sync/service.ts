@@ -21,8 +21,9 @@ import { findMissingIntervals } from "./intervals";
 type HistoricalSyncEvents = {
   /**
    * Emitted when the service has finished processing all historical sync tasks.
+   * The block number is the final block number processed by the service.
    */
-  syncComplete: undefined;
+  syncComplete: { blockNumber: number };
   /**
    * Emitted when the minimum cached block number among all registered log filters moves forward.
    * This indicates to consumers that the connected event store now contains a complete history
@@ -63,6 +64,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logFilterCheckpoints: Record<string, number> = {};
   private minimumLogFilterCheckpoint = 0;
 
+  private finalizedBlockNumber?: number;
   private startTimestamp?: [number, number];
   private killFunctions: (() => void | Promise<void>)[] = [];
 
@@ -100,6 +102,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     latestBlockNumber: number;
     finalizedBlockNumber: number;
   }) {
+    // Store the finalized block number, which is the "endpoint" for the service.
+    this.finalizedBlockNumber = finalizedBlockNumber;
+
     await Promise.all(
       this.logFilters.map(async (logFilter) => {
         const { startBlock, endBlock: userDefinedEndBlock } = logFilter.filter;
@@ -199,7 +204,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           msg: `Started sync with ${formatPercentage(
             cacheRate
           )} cached (logFilter=${logFilter.name})`,
-          network: this.network.name,
           logFilter: logFilter.name,
           totalBlockCount,
           cacheRate,
@@ -236,15 +240,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     );
 
     // Edge case: If there are no tasks in the queue, this means the entire
-    // requested range was cached, so the sync is complete. However, we still
-    // need to emit the historicalCheckpoint event.
+    // requested range was cached, so the sync is complete.
     if (this.queue.size === 0) {
-      this.emit("historicalCheckpoint", { blockNumber: finalizedBlockNumber });
-      this.emit("syncComplete");
+      const finalBlockNumber = this.finalizedBlockNumber!;
+
+      this.emit("syncComplete", { blockNumber: finalBlockNumber });
       this.common.logger.info({
         service: "historical",
-        msg: `Completed sync`,
-        network: this.network.name,
+        msg: `Completed historical sync to block ${finalBlockNumber}`,
       });
     }
   }
@@ -263,7 +266,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           msg: `Sync is ${formatPercentage(rate)} complete${
             eta !== undefined ? ` with ~${formatEta(eta)} remaining` : ""
           } (logFilter=${logFilter})`,
-          network: this.network.name,
         });
       });
     }, 10_000);
@@ -304,30 +306,29 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         await this.blockTaskWorker({ task });
       }
 
-      // If this is not the final task, return.
-      if (queue.size > 0 || queue.pending > 1) return;
+      // If this was the final task, run the cleanup/completion logic.
+      if (queue.size === 0 && queue.pending === 0) {
+        // It's possible for multiple block sync tasks to run simultaneously,
+        // resulting in a scenario where cached ranges are not fully merged.
+        // Merge all cached ranges once last time before emitting the `syncComplete` event.
+        await Promise.all(
+          this.logFilters.map((logFilter) =>
+            this.updateHistoricalCheckpoint({ logFilter })
+          )
+        );
 
-      // If this is the final task, run the cleanup/completion logic.
+        const finalBlockNumber = this.finalizedBlockNumber!;
+        const duration = hrTimeToMs(process.hrtime(this.startTimestamp));
 
-      // It's possible for multiple block sync tasks to run simultaneously,
-      // resulting in a scenario where cached ranges are not fully merged.
-      // Merge all cached ranges once last time before emitting the `syncComplete` event.
-      await Promise.all(
-        this.logFilters.map((logFilter) =>
-          this.updateHistoricalCheckpoint({ logFilter })
-        )
-      );
-
-      this.emit("syncComplete");
-      const duration = hrTimeToMs(process.hrtime(this.startTimestamp));
-      this.common.logger.info({
-        service: "historical",
-        msg: `Completed sync in ${formatEta(duration)} (network=${
-          this.network.name
-        })`,
-        network: this.network.name,
-        duration,
-      });
+        this.emit("syncComplete", { blockNumber: finalBlockNumber });
+        this.common.logger.info({
+          service: "historical",
+          msg: `Completed historical sync to block ${finalBlockNumber} in ${formatEta(
+            duration
+          )}`,
+          duration,
+        });
+      }
     };
 
     const queue = createQueue<LogSyncTask | BlockSyncTask>({
@@ -349,7 +350,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           this.common.logger.trace({
             service: "historical",
             msg: `Completed block sync task ${task.blockNumber}, cached from ${task.blockNumberToCacheFrom} (logFilter=${logFilter.name})`,
-            network: this.network.name,
             logFilter: logFilter.name,
             blockNumberToCacheFrom: task.blockNumberToCacheFrom,
             blockNumber: task.blockNumber,
@@ -377,7 +377,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           this.common.logger.trace({
             service: "historical",
             msg: `Completed log sync task [${task.fromBlock}, ${task.toBlock}] (logFilter=${logFilter.name})`,
-            network: this.network.name,
             logFilter: logFilter.name,
             fromBlock: task.fromBlock,
             toBlock: task.toBlock,
@@ -489,7 +488,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             service: "historical",
             msg: `Log sync task failed (logFilter=${logFilter.name})`,
             error,
-            network: this.network.name,
             logFilter: logFilter.name,
             fromBlock: task.fromBlock,
             toBlock: task.toBlock,
@@ -501,7 +499,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             service: "historical",
             msg: `Block sync task failed (logFilter=${logFilter.name})`,
             error,
-            network: this.network.name,
             logFilter: logFilter.name,
             blockNumberToCacheFrom: task.blockNumberToCacheFrom,
             blockNumber: task.blockNumber,

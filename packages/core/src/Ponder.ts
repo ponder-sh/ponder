@@ -304,8 +304,8 @@ export class Ponder {
       });
     });
 
-    this.historicalSyncService.on("syncComplete", () => {
-      this.eventAggregatorService.handleHistoricalSyncComplete();
+    this.historicalSyncService.on("syncComplete", ({ blockNumber }) => {
+      this.eventAggregatorService.handleHistoricalSyncComplete({ blockNumber });
     });
 
     this.realtimeSyncService.on("realtimeCheckpoint", ({ blockNumber }) => {

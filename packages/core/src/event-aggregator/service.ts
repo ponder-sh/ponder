@@ -37,27 +37,26 @@ type EventAggregatorEvents = {
   reorg: { commonAncestorBlockNumber: number };
 };
 
-type EventAggregatorMetrics = {};
-
 export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   private common: Common;
   private eventStore: EventStore;
   private network: Network;
   private logFilters: LogFilter[];
 
-  metrics: EventAggregatorMetrics;
-
   // Minimum block number at which events are available from the historical sync.
   private historicalCheckpoint: number;
   // Minimum block number at which events are available from the realtime sync.
   private realtimeCheckpoint: number;
 
-  // True if the historical sync is complete. Once true, ignore historicalCheckpoint.
-  isHistoricalSyncComplete: boolean;
   // Minimum block number at which events are available, combining historical and realtime.
   checkpoint: number;
   // Minimum finalized block number.
   finalityCheckpoint: number;
+
+  // True if the historical sync is complete. Once true, ignore historicalCheckpoint.
+  isHistoricalSyncComplete: boolean;
+  // The final block number of the historical sync. Only set once isHistoricalSyncComplete is true.
+  historicalSyncFinalBlockNumber?: number;
 
   constructor({
     common,
@@ -76,7 +75,6 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     this.eventStore = eventStore;
     this.logFilters = logFilters;
     this.network = network;
-    this.metrics = {};
 
     this.historicalCheckpoint = 0;
     this.isHistoricalSyncComplete = false;
@@ -191,9 +189,12 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     this.recalculateCheckpoint();
   };
 
-  handleHistoricalSyncComplete = () => {
+  handleHistoricalSyncComplete = ({ blockNumber }: { blockNumber: number }) => {
+    this.historicalCheckpoint = blockNumber;
     this.isHistoricalSyncComplete = true;
     this.recalculateCheckpoint();
+
+    this.historicalSyncFinalBlockNumber = blockNumber;
 
     this.common.logger.debug({
       service: "aggregator",

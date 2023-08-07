@@ -74,7 +74,7 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
   expect(emitSpy).toHaveBeenCalledTimes(1);
 });
 
-test("handleHistoricalSyncComplete sets isHistoricalSyncComplete", async (context) => {
+test("handleHistoricalSyncComplete emits new checkpoint if only historical sync completed", async (context) => {
   const { common, eventStore } = context;
 
   const service = new EventAggregatorService({
@@ -83,11 +83,14 @@ test("handleHistoricalSyncComplete sets isHistoricalSyncComplete", async (contex
     network,
     logFilters,
   });
+  const emitSpy = vi.spyOn(service, "emit");
 
-  service.handleNewHistoricalCheckpoint({ blockNumber: 10 });
-  service.handleHistoricalSyncComplete();
+  service.handleHistoricalSyncComplete({ blockNumber: 10 });
 
+  expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { blockNumber: 10 });
+  expect(service.checkpoint).toBe(10);
   expect(service.isHistoricalSyncComplete).toBe(true);
+  expect(service.historicalSyncFinalBlockNumber).toBe(10);
 });
 
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
@@ -119,8 +122,7 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
   });
   const emitSpy = vi.spyOn(service, "emit");
 
-  service.handleNewHistoricalCheckpoint({ blockNumber: 10 });
-  service.handleHistoricalSyncComplete();
+  service.handleHistoricalSyncComplete({ blockNumber: 10 });
 
   service.handleNewRealtimeCheckpoint({ blockNumber: 25 });
 
@@ -128,6 +130,7 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
   expect(emitSpy).toHaveBeenCalledWith("newCheckpoint", { blockNumber: 25 });
   expect(emitSpy).toHaveBeenCalledTimes(2);
   expect(service.isHistoricalSyncComplete).toBe(true);
+  expect(service.historicalSyncFinalBlockNumber).toBe(10);
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
