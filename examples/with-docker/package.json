@@ -2,8 +2,8 @@
   "name": "ponder-examples-token-erc20-with-docker",
   "private": true,
   "scripts": {
-    "dev:up": "docker-compose -f local.yml up",
-    "prod:up": "docker-compose -f production.yml up -d"
+    "dev:up": "docker-compose -f docker-compose-local.yml up",
+    "prod:up": "docker-compose up -d"
   },
   "dependencies": {
     "@ponder/core": "latest"
