@@ -18,46 +18,44 @@ type TelemetryEvent = {
   payload?: object;
 };
 
-type Context = {
-  sessionId: string;
-  anonymousId: string;
-  projectId: string;
-  meta: AnonymousMeta;
-};
-
-export type SerializableTelemetryEvent = TelemetryEvent & Context;
-
-type TelemetryConfig = {
+type TelemetryDeviceConfig = {
   enabled: boolean;
   notifiedAt: string;
   anonymousId: string;
   salt: string;
 };
 
-type AnonymousMeta = {
-  // Software information
-  systemPlatform: NodeJS.Platform;
-  systemRelease: string;
-  systemArchitecture: string;
-  // Machine information
-  cpuCount: number;
-  cpuModel: string | null;
-  cpuSpeed: number | null;
-  memoryInMb: number;
-  // package.json information
-  ponderVersion: string;
-  nodeVersion: string;
-  packageManager: string;
-  packageManagerVersion: string;
+type TelemetryEventContext = {
+  sessionId: string;
+  anonymousId: string;
+  projectId: string;
+  meta: {
+    // Software information
+    systemPlatform: NodeJS.Platform;
+    systemRelease: string;
+    systemArchitecture: string;
+    // Machine information
+    cpuCount: number;
+    cpuModel: string | null;
+    cpuSpeed: number | null;
+    memoryInMb: number;
+    // package.json information
+    ponderVersion: string;
+    nodeVersion: string;
+    packageManager: string;
+    packageManagerVersion: string;
+  };
 };
 
 export class TelemetryService {
-  private readonly conf: Conf<TelemetryConfig>;
-  private readonly options: Options;
+  private conf: Conf<TelemetryDeviceConfig>;
+  private options: Options;
+
   private queue = new PQueue({ concurrency: 1 });
+  private events: TelemetryEvent[] = [];
+
   private controller = new AbortController();
-  private events: SerializableTelemetryEvent[] = [];
-  private context?: Context;
+  private context?: TelemetryEventContext;
 
   constructor({ options }: { options: Options }) {
     this.conf = new Conf({ projectName: "ponder" });
@@ -65,71 +63,67 @@ export class TelemetryService {
     this.notify();
   }
 
-  get disabled() {
-    return (
-      this.options.telemetryDisabled ||
-      (this.conf.has("enabled") && !this.conf.get("enabled"))
-    );
+  record(event: TelemetryEvent) {
+    if (this.disabled) return;
+    this.events.push(event);
+    this.queue.add(() => this.processEvent());
   }
 
-  get eventsCount() {
-    return this.events.length;
+  async flush() {
+    await this.queue.onIdle();
   }
 
-  private get anonymousId() {
-    const storedId = this.conf.get("anonymousId");
-
-    if (storedId) {
-      return storedId;
-    }
-
-    const createdId = randomBytes(32).toString("hex");
-    this.conf.set("anonymousId", createdId);
-    return createdId;
-  }
-
-  private get salt() {
-    const storedSalt = this.conf.get("salt");
-
-    if (storedSalt) {
-      return storedSalt;
-    }
-
-    const createdSalt = randomBytes(32).toString("hex");
-    this.conf.set("salt", createdSalt);
-    return createdSalt;
-  }
-
-  async record(event: TelemetryEvent) {
-    if (this.disabled) {
-      return;
-    }
+  private processEvent = async () => {
+    const event = this.events.pop();
+    if (!event) return;
 
     const context = await this.getContext();
     const serializedEvent = { ...event, ...context };
 
-    this.events.push(serializedEvent);
-    this.queue.add(() => this.processEvent());
-  }
-
-  setEnabled(enabled: boolean) {
-    this.conf.set("enabled", enabled);
-  }
+    try {
+      await fetch(this.options.telemetryUrl, {
+        method: "POST",
+        body: JSON.stringify(serializedEvent),
+        headers: { "Content-Type": "application/json" },
+        signal: this.controller.signal,
+      });
+    } catch (e) {
+      const error = e as { name: string };
+      if (error.name === "AbortError") {
+        this.events.push(serializedEvent);
+      } else {
+        throw error;
+      }
+    }
+  };
 
   async kill() {
     this.queue.pause();
+    this.queue.clear();
     this.controller.abort();
     await this.queue.onIdle();
     this.flushDetached();
   }
 
-  oneWayHash(value: string) {
-    const hash = createHash("sha256");
-    // Always prepend the payload value with salt. This ensures the hash is truly
-    // one-way.
-    hash.update(this.salt);
-    hash.update(value);
-    return hash.digest("hex");
+  private notify() {
+    if (
+      this.disabled ||
+      this.conf.get("notifiedAt") ||
+      process.env.NODE_ENV === "test"
+    ) {
+      return;
+    }
+
+    this.conf.set("notifiedAt", Date.now().toString());
+
+    console.log(
+      `${pc.magenta(
+        "Attention"
+      )}: Ponder now collects completely anonymous telemetry regarding usage.`
+    );
+    console.log(
+      "This information is used to shape Ponder's roadmap and prioritize features."
+    );
   }
 
   private flushDetached() {
@@ -147,6 +141,22 @@ export class TelemetryService {
       this.options.telemetryUrl,
       telemetryEventsFilePath,
     ]);
+  }
+
+  oneWayHash(value: string) {
+    const hash = createHash("sha256");
+    // Always prepend the payload value with salt. This ensures the hash is truly
+    // one-way.
+    hash.update(this.salt);
+    hash.update(value);
+    return hash.digest("hex");
+  }
+
+  get disabled() {
+    return (
+      this.options.telemetryDisabled ||
+      (this.conf.has("enabled") && !this.conf.get("enabled"))
+    );
   }
 
   private async getContext() {
@@ -186,43 +196,21 @@ export class TelemetryService {
     return this.context;
   }
 
-  private notify() {
-    if (
-      this.disabled ||
-      this.conf.get("notifiedAt") ||
-      process.env.NODE_ENV === "test"
-    ) {
-      return;
-    }
+  private get anonymousId() {
+    const storedAnonymousId = this.conf.get("anonymousId");
+    if (storedAnonymousId) return storedAnonymousId;
 
-    this.conf.set("notifiedAt", Date.now().toString());
-
-    console.log(
-      `${pc.magenta(
-        "Attention"
-      )}: Ponder now collects completely anonymous telemetry regarding usage.`
-    );
-    console.log(
-      "This information is used to shape Ponder's roadmap and prioritize features."
-    );
+    const createdId = randomBytes(32).toString("hex");
+    this.conf.set("anonymousId", createdId);
+    return createdId;
   }
 
-  private async processEvent() {
-    const event = this.events.pop();
-    if (!event) return;
+  private get salt() {
+    const storedSalt = this.conf.get("salt");
+    if (storedSalt) return storedSalt;
 
-    try {
-      await fetch(this.options.telemetryUrl, {
-        method: "POST",
-        body: JSON.stringify(event),
-        headers: { "Content-Type": "application/json" },
-        signal: this.controller.signal,
-      });
-    } catch (e) {
-      const error = e as { name: string };
-      if (error.name === "AbortError") {
-        this.events.push(event);
-      }
-    }
+    const createdSalt = randomBytes(32).toString("hex");
+    this.conf.set("salt", createdSalt);
+    return createdSalt;
   }
 }
