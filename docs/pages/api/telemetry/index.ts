@@ -7,6 +7,11 @@ if (!process.env.SEGMENT_WRITE_KEY) {
 
 const analytics = new Analytics({
   writeKey: process.env.SEGMENT_WRITE_KEY,
+  /**
+   * Disable batching so that event are submitted immediately.
+   * See https://segment.com/docs/connections/sources/catalog/libraries/server/node/#batching
+   */
+  maxEventsInBatch: 1,
 });
 
 export default async function forwardTelemetry(
@@ -23,5 +28,5 @@ export default async function forwardTelemetry(
     message: "Telemetry data processed successfully.",
   });
 
-  await analytics.track(req.body);
+  analytics.track(req.body);
 }
