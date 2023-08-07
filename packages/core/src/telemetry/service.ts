@@ -217,21 +217,21 @@ export class TelemetryService {
     const event = this.events.pop();
     if (!event) return;
 
-    try {
-      await fetch(this.options.telemetryUrl, {
-        method: "POST",
-        body: JSON.stringify(event),
-        headers: { "Content-Type": "application/json" },
-        signal: this.controller.signal,
-      });
-    } catch (e) {
-      const error = e as { name: string };
-      console.log(`[telemetry] ${event.event} failed: ${error.name}, ${error}`);
-      if (error.name === "AbortError") {
-        console.log("pushing event back to queue");
-        this.events.push(event);
-      }
-    }
+    // try {
+    //   await fetch(this.options.telemetryUrl, {
+    //     method: "POST",
+    //     body: JSON.stringify(event),
+    //     headers: { "Content-Type": "application/json" },
+    //     signal: this.controller.signal,
+    //   });
+    // } catch (e) {
+    //   const error = e as { name: string };
+    //   console.log(`[telemetry] ${event.event} failed: ${error.name}, ${error}`);
+    //   if (error.name === "AbortError") {
+    //     console.log("pushing event back to queue");
+    //     this.events.push(event);
+    //   }
+    // }
 
     console.log("finished processing event");
   }
