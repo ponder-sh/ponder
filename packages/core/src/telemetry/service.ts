@@ -1,7 +1,7 @@
 import Conf from "conf";
 import { randomBytes } from "crypto";
 import { detect, getNpmVersion } from "detect-package-manager";
-import child_process from "node:child_process";
+// import child_process from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "os";
@@ -148,11 +148,11 @@ export class TelemetryService {
     );
     fs.writeFileSync(telemetryEventsFilePath, serializedEvents);
 
-    child_process.spawn(process.execPath, [
-      path.join(__dirname, "detached-flush.js"),
-      this.options.telemetryUrl,
-      telemetryEventsFilePath,
-    ]);
+    // child_process.spawn(process.execPath, [
+    //   path.join(__dirname, "detached-flush.js"),
+    //   this.options.telemetryUrl,
+    //   telemetryEventsFilePath,
+    // ]);
   }
 
   private async getContext() {
