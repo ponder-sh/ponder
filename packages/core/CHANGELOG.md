@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.79
+
+### Patch Changes
+
+- [#292](https://github.com/0xOlias/ponder/pull/292) [`4e4009c`](https://github.com/0xOlias/ponder/commit/4e4009c3d1520253192d5bbe4347460262e3cae4) Thanks [@0xOlias](https://github.com/0xOlias)! - Added support for Node 20. Note: Some users may now run into an error during installation related to `better-sqlite3`. To fix, try installing `node-gyp` globally using your package manager, e.g. `pnpm install -g node-gyp`.
+
 ## 0.0.78
 
 ### Patch Changes
