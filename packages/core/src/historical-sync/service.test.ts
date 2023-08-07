@@ -95,7 +95,7 @@ test("setup() succeeds if log filter start block is greater than finalized block
     await common.metrics.ponder_historical_total_blocks.get()
   ).values;
   expect(totalBlocksMetric).toMatchObject([
-    { labels: { network: "mainnet", logFilter: "USDC" }, value: 0 },
+    { labels: { logFilter: "USDC" }, value: 0 },
   ]);
 
   await service.kill();
@@ -204,21 +204,21 @@ test("setup() updates cached block, total block, and scheduled task metrics", as
     await common.metrics.ponder_historical_cached_blocks.get()
   ).values;
   expect(cachedBlocksMetric).toMatchObject([
-    { labels: { network: "mainnet", logFilter: "USDC" }, value: 0 },
+    { labels: { logFilter: "USDC" }, value: 0 },
   ]);
 
   const totalBlocksMetric = (
     await common.metrics.ponder_historical_total_blocks.get()
   ).values;
   expect(totalBlocksMetric).toMatchObject([
-    { labels: { network: "mainnet", logFilter: "USDC" }, value: 6 },
+    { labels: { logFilter: "USDC" }, value: 6 },
   ]);
 
   const scheduledTaskMetric = (
     await common.metrics.ponder_historical_scheduled_tasks.get()
   ).values;
   expect(scheduledTaskMetric).toMatchObject([
-    { labels: { network: "mainnet", kind: "log" }, value: 2 },
+    { labels: { kind: "log" }, value: 2 },
   ]);
 
   await service.kill();
@@ -242,21 +242,15 @@ test("start() updates completed tasks and completed blocks metrics", async (cont
     await common.metrics.ponder_historical_completed_tasks.get()
   ).values;
   expect(completedTasksMetric).toMatchObject([
-    {
-      labels: { network: "mainnet", kind: "log", status: "success" },
-      value: 2,
-    },
-    {
-      labels: { network: "mainnet", kind: "block", status: "success" },
-      value: 6,
-    },
+    { labels: { kind: "log", status: "success" }, value: 2 },
+    { labels: { kind: "block", status: "success" }, value: 6 },
   ]);
 
   const totalBlocksMetric = (
     await common.metrics.ponder_historical_completed_blocks.get()
   ).values;
   expect(totalBlocksMetric).toMatchObject([
-    { labels: { network: "mainnet", logFilter: "USDC" }, value: 6 },
+    { labels: { logFilter: "USDC" }, value: 6 },
   ]);
 
   await service.kill();
@@ -283,16 +277,10 @@ test("start() updates rpc request duration metrics", async (context) => {
   expect(requestsDurationMetric).toMatchObject(
     expect.arrayContaining([
       expect.objectContaining({
-        labels: expect.objectContaining({
-          network: "mainnet",
-          method: "eth_getLogs",
-        }),
+        labels: expect.objectContaining({ method: "eth_getLogs" }),
       }),
       expect.objectContaining({
-        labels: expect.objectContaining({
-          network: "mainnet",
-          method: "eth_getBlockByNumber",
-        }),
+        labels: expect.objectContaining({ method: "eth_getBlockByNumber" }),
       }),
     ])
   );
@@ -431,18 +419,9 @@ test("start() updates failed task metrics", async (context) => {
     await common.metrics.ponder_historical_completed_tasks.get()
   ).values;
   expect(completedTasksMetric).toMatchObject([
-    {
-      labels: { network: "mainnet", kind: "log", status: "failure" },
-      value: 1,
-    },
-    {
-      labels: { network: "mainnet", kind: "log", status: "success" },
-      value: 1,
-    },
-    {
-      labels: { network: "mainnet", kind: "block", status: "success" },
-      value: 2,
-    },
+    { labels: { kind: "log", status: "failure" }, value: 1 },
+    { labels: { kind: "log", status: "success" }, value: 1 },
+    { labels: { kind: "block", status: "success" }, value: 2 },
   ]);
 
   await service.kill();
