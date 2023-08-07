@@ -106,9 +106,13 @@ export const fromSubgraphRepo = ({
       };
     });
 
+  if (ponderNetworks.length > 1) {
+    throw new Error("Ponder currently only supports one network per app.");
+  }
+
   // Build the partial ponder config.
   const config: PartialConfig = {
-    networks: ponderNetworks,
+    network: ponderNetworks[0],
     contracts: ponderContracts,
   };
 

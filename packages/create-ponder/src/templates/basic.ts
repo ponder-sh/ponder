@@ -38,17 +38,14 @@ export const fromBasic = ({ rootDir }: { rootDir: string }) => {
 
   // Build the partial ponder config.
   const config: PartialConfig = {
-    networks: [
-      {
-        name: "mainnet",
-        chainId: 1,
-        rpcUrl: `process.env.PONDER_RPC_URL_1`,
-      },
-    ],
+    network: {
+      name: "mainnet",
+      chainId: 1,
+      rpcUrl: `process.env.PONDER_RPC_URL_1`,
+    },
     contracts: [
       {
         name: "ExampleContract",
-        network: "mainnet",
         address: "0x0",
         abi: abiRelativePath,
         startBlock: 1234567,

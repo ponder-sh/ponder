@@ -21,17 +21,14 @@ export type Network = {
 
 export type Contract = {
   name: string;
-  network: string;
   abi: string;
   address: string;
   startBlock?: number;
 };
 
 export type PartialConfig = {
-  database?: {
-    kind: string;
-  };
-  networks: Network[];
+  database?: { kind: string };
+  network: Network;
   contracts: Contract[];
 };
 
@@ -130,7 +127,7 @@ export const run = async (
     import type { Config } from "@ponder/core";
 
     export const config: Config = {
-      networks: ${JSON.stringify(config.networks).replaceAll(
+      network: ${JSON.stringify(config.network).replaceAll(
         /"process.env.PONDER_RPC_URL_(.*?)"/g,
         "process.env.PONDER_RPC_URL_$1"
       )},
@@ -144,12 +141,7 @@ export const run = async (
   );
 
   // Write the .env.local file.
-  const uniqueChainIds = Array.from(
-    new Set(config.networks.map((n) => n.chainId))
-  );
-  const envLocal = `${uniqueChainIds.map(
-    (chainId) => `PONDER_RPC_URL_${chainId}=""\n`
-  )}`;
+  const envLocal = `PONDER_RPC_URL_${config.network.chainId}=""\n`;
   writeFileSync(path.join(rootDir, ".env.local"), envLocal);
 
   // Write the package.json file.

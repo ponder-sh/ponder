@@ -80,16 +80,19 @@ export const fromSubgraphId = async ({
 
     return <Contract>{
       name: source.name,
-      network: network,
       address: source.source.address,
       abi: abiRelativePath,
       startBlock: source.source.startBlock,
     };
   });
 
+  if (ponderNetworks.length > 1) {
+    throw new Error("Ponder currently only supports one network per app.");
+  }
+
   // Build the partial ponder config.
   const config: PartialConfig = {
-    networks: ponderNetworks,
+    network: ponderNetworks[0],
     contracts: ponderContracts,
   };
 
