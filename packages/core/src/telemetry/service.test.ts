@@ -95,8 +95,7 @@ test("kill method should persist events and trigger detached flush", async ({
     .spyOn(fs, "writeFileSync")
     .mockImplementationOnce(() => vi.fn());
 
-  // we need to mock the fetch calal to throw an AbortError so that the event is
-  // put back in the queue
+  // Mock the fetch call to throw an AbortError so that the event is put back in the queue.
   fetchSpy.mockImplementation(() => {
     throw { name: "AbortError" };
   });
@@ -107,8 +106,6 @@ test("kill method should persist events and trigger detached flush", async ({
   // Note that we are not flushing here, because we want to test the detachedFlush flow.
 
   await telemetry.kill();
-
-  console.log(writeFileSyncSpy.mock.calls);
 
   const fileNameArgument = writeFileSyncSpy.mock.calls[0][0];
 
