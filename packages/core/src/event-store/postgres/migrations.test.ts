@@ -55,7 +55,7 @@ test("seed_2023_07_24_0_drop_finalized -> 2023_08_05_0_drop_cached_range_end_blo
   if (eventStore.kind !== "postgres") return;
 
   const { error } = await eventStore.migrator.migrateTo(
-    "seed_2023_07_24_0_drop_finalized"
+    "2023_07_24_0_drop_finalized"
   );
   expect(error).toBeFalsy();
 
