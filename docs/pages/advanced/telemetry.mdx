@@ -16,3 +16,9 @@ To opt out of telemetry, set the `PONDER_TELEMETRY_DISABLED` environment variabl
 ```js filename=".env.local"
 PONDER_TELEMETRY_DISABLED = true
 ```
+
+## Implementation
+
+Ponder's telemetry implementation is 100% open-source. The [telemetry service](https://github.com/0xOlias/ponder/blob/main/packages/core/src/telemetry/service.ts) (part of `@ponder/core`) runs on the user's device and submits event data via HTTP POST requests to the [telemetry collection endpoint](https://github.com/0xOlias/ponder/blob/main/docs/pages/api/telemetry/index.ts) hosted at `https://ponder.sh/api/telemetry`.
+
+The implementation generates a stable anonymous unique identifier for the user's device and stores it at the [system default user config directory](https://github.com/sindresorhus/env-paths#pathsconfig). This config also stores the user's opt-out preference and a stable salt used to hash potentially sensitive data such as file paths and the git remote URL.

@@ -15,7 +15,7 @@ import { getGitRemoteUrl } from "@/telemetry/remote";
 
 type TelemetryEvent = {
   event: string;
-  payload?: object;
+  properties?: any;
 };
 
 type TelemetryDeviceConfig = {
@@ -26,30 +26,27 @@ type TelemetryDeviceConfig = {
 };
 
 type TelemetryEventContext = {
-  sessionId: string;
-  anonymousId: string;
   projectId: string;
-  meta: {
-    // Software information
-    systemPlatform: NodeJS.Platform;
-    systemRelease: string;
-    systemArchitecture: string;
-    // Machine information
-    cpuCount: number;
-    cpuModel: string | null;
-    cpuSpeed: number | null;
-    memoryInMb: number;
-    // package.json information
-    ponderVersion: string;
-    nodeVersion: string;
-    packageManager: string;
-    packageManagerVersion: string;
-  };
+  sessionId: string;
+  // package.json information
+  nodeVersion: string;
+  packageManager: string;
+  packageManagerVersion: string;
+  ponderVersion: string;
+  // Software information
+  systemPlatform: NodeJS.Platform;
+  systemRelease: string;
+  systemArchitecture: string;
+  // Machine information
+  cpuCount: number;
+  cpuModel: string | null;
+  cpuSpeed: number | null;
+  memoryInMb: number;
 };
 
 export class TelemetryService {
-  private conf: Conf<TelemetryDeviceConfig>;
   private options: Options;
+  private conf: Conf<TelemetryDeviceConfig>;
 
   private queue = new PQueue({ concurrency: 1 });
   private events: TelemetryEvent[] = [];
@@ -58,8 +55,8 @@ export class TelemetryService {
   private context?: TelemetryEventContext;
 
   constructor({ options }: { options: Options }) {
-    this.conf = new Conf({ projectName: "ponder" });
     this.options = options;
+    this.conf = new Conf({ projectName: "ponder" });
     this.notify();
   }
 
@@ -77,8 +74,19 @@ export class TelemetryService {
     const event = this.events.pop();
     if (!event) return;
 
-    const context = await this.getContext();
-    const serializedEvent = { ...event, ...context };
+    // Build the context. If it's already been built, this will return immediately.
+    try {
+      await this.getContext();
+    } catch (e) {
+      // Do nothing
+    }
+
+    // See https://segment.com/docs/connections/spec/track
+    const serializedEvent = {
+      ...event,
+      anonymousId: this.anonymousId,
+      context: this.context,
+    };
 
     try {
       await fetch(this.options.telemetryUrl, {
@@ -119,17 +127,21 @@ export class TelemetryService {
     console.log(
       `${pc.magenta(
         "Attention"
-      )}: Ponder now collects completely anonymous telemetry regarding usage.`
-    );
-    console.log(
-      "This information is used to shape Ponder's roadmap and prioritize features."
+      )}: Ponder now collects completely anonymous telemetry regarding usage. This data helps shape Ponder's roadmap and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`
     );
   }
 
   private flushDetached() {
     if (this.events.length === 0) return;
 
-    const serializedEvents = JSON.stringify(this.events);
+    const eventsWithContext = this.events.map((event) => ({
+      ...event,
+      anonymousId: this.anonymousId,
+      // Note that it's possible for the context to be undefined here.
+      context: this.context,
+    }));
+    const serializedEvents = JSON.stringify(eventsWithContext);
+
     const telemetryEventsFilePath = path.join(
       this.options.ponderDir,
       "telemetry-events.json"
@@ -143,57 +155,11 @@ export class TelemetryService {
     ]);
   }
 
-  oneWayHash(value: string) {
-    const hash = createHash("sha256");
-    // Always prepend the payload value with salt. This ensures the hash is truly
-    // one-way.
-    hash.update(this.salt);
-    hash.update(value);
-    return hash.digest("hex");
-  }
-
   get disabled() {
     return (
       this.options.telemetryDisabled ||
       (this.conf.has("enabled") && !this.conf.get("enabled"))
     );
-  }
-
-  private async getContext() {
-    if (this.context) return this.context;
-
-    const projectId = (await getGitRemoteUrl()) ?? process.cwd();
-    const cpus = os.cpus() || [];
-    const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
-    let packageManager: any = "unknown";
-    let packageManagerVersion: any = "unknown";
-    try {
-      packageManager = await detect();
-      packageManagerVersion = await getNpmVersion(packageManager);
-    } catch (e) {
-      // Ignore
-    }
-
-    this.context = {
-      anonymousId: this.anonymousId,
-      sessionId: randomBytes(32).toString("hex"),
-      projectId: this.oneWayHash(projectId),
-      meta: {
-        systemPlatform: os.platform(),
-        systemRelease: os.release(),
-        systemArchitecture: os.arch(),
-        cpuCount: cpus.length,
-        cpuModel: cpus.length ? cpus[0].model : null,
-        cpuSpeed: cpus.length ? cpus[0].speed : null,
-        memoryInMb: Math.trunc(os.totalmem() / Math.pow(1024, 2)),
-        ponderVersion: packageJson["version"],
-        nodeVersion: process.version,
-        packageManager,
-        packageManagerVersion,
-      },
-    };
-
-    return this.context;
   }
 
   private get anonymousId() {
@@ -212,5 +178,65 @@ export class TelemetryService {
     const createdSalt = randomBytes(32).toString("hex");
     this.conf.set("salt", createdSalt);
     return createdSalt;
+  }
+
+  private oneWayHash(value: string) {
+    const hash = createHash("sha256");
+    // Always prepend the payload value with salt. This ensures the hash is truly
+    // one-way.
+    hash.update(this.salt);
+    hash.update(value);
+    return hash.digest("hex");
+  }
+
+  private async getContext() {
+    if (this.context) return this.context;
+
+    const sessionId = randomBytes(32).toString("hex");
+    const projectIdRaw = (await getGitRemoteUrl()) ?? process.cwd();
+    const projectId = this.oneWayHash(projectIdRaw);
+
+    let packageManager: any = "unknown";
+    let packageManagerVersion: any = "unknown";
+    try {
+      packageManager = await detect();
+      packageManagerVersion = await getNpmVersion(packageManager);
+    } catch (e) {
+      // Ignore
+    }
+
+    const packageJsonCwdPath = path.join(process.cwd(), "package.json");
+    const packageJsonRootPath = path.join(this.options.rootDir, "package.json");
+    const packageJsonPath = fs.existsSync(packageJsonCwdPath)
+      ? packageJsonCwdPath
+      : fs.existsSync(packageJsonRootPath)
+      ? packageJsonRootPath
+      : undefined;
+    const packageJson = packageJsonPath
+      ? JSON.parse(fs.readFileSync("package.json", "utf8"))
+      : undefined;
+    const ponderVersion = packageJson
+      ? packageJson["dependencies"]["@ponder/core"]
+      : "unknown";
+
+    const cpus = os.cpus() || [];
+
+    this.context = {
+      sessionId,
+      projectId,
+      nodeVersion: process.version,
+      packageManager,
+      packageManagerVersion,
+      ponderVersion,
+      systemPlatform: os.platform(),
+      systemRelease: os.release(),
+      systemArchitecture: os.arch(),
+      cpuCount: cpus.length,
+      cpuModel: cpus.length ? cpus[0].model : null,
+      cpuSpeed: cpus.length ? cpus[0].speed : null,
+      memoryInMb: Math.trunc(os.totalmem() / Math.pow(1024, 2)),
+    } satisfies TelemetryEventContext;
+
+    return this.context;
   }
 }
