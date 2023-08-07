@@ -306,8 +306,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         await this.blockTaskWorker({ task });
       }
 
-      // If this was the final task, run the cleanup/completion logic.
-      if (queue.size === 0 && queue.pending === 0) {
+      // If this is the final task, run the cleanup/completion logic.
+      if (queue.size === 0 && queue.pending === 1) {
         // It's possible for multiple block sync tasks to run simultaneously,
         // resulting in a scenario where cached ranges are not fully merged.
         // Merge all cached ranges once last time before emitting the `syncComplete` event.
