@@ -1,5 +1,6 @@
 import child_process from "node:child_process";
 import fs from "node:fs";
+import { tmpdir } from "node:os";
 import path from "path";
 import process from "process";
 import { afterAll, beforeEach, expect, test, vi } from "vitest";
@@ -39,18 +40,17 @@ test("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => 
 test("events are processed", async ({ common: { options } }) => {
   const telemetry = new TelemetryService({ options });
 
-  telemetry.record({ event: "test" });
+  telemetry.record({ event: "test", properties: { test: "data" } });
   await telemetry.flush();
 
   expect(fetchSpy).toHaveBeenCalled();
 
   const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]["body"]);
   expect(fetchBody).toMatchObject({
+    anonymousId: expect.any(String),
+    context: expect.anything(),
     event: "test",
-    meta: expect.anything(),
-    sessionId: expect.anything(),
-    anonymousId: expect.anything(),
-    projectId: expect.anything(),
+    properties: { test: "data" },
   });
 });
 
@@ -85,15 +85,17 @@ test("events are put back in queue if telemetry service is killed", async ({
 test("kill method should persist events and trigger detached flush", async ({
   common: { options },
 }) => {
+  const options_ = { ...options, ponderDir: tmpdir() };
+
   const spawn = vi.spyOn(child_process, "spawn");
-  const telemetry = new TelemetryService({ options });
-  const fileName = path.join(options.ponderDir, "telemetry-events.json");
+  const telemetry = new TelemetryService({ options: options_ });
+  const fileName = path.join(options_.ponderDir, "telemetry-events.json");
 
   const writeFileSyncSpy = vi
     .spyOn(fs, "writeFileSync")
     .mockImplementationOnce(() => vi.fn());
 
-  // we need to mock the fetch call to throw an AbortError so that the event is
+  // we need to mock the fetch calal to throw an AbortError so that the event is
   // put back in the queue
   fetchSpy.mockImplementation(() => {
     throw { name: "AbortError" };
@@ -103,12 +105,13 @@ test("kill method should persist events and trigger detached flush", async ({
     telemetry.record({ event: "test" });
   }
   // Note that we are not flushing here, because we want to test the detachedFlush flow.
-  await telemetry.flush();
 
   await telemetry.kill();
+
+  console.log(writeFileSyncSpy.mock.calls);
+
   const fileNameArgument = writeFileSyncSpy.mock.calls[0][0];
 
   expect(spawn).toHaveBeenCalled();
   expect(fileNameArgument).toBe(fileName);
-  expect(fetchSpy).toHaveBeenCalledTimes(10);
 });

@@ -215,7 +215,7 @@ export class Ponder {
 
     this.common.telemetry.record({
       event: "App Started",
-      payload: {
+      properties: {
         command: "ponder dev",
         hasSetupError: !!setupError,
         logFilterCount: this.logFilters.length,
@@ -252,7 +252,7 @@ export class Ponder {
 
     this.common.telemetry.record({
       event: "App Started",
-      payload: {
+      properties: {
         command: "ponder start",
         hasSetupError: !!setupError,
         logFilterCount: this.logFilters.length,
@@ -300,7 +300,7 @@ export class Ponder {
 
     this.common.telemetry.record({
       event: "App Killed",
-      payload: {
+      properties: {
         processDuration: process.uptime(),
       },
     });

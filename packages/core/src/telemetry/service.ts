@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { detect, getNpmVersion } from "detect-package-manager";
 import child_process from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import fs from "node:fs";
 import os from "os";
 import PQueue from "p-queue";
 import path from "path";
@@ -15,7 +15,7 @@ import { getGitRemoteUrl } from "@/telemetry/remote";
 
 type TelemetryEvent = {
   event: string;
-  payload?: any;
+  properties?: any;
 };
 
 type TelemetryDeviceConfig = {
@@ -74,14 +74,18 @@ export class TelemetryService {
     const event = this.events.pop();
     if (!event) return;
 
-    const context = await this.getContext();
+    // Build the context. If it's already been built, this will return immediately.
+    try {
+      await this.getContext();
+    } catch (e) {
+      // Do nothing
+    }
 
     // See https://segment.com/docs/connections/spec/track
     const serializedEvent = {
+      ...event,
       anonymousId: this.anonymousId,
-      context,
-      event: event.event,
-      properties: event.payload,
+      context: this.context,
     };
 
     try {
@@ -130,12 +134,19 @@ export class TelemetryService {
   private flushDetached() {
     if (this.events.length === 0) return;
 
-    const serializedEvents = JSON.stringify(this.events);
+    const eventsWithContext = this.events.map((event) => ({
+      ...event,
+      anonymousId: this.anonymousId,
+      // Note that it's possible for the context to be undefined here.
+      context: this.context,
+    }));
+    const serializedEvents = JSON.stringify(eventsWithContext);
+
     const telemetryEventsFilePath = path.join(
       this.options.ponderDir,
       "telemetry-events.json"
     );
-    writeFileSync(telemetryEventsFilePath, serializedEvents);
+    fs.writeFileSync(telemetryEventsFilePath, serializedEvents);
 
     child_process.spawn(process.execPath, [
       path.join(__dirname, "detached-flush.js"),
@@ -196,13 +207,13 @@ export class TelemetryService {
 
     const packageJsonCwdPath = path.join(process.cwd(), "package.json");
     const packageJsonRootPath = path.join(this.options.rootDir, "package.json");
-    const packageJsonPath = existsSync(packageJsonCwdPath)
+    const packageJsonPath = fs.existsSync(packageJsonCwdPath)
       ? packageJsonCwdPath
-      : existsSync(packageJsonRootPath)
+      : fs.existsSync(packageJsonRootPath)
       ? packageJsonRootPath
       : undefined;
     const packageJson = packageJsonPath
-      ? JSON.parse(readFileSync("package.json", "utf8"))
+      ? JSON.parse(fs.readFileSync("package.json", "utf8"))
       : undefined;
     const ponderVersion = packageJson
       ? packageJson["dependencies"]["@ponder/core"]
