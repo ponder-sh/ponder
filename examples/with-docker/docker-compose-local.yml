@@ -1,0 +1,14 @@
+version: "3.8"
+name: ponder-local
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile-Local
+    env_file:
+      - .env.local
+    ports:
+      - "42069:42069"
+    volumes:
+      - ./src:/app/src # this will allow hot reloading
+

@@ -1,0 +1,37 @@
+version: "3.8"
+name: ponder-prod
+services:
+  db:
+    image: postgres:14.1-alpine
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ponder
+    ports:
+      - "5432:5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+
+  app:
+    depends_on:
+      db:
+        condition: service_healthy
+    container_name: ponder
+    env_file:
+      - .env.production
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ponder
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "42069:42069"
+volumes:
+  db:
+    driver: local
