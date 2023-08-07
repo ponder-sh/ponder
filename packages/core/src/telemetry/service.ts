@@ -119,10 +119,7 @@ export class TelemetryService {
     console.log(
       `${pc.magenta(
         "Attention"
-      )}: Ponder now collects completely anonymous telemetry regarding usage.`
-    );
-    console.log(
-      "This information is used to shape Ponder's roadmap and prioritize features."
+      )}: Ponder now collects completely anonymous telemetry regarding usage. This data helps shape Ponder's roadmap and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`
     );
   }
 
