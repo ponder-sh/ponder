@@ -1,10 +1,10 @@
 ---
-description: "A comparison between Ponder and the Graph Protocol"
+description: "A comparison between Ponder and Graph Protocol subgraphs"
 ---
 
-# Comparison with The Graph Protocol
+# Comparison with Graph Protocol subgraphs
 
-|                           | Ponder                                | The Graph Protocol                       |
+|                           | Ponder                                | Graph Protocol subgraphs                 |
 | :------------------------ | :------------------------------------ | :--------------------------------------- |
 | Local development         | Local dev server with hot reloading   | No first-class local dev support         |
 | Dependencies              | Node.js, PostgreSQL (optional)        | Docker, IPFS, PostgreSQL, Node.js        |
@@ -12,8 +12,8 @@ description: "A comparison between Ponder and the Graph Protocol"
 | Package ecosystem         | ✅ &nbsp;Can use NPM packages         | ❌ &nbsp;Cannot use packages of any kind |
 | Network requests          | ✅ &nbsp;Can make network requests    | ❌ &nbsp;Cannot make network requests    |
 | Cross-chain support       | ✅ &nbsp;Any number of chains per app | ❌ &nbsp;Each subgraph indexes one chain |
+| Chain reorganizations     | ✅                                    | ✅                                       |
+| Time-travel queries       | ✅                                    | ✅                                       |
+| Factory contracts         | 🚧 (in progress)                      | ✅                                       |
 | Transaction call handlers | 🚧 (planned)                          | ✅                                       |
 | Block handlers            | 🚧 (planned)                          | ✅                                       |
-| Anonymous events          | 🚧 (planned)                          | ✅                                       |
-| Fulltext search queries   | 🚧 (planned)                          | ✅                                       |
-| Time-travel queries       | 🚧 (planned)                          | ✅                                       |

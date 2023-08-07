@@ -1,0 +1,18 @@
+---
+description: "Guide to Ponder telemetry"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Telemetry
+
+As of version `0.0.79`, Ponder collects **completely anonymous** telemetry data about general usage. The developers use this data to prioritize new feature development, identify bugs, and improve performance & stability.
+
+## Opt out
+
+To opt out of telemetry, set the `PONDER_TELEMETRY_DISABLED` environment variable.
+
+{/* prettier-ignore */}
+```js filename=".env.local"
+PONDER_TELEMETRY_DISABLED = true
+```

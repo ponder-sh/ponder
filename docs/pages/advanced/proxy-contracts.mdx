@@ -8,7 +8,7 @@ import { Callout } from "nextra-theme-docs";
 
 Ponder supports [EIP-1967 proxy contracts](https://docs.openzeppelin.com/contracts/4.x/api/proxy) (Transparent and UUPS). Ponder handles proxy contracts by merging the ABI of the proxy contract with the ABI of the implementation contract.
 
-The `create-ponder` Etherscan [contract link template](/api-reference/create-ponder#etherscan-contract-link) will automatically detect proxy contracts and fetch the required implementation contract ABIs.
+The `create-ponder` Etherscan [contract link template](/api-reference/create-ponder#etherscan-contract-link) automatically detects proxy contracts and fetches all implementation contract ABIs.
 
 <Callout type="info">
   To decode event logs emitted by a proxy contract, Ponder searches for a

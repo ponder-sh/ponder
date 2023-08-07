@@ -14,6 +14,9 @@ const config: DocsThemeConfig = {
     icon: <TelegramLogo className="telegram" />,
   },
   docsRepositoryBase: "https://github.com/0xOlias/ponder/tree/main/docs",
+  sidebar: {
+    defaultMenuCollapseLevel: 1,
+  },
   editLink: {
     text: "Edit this page on GitHub →",
   },

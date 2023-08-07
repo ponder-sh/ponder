@@ -2,8 +2,8 @@
   "index": {
     "title": "Introduction"
   },
+  "compared-to-subgraphs": "Compared to subgraphs",
   "getting-started": "Getting started",
   "guides": "Guides",
-  "api-reference": "API reference",
-  "faq": "FAQ"
+  "api-reference": "API reference"
 }
