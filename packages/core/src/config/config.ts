@@ -18,7 +18,7 @@ export type ResolvedConfig = {
         /** PostgreSQL database connection string. Default: `process.env.DATABASE_URL`. */
         connectionString?: string;
       };
-  /** List of blockchain networks. */
+  /** Blockchain network configuration. */
   network: {
     /** Network name. */
     name: string;
