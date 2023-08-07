@@ -65,14 +65,10 @@ export class UiService {
       }
 
       // Realtime sync
-      const connectedNetworks = (
+      const network = (
         await this.common.metrics.ponder_realtime_is_connected.get()
-      ).values
-        .filter((m) => m.value === 1)
-        .map((m) => m.labels.network)
-        .filter((n): n is string => typeof n === "string");
-
-      this.ui.networks = connectedNetworks;
+      ).values[0]?.labels.network;
+      this.ui.network = network ? String(network) : undefined;
 
       // Handlers
       const matchedEvents = (

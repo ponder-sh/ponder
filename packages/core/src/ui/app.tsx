@@ -9,6 +9,7 @@ import { HistoricalBar } from "./HistoricalBar";
 export type UiState = {
   port: number;
 
+  network?: string;
   historicalSyncLogFilterStats: Record<
     string,
     {
@@ -16,7 +17,6 @@ export type UiState = {
       eta?: number;
     }
   >;
-
   isHistoricalSyncComplete: boolean;
 
   handlerError: boolean;
@@ -24,8 +24,6 @@ export type UiState = {
   handlersTotal: number;
   handlersHandledTotal: number;
   handlersToBlockNumber: number;
-
-  networks: string[];
 };
 
 export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
@@ -33,7 +31,6 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
     port: 0,
 
     historicalSyncLogFilterStats: {},
-
     isHistoricalSyncComplete: false,
 
     handlerError: false,
@@ -41,8 +38,6 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
     handlersTotal: 0,
     handlersHandledTotal: 0,
     handlersToBlockNumber: 0,
-
-    networks: [],
   };
 
   logFilters.forEach((logFilter) => {
@@ -57,11 +52,11 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
 const App = (ui: UiState) => {
   const {
     port,
+    network,
     historicalSyncLogFilterStats,
     isHistoricalSyncComplete,
     handlersCurrent,
     handlerError,
-    networks,
   } = ui;
 
   if (handlerError) {
@@ -107,16 +102,14 @@ const App = (ui: UiState) => {
 
       <HandlersBar ui={ui} />
 
-      {networks.length > 0 && (
+      {network && (
         <Box flexDirection="column">
-          <Text bold={true}>Networks</Text>
-          {networks.map((network) => (
-            <Box flexDirection="row" key={network}>
-              <Text>
-                {network.slice(0, 1).toUpperCase() + network.slice(1)} (live)
-              </Text>
-            </Box>
-          ))}
+          <Text bold={true}>Network</Text>
+          <Box flexDirection="row" key={network}>
+            <Text>
+              {network.slice(0, 1).toUpperCase() + network.slice(1)} (live)
+            </Text>
+          </Box>
           <Text> </Text>
         </Box>
       )}
