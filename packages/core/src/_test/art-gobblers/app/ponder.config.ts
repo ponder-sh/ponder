@@ -1,11 +1,10 @@
 import ArtGobblersAbi from "./ArtGobblers.json";
 
 export const config = {
-  networks: [{ name: "mainnet", chainId: 1, rpcUrl: "http://127.0.0.1:8545" }],
+  network: { name: "mainnet", chainId: 1, rpcUrl: "http://127.0.0.1:8545" },
   contracts: [
     {
       name: "ArtGobblers",
-      network: "mainnet",
       abi: ArtGobblersAbi,
       address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
       startBlock: 15870400,

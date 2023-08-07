@@ -17,7 +17,7 @@ const setup = async ({ context }: { context: TestContext }) => {
     configFile: path.resolve("src/_test/ens/app/ponder.config.ts"),
   });
   // Inject proxied anvil chain.
-  const testConfig = { ...config, networks: [testNetworkConfig] };
+  const testConfig = { ...config, network: testNetworkConfig };
 
   const options = buildOptions({
     cliOptions: {
@@ -41,9 +41,17 @@ const setup = async ({ context }: { context: TestContext }) => {
   await ponder.start();
 
   // Wait for historical sync event processing to complete.
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(
+        new Error(
+          "Timeout: Historical event processing did not complete in 20 seconds."
+        )
+      );
+    }, 20_000);
     ponder.eventHandlerService.on("historicalEventProcessingCompleted", () => {
       resolve();
+      clearTimeout(timeout);
     });
   });
 
