@@ -1,6 +1,6 @@
 import { BigInt } from "@graphprotocol/graph-ts";
 
-import type {
+import {
   Approval as TApprovalEvent,
   Transfer as TTransferEvent,
 } from "../generated/RocketTokenRETH/RocketTokenRETH";
@@ -12,7 +12,7 @@ import {
 } from "../generated/schema";
 
 export function handleTransfer(event: TTransferEvent): void {
-  const { params } = event;
+  const params = event.params;
 
   // Create an Account for the sender, or update the balance if it already exists.
   let sender = Account.load(params.from.toHexString());
@@ -49,7 +49,7 @@ export function handleTransfer(event: TTransferEvent): void {
 }
 
 export function handleApproval(event: TApprovalEvent): void {
-  const { params } = event;
+  const params = event.params;
   const approvalId =
     params.owner.toHexString() + "-" + params.spender.toHexString();
 

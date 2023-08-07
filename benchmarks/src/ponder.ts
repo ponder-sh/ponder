@@ -2,7 +2,7 @@ import execa from "execa";
 
 import { fetchWithTimeout, parsePrometheusText, startClock } from "./utils";
 
-const END_BLOCK_TIMESTAMP = 1687010711; // Mainnet block 17500010
+const END_BLOCK = 17500010;
 
 const fetchPonderMetrics = async () => {
   try {
@@ -24,15 +24,15 @@ const waitForSyncComplete = async () => {
     let timeout = undefined;
     const interval = setInterval(async () => {
       const metrics = await fetchPonderMetrics();
-      const latestProcessedTimestamp =
+      const latestProcessedBlock =
         metrics.find(
-          (m) => m.name === "ponder_handlers_latest_processed_timestamp"
+          (m) => m.name === "ponder_handlers_latest_processed_block_number"
         )?.metrics[0].value ?? 0;
       console.log(
-        `Latest processed timestamp: ${latestProcessedTimestamp}/${END_BLOCK_TIMESTAMP}`
+        `Latest processed block: ${latestProcessedBlock}/${END_BLOCK}`
       );
 
-      if (latestProcessedTimestamp >= END_BLOCK_TIMESTAMP) {
+      if (latestProcessedBlock >= END_BLOCK) {
         duration = endClock();
         clearInterval(interval);
         clearTimeout(timeout);
