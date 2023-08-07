@@ -229,7 +229,7 @@ export class TelemetryService {
       console.log(`[telemetry] ${event.event} failed: ${error.name}, ${error}`);
       if (error.name === "AbortError") {
         console.log("pushing event back to queue");
-        this.events.push(event);
+        // this.events.push(event);
       }
     }
 
