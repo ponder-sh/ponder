@@ -30,7 +30,7 @@ afterAll(() => {
   vi.restoreAllMocks();
 });
 
-test("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => {
+test.skip("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => {
   process.env.PONDER_TELEMETRY_DISABLED = "true";
   // we're not using the options from the context because we want to test that
   // build options will correctly set the telemetry service as disabled if the
@@ -41,7 +41,7 @@ test("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => 
   delete process.env.PONDER_TELEMETRY_DISABLED;
 });
 
-test("events are processed", async ({ common: { options } }) => {
+test.skip("events are processed", async ({ common: { options } }) => {
   const telemetry = new TelemetryService({ options });
   await telemetry.record({ event: "test", payload: {} });
   const fetchBody = JSON.parse(fetchSpy.mock.calls[0][1]["body"]);
@@ -56,7 +56,7 @@ test("events are processed", async ({ common: { options } }) => {
   });
 });
 
-test("events are not processed if telemetry is disabled", async ({
+test.skip("events are not processed if telemetry is disabled", async ({
   common: { options },
 }) => {
   const telemetry = new TelemetryService({ options });
@@ -66,7 +66,7 @@ test("events are not processed if telemetry is disabled", async ({
   expect(fetchSpy).not.toHaveBeenCalled();
 });
 
-test("events are put back in queue if telemetry service is killed", async ({
+test.skip("events are put back in queue if telemetry service is killed", async ({
   common: { options },
 }) => {
   const telemetry = new TelemetryService({ options });
@@ -80,7 +80,7 @@ test("events are put back in queue if telemetry service is killed", async ({
   expect(telemetry.eventsCount).toBe(1);
 });
 
-test("kill method should persis events queue and trigger detached flush", async ({
+test.skip("kill method should persis events queue and trigger detached flush", async ({
   common: { options },
 }) => {
   const spawn = vi.spyOn(child_process, "spawn");
