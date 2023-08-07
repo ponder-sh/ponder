@@ -172,10 +172,6 @@ export class Ponder {
       )}`,
     });
 
-    this.common.telemetry.record({
-      event: "App Started",
-    });
-
     this.registerServiceDependencies();
 
     // If any of the provided networks do not have a valid RPC url,
@@ -216,6 +212,17 @@ export class Ponder {
 
   async dev() {
     const setupError = await this.setup();
+
+    this.common.telemetry.record({
+      event: "App Started",
+      payload: {
+        command: "ponder dev",
+        hasSetupError: !!setupError,
+        logFilterCount: this.logFilters.length,
+        databaseKind: this.eventStore.kind,
+      },
+    });
+
     if (setupError) {
       this.common.logger.error({
         service: "app",
@@ -242,6 +249,17 @@ export class Ponder {
 
   async start() {
     const setupError = await this.setup();
+
+    this.common.telemetry.record({
+      event: "App Started",
+      payload: {
+        command: "ponder start",
+        hasSetupError: !!setupError,
+        logFilterCount: this.logFilters.length,
+        databaseKind: this.eventStore.kind,
+      },
+    });
+
     if (setupError) {
       this.common.logger.error({
         service: "app",
