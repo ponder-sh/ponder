@@ -268,7 +268,6 @@ test("inserts cached range records for finalized blocks", async (context) => {
       filterKey: '1-"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"-null',
       startBlock: 16379996,
       endBlock: 16380000,
-      endBlockTimestamp: 1673397071,
     },
   ]);
 

@@ -9,7 +9,6 @@ import type { Common } from "@/Ponder";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
-import { formatShortDate } from "@/utils/date";
 
 export type LogEvent = {
   logFilterName: string;
@@ -192,9 +191,9 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   handleHistoricalSyncComplete = ({ blockNumber }: { blockNumber: number }) => {
     this.historicalCheckpoint = blockNumber;
     this.isHistoricalSyncComplete = true;
-    this.recalculateCheckpoint();
-
     this.historicalSyncFinalBlockNumber = blockNumber;
+
+    this.recalculateCheckpoint();
 
     this.common.logger.debug({
       service: "aggregator",
@@ -244,9 +243,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
 
       this.common.logger.trace({
         service: "aggregator",
-        msg: `New event checkpoint at ${this.checkpoint} [${formatShortDate(
-          this.checkpoint
-        )}]`,
+        msg: `New event checkpoint at ${this.checkpoint}`,
       });
 
       this.emit("newCheckpoint", { blockNumber: this.checkpoint });
