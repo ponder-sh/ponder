@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.80
+
+### Patch Changes
+
+- [#299](https://github.com/0xOlias/ponder/pull/299) [`31ee730`](https://github.com/0xOlias/ponder/commit/31ee730ff3390322c5ec9c89ebecf606179bae2f) Thanks [@0xOlias](https://github.com/0xOlias)! - Added anonymized telemetry. See `https://ponder.sh/advanced/telemetry` for details.
+
 ## 0.0.79
 
 ### Patch Changes
