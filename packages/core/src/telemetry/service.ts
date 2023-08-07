@@ -222,7 +222,7 @@ export class TelemetryService {
         method: "POST",
         body: JSON.stringify(event),
         headers: { "Content-Type": "application/json" },
-        // signal: this.controller.signal,
+        signal: this.controller.signal,
       });
     } catch (e) {
       const error = e as { name: string };
