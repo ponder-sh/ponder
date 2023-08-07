@@ -35,8 +35,6 @@ export type ResolvedConfig = {
   contracts?: {
     /** Contract name. Must be unique across `contracts` and `filters`. */
     name: string;
-    /** Network that this contract is deployed to. Must match a network name in `networks`. */
-    network: string; // TODO: narrow this type to TNetworks[number]['name']
     /** Contract ABI as a file path or an Array object. Accepts a single ABI or a list of ABIs to be merged. */
     abi: string | any[] | readonly any[] | (string | any[] | readonly any[])[];
     /** Contract address. */
@@ -54,8 +52,6 @@ export type ResolvedConfig = {
   filters?: {
     /** Filter name. Must be unique across `contracts` and `filters`. */
     name: string;
-    /** Network that this filter is deployed to. Must match a network name in `networks`. */
-    network: string; // TODO: narrow this type to TNetworks[number]['name']
     /** Log filter ABI as a file path or an Array object. Accepts a single ABI or a list of ABIs to be merged. */
     abi: string | any[] | readonly any[] | (string | any[] | readonly any[])[];
     /** Log filter options. */
