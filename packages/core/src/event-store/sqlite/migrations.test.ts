@@ -21,39 +21,31 @@ beforeEach((context) => setupEventStore(context, { skipMigrateUp: true }));
 const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
   await db
     .insertInto("blocks")
-    .values({ ...rpcToSqliteBlock(blockOne), chainId: 1, finalized: 0 })
+    .values({ ...rpcToSqliteBlock(blockOne), chainId: 1 })
     .execute();
 
   for (const transaction of blockOneTransactions) {
     await db
       .insertInto("transactions")
-      .values({
-        ...rpcToSqliteTransaction(transaction),
-        chainId: 1,
-        finalized: 0,
-      })
+      .values({ ...rpcToSqliteTransaction(transaction), chainId: 1 })
       .execute();
   }
 
   for (const log of blockOneLogs) {
     await db
       .insertInto("logs")
-      .values({
-        ...rpcToSqliteLog(log),
-        chainId: 1,
-        finalized: 0,
-      })
+      .values({ ...rpcToSqliteLog(log), chainId: 1 })
       .execute();
   }
 
   await db
     .insertInto("contractReadResults")
-    .values({ ...contractReadResultOne, finalized: 1 })
+    .values(contractReadResultOne)
     .execute();
 
   await db
     .insertInto("logFilterCachedRanges")
-    .values(logFilterCachedRangeOne)
+    .values({ ...logFilterCachedRangeOne, endBlockTimestamp: 1 })
     .execute();
 };
 
