@@ -12,7 +12,6 @@ token contract, which emits `Transfer`, `Approval`, and `OwnershipTransferred` e
 - Set environment variables in `.env.local` and `.env.production` based on the example in `.env.example`
 - Run `npm run dev:up` to start the Ponder development server
 - Run `npm run prod:up` to start the Ponder production server in detached mode
-- Run `npm run dev:down` or `npm run prod:down` to stop the Ponder server
 
 ````bash
 

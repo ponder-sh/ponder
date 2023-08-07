@@ -3,9 +3,7 @@
   "private": true,
   "scripts": {
     "dev:up": "docker-compose -f local.yml up",
-    "dev:down": "docker-compose -f local.yml down",
-    "prod:up": "docker-compose -f production.yml up -d",
-    "prod:down": "docker-compose -f production.yml down --volumes"
+    "prod:up": "docker-compose -f production.yml up -d"
   },
   "dependencies": {
     "@ponder/core": "latest"
