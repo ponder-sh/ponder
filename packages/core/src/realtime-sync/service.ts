@@ -73,7 +73,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.common.logger.info({
       service: "realtime",
-      msg: `Fetched latest block at ${latestBlockNumber} (network=${this.network.name})`,
+      msg: `Fetched latest block at ${latestBlockNumber}`,
     });
 
     this.common.metrics.ponder_realtime_is_connected.set(
@@ -110,7 +110,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     ) {
       this.common.logger.warn({
         service: "realtime",
-        msg: `No realtime log filters found (network=${this.network.name})`,
+        msg: `No realtime log filters found`,
       });
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },
@@ -140,9 +140,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.common.logger.info({
       service: "realtime",
-      msg: `Fetched finalized block at ${hexToNumber(
-        finalizedBlock.number!
-      )} (network=${this.network.name})`,
+      msg: `Fetched finalized block at ${hexToNumber(finalizedBlock.number!)}`,
     });
 
     // Add the finalized block as the first element of the list of unfinalized blocks.
@@ -168,7 +166,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.queue.clear();
     this.common.logger.debug({
       service: "realtime",
-      msg: `Killed realtime sync service (network=${this.network.name})`,
+      msg: `Killed realtime sync service`,
     });
   };
 
@@ -237,7 +235,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (this.blocks.find((b) => b.hash === newBlock.hash)) {
       this.common.logger.trace({
         service: "realtime",
-        msg: `Already processed block at ${newBlock.number} (network=${this.network.name})`,
+        msg: `[${newBlock.number}] Skipped block (already processed)`,
       });
       return;
     }
@@ -249,7 +247,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     ) {
       this.common.logger.debug({
         service: "realtime",
-        msg: `Started processing new head block ${newBlock.number} (network=${this.network.name})`,
+        msg: `[${newBlock.number}] Started processing new head block`,
       });
 
       // First, check if the new block _might_ contain any logs that match the registered filters.
@@ -261,7 +259,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       if (!isMatchedLogPresentInBlock) {
         this.common.logger.debug({
           service: "realtime",
-          msg: `No logs found in block ${newBlock.number} using bloom filter (network=${this.network.name})`,
+          msg: `[${newBlock.number}] No matched logs found`,
         });
       }
 
@@ -290,7 +288,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         this.common.logger.debug({
           service: "realtime",
-          msg: `Found ${logs.length} total and ${matchedLogCountText} in block ${newBlock.number} (network=${this.network.name})`,
+          msg: `[${newBlock.number}] Found ${logs.length} total and ${matchedLogCountText}`,
         });
 
         // Filter transactions down to those that are required by the matched logs.
@@ -313,13 +311,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
           this.common.logger.info({
             service: "realtime",
-            msg: `Found ${matchedLogCountText} in new head block ${newBlock.number} (network=${this.network.name})`,
+            msg: `[${newBlock.number}] Found ${matchedLogCountText} in new head block`,
           });
         } else {
           // If there are not, this was a false positive on the bloom filter.
           this.common.logger.debug({
             service: "realtime",
-            msg: `Logs bloom for block ${newBlock.number} was a false positive (network=${this.network.name})`,
+            msg: `[${newBlock.number}] Logs bloom was a false positive`,
           });
         }
       }
@@ -369,13 +367,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         this.common.logger.debug({
           service: "realtime",
-          msg: `Updated finality checkpoint to ${newFinalizedBlock.number} (network=${this.network.name})`,
+          msg: `[${newBlock.number}] Updated finality checkpoint to ${newFinalizedBlock.number}`,
         });
       }
 
       this.common.logger.debug({
         service: "realtime",
-        msg: `Finished processing new head block ${newBlock.number} (network=${this.network.name})`,
+        msg: `[${newBlock.number}] Finished processing new head block`,
       });
 
       return;
@@ -421,9 +419,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       this.common.logger.info({
         service: "realtime",
-        msg: `Fetched missing blocks [${missingBlockNumbers[0]}, ${
-          missingBlockNumbers[missingBlockNumbers.length - 1]
-        }] (network=${this.network.name})`,
+        msg: `[${newBlock.number}] Fetched missing block range (${
+          missingBlockNumbers[0]
+        }, ${missingBlockNumbers[missingBlockNumbers.length - 1]})`,
       });
 
       return;
@@ -447,7 +445,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.common.logger.warn({
       service: "realtime",
-      msg: `Detected reorg with forked block (${canonicalBlock.number}, ${canonicalBlock.hash}) (network=${this.network.name})`,
+      msg: `[${newBlock.number}] Detected reorg with forked block (${canonicalBlock.number}, ${canonicalBlock.hash})`,
     });
 
     while (canonicalBlock.number > this.finalizedBlockNumber) {
@@ -459,7 +457,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       if (commonAncestorBlock) {
         this.common.logger.warn({
           service: "realtime",
-          msg: `Found common ancestor block on local chain at height ${commonAncestorBlock.number} (network=${this.network.name})`,
+          msg: `[${newBlock.number}] Found common ancestor block on local chain at height ${commonAncestorBlock.number}`,
         });
 
         // Remove all non-canonical blocks from the local chain.
@@ -491,7 +489,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         this.common.logger.info({
           service: "realtime",
-          msg: `Reconciled ${depth}-block reorg with common ancestor block ${commonAncestorBlock.number} (network=${this.network.name})`,
+          msg: `[${newBlock.number}] Reconciled ${depth}-block reorg with common ancestor block ${commonAncestorBlock.number}`,
         });
 
         return;
@@ -521,7 +519,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       this.common.logger.warn({
         service: "realtime",
-        msg: `Fetched canonical block at height ${canonicalBlock.number} while reconciling reorg (network=${this.network.name})`,
+        msg: `[${newBlock.number}] Fetched canonical block at height ${canonicalBlock.number} while reconciling reorg`,
       });
     }
 
@@ -533,7 +531,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.common.logger.warn({
       service: "realtime",
-      msg: `Unable to reconcile >${depth}-block reorg (network=${this.network.name})`,
+      msg: `[${newBlock.number}] Unable to reconcile >${depth}-block reorg`,
     });
   };
 }
