@@ -15,7 +15,7 @@ import { getGitRemoteUrl } from "@/telemetry/remote";
 
 type TelemetryEvent = {
   event: string;
-  payload?: object;
+  payload: object;
 };
 
 type Context = {
@@ -143,7 +143,7 @@ export class TelemetryService {
     fs.writeFileSync(telemetryEventsFilePath, serializedEvents);
 
     child_process.spawn(process.execPath, [
-      path.join(__dirname, "detached-flush.js"),
+      path.join(__dirname, "flush-detached.js"),
       this.options.telemetryUrl,
       telemetryEventsFilePath,
     ]);
