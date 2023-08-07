@@ -54,6 +54,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
   private eventsProcessedToBlockNumber = 0;
   private currentEventBlockNumber = 0;
+  private isHistoricalEventProcessingCompleted = false;
   private hasError = false;
 
   constructor({
@@ -353,11 +354,13 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
         // If all historical events have now been processed, emit the event.
         if (
+          !this.isHistoricalEventProcessingCompleted &&
           this.eventAggregatorService.isHistoricalSyncComplete &&
           this.eventsProcessedToBlockNumber >=
             this.eventAggregatorService.historicalSyncFinalBlockNumber!
         ) {
           this.emit("historicalEventProcessingCompleted");
+          this.isHistoricalEventProcessingCompleted = true;
         }
       });
     } catch (error) {
