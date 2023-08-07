@@ -9,6 +9,17 @@ const withNextra = require("nextra")({
 });
 
 module.exports = withNextra({
+  redirects() {
+    return [
+      // Redirects for old docs
+      {
+        source: "/faq/vs-the-graph",
+        destination: "/compared-to-subgraphs",
+        permanent: true,
+      },
+      { source: "/faq/database", destination: "/", permanent: true },
+    ];
+  },
   webpack(config) {
     config.module.rules.push({
       test: /\.svg$/,
