@@ -13,25 +13,19 @@ const httpRequestSizeInBytes = [
 export class MetricsService {
   private registry: prometheus.Registry;
 
-  ponder_historical_scheduled_tasks: prometheus.Counter<"network" | "kind">;
-  ponder_historical_completed_tasks: prometheus.Counter<
-    "network" | "kind" | "status"
-  >;
-  ponder_historical_rpc_request_duration: prometheus.Histogram<
-    "network" | "method"
-  >;
-  ponder_historical_total_blocks: prometheus.Gauge<"network" | "logFilter">;
-  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "logFilter">;
-  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "logFilter">;
-  ponder_historical_completion_rate: prometheus.Gauge<"network" | "logFilter">;
-  ponder_historical_completion_eta: prometheus.Gauge<"network" | "logFilter">;
+  ponder_historical_scheduled_tasks: prometheus.Counter<"kind">;
+  ponder_historical_completed_tasks: prometheus.Counter<"kind" | "status">;
+  ponder_historical_rpc_request_duration: prometheus.Histogram<"method">;
+  ponder_historical_total_blocks: prometheus.Gauge<"logFilter">;
+  ponder_historical_cached_blocks: prometheus.Gauge<"logFilter">;
+  ponder_historical_completed_blocks: prometheus.Gauge<"logFilter">;
+  ponder_historical_completion_rate: prometheus.Gauge<"logFilter">;
+  ponder_historical_completion_eta: prometheus.Gauge<"logFilter">;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
-  ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
-  ponder_realtime_latest_block_timestamp: prometheus.Gauge<"network">;
-  ponder_realtime_rpc_request_duration: prometheus.Histogram<
-    "network" | "method"
-  >;
+  ponder_realtime_latest_block_number: prometheus.Gauge;
+  ponder_realtime_latest_block_timestamp: prometheus.Gauge;
+  ponder_realtime_rpc_request_duration: prometheus.Histogram<"method">;
 
   ponder_handlers_matched_events: prometheus.Gauge<"eventName">;
   ponder_handlers_handled_events: prometheus.Gauge<"eventName">;
@@ -61,75 +55,73 @@ export class MetricsService {
     this.ponder_historical_scheduled_tasks = new prometheus.Counter({
       name: "ponder_historical_scheduled_tasks",
       help: "Number of historical sync tasks that have been scheduled",
-      labelNames: ["network", "kind"] as const,
+      labelNames: ["kind"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_completed_tasks = new prometheus.Counter({
       name: "ponder_historical_completed_tasks",
       help: "Number of historical sync tasks that have been processed",
-      labelNames: ["network", "kind", "status"] as const,
+      labelNames: ["kind", "status"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_rpc_request_duration = new prometheus.Histogram({
       name: "ponder_historical_rpc_request_duration",
       help: "Duration of RPC requests completed during the historical sync",
-      labelNames: ["network", "method"] as const,
+      labelNames: ["method"] as const,
       buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
     this.ponder_historical_total_blocks = new prometheus.Gauge({
       name: "ponder_historical_total_blocks",
       help: "Number of blocks required for the historical sync",
-      labelNames: ["network", "logFilter"] as const,
+      labelNames: ["logFilter"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_cached_blocks = new prometheus.Gauge({
       name: "ponder_historical_cached_blocks",
       help: "Number of blocks that were found in the cache for the historical sync",
-      labelNames: ["network", "logFilter"] as const,
+      labelNames: ["logFilter"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_completed_blocks = new prometheus.Gauge({
       name: "ponder_historical_completed_blocks",
       help: "Number of blocks that have been processed for the historical sync",
-      labelNames: ["network", "logFilter"] as const,
+      labelNames: ["logFilter"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_completion_rate = new prometheus.Gauge({
       name: "ponder_historical_completion_rate",
       help: "Completion rate (0 to 1) of the historical sync",
-      labelNames: ["network", "logFilter"] as const,
+      labelNames: ["logFilter"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_completion_eta = new prometheus.Gauge({
       name: "ponder_historical_completion_eta",
       help: "Estimated number of milliseconds remaining to complete the historical sync",
-      labelNames: ["network", "logFilter"] as const,
+      labelNames: ["logFilter"] as const,
       registers: [this.registry],
     });
 
     this.ponder_realtime_is_connected = new prometheus.Gauge({
       name: "ponder_realtime_is_connected",
-      help: "Boolean (0 or 1) indicating if the historical sync service is connected",
+      help: "Boolean (0 or 1) indicating if the realtime sync service is connected",
       labelNames: ["network"] as const,
       registers: [this.registry],
     });
     this.ponder_realtime_latest_block_number = new prometheus.Gauge({
       name: "ponder_realtime_latest_block_number",
       help: "Block number of the latest synced block",
-      labelNames: ["network"] as const,
       registers: [this.registry],
     });
     this.ponder_realtime_latest_block_timestamp = new prometheus.Gauge({
       name: "ponder_realtime_latest_block_timestamp",
       help: "Block timestamp of the latest synced block",
-      labelNames: ["network"] as const,
       registers: [this.registry],
     });
     this.ponder_realtime_rpc_request_duration = new prometheus.Histogram({
       name: "ponder_realtime_rpc_request_duration",
       help: "Duration of RPC requests completed during the realtime sync",
-      labelNames: ["network", "method"] as const,
+      labelNames: ["method"] as const,
       buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });

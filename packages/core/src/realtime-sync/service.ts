@@ -58,7 +58,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     network: Network;
   }) {
     super();
-
     this.common = common;
     this.eventStore = eventStore;
     this.logFilters = logFilters;
@@ -135,7 +134,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
     if (!finalizedBlock) throw new Error(`Unable to fetch finalized block`);
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
-      { method: "eth_getBlockByNumber", network: this.network.name },
+      { method: "eth_getBlockByNumber" },
       stopClock()
     );
 
@@ -186,7 +185,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     });
     if (!latestBlock_) throw new Error(`Unable to fetch latest block`);
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
-      { method: "eth_getBlockByNumber", network: this.network.name },
+      { method: "eth_getBlockByNumber" },
       stopClock()
     );
     return latestBlock_ as BlockWithTransactions;
@@ -274,7 +273,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           params: [{ blockHash: newBlock.hash }],
         });
         this.common.metrics.ponder_realtime_rpc_request_duration.observe(
-          { method: "eth_getLogs", network: this.network.name },
+          { method: "eth_getLogs" },
           stopClock()
         );
 
@@ -407,10 +406,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             throw new Error(`Failed to fetch block number: ${number}`);
           }
           this.common.metrics.ponder_realtime_rpc_request_duration.observe(
-            {
-              method: "eth_getBlockByNumber",
-              network: this.network.name,
-            },
+            { method: "eth_getBlockByNumber" },
             stopClock()
           );
           return block as BlockWithTransactions;
@@ -510,10 +506,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         params: [canonicalBlock.parentHash, true],
       });
       this.common.metrics.ponder_realtime_rpc_request_duration.observe(
-        {
-          method: "eth_getBlockByHash",
-          network: this.network.name,
-        },
+        { method: "eth_getBlockByHash" },
         stopClock()
       );
 
