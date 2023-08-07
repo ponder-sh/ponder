@@ -15,7 +15,7 @@ import { getGitRemoteUrl } from "@/telemetry/remote";
 
 type TelemetryEvent = {
   event: string;
-  payload: object;
+  payload?: object;
 };
 
 type Context = {
