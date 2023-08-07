@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.0.78",
+  "version": "0.0.79",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "files": [
