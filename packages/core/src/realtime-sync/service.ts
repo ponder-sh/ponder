@@ -332,11 +332,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       this.blocks.push(newBlock);
 
       this.common.metrics.ponder_realtime_latest_block_number.set(
-        { network: this.network.name },
         newBlock.number
       );
       this.common.metrics.ponder_realtime_latest_block_timestamp.set(
-        { network: this.network.name },
         newBlock.timestamp
       );
 
