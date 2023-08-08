@@ -1,0 +1,9 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "@ponder/core": "0.0.80",
+    "create-ponder": "0.0.80"
+  },
+  "changesets": ["khaki-ants-change"]
+}
