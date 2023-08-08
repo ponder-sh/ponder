@@ -28,6 +28,8 @@ export default async function forwardTelemetry(
     message: "Telemetry data processed successfully.",
   });
 
+  console.log("Telemetry data received:", req.body);
+
   try {
     await analytics.track(req.body);
     console.log("Telemetry data processed successfully.");
