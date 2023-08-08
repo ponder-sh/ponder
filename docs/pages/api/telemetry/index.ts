@@ -1,4 +1,4 @@
-import { Analytics } from "@segment/analytics-node";
+import { Analytics, TrackParams } from "@segment/analytics-node";
 import { NextApiRequest, NextApiResponse } from "next";
 
 if (!process.env.SEGMENT_WRITE_KEY) {
@@ -14,6 +14,15 @@ const analytics = new Analytics({
   maxEventsInBatch: 1,
 });
 
+const asyncTrack = (payload: TrackParams) => {
+  return new Promise<void>((resolve, reject) => {
+    analytics.track(payload, (err) => {
+      if (err) reject(err);
+      resolve();
+    });
+  });
+};
+
 export default async function forwardTelemetry(
   req: NextApiRequest,
   res: NextApiResponse
@@ -24,16 +33,14 @@ export default async function forwardTelemetry(
     });
   }
 
-  res.status(200).json({
-    message: "Telemetry data processed successfully.",
-  });
-
   try {
-    await analytics.track(req.body);
+    await asyncTrack(req.body);
+    res.status(200).json({ success: true });
   } catch (e) {
     console.error("Error processing telemetry data:", {
       error: e,
       body: req.body,
     });
+    res.status(500).json({ error: "Server error" });
   }
 }
