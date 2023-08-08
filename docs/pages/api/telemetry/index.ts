@@ -31,7 +31,9 @@ export default async function forwardTelemetry(
   try {
     await analytics.track(req.body);
   } catch (e) {
-    console.error("Error processing telemetry data:", e);
-    console.log("Telemetry data received:", req.body);
+    console.error("Error processing telemetry data:", {
+      error: e,
+      body: req.body,
+    });
   }
 }
