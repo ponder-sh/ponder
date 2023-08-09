@@ -24,7 +24,7 @@ export type Model<T extends { id: string | number | bigint }> = {
         ? { data: Prettify<Omit<T, "id">> }
         : { data?: Prettify<Omit<T, "id">> })
     >
-  ) => Promise<T>;
+  ) => Promise<Prettify<T>>;
 
   update: (
     options: Prettify<
@@ -33,10 +33,22 @@ export type Model<T extends { id: string | number | bigint }> = {
       } & (HasOnlyIdProperty<T> extends true
         ? { data?: never }
         : HasRequiredPropertiesOtherThanId<T> extends true
-        ? { data: Prettify<Omit<Partial<T>, "id">> }
-        : { data?: Prettify<Omit<Partial<T>, "id">> })
+        ? {
+            data:
+              | Prettify<Omit<Partial<T>, "id">>
+              | ((options: {
+                  current: Prettify<T>;
+                }) => Prettify<Omit<Partial<T>, "id">>);
+          }
+        : {
+            data?:
+              | Prettify<Omit<Partial<T>, "id">>
+              | ((options: {
+                  current: Prettify<T>;
+                }) => Prettify<Omit<Partial<T>, "id">>);
+          })
     >
-  ) => Promise<T>;
+  ) => Promise<Prettify<T>>;
 
   upsert: (
     options: Prettify<
@@ -47,16 +59,24 @@ export type Model<T extends { id: string | number | bigint }> = {
         : HasRequiredPropertiesOtherThanId<T> extends true
         ? {
             create: Prettify<Omit<T, "id">>;
-            update: Prettify<Omit<Partial<T>, "id">>;
+            update:
+              | Prettify<Omit<Partial<T>, "id">>
+              | ((options: {
+                  current: Prettify<T>;
+                }) => Prettify<Omit<Partial<T>, "id">>);
           }
         : {
             create?: Prettify<Omit<T, "id">>;
-            update?: Prettify<Omit<Partial<T>, "id">>;
+            update?:
+              | Prettify<Omit<Partial<T>, "id">>
+              | ((options: {
+                  current: Prettify<T>;
+                }) => Prettify<Omit<Partial<T>, "id">>);
           })
     >
-  ) => Promise<T>;
+  ) => Promise<Prettify<T>>;
 
-  findUnique: (options: { id: T["id"] }) => Promise<T | null>;
+  findUnique: (options: { id: T["id"] }) => Promise<Prettify<T> | null>;
 
   delete: (options: { id: T["id"] }) => Promise<boolean>;
 };
