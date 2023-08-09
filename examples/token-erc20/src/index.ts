@@ -4,42 +4,28 @@ ponder.on("AdventureGold:Transfer", async ({ event, context }) => {
   const { Account, TransferEvent } = context.entities;
 
   // Create an Account for the sender, or update the balance if it already exists.
-  const sender = await Account.findUnique({ id: event.params.from });
-  if (!sender) {
-    await Account.create({
-      id: event.params.from,
-      data: {
-        balance: BigInt(0),
-        isOwner: false,
-      },
-    });
-  } else {
-    await Account.update({
-      id: event.params.from,
-      data: {
-        balance: sender.balance - event.params.value,
-      },
-    });
-  }
+  await Account.upsert({
+    id: event.params.from,
+    create: {
+      balance: BigInt(0),
+      isOwner: false,
+    },
+    update: ({ current }) => ({
+      balance: current.balance - event.params.value,
+    }),
+  });
 
   // Create an Account for the recipient, or update the balance if it already exists.
-  const recipient = await Account.findUnique({ id: event.params.to });
-  if (!recipient) {
-    await Account.create({
-      id: event.params.to,
-      data: {
-        balance: event.params.value,
-        isOwner: false,
-      },
-    });
-  } else {
-    await Account.update({
-      id: event.params.to,
-      data: {
-        balance: recipient.balance + event.params.value,
-      },
-    });
-  }
+  await Account.upsert({
+    id: event.params.to,
+    create: {
+      balance: event.params.value,
+      isOwner: false,
+    },
+    update: ({ current }) => ({
+      balance: current.balance + event.params.value,
+    }),
+  });
 
   // Create a TransferEvent.
   await TransferEvent.create({
