@@ -240,6 +240,44 @@ test("update() updates a record", async (context) => {
   await userStore.teardown();
 });
 
+test("update() updates a record using an update function", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", bigAge: 100n },
+  });
+
+  const instance = await userStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
+
+  await userStore.update({
+    modelName: "Pet",
+    timestamp: 11,
+    id: "id1",
+    data: ({ current }) => ({
+      name: current.name + " and Skipper",
+    }),
+  });
+
+  const updatedInstance = await userStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
+  expect(updatedInstance).toMatchObject({
+    id: "id1",
+    name: "Skip and Skipper",
+  });
+
+  await userStore.teardown();
+});
+
 test("update() updates a record and maintains older version", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
@@ -365,6 +403,38 @@ test("upsert() updates a record", async (context) => {
     id: "id1",
   });
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Jelly", age: 12 });
+
+  await userStore.teardown();
+});
+
+test("upsert() updates a record using an update function", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await userStore.upsert({
+    modelName: "Pet",
+    timestamp: 12,
+    id: "id1",
+    create: { name: "Skip", age: 24 },
+    update: ({ current }) => ({
+      age: (current.age as number) - 5,
+    }),
+  });
+
+  const updatedInstance = await userStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
+  expect(updatedInstance).toMatchObject({ id: "id1", name: "Skip", age: 7 });
 
   await userStore.teardown();
 });
