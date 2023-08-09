@@ -268,7 +268,10 @@ export class PostgresUserStore implements UserStore {
       let updateInstance: ReturnType<typeof formatModelInstance>;
       if (typeof data === "function") {
         const updateObject = data({
-          current: this.deserializeInstance({ modelName, instance }),
+          current: this.deserializeInstance({
+            modelName,
+            instance: latestInstance,
+          }),
         });
         updateInstance = formatModelInstance({ id, data: updateObject });
       } else {
@@ -362,7 +365,10 @@ export class PostgresUserStore implements UserStore {
       let updateInstance: ReturnType<typeof formatModelInstance>;
       if (typeof update === "function") {
         const updateObject = update({
-          current: this.deserializeInstance({ modelName, instance }),
+          current: this.deserializeInstance({
+            modelName,
+            instance: latestInstance,
+          }),
         });
         updateInstance = formatModelInstance({ id, data: updateObject });
       } else {
