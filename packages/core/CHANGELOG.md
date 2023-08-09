@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.82
+
+### Patch Changes
+
+- [#308](https://github.com/0xOlias/ponder/pull/308) [`661c19a`](https://github.com/0xOlias/ponder/commit/661c19aa1a9b7250aa715120a6da21f7e5f7f9d3) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the GraphQL resolver for singular entities would return null for falsey (but valid) ID values like `0`.
+
 ## 0.0.81
 
 ### Patch Changes
