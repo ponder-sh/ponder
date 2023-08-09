@@ -16,18 +16,18 @@ Ponder's entity store API is inspired by the [Prisma Client API](https://www.pri
 
 ## `create`
 
-`create` inserts an entity into the store.
+Insert a new entity into the store.
 
 ### Options
 
-| name     | type                         |                                                |
-| :------- | :--------------------------- | :--------------------------------------------- |
-| **id**   | `string \| number \| bigint` | ID of the new entity                           |
-| **data** | `Omit<TEntity, 'id'>`        | Data for all required fields of the new entity |
+| name     | type                              |                                |
+| :------- | :-------------------------------- | :----------------------------- |
+| **id**   | `string \| number \| bigint{:ts}` | ID of the new entity           |
+| **data** | `TEntity{:ts}`                    | Data required for a new entity |
 
 ### Returns
 
-`Promise<TEntity>`
+`Promise<TEntity>{:ts}`
 
 ### Example
 
@@ -60,18 +60,19 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 
 ## `update`
 
-`update` updates an existing entity in the store.
+Update an entity that already exists.
 
 ### Options
 
-| name     | type                           |                                           |
-| :------- | :----------------------------- | :---------------------------------------- |
-| **id**   | `string \| number \| bigint`   | ID of the updated entity                  |
-| **data** | `Omit<Partial<TEntity>, 'id'>` | Data for all updated fields of the entity |
+| name                | type                                                    |                                   |
+| :------------------ | :------------------------------------------------------ | :-------------------------------- |
+| **id**              | `string \| number \| bigint{:ts}`                       | ID of the updated entity          |
+| **data**            | `Partial<TEntity>{:ts}`                                 | Data to update                    |
+| **data** (function) | `(args: { current: TEntity }) => Partial<TEntity>{:ts}` | Function returning data to update |
 
 ### Returns
 
-`Promise<TEntity>`
+`Promise<TEntity>{:ts}`
 
 ### Example
 
@@ -101,25 +102,55 @@ ponder.on("Blitmap:MetadataUpdate", async ({ event, context }) => {
 
 </div>
 
+#### Update function
+
+You can optionally pass a function to the `data` field that receives the current entity as an argument and returns the update object. This is useful for updates that depend on the current entity, like an incrementing count or balance.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+type Account @entity {
+  id: Int!
+  balance: BigInt!
+}
+```
+
+```ts filename="src/index.ts"
+ponder.on("Blitmap:Transfer", async ({ event, context }) => {
+  const { Account } = context.entities;
+
+  const recipient = await Account.update({
+    id: event.params.to,
+    data: ({ current }) => ({
+      balance: current.balance + event.params.value,
+    }),
+  });
+  // { id: "0x5D92..", balance: 11800000005n }
+});
+```
+
+</div>
+
 ## `upsert`
 
-`upsert` updates an entity if one already exists with the specified `id`, or creates a new entity.
+Update an entity if one already exists with the specified `id`, or create a new entity.
 
 ### Options
 
-| name       | type                           |                                                   |
-| :--------- | :----------------------------- | :------------------------------------------------ |
-| **id**     | `string \| number \| bigint`   | ID of the entity to create or update              |
-| **create** | `Omit<TEntity, 'id'>`          | Data for all required fields of a new entity      |
-| **update** | `Omit<Partial<TEntity>, 'id'>` | Data for all updated fields of an existing entity |
+| name                  | type                                                    |                                      |
+| :-------------------- | :------------------------------------------------------ | :----------------------------------- |
+| **id**                | `string \| number \| bigint{:ts}`                       | ID of the entity to create or update |
+| **create**            | `TEntity{:ts}`                                          | Data required for a new entity       |
+| **update**            | `Partial<TEntity>{:ts}`                                 | Data to update                       |
+| **update** (function) | `(args: { current: TEntity }) => Partial<TEntity>{:ts}` | Function returning data to update    |
 
 ### Returns
 
-`Promise<TEntity>`
+`Promise<TEntity>{:ts}`
 
-### Example
+### Examples
 
-`upsert` can be useful for events like the ERC721 `Transfer` event, which is emitted when a token is minted _and_ whenever a token is transferred.
+Upsert can be useful for events like the ERC721 `Transfer` event, which is emitted when a token is minted _and_ whenever a token is transferred.
 
 <div className="code-columns">
 
@@ -140,6 +171,7 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
     create: {
       mintedBy: event.params.to,
       ownedBy: event.params.to,
+      transferCount: 0,
     },
     update: {
       ownedBy: event.params.to,
@@ -151,19 +183,54 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
 
 </div>
 
+#### Update function
+
+You can optionally pass a function to the `update` field that receives the current entity as an argument and returns the update object. This is useful for updates that depend on the current entity, like an incrementing count or balance.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+type Token @entity {
+  id: Int!
+  ownedBy: String!
+  transferCount: Int!
+}
+```
+
+```ts filename="src/index.ts"
+ponder.on("Blitmap:Transfer", async ({ event, context }) => {
+  const { Token } = context.entities;
+
+  const token = await Token.upsert({
+    id: event.params.tokenId,
+    create: {
+      ownedBy: event.params.to,
+      transferCount: 0,
+    },
+    update: ({ current }) => ({
+      ownedBy: event.params.to,
+      transferCount: current.transferCount + 1,
+    }),
+  });
+  // { id: 7777, ownedBy: "0x7F4d...", transferCount: 1 }
+});
+```
+
+</div>
+
 ## `findUnique`
 
 `findUnique` finds and returns an entity by `id`.
 
 ### Options
 
-| name   | type                         |                                     |
-| :----- | :--------------------------- | :---------------------------------- |
-| **id** | `string \| number \| bigint` | ID of the entity to find and return |
+| name   | type                              |                                     |
+| :----- | :-------------------------------- | :---------------------------------- |
+| **id** | `string \| number \| bigint{:ts}` | ID of the entity to find and return |
 
 ### Returns
 
-`Promise<TEntity | null>`
+`Promise<TEntity | null>{:ts}`
 
 ### Example
 
@@ -190,17 +257,17 @@ const sara = await Player.findUnique({ id: "Sara" });
 
 ## `delete`
 
-`findUnique` deletes an entity by `id`.
+`delete` deletes an entity by `id`.
 
 ### Options
 
-| name   | type                         |                            |
-| :----- | :--------------------------- | :------------------------- |
-| **id** | `string \| number \| bigint` | ID of the entity to delete |
+| name   | type                              |                            |
+| :----- | :-------------------------------- | :------------------------- |
+| **id** | `string \| number \| bigint{:ts}` | ID of the entity to delete |
 
 ### Returns
 
-`Promise<boolean>` (`true` if an entity was deleted, `false` if it was not found)
+`Promise<boolean>{:ts}` (`true{:ts}` if the entity was deleted, `false{:ts}` if it was not found)
 
 ### Example
 
