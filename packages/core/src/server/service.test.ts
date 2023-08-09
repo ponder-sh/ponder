@@ -380,7 +380,7 @@ test("finds unique entity by bigint id", async (context) => {
   await service.kill();
 });
 
-test.only("finds unique entity with id: 0", async (context) => {
+test("finds unique entity with id: 0", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createEntityWithIntId } = await setup({
     common,
