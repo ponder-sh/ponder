@@ -116,7 +116,7 @@ type Account @entity {
 ```
 
 ```ts filename="src/index.ts"
-ponder.on("Blitmap:Transfer", async ({ event, context }) => {
+ponder.on("ERC20:Transfer", async ({ event, context }) => {
   const { Account } = context.entities;
 
   const recipient = await Account.update({
