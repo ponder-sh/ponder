@@ -27,7 +27,7 @@ const buildSingularField = ({
     const { store } = context;
     const { id, timestamp } = args;
 
-    if (!id) return null;
+    if (id === undefined) return null;
 
     const entityInstance = await store.findUnique({
       modelName: entity.name,

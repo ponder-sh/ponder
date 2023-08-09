@@ -46,6 +46,10 @@ const userSchema = buildGraphqlSchema(`
     id: BigInt!
     testEntity: TestEntity!
   }
+
+  type EntityWithIntId @entity {
+    id: Int!
+  }
 `);
 const schema = buildSchema(userSchema);
 const graphqlSchema = buildGqlSchema(schema);
@@ -107,7 +111,21 @@ const setup = async ({
     });
   };
 
-  return { service, gql, createTestEntity, createEntityWithBigIntId };
+  const createEntityWithIntId = async ({ id }: { id: number }) => {
+    await userStore.create({
+      modelName: "EntityWithIntId",
+      timestamp: 0,
+      id,
+    });
+  };
+
+  return {
+    service,
+    gql,
+    createTestEntity,
+    createEntityWithBigIntId,
+    createEntityWithIntId,
+  };
 };
 
 test("serves all scalar types correctly", async (context) => {
@@ -358,6 +376,30 @@ test("finds unique entity by bigint id", async (context) => {
   const { entityWithBigIntId } = response.body.data;
 
   expect(entityWithBigIntId).toBeDefined();
+
+  await service.kill();
+});
+
+test.only("finds unique entity with id: 0", async (context) => {
+  const { common, userStore } = context;
+  const { service, gql, createEntityWithIntId } = await setup({
+    common,
+    userStore,
+  });
+
+  await createEntityWithIntId({ id: 0 });
+
+  const response = await gql(`
+    entityWithIntId(id: 0) {
+      id
+    }
+  `);
+
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const { entityWithIntId } = response.body.data;
+
+  expect(entityWithIntId).toBeTruthy();
 
   await service.kill();
 });
