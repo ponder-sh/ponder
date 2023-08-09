@@ -246,11 +246,14 @@ export class PostgresUserStore implements UserStore {
     modelName: string;
     timestamp: number;
     id: string | number | bigint;
-    data?: Partial<Omit<ModelInstance, "id">>;
+    data?:
+      | Partial<Omit<ModelInstance, "id">>
+      | ((args: {
+          current: ModelInstance;
+        }) => Partial<Omit<ModelInstance, "id">>);
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
     const formattedId = formatModelFieldValue({ value: id });
-    const updateInstance = formatModelInstance({ id, data });
 
     const instance = await this.db.transaction().execute(async (tx) => {
       // Find the latest version of this instance.
@@ -260,6 +263,20 @@ export class PostgresUserStore implements UserStore {
         .where("id", "=", formattedId)
         .orderBy("effectiveTo", "desc")
         .executeTakeFirstOrThrow();
+
+      // If the user passed an update function, call it with the current instance.
+      let updateInstance: ReturnType<typeof formatModelInstance>;
+      if (typeof data === "function") {
+        const updateObject = data({
+          current: this.deserializeInstance({
+            modelName,
+            instance: latestInstance,
+          }),
+        });
+        updateInstance = formatModelInstance({ id, data: updateObject });
+      } else {
+        updateInstance = formatModelInstance({ id, data });
+      }
 
       // If the latest version has the same effectiveFrom timestamp as the update,
       // this update is occurring within the same block/second. Update in place.
@@ -312,12 +329,15 @@ export class PostgresUserStore implements UserStore {
     timestamp: number;
     id: string | number | bigint;
     create?: Omit<ModelInstance, "id">;
-    update?: Partial<Omit<ModelInstance, "id">>;
+    update?:
+      | Partial<Omit<ModelInstance, "id">>
+      | ((args: {
+          current: ModelInstance;
+        }) => Partial<Omit<ModelInstance, "id">>);
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
     const formattedId = formatModelFieldValue({ value: id });
     const createInstance = formatModelInstance({ id, data: create });
-    const updateInstance = formatModelInstance({ id, data: update });
 
     const instance = await this.db.transaction().execute(async (tx) => {
       // Attempt to find the latest version of this instance.
@@ -339,6 +359,20 @@ export class PostgresUserStore implements UserStore {
           })
           .returningAll()
           .executeTakeFirstOrThrow();
+      }
+
+      // If the user passed an update function, call it with the current instance.
+      let updateInstance: ReturnType<typeof formatModelInstance>;
+      if (typeof update === "function") {
+        const updateObject = update({
+          current: this.deserializeInstance({
+            modelName,
+            instance: latestInstance,
+          }),
+        });
+        updateInstance = formatModelInstance({ id, data: updateObject });
+      } else {
+        updateInstance = formatModelInstance({ id, data: update });
       }
 
       // If the latest version has the same effectiveFrom timestamp as the update,

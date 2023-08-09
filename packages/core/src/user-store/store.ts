@@ -64,7 +64,11 @@ export interface UserStore {
     modelName: string;
     timestamp: number;
     id: string | number | bigint;
-    data?: Partial<Omit<ModelInstance, "id">>;
+    data?:
+      | Partial<Omit<ModelInstance, "id">>
+      | ((args: {
+          current: ModelInstance;
+        }) => Partial<Omit<ModelInstance, "id">>);
   }): Promise<ModelInstance>;
 
   upsert(options: {
@@ -72,7 +76,11 @@ export interface UserStore {
     timestamp: number;
     id: string | number | bigint;
     create?: Omit<ModelInstance, "id">;
-    update?: Partial<Omit<ModelInstance, "id">>;
+    update?:
+      | Partial<Omit<ModelInstance, "id">>
+      | ((args: {
+          current: ModelInstance;
+        }) => Partial<Omit<ModelInstance, "id">>);
   }): Promise<ModelInstance>;
 
   delete(options: {
