@@ -67,6 +67,16 @@ const networkByEtherscanHostname: Record<
     chainId: 7777777,
     apiUrl: "https://explorer.zora.energy/api",
   },
+  "basescan.org": {
+    name: "base",
+    chainId: 8453,
+    apiUrl: "https://api.basescan.org/api",
+  },
+  "goerli.basescan.org": {
+    name: "base-goerli",
+    chainId: 84531,
+    apiUrl: "https://api.goerli.basescan.org/api",
+  },
 };
 
 export const getNetworkByEtherscanHostname = (hostname: string) => {

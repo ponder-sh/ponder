@@ -276,6 +276,59 @@ describe("create-ponder", () => {
         expect(src.sort()).toEqual(["ZoraNFTCreatorProxy.ts"].sort());
       });
     });
+
+    describe.only("base BasePaint", () => {
+      const rootDir = path.join(tmpDir, randomUUID());
+
+      beforeAll(async () => {
+        await run(
+          {
+            projectName: "BasePaint",
+            rootDir,
+            template: {
+              kind: TemplateKind.ETHERSCAN,
+              link: "https://basescan.org/address/0xba5e05cb26b78eda3a2f8e3b3814726305dcac83#code",
+            },
+          },
+          {
+            installCommand:
+              'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
+          }
+        );
+      });
+
+      test("creates project files and directories", async () => {
+        const root = fs.readdirSync(rootDir);
+        expect(root).toContain(".env.local");
+        expect(root).toContain(".gitignore");
+        expect(root).toContain("abis");
+        expect(root).toContain("generated");
+        expect(root).toContain("src");
+        expect(root).toContain("node_modules");
+        expect(root).toContain("package.json");
+        expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("schema.graphql");
+        expect(root).toContain("tsconfig.json");
+      });
+
+      test("downloads abis", async () => {
+        const abiString = fs.readFileSync(
+          path.join(rootDir, `abis/BasePaint.json`),
+          { encoding: "utf8" }
+        );
+        expect(JSON.parse(abiString).length).toBeGreaterThan(0);
+      });
+
+      test("creates codegen files", async () => {
+        const generated = fs.readdirSync(path.join(rootDir, "generated"));
+        expect(generated.sort()).toEqual(["index.ts", "schema.graphql"].sort());
+      });
+
+      test("creates src files", async () => {
+        const src = fs.readdirSync(path.join(rootDir, "src"));
+        expect(src.sort()).toEqual(["BasePaint.ts"].sort());
+      });
+    });
   });
 
   describe("from subgraph id", () => {
