@@ -1,14 +1,14 @@
 {
-  "name": "eslint-plugin-await-upsert",
+  "name": "@ponder/eslint-plugin-indexing",
   "version": "0.0.1",
-  "description": "",
-  "main": "index.js",
+  "description": "ESLint plugin for Ponder",
+  "main": "./dist/index.js",
   "scripts": {
     "test": "vitest",
     "build": "tsc -b"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@typescript-eslint/utils": "^6.3.0"
   },

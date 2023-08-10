@@ -16,16 +16,14 @@ const rule: TSESLint.RuleModule<MessageIds> = {
     CallExpression: (node) => {
       const { callee } = node;
       if (callee.type !== "MemberExpression") return;
+      if (callee.property.type !== "Identifier") return;
+      if (callee.property.name !== "upsert") return;
 
-      const { object } = callee;
+      const ancestor = context
+        .getAncestors()
+        .find((ancestor) => ancestor.type === "AwaitExpression");
 
-      if (object.type !== "Identifier") return;
-      if (object.name !== "context") return;
-
-      // 2 levels up is the AwaitExpression
-      const ancestor = context.getAncestors()[2];
-
-      if (!ancestor || ancestor.type !== "AwaitExpression") {
+      if (!ancestor) {
         context.report({
           node,
           messageId: "awaitUpsert",

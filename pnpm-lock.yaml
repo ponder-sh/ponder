@@ -480,7 +480,7 @@ importers:
         specifier: ^0.29.2
         version: 0.29.2
 
-  packages/eslint-plugin-await-upsert:
+  packages/eslint-plugin-indexing:
     dependencies:
       '@typescript-eslint/utils':
         specifier: ^6.3.0
