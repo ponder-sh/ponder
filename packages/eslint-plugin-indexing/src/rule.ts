@@ -17,7 +17,7 @@ const rule: TSESLint.RuleModule<MessageIds> = {
       const { callee } = node;
 
       // Check if the callee is a member expression aka a function call
-      // e.g. context.upsert({})
+      // e.g. context.upsert({}) or entity.upsert({}) or Account.upsert({})
       if (callee.type !== "MemberExpression") return;
       if (callee.property.type !== "Identifier") return;
       if (callee.property.name !== "upsert") return;
