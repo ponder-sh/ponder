@@ -1,6 +1,6 @@
 {
   "name": "create-ponder",
-  "version": "0.0.83",
+  "version": "0.0.84",
   "description": "A CLI tool to create Ponder apps",
   "license": "MIT",
   "files": [

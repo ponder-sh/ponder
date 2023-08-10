@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.84
+
+### Patch Changes
+
+- [`64d8ded`](https://github.com/0xOlias/ponder/commit/64d8ded21ba7f71785bcab43293d96ca6944c6eb) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed dependency bug.
+
 ## 0.0.83
 
 ### Patch Changes
