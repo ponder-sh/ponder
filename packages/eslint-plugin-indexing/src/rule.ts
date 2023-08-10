@@ -26,7 +26,7 @@ const rule: TSESLint.RuleModule<MessageIds> = {
         return;
       }
 
-      // check if the call is preceded by an await expression
+      // check if the call is preceded by the await keyword
       const ancestor = context
         .getAncestors()
         .find((ancestor) => ancestor.type === "AwaitExpression");
