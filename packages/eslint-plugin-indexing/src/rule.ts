@@ -18,9 +18,13 @@ const rule: TSESLint.RuleModule<MessageIds> = {
 
       // Check if the callee is a member expression aka a function call
       // e.g. context.upsert({}) or entity.upsert({}) or Account.upsert({})
-      if (callee.type !== "MemberExpression") return;
-      if (callee.property.type !== "Identifier") return;
-      if (callee.property.name !== "upsert") return;
+      if (
+        callee.type !== "MemberExpression" ||
+        callee.property.type !== "Identifier" ||
+        callee.property.name !== "upsert"
+      ) {
+        return;
+      }
 
       // check if the call is preceded by an await expression
       const ancestor = context
