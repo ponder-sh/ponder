@@ -277,7 +277,7 @@ describe("create-ponder", () => {
       });
     });
 
-    describe.only("base BasePaint", () => {
+    describe("base BasePaint", () => {
       const rootDir = path.join(tmpDir, randomUUID());
 
       beforeAll(async () => {
