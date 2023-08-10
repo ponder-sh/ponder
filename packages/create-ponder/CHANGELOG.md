@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.83
+
+### Patch Changes
+
+- [`e54f362`](https://github.com/0xOlias/ponder/commit/e54f362ee3812ee4dd21c9b7d2df153693202fb5) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `basescan.org` to explorer URL list
+
 ## 0.0.82
 
 ## 0.0.81
