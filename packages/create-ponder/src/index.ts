@@ -165,6 +165,7 @@ export const run = async (
         "@ponder/core": "latest"
       },
       "devDependencies": {
+        "eslint-config-ponder": "latest",
         "@types/node": "^18.11.18",
         "abitype": "^0.8.11",
         "typescript": "^5.1.3",
@@ -199,6 +200,17 @@ export const run = async (
   writeFileSync(
     path.join(rootDir, "tsconfig.json"),
     prettier.format(tsConfig, { parser: "json" })
+  );
+
+  const eslintConfig = `
+    {
+      "extends": "eslint-config-ponder"
+    }
+  `;
+
+  writeFileSync(
+    path.join(rootDir, ".eslintrc.json"),
+    prettier.format(eslintConfig, { parser: "json" })
   );
 
   // Write the .gitignore file.
