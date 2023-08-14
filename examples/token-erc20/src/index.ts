@@ -72,7 +72,7 @@ ponder.on("AdventureGold:Approval", async ({ event, context }) => {
 ponder.on("AdventureGold:OwnershipTransferred", async ({ event, context }) => {
   const { Account } = context.entities;
 
-  await Account.upsert({
+  Account.upsert({
     id: event.params.previousOwner,
     create: {
       balance: BigInt(0),

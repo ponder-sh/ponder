@@ -1,5 +1,5 @@
 module.exports = {
-  extends: ["plugin:@typescript-eslint/recommended-type-checked"],
+  // extends: ["plugin:@typescript-eslint/recommended-type-checked"],
   parser: "@typescript-eslint/parser",
   parserOptions: {
     project: true,

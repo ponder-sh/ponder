@@ -2,9 +2,8 @@
   "name": "eslint-config-ponder",
   "version": "0.0.81",
   "description": "ESLint config for Ponder apps",
-  "main": "./src/index.js",
-  "author": "",
   "license": "MIT",
+  "main": "./index.js",
   "peerDependencies": {
     "@typescript-eslint/eslint-plugin": "^6.3.0",
     "@typescript-eslint/parser": "^6.3.0",
