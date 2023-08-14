@@ -72,6 +72,17 @@ ponder.on("AdventureGold:Approval", async ({ event, context }) => {
 ponder.on("AdventureGold:OwnershipTransferred", async ({ event, context }) => {
   const { Account } = context.entities;
 
+  const accounts = await Account.findMany({
+    where: {
+      id: {
+        ends_with: "123",
+      },
+      balance: {
+        equals: 123n,
+      },
+    },
+  });
+
   await Account.upsert({
     id: event.params.previousOwner,
     create: {

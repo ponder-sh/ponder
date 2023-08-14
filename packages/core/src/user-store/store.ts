@@ -53,6 +53,12 @@ export interface UserStore {
     filter?: ModelFilter;
   }): Promise<ModelInstance[]>;
 
+  findMany2(options: {
+    modelName: string;
+    timestamp?: number;
+    where?: any;
+  }): Promise<ModelInstance[]>;
+
   create(options: {
     modelName: string;
     timestamp: number;

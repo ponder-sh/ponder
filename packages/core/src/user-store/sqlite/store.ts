@@ -493,6 +493,60 @@ export class SqliteUserStore implements UserStore {
     );
   };
 
+  findMany2 = async ({
+    modelName,
+    timestamp = MAX_INTEGER,
+  }: // where = {},
+  {
+    modelName: string;
+    timestamp: number;
+    where?: any;
+  }) => {
+    const tableName = `${modelName}_${this.versionId}`;
+
+    const query = this.db
+      .selectFrom(tableName)
+      .selectAll()
+      .where("effectiveFrom", "<=", timestamp)
+      .where("effectiveTo", ">=", timestamp);
+
+    // const { where, first, skip, orderBy, orderDirection } =
+    //   validateFilter(filter);
+
+    // if (where) {
+    //   Object.entries(where).forEach(([whereKey, rawValue]) => {
+    //     const [fieldName, rawFilterType] = whereKey.split(/_(.*)/s);
+    //     // This is a hack to handle the "" operator, which the regex above doesn't handle
+    //     const filterType = (
+    //       rawFilterType === undefined ? "" : rawFilterType
+    //     ) as FilterType;
+
+    //     const { operator, value } = getWhereOperatorAndValue({
+    //       filterType,
+    //       value: rawValue,
+    //     });
+
+    //     query = query.where(fieldName, operator, value);
+    //   });
+    // }
+
+    // if (skip) {
+    //   query = query.offset(skip);
+    // }
+    // if (first) {
+    //   query = query.limit(first);
+    // }
+    // if (orderBy) {
+    //   query = query.orderBy(orderBy, orderDirection);
+    // }
+
+    const instances = await query.execute();
+
+    return instances.map((instance) =>
+      this.deserializeInstance({ modelName, instance })
+    );
+  };
+
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(

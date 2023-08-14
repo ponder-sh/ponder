@@ -13,6 +13,63 @@ type HasRequiredPropertiesOtherThanId<T> = Exclude<
   ? false
   : true;
 
+type OperatorMap<
+  TField extends
+    | string
+    | bigint
+    | number
+    | boolean
+    | (string | bigint | number | boolean)[]
+> = {
+  equals?: TField;
+  not?: TField;
+} & (TField extends any[]
+  ? {
+      contains?: TField[number];
+      not_contains?: TField[number];
+    }
+  : {
+      in?: TField[];
+      not_in?: TField[];
+    }) &
+  (TField extends string
+    ? {
+        starts_with?: TField;
+        ends_with?: TField;
+        not_starts_with?: TField;
+        not_ends_with?: TField;
+      }
+    : {}) &
+  (TField extends number | bigint
+    ? {
+        gt?: TField;
+        gte?: TField;
+        lt?: TField;
+        lte?: TField;
+      }
+    : {});
+
+type ModelWhereInput<
+  T extends {
+    [key: string]:
+      | string
+      | bigint
+      | number
+      | boolean
+      | (string | bigint | number | boolean)[];
+  }
+> = {
+  [FieldName in keyof T]?: T[FieldName] | Prettify<OperatorMap<T[FieldName]>>;
+};
+
+// type ExampleModel = {
+//   id: string;
+//   counts: number[];
+//   name: string;
+// };
+
+// type ExampleWhereInput = ModelWhereInput<ExampleModel>;
+
 export type Model<T extends { id: string | number | bigint }> = {
   create: (
     options: Prettify<
@@ -77,6 +134,10 @@ export type Model<T extends { id: string | number | bigint }> = {
   ) => Promise<Prettify<T>>;
 
   findUnique: (options: { id: T["id"] }) => Promise<Prettify<T> | null>;
+
+  findMany: (options?: {
+    where?: ModelWhereInput<T>;
+  }) => Promise<Prettify<T>[]>;
 
   delete: (options: { id: T["id"] }) => Promise<boolean>;
 };
