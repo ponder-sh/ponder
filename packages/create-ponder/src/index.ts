@@ -204,7 +204,7 @@ export const run = async (
 
   const eslintConfig = `
     {
-      "extends": "eslint-config-ponder"
+      "extends": "ponder"
     }
   `;
 
