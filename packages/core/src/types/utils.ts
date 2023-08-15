@@ -27,3 +27,24 @@ export type RequiredBy<T, K extends keyof T> = Omit<T, K> & {
 export type NonNull<T> = {
   [P in keyof T]-?: NonNullable<T[P]>;
 };
+
+/**
+ * @description Returns true if T only has a property named "id".
+ */
+export type HasOnlyIdProperty<T> = Exclude<keyof T, "id"> extends never
+  ? true
+  : false;
+
+/**
+ * @description Creates a union of the names of all the required properties of T.
+ */
+type RequiredPropertyNames<T> = {
+  [K in keyof T]-?: {} extends Pick<T, K> ? never : K;
+}[keyof T];
+
+export type HasRequiredPropertiesOtherThanId<T> = Exclude<
+  RequiredPropertyNames<T>,
+  "id"
+> extends never
+  ? false
+  : true;

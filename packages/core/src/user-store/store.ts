@@ -1,4 +1,5 @@
 import type { Schema } from "@/schema/types";
+import { Prettify } from "@/types/utils";
 
 import type { FilterType } from "./utils";
 
@@ -20,6 +21,65 @@ export type ModelFilter = {
   orderDirection?: "asc" | "desc";
   timestamp?: number;
 };
+
+type OperatorMap<
+  TField extends
+    | string
+    | bigint
+    | number
+    | boolean
+    | (string | bigint | number | boolean)[]
+> = {
+  equals?: TField;
+  not?: TField;
+} & (TField extends any[]
+  ? {
+      has?: TField[number];
+      notHas?: TField[number];
+    }
+  : {
+      in?: TField[];
+      notIn?: TField[];
+    }) &
+  (TField extends string
+    ? {
+        startsWith?: TField;
+        endsWith?: TField;
+        notStartsWith?: TField;
+        notEndsWith?: TField;
+      }
+    : {}) &
+  (TField extends number | bigint
+    ? {
+        gt?: TField;
+        gte?: TField;
+        lt?: TField;
+        lte?: TField;
+      }
+    : {});
+
+export type WhereInput<
+  TModel extends {
+    [key: string]:
+      | string
+      | bigint
+      | number
+      | boolean
+      | (string | bigint | number | boolean)[];
+  }
+> = {
+  [FieldName in keyof TModel]?:
+    | Prettify<OperatorMap<TModel[FieldName]>>
+    | TModel[FieldName];
+};
+
+type ExampleModel = {
+  id: string;
+  counts: number[];
+  name: number;
+};
+
+type ExampleWhereInput = WhereInput<ExampleModel>;
 
 export type ModelInstance = {
   id: string | number | bigint;
@@ -56,7 +116,7 @@ export interface UserStore {
   findMany2(options: {
     modelName: string;
     timestamp?: number;
-    where?: any;
+    where?: WhereInput<any>;
   }): Promise<ModelInstance[]>;
 
   create(options: {

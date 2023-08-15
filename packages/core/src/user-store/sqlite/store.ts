@@ -5,12 +5,17 @@ import { Kysely, sql, SqliteDialect } from "kysely";
 import type { Schema } from "@/schema/types";
 import { blobToBigInt } from "@/utils/decode";
 
-import type { ModelFilter, ModelInstance, UserStore } from "../store";
+import type {
+  ModelFilter,
+  ModelInstance,
+  UserStore,
+  WhereInput,
+} from "../store";
 import {
-  type FilterType,
+  type ConditionName,
   formatModelFieldValue,
   formatModelInstance,
-  getWhereOperatorAndValue,
+  getWhereOperatorAndParameter,
   MAX_INTEGER,
   validateFilter,
 } from "../utils";
@@ -496,15 +501,15 @@ export class SqliteUserStore implements UserStore {
   findMany2 = async ({
     modelName,
     timestamp = MAX_INTEGER,
-  }: // where = {},
-  {
+    where = {},
+  }: {
     modelName: string;
     timestamp: number;
-    where?: any;
+    where?: WhereInput<any>;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
 
-    const query = this.db
+    let query = this.db
       .selectFrom(tableName)
       .selectAll()
       .where("effectiveFrom", "<=", timestamp)
@@ -513,22 +518,55 @@ export class SqliteUserStore implements UserStore {
     // const { where, first, skip, orderBy, orderDirection } =
     //   validateFilter(filter);
 
-    // if (where) {
-    //   Object.entries(where).forEach(([whereKey, rawValue]) => {
-    //     const [fieldName, rawFilterType] = whereKey.split(/_(.*)/s);
-    //     // This is a hack to handle the "" operator, which the regex above doesn't handle
-    //     const filterType = (
-    //       rawFilterType === undefined ? "" : rawFilterType
-    //     ) as FilterType;
+    if (where) {
+      const whereConditions = Object.entries(where);
+      if (whereConditions.length > 1) {
+        throw new Error(`Cannot include more than one field in a where object`);
+      }
+      if (whereConditions.length === 0) {
+        throw new Error(`Cannot pass an empty where object`);
+      }
 
-    //     const { operator, value } = getWhereOperatorAndValue({
-    //       filterType,
-    //       value: rawValue,
-    //     });
+      const [fieldName, condition] = whereConditions[0];
 
-    //     query = query.where(fieldName, operator, value);
-    //   });
-    // }
+      if (["string", "number", "bigint"].includes(typeof condition)) {
+        const [rawConditionName, rawConditionValue] =
+          Object.entries(condition)[0];
+        const { operator, parameter } = getWhereOperatorAndParameter({
+          condition: rawConditionName as ConditionName,
+          value: rawConditionValue,
+        });
+
+        query = query.where(fieldName, operator, parameter);
+      }
+
+      // If the condition is an object, check for a known condition name.
+      if (typeof condition === "object") {
+        if (Object.keys(condition).length > 1) {
+          throw new Error(
+            `Cannot include more than one condition in a where object`
+          );
+        } else if (Object.keys(condition).length === 1) {
+          throw new Error(`Must include a condition in a where object`);
+        }
+
+        const [rawConditionName, rawConditionValue] =
+          Object.entries(condition)[0];
+
+        const { operator, parameter } = getWhereOperatorAndParameter({
+          condition: rawConditionName as ConditionName,
+          value: rawConditionValue,
+        });
+
+        query = query.where(fieldName, operator, parameter);
+      }
+
+      // const [fieldName, rawFilterType] = whereKey.split(/_(.*)/s);
+      // // This is a hack to handle the "" operator, which the regex above doesn't handle
+      // const filterType = (
+      //   rawFilterType === undefined ? "" : rawFilterType
+      // ) as FilterType;
+    }
 
     // if (skip) {
     //   query = query.offset(skip);

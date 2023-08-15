@@ -1,24 +1,25 @@
 import { BaseError } from "@/errors/base";
+import { Prettify } from "@/types/utils";
 import { intToBlob } from "@/utils/encode";
 
 import type { ModelFilter, ModelInstance } from "./store";
 
 export const MAX_INTEGER = 2_147_483_647 as const;
 
-export const filterTypes = {
+export const sqlOperatorsByCondition = {
   // universal
-  "": { operator: "=", patternPrefix: undefined, patternSuffix: undefined },
+  equals: { operator: "=", patternPrefix: undefined, patternSuffix: undefined },
   not: { operator: "!=", patternPrefix: undefined, patternSuffix: undefined },
   // singular
   in: { operator: "in", patternPrefix: undefined, patternSuffix: undefined },
-  not_in: {
+  notIn: {
     operator: "not in",
     patternPrefix: undefined,
     patternSuffix: undefined,
   },
   // plural
-  contains: { operator: "like", patternPrefix: "%", patternSuffix: "%" },
-  not_contains: {
+  has: { operator: "like", patternPrefix: "%", patternSuffix: "%" },
+  notHas: {
     operator: "not like",
     patternPrefix: "%",
     patternSuffix: "%",
@@ -29,48 +30,52 @@ export const filterTypes = {
   gte: { operator: ">=", patternPrefix: undefined, patternSuffix: undefined },
   lte: { operator: "<=", patternPrefix: undefined, patternSuffix: undefined },
   // string
-  starts_with: {
+  startsWith: {
     operator: "like",
     patternPrefix: undefined,
     patternSuffix: "%",
   },
-  ends_with: { operator: "like", patternPrefix: "%", patternSuffix: undefined },
-  not_starts_with: {
+  endsWith: { operator: "like", patternPrefix: "%", patternSuffix: undefined },
+  notStartsWith: {
     operator: "not like",
     patternPrefix: undefined,
     patternSuffix: "%",
   },
-  not_ends_with: {
+  notEndsWith: {
     operator: "not like",
     patternPrefix: "%",
     patternSuffix: undefined,
   },
 } as const;
 
-export type FilterType =
-  | ""
+export type ConditionName = Prettify<
+  | "equals"
   | "not"
   | "in"
-  | "not_in"
-  | "contains"
-  | "not_contains"
+  | "notIn"
+  | "has"
+  | "notHas"
   | "gt"
   | "lt"
   | "gte"
   | "lte"
-  | "starts_with"
-  | "not_starts_with"
-  | "ends_with"
-  | "not_ends_with";
+  | "startsWith"
+  | "notStartsWith"
+  | "endsWith"
+  | "notEndsWith"
+>;
 
-export function getWhereOperatorAndValue({
-  filterType,
+export function getWhereOperatorAndParameter({
+  condition,
   value,
 }: {
-  filterType: FilterType;
+  condition: ConditionName;
   value: unknown;
 }) {
-  const { operator, patternPrefix, patternSuffix } = filterTypes[filterType];
+  const operators = sqlOperatorsByCondition[condition];
+  if (!operators) throw new BaseError(`Invalid condition: ${condition}`);
+
+  const { operator, patternPrefix, patternSuffix } = operators;
 
   if (value === null || value === undefined) {
     return {
@@ -80,20 +85,20 @@ export function getWhereOperatorAndValue({
           : operator === "!="
           ? ("is not" as const)
           : operator,
-      value: null,
+      parameter: null,
     };
   }
 
   if (Array.isArray(value)) {
-    // Handle basic list equals.
-    if (filterType === "" || filterType === "not") {
-      return { operator, value: JSON.stringify(value) };
+    // Handle scalar list equals.
+    if (condition === "equals" || condition === "not") {
+      return { operator, parameter: JSON.stringify(value) };
     }
 
-    // Handle list contains.
+    // Handle scalar list contains.
     return {
       operator,
-      value: value.map((v) => {
+      parameter: value.map((v) => {
         if (typeof v === "boolean") {
           return v ? 1 : 0;
         } else if (typeof v === "bigint") {
@@ -106,19 +111,19 @@ export function getWhereOperatorAndValue({
   }
 
   if (typeof value === "boolean") {
-    return { operator, value: value ? 1 : 0 };
+    return { operator, parameter: value ? 1 : 0 };
   }
 
   if (typeof value === "bigint") {
-    return { operator, value: intToBlob(value) };
+    return { operator, parameter: intToBlob(value) };
   }
 
-  // At this point, treat the value as a string.
+  // Handle strings and numbers.
   let finalValue = value;
   if (patternPrefix) finalValue = `${patternPrefix}${finalValue}`;
   if (patternSuffix) finalValue = `${finalValue}${patternSuffix}`;
 
-  return { operator, value: finalValue };
+  return { operator, parameter: finalValue };
 }
 
 export function formatModelFieldValue({ value }: { value: unknown }) {
