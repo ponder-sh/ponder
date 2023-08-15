@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "codegen": "ponder codegen"
+  },
+  "dependencies": {
+    "@ponder/core": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.18",
+    "abitype": "^0.8.11",
+    "typescript": "^5.1.3",
+    "viem": "^1.2.6"
+  }
+}

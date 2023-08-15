@@ -1,0 +1,49 @@
+type Share @entity {
+  id: Bytes!
+  subject: Subject!
+  trader: Trader!
+  shareAmount: BigInt!
+}
+
+type TradeEvent @entity {
+  id: Bytes!
+  subject: Subject!
+  trader: Trader!
+  shareAmount: BigInt!
+  isBuy: Boolean!
+  ethAmount: BigInt!
+  protocolEthAmount: BigInt!
+  subjectEthAmount: BigInt!
+  traderAmount: BigInt!
+  supply: BigInt!
+  timestamp: Int!
+}
+
+type Subject @entity {
+  id: Bytes!
+  totalShares: BigInt!
+  totalTrades: BigInt!
+  lastPrice: BigInt!
+  earnings: BigInt!
+  traderVolume: BigInt!
+  protocolFeesGenerated: BigInt!
+  shares: [Share!]! @derivedFrom(field: "subject")
+  trades: [TradeEvent!]! @derivedFrom(field: "subject")
+}
+
+type Trader @entity {
+  id: Bytes!
+  totalTrades: BigInt!
+  spend: BigInt!
+  earnings: BigInt!
+  profit: BigInt!
+  subjectFeesPaid: BigInt!
+  protocolFeesPaid: BigInt!
+  shares: [Share!]! @derivedFrom(field: "trader")
+  trades: [TradeEvent!]! @derivedFrom(field: "trader")
+}
+
+type Protocol @entity {
+  id: Int!
+  earnings: BigInt!
+}
