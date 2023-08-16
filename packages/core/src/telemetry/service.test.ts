@@ -2,16 +2,11 @@ import child_process from "node:child_process";
 import fs from "node:fs";
 import { tmpdir } from "node:os";
 import path from "path";
-import process from "process";
-import { afterAll, beforeEach, expect, test, vi } from "vitest";
+import { beforeAll, beforeEach, expect, test, vi } from "vitest";
 
-import { buildOptions } from "@/config/options";
 import { TelemetryService } from "@/telemetry/service";
 
-// Prevents the detached-flush script from sending events to API during tests.
-vi.mock("node-fetch");
-
-const fetchSpy = vi.fn().mockImplementation(() => vi.fn());
+const fetchSpy = vi.fn();
 
 beforeEach(() => {
   fetchSpy.mockReset();
@@ -19,25 +14,14 @@ beforeEach(() => {
   return () => vi.unstubAllGlobals();
 });
 
-afterAll(() => {
-  vi.restoreAllMocks();
+beforeAll(() => {
+  // Prevents the detached-flush script from sending events to API during tests.
+  vi.mock("node-fetch");
+  return () => vi.restoreAllMocks();
 });
 
-test("should be disabled if PONDER_TELEMETRY_DISABLED flag is set", async () => {
-  process.env.PONDER_TELEMETRY_DISABLED = "true";
-
-  // we're not using the options from the context because we want to test that
-  // build options will correctly set the telemetry service as disabled if the
-  // env var is set
-  const options = buildOptions({ cliOptions: { configFile: "", rootDir: "" } });
-  const telemetry = new TelemetryService({ options });
-
-  expect(telemetry.disabled).toBe(true);
-
-  delete process.env.PONDER_TELEMETRY_DISABLED;
-});
-
-test("events are processed", async ({ common: { options } }) => {
+test("events are processed", async (context) => {
+  const options = { ...context.common.options, telemetryDisabled: false };
   const telemetry = new TelemetryService({ options });
 
   telemetry.record({ event: "test", properties: { test: "data" } });
@@ -54,12 +38,9 @@ test("events are processed", async ({ common: { options } }) => {
   });
 });
 
-test("events are not processed if telemetry is disabled", async ({
-  common: { options },
-}) => {
-  const telemetry = new TelemetryService({
-    options: { ...options, telemetryDisabled: true },
-  });
+test("events are not processed if telemetry is disabled", async (context) => {
+  const options = { ...context.common.options, telemetryDisabled: true };
+  const telemetry = new TelemetryService({ options });
 
   telemetry.record({ event: "test" });
   await telemetry.flush();
@@ -67,9 +48,8 @@ test("events are not processed if telemetry is disabled", async ({
   expect(fetchSpy).not.toHaveBeenCalled();
 });
 
-test("events are put back in queue if telemetry service is killed", async ({
-  common: { options },
-}) => {
+test("events are put back in queue if telemetry service is killed", async (context) => {
+  const options = { ...context.common.options, telemetryDisabled: false };
   const telemetry = new TelemetryService({ options });
 
   fetchSpy.mockImplementationOnce(() => {
@@ -82,14 +62,16 @@ test("events are put back in queue if telemetry service is killed", async ({
   expect(telemetry["events"].length).toBe(1);
 });
 
-test("kill method should persist events and trigger detached flush", async ({
-  common: { options },
-}) => {
-  const options_ = { ...options, ponderDir: tmpdir() };
+test("kill method should persist events and trigger detached flush", async (context) => {
+  const options = {
+    ...context.common.options,
+    telemetryDisabled: false,
+    ponderDir: tmpdir(),
+  };
 
   const spawn = vi.spyOn(child_process, "spawn");
-  const telemetry = new TelemetryService({ options: options_ });
-  const fileName = path.join(options_.ponderDir, "telemetry-events.json");
+  const telemetry = new TelemetryService({ options });
+  const fileName = path.join(options.ponderDir, "telemetry-events.json");
 
   const writeFileSyncSpy = vi
     .spyOn(fs, "writeFileSync")

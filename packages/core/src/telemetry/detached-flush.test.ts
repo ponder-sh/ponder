@@ -5,7 +5,10 @@ import path from "node:path";
 import process from "node:process";
 import { expect, test } from "vitest";
 
-test("detached flush script should run without error", async ({ common }) => {
+test("detached flush script should run without error", async () => {
+  // This is a service that always responds to POST requests with a 200 OK.
+  const telemetryUrl = "https://reqres.in/api/users";
+
   const events = Array.from({ length: 5 }, () => ({
     event: "test",
     payload: {},
@@ -22,7 +25,7 @@ test("detached flush script should run without error", async ({ common }) => {
     stderr: string;
   }>((resolve) => {
     child_process.exec(
-      `${process.execPath} ${flushDetachedScriptPath} ${common.options.telemetryUrl} ${telemetryEventsFilePath}`,
+      `${process.execPath} ${flushDetachedScriptPath} ${telemetryUrl} ${telemetryEventsFilePath}`,
       (error, stdout, stderr) => resolve({ error, stdout, stderr })
     );
   });
@@ -31,6 +34,6 @@ test("detached flush script should run without error", async ({ common }) => {
   expect(stderr).toBe("");
   expect(error).toBe(null);
   expect(stdout).toContain(
-    `Sending 5 telemetry events to https://ponder.sh/api/telemetry from temporary file ${telemetryEventsFilePath}`
+    `Sending 5 telemetry events to ${telemetryUrl} from temporary file ${telemetryEventsFilePath}`
   );
 });

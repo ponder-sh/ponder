@@ -46,7 +46,12 @@ declare module "vitest" {
 }
 
 beforeEach((context) => {
-  const options = buildOptions({ cliOptions: { configFile: "", rootDir: "" } });
+  const options = {
+    ...buildOptions({
+      cliOptions: { configFile: "", rootDir: "" },
+    }),
+    telemetryDisabled: true,
+  };
   context.common = {
     options,
     logger: new LoggerService({ level: "silent" }),
