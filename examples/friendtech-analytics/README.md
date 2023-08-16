@@ -1,1 +1,0 @@
-# friendtech-analytics
