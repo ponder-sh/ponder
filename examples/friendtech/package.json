@@ -1,4 +1,5 @@
 {
+  "name": "ponder-examples-friendtech",
   "private": true,
   "scripts": {
     "dev": "ponder dev",
@@ -6,7 +7,7 @@
     "codegen": "ponder codegen"
   },
   "dependencies": {
-    "@ponder/core": "latest"
+    "@ponder/core": "workspace:latest"
   },
   "devDependencies": {
     "@types/node": "^18.11.18",
