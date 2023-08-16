@@ -8,7 +8,7 @@
     "changeset:version": "changeset version && pnpm install --lockfile-only",
     "install:packages": "pnpm --filter './packages/**' install",
     "install:examples": "pnpm --filter './examples/**' install",
-    "lint": "eslint .",
+    "lint": "eslint --cache .",
     "lint:fix": "pnpm lint --fix",
     "lint:format": "prettier --write .",
     "preinstall": "npx -y only-allow pnpm",
