@@ -29,6 +29,7 @@ const setup = async ({ context }: { context: TestContext }) => {
     ...options,
     uiEnabled: false,
     logLevel: "error",
+    telemetryDisabled: true,
   } as const;
 
   const ponder = new Ponder({
