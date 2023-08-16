@@ -3,6 +3,11 @@ import { ponder } from "@/generated";
 ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
   const { Share, Subject, TradeEvent, Trader } = context.entities;
 
+  // Skip phantom events
+  if (event.params.shareAmount === 0n) {
+    return;
+  }
+
   const subjectId = event.params.subject;
   const traderId = event.params.trader;
   const shareId = event.params.subject + "-" + event.params.trader;
