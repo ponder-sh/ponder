@@ -28,20 +28,18 @@ type TelemetryDeviceConfig = {
 type TelemetryEventContext = {
   projectId: string;
   sessionId: string;
-  // package.json information
-  nodeVersion: string;
   packageManager: string;
   packageManagerVersion: string;
+  nodeVersion: string;
   ponderVersion: string;
-  // Software information
   systemPlatform: NodeJS.Platform;
   systemRelease: string;
   systemArchitecture: string;
-  // Machine information
   cpuCount: number;
   cpuModel: string | null;
   cpuSpeed: number | null;
   memoryInMb: number;
+  isCi: boolean;
 };
 
 export class TelemetryService {
@@ -235,6 +233,7 @@ export class TelemetryService {
       cpuModel: cpus.length ? cpus[0].model : null,
       cpuSpeed: cpus.length ? cpus[0].speed : null,
       memoryInMb: Math.trunc(os.totalmem() / Math.pow(1024, 2)),
+      isCi: this.options.telemetryIsCi,
     } satisfies TelemetryEventContext;
 
     return this.context;
