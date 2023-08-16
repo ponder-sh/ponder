@@ -39,7 +39,7 @@ type TelemetryEventContext = {
   cpuModel: string | null;
   cpuSpeed: number | null;
   memoryInMb: number;
-  isCi: boolean;
+  isExampleProject: boolean;
 };
 
 export class TelemetryService {
@@ -233,7 +233,7 @@ export class TelemetryService {
       cpuModel: cpus.length ? cpus[0].model : null,
       cpuSpeed: cpus.length ? cpus[0].speed : null,
       memoryInMb: Math.trunc(os.totalmem() / Math.pow(1024, 2)),
-      isCi: this.options.telemetryIsCi,
+      isExampleProject: this.options.telemetryIsExampleProject,
     } satisfies TelemetryEventContext;
 
     return this.context;

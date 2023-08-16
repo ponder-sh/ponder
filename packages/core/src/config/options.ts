@@ -18,7 +18,7 @@ export type Options = {
   maxHealthcheckDuration: number;
   telemetryUrl: string;
   telemetryDisabled: boolean;
-  telemetryIsCi: boolean;
+  telemetryIsExampleProject: boolean;
 
   logLevel: LevelWithSilent;
   uiEnabled: boolean;
@@ -59,7 +59,9 @@ export const buildOptions = ({
 
     telemetryUrl: "https://ponder.sh/api/telemetry",
     telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),
-    telemetryIsCi: Boolean(process.env.PONDER_TELEMETRY_IS_CI),
+    telemetryIsExampleProject: Boolean(
+      process.env.PONDER_TELEMETRY_IS_EXAMPLE_PROJECT
+    ),
 
     logLevel,
     uiEnabled: true,
