@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.85
+
+### Patch Changes
+
+- [#319](https://github.com/0xOlias/ponder/pull/319) [`e199267`](https://github.com/0xOlias/ponder/commit/e19926703b546b7ccefde862bb7128f621c7113a) Thanks [@Slokh](https://github.com/Slokh)! - Fixed a bug where a `delete` executed after an `update` in the same event handler would not properly delete the entity.
+
 ## 0.0.84
 
 ## 0.0.83
