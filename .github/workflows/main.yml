@@ -86,3 +86,6 @@ jobs:
         run: pnpm test:ci:create-ponder
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+          # The create-ponder tests run the codegen command for each test project.
+          # We don't want to emit telemetry for these tests; this is the cleanest way to suppress it.
+          PONDER_TELEMTERY_DISABLED: true
