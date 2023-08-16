@@ -164,6 +164,25 @@ importers:
         specifier: ^1.2.6
         version: 1.2.6(typescript@5.1.3)
 
+  examples/friendtech:
+    dependencies:
+      '@ponder/core':
+        specifier: workspace:latest
+        version: link:../../packages/core
+    devDependencies:
+      '@types/node':
+        specifier: ^18.11.18
+        version: 18.16.18
+      abitype:
+        specifier: ^0.8.11
+        version: 0.8.11(typescript@5.1.3)
+      typescript:
+        specifier: ^5.1.3
+        version: 5.1.3
+      viem:
+        specifier: ^1.2.6
+        version: 1.2.6(typescript@5.1.3)
+
   examples/token-erc20:
     dependencies:
       '@ponder/core':
