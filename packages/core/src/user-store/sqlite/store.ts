@@ -408,23 +408,26 @@ export class SqliteUserStore implements UserStore {
     const formattedId = formatModelFieldValue({ value: id });
 
     const instance = await this.db.transaction().execute(async (tx) => {
-      // Update the latest version to be effective until the delete timestamp.
-      const deletedInstance = await tx
-        .updateTable(tableName)
-        .set({ effectiveTo: timestamp - 1 })
+      // If the latest version is effective from the delete timestamp,
+      // then delete the instance in place. It "never existed".
+      // This needs to be done first, because an update() earlier in the handler
+      // call would have created a new version with the delete timestamp.
+      // Attempting to update first would result in a constraint violation.
+      let deletedInstance = await tx
+        .deleteFrom(tableName)
         .where("id", "=", formattedId)
-        .where("effectiveTo", "=", MAX_INTEGER)
-        .returning(["id", "effectiveFrom"])
+        .where("effectiveFrom", "=", timestamp)
+        .returning(["id"])
         .executeTakeFirst();
 
-      // If, after the update, the latest version is only effective from
-      // the delete timestamp, delete the instance in place. It "never existed".
-      if (deletedInstance?.effectiveFrom === timestamp) {
-        await tx
-          .deleteFrom(tableName)
+      // Update the latest version to be effective until the delete timestamp.
+      if (!deletedInstance) {
+        deletedInstance = await tx
+          .updateTable(tableName)
+          .set({ effectiveTo: timestamp - 1 })
           .where("id", "=", formattedId)
-          .where("effectiveFrom", "=", timestamp)
-          .returning(["id"])
+          .where("effectiveTo", "=", MAX_INTEGER)
+          .returning(["id", "effectiveFrom"])
           .executeTakeFirst();
       }
 

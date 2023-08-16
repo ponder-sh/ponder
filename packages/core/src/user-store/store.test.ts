@@ -563,6 +563,47 @@ test("delete() removes a record entirely if only present for one timestamp", asy
   await userStore.teardown();
 });
 
+test("delete() removes a record entirely if only present for one timestamp after update()", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", age: 12 },
+  });
+  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+  await userStore.update({
+    modelName: "Pet",
+    timestamp: 12,
+    id: "id1",
+    data: { name: "Skipper", age: 12 },
+  });
+  const updatedInstance = await userStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
+  expect(updatedInstance).toMatchObject({
+    id: "id1",
+    name: "Skipper",
+    age: 12,
+  });
+
+  await userStore.delete({ modelName: "Pet", timestamp: 12, id: "id1" });
+
+  const deletedInstance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 12,
+    id: "id1",
+  });
+  expect(deletedInstance).toBe(null);
+
+  await userStore.teardown();
+});
+
 test("delete() deletes versions effective in the delete timestamp", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
