@@ -24,4 +24,5 @@ export interface CreatePonderOptions {
   projectName: string;
   template?: Template;
   etherscanApiKey?: string;
+  eslint?: boolean;
 }

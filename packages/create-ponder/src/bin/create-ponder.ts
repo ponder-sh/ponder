@@ -114,11 +114,19 @@ const createPonder = async () => {
     }
   }
 
+  const { eslint } = await prompts({
+    type: "confirm",
+    name: "eslint",
+    message: "Would you like to use ESLint?",
+    initial: true,
+  });
+
   const validatedOptions: CreatePonderOptions = {
     projectName,
     rootDir: path.resolve(".", options.dir ? options.dir : projectName),
     template,
     etherscanApiKey: options.etherscanApiKey,
+    eslint,
   };
 
   await run(validatedOptions);
