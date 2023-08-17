@@ -1,4 +1,4 @@
-import type { WhereInput } from "@/user-store/store";
+import type { OrderByInput, WhereInput } from "@/user-store/store";
 
 import type {
   HasOnlyIdProperty,
@@ -71,7 +71,12 @@ export type Model<T extends { id: string | number | bigint }> = {
 
   findUnique: (options: { id: T["id"] }) => Promise<Prettify<T> | null>;
 
-  findMany: (options?: { where?: WhereInput<T> }) => Promise<Prettify<T>[]>;
+  findMany: (options?: {
+    where?: WhereInput<T>;
+    skip?: number;
+    take?: number;
+    orderBy?: OrderByInput<T>;
+  }) => Promise<Prettify<T>[]>;
 
   delete: (options: { id: T["id"] }) => Promise<boolean>;
 };

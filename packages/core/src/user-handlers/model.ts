@@ -28,15 +28,18 @@ export function buildModels({
             id,
           });
         },
-        findMany: ({ where } = {}) => {
+        findMany: ({ where, skip, take, orderBy } = {}) => {
           common.logger.trace({
             service: "store",
             msg: `findMany (model=${modelName})`,
           });
-          return userStore.findMany2({
+          return userStore.findMany({
             modelName,
             timestamp: getCurrentEventTimestamp(),
             where,
+            skip,
+            take,
+            orderBy,
           });
         },
         create: ({ id, data }) => {
