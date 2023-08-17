@@ -13,6 +13,9 @@ import { fromEtherscan } from "@/templates/etherscan";
 import { fromSubgraphId } from "@/templates/subgraphId";
 import { fromSubgraphRepo } from "@/templates/subgraphRepo";
 
+// NOTE: This is a workaround for tsconfig `rootDir` nonsense.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import rootPackageJson from "../package.json";
 
 export type Network = {
