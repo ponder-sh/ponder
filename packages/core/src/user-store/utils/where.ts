@@ -1,10 +1,9 @@
-import { BaseError } from "@/errors/base";
+import { ComparisonOperatorExpression } from "kysely";
+
 import { Prettify } from "@/types/utils";
 import { intToBlob } from "@/utils/encode";
 
-import type { ModelFilter, ModelInstance } from "./store";
-
-export const MAX_INTEGER = 2_147_483_647 as const;
+import { ModelDefinition, OrderByInput, WhereInput } from "../store";
 
 export const sqlOperatorsByCondition = {
   // universal
@@ -65,7 +64,53 @@ export type ConditionName = Prettify<
   | "notEndsWith"
 >;
 
-export function getWhereOperatorAndParameter({
+export function buildSqlWhereConditions({
+  where,
+}: {
+  where: WhereInput<ModelDefinition>;
+}) {
+  // If the where clause has multiple conditions, they are combined using AND.
+  // TODO: support complex filters with OR, NOT, and arbitrary nesting.
+
+  const conditions: [
+    fieldName: string,
+    operator: ComparisonOperatorExpression,
+    parameter: any
+  ][] = [];
+
+  for (const [fieldName, rhs] of Object.entries(where)) {
+    // If the rhs is an object, assume its a complex condition (not a simple equality value).
+    if (typeof rhs === "object" && !Array.isArray(rhs)) {
+      for (const [condition_, value] of Object.entries(rhs)) {
+        const condition = validateConditionName(condition_);
+        const { operator, parameter } = getOperatorAndParameter({
+          condition,
+          value,
+        });
+        conditions.push([fieldName, operator, parameter]);
+      }
+    } else {
+      // Otherwise, assume it's a simple equality value.
+      const { operator, parameter } = getOperatorAndParameter({
+        condition: "equals",
+        value: rhs,
+      });
+      conditions.push([fieldName, operator, parameter]);
+    }
+  }
+
+  return conditions;
+}
+
+function validateConditionName(condition: string) {
+  if (Object.keys(sqlOperatorsByCondition).includes(condition)) {
+    return condition as ConditionName;
+  } else {
+    throw new Error(`Invalid filter condition name: ${condition}`);
+  }
+}
+
+function getOperatorAndParameter({
   condition,
   value,
 }: {
@@ -73,7 +118,6 @@ export function getWhereOperatorAndParameter({
   value: unknown;
 }) {
   const operators = sqlOperatorsByCondition[condition];
-  if (!operators) throw new BaseError(`Invalid condition: ${condition}`);
 
   const { operator, patternPrefix, patternSuffix } = operators;
 
@@ -126,53 +170,23 @@ export function getWhereOperatorAndParameter({
   return { operator, parameter: finalValue };
 }
 
-export function formatModelFieldValue({ value }: { value: unknown }) {
-  if (typeof value === "boolean") {
-    return value ? 1 : 0;
-  } else if (typeof value === "bigint") {
-    return intToBlob(value);
-  } else if (typeof value === "undefined") {
-    return null;
-  } else if (Array.isArray(value)) {
-    if (typeof value[0] === "bigint") {
-      return JSON.stringify(value.map(String));
-    } else {
-      return JSON.stringify(value);
-    }
-  } else {
-    return value as string | number | null;
-  }
-}
-
-export function formatModelInstance({
-  id,
-  data,
+export function buildSqlOrderByConditions({
+  orderBy,
 }: {
-  id: string | number | bigint;
-  data: Partial<Omit<ModelInstance, "id">>;
+  orderBy: OrderByInput<ModelDefinition>;
 }) {
-  const instance: { [key: string]: string | number | null | Buffer } = {};
+  const conditions: [fieldName: string, direction: "asc" | "desc"][] = [];
 
-  instance["id"] = formatModelFieldValue({ value: id });
-
-  Object.entries(data).forEach(([key, value]) => {
-    instance[key] = formatModelFieldValue({ value });
-  });
-
-  return instance;
-}
-
-const MAX_LIMIT = 1000;
-const MAX_SKIP = 5000;
-
-export function validateFilter(filter: ModelFilter = {}): ModelFilter {
-  if (filter.first && filter.first > MAX_LIMIT) {
-    throw new BaseError("Cannot query more than 1000 rows.");
+  for (const orderBy_ of Array.isArray(orderBy) ? orderBy : [orderBy]) {
+    const entries = Object.entries(orderBy_);
+    if (entries.length !== 1) {
+      throw new Error(`Invalid sort condition: Must have exactly one property`);
+    }
+    const [fieldName, direction] = entries[0];
+    if (direction) {
+      conditions.push([fieldName, direction]);
+    }
   }
 
-  if (filter.skip && filter.skip > MAX_SKIP) {
-    throw new BaseError("Cannot skip more than 5000 rows.");
-  }
-
-  return filter;
+  return conditions;
 }

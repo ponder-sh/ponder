@@ -5,15 +5,20 @@ import { Pool } from "pg";
 import type { Schema } from "@/schema/types";
 import { blobToBigInt } from "@/utils/decode";
 
-import type { ModelFilter, ModelInstance, UserStore } from "../store";
+import type {
+  ModelInstance,
+  OrderByInput,
+  UserStore,
+  WhereInput,
+} from "../store";
+import { formatModelFieldValue, formatModelInstance } from "../utils/format";
+import { validateSkip, validateTake } from "../utils/pagination";
 import {
-  type FilterType,
-  formatModelFieldValue,
-  formatModelInstance,
-  getWhereOperatorAndValue,
-  MAX_INTEGER,
-  validateFilter,
-} from "../utils";
+  buildSqlOrderByConditions,
+  buildSqlWhereConditions,
+} from "../utils/where";
+
+const MAX_INTEGER = 2_147_483_647 as const;
 
 const gqlScalarToSqlType = {
   Boolean: "integer",
@@ -460,15 +465,19 @@ export class PostgresUserStore implements UserStore {
   findMany = async ({
     modelName,
     timestamp = MAX_INTEGER,
-    filter = {},
+    where,
+    skip,
+    take,
+    orderBy,
   }: {
     modelName: string;
     timestamp: number;
-    filter?: ModelFilter;
+    where?: WhereInput<any>;
+    skip?: number;
+    take?: number;
+    orderBy?: OrderByInput<any>;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-
-    if (filter.timestamp) timestamp = filter.timestamp;
 
     let query = this.db
       .selectFrom(tableName)
@@ -476,95 +485,34 @@ export class PostgresUserStore implements UserStore {
       .where("effectiveFrom", "<=", timestamp)
       .where("effectiveTo", ">=", timestamp);
 
-    const { where, first, skip, orderBy, orderDirection } =
-      validateFilter(filter);
-
     if (where) {
-      Object.entries(where).forEach(([whereKey, rawValue]) => {
-        const [fieldName, rawFilterType] = whereKey.split(/_(.*)/s);
-        // This is a hack to handle the "" operator, which the regex above doesn't handle
-        const filterType = (
-          rawFilterType === undefined ? "" : rawFilterType
-        ) as FilterType;
-
-        const { operator, value } = getWhereOperatorAndValue({
-          filterType,
-          value: rawValue,
-        });
-
-        query = query.where(fieldName, operator, value);
-      });
+      const whereConditions = buildSqlWhereConditions({ where });
+      for (const whereCondition of whereConditions) {
+        query = query.where(...whereCondition);
+      }
     }
 
-    // TODO: test if skip works without first.
     if (skip) {
-      query = query.offset(skip);
+      const offset = validateSkip(skip);
+      query = query.offset(offset);
     }
-    if (first) {
-      query = query.limit(first);
+
+    if (take) {
+      const limit = validateTake(take);
+      query = query.limit(limit);
     }
+
     if (orderBy) {
-      query = query.orderBy(
-        orderBy,
-        orderDirection === "asc" || orderDirection === undefined
-          ? sql`asc nulls first`
-          : sql`desc nulls last`
-      );
+      const orderByConditions = buildSqlOrderByConditions({ orderBy });
+      for (const [fieldName, direction] of orderByConditions) {
+        query = query.orderBy(
+          fieldName,
+          direction === "asc" || direction === undefined
+            ? sql`asc nulls first`
+            : sql`desc nulls last`
+        );
+      }
     }
-
-    const instances = await query.execute();
-
-    return instances.map((instance) =>
-      this.deserializeInstance({ modelName, instance })
-    );
-  };
-
-  findMany2 = async ({
-    modelName,
-    timestamp = MAX_INTEGER,
-  }: // where = {},
-  {
-    modelName: string;
-    timestamp: number;
-    where?: any;
-  }) => {
-    const tableName = `${modelName}_${this.versionId}`;
-
-    const query = this.db
-      .selectFrom(tableName)
-      .selectAll()
-      .where("effectiveFrom", "<=", timestamp)
-      .where("effectiveTo", ">=", timestamp);
-
-    // const { where, first, skip, orderBy, orderDirection } =
-    //   validateFilter(filter);
-
-    // if (where) {
-    //   Object.entries(where).forEach(([whereKey, rawValue]) => {
-    //     const [fieldName, rawFilterType] = whereKey.split(/_(.*)/s);
-    //     // This is a hack to handle the "" operator, which the regex above doesn't handle
-    //     const filterType = (
-    //       rawFilterType === undefined ? "" : rawFilterType
-    //     ) as FilterType;
-
-    //     const { operator, value } = getWhereOperatorAndValue({
-    //       filterType,
-    //       value: rawValue,
-    //     });
-
-    //     query = query.where(fieldName, operator, value);
-    //   });
-    // }
-
-    // if (skip) {
-    //   query = query.offset(skip);
-    // }
-    // if (first) {
-    //   query = query.limit(first);
-    // }
-    // if (orderBy) {
-    //   query = query.orderBy(orderBy, orderDirection);
-    // }
 
     const instances = await query.execute();
 

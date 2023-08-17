@@ -1,26 +1,26 @@
 import type { Schema } from "@/schema/types";
 import { Prettify } from "@/types/utils";
 
-import type { FilterType } from "./utils";
+// import type { FilterType } from "./utils";
 
-export type WhereFieldValue =
-  | number
-  | string
-  | number[]
-  | string[]
-  | true
-  | false
-  | undefined
-  | null;
+// export type WhereFieldValue =
+//   | number
+//   | string
+//   | number[]
+//   | string[]
+//   | true
+//   | false
+//   | undefined
+//   | null;
 
-export type ModelFilter = {
-  where?: { [key: `${string}_${FilterType}`]: WhereFieldValue };
-  first?: number;
-  skip?: number;
-  orderBy?: string;
-  orderDirection?: "asc" | "desc";
-  timestamp?: number;
-};
+// export type ModelFilter = {
+//   where?: { [key: `${string}_${FilterType}`]: WhereFieldValue };
+//   first?: number;
+//   skip?: number;
+//   orderBy?: string;
+//   orderDirection?: "asc" | "desc";
+//   timestamp?: number;
+// };
 
 type OperatorMap<
   TField extends
@@ -58,28 +58,14 @@ type OperatorMap<
       }
     : {});
 
-export type WhereInput<
-  TModel extends {
-    [key: string]:
-      | string
-      | bigint
-      | number
-      | boolean
-      | (string | bigint | number | boolean)[];
-  }
-> = {
-  [FieldName in keyof TModel]?:
-    | Prettify<OperatorMap<TModel[FieldName]>>
-    | TModel[FieldName];
+export type ModelDefinition = {
+  [key: string]:
+    | string
+    | bigint
+    | number
+    | boolean
+    | (string | bigint | number | boolean)[];
 };
-
-type ExampleModel = {
-  id: string;
-  counts: number[];
-  name: number;
-};
-
-type ExampleWhereInput = WhereInput<ExampleModel>;
 
 export type ModelInstance = {
   id: string | number | bigint;
@@ -90,6 +76,43 @@ export type ModelInstance = {
     | boolean
     | (string | bigint | number | boolean)[]
     | null;
+};
+
+export type WhereInput<TModel extends ModelDefinition> = {
+  [FieldName in keyof TModel]?:
+    | Prettify<OperatorMap<TModel[FieldName]>>
+    | TModel[FieldName];
+};
+
+export type OrderByInput<TModel extends ModelDefinition> =
+  | {
+      [FieldName in keyof TModel]?: "asc" | "desc";
+    }
+  | {
+      [FieldName in keyof TModel]?: "asc" | "desc";
+    }[];
+
+type ExampleModel = {
+  id: string;
+  counts: number[];
+  name: number;
+};
+
+export const where: WhereInput<ExampleModel> = {
+  id: "123",
+  counts: [1, 2],
+  name: {
+    not: 12,
+  },
+};
+
+// export const orderBy: OrderByInput<ExampleModel> = [
+//   { id: "asc" },
+//   { name: "desc" },
+// ];
+
+export const orderBy: OrderByInput<ExampleModel> = {
+  id: "asc",
 };
 
 export interface UserStore {
@@ -110,13 +133,10 @@ export interface UserStore {
   findMany(options: {
     modelName: string;
     timestamp?: number;
-    filter?: ModelFilter;
-  }): Promise<ModelInstance[]>;
-
-  findMany2(options: {
-    modelName: string;
-    timestamp?: number;
     where?: WhereInput<any>;
+    skip?: number;
+    take?: number;
+    orderBy?: OrderByInput<any>;
   }): Promise<ModelInstance[]>;
 
   create(options: {
