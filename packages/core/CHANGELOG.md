@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.87
+
+### Patch Changes
+
+- [#326](https://github.com/0xOlias/ponder/pull/326) [`3d27645`](https://github.com/0xOlias/ponder/commit/3d27645aa70eb2d204ee99bc4048621acb73c509) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `updateMany` and `createMany` to public Model type.
+
 ## 0.0.86
 
 ### Patch Changes
