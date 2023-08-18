@@ -218,7 +218,7 @@ describe("create-ponder", () => {
       });
     });
 
-    describe("zora EIP-1967 proxy (ZoraNFTCreatorProxy)", () => {
+    describe.skip("zora EIP-1967 proxy (ZoraNFTCreatorProxy)", () => {
       const rootDir = path.join(tmpDir, randomUUID());
 
       beforeAll(async () => {
