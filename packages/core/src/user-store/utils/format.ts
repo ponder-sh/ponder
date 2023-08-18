@@ -5,16 +5,8 @@ import type { ModelInstance } from "../store";
 /**
  * Convert a user-land model instance into a database-ready object.
  */
-export function formatModelInstance({
-  id,
-  data,
-}: {
-  id: string | number | bigint;
-  data: Partial<Omit<ModelInstance, "id">>;
-}) {
+export function formatModelInstance(data: Partial<ModelInstance>) {
   const instance: { [key: string]: string | number | null | Buffer } = {};
-
-  instance["id"] = formatModelFieldValue({ value: id });
 
   Object.entries(data).forEach(([key, value]) => {
     instance[key] = formatModelFieldValue({ value });

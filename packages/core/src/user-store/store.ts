@@ -146,6 +146,12 @@ export interface UserStore {
     data?: Omit<ModelInstance, "id">;
   }): Promise<ModelInstance>;
 
+  createMany(options: {
+    modelName: string;
+    timestamp: number;
+    data: ModelInstance[];
+  }): Promise<ModelInstance[]>;
+
   update(options: {
     modelName: string;
     timestamp: number;
@@ -156,6 +162,17 @@ export interface UserStore {
           current: ModelInstance;
         }) => Partial<Omit<ModelInstance, "id">>);
   }): Promise<ModelInstance>;
+
+  updateMany(options: {
+    modelName: string;
+    timestamp: number;
+    where?: WhereInput<any>;
+    data?:
+      | Partial<Omit<ModelInstance, "id">>
+      | ((args: {
+          current: ModelInstance;
+        }) => Partial<Omit<ModelInstance, "id">>);
+  }): Promise<ModelInstance[]>;
 
   upsert(options: {
     modelName: string;

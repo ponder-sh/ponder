@@ -819,6 +819,57 @@ test("findMany() errors on orderBy object with multiple keys", async (context) =
   await userStore.teardown();
 });
 
+test("createMany() inserts multiple entities", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  const createdInstances = await userStore.createMany({
+    modelName: "Pet",
+    timestamp: 10,
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+    ],
+  });
+  expect(createdInstances.length).toBe(3);
+
+  const instances = await userStore.findMany({ modelName: "Pet" });
+  expect(instances.length).toBe(3);
+
+  await userStore.teardown();
+});
+
+test("updateMany() updates multiple entities", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.createMany({
+    modelName: "Pet",
+    timestamp: 10,
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+    ],
+  });
+
+  const updatedInstances = await userStore.updateMany({
+    modelName: "Pet",
+    timestamp: 11,
+    where: { bigAge: { gt: 50n } },
+    data: { bigAge: 300n },
+  });
+
+  expect(updatedInstances.length).toBe(2);
+
+  const instances = await userStore.findMany({ modelName: "Pet" });
+
+  expect(instances.map((i) => i.bigAge)).toMatchObject([10n, 300n, 300n]);
+
+  await userStore.teardown();
+});
+
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
