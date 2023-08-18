@@ -54,6 +54,17 @@ export function buildModels({
             data,
           });
         },
+        createMany: ({ data }) => {
+          common.logger.trace({
+            service: "store",
+            msg: `createMany (model=${modelName}, count=${data.length})`,
+          });
+          return userStore.createMany({
+            modelName,
+            timestamp: getCurrentEventTimestamp(),
+            data,
+          });
+        },
         update: ({ id, data }) => {
           common.logger.trace({
             service: "store",
@@ -63,6 +74,18 @@ export function buildModels({
             modelName,
             timestamp: getCurrentEventTimestamp(),
             id,
+            data,
+          });
+        },
+        updateMany: ({ where, data }) => {
+          common.logger.trace({
+            service: "store",
+            msg: `updateMany (model=${modelName})`,
+          });
+          return userStore.updateMany({
+            modelName,
+            timestamp: getCurrentEventTimestamp(),
+            where,
             data,
           });
         },

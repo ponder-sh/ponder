@@ -43,9 +43,11 @@ type OperatorMap<
     }) &
   (TField extends string
     ? {
+        contains?: TField;
+        notContains?: TField;
         startsWith?: TField;
-        endsWith?: TField;
         notStartsWith?: TField;
+        endsWith?: TField;
         notEndsWith?: TField;
       }
     : {}) &

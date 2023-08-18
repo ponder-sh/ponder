@@ -19,6 +19,8 @@ export type Model<T extends { id: string | number | bigint }> = {
     >
   ) => Promise<Prettify<T>>;
 
+  createMany: (options: { data: T[] }) => Promise<Prettify<T>[]>;
+
   update: (
     options: Prettify<
       {
@@ -42,6 +44,15 @@ export type Model<T extends { id: string | number | bigint }> = {
           })
     >
   ) => Promise<Prettify<T>>;
+
+  updateMany: (options: {
+    where?: WhereInput<T>;
+    data:
+      | Prettify<Omit<Partial<T>, "id">>
+      | ((options: {
+          current: Prettify<T>;
+        }) => Prettify<Omit<Partial<T>, "id">>);
+  }) => Promise<Prettify<T>[]>;
 
   upsert: (
     options: Prettify<
