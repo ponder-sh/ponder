@@ -172,7 +172,7 @@ export const run = async (
         "@ponder/core": "${ponderVersion}",
       },
       "devDependencies": {
-        ${options.eslint ? `"@ponder/eslint-config": "${ponderVersion}",` : ""}
+        ${options.eslint ? `"eslint-config-ponder": "${ponderVersion}",` : ""}
         "@types/node": "^18.11.18",
         "abitype": "^0.8.11",
         "typescript": "^5.1.3",

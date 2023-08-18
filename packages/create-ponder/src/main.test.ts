@@ -447,7 +447,7 @@ describe("create-ponder", () => {
 
   describe("eslint", () => {
     const lintFileName = ".eslintrc.json";
-    const ponderEslintConfig = "@ponder/eslint-config";
+    const ponderEslintConfig = "eslint-config-ponder";
 
     test("installs eslint if enabled", async () => {
       const rootDir = path.join(tmpDir, randomUUID());
