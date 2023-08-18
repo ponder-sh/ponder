@@ -19,7 +19,7 @@ export type Model<T extends { id: string | number | bigint }> = {
     >
   ) => Promise<Prettify<T>>;
 
-  createMany: (options: { data: T[] }) => Promise<Prettify<T>[]>;
+  createMany: (options: { data: Prettify<T>[] }) => Promise<Prettify<T>[]>;
 
   update: (
     options: Prettify<
@@ -46,7 +46,7 @@ export type Model<T extends { id: string | number | bigint }> = {
   ) => Promise<Prettify<T>>;
 
   updateMany: (options: {
-    where?: WhereInput<T>;
+    where: Prettify<WhereInput<T>>;
     data:
       | Prettify<Omit<Partial<T>, "id">>
       | ((options: {
@@ -83,10 +83,10 @@ export type Model<T extends { id: string | number | bigint }> = {
   findUnique: (options: { id: T["id"] }) => Promise<Prettify<T> | null>;
 
   findMany: (options?: {
-    where?: WhereInput<T>;
+    where?: Prettify<WhereInput<T>>;
     skip?: number;
     take?: number;
-    orderBy?: OrderByInput<T>;
+    orderBy?: OrderByInput<T>; // TODO: Prettify/flatten this type. Couldn't get it working.
   }) => Promise<Prettify<T>[]>;
 
   delete: (options: { id: T["id"] }) => Promise<boolean>;
