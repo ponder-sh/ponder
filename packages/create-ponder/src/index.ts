@@ -13,6 +13,11 @@ import { fromEtherscan } from "@/templates/etherscan";
 import { fromSubgraphId } from "@/templates/subgraphId";
 import { fromSubgraphRepo } from "@/templates/subgraphRepo";
 
+// NOTE: This is a workaround for tsconfig `rootDir` nonsense.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import rootPackageJson from "../package.json";
+
 export type Network = {
   name: string;
   chainId: number;
@@ -39,6 +44,7 @@ export const run = async (
   options: CreatePonderOptions,
   overrides: { installCommand?: string } = {}
 ) => {
+  const ponderVersion = rootPackageJson.version;
   const { rootDir } = options;
 
   // Create required directories.
@@ -159,12 +165,15 @@ export const run = async (
       "scripts": {
         "dev": "ponder dev",
         "start": "ponder start",
+        ${options.eslint ? `"lint": "eslint .",` : ""}
         "codegen": "ponder codegen"
       },
       "dependencies": {
-        "@ponder/core": "latest"
+        "@ponder/core": "${ponderVersion}",
       },
       "devDependencies": {
+        ${options.eslint ? `"eslint-config-ponder": "${ponderVersion}",` : ""}
+        ${options.eslint ? `"eslint": "^8.43.0",` : ""}
         "@types/node": "^18.11.18",
         "abitype": "^0.8.11",
         "typescript": "^5.1.3",
@@ -200,6 +209,19 @@ export const run = async (
     path.join(rootDir, "tsconfig.json"),
     prettier.format(tsConfig, { parser: "json" })
   );
+
+  if (options.eslint) {
+    const eslintConfig = `
+    {
+      "extends": "ponder"
+    }
+  `;
+
+    writeFileSync(
+      path.join(rootDir, ".eslintrc.json"),
+      prettier.format(eslintConfig, { parser: "json" })
+    );
+  }
 
   // Write the .gitignore file.
   writeFileSync(

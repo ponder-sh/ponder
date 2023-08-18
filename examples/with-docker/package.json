@@ -3,13 +3,16 @@
   "private": true,
   "scripts": {
     "dev:up": "docker-compose -f docker-compose-local.yml up",
-    "prod:up": "docker-compose up -d"
+    "prod:up": "docker-compose up -d",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@ponder/core": "latest"
   },
   "devDependencies": {
     "abitype": "^0.8.11",
+    "eslint": "^8.43.0",
+    "eslint-config-ponder": "workspace:latest",
     "typescript": "^5.1.3",
     "viem": "^1.2.6"
   }
