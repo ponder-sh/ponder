@@ -1,5 +1,15 @@
 # @ponder/core
 
+## 0.0.86
+
+### Patch Changes
+
+- [#318](https://github.com/0xOlias/ponder/pull/318) [`66fda60`](https://github.com/0xOlias/ponder/commit/66fda60752c184c49695012dd03a215a0c5d7ce7) Thanks [@0xOlias](https://github.com/0xOlias)! - Added `findMany`, `updateMany`, and `createMany` bulk methods to the entity store API.
+
+- [#324](https://github.com/0xOlias/ponder/pull/324) [`ab3d684`](https://github.com/0xOlias/ponder/commit/ab3d68463fbc6bbc581b2e0fd583f9b71bdb9506) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the realtime sync service would crash on bad requests. Now, a warning will be logged and the service will wait until the next poll.
+
+- [#318](https://github.com/0xOlias/ponder/pull/318) [`66fda60`](https://github.com/0xOlias/ponder/commit/66fda60752c184c49695012dd03a215a0c5d7ce7) Thanks [@0xOlias](https://github.com/0xOlias)! - Changed GraphQL filter suffix "\_contains" to "\_has" for checking if an value is present in a scalar list type.
+
 ## 0.0.85
 
 ### Patch Changes
