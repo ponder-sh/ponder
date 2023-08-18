@@ -1,17 +1,10 @@
-import type { Prettify } from "./utils";
+import type { OrderByInput, WhereInput } from "@/user-store/store";
 
-type HasOnlyIdProperty<T> = Exclude<keyof T, "id"> extends never ? true : false;
-
-type RequiredKeys<T> = {
-  [K in keyof T]-?: {} extends Pick<T, K> ? never : K;
-}[keyof T];
-
-type HasRequiredPropertiesOtherThanId<T> = Exclude<
-  RequiredKeys<T>,
-  "id"
-> extends never
-  ? false
-  : true;
+import type {
+  HasOnlyIdProperty,
+  HasRequiredPropertiesOtherThanId,
+  Prettify,
+} from "./utils";
 
 export type Model<T extends { id: string | number | bigint }> = {
   create: (
@@ -77,6 +70,13 @@ export type Model<T extends { id: string | number | bigint }> = {
   ) => Promise<Prettify<T>>;
 
   findUnique: (options: { id: T["id"] }) => Promise<Prettify<T> | null>;
+
+  findMany: (options?: {
+    where?: WhereInput<T>;
+    skip?: number;
+    take?: number;
+    orderBy?: OrderByInput<T>;
+  }) => Promise<Prettify<T>[]>;
 
   delete: (options: { id: T["id"] }) => Promise<boolean>;
 };

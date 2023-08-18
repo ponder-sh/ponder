@@ -5,15 +5,20 @@ import { Kysely, sql, SqliteDialect } from "kysely";
 import type { Schema } from "@/schema/types";
 import { blobToBigInt } from "@/utils/decode";
 
-import type { ModelFilter, ModelInstance, UserStore } from "../store";
+import type {
+  ModelInstance,
+  OrderByInput,
+  UserStore,
+  WhereInput,
+} from "../store";
+import { formatModelFieldValue, formatModelInstance } from "../utils/format";
+import { validateSkip, validateTake } from "../utils/pagination";
 import {
-  type FilterType,
-  formatModelFieldValue,
-  formatModelInstance,
-  getWhereOperatorAndValue,
-  MAX_INTEGER,
-  validateFilter,
-} from "../utils";
+  buildSqlOrderByConditions,
+  buildSqlWhereConditions,
+} from "../utils/where";
+
+const MAX_INTEGER = 2_147_483_647 as const;
 
 const gqlScalarToSqlType = {
   Boolean: "integer",
@@ -192,7 +197,7 @@ export class SqliteUserStore implements UserStore {
 
   create = async ({
     modelName,
-    timestamp,
+    timestamp = MAX_INTEGER,
     id,
     data = {},
   }: {
@@ -202,7 +207,7 @@ export class SqliteUserStore implements UserStore {
     data?: Omit<ModelInstance, "id">;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const createInstance = formatModelInstance({ id, data });
+    const createInstance = formatModelInstance({ id, ...data });
 
     const instance = await this.db
       .insertInto(tableName)
@@ -219,7 +224,7 @@ export class SqliteUserStore implements UserStore {
 
   update = async ({
     modelName,
-    timestamp,
+    timestamp = MAX_INTEGER,
     id,
     data = {},
   }: {
@@ -253,9 +258,9 @@ export class SqliteUserStore implements UserStore {
             instance: latestInstance,
           }),
         });
-        updateInstance = formatModelInstance({ id, data: updateObject });
+        updateInstance = formatModelInstance({ id, ...updateObject });
       } else {
-        updateInstance = formatModelInstance({ id, data });
+        updateInstance = formatModelInstance({ id, ...data });
       }
 
       // If the latest version has the same effectiveFrom timestamp as the update,
@@ -300,7 +305,7 @@ export class SqliteUserStore implements UserStore {
 
   upsert = async ({
     modelName,
-    timestamp,
+    timestamp = MAX_INTEGER,
     id,
     create = {},
     update = {},
@@ -317,7 +322,7 @@ export class SqliteUserStore implements UserStore {
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
     const formattedId = formatModelFieldValue({ value: id });
-    const createInstance = formatModelInstance({ id, data: create });
+    const createInstance = formatModelInstance({ id, ...create });
 
     const instance = await this.db.transaction().execute(async (tx) => {
       // Attempt to find the latest version of this instance.
@@ -350,9 +355,9 @@ export class SqliteUserStore implements UserStore {
             instance: latestInstance,
           }),
         });
-        updateInstance = formatModelInstance({ id, data: updateObject });
+        updateInstance = formatModelInstance({ id, ...updateObject });
       } else {
-        updateInstance = formatModelInstance({ id, data: update });
+        updateInstance = formatModelInstance({ id, ...update });
       }
 
       // If the latest version has the same effectiveFrom timestamp as the update,
@@ -397,7 +402,7 @@ export class SqliteUserStore implements UserStore {
 
   delete = async ({
     modelName,
-    timestamp,
+    timestamp = MAX_INTEGER,
     id,
   }: {
     modelName: string;
@@ -440,15 +445,19 @@ export class SqliteUserStore implements UserStore {
   findMany = async ({
     modelName,
     timestamp = MAX_INTEGER,
-    filter = {},
+    where,
+    skip,
+    take,
+    orderBy,
   }: {
     modelName: string;
     timestamp: number;
-    filter?: ModelFilter;
+    where?: WhereInput<any>;
+    skip?: number;
+    take?: number;
+    orderBy?: OrderByInput<any>;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-
-    if (filter.timestamp) timestamp = filter.timestamp;
 
     let query = this.db
       .selectFrom(tableName)
@@ -456,37 +465,156 @@ export class SqliteUserStore implements UserStore {
       .where("effectiveFrom", "<=", timestamp)
       .where("effectiveTo", ">=", timestamp);
 
-    const { where, first, skip, orderBy, orderDirection } =
-      validateFilter(filter);
-
     if (where) {
-      Object.entries(where).forEach(([whereKey, rawValue]) => {
-        const [fieldName, rawFilterType] = whereKey.split(/_(.*)/s);
-        // This is a hack to handle the "" operator, which the regex above doesn't handle
-        const filterType = (
-          rawFilterType === undefined ? "" : rawFilterType
-        ) as FilterType;
-
-        const { operator, value } = getWhereOperatorAndValue({
-          filterType,
-          value: rawValue,
-        });
-
-        query = query.where(fieldName, operator, value);
-      });
+      const whereConditions = buildSqlWhereConditions({ where });
+      for (const whereCondition of whereConditions) {
+        query = query.where(...whereCondition);
+      }
     }
 
     if (skip) {
-      query = query.offset(skip);
+      const offset = validateSkip(skip);
+      query = query.offset(offset);
     }
-    if (first) {
-      query = query.limit(first);
+
+    if (take) {
+      const limit = validateTake(take);
+      query = query.limit(limit);
     }
+
     if (orderBy) {
-      query = query.orderBy(orderBy, orderDirection);
+      const orderByConditions = buildSqlOrderByConditions({ orderBy });
+      for (const orderByCondition of orderByConditions) {
+        query = query.orderBy(...orderByCondition);
+      }
     }
 
     const instances = await query.execute();
+
+    return instances.map((instance) =>
+      this.deserializeInstance({ modelName, instance })
+    );
+  };
+
+  createMany = async ({
+    modelName,
+    timestamp = MAX_INTEGER,
+    data,
+  }: {
+    modelName: string;
+    timestamp: number;
+    id: string | number | bigint;
+    data: ModelInstance[];
+  }) => {
+    const tableName = `${modelName}_${this.versionId}`;
+    const createInstances = data.map((d) => ({
+      ...formatModelInstance({ ...d }),
+      effectiveFrom: timestamp,
+      effectiveTo: MAX_INTEGER,
+    }));
+
+    const instances = await this.db
+      .insertInto(tableName)
+      .values(createInstances)
+      .returningAll()
+      .execute();
+
+    return instances.map((instance) =>
+      this.deserializeInstance({ modelName, instance })
+    );
+  };
+
+  updateMany = async ({
+    modelName,
+    timestamp = MAX_INTEGER,
+    where,
+    data = {},
+  }: {
+    modelName: string;
+    timestamp: number;
+    where: WhereInput<any>;
+    data?:
+      | Partial<Omit<ModelInstance, "id">>
+      | ((args: {
+          current: ModelInstance;
+        }) => Partial<Omit<ModelInstance, "id">>);
+  }) => {
+    const tableName = `${modelName}_${this.versionId}`;
+
+    const instances = await this.db.transaction().execute(async (tx) => {
+      // Get all IDs that match the filter.
+      let latestInstancesQuery = tx
+        .selectFrom(tableName)
+        .selectAll()
+        .where("effectiveFrom", "<=", timestamp)
+        .where("effectiveTo", ">=", timestamp);
+
+      if (where) {
+        const whereConditions = buildSqlWhereConditions({ where });
+        for (const whereCondition of whereConditions) {
+          latestInstancesQuery = latestInstancesQuery.where(...whereCondition);
+        }
+      }
+
+      const latestInstances = await latestInstancesQuery.execute();
+
+      // TODO: This is probably incredibly slow. Ideally, we'd do most of this in the database.
+      return await Promise.all(
+        latestInstances.map(async (latestInstance) => {
+          const formattedId = latestInstance.id;
+
+          // If the user passed an update function, call it with the current instance.
+          let updateInstance: ReturnType<typeof formatModelInstance>;
+          if (typeof data === "function") {
+            const updateObject = data({
+              current: this.deserializeInstance({
+                modelName,
+                instance: latestInstance,
+              }),
+            });
+            updateInstance = formatModelInstance(updateObject);
+          } else {
+            updateInstance = formatModelInstance(data);
+          }
+
+          // If the latest version has the same effectiveFrom timestamp as the update,
+          // this update is occurring within the same block/second. Update in place.
+          if (latestInstance.effectiveFrom === timestamp) {
+            return await tx
+              .updateTable(tableName)
+              .set(updateInstance)
+              .where("id", "=", formattedId)
+              .where("effectiveFrom", "=", timestamp)
+              .returningAll()
+              .executeTakeFirstOrThrow();
+          }
+
+          if (latestInstance.effectiveFrom > timestamp) {
+            throw new Error(`Cannot update an instance in the past`);
+          }
+
+          // If the latest version has an earlier effectiveFrom timestamp than the update,
+          // we need to update the latest version AND insert a new version.
+          await tx
+            .updateTable(tableName)
+            .set({ effectiveTo: timestamp - 1 })
+            .where("id", "=", formattedId)
+            .where("effectiveTo", "=", MAX_INTEGER)
+            .execute();
+
+          return await tx
+            .insertInto(tableName)
+            .values({
+              ...latestInstance,
+              ...updateInstance,
+              effectiveFrom: timestamp,
+              effectiveTo: MAX_INTEGER,
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+        })
+      );
+    });
 
     return instances.map((instance) =>
       this.deserializeInstance({ modelName, instance })

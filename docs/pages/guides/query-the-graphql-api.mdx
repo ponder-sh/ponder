@@ -51,22 +51,24 @@ type Query {
 
 The GraphQL API supports filtering through the `where` argument. The `where` argument type contains filter options for every field defined on your entity. Here are the filter options available for each field type.
 
-| Filter option             | Available for field types                | _Include entities where..._                                      |
-| :------------------------ | :--------------------------------------- | :--------------------------------------------------------------- |
-| `{field}`                 | All                                      | \{field\} **equals** the specified value                         |
-| `{field}_not`             | All                                      | \{field\} **does not equal** the specified value                 |
-| `{field}_in`              | Scalars, enums, one-to-one relationships | \{field\} **is one of** the specified values                     |
-| `{field}_not_in`          | Scalars, enums, one-to-one relationships | \{field\} **is not one of** the specified values                 |
-| `{field}_contains`        | Lists of scalars and enums               | \{field\} **contains** the specified value as an element         |
-| `{field}_not_contains`    | Lists of scalars and enums               | \{field\} **does not contain** the specified value as an element |
-| `{field}_gt`              | Numeric scalars (Int, Float, BigInt)     | \{field\} is **greater than** specified value                    |
-| `{field}_lt`              | Numeric scalars (Int, Float, BigInt)     | \{field\} is **less than** specified value                       |
-| `{field}_gte`             | Numeric scalars (Int, Float, BigInt)     | \{field\} is **greater than or equal to** specified value        |
-| `{field}_lte`             | Numeric scalars (Int, Float, BigInt)     | \{field\} is **less than or equal to** specified value           |
-| `{field}_starts_with`     | String scalars (String, Bytes)           | \{field\} is **starts with** specified value                     |
-| `{field}_not_starts_with` | String scalars (String, Bytes)           | \{field\} is **does not start with** specified value             |
-| `{field}_ends_with`       | String scalars (String, Bytes)           | \{field\} is **ends with** specified value                       |
-| `{field}_not_ends_with`   | String scalars (String, Bytes)           | \{field\} is **does not end with** specified value               |
+| Filter option             | Available for field types                | _Include entities where..._                         |
+| :------------------------ | :--------------------------------------- | :-------------------------------------------------- |
+| `{field}`                 | All                                      | \{field\} **equals** the value                      |
+| `{field}_not`             | All                                      | \{field\} **does not equal** the value              |
+| `{field}_in`              | Scalars, enums, one-to-one relationships | \{field\} **is one of** the values                  |
+| `{field}_not_in`          | Scalars, enums, one-to-one relationships | \{field\} **is not one of** the values              |
+| `{field}_has`             | Lists of scalars and enums               | \{field\} **has** the value as an element           |
+| `{field}_not_has`         | Lists of scalars and enums               | \{field\} **does not have** the value as an element |
+| `{field}_gt`              | Numeric scalars (Int, Float, BigInt)     | \{field\} is **greater than** the value             |
+| `{field}_lt`              | Numeric scalars                          | \{field\} is **less than** the value                |
+| `{field}_gte`             | Numeric scalars                          | \{field\} is **greater than or equal to** the value |
+| `{field}_lte`             | Numeric scalars                          | \{field\} is **less than or equal to** the value    |
+| `{field}_contains`        | String scalars (String, Bytes)           | \{field\} **contains** the substring                |
+| `{field}_not_contains`    | String scalars                           | \{field\} **does not contain** the substring        |
+| `{field}_starts_with`     | String scalars                           | \{field\} **starts with** the substring             |
+| `{field}_not_starts_with` | String scalars                           | \{field\} **does not start with** the substring     |
+| `{field}_ends_with`       | String scalars                           | \{field\} **ends with** the substring               |
+| `{field}_not_ends_with`   | String scalars                           | \{field\} **does not end with** the substring       |
 
 For all following examples, assume these entities exist in your database.
 

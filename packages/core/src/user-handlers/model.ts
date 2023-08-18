@@ -28,6 +28,20 @@ export function buildModels({
             id,
           });
         },
+        findMany: ({ where, skip, take, orderBy } = {}) => {
+          common.logger.trace({
+            service: "store",
+            msg: `findMany (model=${modelName})`,
+          });
+          return userStore.findMany({
+            modelName,
+            timestamp: getCurrentEventTimestamp(),
+            where,
+            skip,
+            take,
+            orderBy,
+          });
+        },
         create: ({ id, data }) => {
           common.logger.trace({
             service: "store",

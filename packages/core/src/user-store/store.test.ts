@@ -674,7 +674,7 @@ test("findMany() returns current versions of all records", async (context) => {
   await userStore.teardown();
 });
 
-test("findMany() sorts on BigInt field", async (context) => {
+test("findMany() sorts on bigint field", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
 
@@ -705,9 +705,167 @@ test("findMany() sorts on BigInt field", async (context) => {
 
   const instances = await userStore.findMany({
     modelName: "Pet",
-    filter: { orderBy: "bigAge" },
+    orderBy: { bigAge: "asc" },
   });
   expect(instances.map((i) => i.bigAge)).toMatchObject([null, 10n, 105n, 190n]);
+
+  await userStore.teardown();
+});
+
+test("findMany() filters on bigint gt", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", bigAge: 105n },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id2",
+    data: { name: "Foo", bigAge: 10n },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id3",
+    data: { name: "Bar", bigAge: 190n },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id4",
+    data: { name: "Patch" },
+  });
+
+  const instances = await userStore.findMany({
+    modelName: "Pet",
+    where: { bigAge: { gt: 50n } },
+  });
+
+  expect(instances.map((i) => i.bigAge)).toMatchObject([105n, 190n]);
+
+  await userStore.teardown();
+});
+
+test("findMany() sorts and filters together", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", bigAge: 105n },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id2",
+    data: { name: "Foo", bigAge: 10n },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id3",
+    data: { name: "Bar", bigAge: 190n },
+  });
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id4",
+    data: { name: "Zarbar" },
+  });
+
+  const instances = await userStore.findMany({
+    modelName: "Pet",
+    where: { name: { endsWith: "ar" } },
+    orderBy: { name: "asc" },
+  });
+
+  expect(instances.map((i) => i.name)).toMatchObject(["Bar", "Zarbar"]);
+
+  await userStore.teardown();
+});
+
+test("findMany() errors on invalid filter condition", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  expect(() =>
+    userStore.findMany({
+      modelName: "Pet",
+      where: { name: { invalidWhereCondition: "ar" } },
+    })
+  ).rejects.toThrow("Invalid filter condition name: invalidWhereCondition");
+
+  await userStore.teardown();
+});
+
+test("findMany() errors on orderBy object with multiple keys", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  expect(() =>
+    userStore.findMany({
+      modelName: "Pet",
+      orderBy: { name: "asc", bigAge: "desc" },
+    })
+  ).rejects.toThrow("Invalid sort condition: Must have exactly one property");
+
+  await userStore.teardown();
+});
+
+test("createMany() inserts multiple entities", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  const createdInstances = await userStore.createMany({
+    modelName: "Pet",
+    timestamp: 10,
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+    ],
+  });
+  expect(createdInstances.length).toBe(3);
+
+  const instances = await userStore.findMany({ modelName: "Pet" });
+  expect(instances.length).toBe(3);
+
+  await userStore.teardown();
+});
+
+test("updateMany() updates multiple entities", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  await userStore.createMany({
+    modelName: "Pet",
+    timestamp: 10,
+    data: [
+      { id: "id1", name: "Skip", bigAge: 105n },
+      { id: "id2", name: "Foo", bigAge: 10n },
+      { id: "id3", name: "Bar", bigAge: 190n },
+    ],
+  });
+
+  const updatedInstances = await userStore.updateMany({
+    modelName: "Pet",
+    timestamp: 11,
+    where: { bigAge: { gt: 50n } },
+    data: { bigAge: 300n },
+  });
+
+  expect(updatedInstances.length).toBe(2);
+
+  const instances = await userStore.findMany({ modelName: "Pet" });
+
+  expect(instances.map((i) => i.bigAge)).toMatchObject([10n, 300n, 300n]);
 
   await userStore.teardown();
 });

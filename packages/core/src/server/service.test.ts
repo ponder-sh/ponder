@@ -907,7 +907,7 @@ test("filters on string list field equals", async (context) => {
   await service.kill();
 });
 
-test("filters on string list field contains", async (context) => {
+test("filters on string list field has", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
@@ -919,7 +919,7 @@ test("filters on string list field contains", async (context) => {
   await createTestEntity({ id: 2 });
 
   const response = await gql(`
-    testEntitys(where: { stringList_contains: "2" }) {
+    testEntitys(where: { stringList_has: "2" }) {
       id
     }
   `);
@@ -1260,7 +1260,7 @@ test("throws if limit is greater than 1000", async (context) => {
   `);
 
   expect(response.body.errors[0].message).toBe(
-    "Cannot query more than 1000 rows."
+    "Invalid query. Cannot take more than 1000 rows."
   );
   expect(response.statusCode).toBe(500);
 
@@ -1308,7 +1308,7 @@ test("throws if skip is greater than 5000", async (context) => {
   `);
 
   expect(response.body.errors[0].message).toBe(
-    "Cannot skip more than 5000 rows."
+    "Invalid query. Cannot skip more than 5000 rows."
   );
   expect(response.statusCode).toBe(500);
 

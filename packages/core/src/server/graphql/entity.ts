@@ -97,14 +97,15 @@ export const buildEntityType = ({
 
               return await store.findMany({
                 modelName: field.derivedFromEntityName,
-                filter: {
-                  where: { [field.derivedFromFieldName]: entityId },
-                  skip: filter.skip,
-                  first: filter.first,
-                  orderBy: filter.orderBy,
-                  orderDirection: filter.orderDirection,
-                },
                 timestamp: filter.timestamp ? filter.timestamp : undefined,
+                where: { [field.derivedFromFieldName]: entityId },
+                skip: filter.skip,
+                take: filter.first,
+                orderBy: filter.orderBy
+                  ? {
+                      [filter.orderBy]: filter.orderDirection || "asc",
+                    }
+                  : undefined,
               });
             };
 
