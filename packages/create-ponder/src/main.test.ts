@@ -465,6 +465,7 @@ describe("create-ponder", () => {
 
       expect(root).toContain(lintFileName);
       expect(packageJSON["scripts"]).toHaveProperty("lint");
+      expect(packageJSON["devDependencies"]).toHaveProperty("eslint");
       expect(packageJSON["devDependencies"]).toHaveProperty(ponderEslintConfig);
     });
 
@@ -484,6 +485,7 @@ describe("create-ponder", () => {
 
       expect(root).not.toContain(lintFileName);
       expect(packageJSON["scripts"]).not.toHaveProperty("lint");
+      expect(packageJSON["devDependencies"]).not.toHaveProperty("eslint");
       expect(packageJSON["devDependencies"]).not.toHaveProperty(
         ponderEslintConfig
       );
