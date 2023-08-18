@@ -194,9 +194,18 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   // This method is only public for to support the tests.
   addNewLatestBlock = async () => {
-    const block = await this.getLatestBlock();
-    const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
-    this.queue.addTask(block, { priority });
+    try {
+      const block = await this.getLatestBlock();
+      const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
+      this.queue.addTask(block, { priority });
+    } catch (error) {
+      // Do nothing, log the error. Might consider a retry limit here after which the service should die.
+      this.common.logger.error({
+        service: "realtime",
+        msg: "Error while fetching latest block",
+        error: error as Error,
+      });
+    }
   };
 
   private buildQueue = () => {
