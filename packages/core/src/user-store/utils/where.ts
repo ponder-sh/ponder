@@ -1,6 +1,5 @@
 import { ComparisonOperatorExpression } from "kysely";
 
-import { Prettify } from "@/types/utils";
 import { intToBlob } from "@/utils/encode";
 
 import { ModelDefinition, OrderByInput, WhereInput } from "../store";
@@ -29,6 +28,16 @@ export const sqlOperatorsByCondition = {
   gte: { operator: ">=", patternPrefix: undefined, patternSuffix: undefined },
   lte: { operator: "<=", patternPrefix: undefined, patternSuffix: undefined },
   // string
+  contains: {
+    operator: "like",
+    patternPrefix: "%",
+    patternSuffix: "%",
+  },
+  notContains: {
+    operator: "not like",
+    patternPrefix: "%",
+    patternSuffix: "%",
+  },
   startsWith: {
     operator: "like",
     patternPrefix: undefined,
@@ -47,22 +56,7 @@ export const sqlOperatorsByCondition = {
   },
 } as const;
 
-export type ConditionName = Prettify<
-  | "equals"
-  | "not"
-  | "in"
-  | "notIn"
-  | "has"
-  | "notHas"
-  | "gt"
-  | "lt"
-  | "gte"
-  | "lte"
-  | "startsWith"
-  | "notStartsWith"
-  | "endsWith"
-  | "notEndsWith"
->;
+export type ConditionName = keyof typeof sqlOperatorsByCondition;
 
 export function buildSqlWhereConditions({
   where,

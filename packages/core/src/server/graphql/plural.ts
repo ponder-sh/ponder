@@ -14,23 +14,20 @@ import type { Entity } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
 
-type WhereInputArg = {
-  [key: string]: number | string;
-};
 type PluralArgs = {
-  where?: WhereInputArg;
+  timestamp?: number;
+  where?: { [key: string]: number | string };
   first?: number;
   skip?: number;
   orderBy?: string;
   orderDirection?: "asc" | "desc";
-  timestamp?: number;
 };
 type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
 const operators = {
   universal: ["", "_not"],
   singular: ["_in", "_not_in"],
-  plural: ["_contains", "_not_contains"],
+  plural: ["_has", "_not_has"],
   numeric: ["_gt", "_lt", "_gte", "_lte"],
   string: [
     "_contains",
@@ -42,7 +39,7 @@ const operators = {
   ],
 };
 
-const buildPluralField = ({
+export const buildPluralField = ({
   entity,
   entityGqlType,
 }: {
@@ -162,18 +159,15 @@ const buildPluralField = ({
   const resolver: PluralResolver = async (_, args, context) => {
     const { store } = context;
 
-    const filter = args;
+    const { timestamp, where, skip, first, orderBy, orderDirection } = args;
 
     return await store.findMany({
       modelName: entity.name,
-      filter: {
-        skip: filter.skip,
-        first: filter.first,
-        orderBy: filter.orderBy,
-        orderDirection: filter.orderDirection,
-        where: filter.where,
-      },
-      timestamp: filter.timestamp ? filter.timestamp : undefined,
+      timestamp: timestamp ? timestamp : undefined,
+      where: where ? buildWhereObject({ where }) : undefined,
+      skip: skip,
+      take: first,
+      orderBy: orderBy ? { [orderBy]: orderDirection || "asc" } : undefined,
     });
   };
 
@@ -193,4 +187,44 @@ const buildPluralField = ({
   };
 };
 
-export { buildPluralField };
+const graphqlFilterToStoreCondition = {
+  "": "equals",
+  not: "not",
+  in: "in",
+  not_in: "notIn",
+  has: "has",
+  not_has: "notHas",
+  gt: "gt",
+  lt: "lt",
+  gte: "gte",
+  lte: "lte",
+  contains: "contains",
+  not_contains: "notContains",
+  starts_with: "startsWith",
+  not_starts_with: "notStartsWith",
+  ends_with: "endsWith",
+  not_ends_with: "notEndsWith",
+} as const;
+
+function buildWhereObject({ where }: { where: Record<string, any> }) {
+  const whereObject: Record<string, any> = {};
+
+  Object.entries(where).forEach(([whereKey, rawValue]) => {
+    const [fieldName, condition_] = whereKey.split(/_(.*)/s);
+    // This is a hack to handle the "" operator, which the regex above doesn't handle
+    const condition = (
+      condition_ === undefined ? "" : condition_
+    ) as keyof typeof graphqlFilterToStoreCondition;
+
+    const storeCondition = graphqlFilterToStoreCondition[condition];
+    if (!storeCondition) {
+      throw new Error(
+        `Invalid query: Unknown where condition: ${fieldName}_${condition}`
+      );
+    }
+
+    whereObject[fieldName] = { [storeCondition]: rawValue };
+  });
+
+  return whereObject;
+}
