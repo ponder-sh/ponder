@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import { type EIP1193RequestFn, HttpRequestError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { accounts, usdcContractConfig, vitalik } from "@/_test/constants";
@@ -24,6 +25,11 @@ const network: Network = {
   finalityBlockCount: 5,
   maxRpcRequestConcurrency: 10,
 };
+
+const rpcRequestSpy = vi.spyOn(
+  network.client as { request: EIP1193RequestFn },
+  "request"
+);
 
 const logFilters: LogFilter[] = [
   {
@@ -193,6 +199,47 @@ test("handles new blocks", async (context) => {
     16380001n,
     // 16380002n <- Not added to the store, because it has no matched logs.
     16380003n,
+  ]);
+
+  await service.kill();
+});
+
+test("handles error while fetching new latest block gracefully", async (context) => {
+  const { common, eventStore } = context;
+
+  const service = new RealtimeSyncService({
+    common,
+    eventStore,
+    logFilters,
+    network,
+  });
+
+  await service.setup();
+  await service.start();
+
+  await sendUsdcTransferTransaction();
+  await testClient.mine({ blocks: 1 });
+
+  // Mock a failed new block request.
+  rpcRequestSpy.mockRejectedValueOnce(
+    new HttpRequestError({ url: "http://test.com" })
+  );
+  await service.addNewLatestBlock();
+
+  // Now, this one should succeed.
+  await service.addNewLatestBlock();
+
+  await service.onIdle();
+
+  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  expect(blocks).toHaveLength(6);
+  expect(blocks.map((block) => blobToBigInt(block.number))).toMatchObject([
+    16379996n,
+    16379997n,
+    16379998n,
+    16379999n,
+    16380000n,
+    16380001n,
   ]);
 
   await service.kill();
