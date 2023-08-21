@@ -1,12 +1,12 @@
+import assert from "node:assert";
 import path from "node:path";
 import process from "node:process";
 
 import { BuildService } from "@/build/service";
 import { CodegenService } from "@/codegen/service";
-import { type ResolvedConfig } from "@/config/config";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
-import { type LogFilter, buildLogFilters } from "@/config/logFilters";
+import { type LogFilter } from "@/config/logFilters";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
 import { UserErrorService } from "@/errors/service";
@@ -36,10 +36,10 @@ export type Common = {
 
 export class Ponder {
   common: Common;
-  logFilters: LogFilter[];
+  logFilters: LogFilter[] = [];
 
-  eventStore: EventStore;
-  userStore: UserStore;
+  eventStore?: EventStore;
+  userStore?: UserStore;
 
   // List of indexing-related services. One per configured network.
   networkSyncServices: {
@@ -49,22 +49,21 @@ export class Ponder {
     realtimeSyncService: RealtimeSyncService;
   }[] = [];
 
-  eventAggregatorService: EventAggregatorService;
-  eventHandlerService: EventHandlerService;
-
-  serverService: ServerService;
   buildService: BuildService;
-  codegenService: CodegenService;
-  uiService: UiService;
+
+  eventAggregatorService?: EventAggregatorService;
+  eventHandlerService?: EventHandlerService;
+
+  serverService?: ServerService;
+  codegenService?: CodegenService;
+  uiService?: UiService;
 
   constructor({
     options,
-    config,
     eventStore,
     userStore,
   }: {
     options: Options;
-    config: ResolvedConfig;
     // These options are only used for testing.
     eventStore?: EventStore;
     userStore?: UserStore;
@@ -79,8 +78,17 @@ export class Ponder {
 
     const common = { options, logger, errors, metrics, telemetry };
     this.common = common;
+    this.buildService = new BuildService({ common });
 
-    const logFilters = buildLogFilters({ options, config });
+    this.eventStore = eventStore;
+    this.userStore = userStore;
+  }
+
+  async init() {
+    const config = this.buildService.config;
+    assert(config, "Config is not set in init");
+    const options = this.common.options;
+    const logFilters = this.buildService.buildLogFilters();
     this.logFilters = logFilters;
     const contracts = buildContracts({ options, config });
 
@@ -101,18 +109,20 @@ export class Ponder {
 
     const database = buildDatabase({ options, config });
     this.eventStore =
-      eventStore ??
+      this.eventStore ??
       (database.kind === "sqlite"
         ? new SqliteEventStore({ db: database.db })
         : new PostgresEventStore({ pool: database.pool }));
 
     this.userStore =
-      userStore ??
+      this.userStore ??
       (database.kind === "sqlite"
         ? new SqliteUserStore({ db: database.db })
         : new PostgresUserStore({ pool: database.pool }));
 
     networks.forEach((network) => {
+      assert(this.eventStore);
+
       const logFiltersForNetwork = logFilters.filter(
         (logFilter) => logFilter.network === network.name
       );
@@ -120,13 +130,13 @@ export class Ponder {
         network,
         logFilters: logFiltersForNetwork,
         historicalSyncService: new HistoricalSyncService({
-          common,
+          common: this.common,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
-          common,
+          common: this.common,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
@@ -135,14 +145,14 @@ export class Ponder {
     });
 
     this.eventAggregatorService = new EventAggregatorService({
-      common,
+      common: this.common,
       eventStore: this.eventStore,
       networks,
       logFilters,
     });
 
     this.eventHandlerService = new EventHandlerService({
-      common,
+      common: this.common,
       eventStore: this.eventStore,
       userStore: this.userStore,
       eventAggregatorService: this.eventAggregatorService,
@@ -151,19 +161,25 @@ export class Ponder {
     });
 
     this.serverService = new ServerService({
-      common,
+      common: this.common,
       userStore: this.userStore,
     });
-    this.buildService = new BuildService({ common, logFilters });
     this.codegenService = new CodegenService({
-      common,
+      common: this.common,
       contracts,
       logFilters,
     });
-    this.uiService = new UiService({ common, logFilters });
+    this.uiService = new UiService({ common: this.common, logFilters });
   }
 
   async setup() {
+    await this.buildService?.buildConfig();
+
+    await this.init();
+    assert(this.serverService);
+    assert(this.codegenService);
+    assert(this.eventStore);
+
     this.common.logger.debug({
       service: "app",
       msg: `Started using config file: ${path.relative(
@@ -212,6 +228,7 @@ export class Ponder {
 
   async dev() {
     const setupError = await this.setup();
+    assert(this.eventStore);
 
     this.common.telemetry.record({
       event: "App Started",
@@ -229,7 +246,7 @@ export class Ponder {
         msg: setupError.message,
         error: setupError,
       });
-      return await this.kill();
+      return await this.killCoreServices();
     }
 
     await Promise.all(
@@ -249,6 +266,7 @@ export class Ponder {
 
   async start() {
     const setupError = await this.setup();
+    assert(this.eventStore);
 
     this.common.telemetry.record({
       event: "App Started",
@@ -283,6 +301,8 @@ export class Ponder {
   }
 
   async codegen() {
+    await this.init();
+    assert(this.codegenService);
     this.codegenService.generateAppFile();
 
     const result = this.buildService.buildSchema();
@@ -295,15 +315,14 @@ export class Ponder {
     await this.kill();
   }
 
-  async kill() {
-    this.eventAggregatorService.clearListeners();
+  async killCoreServices() {
+    assert(this.eventAggregatorService);
+    assert(this.uiService);
+    assert(this.eventHandlerService);
+    assert(this.serverService);
+    assert(this.userStore);
 
-    this.common.telemetry.record({
-      event: "App Killed",
-      properties: {
-        processDuration: process.uptime(),
-      },
-    });
+    this.eventAggregatorService.clearListeners();
 
     await Promise.all(
       this.networkSyncServices.map(
@@ -314,11 +333,22 @@ export class Ponder {
       )
     );
 
-    await this.buildService.kill?.();
     this.uiService.kill();
     this.eventHandlerService.kill();
     await this.serverService.kill();
     await this.userStore.teardown();
+  }
+
+  async kill() {
+    this.common.telemetry.record({
+      event: "App Killed",
+      properties: {
+        processDuration: process.uptime(),
+      },
+    });
+
+    await this.killCoreServices();
+    await this.buildService.kill?.();
     await this.common.telemetry.kill();
 
     this.common.logger.debug({
@@ -328,15 +358,25 @@ export class Ponder {
   }
 
   private registerServiceDependencies() {
+    assert(this.eventAggregatorService);
+    assert(this.eventHandlerService);
     this.buildService.on("newConfig", async () => {
       this.common.logger.fatal({
         service: "build",
         msg: "Detected change in ponder.config.ts",
       });
-      await this.kill();
+      await this.killCoreServices();
+      await this.dev();
     });
 
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
+      assert(this.codegenService, "Codegen service not set on schema update");
+      assert(this.serverService, "Server service not set on schema update");
+      assert(
+        this.eventHandlerService,
+        "Event handler service not set on schema update"
+      );
+
       this.codegenService.generateAppFile({ schema });
       this.codegenService.generateSchemaFile({ graphqlSchema });
 
@@ -347,6 +387,10 @@ export class Ponder {
     });
 
     this.buildService.on("newHandlers", async ({ handlers }) => {
+      assert(
+        this.eventHandlerService,
+        "Event handler service not set on handlers update"
+      );
       await this.eventHandlerService.reset({ handlers });
       await this.eventHandlerService.processEvents();
     });
@@ -356,6 +400,10 @@ export class Ponder {
       const { historicalSyncService, realtimeSyncService } = networkSyncService;
 
       historicalSyncService.on("historicalCheckpoint", ({ timestamp }) => {
+        assert(
+          this.eventAggregatorService,
+          "Event aggregator service not set on historical checkpoint update"
+        );
         this.eventAggregatorService.handleNewHistoricalCheckpoint({
           chainId,
           timestamp,
@@ -363,12 +411,20 @@ export class Ponder {
       });
 
       historicalSyncService.on("syncComplete", () => {
+        assert(
+          this.eventAggregatorService,
+          "Event aggregator service not set on sync complete"
+        );
         this.eventAggregatorService.handleHistoricalSyncComplete({
           chainId,
         });
       });
 
       realtimeSyncService.on("realtimeCheckpoint", ({ timestamp }) => {
+        assert(
+          this.eventAggregatorService,
+          "Event aggregator service not set on relatime checkpoint update"
+        );
         this.eventAggregatorService.handleNewRealtimeCheckpoint({
           chainId,
           timestamp,
@@ -376,6 +432,10 @@ export class Ponder {
       });
 
       realtimeSyncService.on("finalityCheckpoint", ({ timestamp }) => {
+        assert(
+          this.eventAggregatorService,
+          "Event aggregator service not set on finality checkpoint update"
+        );
         this.eventAggregatorService.handleNewFinalityCheckpoint({
           chainId,
           timestamp,
@@ -383,23 +443,40 @@ export class Ponder {
       });
 
       realtimeSyncService.on("shallowReorg", ({ commonAncestorTimestamp }) => {
+        assert(
+          this.eventAggregatorService,
+          "Event aggregator service not set on shallow reorg"
+        );
         this.eventAggregatorService.handleReorg({ commonAncestorTimestamp });
       });
     });
 
     this.eventAggregatorService.on("newCheckpoint", async () => {
+      assert(
+        this.eventHandlerService,
+        "Event handler service not set on new checkpoint update"
+      );
       await this.eventHandlerService.processEvents();
     });
 
     this.eventAggregatorService.on(
       "reorg",
       async ({ commonAncestorTimestamp }) => {
+        assert(
+          this.eventHandlerService,
+          "Event handler service not set on reorg"
+        );
         await this.eventHandlerService.handleReorg({ commonAncestorTimestamp });
         await this.eventHandlerService.processEvents();
       }
     );
 
     this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
+      assert(this.serverService, "Server service not set on events processed");
+      assert(
+        this.eventAggregatorService,
+        "Event aggregator service not set on events processed"
+      );
       if (this.serverService.isHistoricalEventProcessingComplete) return;
 
       // If a batch of events are processed AND the historical sync is complete AND

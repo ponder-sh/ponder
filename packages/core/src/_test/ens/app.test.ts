@@ -1,11 +1,9 @@
+import assert from "node:assert";
 import { rmSync } from "node:fs";
-import path from "node:path";
 import request from "supertest";
 import { type TestContext, afterEach, beforeEach, expect, test } from "vitest";
 
 import { setupEventStore, setupUserStore } from "@/_test/setup";
-import { testNetworkConfig } from "@/_test/utils";
-import { buildConfig } from "@/config/config";
 import { buildOptions } from "@/config/options";
 import { Ponder } from "@/Ponder";
 
@@ -13,11 +11,11 @@ beforeEach((context) => setupEventStore(context));
 beforeEach((context) => setupUserStore(context));
 
 const setup = async ({ context }: { context: TestContext }) => {
-  const config = await buildConfig({
-    configFile: path.resolve("src/_test/ens/app/ponder.config.ts"),
-  });
-  // Inject proxied anvil chain.
-  const testConfig = { ...config, networks: [testNetworkConfig] };
+  // const config = await buildConfig({
+  //   configFile: path.resolve("src/_test/ens/app/ponder.config.ts"),
+  // });
+  // // Inject proxied anvil chain.
+  // const testConfig = { ...config, networks: [testNetworkConfig] };
 
   const options = buildOptions({
     cliOptions: {
@@ -33,7 +31,6 @@ const setup = async ({ context }: { context: TestContext }) => {
   } as const;
 
   const ponder = new Ponder({
-    config: testConfig,
     options: testOptions,
     eventStore: context.eventStore,
     userStore: context.userStore,
@@ -43,6 +40,8 @@ const setup = async ({ context }: { context: TestContext }) => {
 
   // Wait for historical sync event processing to complete.
   await new Promise<void>((resolve) => {
+    assert(ponder.eventHandlerService);
+
     ponder.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
       // Block 16370020
       if (toTimestamp >= 1673276663) {
@@ -52,6 +51,8 @@ const setup = async ({ context }: { context: TestContext }) => {
   });
 
   const gql = async (query: string) => {
+    assert(ponder.serverService);
+
     const response = await request(ponder.serverService.app)
       .post("/")
       .send({ query: `query { ${query} }` });

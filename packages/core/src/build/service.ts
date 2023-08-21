@@ -1,11 +1,13 @@
 import chokidar from "chokidar";
 import Emittery from "emittery";
 import { GraphQLSchema } from "graphql";
+import assert from "node:assert";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import type { LogFilter } from "@/config/logFilters";
+import { buildConfig, ResolvedConfig } from "@/config/config";
+import { type LogFilter, buildLogFilters } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
@@ -27,21 +29,16 @@ type BuildServiceEvents = {
 
 export class BuildService extends Emittery<BuildServiceEvents> {
   private common: Common;
-  private logFilters: LogFilter[];
+  private logFilters: LogFilter[] = [];
 
   private closeWatcher?: () => Promise<void>;
   private latestFileHashes: Record<string, string | undefined> = {};
 
-  constructor({
-    common,
-    logFilters,
-  }: {
-    common: Common;
-    logFilters: LogFilter[];
-  }) {
+  config?: ResolvedConfig;
+
+  constructor({ common }: { common: Common }) {
     super();
     this.common = common;
-    this.logFilters = logFilters;
   }
 
   async kill() {
@@ -87,6 +84,24 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         }
       }
     });
+  }
+
+  async buildConfig() {
+    const configFile = path.resolve(
+      this.common.options.rootDir,
+      this.common.options.configFile
+    );
+    this.config = await buildConfig({ configFile });
+  }
+
+  buildLogFilters() {
+    assert(this.config, "Config not set before building log filters");
+    const logFilters = buildLogFilters({
+      options: this.common.options,
+      config: this.config,
+    });
+    this.logFilters = logFilters;
+    return logFilters;
   }
 
   async buildHandlers() {
