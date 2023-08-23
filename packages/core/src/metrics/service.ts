@@ -198,4 +198,11 @@ export class MetricsService {
   async getMetrics() {
     return await this.registry.metrics();
   }
+
+  /**
+   * Reset all metrics registered
+   */
+  resetMetrics() {
+    this.registry.resetMetrics();
+  }
 }

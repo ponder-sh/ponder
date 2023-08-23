@@ -115,6 +115,8 @@ export const buildConfig = async ({ configFile }: { configFile: string }) => {
       logLevel: "silent",
     });
 
+    // Delete require cache to get updated buildFile on making changes
+    delete require.cache[require.resolve(buildFile)];
     const { default: rawDefault, config: rawConfig } = require(buildFile);
     rmSync(buildFile, { force: true });
 

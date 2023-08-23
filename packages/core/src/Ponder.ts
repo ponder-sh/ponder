@@ -120,6 +120,10 @@ export class Ponder {
         ? new SqliteUserStore({ db: database.db })
         : new PostgresUserStore({ pool: database.pool }));
 
+    // Reset metrics before instantiating sync services
+    // Required during config rebuilds
+    this.common.metrics.resetMetrics();
+
     networks.forEach((network) => {
       assert(this.eventStore);
 
@@ -333,6 +337,7 @@ export class Ponder {
       )
     );
 
+    this.networkSyncServices = [];
     this.uiService.kill();
     this.eventHandlerService.kill();
     await this.serverService.kill();
@@ -361,7 +366,7 @@ export class Ponder {
     assert(this.eventAggregatorService);
     assert(this.eventHandlerService);
     this.buildService.on("newConfig", async () => {
-      this.common.logger.fatal({
+      this.common.logger.info({
         service: "build",
         msg: "Detected change in ponder.config.ts",
       });
