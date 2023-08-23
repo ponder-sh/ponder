@@ -4,6 +4,7 @@ import process from "node:process";
 
 import { BuildService } from "@/build/service";
 import { CodegenService } from "@/codegen/service";
+import { type ResolvedConfig } from "@/config/config";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
 import { type LogFilter } from "@/config/logFilters";
@@ -38,6 +39,7 @@ export class Ponder {
   common: Common;
   logFilters: LogFilter[] = [];
 
+  config?: ResolvedConfig;
   eventStore?: EventStore;
   userStore?: UserStore;
 
@@ -60,11 +62,13 @@ export class Ponder {
 
   constructor({
     options,
+    config,
     eventStore,
     userStore,
   }: {
     options: Options;
     // These options are only used for testing.
+    config?: ResolvedConfig;
     eventStore?: EventStore;
     userStore?: UserStore;
   }) {
@@ -80,12 +84,13 @@ export class Ponder {
     this.common = common;
     this.buildService = new BuildService({ common });
 
+    this.config = config;
     this.eventStore = eventStore;
     this.userStore = userStore;
   }
 
   async init() {
-    const config = this.buildService.config;
+    const config = this.config ?? this.buildService.config;
     assert(config, "Config is not set in init");
     const options = this.common.options;
     const logFilters = this.buildService.buildLogFilters();
@@ -177,7 +182,7 @@ export class Ponder {
   }
 
   async setup() {
-    await this.buildService?.buildConfig();
+    await this.buildService.buildConfig();
 
     await this.init();
     assert(this.serverService);

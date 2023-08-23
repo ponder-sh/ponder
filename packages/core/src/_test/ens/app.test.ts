@@ -1,9 +1,12 @@
 import assert from "node:assert";
 import { rmSync } from "node:fs";
+import path from "node:path";
 import request from "supertest";
 import { type TestContext, afterEach, beforeEach, expect, test } from "vitest";
 
 import { setupEventStore, setupUserStore } from "@/_test/setup";
+import { testNetworkConfig } from "@/_test/utils";
+import { buildConfig } from "@/config/config";
 import { buildOptions } from "@/config/options";
 import { Ponder } from "@/Ponder";
 
@@ -11,11 +14,11 @@ beforeEach((context) => setupEventStore(context));
 beforeEach((context) => setupUserStore(context));
 
 const setup = async ({ context }: { context: TestContext }) => {
-  // const config = await buildConfig({
-  //   configFile: path.resolve("src/_test/ens/app/ponder.config.ts"),
-  // });
-  // // Inject proxied anvil chain.
-  // const testConfig = { ...config, networks: [testNetworkConfig] };
+  const config = await buildConfig({
+    configFile: path.resolve("src/_test/art-gobblers/app/ponder.config.ts"),
+  });
+  // Inject proxied anvil chain.
+  const testConfig = { ...config, networks: [testNetworkConfig] };
 
   const options = buildOptions({
     cliOptions: {
@@ -32,6 +35,7 @@ const setup = async ({ context }: { context: TestContext }) => {
 
   const ponder = new Ponder({
     options: testOptions,
+    config: testConfig,
     eventStore: context.eventStore,
     userStore: context.userStore,
   });
