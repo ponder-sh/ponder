@@ -171,6 +171,7 @@ export class Ponder {
 
     this.serverService = new ServerService({
       common: this.common,
+      configOptions: config.options,
       userStore: this.userStore,
     });
     this.codegenService = new CodegenService({

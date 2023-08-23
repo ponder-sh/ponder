@@ -5,12 +5,14 @@ import type { GraphQLSchema } from "graphql";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
+import { type ResolvedConfig } from "@/config/config";
 import type { Common } from "@/Ponder";
 import type { UserStore } from "@/user-store/store";
 import { startClock } from "@/utils/timer";
 
 export class ServerService {
   private common: Common;
+  private configOptions?: ResolvedConfig["options"];
   private userStore: UserStore;
 
   private port: number;
@@ -20,8 +22,17 @@ export class ServerService {
 
   isHistoricalEventProcessingComplete = false;
 
-  constructor({ common, userStore }: { common: Common; userStore: UserStore }) {
+  constructor({
+    common,
+    configOptions,
+    userStore,
+  }: {
+    common: Common;
+    configOptions?: ResolvedConfig["options"];
+    userStore: UserStore;
+  }) {
     this.common = common;
+    this.configOptions = configOptions;
     this.userStore = userStore;
     this.port = this.common.options.port;
   }
@@ -124,7 +135,9 @@ export class ServerService {
         return res.status(200).send();
       }
 
-      const max = this.common.options.maxHealthcheckDuration;
+      const max =
+        this.configOptions?.maxHealthcheckDuration ??
+        this.common.options.maxHealthcheckDuration;
       const elapsed = Math.floor(process.uptime());
 
       if (elapsed > max) {

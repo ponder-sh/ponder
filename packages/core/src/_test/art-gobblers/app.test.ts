@@ -34,8 +34,8 @@ const setup = async ({ context }: { context: TestContext }) => {
   } as const;
 
   const ponder = new Ponder({
-    options: testOptions,
     config: testConfig,
+    options: testOptions,
     eventStore: context.eventStore,
     userStore: context.userStore,
   });

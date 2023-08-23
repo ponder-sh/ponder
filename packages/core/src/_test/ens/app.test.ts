@@ -15,7 +15,7 @@ beforeEach((context) => setupUserStore(context));
 
 const setup = async ({ context }: { context: TestContext }) => {
   const config = await buildConfig({
-    configFile: path.resolve("src/_test/art-gobblers/app/ponder.config.ts"),
+    configFile: path.resolve("src/_test/ens/app/ponder.config.ts"),
   });
   // Inject proxied anvil chain.
   const testConfig = { ...config, networks: [testNetworkConfig] };
@@ -34,8 +34,8 @@ const setup = async ({ context }: { context: TestContext }) => {
   } as const;
 
   const ponder = new Ponder({
-    options: testOptions,
     config: testConfig,
+    options: testOptions,
     eventStore: context.eventStore,
     userStore: context.userStore,
   });
