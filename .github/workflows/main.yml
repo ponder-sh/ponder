@@ -32,12 +32,11 @@ jobs:
         run: pnpm lint
 
   test:
-    name: Test (core)
-    runs-on: ${{ matrix.os == 'Linux' && 'ubuntu-latest' || matrix.os == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
+    name: Test [core]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [Linux, Windows]
         database: [Postgres, SQLite]
         node-version: ["Node 16", "Node 18", "Node 20"]
     services:
@@ -70,12 +69,70 @@ jobs:
           DATABASE_URL: ${{ matrix.database == 'Postgres' && 'postgresql://postgres:postgres@localhost:5432/postgres' || '' }}
 
   test-create-ponder:
-    name: Test (create-ponder)
-    runs-on: ${{ matrix.os == 'Linux' && 'ubuntu-latest' || matrix.os == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
+    name: Test [create-ponder]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [Linux, Windows]
+        node-version: ["Node 16", "Node 18", "Node 20"]
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Test
+        run: pnpm test:ci:create-ponder
+        env:
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+          # The create-ponder tests run the codegen command for each test project.
+          # We don't want to emit telemetry for these tests; this is the cleanest way to suppress it.
+          PONDER_TELEMETRY_DISABLED: true
+
+  test-windows-core:
+    name: Test [core] (Windows)
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [Postgres, SQLite]
+        node-version: ["Node 20"]
+    services:
+      postgres:
+        # This skips the postgres service setup for SQLite test runs.
+        image: ${{ matrix.database == 'Postgres' && 'postgres' || '' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Test
+        run: pnpm test:ci:core
+        env:
+          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
+          ANVIL_BLOCK_NUMBER: ${{ secrets.ANVIL_BLOCK_NUMBER }}
+          DATABASE_URL: ${{ matrix.database == 'Postgres' && 'postgresql://postgres:postgres@localhost:5432/postgres' || '' }}
+
+  test-windows-create-ponder:
+    name: Test [create-ponder] (Windows)
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
         node-version: ["Node 16", "Node 18", "Node 20"]
     steps:
       - name: Clone repository
