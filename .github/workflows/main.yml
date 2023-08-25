@@ -42,7 +42,9 @@ jobs:
         os: [Linux, Windows]
         exclude:
           - os: Windows
-            node-version: ["Node 16", "Node 18"]
+            node-version: "Node 16"
+          - os: Windows
+            node-version: "Node 18"
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
