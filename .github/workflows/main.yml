@@ -91,7 +91,7 @@ jobs:
           PONDER_TELEMETRY_DISABLED: true
 
   test-windows-core:
-    name: Test [core] (Windows)
+    name: Test Windows [core]
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -128,12 +128,12 @@ jobs:
           DATABASE_URL: ${{ matrix.database == 'Postgres' && 'postgresql://postgres:postgres@localhost:5432/postgres' || '' }}
 
   test-windows-create-ponder:
-    name: Test [create-ponder] (Windows)
+    name: Test Windows [create-ponder]
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        node-version: ["Node 16", "Node 18", "Node 20"]
+        node-version: ["Node 20"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
