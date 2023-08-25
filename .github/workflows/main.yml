@@ -39,13 +39,10 @@ jobs:
       matrix:
         database: [Postgres, SQLite]
         node-version: ["Node 16", "Node 18", "Node 20"]
-        include:
+        os: [Linux, Windows]
+        exclude:
           - os: Windows
-            database: Postgres
-            node-version: "Node 20"
-          - os: Windows
-            database: SQLite
-            node-version: "Node 20"
+            node-version: ["Node 16", "Node 18"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
@@ -72,9 +69,12 @@ jobs:
       fail-fast: false
       matrix:
         node-version: ["Node 16", "Node 18", "Node 20"]
-        include:
+        os: [Linux, Windows]
+        exclude:
           - os: Windows
-            node-version: "Node 20"
+            node-version: "Node 16"
+          - os: Windows
+            node-version: "Node 18"
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
