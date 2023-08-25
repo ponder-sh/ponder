@@ -33,10 +33,11 @@ jobs:
 
   test:
     name: Test (core)
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os == 'Linux' && 'ubuntu-latest' || matrix.os == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
+        os: ["Linux", "Windows"]
         database: [Postgres, SQLite]
         node-version: ["Node 16", "Node 18", "Node 20"]
     services:
@@ -70,10 +71,11 @@ jobs:
 
   test-create-ponder:
     name: Test (create-ponder)
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os == 'Linux' && 'ubuntu-latest' || matrix.os == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
+        os: ["Linux", "Windows"]
         node-version: ["Node 16", "Node 18", "Node 20"]
     steps:
       - name: Clone repository
