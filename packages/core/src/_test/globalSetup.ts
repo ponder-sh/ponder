@@ -1,14 +1,19 @@
 import { startProxy } from "@viem/anvil";
+import dotenv from "dotenv";
 
-import { FORK_BLOCK_NUMBER, FORK_URL } from "./constants";
+import { FORK_BLOCK_NUMBER } from "./constants";
 
 export default async function () {
+  dotenv.config({ path: ".env.local" });
+
+  if (!process.env.ANVIL_FORK_URL) {
+    throw new Error('Missing environment variable "ANVIL_FORK_URL"');
+  }
+
   return await startProxy({
-    port: 8545,
-    host: "::",
     options: {
       chainId: 1,
-      forkUrl: FORK_URL,
+      forkUrl: process.env.ANVIL_FORK_URL,
       forkBlockNumber: FORK_BLOCK_NUMBER,
     },
   });

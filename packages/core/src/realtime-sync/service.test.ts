@@ -14,7 +14,7 @@ import { range } from "@/utils/range";
 import { RealtimeSyncService } from "./service";
 
 beforeEach((context) => setupEventStore(context));
-beforeEach(async () => await resetTestClient());
+beforeEach(resetTestClient);
 
 const network: Network = {
   name: "mainnet",

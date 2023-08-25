@@ -20,7 +20,7 @@ import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import type { UserStore } from "@/user-store/store";
 
-import { FORK_BLOCK_NUMBER, FORK_URL, vitalik } from "./constants";
+import { FORK_BLOCK_NUMBER, vitalik } from "./constants";
 import { poolId, testClient } from "./utils";
 
 /**
@@ -66,9 +66,7 @@ beforeEach((context) => {
  *
  * ```ts
  * // Add this to any test suite that uses the test client.
- * beforeEach(async (context) => {
- *   return await setupEventStore(context);
- * })
+ * beforeEach((context) => setupEventStore(context))
  * ```
  */
 export async function setupEventStore(
@@ -101,9 +99,7 @@ export async function setupEventStore(
  *
  * ```ts
  * // Add this to any test suite that uses the test client.
- * beforeEach(async (context) => {
- *   return await setupUserStore(context);
- * })
+ * beforeEach((context) => setupUserStore(context))
  * ```
  */
 export async function setupUserStore(context: TestContext) {
@@ -127,9 +123,7 @@ export async function setupUserStore(context: TestContext) {
  *
  * ```ts
  * // Add this to any test suite that uses the test client.
- * beforeEach(async () => {
- *   return await resetTestClient();
- * })
+ * beforeEach(resetTestClient)
  * ```
  */
 export async function resetTestClient() {
@@ -137,9 +131,6 @@ export async function resetTestClient() {
   await testClient.setAutomine(false);
 
   return async () => {
-    await testClient.reset({
-      jsonRpcUrl: FORK_URL,
-      blockNumber: FORK_BLOCK_NUMBER,
-    });
+    await testClient.reset({ blockNumber: FORK_BLOCK_NUMBER });
   };
 }

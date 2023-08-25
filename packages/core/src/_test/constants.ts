@@ -6,15 +6,7 @@ import type {
   LogFilterCachedRange,
 } from "@/event-store/store";
 
-if (!process.env.ANVIL_FORK_URL) {
-  throw new Error('Missing environment variable "ANVIL_FORK_URL"');
-}
-export const FORK_URL = process.env.ANVIL_FORK_URL;
-
-if (!process.env.ANVIL_BLOCK_NUMBER) {
-  throw new Error('Missing environment variable "ANVIL_BLOCK_NUMBER"');
-}
-export const FORK_BLOCK_NUMBER = BigInt(Number(process.env.ANVIL_BLOCK_NUMBER));
+export const FORK_BLOCK_NUMBER = 16380000n;
 
 export const accounts = [
   {
