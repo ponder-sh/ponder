@@ -24,7 +24,6 @@
     "build:watch": "concurrently \"tsc --project tsconfig.build.json --watch\" \"tsc-alias --project tsconfig.build.json --watch\"",
     "clean": "rimraf ./dist",
     "test": "vitest",
-    "test:ci": "vitest",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {

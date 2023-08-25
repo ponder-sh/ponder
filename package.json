@@ -16,9 +16,6 @@
     "test": "pnpm --parallel --no-bail test",
     "test:core": "pnpm --filter \"@ponder/core\" test",
     "test:create-ponder": "pnpm --filter \"create-ponder\" test",
-    "test:ci": "pnpm --parallel --no-bail test:ci",
-    "test:ci:core": "pnpm --filter \"@ponder/core\" test:ci",
-    "test:ci:create-ponder": "pnpm --filter \"create-ponder\" test:ci",
     "typecheck": "pnpm --parallel typecheck"
   },
   "devDependencies": {
