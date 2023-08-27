@@ -1,5 +1,5 @@
 import type { Abi, AbiEvent, Address } from "abitype";
-import { type Hex, encodeEventTopics } from "viem";
+import { type Hex, encodeEventTopics, getEventSelector } from "viem";
 
 import type { ResolvedConfig } from "@/config/config";
 import type { Options } from "@/config/options";
@@ -27,7 +27,7 @@ export type LogFilter = {
   abi: Abi;
   maxBlockRange?: number;
   filter: {
-    // Cache key used by the event store to record what historical block ranges are available for this log filter.
+    // Cache key used by the event store to record what block ranges have been cached for this log filter.
     key: string; // `${chainId}-${address}-${topics}`
     chainId: number;
     // See `eth_getLogs` documentation.
@@ -41,6 +41,8 @@ export type LogFilter = {
   };
   // All events present in the ABI, indexed by safe event name.
   events: { [key: SafeEventName]: LogEventMetadata | undefined };
+  // Whether this log filter represents a set of factory child contracts.
+  isFactory: boolean;
 };
 
 export function buildLogFilters({
@@ -50,9 +52,11 @@ export function buildLogFilters({
   config: ResolvedConfig;
   options: Options;
 }) {
-  const contractLogFilters = (config.contracts ?? [])
+  const logFilters: LogFilter[] = [];
+
+  (config.contracts ?? [])
     .filter((contract) => contract.isLogEventSource ?? true)
-    .map((contract) => {
+    .forEach((contract) => {
       const { abi } = buildAbi({
         abiConfig: contract.abi,
         configFilePath: options.configFile,
@@ -76,12 +80,13 @@ export function buildLogFilters({
         topics,
       });
 
-      const logFilter: LogFilter = {
+      logFilters.push({
         name: contract.name,
         network: network.name,
         abi,
         events,
         maxBlockRange: contract.maxBlockRange,
+        isFactory: false,
         filter: {
           key,
           chainId: network.chainId,
@@ -90,19 +95,56 @@ export function buildLogFilters({
           startBlock: contract.startBlock ?? 0,
           endBlock: contract.endBlock,
         },
-      };
+      });
 
-      return logFilter;
+      // If the contract had any factories, create log filters for those
+      const factories = contract.factory
+        ? Array.isArray(contract.factory)
+          ? contract.factory
+          : [contract.factory]
+        : [];
+
+      factories.forEach((factory) => {
+        const { abi } = buildAbi({
+          abiConfig: factory.abi,
+          configFilePath: options.configFile,
+        });
+        const events = getEvents({ abi });
+
+        // TODO: Support specifying address and topics on factory child log filters.
+        const childAddress = undefined;
+        const childTopics = undefined;
+        const childKey = encodeLogFilterKey({
+          chainId: network.chainId,
+          address: childAddress,
+          topics: childTopics,
+        });
+
+        // TODO: Make this less awful. See https://github.com/0xOlias/ponder/discussions/332
+        const factoryEventSignature = getEventSelector(factory.event);
+        const factoryKey = `${key}.factory_${factoryEventSignature}.${childKey}`;
+
+        logFilters.push({
+          name: factory.name,
+          network: network.name,
+          abi,
+          events,
+          maxBlockRange: factory.maxBlockRange,
+          isFactory: true,
+          filter: {
+            key: factoryKey,
+            chainId: network.chainId,
+            address: childAddress,
+            topics: childTopics,
+            // TODO: Fix. Set this to the parent startBlock/endBlock for now.
+            startBlock: contract.startBlock ?? 0,
+            endBlock: contract.endBlock,
+          },
+        });
+      });
     });
 
-  const filterLogFilters = (config.filters ?? []).map((filter) => {
-    const { abi } = buildAbi({
-      abiConfig: filter.abi,
-      configFilePath: options.configFile,
-    });
-
-    const events = getEvents({ abi });
-
+  (config.filters ?? []).forEach((filter) => {
     // Get the contract network/provider.
     const network = config.networks.find((n) => n.name === filter.network);
     if (!network) {
@@ -110,6 +152,13 @@ export function buildLogFilters({
         `Network [${filter.network}] not found for filter: ${filter.name}`
       );
     }
+
+    // Get the ABI and event metadata.
+    const { abi } = buildAbi({
+      abiConfig: filter.abi,
+      configFilePath: options.configFile,
+    });
+    const events = getEvents({ abi });
 
     const address = Array.isArray(filter.filter.address)
       ? filter.filter.address.map((a) => a.toLowerCase() as Address)
@@ -131,12 +180,13 @@ export function buildLogFilters({
       topics,
     });
 
-    const logFilter: LogFilter = {
+    logFilters.push({
       name: filter.name,
       network: network.name,
       abi,
       events,
       maxBlockRange: filter.maxBlockRange,
+      isFactory: false,
       filter: {
         key,
         chainId: network.chainId,
@@ -145,12 +195,54 @@ export function buildLogFilters({
         startBlock: filter.startBlock ?? 0,
         endBlock: filter.endBlock,
       },
-    };
+    });
 
-    return logFilter;
+    // If the filter had any factories, create log filters for those
+    const factories = filter.factory
+      ? Array.isArray(filter.factory)
+        ? filter.factory
+        : [filter.factory]
+      : [];
+
+    factories.forEach((factory) => {
+      const { abi } = buildAbi({
+        abiConfig: factory.abi,
+        configFilePath: options.configFile,
+      });
+      const events = getEvents({ abi });
+
+      // TODO: Support specifying address and topics on factory child log filters.
+      const childAddress = undefined;
+      const childTopics = undefined;
+      const childKey = encodeLogFilterKey({
+        chainId: network.chainId,
+        address: childAddress,
+        topics: childTopics,
+      });
+
+      // TODO: Make this less awful. See https://github.com/0xOlias/ponder/discussions/332
+      const factoryEventSignature = getEventSelector(factory.event);
+      const factoryKey = `${key}.factory_${factoryEventSignature}.${childKey}`;
+
+      logFilters.push({
+        name: factory.name,
+        network: network.name,
+        abi,
+        events,
+        maxBlockRange: factory.maxBlockRange,
+        isFactory: true,
+        filter: {
+          key: factoryKey,
+          chainId: network.chainId,
+          address: childAddress,
+          topics: childTopics,
+          // TODO: Fix. Set this to the parent startBlock/endBlock for now.
+          startBlock: filter.startBlock ?? 0,
+          endBlock: filter.endBlock,
+        },
+      });
+    });
   });
-
-  const logFilters = contractLogFilters.concat(filterLogFilters);
 
   return logFilters;
 }

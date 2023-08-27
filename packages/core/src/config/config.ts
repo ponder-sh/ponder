@@ -3,7 +3,22 @@ import { build } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
+import { Prettify } from "@/types/utils";
 import { ensureDirExists } from "@/utils/exists";
+
+/** Factory contract options. */
+type FactoryOptions = {
+  /** Child contract name. Must be unique across all `contracts` and `filters`. */
+  name: string;
+  /** Child contract ABI as a file path or an Array object. Accepts a single ABI or a list of ABIs to be merged. */
+  abi: string | any[] | readonly any[] | (string | any[] | readonly any[])[];
+  /** Child contract registration event signature. */
+  event: AbiEvent;
+  /** Child contract address extractor function.  */
+  getChildContractAddress: (option: any) => `0x${string}` | undefined;
+  /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
+  maxBlockRange?: number;
+};
 
 export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
@@ -49,6 +64,8 @@ export type ResolvedConfig = {
     maxBlockRange?: number;
     /** Whether to fetch & process event logs for this contract. If `false`, this contract will still be present in `context.contracts`. Default: `true`. */
     isLogEventSource?: boolean;
+    /** Factory contract options. */
+    factory?: Prettify<FactoryOptions | FactoryOptions[]>;
   }[];
   /** List of log filters from which to fetch & handle event logs. */
   filters?: {
@@ -80,6 +97,8 @@ export type ResolvedConfig = {
     endBlock?: number;
     /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
     maxBlockRange?: number;
+    /** Factory contract options. */
+    factory?: Prettify<FactoryOptions | FactoryOptions[]>;
   }[];
   /** Configuration for Ponder internals. */
   options?: {
