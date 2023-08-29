@@ -87,21 +87,53 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async buildConfig() {
-    const configFile = path.resolve(
-      this.common.options.rootDir,
-      this.common.options.configFile
-    );
-    this.config = await buildConfig({ configFile });
+    try {
+      const configFile = path.resolve(
+        this.common.options.rootDir,
+        this.common.options.configFile
+      );
+      this.config = await buildConfig({ configFile });
+    } catch (error_) {
+      const error = error_ as Error;
+
+      const message = `Error while building ponder.config.ts: ${error.message}`;
+      const userError = new UserError(message, {
+        stack: error.stack,
+      });
+
+      this.common.logger.error({
+        service: "build",
+        error: userError,
+      });
+      this.common.errors.submitUserError({ error: userError });
+    }
   }
 
   buildLogFilters() {
-    assert(this.config, "Config not set before building log filters");
-    const logFilters = buildLogFilters({
-      options: this.common.options,
-      config: this.config,
-    });
-    this.logFilters = logFilters;
-    return logFilters;
+    try {
+      assert(this.config, "Config not set before building log filters");
+      const logFilters = buildLogFilters({
+        options: this.common.options,
+        config: this.config,
+      });
+      this.logFilters = logFilters;
+      return logFilters;
+    } catch (error_) {
+      const error = error_ as Error;
+
+      const message = `Error while building log filters: ${error.message}`;
+      const userError = new UserError(message, {
+        stack: error.stack,
+      });
+
+      this.common.logger.error({
+        service: "build",
+        error: userError,
+      });
+      this.common.errors.submitUserError({ error: userError });
+
+      return [];
+    }
   }
 
   async buildHandlers() {
