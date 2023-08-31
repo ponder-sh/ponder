@@ -311,6 +311,7 @@ export class Ponder {
   }
 
   async codegen() {
+    await this.buildService.buildConfig();
     await this.init();
     assert(this.codegenService);
     this.codegenService.generateAppFile();
