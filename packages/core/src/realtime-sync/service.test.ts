@@ -8,7 +8,6 @@ import { publicClient, testClient, walletClient } from "@/_test/utils";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
-import {  } from "@/utils/decode";
 import { range } from "@/utils/range";
 
 import { RealtimeSyncService } from "./service";

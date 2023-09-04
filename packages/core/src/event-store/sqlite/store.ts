@@ -13,7 +13,6 @@ import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
 import type { NonNull } from "@/types/utils";
-import {  } from "@/utils/decode";
 import { intToBlob } from "@/utils/encode";
 import { mergeIntervals } from "@/utils/intervals";
 import { range } from "@/utils/range";
