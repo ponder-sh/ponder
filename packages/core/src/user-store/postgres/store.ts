@@ -3,7 +3,6 @@ import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
 import type { Schema } from "@/schema/types";
-import { blobToBigInt } from "@/utils/decode";
 
 import type {
   ModelInstance,
@@ -24,7 +23,7 @@ const gqlScalarToSqlType = {
   Boolean: "integer",
   Int: "integer",
   String: "text",
-  BigInt: sql`bytea`,
+  BigInt: sql`numeric(32)`,
   Bytes: "text",
   Float: "text",
 } as const;
@@ -696,9 +695,7 @@ export class PostgresUserStore implements UserStore {
       }
 
       if (field.kind === "SCALAR" && field.scalarTypeName === "BigInt") {
-        deserializedInstance[field.name] = blobToBigInt(
-          value as unknown as Buffer
-        );
+        deserializedInstance[field.name] = value;
         return;
       }
 
@@ -706,9 +703,7 @@ export class PostgresUserStore implements UserStore {
         field.kind === "RELATIONSHIP" &&
         field.relatedEntityIdType.name === "BigInt"
       ) {
-        deserializedInstance[field.name] = blobToBigInt(
-          value as unknown as Buffer
-        );
+        deserializedInstance[field.name] = value;
         return;
       }
 

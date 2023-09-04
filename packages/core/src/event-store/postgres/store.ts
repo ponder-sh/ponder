@@ -14,7 +14,7 @@ import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
 import type { NonNull } from "@/types/utils";
-import { blobToBigInt } from "@/utils/decode";
+import {  } from "@/utils/decode";
 import { intToBlob } from "@/utils/encode";
 import { mergeIntervals } from "@/utils/intervals";
 import { range } from "@/utils/range";
@@ -287,8 +287,8 @@ export class PostgresEventStore implements EventStore {
 
         const mergedIntervals = mergeIntervals(
           existingRanges.map((r) => [
-            Number(blobToBigInt(r.startBlock)),
-            Number(blobToBigInt(r.endBlock)),
+            Number((r.startBlock)),
+            Number((r.endBlock)),
           ])
         );
 
@@ -298,7 +298,7 @@ export class PostgresEventStore implements EventStore {
           // added range OR among the endBlocks of the removed ranges.
           // Find it so we can propogate the endBlockTimestamp correctly.
           const endBlockTimestamp = existingRanges.find(
-            (r) => Number(blobToBigInt(r.endBlock)) === endBlock
+            (r) => Number((r.endBlock)) === endBlock
           )!.endBlockTimestamp;
 
           return {
@@ -320,9 +320,9 @@ export class PostgresEventStore implements EventStore {
         // We need this to determine the new latest available event timestamp for the log filter.
         const startingRange = mergedRanges.find(
           (range) =>
-            Number(blobToBigInt(range.startBlock)) <=
+            Number((range.startBlock)) <=
               logFilterStartBlockNumber &&
-            Number(blobToBigInt(range.endBlock)) >= logFilterStartBlockNumber
+            Number((range.endBlock)) >= logFilterStartBlockNumber
         );
 
         if (!startingRange) {
@@ -330,7 +330,7 @@ export class PostgresEventStore implements EventStore {
           // many block tasks run concurrently and the one containing the log filter start block number is late.
           return 0;
         } else {
-          return Number(blobToBigInt(startingRange.endBlockTimestamp));
+          return Number((startingRange.endBlockTimestamp));
         }
       });
 
@@ -350,9 +350,9 @@ export class PostgresEventStore implements EventStore {
 
     return results.map((range) => ({
       filterKey: range.filterKey,
-      startBlock: Number(blobToBigInt(range.startBlock)),
-      endBlock: Number(blobToBigInt(range.endBlock)),
-      endBlockTimestamp: Number(blobToBigInt(range.endBlockTimestamp)),
+      startBlock: Number((range.startBlock)),
+      endBlock: Number((range.endBlock)),
+      endBlockTimestamp: Number((range.endBlockTimestamp)),
     }));
   };
 
@@ -407,7 +407,7 @@ export class PostgresEventStore implements EventStore {
     return contractReadResult
       ? {
           ...contractReadResult,
-          blockNumber: blobToBigInt(contractReadResult.blockNumber),
+          blockNumber: (contractReadResult.blockNumber),
         }
       : null;
   };
@@ -549,7 +549,7 @@ export class PostgresEventStore implements EventStore {
           cmpr(
             "blocks.number",
             ">=",
-            sql`${sql.val(intToBlob(filter.fromBlock))}::bytea`
+            sql`${sql.val(filter.fromBlock)}`
           )
         );
       }
@@ -559,7 +559,7 @@ export class PostgresEventStore implements EventStore {
           cmpr(
             "blocks.number",
             "<=",
-            sql`${sql.val(intToBlob(filter.toBlock))}::bytea`
+            sql`${sql.val(filter.toBlock)}`
           )
         );
       }
@@ -669,7 +669,7 @@ export class PostgresEventStore implements EventStore {
           log: {
             address: row.log_address,
             blockHash: row.log_blockHash,
-            blockNumber: blobToBigInt(row.log_blockNumber),
+            blockNumber: (row.log_blockNumber),
             data: row.log_data,
             id: row.log_id,
             logIndex: Number(row.log_logIndex),
@@ -685,32 +685,32 @@ export class PostgresEventStore implements EventStore {
           },
           block: {
             baseFeePerGas: row.block_baseFeePerGas
-              ? blobToBigInt(row.block_baseFeePerGas)
+              ? (row.block_baseFeePerGas)
               : null,
-            difficulty: blobToBigInt(row.block_difficulty),
+            difficulty: (row.block_difficulty),
             extraData: row.block_extraData,
-            gasLimit: blobToBigInt(row.block_gasLimit),
-            gasUsed: blobToBigInt(row.block_gasUsed),
+            gasLimit: (row.block_gasLimit),
+            gasUsed: (row.block_gasUsed),
             hash: row.block_hash,
             logsBloom: row.block_logsBloom,
             miner: row.block_miner,
             mixHash: row.block_mixHash,
             nonce: row.block_nonce,
-            number: blobToBigInt(row.block_number),
+            number: (row.block_number),
             parentHash: row.block_parentHash,
             receiptsRoot: row.block_receiptsRoot,
             sha3Uncles: row.block_sha3Uncles,
-            size: blobToBigInt(row.block_size),
+            size: (row.block_size),
             stateRoot: row.block_stateRoot,
-            timestamp: blobToBigInt(row.block_timestamp),
-            totalDifficulty: blobToBigInt(row.block_totalDifficulty),
+            timestamp: (row.block_timestamp),
+            totalDifficulty: (row.block_totalDifficulty),
             transactionsRoot: row.block_transactionsRoot,
           },
           transaction: {
             blockHash: row.tx_blockHash,
-            blockNumber: blobToBigInt(row.tx_blockNumber),
+            blockNumber: (row.tx_blockNumber),
             from: row.tx_from,
-            gas: blobToBigInt(row.tx_gas),
+            gas: (row.tx_gas),
             hash: row.tx_hash,
             input: row.tx_input,
             nonce: Number(row.tx_nonce),
@@ -718,32 +718,32 @@ export class PostgresEventStore implements EventStore {
             s: row.tx_s,
             to: row.tx_to,
             transactionIndex: Number(row.tx_transactionIndex),
-            value: blobToBigInt(row.tx_value),
-            v: blobToBigInt(row.tx_v),
+            value: (row.tx_value),
+            v: (row.tx_v),
             ...(row.tx_type === "0x0"
               ? {
                   type: "legacy",
-                  gasPrice: blobToBigInt(row.tx_gasPrice),
+                  gasPrice: (row.tx_gasPrice),
                 }
               : row.tx_type === "0x1"
               ? {
                   type: "eip2930",
-                  gasPrice: blobToBigInt(row.tx_gasPrice),
+                  gasPrice: (row.tx_gasPrice),
                   accessList: JSON.parse(row.tx_accessList),
                 }
               : row.tx_type === "0x2"
               ? {
                   type: "eip1559",
-                  maxFeePerGas: blobToBigInt(row.tx_maxFeePerGas),
-                  maxPriorityFeePerGas: blobToBigInt(
+                  maxFeePerGas: (row.tx_maxFeePerGas),
+                  maxPriorityFeePerGas: (
                     row.tx_maxPriorityFeePerGas
                   ),
                 }
               : row.tx_type === "0x7e"
               ? {
                   type: "deposit",
-                  maxFeePerGas: blobToBigInt(row.tx_maxFeePerGas),
-                  maxPriorityFeePerGas: blobToBigInt(
+                  maxFeePerGas: (row.tx_maxFeePerGas),
+                  maxPriorityFeePerGas: (
                     row.tx_maxPriorityFeePerGas
                   ),
                 }
@@ -771,7 +771,7 @@ export class PostgresEventStore implements EventStore {
 
       const lastEventBlockTimestamp = lastRow?.block_timestamp;
       const pageEndsAtTimestamp = lastEventBlockTimestamp
-        ? Number(blobToBigInt(lastEventBlockTimestamp))
+        ? Number((lastEventBlockTimestamp))
         : toTimestamp;
 
       yield {
