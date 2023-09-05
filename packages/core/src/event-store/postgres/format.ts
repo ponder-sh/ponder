@@ -7,27 +7,25 @@ import {
   hexToNumber,
 } from "viem";
 
-import { intToBlob } from "@/utils/encode";
-
 type BlocksTable = {
-  baseFeePerGas: Buffer | null; // BigInt
-  difficulty: Buffer; // BigInt
+  baseFeePerGas: bigint | null; // BigInt
+  difficulty: bigint; // BigInt
   extraData: Hex;
-  gasLimit: Buffer; // BigInt
-  gasUsed: Buffer; // BigInt
+  gasLimit: bigint; // BigInt
+  gasUsed: bigint; // BigInt
   hash: Hash;
   logsBloom: Hex;
   miner: Address;
   mixHash: Hash;
   nonce: Hex;
-  number: Buffer; // BigInt
+  number: bigint; // BigInt
   parentHash: Hash;
   receiptsRoot: Hex;
   sha3Uncles: Hash;
-  size: Buffer; // BigInt
+  size: bigint; // BigInt
   stateRoot: Hash;
-  timestamp: Buffer; // BigInt
-  totalDifficulty: Buffer; // BigInt
+  timestamp: bigint; // BigInt
+  totalDifficulty: bigint; // BigInt
   transactionsRoot: Hash;
 
   chainId: number;
@@ -39,33 +37,33 @@ export function rpcToPostgresBlock(
   block: RpcBlock
 ): Omit<InsertableBlock, "chainId"> {
   return {
-    baseFeePerGas: block.baseFeePerGas ? intToBlob(block.baseFeePerGas) : null,
-    difficulty: intToBlob(block.difficulty),
+    baseFeePerGas: block.baseFeePerGas ? BigInt(block.baseFeePerGas) : null,
+    difficulty: BigInt(block.difficulty),
     extraData: block.extraData,
-    gasLimit: intToBlob(block.gasLimit),
-    gasUsed: intToBlob(block.gasUsed),
+    gasLimit: BigInt(block.gasLimit),
+    gasUsed: BigInt(block.gasUsed),
     hash: block.hash!,
     logsBloom: block.logsBloom!,
     miner: block.miner,
     mixHash: block.mixHash,
     nonce: block.nonce!,
-    number: intToBlob(block.number!),
+    number: BigInt(block.number!),
     parentHash: block.parentHash,
     receiptsRoot: block.receiptsRoot,
     sha3Uncles: block.sha3Uncles,
-    size: intToBlob(block.size),
+    size: BigInt(block.size),
     stateRoot: block.stateRoot,
-    timestamp: intToBlob(block.timestamp),
-    totalDifficulty: intToBlob(block.totalDifficulty!),
+    timestamp: BigInt(block.timestamp),
+    totalDifficulty: BigInt(block.totalDifficulty!),
     transactionsRoot: block.transactionsRoot,
   };
 }
 
 type TransactionsTable = {
   blockHash: Hash;
-  blockNumber: Buffer; // BigInt
+  blockNumber: bigint; // BigInt
   from: Address;
-  gas: Buffer; // BigInt
+  gas: bigint; // BigInt
   hash: Hash;
   input: Hex;
   nonce: number;
@@ -73,13 +71,13 @@ type TransactionsTable = {
   s: Hex;
   to: Address | null;
   transactionIndex: number;
-  v: Buffer; // BigInt
-  value: Buffer; // BigInt
+  v: bigint; // BigInt
+  value: bigint; // BigInt
 
   type: Hex;
-  gasPrice: Buffer | null; // BigInt
-  maxFeePerGas: Buffer | null; // BigInt
-  maxPriorityFeePerGas: Buffer | null; // BigInt
+  gasPrice: bigint | null; // BigInt
+  maxFeePerGas: bigint | null; // BigInt
+  maxPriorityFeePerGas: bigint | null; // BigInt
   accessList: string | null;
 
   chainId: number;
@@ -95,17 +93,17 @@ export function rpcToPostgresTransaction(
       ? JSON.stringify(transaction.accessList)
       : undefined,
     blockHash: transaction.blockHash!,
-    blockNumber: intToBlob(transaction.blockNumber!),
+    blockNumber: BigInt(transaction.blockNumber!),
     from: transaction.from,
-    gas: intToBlob(transaction.gas),
-    gasPrice: transaction.gasPrice ? intToBlob(transaction.gasPrice) : null,
+    gas: BigInt(transaction.gas),
+    gasPrice: transaction.gasPrice ? BigInt(transaction.gasPrice) : null,
     hash: transaction.hash,
     input: transaction.input,
     maxFeePerGas: transaction.maxFeePerGas
-      ? intToBlob(transaction.maxFeePerGas)
+      ? BigInt(transaction.maxFeePerGas)
       : null,
     maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
-      ? intToBlob(transaction.maxPriorityFeePerGas)
+      ? BigInt(transaction.maxPriorityFeePerGas)
       : null,
     nonce: hexToNumber(transaction.nonce),
     r: transaction.r,
@@ -113,8 +111,8 @@ export function rpcToPostgresTransaction(
     to: transaction.to ? transaction.to : null,
     transactionIndex: Number(transaction.transactionIndex),
     type: transaction.type ?? "0x0",
-    value: intToBlob(transaction.value),
-    v: intToBlob(transaction.v),
+    value: BigInt(transaction.value),
+    v: BigInt(transaction.v),
   };
 }
 
@@ -122,7 +120,7 @@ type LogsTable = {
   id: string;
   address: Address;
   blockHash: Hash;
-  blockNumber: Buffer; // BigInt
+  blockNumber: bigint; // BigInt
   data: Hex;
   logIndex: number;
   transactionHash: Hash;
@@ -142,7 +140,7 @@ export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   return {
     address: log.address,
     blockHash: log.blockHash!,
-    blockNumber: intToBlob(log.blockNumber!),
+    blockNumber: BigInt(log.blockNumber!),
     data: log.data,
     id: `${log.blockHash}-${log.logIndex}`,
     logIndex: Number(log.logIndex!),
@@ -157,7 +155,7 @@ export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
 
 type ContractReadResultsTable = {
   address: string;
-  blockNumber: Buffer; // BigInt
+  blockNumber: bigint; // BigInt
   chainId: number;
   data: Hex;
   result: Hex;
@@ -166,9 +164,9 @@ type ContractReadResultsTable = {
 type LogFilterCachedRangesTable = {
   id: Generated<number>;
   filterKey: string;
-  startBlock: Buffer; // BigInt
-  endBlock: Buffer; // BigInt
-  endBlockTimestamp: Buffer; // BigInt
+  startBlock: bigint; // BigInt
+  endBlock: bigint; // BigInt
+  endBlockTimestamp: bigint; // BigInt
 };
 
 export type EventStoreTables = {

@@ -1,7 +1,5 @@
 import { ComparisonOperatorExpression } from "kysely";
 
-import { intToBlob } from "@/utils/encode";
-
 import { ModelDefinition, OrderByInput, WhereInput } from "../store";
 
 export const sqlOperatorsByCondition = {
@@ -140,7 +138,7 @@ function getOperatorAndParameter({
         if (typeof v === "boolean") {
           return v ? 1 : 0;
         } else if (typeof v === "bigint") {
-          return intToBlob(v);
+          return v;
         } else {
           return v;
         }
@@ -153,7 +151,7 @@ function getOperatorAndParameter({
   }
 
   if (typeof value === "bigint") {
-    return { operator, parameter: intToBlob(value) };
+    return { operator, parameter: value };
   }
 
   // Handle strings and numbers.
