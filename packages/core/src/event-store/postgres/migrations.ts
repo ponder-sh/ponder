@@ -89,7 +89,9 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("logFilterCachedRanges")
         .addColumn("endBlock", sql`numeric(32)`, (col) => col.notNull()) // BigInt
-        .addColumn("endBlockTimestamp", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("endBlockTimestamp", sql`numeric(32)`, (col) =>
+          col.notNull()
+        ) // BigInt
         .addColumn("filterKey", "text", (col) => col.notNull())
         // The `id` column should not be included in INSERT statements.
         // This column uses Postgres SERIAL type which autoincrements.
