@@ -1,5 +1,7 @@
 import { ComparisonOperatorExpression } from "kysely";
 
+import { intToBlob } from "@/utils/encode";
+
 import { ModelDefinition, OrderByInput, WhereInput } from "../store";
 
 export const sqlOperatorsByCondition = {
@@ -58,8 +60,10 @@ export type ConditionName = keyof typeof sqlOperatorsByCondition;
 
 export function buildSqlWhereConditions({
   where,
+  useBigInt = false,
 }: {
   where: WhereInput<ModelDefinition>;
+  useBigInt?: boolean;
 }) {
   // If the where clause has multiple conditions, they are combined using AND.
   // TODO: support complex filters with OR, NOT, and arbitrary nesting.
@@ -78,6 +82,7 @@ export function buildSqlWhereConditions({
         const { operator, parameter } = getOperatorAndParameter({
           condition,
           value,
+          useBigInt,
         });
         conditions.push([fieldName, operator, parameter]);
       }
@@ -86,6 +91,7 @@ export function buildSqlWhereConditions({
       const { operator, parameter } = getOperatorAndParameter({
         condition: "equals",
         value: rhs,
+        useBigInt,
       });
       conditions.push([fieldName, operator, parameter]);
     }
@@ -105,9 +111,11 @@ function validateConditionName(condition: string) {
 function getOperatorAndParameter({
   condition,
   value,
+  useBigInt = false,
 }: {
   condition: ConditionName;
   value: unknown;
+  useBigInt?: boolean;
 }) {
   const operators = sqlOperatorsByCondition[condition];
 
@@ -138,7 +146,7 @@ function getOperatorAndParameter({
         if (typeof v === "boolean") {
           return v ? 1 : 0;
         } else if (typeof v === "bigint") {
-          return v;
+          return !useBigInt ? intToBlob(v) : v;
         } else {
           return v;
         }
@@ -151,7 +159,7 @@ function getOperatorAndParameter({
   }
 
   if (typeof value === "bigint") {
-    return { operator, parameter: value };
+    return { operator, parameter: !useBigInt ? intToBlob(value) : value };
   }
 
   // Handle strings and numbers.

@@ -485,7 +485,10 @@ export class PostgresUserStore implements UserStore {
       .where("effectiveTo", ">=", timestamp);
 
     if (where) {
-      const whereConditions = buildSqlWhereConditions({ where });
+      const whereConditions = buildSqlWhereConditions({
+        where,
+        useBigInt: true,
+      });
       for (const whereCondition of whereConditions) {
         query = query.where(...whereCondition);
       }
@@ -574,7 +577,10 @@ export class PostgresUserStore implements UserStore {
         .where("effectiveTo", ">=", timestamp);
 
       if (where) {
-        const whereConditions = buildSqlWhereConditions({ where });
+        const whereConditions = buildSqlWhereConditions({
+          where,
+          useBigInt: true,
+        });
         for (const whereCondition of whereConditions) {
           latestInstancesQuery = latestInstancesQuery.where(...whereCondition);
         }
