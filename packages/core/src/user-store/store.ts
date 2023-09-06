@@ -79,6 +79,7 @@ export interface UserStore {
 
   reload(options?: { schema?: Schema }): Promise<void>;
   teardown(): Promise<void>;
+  linkToCurrent(): Promise<void>;
 
   revert(options: { safeTimestamp: number }): Promise<void>;
 

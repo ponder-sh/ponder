@@ -149,6 +149,22 @@ export class SqliteUserStore implements UserStore {
     });
   };
 
+  linkToCurrent = async () => {
+    if (!this.schema) return;
+
+    await this.db.transaction().execute(async (tx) => {
+      await Promise.all(
+        this.schema!.entities.map(async (model) => {
+          const tableName = `${model.name}_${this.versionId}`;
+          tx.schema
+            .createView(model.name)
+            .orReplace()
+            .as(tx.selectFrom(tableName).selectAll());
+        })
+      );
+    });
+  };
+
   /**
    * Tears down the store by dropping all tables for the current schema.
    */

@@ -60,6 +60,22 @@ export class PostgresUserStore implements UserStore {
     });
   }
 
+  linkToCurrent = async () => {
+    if (!this.schema) return;
+
+    await this.db.transaction().execute(async (tx) => {
+      await Promise.all(
+        this.schema!.entities.map(async (model) => {
+          const tableName = `${model.name}_${this.versionId}`;
+          tx.schema
+            .createView(model.name)
+            .orReplace()
+            .as(tx.selectFrom(tableName).selectAll());
+        })
+      );
+    });
+  };
+
   /**
    * Resets the database by dropping existing tables and creating new tables.
    * If no new schema is provided, the existing schema is used.

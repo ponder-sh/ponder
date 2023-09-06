@@ -399,7 +399,7 @@ export class Ponder {
       }
     );
 
-    this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
+    this.eventHandlerService.on("eventsProcessed", async ({ toTimestamp }) => {
       if (this.serverService.isHistoricalEventProcessingComplete) return;
 
       // If a batch of events are processed AND the historical sync is complete AND
@@ -410,6 +410,7 @@ export class Ponder {
         toTimestamp >= this.eventAggregatorService.historicalSyncCompletedAt
       ) {
         this.serverService.setIsHistoricalEventProcessingComplete();
+        await this.userStore.linkToCurrent();
       }
     });
   }
