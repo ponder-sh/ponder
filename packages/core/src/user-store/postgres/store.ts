@@ -70,7 +70,8 @@ export class PostgresUserStore implements UserStore {
           tx.schema
             .createView(model.name)
             .orReplace()
-            .as(tx.selectFrom(tableName).selectAll());
+            .as(tx.selectFrom(tableName).selectAll())
+            .execute();
         })
       );
     });
