@@ -23,7 +23,7 @@ const gqlScalarToSqlType = {
   Boolean: "integer",
   Int: "integer",
   String: "text",
-  BigInt: sql`numeric(32)`,
+  BigInt: sql`numeric(78)`,
   Bytes: "text",
   Float: "text",
 } as const;

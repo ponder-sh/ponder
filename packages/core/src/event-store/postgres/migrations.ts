@@ -5,26 +5,26 @@ const migrations: Record<string, Migration> = {
     async up(db: Kysely<any>) {
       await db.schema
         .createTable("blocks")
-        .addColumn("baseFeePerGas", sql`numeric(32)`) // BigInt
+        .addColumn("baseFeePerGas", sql`numeric(78)`) // BigInt
         .addColumn("chainId", "integer", (col) => col.notNull())
-        .addColumn("difficulty", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("difficulty", sql`numeric(78)`, (col) => col.notNull()) // BigInt
         .addColumn("extraData", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
-        .addColumn("gasLimit", sql`numeric(32)`, (col) => col.notNull()) // BigInt
-        .addColumn("gasUsed", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("gasLimit", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("gasUsed", sql`numeric(78)`, (col) => col.notNull()) // BigInt
         .addColumn("hash", "text", (col) => col.notNull().primaryKey())
         .addColumn("logsBloom", "text", (col) => col.notNull())
         .addColumn("miner", "text", (col) => col.notNull())
         .addColumn("mixHash", "text", (col) => col.notNull())
         .addColumn("nonce", "text", (col) => col.notNull())
-        .addColumn("number", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("number", sql`numeric(78)`, (col) => col.notNull()) // BigInt
         .addColumn("parentHash", "text", (col) => col.notNull())
         .addColumn("receiptsRoot", "text", (col) => col.notNull())
         .addColumn("sha3Uncles", "text", (col) => col.notNull())
-        .addColumn("size", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("size", sql`numeric(78)`, (col) => col.notNull()) // BigInt
         .addColumn("stateRoot", "text", (col) => col.notNull())
-        .addColumn("timestamp", sql`numeric(32)`, (col) => col.notNull()) // BigInt
-        .addColumn("totalDifficulty", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("timestamp", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("totalDifficulty", sql`numeric(78)`, (col) => col.notNull()) // BigInt
         .addColumn("transactionsRoot", "text", (col) => col.notNull())
         .execute();
 
@@ -32,31 +32,31 @@ const migrations: Record<string, Migration> = {
         .createTable("transactions")
         .addColumn("accessList", "text")
         .addColumn("blockHash", "text", (col) => col.notNull())
-        .addColumn("blockNumber", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("blockNumber", sql`numeric(78)`, (col) => col.notNull()) // BigInt
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
         .addColumn("from", "text", (col) => col.notNull())
-        .addColumn("gas", sql`numeric(32)`, (col) => col.notNull()) // BigInt
-        .addColumn("gasPrice", sql`numeric(32)`) // BigInt
+        .addColumn("gas", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("gasPrice", sql`numeric(78)`) // BigInt
         .addColumn("hash", "text", (col) => col.notNull().primaryKey())
         .addColumn("input", "text", (col) => col.notNull())
-        .addColumn("maxFeePerGas", sql`numeric(32)`) // BigInt
-        .addColumn("maxPriorityFeePerGas", sql`numeric(32)`) // BigInt
+        .addColumn("maxFeePerGas", sql`numeric(78)`) // BigInt
+        .addColumn("maxPriorityFeePerGas", sql`numeric(78)`) // BigInt
         .addColumn("nonce", "integer", (col) => col.notNull())
         .addColumn("r", "text", (col) => col.notNull())
         .addColumn("s", "text", (col) => col.notNull())
         .addColumn("to", "text")
         .addColumn("transactionIndex", "integer", (col) => col.notNull())
         .addColumn("type", "text", (col) => col.notNull())
-        .addColumn("value", sql`numeric(32)`, (col) => col.notNull()) // BigInt
-        .addColumn("v", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("value", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("v", sql`numeric(78)`, (col) => col.notNull()) // BigInt
         .execute();
 
       await db.schema
         .createTable("logs")
         .addColumn("address", "text", (col) => col.notNull())
         .addColumn("blockHash", "text", (col) => col.notNull())
-        .addColumn("blockNumber", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("blockNumber", sql`numeric(78)`, (col) => col.notNull()) // BigInt
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("data", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
@@ -73,7 +73,7 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("contractReadResults")
         .addColumn("address", "text", (col) => col.notNull())
-        .addColumn("blockNumber", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("blockNumber", sql`numeric(78)`, (col) => col.notNull()) // BigInt
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("data", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
@@ -88,15 +88,15 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("logFilterCachedRanges")
-        .addColumn("endBlock", sql`numeric(32)`, (col) => col.notNull()) // BigInt
-        .addColumn("endBlockTimestamp", sql`numeric(32)`, (col) =>
+        .addColumn("endBlock", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("endBlockTimestamp", sql`numeric(78)`, (col) =>
           col.notNull()
         ) // BigInt
         .addColumn("filterKey", "text", (col) => col.notNull())
         // The `id` column should not be included in INSERT statements.
         // This column uses Postgres SERIAL type which autoincrements.
         .addColumn("id", "serial", (col) => col.notNull().primaryKey())
-        .addColumn("startBlock", sql`numeric(32)`, (col) => col.notNull()) // BigInt
+        .addColumn("startBlock", sql`numeric(78)`, (col) => col.notNull()) // BigInt
         .execute();
     },
     async down(db: Kysely<any>) {
