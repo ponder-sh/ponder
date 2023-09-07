@@ -93,11 +93,22 @@ export const buildRawHandlerFunctions = async ({
     );
   }
 
-  const entryGlob = options.srcDir + "/**/*.ts";
+  const entryGlob = path.join(options.srcDir, "/**/*.ts");
+  console.log("options.srcDir", options.srcDir);
   const entryFilenames = [...glob.sync(entryGlob), entryAppFilename];
 
   const buildDir = path.join(options.ponderDir, "out");
   rmSync(buildDir, { recursive: true, force: true });
+
+  console.log({
+    entryPoints: entryFilenames,
+    outdir: buildDir,
+    platform: "node",
+    bundle: false,
+    format: "cjs",
+    logLevel: "silent",
+    sourcemap: "inline",
+  });
 
   try {
     await build({
@@ -109,6 +120,7 @@ export const buildRawHandlerFunctions = async ({
       logLevel: "silent",
       sourcemap: "inline",
     });
+    console.log("build finished");
   } catch (err) {
     const error = err as Error & { errors: Message[]; warnings: Message[] };
     // Hack to use esbuilds very pretty stack traces when rendering errors to the user.
