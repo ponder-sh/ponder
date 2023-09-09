@@ -55,6 +55,10 @@ jobs:
       - name: Setup WSL
         if: ${{ matrix.os == 'Windows' }}
         uses: Vampire/setup-wsl@v2
+        with:
+          wsl-conf: |
+            [automount]
+            root = /
 
       - name: Setup Postgres
         if: ${{ matrix.database == 'Postgres' }}
@@ -94,6 +98,10 @@ jobs:
       - name: Setup WSL
         if: ${{ matrix.os == 'Windows' }}
         uses: Vampire/setup-wsl@v2
+        with:
+          wsl-conf: |
+            [automount]
+            root = /
 
       - name: Setup
         uses: ./.github/actions/setup
