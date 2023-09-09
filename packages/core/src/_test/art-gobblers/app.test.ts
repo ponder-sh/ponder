@@ -65,16 +65,16 @@ const setup = async ({ context }: { context: TestContext }) => {
   return { ponder, gql };
 };
 
-// afterEach(() => {
-//   rmSync("./src/_test/art-gobblers/app/.ponder", {
-//     recursive: true,
-//     force: true,
-//   });
-//   rmSync("./src/_test/art-gobblers/app/generated", {
-//     recursive: true,
-//     force: true,
-//   });
-// });
+afterEach(() => {
+  rmSync("./src/_test/art-gobblers/app/.ponder", {
+    recursive: true,
+    force: true,
+  });
+  rmSync("./src/_test/art-gobblers/app/generated", {
+    recursive: true,
+    force: true,
+  });
+});
 
 test("serves data", async (context) => {
   const { ponder, gql } = await setup({ context });
