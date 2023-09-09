@@ -1,5 +1,13 @@
 # create-ponder
 
+## 0.0.88
+
+### Patch Changes
+
+- [#328](https://github.com/0xOlias/ponder/pull/328) [`caaf75c`](https://github.com/0xOlias/ponder/commit/caaf75cf360b98499826349b5eb594d95e42cc98) Thanks [@eliobricenov](https://github.com/eliobricenov)! - Added support for Windows via WSL.
+
+- [#338](https://github.com/0xOlias/ponder/pull/338) [`9816bc9`](https://github.com/0xOlias/ponder/commit/9816bc9e5eb8743e3c7f1b78270413b9255cf19e) Thanks [@eliobricenov](https://github.com/eliobricenov)! - Updated create-ponder bin script name from "ponder" to "create-ponder" to fix yarn create ponder
+
 ## 0.0.87
 
 ## 0.0.86

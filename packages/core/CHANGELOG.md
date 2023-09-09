@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.88
+
+### Patch Changes
+
+- [#328](https://github.com/0xOlias/ponder/pull/328) [`caaf75c`](https://github.com/0xOlias/ponder/commit/caaf75cf360b98499826349b5eb594d95e42cc98) Thanks [@eliobricenov](https://github.com/eliobricenov)! - Added support for Windows via WSL.
+
 ## 0.0.87
 
 ### Patch Changes
