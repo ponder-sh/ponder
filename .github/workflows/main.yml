@@ -33,7 +33,10 @@ jobs:
 
   test:
     name: Test [core]
-    runs-on: ${{ matrix.os == 'Linux' && 'ubuntu-latest' || matrix.os == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.os == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
+    defaults:
+      run:
+        shell: ${{ matrix.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
     strategy:
       fail-fast: false
       matrix:
@@ -48,6 +51,10 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
+
+      - name: Setup WSL
+        if: ${{ matrix.os == 'Windows' }}
+        uses: Vampire/setup-wsl@v2
 
       - name: Setup Postgres
         if: ${{ matrix.database == 'Postgres' }}
@@ -66,7 +73,10 @@ jobs:
 
   test-create-ponder:
     name: Test [create-ponder]
-    runs-on: ${{ matrix.os == 'Linux' && 'ubuntu-latest' || matrix.os == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.os == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
+    defaults:
+      run:
+        shell: ${{ matrix.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
     strategy:
       fail-fast: false
       matrix:
@@ -80,6 +90,10 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
+
+      - name: Setup WSL
+        if: ${{ matrix.os == 'Windows' }}
+        uses: Vampire/setup-wsl@v2
 
       - name: Setup
         uses: ./.github/actions/setup
