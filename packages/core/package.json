@@ -23,8 +23,7 @@
     "build": "pnpm clean && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
     "build:watch": "concurrently \"tsc --project tsconfig.build.json --watch\" \"tsc-alias --project tsconfig.build.json --watch\"",
     "clean": "rimraf ./dist",
-    "test": "export $(grep -v '^#' .env.local | xargs) && vitest",
-    "test:ci": "CI=true vitest",
+    "test": "vitest",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {

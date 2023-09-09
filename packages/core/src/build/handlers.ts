@@ -93,7 +93,7 @@ export const buildRawHandlerFunctions = async ({
     );
   }
 
-  const entryGlob = options.srcDir + "/**/*.ts";
+  const entryGlob = path.join(options.srcDir, "/**/*.ts");
   const entryFilenames = [...glob.sync(entryGlob), entryAppFilename];
 
   const buildDir = path.join(options.ponderDir, "out");

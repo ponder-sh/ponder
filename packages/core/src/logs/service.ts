@@ -37,7 +37,8 @@ export class LoggerService {
     }
 
     if (dir) {
-      const logFile = path.join(dir, `${new Date().toISOString()}.log`);
+      const timestamp = new Date().toISOString().replace(/[-:.]/g, "_");
+      const logFile = path.join(dir, `${timestamp}.log`);
       streams.push({
         level: "trace",
         stream: pino.destination({ dest: logFile, sync: false, mkdir: true }),

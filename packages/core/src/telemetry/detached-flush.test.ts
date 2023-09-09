@@ -25,15 +25,15 @@ test("detached flush script should run without error", async () => {
     stderr: string;
   }>((resolve) => {
     child_process.exec(
-      `${process.execPath} ${flushDetachedScriptPath} ${telemetryUrl} ${telemetryEventsFilePath}`,
+      `"${process.execPath}" "${flushDetachedScriptPath}" "${telemetryUrl}" "${telemetryEventsFilePath}"`,
       (error, stdout, stderr) => resolve({ error, stdout, stderr })
     );
   });
 
-  expect(existsSync(telemetryEventsFilePath)).toBeFalsy();
   expect(stderr).toBe("");
   expect(error).toBe(null);
   expect(stdout).toContain(
     `Sending 5 telemetry events to ${telemetryUrl} from temporary file ${telemetryEventsFilePath}`
   );
+  expect(existsSync(telemetryEventsFilePath)).toBeFalsy();
 });
