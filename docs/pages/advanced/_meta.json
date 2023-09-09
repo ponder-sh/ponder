@@ -1,4 +1,6 @@
 {
   "custom-filters": "Custom log filters",
-  "proxy-contracts": "Proxy contracts"
+  "proxy-contracts": "Proxy contracts",
+  "logging": "Logging",
+  "telemetry": "Telemetry"
 }

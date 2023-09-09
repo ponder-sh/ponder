@@ -1,7 +1,7 @@
 {
+  "installation": "Installation",
   "design-your-schema": "Design your schema",
   "create-update-entities": "Create & update entities",
   "query-the-graphql-api": "Query the GraphQL API",
-  "production": "Deploy to production",
-  "logging": "Logging"
+  "production": "Deploy to production"
 }
