@@ -18,13 +18,13 @@ runs:
       uses: foundry-rs/foundry-toolchain@v1
 
     - name: Install dependencies
-      shell: ${{ matrix.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
+      shell: bash
       run: pnpm install
 
     - name: Build
-      shell: ${{ matrix.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
+      shell: bash
       run: pnpm build
 
     - name: Link workspace binaries
-      shell: ${{ matrix.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
+      shell: bash
       run: pnpm install

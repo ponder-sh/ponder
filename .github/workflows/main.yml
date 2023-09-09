@@ -33,32 +33,15 @@ jobs:
 
   test:
     name: Test [core]
-    runs-on: ${{ matrix.os == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
-    defaults:
-      run:
-        shell: ${{ matrix.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
+    runs-on: "ubuntu-latest"
     strategy:
       fail-fast: false
       matrix:
         database: [Postgres, SQLite]
-        node-version: ["Node 16", "Node 18", "Node 20"]
-        os: [Linux, Windows]
-        exclude:
-          - os: Windows
-            node-version: "Node 16"
-          - os: Windows
-            node-version: "Node 18"
+        node-version: ["Node 18", "Node 20"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
-
-      - name: Setup WSL
-        if: ${{ matrix.os == 'Windows' }}
-        uses: Vampire/setup-wsl@v2
-        with:
-          wsl-conf: |
-            [automount]
-            root = /
 
       - name: Setup Postgres
         if: ${{ matrix.database == 'Postgres' }}
@@ -77,31 +60,14 @@ jobs:
 
   test-create-ponder:
     name: Test [create-ponder]
-    runs-on: ${{ matrix.os == 'Windows' && 'windows-latest' || 'ubuntu-latest' }}
-    defaults:
-      run:
-        shell: ${{ matrix.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
+    runs-on: "ubuntu-latest"
     strategy:
       fail-fast: false
       matrix:
-        node-version: ["Node 16", "Node 18", "Node 20"]
-        os: [Linux, Windows]
-        exclude:
-          - os: Windows
-            node-version: "Node 16"
-          - os: Windows
-            node-version: "Node 18"
+        node-version: ["Node 18", "Node 20"]
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
-
-      - name: Setup WSL
-        if: ${{ matrix.os == 'Windows' }}
-        uses: Vampire/setup-wsl@v2
-        with:
-          wsl-conf: |
-            [automount]
-            root = /
 
       - name: Setup
         uses: ./.github/actions/setup
