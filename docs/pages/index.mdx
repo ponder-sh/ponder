@@ -88,7 +88,7 @@ Next we'll add an entity to our schema. The `schema.graphql` file defines the sh
 
 ```graphql filename="schema.graphql"
 type EnsName @entity {
-  id: ID!
+  id: String!
   name: String!
   owner: String!
   registeredAt: Int!
