@@ -9,7 +9,7 @@
     "!src/**/*.test.ts"
   ],
   "bin": {
-    "ponder": "./dist/bin/create-ponder.js"
+    "create-ponder": "./dist/bin/create-ponder.js"
   },
   "scripts": {
     "build": "pnpm clean && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
