@@ -7,9 +7,11 @@ runs:
   steps:
     - name: Set up pnpm
       uses: pnpm/action-setup@v2
+      shell: ${{ matrix.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
 
     - name: Set up node
       uses: actions/setup-node@v3
+      shell: ${{ matrix.os == 'Windows' && 'wsl-bash {0}' || 'bash' }}
       with:
         cache: pnpm
         node-version: ${{ matrix.node-version == 'Node 16' && 16 || matrix.node-version == 'Node 18' && 18 || 20 }}
