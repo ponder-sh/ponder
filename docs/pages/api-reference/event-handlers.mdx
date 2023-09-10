@@ -56,13 +56,9 @@ The raw log object.
 
 ```ts
 type Log = {
-  /** Globally unique identifier for this log (used internally by Ponder) */
-  logId: `${Hash}-${number}`;
-  /** Value used to sort logs across networks (used internally by Ponder) */
-  logSortKey: bigint;
-  /** Unix timestamp of when the block containing this log was collated (used internally by Ponder) */
-  blockTimestamp: bigint;
-  /** The contract address from which this log originated */
+  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`). */
+  id: string;
+  /** The address from which this log originated */
   address: Address;
   /** Hash of block containing this log */
   blockHash: Hash;
@@ -72,14 +68,14 @@ type Log = {
   data: Hex;
   /** Index of this log within its block */
   logIndex: number;
+  /** `true` if this log has been removed in a chain reorganization */
+  removed: boolean;
+  /** List of order-dependent topics */
+  topics: [Hex, ...Hex[]] | [];
   /** Hash of the transaction that created this log */
   transactionHash: Hash;
   /** Index of the transaction that created this log */
   transactionIndex: number;
-  /** List of order-dependent topics */
-  topics: string[];
-  /** `true` if this filter has been destroyed and is invalid */
-  removed: boolean;
 };
 ```
 

@@ -6,7 +6,7 @@ import type { Address, Hash, Hex } from "viem";
  * @link https://docs.soliditylang.org/en/v0.8.20/abi-spec.html#events
  */
 export type Log = {
-  /** Globally unique identifier for this log. */
+  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`). */
   id: string;
   /** The address from which this log originated */
   address: Address;
