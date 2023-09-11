@@ -176,10 +176,9 @@ See [Create & update entities](/guides/create-update-entities) for a complete AP
 
 #### `ReadOnlyContract`
 
-<Callout type="warning">
-  **Avoid reading data directly from contracts.** It's slow and expensive. If
-  you're designing smart contracts that will be indexed by Ponder, try to emit
-  event logs that include all the data you need.
+<Callout type="info">
+  See the [read contract data](/guides/read-contract-data) guide for more
+  details.
 </Callout>
 
 `ReadOnlyContract` objects are used to read data directly from a contract. These objects have a method for each read-only function present in the contract's ABI (functions with state mutability of `"pure"` or `"view"`). The `context.contracts` object has a `ReadOnlyContract` for each contract defined in [ponder.config.ts](/api-reference/ponder-config#contracts).
