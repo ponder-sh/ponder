@@ -1,4 +1,4 @@
-# Ponder
+# eslint-config-ponder
 
 [![CI status][ci-badge]][ci-url]
 [![Version][version-badge]][version-url]

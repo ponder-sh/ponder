@@ -162,6 +162,7 @@ If you're interested in contributing to Ponder, please read the [contribution gu
 
 - `@ponder/core`
 - `create-ponder`
+- `eslint-config-ponder`
 
 ## About
 
