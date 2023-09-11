@@ -2,6 +2,7 @@
   "installation": "Installation",
   "design-your-schema": "Design your schema",
   "create-update-entities": "Create & update entities",
+  "read-contract-data": "Read contract data",
   "query-the-graphql-api": "Query the GraphQL API",
   "production": "Deploy to production"
 }

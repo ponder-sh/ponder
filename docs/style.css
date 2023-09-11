@@ -32,9 +32,14 @@
   fill: #eee;
 }
 
+/* PONDER LOGO */
+.dark .logo path:first-of-type {
+  fill: #fffbf5;
+}
+
 /* TELEGRAM LOGO */
 .dark .telegram path:first-of-type {
-  fill: #fff;
+  fill: #fffbf5;
 }
 
 /* CAPTION */
@@ -49,7 +54,7 @@
   line-height: 1.5rem;
 }
 
-/* SEARCHBAR SPACING */
+/* SEARCHBAR SPACING OVERRIDES */
 .nextra-search {
   margin-right: 8px;
 }
@@ -57,4 +62,16 @@
   .nextra-search {
     margin-right: 0px;
   }
+}
+
+/* LINK OVERRIDES */
+a {
+  font-weight: 500;
+}
+.nx-underline {
+  text-decoration-line: none;
+}
+.nx-underline:hover {
+  text-decoration-line: underline;
+  text-decoration-thickness: auto;
 }

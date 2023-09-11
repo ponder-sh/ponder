@@ -2,10 +2,11 @@ import { useRouter } from "next/router";
 import type { DocsThemeConfig } from "nextra-theme-docs";
 import { useConfig } from "nextra-theme-docs";
 
+import PonderLogo from "./public/ponder.svg";
 import TelegramLogo from "./public/telegram.svg";
 
 const config: DocsThemeConfig = {
-  logo: <span style={{ fontWeight: 700, fontSize: 22 }}>Ponder</span>,
+  logo: <PonderLogo className="logo" />,
   project: {
     link: "https://github.com/0xOlias/ponder",
   },
@@ -15,8 +16,9 @@ const config: DocsThemeConfig = {
   },
   docsRepositoryBase: "https://github.com/0xOlias/ponder/tree/main/docs",
   sidebar: {
-    defaultMenuCollapseLevel: 1,
+    defaultMenuCollapseLevel: 2,
   },
+  primaryHue: 188,
   editLink: {
     text: "Edit this page on GitHub →",
   },
@@ -39,15 +41,6 @@ const config: DocsThemeConfig = {
     <>
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <meta httpEquiv="Content-Language" content="en" />
-
-      {/* <link rel="icon" type="image/svg+xml" href="/favicons/favicon.svg" />
-      <link rel="icon" type="image/png" href="/favicons/light.png" />
-      <link
-        rel="icon"
-        type="image/png"
-        href="/favicons/dark.png"
-        media="(prefers-color-scheme: dark)"
-      /> */}
     </>
   ),
   useNextSeoProps() {
@@ -55,15 +48,13 @@ const config: DocsThemeConfig = {
     const { frontMatter } = useConfig();
 
     const defaultSeoProps = {
-      description:
-        "Ponder is a framework for building blockchain application backends.",
+      description: "Ponder is a backend framework for crypto apps.",
       openGraph: {
-        description:
-          "Ponder is a framework for building blockchain application backends.",
-        title: "Ponder: The Blockchain Backend Framework",
+        description: "Ponder is a backend framework for crypto apps.",
+        title: "Ponder – A backend framework for crypto apps",
         images: [{ url: "https://ponder.sh/og.png" }],
       },
-      themeColor: "#ffffff",
+      themeColor: "#FFFBF5",
       twitter: {
         cardType: "summary_large_image",
         handle: "@ponder_sh",
@@ -78,9 +69,6 @@ const config: DocsThemeConfig = {
         openGraph: {
           ...defaultSeoProps.openGraph,
           description: frontMatter.description,
-          // images: frontMatter.image
-          //   ? [{ url: frontMatter.image }]
-          //   : defaultSeoProps.openGraph.images,
           title: frontMatter.title,
         },
         titleTemplate: `%s – Ponder`,

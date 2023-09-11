@@ -1,0 +1,158 @@
+---
+description: "A guide to reading contract data in a Ponder app"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Read contract data
+
+Ideally, smart contracts emit event logs containing all the data you need to build your application. In reality, developers often forget to include certain event logs, or omit them as a gas optimization. In many cases, you can address these gaps by reading data directly from a contract. Ponder natively supports this pattern.
+
+The `context.contracts` object contains a read-only [viem contract instance](https://viem.sh/docs/contract/getContract.html#contract-instances) for each contract you define in [ponder.config.ts](/api-reference/ponder-config#contracts). These contract instances expose each read-only function (state mutability `"pure"` or `"view"`) present in the contract's ABI. They also [cache](#caching) contract read results, which speeds up indexing and avoids unnecessary RPC requests.
+
+## Example
+
+In this example, the `Blitmap:Mint` event does not include the token URI of the newly minted NFT. To add the token URI to the indexed data, we can read data directly from the contract using the `Blitmap.tokenURI` view method.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts"
+export const config = {
+  /* ... */
+  contracts: [
+    {
+      name: "Blitmap",
+      network: "mainnet",
+      abi: "./abis/Blitmap.json",
+      address: "0x8d04...D3Ff63",
+      startBlock: 12439123,
+    },
+  ],
+};
+```
+
+```ts filename="src/index.ts"
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const { Blitmap } = context.contracts;
+
+  const tokenUri = await Blitmap.read.tokenURI(event.params.tokenId);
+
+  const token = await context.entities.Token.create({
+    id: event.params.tokenId,
+    data: { uri: tokenUri },
+  });
+  // { id: 7777, uri: "https://api.blitmap.com/v1/metadata/7777" }
+});
+```
+
+</div>
+
+## Read contract data without syncing all events
+
+When you add a contract in `ponder.config.ts`, Ponder fetches all event logs emitted by that contract. Sometimes, you _only_ want to read data from a contract (you don't need its event logs).
+
+To tell Ponder not to fetch event logs for a contract, set `isLogEventSource: false` in your config.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts"
+export const config = {
+  /* ... */
+  contracts: [
+    {
+      name: "AaveToken",
+      network: "mainnet",
+      abi: "./abis/AaveToken.json",
+      address: "0x7Fc6...2DDaE9",
+      startBlock: 10926829,
+    },
+    {
+      name: "AaveUsdPriceFeed",
+      network: "mainnet",
+      abi: "./abis/ChainlinkPriceFeed.json",
+      address: "0x547a...19e8a9",
+      isLogEventSource: false,
+    },
+  ],
+};
+```
+
+```ts filename="src/index.ts"
+ponder.on("AaveToken:Mint", async ({ event, context }) => {
+  const { AaveUsdPriceFeed } = context.contracts;
+
+  const priceData = await AaveUsdPriceFeed.read.latestRoundData();
+  const usdValue = priceData.answer * event.params.amount;
+
+  // ...
+});
+```
+
+</div>
+
+## Caching
+
+To avoid unnecessary RPC requests and speed up indexing, Ponder caches all contract read results. When an event handler that reads a contract runs for the first time, it will make an RPC request. But on subsequent hot reloads or redeployments, this data will be served from the cache.
+
+To take advantage of caching, you _must_ use `context.contracts`. _Do not manually set up a viem Client._
+
+<div className="code-columns">
+
+```ts filename="src/index.ts"
+// Don't do this! ❌ ❌ ❌
+
+import { createPublicClient, getContract, http } from "viem";
+
+const publicClient = createPublicClient({
+  transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+});
+
+const Blitmap = getContract({
+  address: "0x8d04...D3Ff63",
+  abi: blitmapAbi,
+  publicClient,
+});
+
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const tokenUri = await Blitmap.read.tokenURI(event.params.tokenId);
+  // ...
+});
+```
+
+```ts filename="src/index.ts"
+// Do this instead. ✅ ✅ ✅
+
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const { Blitmap } = context.contracts;
+
+  const tokenUri = await Blitmap.read.tokenURI(event.params.tokenId);
+  // ...
+});
+```
+
+</div>
+
+## Specify a block number
+
+By default, contract reads use the `eth_call` RPC method with `blockNumber` set to the block number of the event being handled (`event.block.number`). You can read the contract at a different block number (e.g. the contract deployment block number or `"latest"`) by passing the `blockNumber` or `blockTag` option, but this will disable caching.
+
+```ts filename="src/index.ts"
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const { Blitmap } = context.contracts;
+
+  const { tokenId } = event.params;
+
+  // Read at event.block.number, caching enabled ✅
+  const latestTokenUri = await Blitmap.read.tokenURI(tokenId);
+
+  // Read at 17226745, caching disabled ❌
+  const historicalTokenUri = await Blitmap.read.tokenURI(tokenId, {
+    blockNumber: 17226745,
+  });
+
+  // Read at "latest", caching disabled ❌
+  const latestTokenUri = await Blitmap.read.tokenURI(tokenId, {
+    blockTag: "latest",
+  });
+});
+```
