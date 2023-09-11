@@ -65,6 +65,9 @@
 }
 
 /* LINK OVERRIDES */
+a {
+  font-weight: 500;
+}
 .nx-underline {
   text-decoration-line: none;
 }
