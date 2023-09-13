@@ -1,30 +1,32 @@
 import { type Migration, type MigrationProvider, Kysely, sql } from "kysely";
 
+import { blobToBigInt } from "@/utils/decode";
+
 const migrations: Record<string, Migration> = {
   ["2023_05_15_0_initial"]: {
     async up(db: Kysely<any>) {
       await db.schema
         .createTable("blocks")
-        .addColumn("baseFeePerGas", sql`numeric(78)`) // BigInt
+        .addColumn("baseFeePerGas", sql`bytea`) // BigInt
         .addColumn("chainId", "integer", (col) => col.notNull())
-        .addColumn("difficulty", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("difficulty", sql`bytea`, (col) => col.notNull()) // BigInt
         .addColumn("extraData", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
-        .addColumn("gasLimit", sql`numeric(78)`, (col) => col.notNull()) // BigInt
-        .addColumn("gasUsed", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("gasLimit", sql`bytea`, (col) => col.notNull()) // BigInt
+        .addColumn("gasUsed", sql`bytea`, (col) => col.notNull()) // BigInt
         .addColumn("hash", "text", (col) => col.notNull().primaryKey())
         .addColumn("logsBloom", "text", (col) => col.notNull())
         .addColumn("miner", "text", (col) => col.notNull())
         .addColumn("mixHash", "text", (col) => col.notNull())
         .addColumn("nonce", "text", (col) => col.notNull())
-        .addColumn("number", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("number", sql`bytea`, (col) => col.notNull()) // BigInt
         .addColumn("parentHash", "text", (col) => col.notNull())
         .addColumn("receiptsRoot", "text", (col) => col.notNull())
         .addColumn("sha3Uncles", "text", (col) => col.notNull())
-        .addColumn("size", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("size", sql`bytea`, (col) => col.notNull()) // BigInt
         .addColumn("stateRoot", "text", (col) => col.notNull())
-        .addColumn("timestamp", sql`numeric(78)`, (col) => col.notNull()) // BigInt
-        .addColumn("totalDifficulty", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("timestamp", sql`bytea`, (col) => col.notNull()) // BigInt
+        .addColumn("totalDifficulty", sql`bytea`, (col) => col.notNull()) // BigInt
         .addColumn("transactionsRoot", "text", (col) => col.notNull())
         .execute();
 
@@ -32,31 +34,31 @@ const migrations: Record<string, Migration> = {
         .createTable("transactions")
         .addColumn("accessList", "text")
         .addColumn("blockHash", "text", (col) => col.notNull())
-        .addColumn("blockNumber", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("blockNumber", sql`bytea`, (col) => col.notNull()) // BigInt
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
         .addColumn("from", "text", (col) => col.notNull())
-        .addColumn("gas", sql`numeric(78)`, (col) => col.notNull()) // BigInt
-        .addColumn("gasPrice", sql`numeric(78)`) // BigInt
+        .addColumn("gas", sql`bytea`, (col) => col.notNull()) // BigInt
+        .addColumn("gasPrice", sql`bytea`) // BigInt
         .addColumn("hash", "text", (col) => col.notNull().primaryKey())
         .addColumn("input", "text", (col) => col.notNull())
-        .addColumn("maxFeePerGas", sql`numeric(78)`) // BigInt
-        .addColumn("maxPriorityFeePerGas", sql`numeric(78)`) // BigInt
+        .addColumn("maxFeePerGas", sql`bytea`) // BigInt
+        .addColumn("maxPriorityFeePerGas", sql`bytea`) // BigInt
         .addColumn("nonce", "integer", (col) => col.notNull())
         .addColumn("r", "text", (col) => col.notNull())
         .addColumn("s", "text", (col) => col.notNull())
         .addColumn("to", "text")
         .addColumn("transactionIndex", "integer", (col) => col.notNull())
         .addColumn("type", "text", (col) => col.notNull())
-        .addColumn("value", sql`numeric(78)`, (col) => col.notNull()) // BigInt
-        .addColumn("v", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("value", sql`bytea`, (col) => col.notNull()) // BigInt
+        .addColumn("v", sql`bytea`, (col) => col.notNull()) // BigInt
         .execute();
 
       await db.schema
         .createTable("logs")
         .addColumn("address", "text", (col) => col.notNull())
         .addColumn("blockHash", "text", (col) => col.notNull())
-        .addColumn("blockNumber", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("blockNumber", sql`bytea`, (col) => col.notNull()) // BigInt
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("data", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
@@ -73,7 +75,7 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("contractReadResults")
         .addColumn("address", "text", (col) => col.notNull())
-        .addColumn("blockNumber", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("blockNumber", sql`bytea`, (col) => col.notNull()) // BigInt
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("data", "text", (col) => col.notNull())
         .addColumn("finalized", "integer", (col) => col.notNull()) // Boolean (0 or 1).
@@ -88,15 +90,13 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("logFilterCachedRanges")
-        .addColumn("endBlock", sql`numeric(78)`, (col) => col.notNull()) // BigInt
-        .addColumn("endBlockTimestamp", sql`numeric(78)`, (col) =>
-          col.notNull()
-        ) // BigInt
+        .addColumn("endBlock", sql`bytea`, (col) => col.notNull()) // BigInt
+        .addColumn("endBlockTimestamp", sql`bytea`, (col) => col.notNull()) // BigInt
         .addColumn("filterKey", "text", (col) => col.notNull())
         // The `id` column should not be included in INSERT statements.
         // This column uses Postgres SERIAL type which autoincrements.
         .addColumn("id", "serial", (col) => col.notNull().primaryKey())
-        .addColumn("startBlock", sql`numeric(78)`, (col) => col.notNull()) // BigInt
+        .addColumn("startBlock", sql`bytea`, (col) => col.notNull()) // BigInt
         .execute();
     },
     async down(db: Kysely<any>) {
@@ -213,6 +213,125 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .alterTable("contractReadResults")
         .addColumn("finalized", "integer", (col) => col.notNull())
+        .execute();
+    },
+  },
+  ["2023_09_12_0_use_numeric_for_bigint"]: {
+    async up(db: Kysely<any>) {
+      // table name, primary key col name, col name to convert, is not null
+      const bigintColumns = [
+        ["blocks", "hash", "baseFeePerGas", false],
+        ["blocks", "hash", "difficulty", true],
+        ["blocks", "hash", "gasLimit", true],
+        ["blocks", "hash", "gasUsed", true],
+        ["blocks", "hash", "number", true],
+        ["blocks", "hash", "size", true],
+        ["blocks", "hash", "timestamp", true],
+        ["blocks", "hash", "totalDifficulty", true],
+        ["transactions", "hash", "blockNumber", true],
+        ["transactions", "hash", "gas", true],
+        ["transactions", "hash", "v", true],
+        ["transactions", "hash", "value", true],
+        ["transactions", "hash", "gasPrice", false],
+        ["transactions", "hash", "maxFeePerGas", false],
+        ["transactions", "hash", "maxPriorityFeePerGas", false],
+        ["logs", "id", "blockNumber", true],
+        ["logFilterCachedRanges", "id", "startBlock", true],
+        ["logFilterCachedRanges", "id", "endBlock", true],
+        ["logFilterCachedRanges", "id", "endBlockTimestamp", true],
+      ] as const;
+
+      for (const [table, pk, column, isNotNull] of bigintColumns) {
+        const tempColumn = `${column}_temp`;
+
+        console.log([table, column, isNotNull]);
+
+        // Rename old column.
+        await db.schema
+          .alterTable(table)
+          .renameColumn(column, tempColumn)
+          .execute();
+
+        console.log("ran rename");
+
+        // Create new column with correct name and type.
+        // Note that it is null to start.
+        await db.schema
+          .alterTable(table)
+          .addColumn(column, "numeric(78, 0)")
+          .execute();
+
+        console.log("added new column");
+
+        // const newSchema = await db.introspection.getTables();
+        // console.log(newSchema);
+
+        const batchSize = 5;
+        let offset = 0;
+
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const rows = await db
+            .selectFrom(table)
+            .select([pk, tempColumn])
+            .orderBy(pk, "asc")
+            .offset(offset)
+            .limit(batchSize)
+            .execute();
+
+          if (rows.length === 0) {
+            break;
+          }
+
+          console.log({ rows });
+
+          await Promise.all(
+            rows
+              .filter((row) => row[tempColumn] !== null)
+              .map(async (row) => {
+                await db
+                  .updateTable(table)
+                  .set({ [column]: blobToBigInt(row[tempColumn]) })
+                  .where(pk, "=", row[pk])
+                  .execute();
+              })
+          );
+
+          offset += batchSize;
+        }
+
+        // Make new column not null if applicable.
+        if (isNotNull) {
+          await db.schema
+            .alterTable(table)
+            .alterColumn(column, (ac) => ac.setNotNull())
+            .execute();
+        }
+
+        // Drop old column.
+        await db.schema.alterTable(table).dropColumn(tempColumn).execute();
+      }
+
+      const blocks = await db.selectFrom("blocks").selectAll().execute();
+      console.log({ blocks });
+
+      // The contract reads table is annoying because of the composite PK,
+      // so we'll just nuke it and create it fresh with the correct types.
+      await db.schema.dropTable("contractReadResults").ifExists().execute();
+
+      await db.schema
+        .createTable("contractReadResults")
+        .addColumn("address", "text", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("data", "text", (col) => col.notNull())
+        .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("contractReadResultPrimaryKey", [
+          "chainId",
+          "blockNumber",
+          "address",
+          "data",
+        ])
         .execute();
     },
   },

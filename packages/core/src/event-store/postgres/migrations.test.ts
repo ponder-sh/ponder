@@ -9,6 +9,7 @@ import {
   logFilterCachedRangeOne,
 } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
+import { intToBlob } from "@/utils/encode";
 
 import {
   rpcToPostgresBlock,
@@ -18,10 +19,14 @@ import {
 
 beforeEach((context) => setupEventStore(context, { skipMigrateUp: true }));
 
-const seed_2023_07_18_0_better_indices = async (db: Kysely<any>) => {
+const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
   await db
     .insertInto("blocks")
-    .values({ ...rpcToPostgresBlock(blockOne), chainId: 1, finalized: 0 })
+    .values({
+      ...rpcToPostgresBlock(blockOne),
+      chainId: 1,
+      difficulty: intToBlob(-6674801433877863799524082037340374307n),
+    })
     .execute();
 
   for (const transaction of blockOneTransactions) {
@@ -30,7 +35,6 @@ const seed_2023_07_18_0_better_indices = async (db: Kysely<any>) => {
       .values({
         ...rpcToPostgresTransaction(transaction),
         chainId: 1,
-        finalized: 0,
       })
       .execute();
   }
@@ -41,14 +45,13 @@ const seed_2023_07_18_0_better_indices = async (db: Kysely<any>) => {
       .values({
         ...rpcToPostgresLog(log),
         chainId: 1,
-        finalized: 0,
       })
       .execute();
   }
 
   await db
     .insertInto("contractReadResults")
-    .values({ ...contractReadResultOne, finalized: 1 })
+    .values(contractReadResultOne)
     .execute();
 
   await db
@@ -57,20 +60,22 @@ const seed_2023_07_18_0_better_indices = async (db: Kysely<any>) => {
     .execute();
 };
 
-test("2023_07_18_0_better_indices -> 2023_07_24_0_drop_finalized succeeds", async (context) => {
+test("2023_07_24_0_drop_finalized -> 2023_09_12_0_use_numeric_for_bigint succeeds", async (context) => {
   const { eventStore } = context;
 
   if (eventStore.kind !== "postgres") return;
 
   const { error } = await eventStore.migrator.migrateTo(
-    "2023_07_18_0_better_indices"
-  );
-  expect(error).toBeFalsy();
-
-  await seed_2023_07_18_0_better_indices(eventStore.db);
-
-  const { error: latestError } = await eventStore.migrator.migrateTo(
     "2023_07_24_0_drop_finalized"
   );
+  if (error) console.log(error);
+  expect(error).toBeFalsy();
+
+  await seed_2023_07_24_0_drop_finalized(eventStore.db);
+
+  const { error: latestError } = await eventStore.migrator.migrateTo(
+    "2023_09_12_0_use_numeric_for_bigint"
+  );
+  if (latestError) console.log(latestError);
   expect(latestError).toBeFalsy();
 }, 15_000);
