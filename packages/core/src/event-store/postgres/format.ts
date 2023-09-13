@@ -8,24 +8,24 @@ import {
 } from "viem";
 
 type BlocksTable = {
-  baseFeePerGas: bigint | null; // BigInt
-  difficulty: bigint; // BigInt
+  baseFeePerGas: bigint | null;
+  difficulty: bigint;
   extraData: Hex;
-  gasLimit: bigint; // BigInt
-  gasUsed: bigint; // BigInt
+  gasLimit: bigint;
+  gasUsed: bigint;
   hash: Hash;
   logsBloom: Hex;
   miner: Address;
   mixHash: Hash;
   nonce: Hex;
-  number: bigint; // BigInt
+  number: bigint;
   parentHash: Hash;
   receiptsRoot: Hex;
   sha3Uncles: Hash;
-  size: bigint; // BigInt
+  size: bigint;
   stateRoot: Hash;
-  timestamp: bigint; // BigInt
-  totalDifficulty: bigint; // BigInt
+  timestamp: bigint;
+  totalDifficulty: bigint;
   transactionsRoot: Hash;
 
   chainId: number;
@@ -61,9 +61,9 @@ export function rpcToPostgresBlock(
 
 type TransactionsTable = {
   blockHash: Hash;
-  blockNumber: bigint; // BigInt
+  blockNumber: bigint;
   from: Address;
-  gas: bigint; // BigInt
+  gas: bigint;
   hash: Hash;
   input: Hex;
   nonce: number;
@@ -71,13 +71,13 @@ type TransactionsTable = {
   s: Hex;
   to: Address | null;
   transactionIndex: number;
-  v: bigint; // BigInt
-  value: bigint; // BigInt
+  v: bigint;
+  value: bigint;
 
   type: Hex;
-  gasPrice: bigint | null; // BigInt
-  maxFeePerGas: bigint | null; // BigInt
-  maxPriorityFeePerGas: bigint | null; // BigInt
+  gasPrice: bigint | null;
+  maxFeePerGas: bigint | null;
+  maxPriorityFeePerGas: bigint | null;
   accessList: string | null;
 
   chainId: number;
@@ -120,7 +120,7 @@ type LogsTable = {
   id: string;
   address: Address;
   blockHash: Hash;
-  blockNumber: bigint; // BigInt
+  blockNumber: bigint;
   data: Hex;
   logIndex: number;
   transactionHash: Hash;
@@ -155,7 +155,7 @@ export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
 
 type ContractReadResultsTable = {
   address: string;
-  blockNumber: bigint; // BigInt
+  blockNumber: bigint;
   chainId: number;
   data: Hex;
   result: Hex;
@@ -164,9 +164,9 @@ type ContractReadResultsTable = {
 type LogFilterCachedRangesTable = {
   id: Generated<number>;
   filterKey: string;
-  startBlock: bigint; // BigInt
-  endBlock: bigint; // BigInt
-  endBlockTimestamp: bigint; // BigInt
+  startBlock: bigint;
+  endBlock: bigint;
+  endBlockTimestamp: bigint;
 };
 
 export type EventStoreTables = {

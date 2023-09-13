@@ -367,7 +367,7 @@ export class PostgresEventStore implements EventStore {
       .insertInto("contractReadResults")
       .values({
         address,
-        blockNumber: blockNumber,
+        blockNumber,
         chainId,
         data,
         result,
@@ -398,12 +398,7 @@ export class PostgresEventStore implements EventStore {
       .where("data", "=", data)
       .executeTakeFirst();
 
-    return contractReadResult
-      ? {
-          ...contractReadResult,
-          blockNumber: contractReadResult.blockNumber,
-        }
-      : null;
+    return contractReadResult ?? null;
   };
 
   async *getLogEvents({
