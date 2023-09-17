@@ -1,8 +1,5 @@
 const fs = require("fs");
 
-// eslint-disable-next-line no-undef
-const fetch = globalThis.fetch ?? require("node-fetch");
-
 async function detachedFlush() {
   const args = [...process.argv];
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
