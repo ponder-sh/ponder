@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import fetch from "node-fetch";
 import prettier from "prettier";
 import type { PartialConfig } from "src/index";
 

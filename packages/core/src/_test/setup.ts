@@ -1,5 +1,3 @@
-import "@/utils/globals";
-
 import SqliteDatabase from "better-sqlite3";
 import moduleAlias from "module-alias";
 import path from "node:path";

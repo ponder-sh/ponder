@@ -2,7 +2,7 @@ import child_process from "node:child_process";
 import fs from "node:fs";
 import { tmpdir } from "node:os";
 import path from "path";
-import { beforeAll, beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { TelemetryService } from "@/telemetry/service";
 
@@ -12,12 +12,6 @@ beforeEach(() => {
   fetchSpy.mockReset();
   vi.stubGlobal("fetch", fetchSpy);
   return () => vi.unstubAllGlobals();
-});
-
-beforeAll(() => {
-  // Prevents the detached-flush script from sending events to API during tests.
-  vi.mock("node-fetch");
-  return () => vi.restoreAllMocks();
 });
 
 test("events are processed", async (context) => {
@@ -49,7 +43,11 @@ test("events are not processed if telemetry is disabled", async (context) => {
 });
 
 test("events are put back in queue if telemetry service is killed", async (context) => {
-  const options = { ...context.common.options, telemetryDisabled: false };
+  const options = {
+    ...context.common.options,
+    telemetryDisabled: false,
+    telemetryUrl: "https://reqres.in/api/users",
+  };
   const telemetry = new TelemetryService({ options });
 
   fetchSpy.mockImplementationOnce(() => {
@@ -66,6 +64,7 @@ test("kill method should persist events and trigger detached flush", async (cont
   const options = {
     ...context.common.options,
     telemetryDisabled: false,
+    telemetryUrl: "https://reqres.in/api/users",
     ponderDir: tmpdir(),
   };
 
