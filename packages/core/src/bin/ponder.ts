@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 import { cac } from "cac";
 import dotenv from "dotenv";
 import path from "node:path";
