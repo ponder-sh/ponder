@@ -1,4 +1,5 @@
 import type { AbiEvent } from "abitype";
+import type { Transport } from "viem";
 
 export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
@@ -21,6 +22,10 @@ export type ResolvedConfig = {
     chainId: number;
     /** RPC URL. Default: if available, a public RPC provider. */
     rpcUrl?: string;
+    /** Custom viem transport: https://viem.sh/docs/clients/transports/http.html
+     * If `undefined`, a default transport will be used based on `rpcUrl`.
+     */
+    transport?: Transport;
     /** Polling frequency (in ms). Default: `1_000`. */
     pollingInterval?: number;
     /** Maximum concurrency of RPC requests during the historical sync. Default: `10`. */

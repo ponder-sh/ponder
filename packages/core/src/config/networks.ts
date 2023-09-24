@@ -1,4 +1,9 @@
-import { type PublicClient, createPublicClient, http } from "viem";
+import {
+  type PublicClient,
+  type Transport,
+  createPublicClient,
+  http,
+} from "viem";
 import { mainnet } from "viem/chains";
 
 import type { ResolvedConfig } from "@/config/types";
@@ -8,6 +13,7 @@ export type Network = {
   chainId: number;
   client: PublicClient;
   rpcUrl?: string;
+  transport?: Transport;
   pollingInterval: number;
   defaultMaxBlockRange: number;
   maxRpcRequestConcurrency: number;
@@ -22,10 +28,13 @@ export function buildNetwork({
   network: ResolvedConfig["networks"][0];
 }) {
   let client = clients[network.chainId];
+  const transport = network.transport
+    ? network.transport
+    : http(network.rpcUrl);
 
   if (!client) {
     client = createPublicClient({
-      transport: http(network.rpcUrl),
+      transport,
       chain: {
         ...mainnet,
         name: network.name,

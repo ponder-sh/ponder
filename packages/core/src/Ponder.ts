@@ -180,7 +180,7 @@ export class Ponder {
     // that is part of the happy path for `create-ponder`.
     const networksMissingRpcUrl: Network[] = [];
     this.networkSyncServices.forEach(({ network }) => {
-      if (!network.rpcUrl) {
+      if (!network.rpcUrl && !network.transport) {
         networksMissingRpcUrl.push(network);
       }
     });
