@@ -13,10 +13,9 @@ import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import { formatEta, formatPercentage } from "@/utils/format";
+import { intervalDifference } from "@/utils/interval";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
 import { hrTimeToMs, startClock } from "@/utils/timer";
-
-import { findMissingIntervals } from "./intervals";
 
 type HistoricalSyncEvents = {
   /**
@@ -162,8 +161,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           logFilterKey: logFilter.filter.key,
         });
 
-        const requiredBlockRanges = findMissingIntervals(
-          [startBlock, endBlock],
+        const requiredBlockRanges = intervalDifference(
+          [[startBlock, endBlock]],
           cachedRanges.map((r) => [r.startBlock, r.endBlock])
         );
 
