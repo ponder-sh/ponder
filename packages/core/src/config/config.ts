@@ -1,4 +1,4 @@
-import type { AbiEvent } from "abitype";
+import { type AbiEvent } from "abitype";
 import { build } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
@@ -33,7 +33,7 @@ export type ResolvedConfig = {
   }[];
   /** List of contracts to fetch & handle events from. Contracts defined here will be present in `context.contracts`. */
   contracts?: {
-    /** Contract name. Must be unique across `contracts` and `filters`. */
+    /** Contract name. Must be unique across `contracts`, `factories`, and `filters`. */
     name: string;
     /** Network that this contract is deployed to. Must match a network name in `networks`. */
     network: string; // TODO: narrow this type to TNetworks[number]['name']
@@ -52,7 +52,7 @@ export type ResolvedConfig = {
   }[];
   /** List of log filters from which to fetch & handle event logs. */
   filters?: {
-    /** Filter name. Must be unique across `contracts` and `filters`. */
+    /** Filter name. Must be unique across `contracts`, `factories`, and `filters`. */
     name: string;
     /** Network that this filter is deployed to. Must match a network name in `networks`. */
     network: string; // TODO: narrow this type to TNetworks[number]['name']
@@ -77,6 +77,33 @@ export type ResolvedConfig = {
     /** Block number at which to start processing events (inclusive). Default: `0`. */
     startBlock?: number;
     /** Block number at which to stop processing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
+    endBlock?: number;
+    /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
+    maxBlockRange?: number;
+  }[];
+  /** List of factory contracts. */
+  factories?: {
+    /** Factory contract name. Must be unique across `contracts`, `factories`, and `filters`. */
+    name: string;
+    /** Network that this factory contract is deployed to. Must match a network name in `networks`. */
+    network: string; // TODO: narrow this type to TNetworks[number]['name']
+    /** Factory contract ABI as a file path or an Array object. Accepts a single ABI or a list of ABIs to be merged. */
+    abi: string | any[] | readonly any[] | (string | any[] | readonly any[])[];
+    /** Factory contract address. */
+    address: `0x${string}`;
+    /** Event signature of the event log that announces a new child contract. */
+    factoryEvent: AbiEvent;
+    /** Name of factory event argument containing the new child contract address. */
+    factoryEventAddressArgument: string;
+    /** Child contract ABI as a file path or an Array object. Accepts a single ABI or a list of ABIs to be merged. */
+    childAbi:
+      | string
+      | any[]
+      | readonly any[]
+      | (string | any[] | readonly any[])[];
+    /** Block number at which to start processing child contract events (inclusive). Default: `0`. */
+    startBlock?: number;
+    /** Block number at which to stop processing child contract events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
     endBlock?: number;
     /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
     maxBlockRange?: number;

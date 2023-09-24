@@ -1,46 +1,24 @@
-import type { Abi, AbiEvent, Address } from "abitype";
+import type { Abi, Address } from "abitype";
 import { type Hex, encodeEventTopics } from "viem";
 
 import type { ResolvedConfig } from "@/config/config";
 import type { Options } from "@/config/options";
 
-import { buildAbi, getEvents } from "./abi";
-import { encodeLogFilterKey } from "./logFilterKey";
-
-type SafeEventName = string;
-
-export type LogEventMetadata = {
-  // Event name (if no overloads) or full event signature (if name is overloaded).
-  // This is the event name used when registering event handlers using `ponder.on("ContractName:EventName", ...)`
-  safeName: string;
-  // Full event signature, e.g. `event Deposit(address indexed from,bytes32 indexed id,uint value);`
-  signature: string;
-  // Keccak256 hash of the event signature (topic[0]).
-  selector: Hex;
-  // ABI item used for decoding raw logs.
-  abiItem: AbiEvent;
-};
+import { AbiEvents, buildAbi, getEvents } from "./abi";
 
 export type LogFilter = {
   name: string;
   network: string;
+  chainId: number;
   abi: Abi;
-  maxBlockRange?: number;
+  events: AbiEvents;
   filter: {
-    // Cache key used by the event store to record what historical block ranges are available for this log filter.
-    key: string; // `${chainId}-${address}-${topics}`
-    chainId: number;
-    // See `eth_getLogs` documentation.
-    address?: `0x${string}` | `0x${string}`[];
-    // See `eth_getLogs` documentation.
-    topics?: (`0x${string}` | `0x${string}`[] | null)[];
-    // See `eth_getLogs` documentation.
+    address?: Hex | Hex[];
+    topics?: (Hex | Hex[] | null)[];
     startBlock: number;
-    // See `eth_getLogs` documentation.
     endBlock?: number;
   };
-  // All events present in the ABI, indexed by safe event name.
-  events: { [key: SafeEventName]: LogEventMetadata | undefined };
+  maxBlockRange?: number;
 };
 
 export function buildLogFilters({
@@ -70,26 +48,20 @@ export function buildLogFilters({
 
       const address = contract.address.toLowerCase() as Address;
       const topics = undefined;
-      const key = encodeLogFilterKey({
-        chainId: network.chainId,
-        address,
-        topics,
-      });
 
       const logFilter: LogFilter = {
         name: contract.name,
         network: network.name,
+        chainId: network.chainId,
         abi,
         events,
-        maxBlockRange: contract.maxBlockRange,
         filter: {
-          key,
-          chainId: network.chainId,
           address,
           topics,
           startBlock: contract.startBlock ?? 0,
           endBlock: contract.endBlock,
         },
+        maxBlockRange: contract.maxBlockRange,
       };
 
       return logFilter;
@@ -125,26 +97,19 @@ export function buildLogFilters({
         })
       : undefined;
 
-    const key = encodeLogFilterKey({
-      chainId: network.chainId,
-      address,
-      topics,
-    });
-
     const logFilter: LogFilter = {
       name: filter.name,
       network: network.name,
+      chainId: network.chainId,
       abi,
       events,
-      maxBlockRange: filter.maxBlockRange,
       filter: {
-        key,
-        chainId: network.chainId,
         address,
         topics,
         startBlock: filter.startBlock ?? 0,
         endBlock: filter.endBlock,
       },
+      maxBlockRange: filter.maxBlockRange,
     };
 
     return logFilter;
