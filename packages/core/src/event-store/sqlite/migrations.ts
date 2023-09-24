@@ -214,6 +214,39 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  ["2023_09_19_0_new_sync_design"]: {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("logFilters")
+        // Autoincremented using SQLite's ROWID() function
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(66)")
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
+        .execute();
+
+      await db.schema
+        .createTable("logFilterRanges")
+        // Autoincremented using SQLite's ROWID() function
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey())
+        .addColumn("logFilterId", "integer", (col) =>
+          col.notNull().references("logFilters.id")
+        )
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlockTimestamp", "numeric(78, 0)", (col) =>
+          col.notNull()
+        )
+        .execute();
+    },
+    async down(db: Kysely<any>) {
+      await db.schema.dropTable("logFilters").cascade().execute();
+      await db.schema.dropTable("logFilterRanges").execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

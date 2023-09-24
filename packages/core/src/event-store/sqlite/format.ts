@@ -171,10 +171,31 @@ type LogFilterCachedRangesTable = {
   endBlockTimestamp: Buffer; // BigInt
 };
 
+type LogFiltersTable = {
+  id: Generated<number>;
+  chainId: number;
+  address: Hex | null;
+  topic0: Hex | null;
+  topic1: Hex | null;
+  topic2: Hex | null;
+  topic3: Hex | null;
+};
+
+type LogFilterRangesTable = {
+  id: Generated<number>;
+  logFilterId: number;
+  startBlock: bigint;
+  endBlock: bigint;
+  endBlockTimestamp: bigint;
+};
+
 export type EventStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
   logs: LogsTable;
   contractReadResults: ContractReadResultsTable;
   logFilterCachedRanges: LogFilterCachedRangesTable;
+
+  logFilters: LogFiltersTable;
+  logFilterRanges: LogFilterRangesTable;
 };

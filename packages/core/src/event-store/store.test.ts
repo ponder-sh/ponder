@@ -839,3 +839,174 @@ test("getLogEvents returns no events if includeEventSelectors is an empty array"
 
   expect(events).toHaveLength(0);
 });
+
+test("insertHistoricalLogFilterResult merges ranges on insertion", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertHistoricalLogFilterResult({
+    block: blockOne,
+    transactions: [],
+    logs: [],
+    logFilter: {
+      chainId: 1,
+      startBlock: 0n,
+      endBlock: 100n,
+      endBlockTimestamp: 1200n,
+    },
+  });
+
+  await eventStore.insertHistoricalLogFilterResult({
+    block: blockOne,
+    transactions: [],
+    logs: [],
+    logFilter: {
+      chainId: 1,
+      startBlock: 120n,
+      endBlock: 200n,
+      endBlockTimestamp: 1500n,
+    },
+  });
+
+  let logFilterRanges = await eventStore.getLogFilterRanges({
+    chainId: 1,
+  });
+
+  expect(logFilterRanges).toMatchObject([
+    [0, 100],
+    [120, 200],
+  ]);
+
+  await eventStore.insertHistoricalLogFilterResult({
+    block: blockOne,
+    transactions: [],
+    logs: [],
+    logFilter: {
+      chainId: 1,
+      startBlock: 80n,
+      endBlock: 140n,
+      endBlockTimestamp: 1500n,
+    },
+  });
+
+  logFilterRanges = await eventStore.getLogFilterRanges({
+    chainId: 1,
+  });
+
+  expect(logFilterRanges).toMatchObject([[0, 200]]);
+});
+
+test("insertHistoricalLogFilterResult sets log filter range", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertHistoricalLogFilterResult({
+    block: blockOne,
+    transactions: [],
+    logs: [],
+    logFilter: {
+      chainId: 1,
+      address: ["0xa", "0xb"],
+      topics: [["0xc", "0xd"], null, "0xe", null],
+      startBlock: 0n,
+      endBlock: 100n,
+      endBlockTimestamp: 1200n,
+    },
+  });
+
+  const logFilterRanges = await eventStore.getLogFilterRanges({
+    chainId: 1,
+    address: ["0xa", "0xb"],
+    topics: [["0xc", "0xd"], null, "0xe", null],
+  });
+
+  expect(logFilterRanges).toMatchObject([[0, 100]]);
+});
+
+test("getLogFilterRanges respects log filter inclusivity rules", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertHistoricalLogFilterResult({
+    block: blockOne,
+    transactions: [],
+    logs: [],
+    logFilter: {
+      chainId: 1,
+      address: ["0xa", "0xb"],
+      topics: [["0xc", "0xd"], null, "0xe", null],
+      startBlock: 0n,
+      endBlock: 100n,
+      endBlockTimestamp: 1200n,
+    },
+  });
+
+  // This is a narrower inclusion criteria on `address` and `topic0`. Full range available.
+  let logFilterRanges = await eventStore.getLogFilterRanges({
+    chainId: 1,
+    address: ["0xa"],
+    topics: [["0xc"], null, "0xe", null],
+  });
+
+  expect(logFilterRanges).toMatchObject([[0, 100]]);
+
+  // This is a broader inclusion criteria on `address`. No ranges available.
+  logFilterRanges = await eventStore.getLogFilterRanges({
+    chainId: 1,
+    address: undefined,
+    topics: [["0xc"], null, "0xe", null],
+  });
+
+  expect(logFilterRanges).toMatchObject([]);
+
+  // This is a narrower inclusion criteria on `topic1`. Full range available.
+  logFilterRanges = await eventStore.getLogFilterRanges({
+    chainId: 1,
+    address: ["0xa"],
+    topics: [["0xc"], "0xd", "0xe", null],
+  });
+
+  expect(logFilterRanges).toMatchObject([[0, 100]]);
+});
+
+test("getLogFilterRanges handles complex log filter inclusivity rules", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertHistoricalLogFilterResult({
+    block: blockOne,
+    transactions: [],
+    logs: [],
+    logFilter: {
+      chainId: 1,
+      startBlock: 0n,
+      endBlock: 100n,
+      endBlockTimestamp: 1200n,
+    },
+  });
+
+  await eventStore.insertHistoricalLogFilterResult({
+    block: blockOne,
+    transactions: [],
+    logs: [],
+    logFilter: {
+      chainId: 1,
+      topics: [null, ["0xc", "0xd"]],
+      startBlock: 150n,
+      endBlock: 250n,
+      endBlockTimestamp: 1500n,
+    },
+  });
+
+  // Broad criteria only includes broad ranges.
+  let logFilterRanges = await eventStore.getLogFilterRanges({
+    chainId: 1,
+  });
+  expect(logFilterRanges).toMatchObject([[0, 100]]);
+
+  // Narrower criteria includes both broad and specific ranges.
+  logFilterRanges = await eventStore.getLogFilterRanges({
+    chainId: 1,
+    topics: [null, "0xc"],
+  });
+  expect(logFilterRanges).toMatchObject([
+    [0, 100],
+    [150, 250],
+  ]);
+});

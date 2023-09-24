@@ -62,6 +62,26 @@ export interface EventStore {
     fromBlockNumber: number;
   }): Promise<void>;
 
+  insertHistoricalLogFilterResult(options: {
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logs: RpcLog[];
+    logFilter: {
+      chainId: number;
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
+  }): Promise<void>;
+
+  getLogFilterRanges(options: {
+    chainId: number;
+    address?: Hex | Hex[];
+    topics?: (Hex | Hex[] | null)[];
+  }): Promise<[number, number][]>;
+
   insertLogFilterCachedRanges(options: {
     logFilterKeys: string[];
     startBlock: number;

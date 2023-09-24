@@ -1,6 +1,7 @@
 import type Sqlite from "better-sqlite3";
 import {
   type ExpressionBuilder,
+  type Transaction as KyselyTransaction,
   Kysely,
   Migrator,
   NO_MIGRATIONS,
@@ -13,9 +14,11 @@ import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
 import type { NonNull } from "@/types/utils";
+import { bigIntMax, bigIntMin } from "@/utils/bigint";
 import { blobToBigInt } from "@/utils/decode";
 import { intToBlob } from "@/utils/encode";
-import { mergeIntervals } from "@/utils/intervals";
+import { intervalIntersectionMany, intervalUnion } from "@/utils/interval";
+import { buildLogFilterFragments } from "@/utils/logFilter";
 import { range } from "@/utils/range";
 
 import type { EventStore } from "../store";
@@ -77,6 +80,253 @@ export class SqliteEventStore implements EventStore {
           .execute()
       )
     );
+  };
+
+  insertHistoricalLogFilterResult = async ({
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    logs: rpcLogs,
+    logFilter: {
+      chainId,
+      address,
+      topics,
+      startBlock,
+      endBlock,
+      endBlockTimestamp,
+    },
+  }: {
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logs: RpcLog[];
+    logFilter: {
+      chainId: number;
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await tx
+        .insertInto("blocks")
+        .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
+
+      for (const rpcTransaction of rpcTransactions) {
+        await tx
+          .insertInto("transactions")
+          .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+      }
+
+      for (const rpcLog of rpcLogs) {
+        await tx
+          .insertInto("logs")
+          .values({ ...rpcToSqliteLog(rpcLog), chainId })
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      }
+
+      await this.insertLogFilterRange({
+        tx,
+        chainId,
+        address,
+        topics,
+        startBlock,
+        endBlock,
+        endBlockTimestamp,
+      });
+    });
+  };
+
+  private insertLogFilterRange = async ({
+    tx,
+    chainId,
+    address,
+    topics,
+    startBlock,
+    endBlock,
+    endBlockTimestamp,
+  }: {
+    tx: KyselyTransaction<EventStoreTables>;
+    chainId: number;
+    address?: Hex | Hex[];
+    topics?: (Hex | Hex[] | null)[];
+    startBlock: bigint;
+    endBlock: bigint;
+    endBlockTimestamp: bigint;
+  }) => {
+    const logFilterFragments = buildLogFilterFragments({
+      address,
+      topics,
+    });
+
+    for (const logFilterFragment of logFilterFragments) {
+      // Get log filter fragment (if it exists).
+      let logFilterRow = await tx
+        .selectFrom("logFilters")
+        .select("id")
+        .where(({ and, cmpr }) => {
+          const cmprs = [];
+
+          for (const field of [
+            "address",
+            "topic0",
+            "topic1",
+            "topic2",
+            "topic3",
+          ] as const) {
+            if (logFilterFragment[field] === null) {
+              cmprs.push(cmpr(field, "is", null));
+            } else {
+              cmprs.push(cmpr(field, "=", logFilterFragment[field]));
+            }
+          }
+          return and(cmprs);
+        })
+        .executeTakeFirst();
+
+      // Insert log filter fragment if not found.
+      if (!logFilterRow) {
+        logFilterRow = await tx
+          .insertInto("logFilters")
+          .values({ ...logFilterFragment, chainId })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+      }
+
+      const logFilterId = logFilterRow.id;
+
+      const overlappingRanges = await tx
+        .selectFrom("logFilterRanges")
+        .selectAll()
+        .where("logFilterId", "=", logFilterId)
+        .where(({ and, or, cmpr }) =>
+          or([
+            // Existing range endBlock falls within new range.
+            and([
+              cmpr("endBlock", ">=", startBlock - 1n),
+              cmpr("endBlock", "<=", endBlock - 1n),
+            ]),
+            // Existing range startBlock falls within new range.
+            and([
+              cmpr("startBlock", ">=", startBlock - 1n),
+              cmpr("startBlock", "<=", endBlock + 1n),
+            ]),
+            // New range is fully within existing range.
+            and([
+              cmpr("startBlock", "<=", startBlock - 1n),
+              cmpr("endBlock", ">=", endBlock + 1n),
+            ]),
+          ])
+        )
+        .execute();
+
+      await tx
+        .deleteFrom("logFilterRanges")
+        .where(
+          "id",
+          "in",
+          overlappingRanges.map((r) => r.id)
+        )
+        .execute();
+
+      await tx
+        .insertInto("logFilterRanges")
+        .values({
+          logFilterId,
+          startBlock: bigIntMin([
+            ...overlappingRanges.map((r) => r.startBlock),
+            startBlock,
+          ]),
+          endBlock: bigIntMax([
+            ...overlappingRanges.map((r) => r.endBlock),
+            endBlock,
+          ]),
+          endBlockTimestamp: bigIntMax([
+            ...overlappingRanges.map((r) => r.endBlockTimestamp),
+            endBlockTimestamp,
+          ]),
+        })
+        .execute();
+    }
+  };
+
+  getLogFilterRanges = async ({
+    chainId,
+    address,
+    topics,
+  }: {
+    chainId: number;
+    address?: Hex | Hex[];
+    topics?: (Hex | Hex[] | null)[];
+  }) => {
+    const logFilterFragments = buildLogFilterFragments({
+      address,
+      topics,
+    }).map((f, idx) => ({ idx, ...f }));
+
+    const baseQuery = this.db
+      .with(
+        "logFilterFragments(fragmentIndex, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
+        () =>
+          sql`( values ${sql.join(
+            logFilterFragments.map(
+              (f) =>
+                sql`( ${sql.val(f.idx)}, ${sql.val(f.address)}, ${sql.val(
+                  f.topic0
+                )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
+                  f.topic3
+                )} )`
+            )
+          )} )`
+      )
+      .selectFrom("logFilterRanges")
+      .leftJoin("logFilters", "logFilterId", "logFilters.id")
+      .innerJoin("logFilterFragments", (join) => {
+        let baseJoin = join.on(({ or, cmpr }) =>
+          or([
+            cmpr("address", "is", null),
+            cmpr("fragmentAddress", "=", sql.ref("address")),
+          ])
+        );
+        for (const idx_ of range(0, 4)) {
+          baseJoin = baseJoin.on(({ or, cmpr }) => {
+            const idx = idx_ as 0 | 1 | 2 | 3;
+            return or([
+              cmpr(`topic${idx}`, "is", null),
+              cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
+            ]);
+          });
+        }
+
+        return baseJoin;
+      })
+      .select(["fragmentIndex", "startBlock", "endBlock", "endBlockTimestamp"])
+      .where("chainId", "=", chainId);
+
+    const ranges = await baseQuery.execute();
+
+    const rangesByFragment = ranges.reduce((acc, cur) => {
+      const { fragmentIndex, ...rest } = cur;
+      acc[fragmentIndex] ||= [];
+      acc[fragmentIndex].push(rest);
+      return acc;
+    }, {} as Record<number, { startBlock: bigint; endBlock: bigint; endBlockTimestamp: bigint }[]>);
+
+    const fragmentRanges = logFilterFragments.map((f) => {
+      return (rangesByFragment[f.idx] ?? []).map(
+        (r) =>
+          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
+      );
+    });
+
+    const totalRanges = intervalIntersectionMany(fragmentRanges);
+
+    return totalRanges;
   };
 
   insertHistoricalBlock = async ({
@@ -259,7 +509,7 @@ export class SqliteEventStore implements EventStore {
           .returningAll()
           .execute();
 
-        const mergedIntervals = mergeIntervals(
+        const mergedIntervals = intervalUnion(
           existingRanges.map((r) => [
             Number(blobToBigInt(r.startBlock)),
             Number(blobToBigInt(r.endBlock)),

@@ -16,7 +16,7 @@ import type { Transaction } from "@/types/transaction";
 import type { NonNull } from "@/types/utils";
 import { blobToBigInt } from "@/utils/decode";
 import { intToBlob } from "@/utils/encode";
-import { mergeIntervals } from "@/utils/intervals";
+import { intervalUnion } from "@/utils/interval";
 import { range } from "@/utils/range";
 
 import type { EventStore } from "../store";
@@ -285,7 +285,7 @@ export class PostgresEventStore implements EventStore {
           .returningAll()
           .execute();
 
-        const mergedIntervals = mergeIntervals(
+        const mergedIntervals = intervalUnion(
           existingRanges.map((r) => [
             Number(blobToBigInt(r.startBlock)),
             Number(blobToBigInt(r.endBlock)),
