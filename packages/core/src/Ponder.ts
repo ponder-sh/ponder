@@ -6,6 +6,10 @@ import { CodegenService } from "@/codegen/service";
 import { type ResolvedConfig } from "@/config/config";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
+import {
+  type FactoryContract,
+  buildFactoryContracts,
+} from "@/config/factories";
 import { type LogFilter, buildLogFilters } from "@/config/logFilters";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
@@ -45,6 +49,7 @@ export class Ponder {
   networkSyncServices: {
     network: Network;
     logFilters: LogFilter[];
+    factoryContracts: FactoryContract[];
     historicalSyncService: HistoricalSyncService;
     realtimeSyncService: RealtimeSyncService;
   }[] = [];
@@ -83,6 +88,7 @@ export class Ponder {
     const logFilters = buildLogFilters({ options, config });
     this.logFilters = logFilters;
     const contracts = buildContracts({ options, config });
+    const factoryContracts = buildFactoryContracts({ options, config });
 
     const networks = config.networks
       .map((network) => buildNetwork({ network }))
@@ -116,14 +122,19 @@ export class Ponder {
       const logFiltersForNetwork = logFilters.filter(
         (logFilter) => logFilter.network === network.name
       );
+      const factoryContractsForNetwork = factoryContracts.filter(
+        (logFilter) => logFilter.network === network.name
+      );
       this.networkSyncServices.push({
         network,
         logFilters: logFiltersForNetwork,
+        factoryContracts: factoryContractsForNetwork,
         historicalSyncService: new HistoricalSyncService({
           common,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
+          factoryContracts: factoryContractsForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
           common,

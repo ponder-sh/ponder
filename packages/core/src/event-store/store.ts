@@ -35,20 +35,34 @@ export interface EventStore {
   migrateUp(): Promise<void>;
   migrateDown(): Promise<void>;
 
-  insertHistoricalLogs(options: {
+  getFactoryIntervals(options: {
     chainId: number;
-    logs: RpcLog[];
-  }): Promise<void>;
+    factoryAddress: Hex;
+    factoryEventSelector: Hex;
+  }): Promise<{
+    factoryContractIntervals: [number, number][];
+    childContractIntervals: [number, number][];
+  }>;
 
-  insertHistoricalBlock(options: {
+  insertHistoricalLogFilterResult(options: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
-    logFilterRange: {
-      logFilterKey: string;
-      blockNumberToCacheFrom: number;
+    logs: RpcLog[];
+    logFilter: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
     };
   }): Promise<void>;
+
+  getLogFilterIntervals(options: {
+    chainId: number;
+    address?: Hex | Hex[];
+    topics?: (Hex | Hex[] | null)[];
+  }): Promise<[number, number][]>;
 
   insertRealtimeBlock(options: {
     chainId: number;
@@ -61,42 +75,6 @@ export interface EventStore {
     chainId: number;
     fromBlockNumber: number;
   }): Promise<void>;
-
-  insertHistoricalLogFilterResult(options: {
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    logs: RpcLog[];
-    logFilter: {
-      chainId: number;
-      address?: Hex | Hex[];
-      topics?: (Hex | Hex[] | null)[];
-      startBlock: bigint;
-      endBlock: bigint;
-      endBlockTimestamp: bigint;
-    };
-  }): Promise<void>;
-
-  getLogFilterRanges(options: {
-    chainId: number;
-    address?: Hex | Hex[];
-    topics?: (Hex | Hex[] | null)[];
-  }): Promise<[number, number][]>;
-
-  insertLogFilterCachedRanges(options: {
-    logFilterKeys: string[];
-    startBlock: number;
-    endBlock: number;
-    endBlockTimestamp: number;
-  }): Promise<void>;
-
-  mergeLogFilterCachedRanges(options: {
-    logFilterKey: string;
-    logFilterStartBlockNumber: number;
-  }): Promise<{ startingRangeEndTimestamp: number }>;
-
-  getLogFilterCachedRanges(options: {
-    logFilterKey: string;
-  }): Promise<LogFilterCachedRange[]>;
 
   insertContractReadResult(options: {
     address: string;

@@ -88,31 +88,31 @@ export function intervalIntersectionMany(lists: [number, number][][]) {
 }
 
 /**
- * Return the difference between two lists of numeric intervals (list1 - list2).
+ * Return the difference between two lists of numeric intervals (initial - remove).
  *
- * @param list1 First list of numeric intervals.
- * @param list2 Second list of numeric intervals.
+ * @param initial Starting/base list of numeric intervals.
+ * @param remove List of numeric intervals to remove.
  * @returns Difference of the intervals, represented as a list of intervals.
  */
 export function intervalDifference(
-  list1: [number, number][],
-  list2: [number, number][]
+  initial: [number, number][],
+  remove: [number, number][]
 ) {
   const result: [number, number][] = [];
 
   let i = 0;
   let j = 0;
 
-  while (i < list1.length && j < list2.length) {
-    const interval1 = list1[i];
-    const interval2 = list2[j];
+  while (i < initial.length && j < remove.length) {
+    const interval1 = initial[i];
+    const interval2 = remove[j];
 
     if (interval1[1] < interval2[0]) {
       // No overlap, add interval1 to the result
       result.push(interval1);
       i++;
     } else if (interval2[1] < interval1[0]) {
-      // No overlap, move to the next interval in list2
+      // No overlap, move to the next interval in remove
       j++;
     } else {
       // There is an overlap
@@ -125,17 +125,93 @@ export function intervalDifference(
         interval1[0] = interval2[1] + 1;
         j++;
       } else {
-        // No more overlap, move to the next interval in list1
+        // No more overlap, move to the next interval in initial
         i++;
       }
     }
   }
 
-  // Add any remaining intervals from list1
-  while (i < list1.length) {
-    result.push(list1[i]);
+  // Add any remaining intervals from initial
+  while (i < initial.length) {
+    result.push(initial[i]);
     i++;
   }
 
   return result;
+}
+
+export function getChunks({
+  intervals,
+  maxChunkSize,
+}: {
+  intervals: [number, number][];
+  maxChunkSize: number;
+}) {
+  const _chunks: [number, number][] = [];
+
+  for (const interval of intervals) {
+    const [startBlock, endBlock] = interval;
+
+    let fromBlock = startBlock;
+    let toBlock = Math.min(fromBlock + maxChunkSize - 1, endBlock);
+
+    while (fromBlock <= endBlock) {
+      _chunks.push([fromBlock, toBlock]);
+
+      fromBlock = toBlock + 1;
+      toBlock = Math.min(fromBlock + maxChunkSize - 1, endBlock);
+    }
+  }
+
+  return _chunks;
+}
+
+export class IntervalManager {
+  target: [number, number];
+  completed: [number, number][];
+  maxChunkSize: number;
+
+  constructor({
+    target,
+    completed,
+    maxChunkSize,
+  }: {
+    target: [number, number];
+    completed: [number, number][];
+    maxChunkSize: number;
+  }) {
+    this.target = target;
+    this.completed = completed;
+    this.maxChunkSize = maxChunkSize;
+  }
+
+  addCompletedInterval(interval: [number, number]) {
+    const prevCheckpoint = this.checkpoint;
+    this.completed = intervalUnion([...this.completed, interval]);
+    const newCheckpoint = this.checkpoint;
+    const isUpdated = newCheckpoint > prevCheckpoint;
+    return { isUpdated, prevCheckpoint, newCheckpoint };
+  }
+
+  get required() {
+    return intervalDifference([this.target], this.completed);
+  }
+
+  get chunks() {
+    return getChunks({
+      intervals: this.required,
+      maxChunkSize: this.maxChunkSize,
+    });
+  }
+
+  get checkpoint() {
+    const initialInterval = this.completed
+      .sort((a, b) => a[0] - b[0])
+      .find((i) => i[0] <= this.target[0] && i[1] <= this.target[0]);
+    if (initialInterval) {
+      return initialInterval[1];
+    } else {
+      return 0;
+    }
+  }
 }

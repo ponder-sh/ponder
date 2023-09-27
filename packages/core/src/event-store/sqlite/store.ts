@@ -17,7 +17,7 @@ import type { NonNull } from "@/types/utils";
 import { bigIntMax, bigIntMin } from "@/utils/bigint";
 import { blobToBigInt } from "@/utils/decode";
 import { intToBlob } from "@/utils/encode";
-import { intervalIntersectionMany, intervalUnion } from "@/utils/interval";
+import { intervalIntersectionMany } from "@/utils/interval";
 import { buildLogFilterFragments } from "@/utils/logFilter";
 import { range } from "@/utils/range";
 
@@ -83,23 +83,17 @@ export class SqliteEventStore implements EventStore {
   };
 
   insertHistoricalLogFilterResult = async ({
+    chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
     logs: rpcLogs,
-    logFilter: {
-      chainId,
-      address,
-      topics,
-      startBlock,
-      endBlock,
-      endBlockTimestamp,
-    },
+    logFilter: { address, topics, startBlock, endBlock, endBlockTimestamp },
   }: {
+    chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logs: RpcLog[];
     logFilter: {
-      chainId: number;
       address?: Hex | Hex[];
       topics?: (Hex | Hex[] | null)[];
       startBlock: bigint;
@@ -200,23 +194,23 @@ export class SqliteEventStore implements EventStore {
 
       const logFilterId = logFilterRow.id;
 
-      const overlappingRanges = await tx
-        .selectFrom("logFilterRanges")
+      const overlappingIntervals = await tx
+        .selectFrom("logFilterIntervals")
         .selectAll()
         .where("logFilterId", "=", logFilterId)
         .where(({ and, or, cmpr }) =>
           or([
-            // Existing range endBlock falls within new range.
+            // Existing interval endBlock falls within new interval.
             and([
               cmpr("endBlock", ">=", startBlock - 1n),
               cmpr("endBlock", "<=", endBlock - 1n),
             ]),
-            // Existing range startBlock falls within new range.
+            // Existing interval startBlock falls within new interval.
             and([
               cmpr("startBlock", ">=", startBlock - 1n),
               cmpr("startBlock", "<=", endBlock + 1n),
             ]),
-            // New range is fully within existing range.
+            // New interval is fully within existing interval.
             and([
               cmpr("startBlock", "<=", startBlock - 1n),
               cmpr("endBlock", ">=", endBlock + 1n),
@@ -225,29 +219,31 @@ export class SqliteEventStore implements EventStore {
         )
         .execute();
 
-      await tx
-        .deleteFrom("logFilterRanges")
-        .where(
-          "id",
-          "in",
-          overlappingRanges.map((r) => r.id)
-        )
-        .execute();
+      if (overlappingIntervals.length > 0) {
+        await tx
+          .deleteFrom("logFilterIntervals")
+          .where(
+            "id",
+            "in",
+            overlappingIntervals.map((r) => r.id)
+          )
+          .execute();
+      }
 
       await tx
-        .insertInto("logFilterRanges")
+        .insertInto("logFilterIntervals")
         .values({
           logFilterId,
           startBlock: bigIntMin([
-            ...overlappingRanges.map((r) => r.startBlock),
+            ...overlappingIntervals.map((r) => r.startBlock),
             startBlock,
           ]),
           endBlock: bigIntMax([
-            ...overlappingRanges.map((r) => r.endBlock),
+            ...overlappingIntervals.map((r) => r.endBlock),
             endBlock,
           ]),
           endBlockTimestamp: bigIntMax([
-            ...overlappingRanges.map((r) => r.endBlockTimestamp),
+            ...overlappingIntervals.map((r) => r.endBlockTimestamp),
             endBlockTimestamp,
           ]),
         })
@@ -255,7 +251,7 @@ export class SqliteEventStore implements EventStore {
     }
   };
 
-  getLogFilterRanges = async ({
+  getLogFilterIntervals = async ({
     chainId,
     address,
     topics,
@@ -284,7 +280,7 @@ export class SqliteEventStore implements EventStore {
             )
           )} )`
       )
-      .selectFrom("logFilterRanges")
+      .selectFrom("logFilterIntervals")
       .leftJoin("logFilters", "logFilterId", "logFilters.id")
       .innerJoin("logFilterFragments", (join) => {
         let baseJoin = join.on(({ or, cmpr }) =>
@@ -308,77 +304,25 @@ export class SqliteEventStore implements EventStore {
       .select(["fragmentIndex", "startBlock", "endBlock", "endBlockTimestamp"])
       .where("chainId", "=", chainId);
 
-    const ranges = await baseQuery.execute();
+    const intervals = await baseQuery.execute();
 
-    const rangesByFragment = ranges.reduce((acc, cur) => {
+    const intervalsByFragment = intervals.reduce((acc, cur) => {
       const { fragmentIndex, ...rest } = cur;
       acc[fragmentIndex] ||= [];
       acc[fragmentIndex].push(rest);
       return acc;
     }, {} as Record<number, { startBlock: bigint; endBlock: bigint; endBlockTimestamp: bigint }[]>);
 
-    const fragmentRanges = logFilterFragments.map((f) => {
-      return (rangesByFragment[f.idx] ?? []).map(
+    const fragmentIntervals = logFilterFragments.map((f) => {
+      return (intervalsByFragment[f.idx] ?? []).map(
         (r) =>
           [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
       );
     });
 
-    const totalRanges = intervalIntersectionMany(fragmentRanges);
+    const totalIntervals = intervalIntersectionMany(fragmentIntervals);
 
-    return totalRanges;
-  };
-
-  insertHistoricalBlock = async ({
-    chainId,
-    block: rpcBlock,
-    transactions: rpcTransactions,
-    logFilterRange: { logFilterKey, blockNumberToCacheFrom },
-  }: {
-    chainId: number;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    logFilterRange: { logFilterKey: string; blockNumberToCacheFrom: number };
-  }) => {
-    const block: InsertableBlock = {
-      ...rpcToSqliteBlock(rpcBlock),
-      chainId,
-    };
-
-    const transactions: InsertableTransaction[] = rpcTransactions.map(
-      (transaction) => ({
-        ...rpcToSqliteTransaction(transaction),
-        chainId,
-      })
-    );
-
-    const logFilterCachedRange = {
-      filterKey: logFilterKey,
-      startBlock: intToBlob(blockNumberToCacheFrom),
-      endBlock: block.number,
-      endBlockTimestamp: block.timestamp,
-    };
-
-    await this.db.transaction().execute(async (tx) => {
-      await Promise.all([
-        tx
-          .insertInto("blocks")
-          .values(block)
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute(),
-        ...transactions.map((transaction) =>
-          tx
-            .insertInto("transactions")
-            .values(transaction)
-            .onConflict((oc) => oc.column("hash").doNothing())
-            .execute()
-        ),
-        tx
-          .insertInto("logFilterCachedRanges")
-          .values(logFilterCachedRange)
-          .execute(),
-      ]);
-    });
+    return totalIntervals;
   };
 
   insertRealtimeBlock = async ({
@@ -463,120 +407,6 @@ export class SqliteEventStore implements EventStore {
         .where("chainId", "=", chainId)
         .execute();
     });
-  };
-
-  insertLogFilterCachedRanges = async ({
-    logFilterKeys,
-    startBlock,
-    endBlock,
-    endBlockTimestamp,
-  }: {
-    logFilterKeys: string[];
-    startBlock: number;
-    endBlock: number;
-    endBlockTimestamp: number;
-  }) => {
-    await this.db.transaction().execute(async (tx) => {
-      await Promise.all(
-        logFilterKeys.map((logFilterKey) =>
-          tx
-            .insertInto("logFilterCachedRanges")
-            .values({
-              filterKey: logFilterKey,
-              startBlock: intToBlob(startBlock),
-              endBlock: intToBlob(endBlock),
-              endBlockTimestamp: intToBlob(endBlockTimestamp),
-            })
-            .execute()
-        )
-      );
-    });
-  };
-
-  mergeLogFilterCachedRanges = async ({
-    logFilterKey,
-    logFilterStartBlockNumber,
-  }: {
-    logFilterKey: string;
-    logFilterStartBlockNumber: number;
-  }) => {
-    const startingRangeEndTimestamp = await this.db
-      .transaction()
-      .execute(async (tx) => {
-        const existingRanges = await tx
-          .deleteFrom("logFilterCachedRanges")
-          .where("filterKey", "=", logFilterKey)
-          .returningAll()
-          .execute();
-
-        const mergedIntervals = intervalUnion(
-          existingRanges.map((r) => [
-            Number(blobToBigInt(r.startBlock)),
-            Number(blobToBigInt(r.endBlock)),
-          ])
-        );
-
-        const mergedRanges = mergedIntervals.map((interval) => {
-          const [startBlock, endBlock] = interval;
-          // For each new merged range, its endBlock will be found EITHER in the newly
-          // added range OR among the endBlocks of the removed ranges.
-          // Find it so we can propogate the endBlockTimestamp correctly.
-          const endBlockTimestamp = existingRanges.find(
-            (r) => Number(blobToBigInt(r.endBlock)) === endBlock
-          )!.endBlockTimestamp;
-
-          return {
-            filterKey: logFilterKey,
-            startBlock: intToBlob(startBlock),
-            endBlock: intToBlob(endBlock),
-            endBlockTimestamp: endBlockTimestamp,
-          };
-        });
-
-        await Promise.all(
-          mergedRanges.map((range) =>
-            tx.insertInto("logFilterCachedRanges").values(range).execute()
-          )
-        );
-
-        // After we've inserted the new ranges, find the range that contains the log filter start block number.
-        // We need this to determine the new latest available event timestamp for the log filter.
-        const startingRange = mergedRanges.find(
-          (range) =>
-            Number(blobToBigInt(range.startBlock)) <=
-              logFilterStartBlockNumber &&
-            Number(blobToBigInt(range.endBlock)) >= logFilterStartBlockNumber
-        );
-
-        if (!startingRange) {
-          // If there is no range containing the log filter start block number, return 0. This could happen if
-          // many block tasks run concurrently and the one containing the log filter start block number is late.
-          return 0;
-        } else {
-          return Number(blobToBigInt(startingRange.endBlockTimestamp));
-        }
-      });
-
-    return { startingRangeEndTimestamp };
-  };
-
-  getLogFilterCachedRanges = async ({
-    logFilterKey,
-  }: {
-    logFilterKey: string;
-  }) => {
-    const results = await this.db
-      .selectFrom("logFilterCachedRanges")
-      .selectAll()
-      .where("filterKey", "=", logFilterKey)
-      .execute();
-
-    return results.map((range) => ({
-      filterKey: range.filterKey,
-      startBlock: Number(blobToBigInt(range.startBlock)),
-      endBlock: Number(blobToBigInt(range.endBlock)),
-      endBlockTimestamp: Number(blobToBigInt(range.endBlockTimestamp)),
-    }));
   };
 
   insertContractReadResult = async ({

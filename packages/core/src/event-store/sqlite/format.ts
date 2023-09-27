@@ -181,7 +181,7 @@ type LogFiltersTable = {
   topic3: Hex | null;
 };
 
-type LogFilterRangesTable = {
+type LogFilterIntervalsTable = {
   id: Generated<number>;
   logFilterId: number;
   startBlock: bigint;
@@ -197,5 +197,5 @@ export type EventStoreTables = {
   logFilterCachedRanges: LogFilterCachedRangesTable;
 
   logFilters: LogFiltersTable;
-  logFilterRanges: LogFilterRangesTable;
+  logFilterIntervals: LogFilterIntervalsTable;
 };
