@@ -148,7 +148,7 @@ export class ServerService {
       graphiql: true,
     });
 
-    this.app?.use("/", (req, res) => {
+    this.app?.use("/graphql", (req, res) => {
       // While waiting for historical event processing to complete, we want to respond back
       // with an error to prevent the requester from accepting incomplete data.
       if (!this.isHistoricalEventProcessingComplete) {
@@ -168,6 +168,10 @@ export class ServerService {
 
       return graphqlMiddleware(req, res);
     });
+
+    // NOTE: Deprecating use of root endpoint for GraphQL queries in favor of /graphql.
+    // This will be removed in a future release.
+    this.app?.use("/", graphqlMiddleware);
   }
 
   async kill() {

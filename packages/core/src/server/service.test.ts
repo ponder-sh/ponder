@@ -79,7 +79,7 @@ const setup = async ({
 
   const gql = async (query: string) =>
     request(service.app)
-      .post("/")
+      .post("/graphql")
       .send({ query: `query { ${query} }` });
 
   const createTestEntity = async ({ id }: { id: number }) => {
