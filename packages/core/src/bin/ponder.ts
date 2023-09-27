@@ -56,7 +56,11 @@ cli
     const config = await buildConfig({ configFile });
     const options = buildOptions({ cliOptions, configOptions: config.options });
 
-    const startOptions = { ...options, uiEnabled: false };
+    const startOptions = {
+      ...options,
+      uiEnabled: false,
+      shouldWaitForHistoricalSync: true,
+    };
 
     const ponder = new Ponder({ config, options: startOptions });
     registerKilledProcessListener(() => ponder.kill());

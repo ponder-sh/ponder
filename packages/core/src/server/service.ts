@@ -151,7 +151,10 @@ export class ServerService {
     this.app?.use("/graphql", (req, res) => {
       // While waiting for historical event processing to complete, we want to respond back
       // with an error to prevent the requester from accepting incomplete data.
-      if (!this.isHistoricalEventProcessingComplete) {
+      if (
+        this.common.options.shouldWaitForHistoricalSync &&
+        !this.isHistoricalEventProcessingComplete
+      ) {
         // Respond back with a similar runtime query error as the GraphQL package.
         // https://github.com/graphql/express-graphql/blob/3fab4b1e016cd27655f3b013f65a6b1344520d01/src/index.ts#L397-L400
         const errors = [
