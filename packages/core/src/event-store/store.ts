@@ -35,14 +35,7 @@ export interface EventStore {
   migrateUp(): Promise<void>;
   migrateDown(): Promise<void>;
 
-  getFactoryIntervals(options: {
-    chainId: number;
-    factoryAddress: Hex;
-    factoryEventSelector: Hex;
-  }): Promise<{
-    factoryContractIntervals: [number, number][];
-    childContractIntervals: [number, number][];
-  }>;
+  /** LOG FILTER METHODS */
 
   insertHistoricalLogFilterResult(options: {
     chainId: number;
@@ -52,6 +45,8 @@ export interface EventStore {
     logFilter: {
       address?: Hex | Hex[];
       topics?: (Hex | Hex[] | null)[];
+    };
+    interval: {
       startBlock: bigint;
       endBlock: bigint;
       endBlockTimestamp: bigint;
@@ -60,21 +55,97 @@ export interface EventStore {
 
   getLogFilterIntervals(options: {
     chainId: number;
-    address?: Hex | Hex[];
-    topics?: (Hex | Hex[] | null)[];
+    logFilter: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+    };
   }): Promise<[number, number][]>;
 
-  insertRealtimeBlock(options: {
+  /** FACTORY & CHILD CONTRACT METHODS */
+
+  /**
+   * Insert a list of child contract addresses and creation block numbers
+   * for the specified factory contract.
+   */
+  insertFactoryContractInterval(options: {
+    chainId: number;
+    childContracts: {
+      address: Hex;
+      creationBlockNumber: number;
+    }[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+    };
+  }): Promise<void>;
+
+  /**
+   * Get all block intervals where child contract addresses and creation
+   * block numbers of the specified factory contract have already been inserted.
+   */
+  getFactoryContractIntervals(options: {
+    chainId: number;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }): Promise<[number, number][]>;
+
+  /**
+   * Get all child contract addresses that have been created by
+   * the specified factory contract up to the specified block number.
+   *
+   * Returns an async generator with a default page size of 10_000.
+   */
+  getChildContractAddresses(options: {
+    chainId: number;
+    upToBlockNumber: number;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    pageSize?: number;
+  }): AsyncGenerator<Hex[]>;
+
+  /**
+   * Insert a list of logs (and associated blocks & transactions) produced by
+   * all child contracts of the specified factory contract within the specified
+   * block range.
+   */
+  insertChildContractInterval(options: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logs: RpcLog[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
   }): Promise<void>;
 
-  deleteRealtimeData(options: {
+  /**
+   * Get all block intervals where logs (and associated blocks & transactions)
+   * produced by all child contracts of the specified factory contract have already
+   * been inserted.
+   */
+  getChildContractIntervals(options: {
     chainId: number;
-    fromBlockNumber: number;
-  }): Promise<void>;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }): Promise<[number, number][]>;
+
+  /** CONTRACT READ METHODS */
 
   insertContractReadResult(options: {
     address: string;
@@ -90,6 +161,22 @@ export interface EventStore {
     chainId: number;
     data: Hex;
   }): Promise<ContractReadResult | null>;
+
+  /** BLAH */
+
+  insertRealtimeBlock(options: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logs: RpcLog[];
+  }): Promise<void>;
+
+  deleteRealtimeData(options: {
+    chainId: number;
+    fromBlockNumber: number;
+  }): Promise<void>;
+
+  /** EVENTS METHOD */
 
   getLogEvents(arg: {
     fromTimestamp: number;

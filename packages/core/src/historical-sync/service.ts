@@ -153,15 +153,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           return;
         }
 
-        const cachedIntervals = await this.eventStore.getLogFilterIntervals({
-          chainId: logFilter.chainId,
-          address: logFilter.filter.address,
-          topics: logFilter.filter.topics,
-        });
-
         const logFilterInterval = new IntervalManager({
           target: [startBlock, endBlock],
-          completed: cachedIntervals,
+          completed: await this.eventStore.getLogFilterIntervals({
+            chainId: logFilter.chainId,
+            logFilter: {
+              address: logFilter.filter.address,
+              topics: logFilter.filter.topics,
+            },
+          }),
           maxChunkSize:
             logFilter.maxBlockRange ?? this.network.defaultMaxBlockRange,
         });
@@ -203,16 +203,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           return;
         }
 
-        const { factoryContractIntervals, childContractIntervals } =
-          await this.eventStore.getFactoryIntervals({
-            chainId: factoryContract.chainId,
-            factoryAddress: factoryContract.address,
-            factoryEventSelector: factoryContract.factoryEventSelector,
-          });
-
         const factoryInterval = new IntervalManager({
           target: [startBlock, endBlock],
-          completed: factoryContractIntervals,
+          completed: await this.eventStore.getFactoryContractIntervals({
+            chainId: factoryContract.chainId,
+            factoryContract: {
+              address: factoryContract.address,
+              eventSelector: factoryContract.factoryEventSelector,
+            },
+          }),
           maxChunkSize:
             factoryContract.maxBlockRange ?? this.network.defaultMaxBlockRange,
         });
@@ -220,7 +219,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
         const childInterval = new IntervalManager({
           target: [startBlock, endBlock],
-          completed: childContractIntervals,
+          completed: await this.eventStore.getChildContractIntervals({
+            chainId: factoryContract.chainId,
+            factoryContract: {
+              address: factoryContract.address,
+              eventSelector: factoryContract.factoryEventSelector,
+            },
+          }),
           maxChunkSize:
             factoryContract.maxBlockRange ?? this.network.defaultMaxBlockRange,
         });
@@ -464,31 +469,31 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
             break;
           }
-          case "BLOCK_SYNC": {
-            this.common.metrics.ponder_historical_completed_tasks.inc({
-              network: this.network.name,
-              kind: "block",
-              status: "failure",
-            });
+          // case "BLOCK_SYNC": {
+          //   this.common.metrics.ponder_historical_completed_tasks.inc({
+          //     network: this.network.name,
+          //     kind: "block",
+          //     status: "failure",
+          //   });
 
-            this.common.logger.error({
-              service: "historical",
-              msg: `Block sync task failed (network=${this.network.name}, logFilter=${task.logFilter.name})`,
-              error,
-              network: this.network.name,
-              logFilter: task.logFilter.name,
-              blockNumberToCacheFrom: task.blockNumberToCacheFrom,
-              blockNumber: task.blockNumber,
-              requiredTransactionCount: task.requiredTxHashes.size,
-            });
+          //   this.common.logger.error({
+          //     service: "historical",
+          //     msg: `Block sync task failed (network=${this.network.name}, logFilter=${task.logFilter.name})`,
+          //     error,
+          //     network: this.network.name,
+          //     logFilter: task.logFilter.name,
+          //     blockNumberToCacheFrom: task.blockNumberToCacheFrom,
+          //     blockNumber: task.blockNumber,
+          //     requiredTransactionCount: task.requiredTxHashes.size,
+          //   });
 
-            // Default to a retry (uses the retry options passed to the queue).
-            const priority =
-              Number.MAX_SAFE_INTEGER - task.blockNumberToCacheFrom;
-            queue.addTask(task, { priority, retry: true });
+          //   // Default to a retry (uses the retry options passed to the queue).
+          //   const priority =
+          //     Number.MAX_SAFE_INTEGER - task.blockNumberToCacheFrom;
+          //   queue.addTask(task, { priority, retry: true });
 
-            break;
-          }
+          //   break;
+          // }
         }
       },
     });
@@ -562,6 +567,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           logFilter: {
             address: logFilter.filter.address,
             topics: logFilter.filter.topics,
+          },
+          interval: {
             startBlock: BigInt(startBlock),
             endBlock: BigInt(endBlock),
             endBlockTimestamp: hexToBigInt(block.timestamp!),
@@ -611,22 +618,28 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     );
 
     const newChildContracts = logs.map((log) => ({
-      blockNumber: hexToNumber(log.blockNumber!),
       address: factoryContract.getAddressFromFactoryEventLog(log),
+      creationBlockNumber: hexToNumber(log.blockNumber!),
     }));
 
-    await this.eventStore.insertChildContracts({
+    await this.eventStore.insertFactoryContractInterval({
       chainId: factoryContract.chainId,
-      factoryAddress: factoryContract.address,
-      factoryEventSelector: factoryContract.factoryEventSelector,
       childContracts: newChildContracts,
-      fromBlock,
-      toBlock,
+      factoryContract: {
+        address: factoryContract.address,
+        eventSelector: factoryContract.factoryEventSelector,
+      },
+      interval: {
+        startBlock: BigInt(fromBlock),
+        endBlock: BigInt(toBlock),
+      },
     });
 
-    const { isUpdated, prevCheckpoint, newCheckpoint } = this.factoryIntervals[
-      factoryContract.name
-    ].addCompletedInterval([fromBlock, toBlock]);
+    const { isUpdated, prevCheckpoint, newCheckpoint } =
+      this.factoryContractIntervals[factoryContract.name].addCompletedInterval([
+        fromBlock,
+        toBlock,
+      ]);
 
     if (isUpdated) {
       for (const [fromBlock, toBlock] of getChunks({
@@ -647,11 +660,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }: {
     task: ChildContractTask;
   }) => {
-    const iterator = this.eventStore.getFactoryChildContracts({
+    const iterator = this.eventStore.getChildContractAddresses({
       chainId: task.factoryContract.chainId,
-      factoryAddress: task.factoryContract.address,
-      factoryEventSelector: task.factoryContract.factoryEventSelector,
-      blockNumber: task.toBlock,
+      upToBlockNumber: task.toBlock,
+      factoryContract: {
+        address: task.factoryContract.address,
+        eventSelector: task.factoryContract.factoryEventSelector,
+      },
     });
 
     for await (const childContractAddressBatch of iterator) {
@@ -712,14 +727,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           const logs = logsByBlockNumber[endBlock] ?? [];
 
-          await this.eventStore.insertHistoricalChildContractLogs({
+          await this.eventStore.insertChildContractInterval({
             chainId: task.factoryContract.chainId,
             block,
             transactions,
             logs,
             factoryContract: {
-              factoryAddress: task.factoryContract.address,
-              factoryEventSelector: task.factoryContract.factoryEventSelector,
+              address: task.factoryContract.address,
+              eventSelector: task.factoryContract.factoryEventSelector,
+            },
+            interval: {
               startBlock: BigInt(startBlock),
               endBlock: BigInt(endBlock),
               endBlockTimestamp: hexToBigInt(block.timestamp!),
@@ -731,10 +748,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       /** END: Same logic as log worker. */
     }
 
-    this.eventSourceIntervals[task.factoryContract.name].addCompletedInterval([
-      task.fromBlock,
-      task.toBlock,
-    ]);
+    this.childContractIntervals[task.factoryContract.name].addCompletedInterval(
+      [task.fromBlock, task.toBlock]
+    );
 
     this.addBlockTasks();
   };
