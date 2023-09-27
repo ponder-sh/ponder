@@ -57,15 +57,25 @@ const graphqlSchema = buildGqlSchema(schema);
 const setup = async ({
   common,
   userStore,
+  options = {
+    hasCompletedHistoricalSync: true,
+  },
 }: {
   common: Common;
   userStore: UserStore;
+  options?: {
+    hasCompletedHistoricalSync?: boolean;
+  };
 }) => {
   await userStore.reload({ schema });
 
   const service = new ServerService({ common, userStore });
   await service.start();
   service.reload({ graphqlSchema });
+
+  if (options.hasCompletedHistoricalSync) {
+    service.setIsHistoricalEventProcessingComplete();
+  }
 
   const gql = async (query: string) =>
     request(service.app)
@@ -1470,6 +1480,51 @@ test("derived field respects skip argument", async (context) => {
   expect(testEntitys[0].derived).toHaveLength(1);
   expect(testEntitys[0].derived[0]).toMatchObject({
     id: "2",
+  });
+
+  await service.kill();
+  await userStore.teardown();
+});
+
+test("responds with appropriate status code pre and post historical sync", async (context) => {
+  const { common, userStore } = context;
+  const { service, gql, createTestEntity } = await setup({
+    common,
+    userStore,
+    options: {
+      hasCompletedHistoricalSync: false,
+    },
+  });
+
+  await createTestEntity({ id: 0 });
+
+  let response = await gql(`
+    testEntitys {
+      id
+    }
+  `);
+
+  expect(response.body.errors).toHaveLength(1);
+  expect(response.body.errors[0]).toMatchObject({
+    message: "Historical event processing is not complete",
+  });
+  expect(response.statusCode).toBe(503);
+
+  // Set the historical sync flag to true
+  service.setIsHistoricalEventProcessingComplete();
+
+  response = await gql(`
+    testEntitys {
+      id
+    }
+  `);
+
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const testEntitys = response.body.data.testEntitys;
+  expect(testEntitys).toHaveLength(1);
+  expect(testEntitys[0]).toMatchObject({
+    id: "0",
   });
 
   await service.kill();

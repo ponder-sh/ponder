@@ -1,7 +1,8 @@
 import cors from "cors";
 import express from "express";
 import { graphqlHTTP } from "express-graphql";
-import type { GraphQLSchema } from "graphql";
+import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
+import { formatError, GraphQLError } from "graphql";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
@@ -147,7 +148,26 @@ export class ServerService {
       graphiql: true,
     });
 
-    this.app?.use("/", graphqlMiddleware);
+    this.app?.use("/", (req, res) => {
+      // While waiting for historical event processing to complete, we want to respond back
+      // with an error to prevent the requester from accepting incomplete data.
+      if (!this.isHistoricalEventProcessingComplete) {
+        // Respond back with a similar runtime query error as the GraphQL package.
+        // https://github.com/graphql/express-graphql/blob/3fab4b1e016cd27655f3b013f65a6b1344520d01/src/index.ts#L397-L400
+        const errors = [
+          formatError(
+            new GraphQLError("Historical event processing is not complete")
+          ),
+        ];
+        const result: FormattedExecutionResult = {
+          data: undefined,
+          errors,
+        };
+        return res.status(503).json(result);
+      }
+
+      return graphqlMiddleware(req, res);
+    });
   }
 
   async kill() {
