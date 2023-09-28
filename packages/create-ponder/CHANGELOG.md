@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.0.89
+
+### Patch Changes
+
+- [#350](https://github.com/0xOlias/ponder/pull/350) [`fbf47ec`](https://github.com/0xOlias/ponder/commit/fbf47ecf940229b0647bd34385ee5b147d34d8bc) Thanks [@0xOlias](https://github.com/0xOlias)! - Removed support for Node 16.
+
 ## 0.0.88
 
 ### Patch Changes

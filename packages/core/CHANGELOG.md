@@ -1,5 +1,13 @@
 # @ponder/core
 
+## 0.0.89
+
+### Patch Changes
+
+- [#350](https://github.com/0xOlias/ponder/pull/350) [`fbf47ec`](https://github.com/0xOlias/ponder/commit/fbf47ecf940229b0647bd34385ee5b147d34d8bc) Thanks [@0xOlias](https://github.com/0xOlias)! - Removed support for Node 16.
+
+- [#360](https://github.com/0xOlias/ponder/pull/360) [`9b5e374`](https://github.com/0xOlias/ponder/commit/9b5e374b1eba49398081dcba35dc7c2d3bc1d831) Thanks [@bankisan](https://github.com/bankisan)! - Added GraphQL endpoint `/graphql`. The new endpoint will return an error until historical indexing has completed. This follows a similar behavior to the healthcheck (`/health`) endpoint. Serving GraphQL requests at the root `/` endpoint is being deprecated and will be removed in a future breaking release. We recommend switching API consumers to use the new endpoint at `/graphql`.
+
 ## 0.0.88
 
 ### Patch Changes
