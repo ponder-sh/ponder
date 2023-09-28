@@ -1,7 +1,8 @@
 import cors from "cors";
 import express from "express";
 import { graphqlHTTP } from "express-graphql";
-import type { GraphQLSchema } from "graphql";
+import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
+import { formatError, GraphQLError } from "graphql";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
@@ -18,7 +19,7 @@ export class ServerService {
 
   private terminate?: () => Promise<void>;
 
-  isHistoricalEventProcessingComplete = false;
+  isHistoricalIndexingComplete = false;
 
   constructor({ common, userStore }: { common: Common; userStore: UserStore }) {
     this.common = common;
@@ -115,12 +116,12 @@ export class ServerService {
       }
     });
 
-    // By default, the server will respond as unhealthy until historical events have
+    // By default, the server will respond as unhealthy until historical index has
     // been processed OR 4.5 minutes have passed since the app was created. This
     // enables zero-downtime deployments on PaaS platforms like Railway and Render.
     // Also see https://github.com/0xOlias/ponder/issues/24
     this.app.get("/health", (_, res) => {
-      if (this.isHistoricalEventProcessingComplete) {
+      if (this.isHistoricalIndexingComplete) {
         return res.status(200).send();
       }
 
@@ -147,6 +148,27 @@ export class ServerService {
       graphiql: true,
     });
 
+    this.app?.use("/graphql", (req, res) => {
+      // While waiting for historical indexing to complete, we want to respond back
+      // with an error to prevent the requester from accepting incomplete data.
+      if (!this.isHistoricalIndexingComplete) {
+        // Respond back with a similar runtime query error as the GraphQL package.
+        // https://github.com/graphql/express-graphql/blob/3fab4b1e016cd27655f3b013f65a6b1344520d01/src/index.ts#L397-L400
+        const errors = [
+          formatError(new GraphQLError("Historical indexing is not complete")),
+        ];
+        const result: FormattedExecutionResult = {
+          data: undefined,
+          errors,
+        };
+        return res.status(503).json(result);
+      }
+
+      return graphqlMiddleware(req, res);
+    });
+
+    // NOTE: Deprecating use of root endpoint for GraphQL queries in favor of /graphql.
+    // This will be removed in a future release.
     this.app?.use("/", graphqlMiddleware);
   }
 
@@ -158,8 +180,8 @@ export class ServerService {
     });
   }
 
-  setIsHistoricalEventProcessingComplete() {
-    this.isHistoricalEventProcessingComplete = true;
+  setIsHistoricalIndexingComplete() {
+    this.isHistoricalIndexingComplete = true;
 
     this.common.logger.info({
       service: "server",
