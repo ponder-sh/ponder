@@ -166,7 +166,7 @@ export function getChunks({
   return _chunks;
 }
 
-export class IntervalManager {
+export class ProgressTracker {
   target: [number, number];
   completed: [number, number][];
   maxChunkSize: number;
@@ -174,11 +174,11 @@ export class IntervalManager {
   constructor({
     target,
     completed,
-    maxChunkSize,
+    maxChunkSize = 50_000,
   }: {
     target: [number, number];
     completed: [number, number][];
-    maxChunkSize: number;
+    maxChunkSize?: number;
   }) {
     this.target = target;
     this.completed = completed;

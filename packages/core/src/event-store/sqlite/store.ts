@@ -59,35 +59,13 @@ export class SqliteEventStore implements EventStore {
     if (error) throw error;
   };
 
-  insertHistoricalLogs = async ({
-    chainId,
-    logs: rpcLogs,
-  }: {
-    chainId: number;
-    logs: RpcLog[];
-  }) => {
-    const logs: InsertableLog[] = rpcLogs.map((log) => ({
-      ...rpcToSqliteLog(log),
-      chainId,
-    }));
-
-    await Promise.all(
-      logs.map((log) =>
-        this.db
-          .insertInto("logs")
-          .values(log)
-          .onConflict((oc) => oc.column("id").doNothing())
-          .execute()
-      )
-    );
-  };
-
-  insertHistoricalLogFilterResult = async ({
+  insertLogFilterInterval = async ({
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
     logs: rpcLogs,
-    logFilter: { address, topics, startBlock, endBlock, endBlockTimestamp },
+    logFilter: { address, topics },
+    interval: { startBlock, endBlock, endBlockTimestamp },
   }: {
     chainId: number;
     block: RpcBlock;
@@ -96,6 +74,8 @@ export class SqliteEventStore implements EventStore {
     logFilter: {
       address?: Hex | Hex[];
       topics?: (Hex | Hex[] | null)[];
+    };
+    interval: {
       startBlock: bigint;
       endBlock: bigint;
       endBlockTimestamp: bigint;
@@ -253,12 +233,13 @@ export class SqliteEventStore implements EventStore {
 
   getLogFilterIntervals = async ({
     chainId,
-    address,
-    topics,
+    logFilter: { address, topics },
   }: {
     chainId: number;
-    address?: Hex | Hex[];
-    topics?: (Hex | Hex[] | null)[];
+    logFilter: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+    };
   }) => {
     const logFilterFragments = buildLogFilterFragments({
       address,
@@ -324,6 +305,303 @@ export class SqliteEventStore implements EventStore {
 
     return totalIntervals;
   };
+
+  insertFactoryContractInterval = async ({
+    chainId,
+    childContracts,
+    factoryContract: { address, eventSelector },
+    interval: { startBlock, endBlock },
+  }: {
+    chainId: number;
+    childContracts: {
+      address: Hex;
+      creationBlock: number;
+    }[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      const { id: factoryContractId } = await tx
+        .insertInto("factoryContracts")
+        .values({ chainId, address, eventSelector })
+        .onConflict((oc) => oc.constraint("factoryContractsUnique").doNothing())
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      for (const childContract of childContracts) {
+        await tx
+          .insertInto("childContracts")
+          .values({
+            factoryContractId,
+            address: childContract.address,
+            creationBlock: BigInt(childContract.creationBlock),
+          })
+          .execute();
+      }
+
+      const overlappingIntervals = await tx
+        .selectFrom("factoryContractIntervals")
+        .selectAll()
+        .where("factoryContractId", "=", factoryContractId)
+        .where(({ and, or, cmpr }) =>
+          or([
+            // Existing interval endBlock falls within new interval.
+            and([
+              cmpr("endBlock", ">=", startBlock - 1n),
+              cmpr("endBlock", "<=", endBlock - 1n),
+            ]),
+            // Existing interval startBlock falls within new interval.
+            and([
+              cmpr("startBlock", ">=", startBlock - 1n),
+              cmpr("startBlock", "<=", endBlock + 1n),
+            ]),
+            // New interval is fully within existing interval.
+            and([
+              cmpr("startBlock", "<=", startBlock - 1n),
+              cmpr("endBlock", ">=", endBlock + 1n),
+            ]),
+          ])
+        )
+        .execute();
+
+      if (overlappingIntervals.length > 0) {
+        await tx
+          .deleteFrom("factoryContractIntervals")
+          .where(
+            "id",
+            "in",
+            overlappingIntervals.map((r) => r.id)
+          )
+          .execute();
+      }
+
+      await tx
+        .insertInto("factoryContractIntervals")
+        .values({
+          factoryContractId,
+          startBlock: bigIntMin([
+            ...overlappingIntervals.map((r) => r.startBlock),
+            startBlock,
+          ]),
+          endBlock: bigIntMax([
+            ...overlappingIntervals.map((r) => r.endBlock),
+            endBlock,
+          ]),
+        })
+        .execute();
+    });
+  };
+
+  getFactoryContractIntervals = async ({
+    chainId,
+    factoryContract: { address, eventSelector },
+  }: {
+    chainId: number;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }) => {
+    const intervals = await this.db
+      .selectFrom("factoryContractIntervals")
+      .select(["startBlock", "endBlock"])
+      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
+      .where("chainId", "=", chainId)
+      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.eventSelector", "=", eventSelector)
+      .execute();
+
+    return intervals.map(
+      (i) => [Number(i.startBlock), Number(i.endBlock)] as [number, number]
+    );
+  };
+
+  async *getChildContractAddresses({
+    chainId,
+    upToBlockNumber,
+    factoryContract: { address, eventSelector },
+    pageSize = 10_000,
+  }: {
+    chainId: number;
+    upToBlockNumber: number;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    pageSize?: number;
+  }) {
+    const baseQuery = this.db
+      .selectFrom("childContracts")
+      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
+      .select(["childContracts.address", "childContracts.creationBlock"])
+      .where("chainId", "=", chainId)
+      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.eventSelector", "=", eventSelector)
+      .limit(pageSize)
+      .where("childContracts.creationBlock", "<=", BigInt(upToBlockNumber));
+
+    let cursor: bigint | undefined = undefined;
+
+    while (true) {
+      let query = baseQuery;
+
+      if (cursor) {
+        query = query.where("childContracts.creationBlock", ">", cursor);
+      }
+
+      const batch = await query.execute();
+
+      const lastRow = batch[batch.length - 1];
+      if (lastRow) {
+        cursor = lastRow.creationBlock;
+      }
+
+      yield batch.map((c) => c.address);
+
+      if (batch.length < pageSize) break;
+    }
+  }
+
+  insertChildContractInterval = async ({
+    chainId,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    logs: rpcLogs,
+    factoryContract: { address, eventSelector },
+    interval: { startBlock, endBlock, endBlockTimestamp },
+  }: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logs: RpcLog[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await tx
+        .insertInto("blocks")
+        .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
+
+      for (const rpcTransaction of rpcTransactions) {
+        await tx
+          .insertInto("transactions")
+          .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+      }
+
+      for (const rpcLog of rpcLogs) {
+        await tx
+          .insertInto("logs")
+          .values({ ...rpcToSqliteLog(rpcLog), chainId })
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      }
+
+      const { id: factoryContractId } = await tx
+        .insertInto("factoryContracts")
+        .values({ chainId, address, eventSelector })
+        .onConflict((oc) => oc.constraint("factoryContractsUnique").doNothing())
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      const overlappingIntervals = await tx
+        .selectFrom("childContractIntervals")
+        .selectAll()
+        .where("factoryContractId", "=", factoryContractId)
+        .where(({ and, or, cmpr }) =>
+          or([
+            // Existing interval endBlock falls within new interval.
+            and([
+              cmpr("endBlock", ">=", startBlock - 1n),
+              cmpr("endBlock", "<=", endBlock - 1n),
+            ]),
+            // Existing interval startBlock falls within new interval.
+            and([
+              cmpr("startBlock", ">=", startBlock - 1n),
+              cmpr("startBlock", "<=", endBlock + 1n),
+            ]),
+            // New interval is fully within existing interval.
+            and([
+              cmpr("startBlock", "<=", startBlock - 1n),
+              cmpr("endBlock", ">=", endBlock + 1n),
+            ]),
+          ])
+        )
+        .execute();
+
+      if (overlappingIntervals.length > 0) {
+        await tx
+          .deleteFrom("childContractIntervals")
+          .where(
+            "id",
+            "in",
+            overlappingIntervals.map((r) => r.id)
+          )
+          .execute();
+      }
+
+      await tx
+        .insertInto("childContractIntervals")
+        .values({
+          factoryContractId,
+          startBlock: bigIntMin([
+            ...overlappingIntervals.map((r) => r.startBlock),
+            startBlock,
+          ]),
+          endBlock: bigIntMax([
+            ...overlappingIntervals.map((r) => r.endBlock),
+            endBlock,
+          ]),
+          endBlockTimestamp: bigIntMax([
+            ...overlappingIntervals.map((r) => r.endBlockTimestamp),
+            endBlockTimestamp,
+          ]),
+        })
+        .execute();
+    });
+  };
+
+  getChildContractIntervals = async ({
+    chainId,
+    factoryContract: { address, eventSelector },
+  }: {
+    chainId: number;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }) => {
+    const intervals = await this.db
+      .selectFrom("childContractIntervals")
+      .select(["startBlock", "endBlock"])
+      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
+      .where("chainId", "=", chainId)
+      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.eventSelector", "=", eventSelector)
+      .execute();
+
+    return intervals.map(
+      (i) => [Number(i.startBlock), Number(i.endBlock)] as [number, number]
+    );
+  };
+
+  // OLD ---------------------------
 
   insertRealtimeBlock = async ({
     chainId,

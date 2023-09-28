@@ -6,17 +6,6 @@ import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
 
 /**
- * A record representing a range of blocks that have been added
- * to the event store for a given log filter.
- */
-export type LogFilterCachedRange = {
-  filterKey: string;
-  startBlock: number;
-  endBlock: number;
-  endBlockTimestamp: number;
-};
-
-/**
  * A record representing a call to a contract made at a specific block height.
  */
 export type ContractReadResult = {
@@ -37,7 +26,7 @@ export interface EventStore {
 
   /** LOG FILTER METHODS */
 
-  insertHistoricalLogFilterResult(options: {
+  insertLogFilterInterval(options: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
@@ -71,7 +60,7 @@ export interface EventStore {
     chainId: number;
     childContracts: {
       address: Hex;
-      creationBlockNumber: number;
+      creationBlock: number;
     }[];
     factoryContract: {
       address: Hex;
@@ -145,6 +134,20 @@ export interface EventStore {
     };
   }): Promise<[number, number][]>;
 
+  /** BLAH */
+
+  insertRealtimeBlock(options: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logs: RpcLog[];
+  }): Promise<void>;
+
+  deleteRealtimeData(options: {
+    chainId: number;
+    fromBlockNumber: number;
+  }): Promise<void>;
+
   /** CONTRACT READ METHODS */
 
   insertContractReadResult(options: {
@@ -161,20 +164,6 @@ export interface EventStore {
     chainId: number;
     data: Hex;
   }): Promise<ContractReadResult | null>;
-
-  /** BLAH */
-
-  insertRealtimeBlock(options: {
-    chainId: number;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    logs: RpcLog[];
-  }): Promise<void>;
-
-  deleteRealtimeData(options: {
-    chainId: number;
-    fromBlockNumber: number;
-  }): Promise<void>;
 
   /** EVENTS METHOD */
 

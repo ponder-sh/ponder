@@ -245,9 +245,12 @@ const migrations: Record<string, Migration> = {
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)", (col) => col.notNull())
-        .addColumn("factoryEventSelector", "varchar(66)", (col) =>
-          col.notNull()
-        )
+        .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
+        .addUniqueConstraint("factoryContractsUnique", [
+          "chainId",
+          "address",
+          "eventSelector",
+        ])
         .execute();
 
       await db.schema

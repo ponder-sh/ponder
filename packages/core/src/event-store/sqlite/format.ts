@@ -189,6 +189,35 @@ type LogFilterIntervalsTable = {
   endBlockTimestamp: bigint;
 };
 
+type FactoryContractsTable = {
+  id: Generated<number>;
+  chainId: number;
+  address: Hex;
+  eventSelector: Hex;
+};
+
+type FactoryContractIntervalsTable = {
+  id: Generated<number>;
+  factoryContractId: number;
+  startBlock: bigint;
+  endBlock: bigint;
+};
+
+type ChildContractsTable = {
+  id: Generated<number>;
+  factoryContractId: number;
+  address: Hex;
+  creationBlock: bigint;
+};
+
+type ChildContractIntervalsTable = {
+  id: Generated<number>;
+  factoryContractId: number;
+  startBlock: bigint;
+  endBlock: bigint;
+  endBlockTimestamp: bigint;
+};
+
 export type EventStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
@@ -198,4 +227,9 @@ export type EventStoreTables = {
 
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;
+
+  factoryContracts: FactoryContractsTable;
+  factoryContractIntervals: FactoryContractIntervalsTable;
+  childContracts: ChildContractsTable;
+  childContractIntervals: ChildContractIntervalsTable;
 };
