@@ -1488,8 +1488,6 @@ test("derived field respects skip argument", async (context) => {
 
 test("responds with appropriate status code pre and post historical sync", async (context) => {
   const { common, userStore } = context;
-  common.options.shouldWaitForHistoricalSync = true;
-
   const { service, gql, createTestEntity } = await setup({
     common,
     userStore,
@@ -1514,46 +1512,6 @@ test("responds with appropriate status code pre and post historical sync", async
 
   // Set the historical sync flag to true
   service.setIsHistoricalEventProcessingComplete();
-
-  response = await gql(`
-    testEntitys {
-      id
-    }
-  `);
-
-  expect(response.body.errors).toBe(undefined);
-  expect(response.statusCode).toBe(200);
-  const testEntitys = response.body.data.testEntitys;
-  expect(testEntitys).toHaveLength(1);
-  expect(testEntitys[0]).toMatchObject({
-    id: "0",
-  });
-
-  await service.kill();
-  await userStore.teardown();
-});
-
-test("responds with 200 and does not wait for historical sync", async (context) => {
-  const { common, userStore } = context;
-  // Explicitly set even though it is the default
-  common.options.shouldWaitForHistoricalSync = false;
-
-  const { service, gql, createTestEntity } = await setup({
-    common,
-    userStore,
-    options: {
-      // Has not completed historical sync.
-      hasCompletedHistoricalSync: false,
-    },
-  });
-
-  await createTestEntity({ id: 0 });
-
-  let response = await gql(`
-    testEntitys {
-      id
-    }
-  `);
 
   response = await gql(`
     testEntitys {

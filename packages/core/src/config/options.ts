@@ -22,7 +22,6 @@ export type Options = {
 
   logLevel: LevelWithSilent;
   uiEnabled: boolean;
-  shouldWaitForHistoricalSync: boolean;
 };
 
 export const buildOptions = ({
@@ -77,6 +76,5 @@ export const buildOptions = ({
     generatedDir: path.join(defaults.rootDir, defaults.generatedDir),
     ponderDir: path.join(defaults.rootDir, defaults.ponderDir),
     logDir: path.join(defaults.rootDir, defaults.logDir),
-    shouldWaitForHistoricalSync: false,
   };
 };
