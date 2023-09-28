@@ -60,7 +60,7 @@ export interface EventStore {
     chainId: number;
     childContracts: {
       address: Hex;
-      creationBlock: number;
+      creationBlock: bigint;
     }[];
     factoryContract: {
       address: Hex;
@@ -92,7 +92,7 @@ export interface EventStore {
    */
   getChildContractAddresses(options: {
     chainId: number;
-    upToBlockNumber: number;
+    upToBlockNumber: bigint;
     factoryContract: {
       address: Hex;
       eventSelector: Hex;

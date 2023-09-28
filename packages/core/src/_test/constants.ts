@@ -1,10 +1,7 @@
 import type { RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import { getEvents } from "@/config/abi";
-import type {
-  ContractReadResult,
-  LogFilterCachedRange,
-} from "@/event-store/store";
+import type { ContractReadResult } from "@/event-store/store";
 
 export const FORK_BLOCK_NUMBER = 16380000n;
 
@@ -244,6 +241,7 @@ const usdcContractAbi = [
 ] as const;
 
 export const usdcContractConfig = {
+  chainId: 1,
   address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
   abi: usdcContractAbi,
   events: getEvents({ abi: usdcContractAbi }),
@@ -372,6 +370,8 @@ export const blockTwo: RpcBlock = {
   ...blockOne,
   number: "0xec6fc7",
   hash: "0xf123644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+  parentHash:
+    "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
   timestamp: "0x63198f70",
   transactions: [],
 };
@@ -417,17 +417,20 @@ export const blockTwoLogs: RpcLog[] = [
   },
 ];
 
+export const blockThree: RpcBlock = {
+  ...blockTwo,
+  number: "0xec6fc8",
+  hash: "0xf9caf606b66105fa45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98b",
+  parentHash:
+    "0xf123644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
+  timestamp: "0x63198f7c",
+  transactions: [],
+};
+
 export const contractReadResultOne: ContractReadResult = {
   address: "0x93d4c048f83bd7e37d49ea4c83a07267ec4203da",
   blockNumber: BigInt(16000010),
   data: "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
   result: "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
   chainId: 1,
-};
-
-export const logFilterCachedRangeOne: LogFilterCachedRange = {
-  filterKey: '1-0x93d4c048f83bd7e37d49ea4c83a07267ec4203da-["0x1",null,"0x3"]',
-  startBlock: 16000010,
-  endBlock: 16000090,
-  endBlockTimestamp: 16000010,
 };

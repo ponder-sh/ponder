@@ -315,7 +315,7 @@ export class SqliteEventStore implements EventStore {
     chainId: number;
     childContracts: {
       address: Hex;
-      creationBlock: number;
+      creationBlock: bigint;
     }[];
     factoryContract: {
       address: Hex;
@@ -330,7 +330,9 @@ export class SqliteEventStore implements EventStore {
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
         .values({ chainId, address, eventSelector })
-        .onConflict((oc) => oc.constraint("factoryContractsUnique").doNothing())
+        // Note that we need to REPLACE here rather than IGNORE so that the
+        // RETURNING clause works as expected (we need the ID of this row).
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -340,7 +342,7 @@ export class SqliteEventStore implements EventStore {
           .values({
             factoryContractId,
             address: childContract.address,
-            creationBlock: BigInt(childContract.creationBlock),
+            creationBlock: childContract.creationBlock,
           })
           .execute();
       }
@@ -429,7 +431,7 @@ export class SqliteEventStore implements EventStore {
     pageSize = 10_000,
   }: {
     chainId: number;
-    upToBlockNumber: number;
+    upToBlockNumber: bigint;
     factoryContract: {
       address: Hex;
       eventSelector: Hex;
@@ -444,7 +446,7 @@ export class SqliteEventStore implements EventStore {
       .where("factoryContracts.address", "=", address)
       .where("factoryContracts.eventSelector", "=", eventSelector)
       .limit(pageSize)
-      .where("childContracts.creationBlock", "<=", BigInt(upToBlockNumber));
+      .where("childContracts.creationBlock", "<=", upToBlockNumber);
 
     let cursor: bigint | undefined = undefined;
 
@@ -516,7 +518,9 @@ export class SqliteEventStore implements EventStore {
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
         .values({ chainId, address, eventSelector })
-        .onConflict((oc) => oc.constraint("factoryContractsUnique").doNothing())
+        // Note that we need to REPLACE here rather than IGNORE so that the
+        // RETURNING clause works as expected (we need the ID of this row).
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
         .returningAll()
         .executeTakeFirstOrThrow();
 

@@ -216,6 +216,8 @@ const migrations: Record<string, Migration> = {
   },
   ["2023_09_19_0_new_sync_design"]: {
     async up(db: Kysely<any>) {
+      await db.schema.dropTable("logFilterCachedRanges").execute();
+
       await db.schema
         .createTable("logFilters")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
@@ -288,7 +290,7 @@ const migrations: Record<string, Migration> = {
     },
     async down(db: Kysely<any>) {
       await db.schema.dropTable("logFilters").cascade().execute();
-      await db.schema.dropTable("logFilterIntervals").execute();
+      await db.schema.dropTable("factoryContracts").cascade().execute();
     },
   },
 };
