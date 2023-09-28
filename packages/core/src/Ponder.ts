@@ -400,7 +400,7 @@ export class Ponder {
     );
 
     this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
-      if (this.serverService.isHistoricalEventProcessingComplete) return;
+      if (this.serverService.isHistoricalIndexingComplete) return;
 
       // If a batch of events are processed AND the historical sync is complete AND
       // the new toTimestamp is greater than the historical sync completion timestamp,
@@ -409,7 +409,7 @@ export class Ponder {
         this.eventAggregatorService.historicalSyncCompletedAt &&
         toTimestamp >= this.eventAggregatorService.historicalSyncCompletedAt
       ) {
-        this.serverService.setIsHistoricalEventProcessingComplete();
+        this.serverService.setIsHistoricalIndexingComplete();
       }
     });
   }

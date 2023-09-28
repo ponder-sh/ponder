@@ -58,13 +58,13 @@ const setup = async ({
   common,
   userStore,
   options = {
-    hasCompletedHistoricalSync: true,
+    hasCompletedHistoricalIndexing: true,
   },
 }: {
   common: Common;
   userStore: UserStore;
   options?: {
-    hasCompletedHistoricalSync?: boolean;
+    hasCompletedHistoricalIndexing?: boolean;
   };
 }) => {
   await userStore.reload({ schema });
@@ -73,8 +73,8 @@ const setup = async ({
   await service.start();
   service.reload({ graphqlSchema });
 
-  if (options.hasCompletedHistoricalSync) {
-    service.setIsHistoricalEventProcessingComplete();
+  if (options.hasCompletedHistoricalIndexing) {
+    service.setIsHistoricalIndexingComplete();
   }
 
   const gql = async (query: string) =>
@@ -1492,7 +1492,7 @@ test("responds with appropriate status code pre and post historical sync", async
     common,
     userStore,
     options: {
-      hasCompletedHistoricalSync: false,
+      hasCompletedHistoricalIndexing: false,
     },
   });
 
@@ -1506,12 +1506,12 @@ test("responds with appropriate status code pre and post historical sync", async
 
   expect(response.body.errors).toHaveLength(1);
   expect(response.body.errors[0]).toMatchObject({
-    message: "Historical event processing is not complete",
+    message: "Historical indexing is not complete",
   });
   expect(response.statusCode).toBe(503);
 
   // Set the historical sync flag to true
-  service.setIsHistoricalEventProcessingComplete();
+  service.setIsHistoricalIndexingComplete();
 
   response = await gql(`
     testEntitys {
