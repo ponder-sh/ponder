@@ -1,8 +1,11 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
-import type { Contract, Network, PartialConfig } from "src/index";
-import { http } from "viem";
+import type {
+  SerializableConfig,
+  SerializableContract,
+  SerializableNetwork,
+} from "src/index";
 import { parse } from "yaml";
 
 import { getGraphProtocolChainId } from "@/helpers/getGraphProtocolChainId";
@@ -22,8 +25,8 @@ export const fromSubgraphId = async ({
   rootDir: string;
   subgraphId: string;
 }) => {
-  const ponderNetworks: Network[] = [];
-  let ponderContracts: Contract[] = [];
+  const ponderNetworks: SerializableNetwork[] = [];
+  let ponderContracts: SerializableContract[] = [];
 
   // Fetch the manifest file.
   const manifestRaw = await fetchIpfsFile(subgraphId);
@@ -72,26 +75,23 @@ export const fromSubgraphId = async ({
       ponderNetworks.push({
         name: network,
         chainId: chainId,
-        transport: http(`process.env.PONDER_RPC_URL_${chainId}`),
+        transport: `http(process.env.PONDER_RPC_URL_${chainId})`,
       });
     }
 
     const abiRelativePath = `./abis/${source.source.abi}.json`;
 
-    return <Contract>{
+    return {
       name: source.name,
       network: network,
       address: source.source.address,
       abi: abiRelativePath,
       startBlock: source.source.startBlock,
-    };
+    } satisfies SerializableContract;
   });
 
-  // Build the partial ponder config.
-  const config: PartialConfig = {
+  return {
     networks: ponderNetworks,
     contracts: ponderContracts,
-  };
-
-  return config;
+  } satisfies SerializableConfig;
 };

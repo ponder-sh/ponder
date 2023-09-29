@@ -4,7 +4,6 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
 import prettier from "prettier";
-import { type Transport } from "viem";
 
 import { CreatePonderOptions, TemplateKind } from "@/common";
 import { getPackageManager } from "@/helpers/getPackageManager";
@@ -19,13 +18,13 @@ import { fromSubgraphRepo } from "@/templates/subgraphRepo";
 // @ts-ignore
 import rootPackageJson from "../package.json";
 
-export type Network = {
+export type SerializableNetwork = {
   name: string;
   chainId: number;
-  transport: Transport;
+  transport: string;
 };
 
-export type Contract = {
+export type SerializableContract = {
   name: string;
   network: string;
   abi: string;
@@ -33,12 +32,10 @@ export type Contract = {
   startBlock?: number;
 };
 
-export type PartialConfig = {
-  database?: {
-    kind: string;
-  };
-  networks: Network[];
-  contracts: Contract[];
+export type SerializableConfig = {
+  database?: { kind: string };
+  networks: SerializableNetwork[];
+  contracts: SerializableContract[];
 };
 
 export const run = async (
@@ -52,7 +49,7 @@ export const run = async (
   mkdirSync(path.join(rootDir, "abis"), { recursive: true });
   mkdirSync(path.join(rootDir, "src"), { recursive: true });
 
-  let config: PartialConfig;
+  let config: SerializableConfig;
 
   console.log(
     `\nCreating a new Ponder app in ${pico.bold(pico.green(rootDir))}.`
@@ -135,12 +132,15 @@ export const run = async (
   // Write the ponder.config.ts file.
   const finalConfig = `
     import type { Config } from "@ponder/core";
+    import { http } from "viem";
 
     export const config: Config = {
-      networks: ${JSON.stringify(config.networks).replaceAll(
-        /"process.env.PONDER_RPC_URL_(.*?)"/g,
-        "process.env.PONDER_RPC_URL_$1"
-      )},
+      networks: ${JSON.stringify(config.networks)
+        .replaceAll(
+          /"process.env.PONDER_RPC_URL_(.*?)"/g,
+          "process.env.PONDER_RPC_URL_$1"
+        )
+        .replaceAll(/"http\((.*?)\)"/g, "http($1)")},
       contracts: ${JSON.stringify(config.contracts)},
     };
   `;
@@ -170,10 +170,10 @@ export const run = async (
         "codegen": "ponder codegen"
       },
       "dependencies": {
-        "@ponder/core": "${ponderVersion}",
+        "@ponder/core": "^${ponderVersion}",
       },
       "devDependencies": {
-        ${options.eslint ? `"eslint-config-ponder": "${ponderVersion}",` : ""}
+        ${options.eslint ? `"eslint-config-ponder": "^${ponderVersion}",` : ""}
         ${options.eslint ? `"eslint": "^8.43.0",` : ""}
         "@types/node": "^18.11.18",
         "abitype": "^0.8.11",

@@ -1,9 +1,8 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
-import { http } from "viem";
 
-import type { PartialConfig } from "@/index";
+import type { SerializableConfig } from "@/index";
 
 export const fromBasic = ({ rootDir }: { rootDir: string }) => {
   const abiFileContents = `[]`;
@@ -38,12 +37,12 @@ export const fromBasic = ({ rootDir }: { rootDir: string }) => {
   );
 
   // Build the partial ponder config.
-  const config: PartialConfig = {
+  const config: SerializableConfig = {
     networks: [
       {
         name: "mainnet",
         chainId: 1,
-        transport: http(`process.env.PONDER_RPC_URL_1`),
+        transport: `http(process.env.PONDER_RPC_URL_1)`,
       },
     ],
     contracts: [

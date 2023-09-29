@@ -451,9 +451,6 @@ importers:
       cac:
         specifier: ^6.7.14
         version: 6.7.14
-      create-ponder:
-        specifier: 'link:'
-        version: 'link:'
       detect-package-manager:
         specifier: ^2.0.1
         version: 2.0.1
@@ -472,9 +469,6 @@ importers:
       rimraf:
         specifier: ^5.0.1
         version: 5.0.1
-      viem:
-        specifier: ^1.2.6
-        version: 1.2.6(typescript@5.1.3)
       yaml:
         specifier: ^2.1.1
         version: 2.1.1
@@ -5860,6 +5854,18 @@ packages:
         optional: true
     dependencies:
       ms: 2.1.3
+    dev: true
+
+  /debug@4.3.4:
+    resolution: {integrity: sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ==}
+    engines: {node: '>=6.0'}
+    peerDependencies:
+      supports-color: '*'
+    peerDependenciesMeta:
+      supports-color:
+        optional: true
+    dependencies:
+      ms: 2.1.2
     dev: true
 
   /debug@4.3.4(supports-color@8.1.1):
@@ -13668,7 +13674,7 @@ packages:
     hasBin: true
     dependencies:
       cac: 6.7.14
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       mlly: 1.1.1
       pathe: 1.1.0
       picocolors: 1.0.0
@@ -13784,7 +13790,7 @@ packages:
       acorn-walk: 8.2.0
       cac: 6.7.14
       chai: 4.3.7
-      debug: 4.3.4(supports-color@8.1.1)
+      debug: 4.3.4
       local-pkg: 0.4.3
       pathe: 1.1.0
       picocolors: 1.0.0

@@ -2,8 +2,7 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
-import type { PartialConfig } from "src/index";
-import { http } from "viem";
+import type { SerializableConfig } from "src/index";
 
 import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId";
 import { wait } from "@/helpers/wait";
@@ -140,12 +139,12 @@ export const fromEtherscan = async ({
   );
 
   // Build and return the partial ponder config.
-  const config: PartialConfig = {
+  const config: SerializableConfig = {
     networks: [
       {
         name: name,
         chainId: chainId,
-        transport: http(`process.env.PONDER_RPC_URL_${chainId}`),
+        transport: `http(process.env.PONDER_RPC_URL_${chainId})`,
       },
     ],
     contracts: [
