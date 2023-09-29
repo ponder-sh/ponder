@@ -166,19 +166,19 @@ export const run = async (
       "scripts": {
         "dev": "ponder dev",
         "start": "ponder start",
+        "codegen": "ponder codegen",
         ${options.eslint ? `"lint": "eslint .",` : ""}
-        "codegen": "ponder codegen"
       },
       "dependencies": {
         "@ponder/core": "^${ponderVersion}",
       },
       "devDependencies": {
-        ${options.eslint ? `"eslint-config-ponder": "^${ponderVersion}",` : ""}
-        ${options.eslint ? `"eslint": "^8.43.0",` : ""}
         "@types/node": "^18.11.18",
         "abitype": "^0.8.11",
+        ${options.eslint ? `"eslint": "^8.43.0",` : ""}
+        ${options.eslint ? `"eslint-config-ponder": "^${ponderVersion}",` : ""}
         "typescript": "^5.1.3",
-        "viem": "^1.2.6"
+        "viem": "^1.2.6",
       }
     }
   `;
