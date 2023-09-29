@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
 import type { Contract, Network, PartialConfig } from "src/index";
+import { http } from "viem";
 import { parse } from "yaml";
 
 import { getGraphProtocolChainId } from "@/helpers/getGraphProtocolChainId";
@@ -71,7 +72,7 @@ export const fromSubgraphId = async ({
       ponderNetworks.push({
         name: network,
         chainId: chainId,
-        rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
+        transport: http(`process.env.PONDER_RPC_URL_${chainId}`),
       });
     }
 

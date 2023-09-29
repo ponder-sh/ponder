@@ -3,6 +3,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
 import type { PartialConfig } from "src/index";
+import { http } from "viem";
 
 import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId";
 import { wait } from "@/helpers/wait";
@@ -144,7 +145,7 @@ export const fromEtherscan = async ({
       {
         name: name,
         chainId: chainId,
-        rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
+        transport: http(`process.env.PONDER_RPC_URL_${chainId}`),
       },
     ],
     contracts: [

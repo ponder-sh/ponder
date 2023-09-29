@@ -1,5 +1,5 @@
 import { createPublicClient, fallback, http, webSocket } from "viem";
-import { mainnet, optimism } from "viem/chains";
+import { mainnet } from "viem/chains";
 import { describe, expect, it } from "vitest";
 
 import { getDefaultMaxBlockRange, getTransportUrls } from "./networks";
@@ -22,6 +22,7 @@ describe("network tests", () => {
       expect(rpcUrls).toContain(url);
       expect(rpcUrls).toHaveLength(1);
     });
+
     it("should return the http url of the fallback transport", () => {
       const url = "http://localhost:8545";
 
@@ -81,10 +82,10 @@ describe("network tests", () => {
       const client = createPublicClient({
         transport: http("http://localhost:8545"),
         chain: {
-          ...optimism,
-          name: "optimism",
-          id: 10,
-          network: "optimism",
+          ...mainnet,
+          name: "mainnet",
+          id: 1,
+          network: "mainnet",
         },
       });
       const maxBlockRange = getDefaultMaxBlockRange(
@@ -100,10 +101,10 @@ describe("network tests", () => {
       const client = createPublicClient({
         transport: http("http://quicknode"),
         chain: {
-          ...optimism,
-          name: "optimism",
-          id: 10,
-          network: "optimism",
+          ...mainnet,
+          name: "mainnet",
+          id: 1,
+          network: "mainnet",
         },
       });
       const maxBlockRange = getDefaultMaxBlockRange(

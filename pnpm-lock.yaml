@@ -451,6 +451,9 @@ importers:
       cac:
         specifier: ^6.7.14
         version: 6.7.14
+      create-ponder:
+        specifier: 'link:'
+        version: 'link:'
       detect-package-manager:
         specifier: ^2.0.1
         version: 2.0.1
@@ -469,6 +472,9 @@ importers:
       rimraf:
         specifier: ^5.0.1
         version: 5.0.1
+      viem:
+        specifier: ^1.2.6
+        version: 1.2.6(typescript@5.1.3)
       yaml:
         specifier: ^2.1.1
         version: 2.1.1

@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
+import { http } from "viem";
 
 import type { PartialConfig } from "@/index";
 
@@ -16,13 +17,13 @@ export const fromBasic = ({ rootDir }: { rootDir: string }) => {
     # The functions you write as event handlers inside the \`src/\` directory are responsible for creating and updating records in those tables.
     # Your schema will be more flexible and powerful if it accurately models the logical relationships in your application's domain.
     # Visit the [documentation](https://ponder.sh/guides/design-your-schema) or the [\`examples/\`](https://github.com/0xOlias/ponder/tree/main/examples) directory for further guidance on designing your schema.
-      
+
     type ExampleToken @entity {
       id: String!
       tokenId: Int!
       trait: TokenTrait!
     }
-    
+
     enum TokenTrait {
       GOOD
       BAD
@@ -42,7 +43,7 @@ export const fromBasic = ({ rootDir }: { rootDir: string }) => {
       {
         name: "mainnet",
         chainId: 1,
-        rpcUrl: `process.env.PONDER_RPC_URL_1`,
+        transport: http(`process.env.PONDER_RPC_URL_1`),
       },
     ],
     contracts: [

@@ -50,6 +50,7 @@ export function buildNetwork({
   const resolvedNetwork: Network = {
     name: network.name,
     chainId: network.chainId,
+    transport,
     client,
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange(network, client),

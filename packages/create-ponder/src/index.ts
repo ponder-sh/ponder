@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import pico from "picocolors";
 import prettier from "prettier";
+import { type Transport } from "viem";
 
 import { CreatePonderOptions, TemplateKind } from "@/common";
 import { getPackageManager } from "@/helpers/getPackageManager";
@@ -21,7 +22,7 @@ import rootPackageJson from "../package.json";
 export type Network = {
   name: string;
   chainId: number;
-  rpcUrl: string;
+  transport: Transport;
 };
 
 export type Contract = {

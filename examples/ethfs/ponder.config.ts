@@ -1,4 +1,5 @@
 import type { Config } from "@ponder/core";
+import { http } from "viem";
 
 import FileStoreAbi from "./abis/FileStore.json";
 import FileStoreFrontendAbi from "./abis/FileStoreFrontend.json";
@@ -8,7 +9,7 @@ export const config: Config = {
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: process.env.PONDER_RPC_URL_1,
+      transport: http(process.env.PONDER_RPC_URL_1),
     },
   ],
   contracts: [

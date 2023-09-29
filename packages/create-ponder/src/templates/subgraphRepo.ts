@@ -1,6 +1,7 @@
 import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
+import { http } from "viem";
 import { parse } from "yaml";
 
 import {
@@ -84,7 +85,7 @@ export const fromSubgraphRepo = ({
         ponderNetworks.push({
           name: network,
           chainId: chainId,
-          rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
+          transport: http(`process.env.PONDER_RPC_URL_${chainId}`),
         });
       }
 

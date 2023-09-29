@@ -17,21 +17,20 @@ Ponder's configuration file file contains smart contract addresses, paths to ABI
 
 ### Networks
 
-Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundry's local Anvil node. Each network has a `name`, `chainId`, and `rpcUrl`.
+Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundry's local Anvil node. Each network has a `name`, `chainId`, and `transport`.
 
 <Callout type="warning">
-  The `rpcUrl` field is optional, but you will need to provide an RPC URL from a
-  provider like Alchemy or Infura in order to use Ponder effectively in
-  development or production.
+  The `transport` field is optional. If not specified, the default transport (defined by `viem`) will be used. For example, on Ethereum mainnet, the default transport is a http cloudflare rpc endpoint.
+
 </Callout>
 
-| field                        |         type          |                                                                                                                                    |
-| :--------------------------- | :-------------------: | :--------------------------------------------------------------------------------------------------------------------------------- |
-| **name**                     |       `string`        | A unique name for the blockchain. Must be unique across all networks.                                                              |
-| **chainId**                  |       `number`        | The [chain ID](https://chainlist.org) for the network.                                                                             |
-| **rpcUrl**                   | `string \| undefined` | An optional RPC URL for the network. If not provided, a public (heavily rate-limited) RPC provider will be used (not recommended). |
-| **pollingInterval**          | `number \| undefined` | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this network.                                          |
-| **maxRpcRequestConcurrency** | `number \| undefined` | **Default: `10`**. Maximum concurrency of RPC requests during the historical sync.                                                 |
+| field                        |             type              |                                                                                                            |
+| :--------------------------- | :---------------------------: | :--------------------------------------------------------------------------------------------------------- |
+| **name**                     |           `string`            | A unique name for the blockchain. Must be unique across all networks.                                      |
+| **chainId**                  |           `number`            | The [chain ID](https://chainlist.org) for the network.                                                     |
+| **transport**                | `viem transport \| undefined` | An optional viem transport. If not provided, a default viem transport will be used depending on the chain. |
+| **pollingInterval**          |     `number \| undefined`     | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this network.                  |
+| **maxRpcRequestConcurrency** |     `number \| undefined`     | **Default: `10`**. Maximum concurrency of RPC requests during the historical sync.                         |
 
 ### Contracts
 
@@ -93,13 +92,14 @@ See [Deploy to production](/guides/production) for more details.
 
 ```ts filename="ponder.config.ts"
 import type { Config } from "@ponder/core";
+import { http } from "viem";
 
 export const config: Config = {
   networks: [
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: process.env.PONDER_RPC_URL_1,
+      transport: http(rocess.env.PONDER_RPC_URL_1),
     },
   ],
   contracts: [

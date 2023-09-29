@@ -61,13 +61,14 @@ Ponder fetches event logs for the contracts added to `ponder.config.ts`, and pas
 
 ```ts
 // ponder.config.ts
+import { http } from "viem";
 
 export const config = {
   networks: [
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/...",
+      transport: http(),
     },
   ],
   contracts: [
