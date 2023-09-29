@@ -20,10 +20,21 @@ export type ResolvedConfig = {
     name: string;
     /** Chain ID of the network. */
     chainId: number;
-    /** Custom viem transport: https://viem.sh/docs/clients/transports/http.html
-     * If `undefined`, a default transport will be used based on a public RPC provider..
+    /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
+     *
+     * __To avoid rate limiting, include a custom RPC URL.__ Usage:
+     *
+     * ```ts
+     * import { http } from "viem";
+     *
+     * const network = {
+     *    name: "mainnet",
+     *    chainId: 1,
+     *    transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+     * }
+     * ```
      */
-    transport?: Transport;
+    transport: Transport;
     /** Polling frequency (in ms). Default: `1_000`. */
     pollingInterval?: number;
     /** Maximum concurrency of RPC requests during the historical sync. Default: `10`. */
