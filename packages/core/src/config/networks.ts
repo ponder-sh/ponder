@@ -12,7 +12,6 @@ export type Network = {
   name: string;
   chainId: number;
   client: PublicClient;
-  rpcUrl?: string;
   transport?: Transport;
   pollingInterval: number;
   defaultMaxBlockRange: number;
@@ -27,10 +26,13 @@ export function buildNetwork({
 }: {
   network: ResolvedConfig["networks"][0];
 }) {
-  let client = clients[network.chainId];
-  const transport = network.transport
-    ? network.transport
-    : http(network.rpcUrl);
+  let client: PublicClient | undefined = clients[network.chainId];
+  let transport: Transport | undefined = network.transport;
+
+  if (!transport) {
+    // By default, viem uses a public RPC provider on that chain. For example, eth mainnet it uses https://cloudflare-eth.com.
+    transport = http();
+  }
 
   if (!client) {
     client = createPublicClient({
@@ -49,9 +51,8 @@ export function buildNetwork({
     name: network.name,
     chainId: network.chainId,
     client,
-    rpcUrl: network.rpcUrl,
     pollingInterval: network.pollingInterval ?? 1_000,
-    defaultMaxBlockRange: getDefaultMaxBlockRange(network),
+    defaultMaxBlockRange: getDefaultMaxBlockRange(network, client),
     maxRpcRequestConcurrency: network.maxRpcRequestConcurrency ?? 10,
     finalityBlockCount: getFinalityBlockCount(network),
   };
@@ -59,17 +60,14 @@ export function buildNetwork({
   return resolvedNetwork;
 }
 
-function getDefaultMaxBlockRange(network: {
-  rpcUrl?: string;
-  chainId: number;
-}) {
-  // Quicknode enforces a hard limit of 10_000.
-  if (network.rpcUrl !== undefined && network.rpcUrl.includes("quiknode.pro")) {
-    return 10_000;
-  }
-
-  // Otherwise (e.g. Alchemy) use an optimistically high block limit and lean
-  // on the error handler to resolve failures.
+export function getDefaultMaxBlockRange(
+  network: {
+    chainId: number;
+  },
+  client: PublicClient
+) {
+  const rpcUrls = getTransportUrls(client);
+  const isQuickNode = rpcUrls.some((url) => url.includes("quicknode"));
 
   let maxBlockRange: number;
   switch (network.chainId) {
@@ -85,20 +83,20 @@ function getDefaultMaxBlockRange(network: {
     // Optimism.
     case 10:
     case 420:
-      maxBlockRange = 50_000;
+      maxBlockRange = isQuickNode ? 10_000 : 50_000;
       break;
     // Polygon.
     case 137:
     case 80001:
-      maxBlockRange = 50_000;
+      maxBlockRange = isQuickNode ? 10_000 : 50_000;
       break;
     // Arbitrum.
     case 42161:
     case 421613:
-      maxBlockRange = 50_000;
+      maxBlockRange = isQuickNode ? 10_000 : 50_000;
       break;
     default:
-      maxBlockRange = 50_000;
+      maxBlockRange = isQuickNode ? 10_000 : 50_000;
   }
 
   return maxBlockRange;
@@ -147,4 +145,36 @@ function getFinalityBlockCount(network: { chainId: number }) {
   }
 
   return finalityBlockCount;
+}
+
+/**
+ * Returns an array of transport URLs for the given public client.
+ *
+ * @param publicClient viem public client.
+ * @returns Array of transport URLs.
+ */
+export function getTransportUrls(publicClient: PublicClient): string[] {
+  const transport = publicClient?.transport;
+  const urls = [];
+
+  /**
+   * There are three cases to consider:
+   * 1. The transport is a fallback transport, which is an array of transports. Check for http urls.
+   * 2. The transport is a single transport.
+   * 3. The transport is a web socket transport and does not have a URL. This seems to be an issue with viem not setting the URL for web socket transports.
+   */
+
+  if (transport?.url) {
+    urls.push(transport.url);
+  } else {
+    if (transport?.transports) {
+      for (const t of transport.transports) {
+        if (t?.value && t.value?.url) {
+          urls.push(t.value.url);
+        }
+      }
+    }
+  }
+
+  return urls;
 }

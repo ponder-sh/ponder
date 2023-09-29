@@ -20,10 +20,8 @@ export type ResolvedConfig = {
     name: string;
     /** Chain ID of the network. */
     chainId: number;
-    /** RPC URL. Default: if available, a public RPC provider. */
-    rpcUrl?: string;
     /** Custom viem transport: https://viem.sh/docs/clients/transports/http.html
-     * If `undefined`, a default transport will be used based on `rpcUrl`.
+     * If `undefined`, a default transport will be used based on a public RPC provider..
      */
     transport?: Transport;
     /** Polling frequency (in ms). Default: `1_000`. */
