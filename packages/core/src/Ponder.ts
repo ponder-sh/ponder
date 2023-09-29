@@ -188,31 +188,20 @@ export class Ponder {
     // are triggered by changes to project files (handled in BuildService).
     this.buildService.buildSchema();
     await this.buildService.buildHandlers();
-
     return undefined;
   }
 
   async dev() {
-    const setupError = await this.setup();
+    await this.setup();
 
     this.common.telemetry.record({
       event: "App Started",
       properties: {
         command: "ponder dev",
-        hasSetupError: !!setupError,
         logFilterCount: this.logFilters.length,
         databaseKind: this.eventStore.kind,
       },
     });
-
-    if (setupError) {
-      this.common.logger.error({
-        service: "app",
-        msg: setupError.message,
-        error: setupError,
-      });
-      return await this.kill();
-    }
 
     await Promise.all(
       this.networkSyncServices.map(
@@ -230,26 +219,16 @@ export class Ponder {
   }
 
   async start() {
-    const setupError = await this.setup();
+    await this.setup();
 
     this.common.telemetry.record({
       event: "App Started",
       properties: {
         command: "ponder start",
-        hasSetupError: !!setupError,
         logFilterCount: this.logFilters.length,
         databaseKind: this.eventStore.kind,
       },
     });
-
-    if (setupError) {
-      this.common.logger.error({
-        service: "app",
-        msg: setupError.message,
-        error: setupError,
-      });
-      return await this.kill();
-    }
 
     await Promise.all(
       this.networkSyncServices.map(
