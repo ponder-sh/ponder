@@ -538,15 +538,21 @@ export class PostgresUserStore implements UserStore {
       effectiveTo: MAX_INTEGER,
     }));
 
-    const instances = await this.db
-      .insertInto(tableName)
-      .values(createInstances)
-      .returningAll()
-      .execute();
+    const chunkSize = 1000;
 
-    return instances.map((instance) =>
-      this.deserializeInstance({ modelName, instance })
+    const chunkedInstances = [];
+    for (let i = 0, len = createInstances.length; i < len; i += chunkSize)
+      chunkedInstances.push(createInstances.slice(i, i + chunkSize));
+
+    const instances = await Promise.all(
+      chunkedInstances.map((c) =>
+        this.db.insertInto(tableName).values(c).returningAll().execute()
+      )
     );
+
+    return instances
+      .flat()
+      .map((instance) => this.deserializeInstance({ modelName, instance }));
   };
 
   updateMany = async ({
