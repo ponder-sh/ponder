@@ -58,10 +58,11 @@ contract BaseRegistrar {
 
 ### Ponder config
 
-First we'll add `BaseRegistrar` as a contract in our Ponder config file. Ponder's indexing engine will now fetch all the events logs that have been emitted by the `BaseRegistrar` contract.
+First we'll add `BaseRegistrar` as a contract in our config file. Ponder's sync engine will now fetch all the events logs that have been emitted by the `BaseRegistrar` contract.
 
 ```ts filename="ponder.config.ts"
 import { http } from "viem";
+
 export const config = {
   networks: [
     {

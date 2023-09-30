@@ -68,7 +68,7 @@ export const config = {
     {
       name: "mainnet",
       chainId: 1,
-      transport: http(),
+      transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
     },
   ],
   contracts: [

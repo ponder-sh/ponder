@@ -538,14 +538,13 @@
 
   import type { Config } from "@ponder/core";
   - import { graphqlPlugin } from "@ponder/graphql";
-  import { http } from 'viem';
 
   export const config: Config = {
     networks: [
       {
         name: "mainnet",
         chainId: 1,
-        transport: http(process.env.PONDER_RPC_URL_1),
+        rpcUrl: process.env.PONDER_RPC_URL_1
       }
     ],
     sources: [
