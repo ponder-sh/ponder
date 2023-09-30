@@ -840,6 +840,29 @@ test("createMany() inserts multiple entities", async (context) => {
   await userStore.teardown();
 });
 
+test("createMany() inserts a large number of entities", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
+
+  const ENTITY_COUNT = 100_000;
+
+  const createdInstances = await userStore.createMany({
+    modelName: "Pet",
+    timestamp: 10,
+    data: [...Array(ENTITY_COUNT).keys()].map((i) => ({
+      id: `id${i}`,
+      name: "Alice",
+      bigAge: BigInt(i),
+    })),
+  });
+  expect(createdInstances.length).toBe(ENTITY_COUNT);
+
+  const instances = await userStore.findMany({ modelName: "Pet" });
+  expect(instances.length).toBe(ENTITY_COUNT);
+
+  await userStore.teardown();
+});
+
 test("updateMany() updates multiple entities", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
