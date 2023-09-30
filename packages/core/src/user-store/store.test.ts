@@ -844,21 +844,21 @@ test("createMany() inserts a large number of entities", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
 
-  const num = 100_000;
+  const ENTITY_COUNT = 100_000;
 
   const createdInstances = await userStore.createMany({
     modelName: "Pet",
     timestamp: 10,
-    data: [...Array(num).keys()].map((i) => ({
+    data: [...Array(ENTITY_COUNT).keys()].map((i) => ({
       id: `id${i}`,
       name: "Alice",
       bigAge: BigInt(i),
     })),
   });
-  expect(createdInstances.length).toBe(num);
+  expect(createdInstances.length).toBe(ENTITY_COUNT);
 
   const instances = await userStore.findMany({ modelName: "Pet" });
-  expect(instances.length).toBe(num);
+  expect(instances.length).toBe(ENTITY_COUNT);
 
   await userStore.teardown();
 });

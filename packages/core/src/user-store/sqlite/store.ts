@@ -19,6 +19,7 @@ import {
 } from "../utils/where";
 
 const MAX_INTEGER = 2_147_483_647 as const;
+const MAX_BATCH_SIZE = 1_000 as const;
 
 const gqlScalarToSqlType = {
   Boolean: "integer",
@@ -513,11 +514,9 @@ export class SqliteUserStore implements UserStore {
       effectiveTo: MAX_INTEGER,
     }));
 
-    const chunkSize = 1000;
-
     const chunkedInstances = [];
-    for (let i = 0, len = createInstances.length; i < len; i += chunkSize)
-      chunkedInstances.push(createInstances.slice(i, i + chunkSize));
+    for (let i = 0, len = createInstances.length; i < len; i += MAX_BATCH_SIZE)
+      chunkedInstances.push(createInstances.slice(i, i + MAX_BATCH_SIZE));
 
     const instances = await Promise.all(
       chunkedInstances.map((c) =>
