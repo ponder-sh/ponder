@@ -80,24 +80,13 @@ export class Ponder {
     const common = { options, logger, errors, metrics, telemetry };
     this.common = common;
 
-    const logFilters = buildLogFilters({ options, config });
-    this.logFilters = logFilters;
-    const contracts = buildContracts({ options, config });
-
-    const networks = config.networks
-      .map((network) => buildNetwork({ network }))
-      .filter((network) => {
-        const hasLogFilters = logFilters.some(
-          (logFilter) => logFilter.network === network.name
-        );
-        if (!hasLogFilters) {
-          this.common.logger.warn({
-            service: "app",
-            msg: `No log filters found (network=${network.name})`,
-          });
-        }
-        return hasLogFilters;
-      });
+    common.logger.debug({
+      service: "config",
+      msg: `Started using config file: ${path.relative(
+        this.common.options.rootDir,
+        this.common.options.configFile
+      )}`,
+    });
 
     const database = buildDatabase({ options, config });
     this.eventStore =
@@ -112,7 +101,28 @@ export class Ponder {
         ? new SqliteUserStore({ db: database.db })
         : new PostgresUserStore({ pool: database.pool }));
 
-    networks.forEach((network) => {
+    const networks = config.networks.map((network) =>
+      buildNetwork({ network, common })
+    );
+    const contracts = buildContracts({ options, config, networks });
+
+    const logFilters = buildLogFilters({ options, config });
+    this.logFilters = logFilters;
+
+    const networksWithLogFilters = networks.filter((network) => {
+      const hasLogFilters = logFilters.some(
+        (logFilter) => logFilter.network === network.name
+      );
+      if (!hasLogFilters) {
+        this.common.logger.warn({
+          service: "app",
+          msg: `No log filters found (network=${network.name})`,
+        });
+      }
+      return hasLogFilters;
+    });
+
+    networksWithLogFilters.forEach((network) => {
       const logFiltersForNetwork = logFilters.filter(
         (logFilter) => logFilter.network === network.name
       );
@@ -164,14 +174,6 @@ export class Ponder {
   }
 
   async setup() {
-    this.common.logger.debug({
-      service: "app",
-      msg: `Started using config file: ${path.relative(
-        this.common.options.rootDir,
-        this.common.options.configFile
-      )}`,
-    });
-
     this.registerServiceDependencies();
 
     // Start the HTTP server.
