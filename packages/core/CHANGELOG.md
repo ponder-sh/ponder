@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.90
+
+### Patch Changes
+
+- [#362](https://github.com/0xOlias/ponder/pull/362) [`790946d`](https://github.com/0xOlias/ponder/commit/790946d8152621b207ef1a8b871ceacf153e4989) Thanks [@kyscott18](https://github.com/kyscott18)! - Fixed a bug where passing too many entities to createMany() fails.
+
 ## 0.0.89
 
 ### Patch Changes
