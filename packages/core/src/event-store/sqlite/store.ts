@@ -748,12 +748,13 @@ export class SqliteEventStore implements EventStore {
   async *getLogEvents({
     fromTimestamp,
     toTimestamp,
-    filters = [],
+    logFilters = [],
+    factoryContracts = [],
     pageSize = 10_000,
   }: {
     fromTimestamp: number;
     toTimestamp: number;
-    filters?: {
+    logFilters?: {
       name: string;
       chainId: number;
       address?: Address | Address[];
@@ -762,22 +763,33 @@ export class SqliteEventStore implements EventStore {
       toBlock?: number;
       includeEventSelectors?: Hex[];
     }[];
+    factoryContracts?: {
+      chainId: number;
+      address: string;
+      factoryEventSelector: Hex;
+      child: {
+        name: string;
+        includeEventSelectors?: Hex[];
+      };
+      fromBlock?: number;
+      toBlock?: number;
+    }[];
     pageSize: number;
   }) {
     const baseQuery = this.db
       .with(
-        "logFilters(logFilter_name)",
+        "eventSources(eventSource_name)",
         () =>
           sql`( values ${sql.join(
-            filters.map((f) => sql`( ${sql.val(f.name)} )`)
+            logFilters.map((f) => sql`( ${sql.val(f.name)} )`)
           )} )`
       )
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
-      .innerJoin("logFilters", (join) => join.onTrue())
+      .innerJoin("eventSources", (join) => join.onTrue())
       .select([
-        "logFilter_name",
+        "eventSource_name",
 
         "logs.address as log_address",
         "logs.blockHash as log_blockHash",
@@ -841,28 +853,31 @@ export class SqliteEventStore implements EventStore {
       .orderBy("blocks.number", "asc")
       .orderBy("logs.logIndex", "asc");
 
-    const buildFilterAndCmprs = (
-      where: ExpressionBuilder<any, any>,
-      filter: (typeof filters)[number]
-    ) => {
+    const buildLogFilterCmprs = ({
+      where,
+      logFilter,
+    }: {
+      where: ExpressionBuilder<any, any>;
+      logFilter: (typeof logFilters)[number];
+    }) => {
       const { cmpr, or } = where;
       const cmprs = [];
 
-      cmprs.push(cmpr("logFilter_name", "=", filter.name));
+      cmprs.push(cmpr("logFilter_name", "=", logFilter.name));
       cmprs.push(
         cmpr(
           "logs.chainId",
           "=",
-          sql`cast (${sql.val(filter.chainId)} as integer)`
+          sql`cast (${sql.val(logFilter.chainId)} as integer)`
         )
       );
 
-      if (filter.address) {
+      if (logFilter.address) {
         // If it's an array of length 1, collapse it.
         const address =
-          Array.isArray(filter.address) && filter.address.length === 1
-            ? filter.address[0]
-            : filter.address;
+          Array.isArray(logFilter.address) && logFilter.address.length === 1
+            ? logFilter.address[0]
+            : logFilter.address;
         if (Array.isArray(address)) {
           cmprs.push(or(address.map((a) => cmpr("logs.address", "=", a))));
         } else {
@@ -870,11 +885,11 @@ export class SqliteEventStore implements EventStore {
         }
       }
 
-      if (filter.topics) {
+      if (logFilter.topics) {
         for (const idx_ of range(0, 4)) {
           const idx = idx_ as 0 | 1 | 2 | 3;
           // If it's an array of length 1, collapse it.
-          const raw = filter.topics[idx] ?? null;
+          const raw = logFilter.topics[idx] ?? null;
           if (raw === null) continue;
           const topic = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
           if (Array.isArray(topic)) {
@@ -885,46 +900,107 @@ export class SqliteEventStore implements EventStore {
         }
       }
 
-      if (filter.fromBlock) {
+      if (logFilter.fromBlock) {
         cmprs.push(
           cmpr(
             "blocks.number",
             ">=",
-            sql`cast (${sql.val(intToBlob(filter.fromBlock))} as blob)`
+            sql`cast (${sql.val(intToBlob(logFilter.fromBlock))} as blob)`
           )
         );
       }
 
-      if (filter.toBlock) {
+      if (logFilter.toBlock) {
         cmprs.push(
           cmpr(
             "blocks.number",
             "<=",
-            sql`cast (${sql.val(intToBlob(filter.toBlock))} as blob)`
+            sql`cast (${sql.val(intToBlob(logFilter.toBlock))} as blob)`
           )
         );
       }
 
       return cmprs;
     };
+
+    const buildFactoryContractCmprs = ({
+      where,
+      factoryContract,
+    }: {
+      where: ExpressionBuilder<any, any>;
+      factoryContract: (typeof factoryContracts)[number];
+    }) => {
+      const { cmpr } = where;
+      const cmprs = [];
+
+      cmprs.push(cmpr("childContract_name", "=", factoryContract.child.name));
+      cmprs.push(
+        cmpr(
+          "logs.chainId",
+          "=",
+          sql`cast (${sql.val(factoryContract.chainId)} as integer)`
+        )
+      );
+
+      // TODO: Figure out subquery to get all child contracts for a factory contract.
+      // cmprs.push(cmpr("logs.address", "in"));
+
+      if (factoryContract.fromBlock) {
+        cmprs.push(
+          cmpr(
+            "blocks.number",
+            ">=",
+            sql`cast (${sql.val(intToBlob(factoryContract.fromBlock))} as blob)`
+          )
+        );
+      }
+
+      if (factoryContract.toBlock) {
+        cmprs.push(
+          cmpr(
+            "blocks.number",
+            "<=",
+            sql`cast (${sql.val(intToBlob(factoryContract.toBlock))} as blob)`
+          )
+        );
+      }
+
+      return cmprs;
+    };
+
     // Get full log objects, including the includeEventSelectors clause.
     const includedLogsBaseQuery = baseQuery
       .where((where) => {
         const { cmpr, and, or } = where;
-        const cmprsForAllFilters = filters.map((filter) => {
-          const cmprsForFilter = buildFilterAndCmprs(where, filter);
-          if (filter.includeEventSelectors) {
-            cmprsForFilter.push(
+        const logFilterCmprs = logFilters.map((logFilter) => {
+          const cmprs = buildLogFilterCmprs({ where, logFilter });
+          if (logFilter.includeEventSelectors) {
+            cmprs.push(
               or(
-                filter.includeEventSelectors.map((t) =>
+                logFilter.includeEventSelectors.map((t) =>
                   cmpr("logs.topic0", "=", t)
                 )
               )
             );
           }
-          return and(cmprsForFilter);
+          return and(cmprs);
         });
-        return or(cmprsForAllFilters);
+
+        const factoryContractCmprs = factoryContracts.map((factoryContract) => {
+          const cmprs = buildFactoryContractCmprs({ where, factoryContract });
+          if (factoryContract.child.includeEventSelectors) {
+            cmprs.push(
+              or(
+                factoryContract.child.includeEventSelectors.map((t) =>
+                  cmpr("logs.topic0", "=", t)
+                )
+              )
+            );
+          }
+          return and(cmprs);
+        });
+
+        return or([...logFilterCmprs, ...factoryContractCmprs]);
       })
       .orderBy("blocks.timestamp", "asc")
       .orderBy("logs.chainId", "asc")
@@ -935,25 +1011,30 @@ export class SqliteEventStore implements EventStore {
     const eventCountsQuery = baseQuery
       .clearSelect()
       .select([
-        "logFilter_name",
+        "eventSource_name",
         "logs.topic0",
         this.db.fn.count("logs.id").as("count"),
       ])
       .where((where) => {
         const { and, or } = where;
-        const cmprsForAllFilters = filters.map((filter) => {
-          const cmprsForFilter = buildFilterAndCmprs(where, filter);
-          // NOTE: Not adding the includeEventSelectors clause here.
-          return and(cmprsForFilter);
-        });
-        return or(cmprsForAllFilters);
+
+        // NOTE: Not adding the includeEventSelectors clause here.
+        const logFilterCmprs = logFilters.map((logFilter) =>
+          and(buildLogFilterCmprs({ where, logFilter }))
+        );
+
+        const factoryContractCmprs = factoryContracts.map((factoryContract) =>
+          and(buildFactoryContractCmprs({ where, factoryContract }))
+        );
+
+        return or([...logFilterCmprs, ...factoryContractCmprs]);
       })
-      .groupBy(["logFilter_name", "logs.topic0"]);
+      .groupBy(["eventSource_name", "logs.topic0"]);
 
     // Fetch the event counts once and include it in every response.
     const eventCountsRaw = await eventCountsQuery.execute();
     const eventCounts = eventCountsRaw.map((c) => ({
-      logFilterName: String(c.logFilter_name),
+      eventSourceName: String(c.eventSource_name),
       selector: c.topic0 as Hex,
       count: Number(c.count),
     }));
@@ -1005,7 +1086,7 @@ export class SqliteEventStore implements EventStore {
         // that those fields are indeed present before continuing here.
         const row = _row as NonNull<(typeof requestedLogs)[number]>;
         return {
-          logFilterName: row.logFilter_name,
+          eventSourceName: row.eventSource_name,
           log: {
             address: row.log_address,
             blockHash: row.log_blockHash,
@@ -1092,7 +1173,7 @@ export class SqliteEventStore implements EventStore {
                 }),
           },
         } satisfies {
-          logFilterName: string;
+          eventSourceName: string;
           log: Log;
           block: Block;
           transaction: Transaction;

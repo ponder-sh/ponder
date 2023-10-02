@@ -13,14 +13,18 @@ export type FactoryContract = {
   abi: Abi;
   address: Hex;
 
+  factoryEventSelector: Hex;
+  getAddressFromFactoryEventLog: (log: RpcLog) => Address;
+
+  child: {
+    name: string;
+    abi: Abi;
+    events: AbiEvents;
+  };
+
   startBlock: number;
   endBlock?: number;
   maxBlockRange?: number;
-
-  childAbi: Abi;
-  childEvents: AbiEvents;
-  factoryEventSelector: Hex;
-  getAddressFromFactoryEventLog: (log: RpcLog) => Address;
 };
 
 export function buildFactoryContracts({
@@ -74,7 +78,7 @@ export function buildFactoryContracts({
     };
 
     const { abi: childAbi } = buildAbi({
-      abiConfig: factoryContract.childAbi,
+      abiConfig: factoryContract.child.abi,
       configFilePath: options.configFile,
     });
 
@@ -98,14 +102,18 @@ export function buildFactoryContracts({
       abi,
       address,
 
+      factoryEventSelector,
+      getAddressFromFactoryEventLog,
+
+      child: {
+        name: factoryContract.child.name,
+        abi: childAbi,
+        events: childEvents,
+      },
+
       startBlock: factoryContract.startBlock ?? 0,
       endBlock: factoryContract.endBlock,
       maxBlockRange: factoryContract.maxBlockRange,
-
-      childAbi,
-      childEvents,
-      factoryEventSelector,
-      getAddressFromFactoryEventLog,
     };
   });
 

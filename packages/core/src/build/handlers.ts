@@ -5,7 +5,9 @@ import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
 import type { Hex } from "viem";
 
-import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
+import { LogEventMetadata } from "@/config/abi";
+import { FactoryContract } from "@/config/factories";
+import type { LogFilter } from "@/config/logFilters";
 import type { Options } from "@/config/options";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
@@ -19,8 +21,9 @@ export interface LogEvent {
   transaction: Transaction;
 }
 
-export type LogFilterName = string;
-export type LogEventName = string;
+type EventSourceName = string;
+type EventName = string;
+
 type LogEventHandlerFunction = ({
   event,
   context,
@@ -39,9 +42,9 @@ type RawHandlerFunctions = {
   _meta_?: {
     setup?: SetupEventHandlerFunction;
   };
-  logFilters: {
-    [key: LogFilterName]: {
-      [key: LogEventName]: LogEventHandlerFunction;
+  eventSources: {
+    [key: EventSourceName]: {
+      [key: EventName]: LogEventHandlerFunction;
     };
   };
 };
@@ -50,7 +53,7 @@ type RawHandlerFunctions = {
 export class PonderApp<
   EventHandlers = Record<string, LogEventHandlerFunction>
 > {
-  private handlerFunctions: RawHandlerFunctions = { logFilters: {} };
+  private handlerFunctions: RawHandlerFunctions = { eventSources: {} };
   private errors: Error[] = [];
 
   on<EventName extends Extract<keyof EventHandlers, string>>(
@@ -63,20 +66,20 @@ export class PonderApp<
       return;
     }
 
-    const [logFilterName, eventName] = name.split(":");
-    if (!logFilterName || !eventName) {
+    const [eventSourceName, eventName] = name.split(":");
+    if (!eventSourceName || !eventName) {
       this.errors.push(new Error(`Invalid event name: ${name}`));
       return;
     }
 
-    this.handlerFunctions.logFilters[logFilterName] ||= {};
-    if (this.handlerFunctions.logFilters[logFilterName][eventName]) {
+    this.handlerFunctions.eventSources[eventSourceName] ||= {};
+    if (this.handlerFunctions.eventSources[eventSourceName][eventName]) {
       this.errors.push(
         new Error(`Cannot add multiple handler functions for event: ${name}`)
       );
       return;
     }
-    this.handlerFunctions.logFilters[logFilterName][eventName] =
+    this.handlerFunctions.eventSources[eventSourceName][eventName] =
       handler as LogEventHandlerFunction;
   }
 }
@@ -190,14 +193,14 @@ export type HandlerFunctions = {
       fn: SetupEventHandlerFunction;
     };
   };
-  logFilters: {
-    [key: LogFilterName]: {
+  eventSources: {
+    [key: EventSourceName]: {
       // This mapping is passed from the EventHandlerService to the EventAggregatorService, which uses
       // it to fetch from the store _only_ the events that the user has handled.
       bySelector: { [key: Hex]: LogEventMetadata };
       // This mapping is used by the EventHandlerService to fetch the user-provided `fn` before running it.
       bySafeName: {
-        [key: LogEventName]: LogEventMetadata & { fn: LogEventHandlerFunction };
+        [key: EventName]: LogEventMetadata & { fn: LogEventHandlerFunction };
       };
     };
   };
@@ -206,45 +209,52 @@ export type HandlerFunctions = {
 export const hydrateHandlerFunctions = ({
   rawHandlerFunctions,
   logFilters,
+  factoryContracts,
 }: {
   rawHandlerFunctions: RawHandlerFunctions;
   logFilters: LogFilter[];
+  factoryContracts: FactoryContract[];
 }) => {
   const handlerFunctions: HandlerFunctions = {
     _meta_: {},
-    logFilters: {},
+    eventSources: {},
   };
 
   if (rawHandlerFunctions._meta_?.setup) {
     handlerFunctions._meta_.setup = { fn: rawHandlerFunctions._meta_.setup };
   }
 
-  Object.entries(rawHandlerFunctions.logFilters).forEach(
-    ([logFilterName, logFilterEventHandlerFunctions]) => {
-      const logFilter = logFilters.find((l) => l.name === logFilterName);
-      if (!logFilter) {
-        throw new Error(`Log filter not found in config: ${logFilterName}`);
+  Object.entries(rawHandlerFunctions.eventSources).forEach(
+    ([eventSourceName, eventSourceFunctions]) => {
+      const logFilter = logFilters.find((l) => l.name === eventSourceName);
+      const factoryContract = factoryContracts.find(
+        (f) => f.child.name === eventSourceName
+      );
+
+      if (!logFilter && !factoryContract) {
+        throw new Error(`Event source not found in config: ${eventSourceName}`);
       }
 
-      Object.entries(logFilterEventHandlerFunctions).forEach(
-        ([logEventName, fn]) => {
-          const eventData = logFilter.events[logEventName];
-          if (!eventData) {
-            throw new Error(`Log event not found in ABI: ${logEventName}`);
-          }
+      Object.entries(eventSourceFunctions).forEach(([eventName, fn]) => {
+        const eventData = logFilter
+          ? logFilter.events[eventName]
+          : factoryContract?.child.events[eventName];
 
-          handlerFunctions.logFilters[logFilterName] ||= {
-            bySafeName: {},
-            bySelector: {},
-          };
-          handlerFunctions.logFilters[logFilterName].bySelector[
-            eventData.selector
-          ] = eventData;
-          handlerFunctions.logFilters[logFilterName].bySafeName[
-            eventData.safeName
-          ] = { ...eventData, fn: fn };
+        if (!eventData) {
+          throw new Error(`Log event not found in ABI: ${eventName}`);
         }
-      );
+
+        handlerFunctions.eventSources[eventSourceName] ||= {
+          bySafeName: {},
+          bySelector: {},
+        };
+        handlerFunctions.eventSources[eventSourceName].bySelector[
+          eventData.selector
+        ] = eventData;
+        handlerFunctions.eventSources[eventSourceName].bySafeName[
+          eventData.safeName
+        ] = { ...eventData, fn: fn };
+      });
     }
   );
 

@@ -170,7 +170,7 @@ export interface EventStore {
   getLogEvents(arg: {
     fromTimestamp: number;
     toTimestamp: number;
-    filters?: {
+    logFilters?: {
       name: string;
       chainId: number;
       address?: Address | Address[];
@@ -179,10 +179,21 @@ export interface EventStore {
       toBlock?: number;
       includeEventSelectors?: Hex[];
     }[];
+    factoryContracts?: {
+      chainId: number;
+      address: string;
+      factoryEventSelector: Hex;
+      child: {
+        name: string;
+        includeEventSelectors?: Hex[];
+      };
+      fromBlock?: number;
+      toBlock?: number;
+    }[];
     pageSize?: number;
   }): AsyncGenerator<{
     events: {
-      logFilterName: string;
+      eventSourceName: string;
       log: Log;
       block: Block;
       transaction: Transaction;
@@ -190,7 +201,7 @@ export interface EventStore {
     metadata: {
       pageEndsAtTimestamp: number;
       counts: {
-        logFilterName: string;
+        eventSourceName: string;
         selector: Hex;
         count: number;
       }[];

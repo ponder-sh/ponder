@@ -1,8 +1,9 @@
 import Emittery from "emittery";
 import { type Hex, decodeEventLog } from "viem";
 
-import type { LogFilterName } from "@/build/handlers";
-import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
+import { LogEventMetadata } from "@/config/abi";
+import { FactoryContract } from "@/config/factories";
+import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
@@ -12,7 +13,7 @@ import type { Transaction } from "@/types/transaction";
 import { formatShortDate } from "@/utils/date";
 
 export type LogEvent = {
-  logFilterName: string;
+  eventSourceName: string;
   eventName: string;
   params: any;
   log: Log;
@@ -42,8 +43,9 @@ type EventAggregatorMetrics = {};
 export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   private common: Common;
   private eventStore: EventStore;
-  private logFilters: LogFilter[];
   private networks: Network[];
+  private logFilters: LogFilter[];
+  private factoryContracts: FactoryContract[];
 
   // Minimum timestamp at which events are available (across all networks).
   checkpoint: number;
@@ -71,18 +73,21 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     eventStore,
     networks,
     logFilters,
+    factoryContracts,
   }: {
     common: Common;
     eventStore: EventStore;
     networks: Network[];
     logFilters: LogFilter[];
+    factoryContracts: FactoryContract[];
   }) {
     super();
 
     this.common = common;
     this.eventStore = eventStore;
-    this.logFilters = logFilters;
     this.networks = networks;
+    this.logFilters = logFilters;
+    this.factoryContracts = factoryContracts;
     this.metrics = {};
 
     this.checkpoint = 0;
@@ -109,12 +114,12 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   async *getEvents({
     fromTimestamp,
     toTimestamp,
-    includeLogFilterEvents,
+    handledEventMetadata,
   }: {
     fromTimestamp: number;
     toTimestamp: number;
-    includeLogFilterEvents: {
-      [logFilterName: LogFilterName]:
+    handledEventMetadata: {
+      [eventSourceName: string]:
         | {
             bySelector: { [selector: Hex]: LogEventMetadata };
           }
@@ -124,16 +129,29 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     const iterator = this.eventStore.getLogEvents({
       fromTimestamp,
       toTimestamp,
-      filters: this.logFilters.map((logFilter) => ({
+      logFilters: this.logFilters.map((logFilter) => ({
         name: logFilter.name,
-        chainId: logFilter.filter.chainId,
+        chainId: logFilter.chainId,
         address: logFilter.filter.address,
         topics: logFilter.filter.topics,
         fromBlock: logFilter.filter.startBlock,
         toBlock: logFilter.filter.endBlock,
         includeEventSelectors: Object.keys(
-          includeLogFilterEvents[logFilter.name]?.bySelector ?? {}
+          handledEventMetadata[logFilter.name]?.bySelector ?? {}
         ) as Hex[],
+      })),
+      factoryContracts: this.factoryContracts.map((factoryContract) => ({
+        chainId: factoryContract.chainId,
+        address: factoryContract.address,
+        factoryEventSelector: factoryContract.factoryEventSelector,
+        child: {
+          name: factoryContract.child.name,
+          includeEventSelectors: Object.keys(
+            handledEventMetadata[factoryContract.child.name]?.bySelector ?? {}
+          ) as Hex[],
+        },
+        fromBlock: factoryContract.startBlock,
+        toBlock: factoryContract.endBlock,
       })),
     });
 
@@ -149,10 +167,10 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         }
 
         const logEventMetadata =
-          includeLogFilterEvents[event.logFilterName]?.bySelector[selector];
+          handledEventMetadata[event.eventSourceName]?.bySelector[selector];
         if (!logEventMetadata) {
           throw new Error(
-            `Metadata for event ${event.logFilterName}:${selector} not found in includeLogFilterEvents`
+            `Metadata for event ${event.eventSourceName}:${selector} not found in includeEvents`
           );
         }
         const { abiItem, safeName } = logEventMetadata;
@@ -165,7 +183,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
           });
 
           acc.push({
-            logFilterName: event.logFilterName,
+            eventSourceName: event.eventSourceName,
             eventName: safeName,
             params: decodedLog.args || {},
             log: event.log,

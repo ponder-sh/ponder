@@ -150,6 +150,7 @@ export class Ponder {
       eventStore: this.eventStore,
       networks,
       logFilters,
+      factoryContracts,
     });
 
     this.eventHandlerService = new EventHandlerService({
