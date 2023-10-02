@@ -29,20 +29,11 @@ type List = {
 };
 
 /**
- * Expresses the relationship between Tables
- */
-type OneToMany = {
-  type: "oneToMany";
-  table: Table;
-  field: string;
-};
-
-/**
  * SQL Schema types
  */
 type Column = {
   optional: boolean;
-  data: Scalar | List | OneToMany;
+  data: Scalar | List;
 };
 
 type Table = {
@@ -66,18 +57,6 @@ export const list = (scalar: { optional: false; data: Scalar }): Column => ({
   data: {
     type: "list",
     data: scalar.data,
-  },
-});
-
-/**
- * creates a one to many derived relationship between entities
- */
-export const oneToMany = (table: Table, field: string): Column => ({
-  optional: false,
-  data: {
-    type: "oneToMany",
-    table,
-    field,
   },
 });
 

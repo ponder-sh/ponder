@@ -5,7 +5,6 @@ import {
   createTable,
   list,
   number,
-  oneToMany,
   optional,
   string,
 } from "./ts-schema";
@@ -33,13 +32,4 @@ test("one to one relationship", () => {
   const person = createTable("Person", { id: string, age: number });
 
   createSchema([person, createTable("Dog", { id: string, owner: person })]);
-});
-
-test("one to many relationship", () => {
-  const dog = createTable("Dog", { id: string });
-
-  createSchema([
-    dog,
-    createTable("Person", { id: string, dogs: oneToMany(dog, "owner") }),
-  ]);
 });
