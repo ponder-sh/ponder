@@ -5,7 +5,7 @@ export function validateHistoricalBlockRange({
   latestBlockNumber,
 }: {
   startBlock: number;
-  endBlock: number | undefined;
+  endBlock?: number;
   finalizedBlockNumber: number;
   latestBlockNumber: number;
 }) {

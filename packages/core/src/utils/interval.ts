@@ -168,50 +168,86 @@ export function getChunks({
 
 export class ProgressTracker {
   target: [number, number];
-  completed: [number, number][];
-  maxChunkSize: number;
+  private _completed: [number, number][];
+  private _required: [number, number][] | null = null;
+  private _checkpoint: number | null = null;
 
+  /**
+   * Constructs a new ProgressTracker object.
+
+   * @throws Will throw an error if the target interval is invalid.
+   */
   constructor({
     target,
     completed,
-    maxChunkSize = 50_000,
   }: {
     target: [number, number];
     completed: [number, number][];
-    maxChunkSize?: number;
   }) {
+    if (target[0] > target[1])
+      throw new Error(
+        `Invalid interval: start (${target[0]}) is greater than end (${target[1]})`
+      );
+
     this.target = target;
-    this.completed = completed;
-    this.maxChunkSize = maxChunkSize;
+    this._completed = completed;
   }
 
+  /**
+   * Adds a completed interval.
+   *
+   * @throws Will throw an error if the new interval is invalid.
+   */
   addCompletedInterval(interval: [number, number]) {
-    const prevCheckpoint = this.checkpoint;
-    this.completed = intervalUnion([...this.completed, interval]);
-    const newCheckpoint = this.checkpoint;
-    const isUpdated = newCheckpoint > prevCheckpoint;
-    return { isUpdated, prevCheckpoint, newCheckpoint };
+    if (interval[0] > interval[1])
+      throw new Error(
+        `Invalid interval: start (${interval[0]}) is greater than end (${interval[1]})`
+      );
+
+    const prevCheckpoint = this.getCheckpoint();
+    this._completed = intervalUnion([...this._completed, interval]);
+    this.invalidateCache();
+    const newCheckpoint = this.getCheckpoint();
+
+    return {
+      isUpdated: newCheckpoint > prevCheckpoint,
+      prevCheckpoint,
+      newCheckpoint,
+    };
   }
 
-  get required() {
-    return intervalDifference([this.target], this.completed);
-  }
-
-  get chunks() {
-    return getChunks({
-      intervals: this.required,
-      maxChunkSize: this.maxChunkSize,
-    });
-  }
-
-  get checkpoint() {
-    const initialInterval = this.completed
-      .sort((a, b) => a[0] - b[0])
-      .find((i) => i[0] <= this.target[0] && i[1] <= this.target[0]);
-    if (initialInterval) {
-      return initialInterval[1];
-    } else {
-      return 0;
+  /**
+   * Returns the remaining required intervals.
+   */
+  getRequired() {
+    if (!this._required) {
+      this._required = intervalDifference([this.target], this._completed);
     }
+    return this._required;
+  }
+
+  /**
+   * Returns the checkpoint value. If no progress has been made, the checkpoint
+   * is equal to the target start minus one.
+   */
+  getCheckpoint() {
+    if (this._checkpoint !== null) return this._checkpoint;
+
+    const completedIntervalIncludingRequiredStart = this._completed
+      .sort((a, b) => a[0] - b[0])
+      .find((i) => i[0] <= this.target[0] && i[1] >= this.target[0]);
+
+    if (completedIntervalIncludingRequiredStart) {
+      this._checkpoint = completedIntervalIncludingRequiredStart[1];
+    } else {
+      this._checkpoint = this.target[0] - 1;
+    }
+
+    return this._checkpoint;
+  }
+
+  private invalidateCache() {
+    this._required = null;
+    this._checkpoint = null;
   }
 }
