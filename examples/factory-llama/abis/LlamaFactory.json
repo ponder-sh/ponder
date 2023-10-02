@@ -1,0 +1,212 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract LlamaCore",
+        "name": "llamaCoreLogic",
+        "type": "address"
+      },
+      {
+        "internalType": "contract LlamaPolicy",
+        "name": "llamaPolicyLogic",
+        "type": "address"
+      },
+      {
+        "internalType": "contract ILlamaPolicyMetadata",
+        "name": "llamaPolicyMetadataLogic",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  { "inputs": [], "name": "InvalidDeployConfiguration", "type": "error" },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "deployer",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "llamaCore",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "llamaExecutor",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "llamaPolicy",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "chainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "LlamaInstanceCreated",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "LLAMA_CORE_LOGIC",
+    "outputs": [
+      { "internalType": "contract LlamaCore", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "LLAMA_POLICY_LOGIC",
+    "outputs": [
+      { "internalType": "contract LlamaPolicy", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "LLAMA_POLICY_METADATA_LOGIC",
+    "outputs": [
+      {
+        "internalType": "contract ILlamaPolicyMetadata",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          { "internalType": "string", "name": "name", "type": "string" },
+          {
+            "internalType": "contract ILlamaStrategy",
+            "name": "strategyLogic",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ILlamaAccount",
+            "name": "accountLogic",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes[]",
+            "name": "initialStrategies",
+            "type": "bytes[]"
+          },
+          {
+            "internalType": "bytes[]",
+            "name": "initialAccounts",
+            "type": "bytes[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "RoleDescription[]",
+                "name": "roleDescriptions",
+                "type": "bytes32[]"
+              },
+              {
+                "components": [
+                  { "internalType": "uint8", "name": "role", "type": "uint8" },
+                  {
+                    "internalType": "address",
+                    "name": "policyholder",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint96",
+                    "name": "quantity",
+                    "type": "uint96"
+                  },
+                  {
+                    "internalType": "uint64",
+                    "name": "expiration",
+                    "type": "uint64"
+                  }
+                ],
+                "internalType": "struct RoleHolderData[]",
+                "name": "roleHolders",
+                "type": "tuple[]"
+              },
+              {
+                "components": [
+                  { "internalType": "uint8", "name": "role", "type": "uint8" },
+                  {
+                    "components": [
+                      {
+                        "internalType": "address",
+                        "name": "target",
+                        "type": "address"
+                      },
+                      {
+                        "internalType": "bytes4",
+                        "name": "selector",
+                        "type": "bytes4"
+                      },
+                      {
+                        "internalType": "contract ILlamaStrategy",
+                        "name": "strategy",
+                        "type": "address"
+                      }
+                    ],
+                    "internalType": "struct PermissionData",
+                    "name": "permissionData",
+                    "type": "tuple"
+                  },
+                  {
+                    "internalType": "bool",
+                    "name": "hasPermission",
+                    "type": "bool"
+                  }
+                ],
+                "internalType": "struct RolePermissionData[]",
+                "name": "rolePermissions",
+                "type": "tuple[]"
+              },
+              { "internalType": "string", "name": "color", "type": "string" },
+              { "internalType": "string", "name": "logo", "type": "string" }
+            ],
+            "internalType": "struct LlamaPolicyConfig",
+            "name": "policyConfig",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct LlamaInstanceConfig",
+        "name": "instanceConfig",
+        "type": "tuple"
+      }
+    ],
+    "name": "deploy",
+    "outputs": [
+      {
+        "internalType": "contract LlamaCore",
+        "name": "core",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
