@@ -1,9 +1,10 @@
-import type { Abi, AbiEvent } from "abitype";
 import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
+import prettier from "@prettier/sync";
+import type { Abi, AbiEvent } from "abitype";
 import pico from "picocolors";
-import prettier from "prettier";
 
 import { CreatePonderOptions, TemplateKind } from "@/common";
 import { getPackageManager } from "@/helpers/getPackageManager";

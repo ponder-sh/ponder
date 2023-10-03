@@ -1,6 +1,7 @@
 import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import prettier from "prettier";
+
+import prettier from "@prettier/sync";
 import { parse } from "yaml";
 
 import {

@@ -24,6 +24,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@prettier/sync": "^0.3.0",
     "cac": "^6.7.14",
     "detect-package-manager": "^3.0.1",
     "execa": "5",
