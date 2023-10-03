@@ -3,3 +3,5 @@ LICENSE
 **/generated
 **/.next
 **/dist
+.gitignore
+.prettierignore
