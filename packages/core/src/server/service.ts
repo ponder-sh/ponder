@@ -149,6 +149,7 @@ export class ServerService {
       landingPage: false, // go directly to GraphiQL
       schema: graphqlSchema,
       graphqlEndpoint: "/graphql",
+      healthCheckEndpoint: "/health",
       context: { store: this.userStore },
     });
 

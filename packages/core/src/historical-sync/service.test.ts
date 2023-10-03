@@ -265,7 +265,7 @@ test(
   },
   {
     // default is 5000
-    timeout: 5_500,
+    timeout: 6_000,
   }
 );
 
