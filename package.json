@@ -9,7 +9,7 @@
     "install:packages": "pnpm --filter \"./packages/**\" install",
     "install:examples": "pnpm --filter \"./examples/**\" install",
     "lint": "eslint --cache .",
-    "lint:fix": "pnpm lint --fix --ignore-path .gitignore --ignore-path .prettierignore",
+    "lint:fix": "pnpm lint --fix",
     "lint:format": "prettier --write .",
     "preinstall": "npx -y only-allow pnpm",
     "prepare": "npx simple-git-hooks",
