@@ -262,7 +262,7 @@ importers:
     dependencies:
       '@ponder/core':
         specifier: latest
-        version: 0.0.89(typescript@5.1.3)
+        version: link:../../packages/core
     devDependencies:
       abitype:
         specifier: ^0.8.11
@@ -288,6 +288,9 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: ^0.3.17
         version: 0.3.17
+      abitype:
+        specifier: ^0.8.11
+        version: 0.8.11(typescript@5.1.3)
       async-mutex:
         specifier: ^0.4.0
         version: 0.4.0
@@ -421,9 +424,6 @@ importers:
       '@viem/anvil':
         specifier: ^0.0.6
         version: 0.0.6
-      abitype:
-        specifier: ^0.8.11
-        version: 0.8.11(typescript@5.1.3)
       concurrently:
         specifier: ^8.2.0
         version: 8.2.0
@@ -539,6 +539,7 @@ packages:
     engines: {node: '>=6.9.0'}
     dependencies:
       '@babel/highlight': 7.22.5
+    dev: true
 
   /@babel/compat-data@7.21.0:
     resolution: {integrity: sha512-gMuZsmsgxk/ENC3O/fRw5QY8A9/uxQbbCEypnLIiYYc/qVJtEV7ouxC3EllIIwNzMqAQee5tanFabWsUOutS7g==}
@@ -772,6 +773,7 @@ packages:
   /@babel/helper-validator-identifier@7.22.5:
     resolution: {integrity: sha512-aJXu+6lErq8ltp+JhkJUfk1MTGyuA4v7f3pA+BJ5HLfNC6nAQ0Cpi9uOquUj8Hehg0aUiHzWQbOVJGao6ztBAQ==}
     engines: {node: '>=6.9.0'}
+    dev: true
 
   /@babel/helper-validator-option@7.21.0:
     resolution: {integrity: sha512-rmL/B8/f0mKS2baE9ZpyTcTavvEuWhTTW8amjzXNvYG4AwBsqTLikfXsEofsJEfKHf+HQVQbFOHy6o+4cnC/fQ==}
@@ -814,6 +816,7 @@ packages:
       '@babel/helper-validator-identifier': 7.22.5
       chalk: 2.4.2
       js-tokens: 4.0.0
+    dev: true
 
   /@babel/parser@7.21.2:
     resolution: {integrity: sha512-URpaIJQwEkEC2T9Kn+Ai6Xe/02iNaVCuT/PtoRz3GPVJVDpPd7mLo+VddTbhCRU9TXqW5mSrQfXZyi8kDKOVpQ==}
@@ -2816,6 +2819,7 @@ packages:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.0
       '@jridgewell/sourcemap-codec': 1.4.14
+    dev: true
 
   /@jridgewell/trace-mapping@0.3.9:
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
@@ -3216,53 +3220,6 @@ packages:
       tiny-glob: 0.2.9
       tslib: 2.5.3
     dev: true
-
-  /@ponder/core@0.0.89(typescript@5.1.3):
-    resolution: {integrity: sha512-/I1PNDxLE8Oph/Y/wYw5GFgW4f4UjzUwTnXfBa4U+Vpv1rfZFv6agAt6dHDXde/dg7gX9mrK+SU7qb2L+JuSEg==}
-    hasBin: true
-    dependencies:
-      '@babel/code-frame': 7.22.5
-      '@jridgewell/trace-mapping': 0.3.18
-      async-mutex: 0.4.0
-      better-sqlite3: 8.5.0
-      cac: 6.7.14
-      chokidar: 3.5.3
-      conf: 10.2.0
-      cors: 2.8.5
-      data-uri-to-buffer: 3.0.1
-      detect-package-manager: 2.0.1
-      dotenv: 16.0.1
-      emittery: 0.13.1
-      esbuild: 0.15.4
-      ethereum-bloom-filters: 1.0.10
-      express: 4.18.1
-      express-graphql: 0.12.0(graphql@15.8.0)
-      glob: 8.1.0
-      graphql: 15.8.0(patch_hash=qb2u6q36ugvr6swjr2i3rg76ty)
-      http-terminator: 3.2.0
-      ink: 3.2.0(@types/react@18.0.25)(react@17.0.2)
-      kysely: 0.24.2
-      p-limit: 3.1.0
-      p-queue: 6.6.2
-      pg: 8.9.0
-      picocolors: 1.0.0
-      pino: 8.14.1
-      prettier: 2.8.8
-      prom-client: 14.2.0
-      react: 17.0.2
-      retry: 0.13.1
-      stacktrace-parser: 0.1.10
-      tsc-alias: 1.8.2
-      viem: 1.2.6(typescript@5.1.3)
-    transitivePeerDependencies:
-      - '@types/react'
-      - bufferutil
-      - pg-native
-      - supports-color
-      - typescript
-      - utf-8-validate
-      - zod
-    dev: false
 
   /@popperjs/core@2.11.6:
     resolution: {integrity: sha512-50/17A98tWUfQ176raKiOGXuYpLyyVMkxxG6oylzL3BPOlA6ADGdK7EYunSa4I064xerltq9TGXs8HmOk5E+vw==}
@@ -5854,18 +5811,6 @@ packages:
         optional: true
     dependencies:
       ms: 2.1.3
-    dev: true
-
-  /debug@4.3.4:
-    resolution: {integrity: sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ==}
-    engines: {node: '>=6.0'}
-    peerDependencies:
-      supports-color: '*'
-    peerDependenciesMeta:
-      supports-color:
-        optional: true
-    dependencies:
-      ms: 2.1.2
     dev: true
 
   /debug@4.3.4(supports-color@8.1.1):
@@ -11363,6 +11308,7 @@ packages:
     resolution: {integrity: sha512-tdN8qQGvNjw4CHbY+XXk0JgCXn9QiF21a55rBe5LJAU+kDyC4WQn4+awm2Xfk2lQMk5fKup9XgzTZtGkjBdP9Q==}
     engines: {node: '>=10.13.0'}
     hasBin: true
+    dev: true
 
   /pretty-format@27.5.1:
     resolution: {integrity: sha512-Qb1gy5OrP5+zDf2Bvnzdl3jsTf1qXVMazbvCoKhtKqVs4/YK4ozX4gKQJJVyNe+cajNPn0KoC0MC3FUmaHWEmQ==}
@@ -13674,7 +13620,7 @@ packages:
     hasBin: true
     dependencies:
       cac: 6.7.14
-      debug: 4.3.4
+      debug: 4.3.4(supports-color@8.1.1)
       mlly: 1.1.1
       pathe: 1.1.0
       picocolors: 1.0.0
@@ -13790,7 +13736,7 @@ packages:
       acorn-walk: 8.2.0
       cac: 6.7.14
       chai: 4.3.7
-      debug: 4.3.4
+      debug: 4.3.4(supports-color@8.1.1)
       local-pkg: 0.4.3
       pathe: 1.1.0
       picocolors: 1.0.0
