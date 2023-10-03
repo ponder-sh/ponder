@@ -1,7 +1,7 @@
 import cors from "cors";
 import express from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
-import { formatError, GraphQLError, printIntrospectionSchema } from "graphql";
+import { formatError, GraphQLError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
@@ -164,18 +164,6 @@ export class ServerService {
       }
 
       return graphqlMiddleware(req, res, next);
-    });
-
-    /**
-     * This endpoint returns the GraphQL schema as a string.
-     */
-    this.app?.use("/schema", (_, response) => {
-      const schemaString = printIntrospectionSchema(graphqlSchema, {
-        commentDescriptions: false,
-      });
-
-      response.setHeader("Content-Type", "text/plain");
-      response.send(schemaString);
     });
 
     // NOTE: Deprecating use of root endpoint for GraphQL queries in favor of /graphql.
