@@ -28,7 +28,7 @@
     "detect-package-manager": "^3.0.1",
     "execa": "5",
     "picocolors": "^1.0.0",
-    "prettier": "^2.6.2",
+    "prettier": "^3.0.3",
     "prompts": "^2.4.2",
     "rimraf": "^5.0.5",
     "yaml": "^2.3.2"
@@ -36,7 +36,6 @@
   "devDependencies": {
     "@ponder/core": "workspace:*",
     "@types/node": "^18.7.8",
-    "@types/prettier": "^2.7.1",
     "@types/prompts": "^2.4.5",
     "abitype": "^0.9.8",
     "concurrently": "^8.2.1",

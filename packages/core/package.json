@@ -58,7 +58,7 @@
     "pg": "^8.11.3",
     "picocolors": "^1.0.0",
     "pino": "^8.15.4",
-    "prettier": "^2.6.2",
+    "prettier": "^3.0.3",
     "prom-client": "^14.2.0",
     "react": "17",
     "retry": "^0.13.1",
