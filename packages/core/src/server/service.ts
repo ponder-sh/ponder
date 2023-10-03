@@ -1,8 +1,8 @@
 import cors from "cors";
 import express from "express";
-import { graphqlHTTP } from "express-graphql";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { formatError, GraphQLError } from "graphql";
+import { createYoga } from "graphql-yoga";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
@@ -141,11 +141,12 @@ export class ServerService {
   }
 
   reload({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
-    // This uses a small hack to update the GraphQL server on the fly.
-    const graphqlMiddleware = graphqlHTTP({
+    const graphqlMiddleware = createYoga({
       schema: graphqlSchema,
       context: { store: this.userStore },
       graphiql: true,
+      landingPage: false,
+      graphqlEndpoint: "/graphql",
     });
 
     this.app?.use("/graphql", (req, res) => {
