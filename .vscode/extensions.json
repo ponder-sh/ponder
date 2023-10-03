@@ -2,7 +2,7 @@
   "recommendations": [
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",
-    "rvest.vs-code-prettier-eslint",
+    "github.vscode-github-actions",
     "redhat.vscode-yaml",
     "mikestead.dotenv",
     "graphql.vscode-graphql"
