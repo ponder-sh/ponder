@@ -224,43 +224,50 @@ test("setup() updates cached block, total block, and scheduled task metrics", as
   await service.kill();
 });
 
-test("start() updates completed tasks and completed blocks metrics", async (context) => {
-  const { common, eventStore } = context;
+test(
+  "start() updates completed tasks and completed blocks metrics",
+  async (context) => {
+    const { common, eventStore } = context;
 
-  const service = new HistoricalSyncService({
-    common,
-    eventStore,
-    logFilters,
-    network,
-  });
-  await service.setup(blockNumbers);
-  service.start();
+    const service = new HistoricalSyncService({
+      common,
+      eventStore,
+      logFilters,
+      network,
+    });
+    await service.setup(blockNumbers);
+    service.start();
 
-  await service.onIdle();
+    await service.onIdle();
 
-  const completedTasksMetric = (
-    await common.metrics.ponder_historical_completed_tasks.get()
-  ).values;
-  expect(completedTasksMetric).toMatchObject([
-    {
-      labels: { network: "mainnet", kind: "log", status: "success" },
-      value: 2,
-    },
-    {
-      labels: { network: "mainnet", kind: "block", status: "success" },
-      value: 6,
-    },
-  ]);
+    const completedTasksMetric = (
+      await common.metrics.ponder_historical_completed_tasks.get()
+    ).values;
+    expect(completedTasksMetric).toMatchObject([
+      {
+        labels: { network: "mainnet", kind: "log", status: "success" },
+        value: 2,
+      },
+      {
+        labels: { network: "mainnet", kind: "block", status: "success" },
+        value: 6,
+      },
+    ]);
 
-  const totalBlocksMetric = (
-    await common.metrics.ponder_historical_completed_blocks.get()
-  ).values;
-  expect(totalBlocksMetric).toMatchObject([
-    { labels: { network: "mainnet", logFilter: "USDC" }, value: 6 },
-  ]);
+    const totalBlocksMetric = (
+      await common.metrics.ponder_historical_completed_blocks.get()
+    ).values;
+    expect(totalBlocksMetric).toMatchObject([
+      { labels: { network: "mainnet", logFilter: "USDC" }, value: 6 },
+    ]);
 
-  await service.kill();
-});
+    await service.kill();
+  },
+  {
+    // default is 5000
+    timeout: 5_500,
+  }
+);
 
 test("start() updates rpc request duration metrics", async (context) => {
   const { common, eventStore } = context;

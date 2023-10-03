@@ -142,11 +142,14 @@ export class ServerService {
 
   reload({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
     const graphqlMiddleware = createYoga({
-      schema: graphqlSchema,
-      context: { store: this.userStore },
+      id: "Ponder GraphQL Server",
+      logging: process.env.NODE_ENV === "development",
       graphiql: true,
-      landingPage: false,
+      batching: true,
+      landingPage: false, // go directly to GraphiQL
+      schema: graphqlSchema,
       graphqlEndpoint: "/graphql",
+      context: { store: this.userStore },
     });
 
     this.app?.use("/graphql", (req, res) => {
