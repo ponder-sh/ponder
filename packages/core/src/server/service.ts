@@ -1,12 +1,13 @@
 import cors from "cors";
 import express from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
-import { formatError, GraphQLError } from "graphql";
-import { createYoga } from "graphql-yoga";
+import { formatError, GraphQLError, printIntrospectionSchema } from "graphql";
+import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
 import type { Common } from "@/Ponder";
+import { graphiQLPage } from "@/ui/graphiql.html";
 import type { UserStore } from "@/user-store/store";
 import { startClock } from "@/utils/timer";
 
@@ -141,19 +142,12 @@ export class ServerService {
   }
 
   reload({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
-    const graphqlMiddleware = createYoga({
-      id: "Ponder GraphQL Server",
-      logging: process.env.NODE_ENV === "development",
-      graphiql: true,
-      batching: true,
-      landingPage: false, // go directly to GraphiQL
+    const graphqlMiddleware = createHandler({
       schema: graphqlSchema,
-      graphqlEndpoint: "/graphql",
-      healthCheckEndpoint: "/health",
       context: { store: this.userStore },
     });
 
-    this.app?.use("/graphql", (req, res) => {
+    this.app?.use("/graphql", (req, res, next) => {
       // While waiting for historical indexing to complete, we want to respond back
       // with an error to prevent the requester from accepting incomplete data.
       if (!this.isHistoricalIndexingComplete) {
@@ -169,12 +163,29 @@ export class ServerService {
         return res.status(503).json(result);
       }
 
-      return graphqlMiddleware(req, res);
+      return graphqlMiddleware(req, res, next);
+    });
+
+    /**
+     * This endpoint returns the GraphQL schema as a string.
+     */
+    this.app?.use("/schema", (_, response) => {
+      const schemaString = printIntrospectionSchema(graphqlSchema, {
+        commentDescriptions: false,
+      });
+
+      response.setHeader("Content-Type", "text/plain");
+      response.send(schemaString);
     });
 
     // NOTE: Deprecating use of root endpoint for GraphQL queries in favor of /graphql.
     // This will be removed in a future release.
-    this.app?.use("/", graphqlMiddleware);
+    this.app?.use("/", (_, response) => {
+      response.setHeader("Content-Type", "text/html");
+      response.send(
+        graphiQLPage({ endpoint: "http://localhost:42069/graphql" })
+      );
+    });
   }
 
   async kill() {

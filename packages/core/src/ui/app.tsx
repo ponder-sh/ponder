@@ -124,10 +124,8 @@ const App = (ui: UiState) => {
       {handlersCurrent > 0 && (
         <Box flexDirection="column">
           <Text bold={true}>GraphQL </Text>
-          <Box flexDirection="column">
+          <Box flexDirection="row">
             <Text>Server live at http://localhost:{port}</Text>
-            <br />
-            <Text>GraphQL Playground http://localhost:{port}/graphql</Text>
           </Box>
         </Box>
       )}
