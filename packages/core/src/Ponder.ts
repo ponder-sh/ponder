@@ -179,7 +179,7 @@ export class Ponder {
       logFilters,
       factoryContracts,
     });
-    this.uiService = new UiService({ common, logFilters });
+    this.uiService = new UiService({ common, logFilters, factoryContracts });
   }
 
   async setup() {

@@ -1,4 +1,20 @@
 /**
+ * Return the total sum of a list of numeric intervals.
+ *
+ * @param intervals List of numeric intervals to find the sum of.
+ * @returns Sum of the intervals.
+ */
+export function intervalSum(intervals: [number, number][]) {
+  let totalSum = 0;
+
+  for (const [start, end] of intervals) {
+    totalSum += end - start + 1;
+  }
+
+  return totalSum;
+}
+
+/**
  * Return the union of a list of numeric intervals.
  *
  * @param intervals List of numeric intervals to find the union of.

@@ -98,17 +98,10 @@ test("setup() updates cached block, total block, and scheduled task metrics", as
     { labels: { network: "mainnet", logFilter: "USDC" }, value: 6 },
   ]);
 
-  const scheduledTaskMetric = (
-    await common.metrics.ponder_historical_scheduled_tasks.get()
-  ).values;
-  expect(scheduledTaskMetric).toMatchObject([
-    { labels: { network: "mainnet", kind: "log" }, value: 2 },
-  ]);
-
   await service.kill();
 });
 
-test("start() updates completed tasks and completed blocks metrics", async (context) => {
+test("start() updates completed blocks metrics", async (context) => {
   const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
@@ -121,20 +114,6 @@ test("start() updates completed tasks and completed blocks metrics", async (cont
   service.start();
 
   await service.onIdle();
-
-  const completedTasksMetric = (
-    await common.metrics.ponder_historical_completed_tasks.get()
-  ).values;
-  expect(completedTasksMetric).toMatchObject([
-    {
-      labels: { network: "mainnet", kind: "log", status: "success" },
-      value: 2,
-    },
-    {
-      labels: { network: "mainnet", kind: "block", status: "success" },
-      value: 6,
-    },
-  ]);
 
   const totalBlocksMetric = (
     await common.metrics.ponder_historical_completed_blocks.get()

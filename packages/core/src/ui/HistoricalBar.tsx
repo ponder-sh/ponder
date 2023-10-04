@@ -11,7 +11,7 @@ export const HistoricalBar = ({
   stat,
 }: {
   title: string;
-  stat: UiState["historicalSyncLogFilterStats"][0];
+  stat: UiState["historicalSyncEventSourceStats"][0];
 }) => {
   const { rate, eta } = stat;
 

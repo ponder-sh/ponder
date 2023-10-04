@@ -4,9 +4,33 @@ import {
   getChunks,
   intervalDifference,
   intervalIntersection,
+  intervalSum,
   intervalUnion,
   ProgressTracker,
 } from "./interval";
+
+test("intervalSum handles empty input", () => {
+  const result = intervalSum([]);
+  expect(result).toEqual(0);
+});
+
+test("intervalSum calculates the sum of intervals", () => {
+  const result = intervalSum([
+    [1, 3],
+    [5, 7],
+    [10, 12],
+  ]);
+  expect(result).toEqual(9);
+});
+
+test("intervalSum calculates the sum of single-point intervals", () => {
+  const result = intervalSum([
+    [1, 1],
+    [3, 3],
+    [5, 5],
+  ]);
+  expect(result).toEqual(3);
+});
 
 test("intervalUnion handles empty input", () => {
   const result = intervalUnion([]);
