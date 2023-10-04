@@ -30,8 +30,7 @@ export class ServerService {
 
   async start() {
     this.app = express();
-    this.app.use(cors());
-
+    this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
     this.app.use((req, res, next) => {
       const endClock = startClock();
       res.on("finish", () => {
@@ -142,12 +141,14 @@ export class ServerService {
   }
 
   reload({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
+    const SERVER_URL = "http://localhost:42069";
+
     const graphqlMiddleware = createHandler({
       schema: graphqlSchema,
       context: { store: this.userStore },
     });
 
-    this.app?.use("/graphql", (req, res, next) => {
+    this.app?.use("/graphql", (request, response, next) => {
       // While waiting for historical indexing to complete, we want to respond back
       // with an error to prevent the requester from accepting incomplete data.
       if (!this.isHistoricalIndexingComplete) {
@@ -160,19 +161,34 @@ export class ServerService {
           data: undefined,
           errors,
         };
-        return res.status(503).json(result);
+        return response.status(503).json(result);
       }
 
-      return graphqlMiddleware(req, res, next);
+      if (request.method === "GET") {
+        response.setHeader("Content-Type", "text/html");
+        response.send(graphiQLPage({ endpoint: `${SERVER_URL}/graphql` }));
+        return next();
+      }
+
+      if (request.method === "POST") {
+        return graphqlMiddleware(request, response, next);
+      }
+
+      return graphqlMiddleware(request, response, next);
     });
 
     // NOTE: Deprecating use of root endpoint for GraphQL queries in favor of /graphql.
     // This will be removed in a future release.
-    this.app?.use("/", (_, response) => {
-      response.setHeader("Content-Type", "text/html");
-      response.send(
-        graphiQLPage({ endpoint: "http://localhost:42069/graphql" })
-      );
+    this.app?.use("/", (request, response, next) => {
+      if (request.method === "POST") {
+        return graphqlMiddleware(request, response, next);
+      }
+      if (request.method === "GET") {
+        response.setHeader("Content-Type", "text/html");
+        response.send(graphiQLPage({ endpoint: `${SERVER_URL}/graphql` }));
+      }
+
+      return graphqlMiddleware(request, response, next);
     });
   }
 
