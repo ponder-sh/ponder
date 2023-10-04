@@ -18,7 +18,9 @@ export type Column<
 
 export type Table<
   TName extends string | unknown = unknown,
-  TColumns extends ({ id?: ID } & { columns: Column[] }) | unknown = unknown
+  TColumns extends
+    | ({ id?: Column<ID, false, false> } & { columns: Column[] })
+    | unknown = unknown
 > = {
   name: TName;
   columns: TColumns;
@@ -33,7 +35,9 @@ export type Table<
  */
 export type IT<
   TTableName extends string | unknown = unknown,
-  TColumns extends ({ id?: ID } & Record<string, Column>) | unknown = unknown
+  TColumns extends
+    | ({ id?: Column<ID, false, false> } & Record<string, Column>)
+    | unknown = unknown
 > = {
   table: Table<TTableName, TColumns>;
   addColumn: <TName extends string, TType extends Scalar>(
@@ -59,9 +63,9 @@ export type RecoverScalarType<TScalar extends Scalar> = TScalar extends "string"
   : never;
 
 export type RecoverIDType<TTable extends Table> = TTable extends {
-  columns: { id: infer _id extends ID };
+  columns: { id: infer _id extends Column<ID, false, false> };
 }
-  ? RecoverScalarType<_id>
+  ? RecoverScalarType<_id["type"]>
   : never;
 
 export type RecoverColumnType<
