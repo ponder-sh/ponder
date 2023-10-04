@@ -28,6 +28,10 @@ export class ServerService {
     this.port = this.common.options.port;
   }
 
+  #getOwnUrlFromRequest(request: express.Request) {
+    return `${request.protocol}://${request.get("host")}`;
+  }
+
   async start() {
     this.app = express();
     this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
@@ -141,8 +145,6 @@ export class ServerService {
   }
 
   reload({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
-    const SERVER_URL = "http://localhost:42069";
-
     const graphqlMiddleware = createHandler({
       schema: graphqlSchema,
       context: { store: this.userStore },
@@ -169,6 +171,7 @@ export class ServerService {
       }
 
       if (request.method === "GET") {
+        const SERVER_URL = this.#getOwnUrlFromRequest(request);
         response.setHeader("Content-Type", "text/html");
         return response
           .status(200)
@@ -177,7 +180,7 @@ export class ServerService {
 
       if (request.method === "HEAD") return response.status(200).send();
 
-      return graphqlMiddleware(request, response, next);
+      return next();
     });
 
     // NOTE: Deprecating use of root endpoint for GraphQL queries in favor of /graphql.
@@ -187,6 +190,7 @@ export class ServerService {
         return graphqlMiddleware(request, response, next);
       }
       if (request.method === "GET") {
+        const SERVER_URL = this.#getOwnUrlFromRequest(request);
         response.setHeader("Content-Type", "text/html");
         return response
           .status(200)
@@ -195,7 +199,7 @@ export class ServerService {
 
       if (request.method === "HEAD") return response.status(200).send();
 
-      return graphqlMiddleware(request, response, next);
+      return next();
     });
   }
 
