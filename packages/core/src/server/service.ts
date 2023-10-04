@@ -164,15 +164,18 @@ export class ServerService {
         return response.status(503).json(result);
       }
 
-      if (request.method === "GET") {
-        response.setHeader("Content-Type", "text/html");
-        response.send(graphiQLPage({ endpoint: `${SERVER_URL}/graphql` }));
-        return next();
-      }
-
       if (request.method === "POST") {
         return graphqlMiddleware(request, response, next);
       }
+
+      if (request.method === "GET") {
+        response.setHeader("Content-Type", "text/html");
+        return response
+          .status(200)
+          .send(graphiQLPage({ endpoint: `${SERVER_URL}/graphql` }));
+      }
+
+      if (request.method === "HEAD") return response.status(200).send();
 
       return graphqlMiddleware(request, response, next);
     });
@@ -185,8 +188,12 @@ export class ServerService {
       }
       if (request.method === "GET") {
         response.setHeader("Content-Type", "text/html");
-        response.send(graphiQLPage({ endpoint: `${SERVER_URL}/graphql` }));
+        return response
+          .status(200)
+          .send(graphiQLPage({ endpoint: `${SERVER_URL}/graphql` }));
       }
+
+      if (request.method === "HEAD") return response.status(200).send();
 
       return graphqlMiddleware(request, response, next);
     });
