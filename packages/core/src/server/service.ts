@@ -7,7 +7,7 @@ import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
 import type { Common } from "@/Ponder";
-import { graphiQLPage } from "@/ui/graphiql.html";
+import { graphiQLHtml } from "@/ui/graphiql.html";
 import type { UserStore } from "@/user-store/store";
 import { startClock } from "@/utils/timer";
 
@@ -150,6 +150,10 @@ export class ServerService {
       context: { store: this.userStore },
     });
 
+    /**
+     * GET /graphql -> returns graphiql page html
+     * POST /graphql -> returns query result
+     */
     this.app?.use("/graphql", (request, response, next) => {
       // While waiting for historical indexing to complete, we want to respond back
       // with an error to prevent the requester from accepting incomplete data.
@@ -166,40 +170,43 @@ export class ServerService {
         return response.status(503).json(result);
       }
 
-      if (request.method === "POST") {
-        return graphqlMiddleware(request, response, next);
+      switch (request.method) {
+        case "POST":
+          return graphqlMiddleware(request, response, next);
+        case "GET": {
+          const SERVER_URL = this.#getOwnUrlFromRequest(request);
+          return response
+            .status(200)
+            .setHeader("Content-Type", "text/html")
+            .send(graphiQLHtml({ endpoint: `${SERVER_URL}/graphql` }));
+        }
+        case "HEAD":
+          return response.status(200).send();
+        default:
+          return next();
       }
-
-      if (request.method === "GET") {
-        const SERVER_URL = this.#getOwnUrlFromRequest(request);
-        response.setHeader("Content-Type", "text/html");
-        return response
-          .status(200)
-          .send(graphiQLPage({ endpoint: `${SERVER_URL}/graphql` }));
-      }
-
-      if (request.method === "HEAD") return response.status(200).send();
-
-      return next();
     });
 
-    // NOTE: Deprecating use of root endpoint for GraphQL queries in favor of /graphql.
-    // This will be removed in a future release.
+    /**
+     * GET / -> returns graphiql page html
+     * POST / -> expects returns query result
+     */
     this.app?.use("/", (request, response, next) => {
-      if (request.method === "POST") {
-        return graphqlMiddleware(request, response, next);
+      switch (request.method) {
+        case "POST":
+          return graphqlMiddleware(request, response, next);
+        case "GET": {
+          const SERVER_URL = this.#getOwnUrlFromRequest(request);
+          return response
+            .status(200)
+            .setHeader("Content-Type", "text/html")
+            .send(graphiQLHtml({ endpoint: `${SERVER_URL}/graphql` }));
+        }
+        case "HEAD":
+          return response.status(200).send();
+        default:
+          return next();
       }
-      if (request.method === "GET") {
-        const SERVER_URL = this.#getOwnUrlFromRequest(request);
-        response.setHeader("Content-Type", "text/html");
-        return response
-          .status(200)
-          .send(graphiQLPage({ endpoint: `${SERVER_URL}/graphql` }));
-      }
-
-      if (request.method === "HEAD") return response.status(200).send();
-
-      return next();
     });
   }
 
