@@ -141,6 +141,7 @@ export class Ponder {
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
+          factoryContracts,
         }),
       });
     });
@@ -160,17 +161,23 @@ export class Ponder {
       eventAggregatorService: this.eventAggregatorService,
       contracts,
       logFilters,
+      factoryContracts,
     });
 
     this.serverService = new ServerService({
       common,
       userStore: this.userStore,
     });
-    this.buildService = new BuildService({ common, logFilters });
+    this.buildService = new BuildService({
+      common,
+      logFilters,
+      factoryContracts,
+    });
     this.codegenService = new CodegenService({
       common,
       contracts,
       logFilters,
+      factoryContracts,
     });
     this.uiService = new UiService({ common, logFilters });
   }
@@ -367,10 +374,10 @@ export class Ponder {
       const { chainId } = networkSyncService.network;
       const { historicalSyncService, realtimeSyncService } = networkSyncService;
 
-      historicalSyncService.on("historicalCheckpoint", ({ timestamp }) => {
+      historicalSyncService.on("historicalCheckpoint", ({ blockTimestamp }) => {
         this.eventAggregatorService.handleNewHistoricalCheckpoint({
           chainId,
-          timestamp,
+          timestamp: blockTimestamp,
         });
       });
 
@@ -380,17 +387,17 @@ export class Ponder {
         });
       });
 
-      realtimeSyncService.on("realtimeCheckpoint", ({ timestamp }) => {
+      realtimeSyncService.on("realtimeCheckpoint", ({ blockTimestamp }) => {
         this.eventAggregatorService.handleNewRealtimeCheckpoint({
           chainId,
-          timestamp,
+          timestamp: blockTimestamp,
         });
       });
 
-      realtimeSyncService.on("finalityCheckpoint", ({ timestamp }) => {
+      realtimeSyncService.on("finalityCheckpoint", ({ blockTimestamp }) => {
         this.eventAggregatorService.handleNewFinalityCheckpoint({
           chainId,
-          timestamp,
+          timestamp: blockTimestamp,
         });
       });
 

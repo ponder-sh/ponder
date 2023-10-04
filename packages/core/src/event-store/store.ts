@@ -26,7 +26,7 @@ export interface EventStore {
 
   /** LOG FILTER METHODS */
 
-  insertLogFilterInterval(options: {
+  insertHistoricalLogFilterInterval(options: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
@@ -56,9 +56,9 @@ export interface EventStore {
    * Insert a list of child contract addresses and creation block numbers
    * for the specified factory contract.
    */
-  insertFactoryContractInterval(options: {
+  insertHistoricalFactoryContractInterval(options: {
     chainId: number;
-    childContracts: {
+    newChildContracts: {
       address: Hex;
       creationBlock: bigint;
     }[];
@@ -74,7 +74,7 @@ export interface EventStore {
 
   /**
    * Get all block intervals where child contract addresses and creation
-   * block numbers of the specified factory contract have already been inserted.
+   * block numbers for the specified factory contract have already been inserted.
    */
   getFactoryContractIntervals(options: {
     chainId: number;
@@ -105,7 +105,7 @@ export interface EventStore {
    * all child contracts of the specified factory contract within the specified
    * block range.
    */
-  insertChildContractInterval(options: {
+  insertHistoricalChildContractInterval(options: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
@@ -136,6 +136,26 @@ export interface EventStore {
 
   /** BLAH */
 
+  /**
+   * Inserts new child contracts that are found in real-time.
+   */
+  insertRealtimeChildContracts(options: {
+    chainId: number;
+    newChildContracts: {
+      address: Hex;
+      creationBlock: bigint;
+    }[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }): Promise<void>;
+
+  /**
+   * Inserts a new realtime block and any logs/transactions that match the
+   * event sources. Does NOT insert intervals to mark this data as finalized,
+   * see insertRealtimeInterval for that.
+   */
   insertRealtimeBlock(options: {
     chainId: number;
     block: RpcBlock;
@@ -143,6 +163,33 @@ export interface EventStore {
     logs: RpcLog[];
   }): Promise<void>;
 
+  /**
+   * Marks data as finalized by inserting cache intervals for all event sources
+   * in real time.
+   */
+  insertRealtimeInterval(options: {
+    chainId: number;
+    logFilters: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+    }[];
+    factoryContracts: {
+      address: Hex;
+      eventSelector: Hex;
+    }[];
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
+  }): Promise<void>;
+
+  /**
+   * Deletes ALL data from the store with a block number greater than the
+   * specified block number.
+   *
+   * This includes block/transaction/logs, child contracts, and intervals.
+   */
   deleteRealtimeData(options: {
     chainId: number;
     fromBlockNumber: number;

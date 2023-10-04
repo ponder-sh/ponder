@@ -1,10 +1,10 @@
 import Emittery from "emittery";
 import pLimit from "p-limit";
-import { hexToNumber, numberToHex } from "viem";
+import { Hex, hexToBigInt, hexToNumber, numberToHex, RpcLog } from "viem";
 
+import { FactoryContract } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
-import { QueueError } from "@/errors/queue";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import { poll } from "@/utils/poll";
@@ -21,11 +21,10 @@ import {
 } from "./format";
 
 type RealtimeSyncEvents = {
-  realtimeCheckpoint: { timestamp: number };
-  finalityCheckpoint: { timestamp: number };
-  shallowReorg: { commonAncestorTimestamp: number };
+  realtimeCheckpoint: { blockTimestamp: number; blockNumber: number };
+  finalityCheckpoint: { blockTimestamp: number; blockNumber: number };
+  shallowReorg: { commonAncestorBlockTimestamp: number };
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
-  error: { error: Error };
 };
 
 type RealtimeBlockTask = BlockWithTransactions;
@@ -34,8 +33,9 @@ type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private common: Common;
   private eventStore: EventStore;
-  private logFilters: LogFilter[];
   private network: Network;
+  private logFilters: LogFilter[];
+  private factoryContracts: FactoryContract[];
 
   // Queue of unprocessed blocks.
   private queue: RealtimeSyncQueue;
@@ -49,20 +49,23 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   constructor({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters,
+    factoryContracts,
   }: {
     common: Common;
     eventStore: EventStore;
-    logFilters: LogFilter[];
     network: Network;
+    logFilters: LogFilter[];
+    factoryContracts: FactoryContract[];
   }) {
     super();
 
     this.common = common;
     this.eventStore = eventStore;
-    this.logFilters = logFilters;
     this.network = network;
+    this.logFilters = logFilters;
+    this.factoryContracts = factoryContracts;
 
     this.queue = this.buildQueue();
   }
@@ -215,18 +218,16 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       },
       options: { concurrency: 1, autoStart: false },
       onError: ({ error, task }) => {
-        const queueError = new QueueError({
-          queueName: "Realtime sync queue",
-          task: {
-            hash: task.hash,
-            parentHash: task.parentHash,
-            number: task.number,
-            timestamp: task.timestamp,
-            transactionCount: task.transactions.length,
-          },
-          cause: error,
+        this.common.logger.error({
+          service: "realtime",
+          msg: `Realtime sync task failed (network=${this.network.name})`,
+          error,
+          network: this.network.name,
+          hash: task.hash,
+          parentHash: task.parentHash,
+          number: task.number,
+          timestamp: task.timestamp,
         });
-        this.emit("error", { error: queueError });
 
         // Default to a retry (uses the retry options passed to the queue).
         // queue.addTask(task, { retry: true });
@@ -262,23 +263,46 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         msg: `Started processing new head block ${newBlock.number} (network=${this.network.name})`,
       });
 
-      // First, check if the new block _might_ contain any logs that match the registered filters.
-      const isMatchedLogPresentInBlock = isMatchedLogInBloomFilter({
-        bloom: newBlockWithTransactions.logsBloom!,
-        logFilters: this.logFilters.map((l) => l.filter),
-      });
+      let logs: RpcLog[];
+      let matchedLogs: RpcLog[];
 
-      if (!isMatchedLogPresentInBlock) {
-        this.common.logger.debug({
-          service: "realtime",
-          msg: `No logs found in block ${newBlock.number} using bloom filter (network=${this.network.name})`,
+      if (this.factoryContracts.length === 0) {
+        // If there are no factory contracts, we can attempt to skip calling eth_getLogs by
+        // checking if the block logsBloom matches any of the log filters.
+        const doesBlockHaveLogFilterLogs = isMatchedLogInBloomFilter({
+          bloom: newBlockWithTransactions.logsBloom!,
+          logFilters: this.logFilters.map((l) => l.filter),
         });
-      }
 
-      if (isMatchedLogPresentInBlock) {
-        // If there's a potential match, fetch the logs from the block.
+        if (!doesBlockHaveLogFilterLogs) {
+          this.common.logger.debug({
+            service: "realtime",
+            msg: `No logs found in block ${newBlock.number} using bloom filter (network=${this.network.name})`,
+          });
+          logs = [];
+          matchedLogs = [];
+        } else {
+          // Block (maybe) contains logs matching the registered log filters.
+          const stopClock = startClock();
+          logs = await this.network.client.request({
+            method: "eth_getLogs",
+            params: [{ blockHash: newBlock.hash }],
+          });
+          this.common.metrics.ponder_realtime_rpc_request_duration.observe(
+            { method: "eth_getLogs", network: this.network.name },
+            stopClock()
+          );
+
+          matchedLogs = filterLogs({
+            logs,
+            logFilters: this.logFilters.map((l) => l.filter),
+          });
+        }
+      } else {
+        // The app has factory contracts.
+        // Don't attempt to skip calling eth_getLogs, just call it every time.
         const stopClock = startClock();
-        const logs = await this.network.client.request({
+        logs = await this.network.client.request({
           method: "eth_getLogs",
           params: [{ blockHash: newBlock.hash }],
         });
@@ -287,22 +311,81 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           stopClock()
         );
 
-        // Filter logs down to those that actually match the registered filters.
-        const matchedLogs = filterLogs({
+        // Find and insert any new child contracts.
+        await Promise.all(
+          this.factoryContracts.map(async (factoryContract) => {
+            const matchedFactoryLogs = filterLogs({
+              logs,
+              logFilters: [
+                {
+                  address: factoryContract.address,
+                  topics: [factoryContract.factoryEventSelector],
+                },
+              ],
+            });
+
+            await this.eventStore.insertRealtimeChildContracts({
+              chainId: this.network.chainId,
+              newChildContracts: matchedFactoryLogs.map((log) => ({
+                address: factoryContract.getAddressFromFactoryEventLog(log),
+                creationBlock: hexToBigInt(log.blockNumber!),
+              })),
+              factoryContract: {
+                address: factoryContract.address,
+                eventSelector: factoryContract.factoryEventSelector,
+              },
+            });
+          })
+        );
+
+        // Find any logs matching log filters or child contract filters.
+        // NOTE: It might make sense to just insert all logs rather than introduce
+        // a potentially slow DB operation here. It's a tradeoff between sync
+        // latency and database growth.
+        const allChildContractAddresses = (
+          await Promise.all(
+            this.factoryContracts.map(async (factoryContract) => {
+              const iterator = this.eventStore.getChildContractAddresses({
+                chainId: this.network.chainId,
+                upToBlockNumber: hexToBigInt(block.number!),
+                factoryContract: {
+                  address: factoryContract.address,
+                  eventSelector: factoryContract.factoryEventSelector,
+                },
+              });
+              const childContractAddresses: Hex[] = [];
+              for await (const batch of iterator) {
+                childContractAddresses.push(...batch);
+              }
+              return childContractAddresses;
+            })
+          )
+        ).flat();
+
+        matchedLogs = filterLogs({
           logs,
-          logFilters: this.logFilters.map((l) => l.filter),
+          logFilters: [
+            ...this.logFilters.map((l) => l.filter),
+            ...(allChildContractAddresses.length > 0
+              ? [{ address: allChildContractAddresses }]
+              : []),
+          ],
         });
-        const matchedLogCount = matchedLogs.length;
-        const matchedLogCountText =
-          matchedLogCount === 1
-            ? "1 matched log"
-            : `${matchedLogCount} matched logs`;
+      }
 
-        this.common.logger.debug({
-          service: "realtime",
-          msg: `Found ${logs.length} total and ${matchedLogCountText} in block ${newBlock.number} (network=${this.network.name})`,
-        });
+      const matchedLogCount = matchedLogs.length;
+      const matchedLogCountText =
+        matchedLogCount === 1
+          ? "1 matched log"
+          : `${matchedLogCount} matched logs`;
 
+      this.common.logger.debug({
+        service: "realtime",
+        msg: `Found ${logs.length} total and ${matchedLogCountText} in block ${newBlock.number} (network=${this.network.name})`,
+      });
+
+      // If there are indeed any matched logs, insert them into the store.
+      if (matchedLogCount > 0) {
         // Filter transactions down to those that are required by the matched logs.
         const requiredTransactionHashes = new Set(
           matchedLogs.map((l) => l.transactionHash)
@@ -312,30 +395,23 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             requiredTransactionHashes.has(t.hash)
           );
 
-        // If there are indeed any matched logs, insert them into the store.
-        if (matchedLogCount > 0) {
-          await this.eventStore.insertRealtimeBlock({
-            chainId: this.network.chainId,
-            block: newBlockWithTransactions,
-            transactions: filteredTransactions,
-            logs: matchedLogs,
-          });
+        // TODO: Maybe rename or at least document behavior
+        await this.eventStore.insertRealtimeBlock({
+          chainId: this.network.chainId,
+          block: newBlockWithTransactions,
+          transactions: filteredTransactions,
+          logs: matchedLogs,
+        });
 
-          this.common.logger.info({
-            service: "realtime",
-            msg: `Found ${matchedLogCountText} in new head block ${newBlock.number} (network=${this.network.name})`,
-          });
-        } else {
-          // If there are not, this was a false positive on the bloom filter.
-          this.common.logger.debug({
-            service: "realtime",
-            msg: `Logs bloom for block ${newBlock.number} was a false positive (network=${this.network.name})`,
-          });
-        }
+        this.common.logger.info({
+          service: "realtime",
+          msg: `Found ${matchedLogCountText} in new head block ${newBlock.number} (network=${this.network.name})`,
+        });
       }
 
       this.emit("realtimeCheckpoint", {
-        timestamp: hexToNumber(newBlockWithTransactions.timestamp),
+        blockTimestamp: hexToNumber(newBlockWithTransactions.timestamp),
+        blockNumber: hexToNumber(newBlockWithTransactions.number),
       });
 
       // Add this block the local chain.
@@ -367,17 +443,32 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           (block) => block.number >= newFinalizedBlock.number
         );
 
-        await this.eventStore.insertLogFilterCachedRanges({
-          logFilterKeys: this.logFilters.map((l) => l.filter.key),
-          startBlock: this.finalizedBlockNumber + 1,
-          endBlock: newFinalizedBlock.number,
-          endBlockTimestamp: newFinalizedBlock.timestamp,
+        // TODO: Update this to insert:
+        // 1) Log filter intervals
+        // 2) Factory contract intervals
+        // 3) Child filter intervals
+        await this.eventStore.insertRealtimeInterval({
+          chainId: this.network.chainId,
+          logFilters: this.logFilters.map((l) => ({
+            address: l.filter.address,
+            topics: l.filter.topics,
+          })),
+          factoryContracts: this.factoryContracts.map((f) => ({
+            address: f.address,
+            eventSelector: f.factoryEventSelector,
+          })),
+          interval: {
+            startBlock: BigInt(this.finalizedBlockNumber + 1),
+            endBlock: BigInt(newFinalizedBlock.number),
+            endBlockTimestamp: BigInt(newFinalizedBlock.timestamp),
+          },
         });
 
         this.finalizedBlockNumber = newFinalizedBlock.number;
 
         this.emit("finalityCheckpoint", {
-          timestamp: newFinalizedBlock.timestamp,
+          blockTimestamp: newFinalizedBlock.timestamp,
+          blockNumber: newFinalizedBlock.number,
         });
 
         this.common.logger.debug({
@@ -502,7 +593,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // start fetching any newer blocks on the canonical chain.
         await this.addNewLatestBlock();
         this.emit("shallowReorg", {
-          commonAncestorTimestamp: commonAncestorBlock.timestamp,
+          commonAncestorBlockTimestamp: commonAncestorBlock.timestamp,
         });
 
         this.common.logger.info({

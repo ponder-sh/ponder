@@ -615,7 +615,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
         const logs = logsByBlockNumber[endBlock] ?? [];
 
-        await this.eventStore.insertLogFilterInterval({
+        await this.eventStore.insertHistoricalLogFilterInterval({
           chainId: logFilter.chainId,
           block,
           transactions,
@@ -686,9 +686,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       newChildContracts,
     });
 
-    await this.eventStore.insertFactoryContractInterval({
+    await this.eventStore.insertHistoricalFactoryContractInterval({
       chainId: factoryContract.chainId,
-      childContracts: newChildContracts,
+      newChildContracts: newChildContracts,
       factoryContract: {
         address: factoryContract.address,
         eventSelector: factoryContract.factoryEventSelector,
@@ -804,7 +804,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           const logs = logsByBlockNumber[endBlock] ?? [];
 
-          await this.eventStore.insertChildContractInterval({
+          await this.eventStore.insertHistoricalChildContractInterval({
             chainId: task.factoryContract.chainId,
             block,
             transactions,

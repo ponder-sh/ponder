@@ -24,9 +24,6 @@ import { range } from "@/utils/range";
 import type { EventStore } from "../store";
 import {
   type EventStoreTables,
-  type InsertableBlock,
-  type InsertableLog,
-  type InsertableTransaction,
   rpcToSqliteBlock,
   rpcToSqliteLog,
   rpcToSqliteTransaction,
@@ -59,13 +56,13 @@ export class SqliteEventStore implements EventStore {
     if (error) throw error;
   };
 
-  insertLogFilterInterval = async ({
+  insertHistoricalLogFilterInterval = async ({
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
     logs: rpcLogs,
-    logFilter: { address, topics },
-    interval: { startBlock, endBlock, endBlockTimestamp },
+    logFilter,
+    interval,
   }: {
     chainId: number;
     block: RpcBlock;
@@ -104,42 +101,475 @@ export class SqliteEventStore implements EventStore {
           .execute();
       }
 
-      await this.insertLogFilterRange({
+      await this.insertLogFilterInterval({
         tx,
         chainId,
-        address,
-        topics,
-        startBlock,
-        endBlock,
-        endBlockTimestamp,
+        logFilters: [logFilter],
+        interval,
       });
     });
   };
 
-  private insertLogFilterRange = async ({
-    tx,
+  getLogFilterIntervals = async ({
     chainId,
-    address,
-    topics,
-    startBlock,
-    endBlock,
-    endBlockTimestamp,
+    logFilter: { address, topics },
   }: {
-    tx: KyselyTransaction<EventStoreTables>;
     chainId: number;
-    address?: Hex | Hex[];
-    topics?: (Hex | Hex[] | null)[];
-    startBlock: bigint;
-    endBlock: bigint;
-    endBlockTimestamp: bigint;
+    logFilter: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+    };
   }) => {
     const logFilterFragments = buildLogFilterFragments({
       address,
       topics,
+    }).map((f, idx) => ({ idx, ...f }));
+
+    const baseQuery = this.db
+      .with(
+        "logFilterFragments(fragmentIndex, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
+        () =>
+          sql`( values ${sql.join(
+            logFilterFragments.map(
+              (f) =>
+                sql`( ${sql.val(f.idx)}, ${sql.val(f.address)}, ${sql.val(
+                  f.topic0
+                )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
+                  f.topic3
+                )} )`
+            )
+          )} )`
+      )
+      .selectFrom("logFilterIntervals")
+      .leftJoin("logFilters", "logFilterId", "logFilters.id")
+      .innerJoin("logFilterFragments", (join) => {
+        let baseJoin = join.on(({ or, cmpr }) =>
+          or([
+            cmpr("address", "is", null),
+            cmpr("fragmentAddress", "=", sql.ref("address")),
+          ])
+        );
+        for (const idx_ of range(0, 4)) {
+          baseJoin = baseJoin.on(({ or, cmpr }) => {
+            const idx = idx_ as 0 | 1 | 2 | 3;
+            return or([
+              cmpr(`topic${idx}`, "is", null),
+              cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
+            ]);
+          });
+        }
+
+        return baseJoin;
+      })
+      .select(["fragmentIndex", "startBlock", "endBlock", "endBlockTimestamp"])
+      .where("chainId", "=", chainId);
+
+    const intervals = await baseQuery.execute();
+
+    const intervalsByFragment = intervals.reduce((acc, cur) => {
+      const { fragmentIndex, ...rest } = cur;
+      acc[fragmentIndex] ||= [];
+      acc[fragmentIndex].push(rest);
+      return acc;
+    }, {} as Record<number, { startBlock: bigint; endBlock: bigint; endBlockTimestamp: bigint }[]>);
+
+    const fragmentIntervals = logFilterFragments.map((f) => {
+      return (intervalsByFragment[f.idx] ?? []).map(
+        (r) =>
+          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
+      );
     });
 
+    const totalIntervals = intervalIntersectionMany(fragmentIntervals);
+
+    return totalIntervals;
+  };
+
+  insertHistoricalFactoryContractInterval = async ({
+    chainId,
+    newChildContracts,
+    factoryContract,
+    interval,
+  }: {
+    chainId: number;
+    newChildContracts: {
+      address: Hex;
+      creationBlock: bigint;
+    }[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      const { address, eventSelector } = factoryContract;
+      const { id: factoryContractId } = await tx
+        .insertInto("factoryContracts")
+        .values({ chainId, address, eventSelector })
+        // Note that we need to REPLACE here rather than IGNORE so that the
+        // RETURNING clause works as expected (we need the ID of this row).
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      for (const childContract of newChildContracts) {
+        await tx
+          .insertInto("childContracts")
+          .values({
+            factoryContractId,
+            address: childContract.address,
+            creationBlock: childContract.creationBlock,
+          })
+          .execute();
+      }
+
+      await this.insertFactoryContractInterval({
+        tx,
+        chainId,
+        factoryContracts: [factoryContract],
+        interval,
+      });
+    });
+  };
+
+  getFactoryContractIntervals = async ({
+    chainId,
+    factoryContract: { address, eventSelector },
+  }: {
+    chainId: number;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }) => {
+    const intervals = await this.db
+      .selectFrom("factoryContractIntervals")
+      .select(["startBlock", "endBlock"])
+      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
+      .where("chainId", "=", chainId)
+      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.eventSelector", "=", eventSelector)
+      .execute();
+
+    return intervals.map(
+      (i) => [Number(i.startBlock), Number(i.endBlock)] as [number, number]
+    );
+  };
+
+  async *getChildContractAddresses({
+    chainId,
+    upToBlockNumber,
+    factoryContract: { address, eventSelector },
+    pageSize = 10_000,
+  }: {
+    chainId: number;
+    upToBlockNumber: bigint;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    pageSize?: number;
+  }) {
+    const baseQuery = this.db
+      .selectFrom("childContracts")
+      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
+      .select(["childContracts.address", "childContracts.creationBlock"])
+      .where("chainId", "=", chainId)
+      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.eventSelector", "=", eventSelector)
+      .limit(pageSize)
+      .where("childContracts.creationBlock", "<=", upToBlockNumber);
+
+    let cursor: bigint | undefined = undefined;
+
+    while (true) {
+      let query = baseQuery;
+
+      if (cursor) {
+        query = query.where("childContracts.creationBlock", ">", cursor);
+      }
+
+      const batch = await query.execute();
+
+      const lastRow = batch[batch.length - 1];
+      if (lastRow) {
+        cursor = lastRow.creationBlock;
+      }
+
+      yield batch.map((c) => c.address);
+
+      if (batch.length < pageSize) break;
+    }
+  }
+
+  insertHistoricalChildContractInterval = async ({
+    chainId,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    logs: rpcLogs,
+    factoryContract,
+    interval,
+  }: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logs: RpcLog[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await tx
+        .insertInto("blocks")
+        .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
+
+      for (const rpcTransaction of rpcTransactions) {
+        await tx
+          .insertInto("transactions")
+          .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+      }
+
+      for (const rpcLog of rpcLogs) {
+        await tx
+          .insertInto("logs")
+          .values({ ...rpcToSqliteLog(rpcLog), chainId })
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      }
+
+      await this.insertChildContractInterval({
+        tx,
+        chainId,
+        factoryContracts: [factoryContract],
+        interval,
+      });
+    });
+  };
+
+  getChildContractIntervals = async ({
+    chainId,
+    factoryContract: { address, eventSelector },
+  }: {
+    chainId: number;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }) => {
+    const intervals = await this.db
+      .selectFrom("childContractIntervals")
+      .select(["startBlock", "endBlock"])
+      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
+      .where("chainId", "=", chainId)
+      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.eventSelector", "=", eventSelector)
+      .execute();
+
+    return intervals.map(
+      (i) => [Number(i.startBlock), Number(i.endBlock)] as [number, number]
+    );
+  };
+
+  /** REALTIME */
+
+  insertRealtimeBlock = async ({
+    chainId,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    logs: rpcLogs,
+  }: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logs: RpcLog[];
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await tx
+        .insertInto("blocks")
+        .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
+
+      for (const rpcTransaction of rpcTransactions) {
+        await tx
+          .insertInto("transactions")
+          .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+      }
+
+      for (const rpcLog of rpcLogs) {
+        await tx
+          .insertInto("logs")
+          .values({ ...rpcToSqliteLog(rpcLog), chainId })
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      }
+    });
+  };
+
+  insertRealtimeChildContracts = async ({
+    chainId,
+    newChildContracts,
+    factoryContract,
+  }: {
+    chainId: number;
+    newChildContracts: {
+      address: Hex;
+      creationBlock: bigint;
+    }[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      const { address, eventSelector } = factoryContract;
+      const { id: factoryContractId } = await tx
+        .insertInto("factoryContracts")
+        .values({ chainId, address, eventSelector })
+        // Note that we need to REPLACE here rather than IGNORE so that the
+        // RETURNING clause works as expected (we need the ID of this row).
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      for (const childContract of newChildContracts) {
+        await tx
+          .insertInto("childContracts")
+          .values({
+            factoryContractId,
+            address: childContract.address,
+            creationBlock: childContract.creationBlock,
+          })
+          .execute();
+      }
+    });
+  };
+
+  insertRealtimeInterval = async ({
+    chainId,
+    logFilters,
+    factoryContracts,
+    interval,
+  }: {
+    chainId: number;
+    logFilters: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+    }[];
+    factoryContracts: {
+      address: Hex;
+      eventSelector: Hex;
+    }[];
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await this.insertLogFilterInterval({
+        tx,
+        chainId,
+        logFilters,
+        interval,
+      });
+
+      await this.insertFactoryContractInterval({
+        tx,
+        chainId,
+        factoryContracts,
+        interval,
+      });
+
+      await this.insertChildContractInterval({
+        tx,
+        chainId,
+        factoryContracts,
+        interval,
+      });
+    });
+  };
+
+  deleteRealtimeData = async ({
+    chainId,
+    fromBlockNumber,
+  }: {
+    chainId: number;
+    fromBlockNumber: number;
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await tx
+        .deleteFrom("blocks")
+        .where("number", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+      await tx
+        .deleteFrom("transactions")
+        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+      await tx
+        .deleteFrom("logs")
+        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+      await tx
+        .deleteFrom("contractReadResults")
+        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
+        .where("chainId", "=", chainId)
+        .execute();
+    });
+  };
+
+  /** SYNC HELPER METHODS */
+
+  private insertLogFilterInterval = async ({
+    tx,
+    chainId,
+    logFilters,
+    interval: { startBlock, endBlock, endBlockTimestamp },
+  }: {
+    tx: KyselyTransaction<EventStoreTables>;
+    chainId: number;
+    logFilters: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+    }[];
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
+  }) => {
+    const logFilterFragments = logFilters
+      .map(({ address, topics }) =>
+        buildLogFilterFragments({
+          address,
+          topics,
+        })
+      )
+      .flat();
+
     for (const logFilterFragment of logFilterFragments) {
-      // Get log filter fragment (if it exists).
+      // Get log filter fragment row (if it exists). This is ugly because we can't
+      // use a unique constraint that contains nullable columns in SQLite (`null`
+      // values are treated as different).
       let logFilterRow = await tx
         .selectFrom("logFilters")
         .select("id")
@@ -231,102 +661,26 @@ export class SqliteEventStore implements EventStore {
     }
   };
 
-  getLogFilterIntervals = async ({
+  private insertFactoryContractInterval = async ({
+    tx,
     chainId,
-    logFilter: { address, topics },
-  }: {
-    chainId: number;
-    logFilter: {
-      address?: Hex | Hex[];
-      topics?: (Hex | Hex[] | null)[];
-    };
-  }) => {
-    const logFilterFragments = buildLogFilterFragments({
-      address,
-      topics,
-    }).map((f, idx) => ({ idx, ...f }));
-
-    const baseQuery = this.db
-      .with(
-        "logFilterFragments(fragmentIndex, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
-        () =>
-          sql`( values ${sql.join(
-            logFilterFragments.map(
-              (f) =>
-                sql`( ${sql.val(f.idx)}, ${sql.val(f.address)}, ${sql.val(
-                  f.topic0
-                )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                  f.topic3
-                )} )`
-            )
-          )} )`
-      )
-      .selectFrom("logFilterIntervals")
-      .leftJoin("logFilters", "logFilterId", "logFilters.id")
-      .innerJoin("logFilterFragments", (join) => {
-        let baseJoin = join.on(({ or, cmpr }) =>
-          or([
-            cmpr("address", "is", null),
-            cmpr("fragmentAddress", "=", sql.ref("address")),
-          ])
-        );
-        for (const idx_ of range(0, 4)) {
-          baseJoin = baseJoin.on(({ or, cmpr }) => {
-            const idx = idx_ as 0 | 1 | 2 | 3;
-            return or([
-              cmpr(`topic${idx}`, "is", null),
-              cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
-            ]);
-          });
-        }
-
-        return baseJoin;
-      })
-      .select(["fragmentIndex", "startBlock", "endBlock", "endBlockTimestamp"])
-      .where("chainId", "=", chainId);
-
-    const intervals = await baseQuery.execute();
-
-    const intervalsByFragment = intervals.reduce((acc, cur) => {
-      const { fragmentIndex, ...rest } = cur;
-      acc[fragmentIndex] ||= [];
-      acc[fragmentIndex].push(rest);
-      return acc;
-    }, {} as Record<number, { startBlock: bigint; endBlock: bigint; endBlockTimestamp: bigint }[]>);
-
-    const fragmentIntervals = logFilterFragments.map((f) => {
-      return (intervalsByFragment[f.idx] ?? []).map(
-        (r) =>
-          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
-      );
-    });
-
-    const totalIntervals = intervalIntersectionMany(fragmentIntervals);
-
-    return totalIntervals;
-  };
-
-  insertFactoryContractInterval = async ({
-    chainId,
-    childContracts,
-    factoryContract: { address, eventSelector },
+    factoryContracts,
     interval: { startBlock, endBlock },
   }: {
+    tx: KyselyTransaction<EventStoreTables>;
     chainId: number;
-    childContracts: {
-      address: Hex;
-      creationBlock: bigint;
-    }[];
-    factoryContract: {
+    factoryContracts: {
       address: Hex;
       eventSelector: Hex;
-    };
+    }[];
     interval: {
       startBlock: bigint;
       endBlock: bigint;
     };
   }) => {
-    await this.db.transaction().execute(async (tx) => {
+    for (const factoryContract of factoryContracts) {
+      const { address, eventSelector } = factoryContract;
+
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
         .values({ chainId, address, eventSelector })
@@ -335,17 +689,6 @@ export class SqliteEventStore implements EventStore {
         .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
         .returningAll()
         .executeTakeFirstOrThrow();
-
-      for (const childContract of childContracts) {
-        await tx
-          .insertInto("childContracts")
-          .values({
-            factoryContractId,
-            address: childContract.address,
-            creationBlock: childContract.creationBlock,
-          })
-          .execute();
-      }
 
       const overlappingIntervals = await tx
         .selectFrom("factoryContractIntervals")
@@ -397,123 +740,29 @@ export class SqliteEventStore implements EventStore {
           ]),
         })
         .execute();
-    });
-  };
-
-  getFactoryContractIntervals = async ({
-    chainId,
-    factoryContract: { address, eventSelector },
-  }: {
-    chainId: number;
-    factoryContract: {
-      address: Hex;
-      eventSelector: Hex;
-    };
-  }) => {
-    const intervals = await this.db
-      .selectFrom("factoryContractIntervals")
-      .select(["startBlock", "endBlock"])
-      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
-      .where("chainId", "=", chainId)
-      .where("factoryContracts.address", "=", address)
-      .where("factoryContracts.eventSelector", "=", eventSelector)
-      .execute();
-
-    return intervals.map(
-      (i) => [Number(i.startBlock), Number(i.endBlock)] as [number, number]
-    );
-  };
-
-  async *getChildContractAddresses({
-    chainId,
-    upToBlockNumber,
-    factoryContract: { address, eventSelector },
-    pageSize = 10_000,
-  }: {
-    chainId: number;
-    upToBlockNumber: bigint;
-    factoryContract: {
-      address: Hex;
-      eventSelector: Hex;
-    };
-    pageSize?: number;
-  }) {
-    const baseQuery = this.db
-      .selectFrom("childContracts")
-      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
-      .select(["childContracts.address", "childContracts.creationBlock"])
-      .where("chainId", "=", chainId)
-      .where("factoryContracts.address", "=", address)
-      .where("factoryContracts.eventSelector", "=", eventSelector)
-      .limit(pageSize)
-      .where("childContracts.creationBlock", "<=", upToBlockNumber);
-
-    let cursor: bigint | undefined = undefined;
-
-    while (true) {
-      let query = baseQuery;
-
-      if (cursor) {
-        query = query.where("childContracts.creationBlock", ">", cursor);
-      }
-
-      const batch = await query.execute();
-
-      const lastRow = batch[batch.length - 1];
-      if (lastRow) {
-        cursor = lastRow.creationBlock;
-      }
-
-      yield batch.map((c) => c.address);
-
-      if (batch.length < pageSize) break;
     }
-  }
+  };
 
-  insertChildContractInterval = async ({
+  private insertChildContractInterval = async ({
+    tx,
     chainId,
-    block: rpcBlock,
-    transactions: rpcTransactions,
-    logs: rpcLogs,
-    factoryContract: { address, eventSelector },
+    factoryContracts,
     interval: { startBlock, endBlock, endBlockTimestamp },
   }: {
+    tx: KyselyTransaction<EventStoreTables>;
     chainId: number;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    logs: RpcLog[];
-    factoryContract: {
+    factoryContracts: {
       address: Hex;
       eventSelector: Hex;
-    };
+    }[];
     interval: {
       startBlock: bigint;
       endBlock: bigint;
       endBlockTimestamp: bigint;
     };
   }) => {
-    await this.db.transaction().execute(async (tx) => {
-      await tx
-        .insertInto("blocks")
-        .values({ ...rpcToSqliteBlock(rpcBlock), chainId })
-        .onConflict((oc) => oc.column("hash").doNothing())
-        .execute();
-
-      for (const rpcTransaction of rpcTransactions) {
-        await tx
-          .insertInto("transactions")
-          .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute();
-      }
-
-      for (const rpcLog of rpcLogs) {
-        await tx
-          .insertInto("logs")
-          .values({ ...rpcToSqliteLog(rpcLog), chainId })
-          .onConflict((oc) => oc.column("id").doNothing())
-          .execute();
-      }
+    for (const factoryContract of factoryContracts) {
+      const { address, eventSelector } = factoryContract;
 
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
@@ -578,118 +827,10 @@ export class SqliteEventStore implements EventStore {
           ]),
         })
         .execute();
-    });
+    }
   };
 
-  getChildContractIntervals = async ({
-    chainId,
-    factoryContract: { address, eventSelector },
-  }: {
-    chainId: number;
-    factoryContract: {
-      address: Hex;
-      eventSelector: Hex;
-    };
-  }) => {
-    const intervals = await this.db
-      .selectFrom("childContractIntervals")
-      .select(["startBlock", "endBlock"])
-      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
-      .where("chainId", "=", chainId)
-      .where("factoryContracts.address", "=", address)
-      .where("factoryContracts.eventSelector", "=", eventSelector)
-      .execute();
-
-    return intervals.map(
-      (i) => [Number(i.startBlock), Number(i.endBlock)] as [number, number]
-    );
-  };
-
-  // OLD ---------------------------
-
-  insertRealtimeBlock = async ({
-    chainId,
-    block: rpcBlock,
-    transactions: rpcTransactions,
-    logs: rpcLogs,
-  }: {
-    chainId: number;
-    block: RpcBlock;
-    transactions: RpcTransaction[];
-    logs: RpcLog[];
-  }) => {
-    const block: InsertableBlock = {
-      ...rpcToSqliteBlock(rpcBlock),
-      chainId,
-    };
-
-    const transactions: InsertableTransaction[] = rpcTransactions.map(
-      (transaction) => ({
-        ...rpcToSqliteTransaction(transaction),
-        chainId,
-      })
-    );
-
-    const logs: InsertableLog[] = rpcLogs.map((log) => ({
-      ...rpcToSqliteLog(log),
-      chainId,
-    }));
-
-    await this.db.transaction().execute(async (tx) => {
-      await Promise.all([
-        tx
-          .insertInto("blocks")
-          .values(block)
-          .onConflict((oc) => oc.column("hash").doNothing())
-          .execute(),
-        ...transactions.map((transaction) =>
-          tx
-            .insertInto("transactions")
-            .values(transaction)
-            .onConflict((oc) => oc.column("hash").doNothing())
-            .execute()
-        ),
-        ...logs.map((log) =>
-          tx
-            .insertInto("logs")
-            .values(log)
-            .onConflict((oc) => oc.column("id").doNothing())
-            .execute()
-        ),
-      ]);
-    });
-  };
-
-  deleteRealtimeData = async ({
-    chainId,
-    fromBlockNumber,
-  }: {
-    chainId: number;
-    fromBlockNumber: number;
-  }) => {
-    await this.db.transaction().execute(async (tx) => {
-      await tx
-        .deleteFrom("blocks")
-        .where("number", ">=", intToBlob(fromBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .deleteFrom("transactions")
-        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .deleteFrom("logs")
-        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-      await tx
-        .deleteFrom("contractReadResults")
-        .where("blockNumber", ">=", intToBlob(fromBlockNumber))
-        .where("chainId", "=", chainId)
-        .execute();
-    });
-  };
+  /** CONTRACT READS */
 
   insertContractReadResult = async ({
     address,
