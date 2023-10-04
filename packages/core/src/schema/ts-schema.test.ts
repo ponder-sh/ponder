@@ -1,35 +1,24 @@
 import { test } from "vitest";
 
-import {
-  createSchema,
-  createTable,
-  list,
-  number,
-  optional,
-  string,
-} from "./ts-schema";
+import { createTable } from "./ts-schema";
 
-test("scalars", () => {
-  createSchema([createTable("Account", { id: string, age: number })]);
-});
+// This may be in a museum one day
+// We like this one!!
+// const schema = createSchema([
+//   createTable("share")
+//     .addColumn("id", "string")
+//     .addColumn("name", "string")
+//     .addColumn(
+//       "usernames",
+//       "string",
+//       { optional: true, list: true }
+//     ),
+//   createTable("account")
+//     .addColumn("id", "string")
+//     .addColumn("name", "string")
+//     .addColumn("shareId", "string", { references: "share.id" }),
+// ]);
 
-test("optional", () => {
-  createSchema([createTable("Account", { id: string, age: optional(number) })]);
-});
-
-test("lists", () => {
-  createSchema([createTable("Account", { id: string, age: list(number) })]);
-
-  createSchema([
-    createTable("Account", { id: string, age: optional(list(number)) }),
-  ]);
-});
-
-// Note: skipping for now because will be easier with stronger types
-test.todo("enums");
-
-test("one to one relationship", () => {
-  const person = createTable("Person", { id: string, age: number });
-
-  createSchema([person, createTable("Dog", { id: string, owner: person })]);
+test("add column", () => {
+  createTable("Account").addColumn("j", "bigint").addColumn("r", "string");
 });
