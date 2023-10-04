@@ -83,5 +83,11 @@ export type RecoverColumnType<
 > = TColumn extends {
   type: infer _type extends Scalar;
 }
-  ? Record<TName, RecoverScalarType<_type>>
+  ? TColumn["optional"] extends false
+    ? TColumn["list"] extends false
+      ? Record<TName, RecoverScalarType<_type>>
+      : Record<TName, RecoverScalarType<_type>[]>
+    : TColumn["list"] extends false
+    ? Partial<Record<TName, RecoverScalarType<_type>>>
+    : Partial<Record<TName, RecoverScalarType<_type>[]>>
   : never;
