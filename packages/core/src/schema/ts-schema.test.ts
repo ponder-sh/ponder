@@ -1,6 +1,6 @@
 import { test } from "vitest";
 
-import { createTable } from "./ts-schema";
+import { createSchema, createTable } from "./ts-schema";
 
 // This may be in a museum one day
 // We like this one!!
@@ -19,6 +19,8 @@ import { createTable } from "./ts-schema";
 //     .addColumn("shareId", "string", { references: "share.id" }),
 // ]);
 
-test("add column", () => {
-  createTable("Account").addColumn("j", "bigint").addColumn("r", "string");
+test("", () => {
+  createSchema([
+    createTable("Account").addColumn("j", "bigint").addColumn("r", "string"),
+  ]);
 });

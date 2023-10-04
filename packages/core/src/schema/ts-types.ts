@@ -40,10 +40,19 @@ export type IT<
     | unknown = unknown
 > = {
   table: Table<TTableName, TColumns>;
-  addColumn: <TName extends string, TType extends Scalar>(
+  addColumn: <
+    TName extends string,
+    TType extends Scalar,
+    TOptional extends boolean = false,
+    TList extends boolean = false
+  >(
     name: TName,
-    type: TType
-  ) => IT<TTableName, TColumns & Record<TName, Column<TType, false, false>>>;
+    type: TType,
+    modifiers?: { optional?: TOptional; list?: TList }
+  ) => IT<
+    TTableName,
+    TColumns & Record<TName, Column<TType, TOptional, TList>>
+  >;
 };
 
 /**
