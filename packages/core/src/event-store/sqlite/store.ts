@@ -1016,7 +1016,7 @@ export class SqliteEventStore implements EventStore {
       const { cmpr, or } = where;
       const cmprs = [];
 
-      cmprs.push(cmpr("logFilter_name", "=", logFilter.name));
+      cmprs.push(cmpr("eventSource_name", "=", logFilter.name));
       cmprs.push(
         cmpr(
           "logs.chainId",
