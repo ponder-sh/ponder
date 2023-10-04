@@ -134,8 +134,8 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         chainId: logFilter.chainId,
         address: logFilter.filter.address,
         topics: logFilter.filter.topics,
-        fromBlock: logFilter.filter.startBlock,
-        toBlock: logFilter.filter.endBlock,
+        fromBlock: logFilter.startBlock,
+        toBlock: logFilter.endBlock,
         includeEventSelectors: Object.keys(
           handledEventMetadata[logFilter.name]?.bySelector ?? {}
         ) as Hex[],

@@ -3,6 +3,7 @@ import { type Hex, decodeEventLog, getEventSelector, RpcLog } from "viem";
 
 import type { ResolvedConfig } from "@/config/config";
 import type { Options } from "@/config/options";
+import { toLowerCase } from "@/utils/lowercase";
 
 import { AbiEvents, buildAbi, getEvents } from "./abi";
 
@@ -72,9 +73,9 @@ export function buildFactoryContracts({
         throw new Error(`Unable to decode factory event log`);
       }
 
-      return (args as any)[
-        factoryContract.factoryEventAddressArgument
-      ] as Address;
+      return toLowerCase(
+        (args as any)[factoryContract.factoryEventAddressArgument] as Address
+      );
     };
 
     const { abi: childAbi } = buildAbi({

@@ -19,6 +19,7 @@ import { blobToBigInt } from "@/utils/decode";
 import { intToBlob } from "@/utils/encode";
 import { intervalIntersectionMany } from "@/utils/interval";
 import { buildLogFilterFragments } from "@/utils/logFilter";
+import { toLowerCase } from "@/utils/lowercase";
 import { range } from "@/utils/range";
 
 import type { EventStore } from "../store";
@@ -206,7 +207,9 @@ export class SqliteEventStore implements EventStore {
     };
   }) => {
     await this.db.transaction().execute(async (tx) => {
-      const { address, eventSelector } = factoryContract;
+      const address = toLowerCase(factoryContract.address);
+      const eventSelector = factoryContract.eventSelector;
+
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
         .values({ chainId, address, eventSelector })
@@ -221,7 +224,7 @@ export class SqliteEventStore implements EventStore {
           .insertInto("childContracts")
           .values({
             factoryContractId,
-            address: childContract.address,
+            address: toLowerCase(childContract.address),
             creationBlock: childContract.creationBlock,
           })
           .execute();
@@ -251,7 +254,7 @@ export class SqliteEventStore implements EventStore {
       .select(["startBlock", "endBlock"])
       .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
       .where("chainId", "=", chainId)
-      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.address", "=", toLowerCase(address))
       .where("factoryContracts.eventSelector", "=", eventSelector)
       .execute();
 
@@ -279,7 +282,7 @@ export class SqliteEventStore implements EventStore {
       .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
       .select(["childContracts.address", "childContracts.creationBlock"])
       .where("chainId", "=", chainId)
-      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.address", "=", toLowerCase(address))
       .where("factoryContracts.eventSelector", "=", eventSelector)
       .limit(pageSize)
       .where("childContracts.creationBlock", "<=", upToBlockNumber);
@@ -375,7 +378,7 @@ export class SqliteEventStore implements EventStore {
       .select(["startBlock", "endBlock"])
       .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
       .where("chainId", "=", chainId)
-      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.address", "=", toLowerCase(address))
       .where("factoryContracts.eventSelector", "=", eventSelector)
       .execute();
 
@@ -438,7 +441,9 @@ export class SqliteEventStore implements EventStore {
     };
   }) => {
     await this.db.transaction().execute(async (tx) => {
-      const { address, eventSelector } = factoryContract;
+      const address = toLowerCase(factoryContract.address);
+      const eventSelector = factoryContract.eventSelector;
+
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
         .values({ chainId, address, eventSelector })
@@ -453,7 +458,7 @@ export class SqliteEventStore implements EventStore {
           .insertInto("childContracts")
           .values({
             factoryContractId,
-            address: childContract.address,
+            address: toLowerCase(childContract.address),
             creationBlock: childContract.creationBlock,
           })
           .execute();
@@ -613,7 +618,7 @@ export class SqliteEventStore implements EventStore {
             // Existing interval endBlock falls within new interval.
             and([
               cmpr("endBlock", ">=", startBlock - 1n),
-              cmpr("endBlock", "<=", endBlock - 1n),
+              cmpr("endBlock", "<=", endBlock + 1n),
             ]),
             // Existing interval startBlock falls within new interval.
             and([
@@ -679,7 +684,8 @@ export class SqliteEventStore implements EventStore {
     };
   }) => {
     for (const factoryContract of factoryContracts) {
-      const { address, eventSelector } = factoryContract;
+      const address = toLowerCase(factoryContract.address);
+      const eventSelector = factoryContract.eventSelector;
 
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
@@ -699,7 +705,7 @@ export class SqliteEventStore implements EventStore {
             // Existing interval endBlock falls within new interval.
             and([
               cmpr("endBlock", ">=", startBlock - 1n),
-              cmpr("endBlock", "<=", endBlock - 1n),
+              cmpr("endBlock", "<=", endBlock + 1n),
             ]),
             // Existing interval startBlock falls within new interval.
             and([
@@ -762,7 +768,8 @@ export class SqliteEventStore implements EventStore {
     };
   }) => {
     for (const factoryContract of factoryContracts) {
-      const { address, eventSelector } = factoryContract;
+      const address = toLowerCase(factoryContract.address);
+      const eventSelector = factoryContract.eventSelector;
 
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
@@ -782,7 +789,7 @@ export class SqliteEventStore implements EventStore {
             // Existing interval endBlock falls within new interval.
             and([
               cmpr("endBlock", ">=", startBlock - 1n),
-              cmpr("endBlock", "<=", endBlock - 1n),
+              cmpr("endBlock", "<=", endBlock + 1n),
             ]),
             // Existing interval startBlock falls within new interval.
             and([
@@ -906,7 +913,7 @@ export class SqliteEventStore implements EventStore {
     }[];
     factoryContracts?: {
       chainId: number;
-      address: string;
+      address: Address;
       factoryEventSelector: Hex;
       child: {
         name: string;
@@ -917,12 +924,17 @@ export class SqliteEventStore implements EventStore {
     }[];
     pageSize: number;
   }) {
+    const eventSourceNames = [
+      ...logFilters.map((f) => f.name),
+      ...factoryContracts.map((f) => f.child.name),
+    ];
+
     const baseQuery = this.db
       .with(
         "eventSources(eventSource_name)",
         () =>
           sql`( values ${sql.join(
-            logFilters.map((f) => sql`( ${sql.val(f.name)} )`)
+            eventSourceNames.map((name) => sql`( ${sql.val(name)} )`)
           )} )`
       )
       .selectFrom("logs")
@@ -1071,10 +1083,10 @@ export class SqliteEventStore implements EventStore {
       where: ExpressionBuilder<any, any>;
       factoryContract: (typeof factoryContracts)[number];
     }) => {
-      const { cmpr } = where;
+      const { cmpr, selectFrom } = where;
       const cmprs = [];
 
-      cmprs.push(cmpr("childContract_name", "=", factoryContract.child.name));
+      cmprs.push(cmpr("eventSource_name", "=", factoryContract.child.name));
       cmprs.push(
         cmpr(
           "logs.chainId",
@@ -1083,8 +1095,31 @@ export class SqliteEventStore implements EventStore {
         )
       );
 
-      // TODO: Figure out subquery to get all child contracts for a factory contract.
-      // cmprs.push(cmpr("logs.address", "in"));
+      cmprs.push(
+        cmpr(
+          "logs.address",
+          "in",
+          selectFrom("childContracts")
+            .select("address")
+            .where(
+              "childContracts.factoryContractId",
+              "=",
+              selectFrom("factoryContracts")
+                .select("id")
+                .where(
+                  "factoryContracts.chainId",
+                  "=",
+                  sql`cast (${sql.val(factoryContract.chainId)} as integer)`
+                )
+                .where("factoryContracts.address", "=", factoryContract.address)
+                .where(
+                  "factoryContracts.eventSelector",
+                  "=",
+                  factoryContract.factoryEventSelector
+                )
+            )
+        )
+      );
 
       if (factoryContract.fromBlock) {
         cmprs.push(

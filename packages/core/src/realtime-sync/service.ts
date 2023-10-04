@@ -102,10 +102,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   start = async () => {
-    // If an endBlock is specified for every log filter on this network, and the
+    // If an endBlock is specified for every event source on this network, and the
     // latest end blcock is less than the finalized block number, we can stop here.
     // The service won't poll for new blocks and won't emit any events.
-    const endBlocks = this.logFilters.map((f) => f.filter.endBlock);
+    const endBlocks = [...this.logFilters, ...this.factoryContracts].map(
+      (f) => f.endBlock
+    );
     if (
       endBlocks.every(
         (endBlock) =>
@@ -114,7 +116,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     ) {
       this.common.logger.warn({
         service: "realtime",
-        msg: `No realtime log filters found (network=${this.network.name})`,
+        msg: `No realtime event sources found (network=${this.network.name})`,
       });
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },

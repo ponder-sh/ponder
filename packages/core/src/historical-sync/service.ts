@@ -20,7 +20,6 @@ import { formatEta, formatPercentage } from "@/utils/format";
 import {
   getChunks,
   intervalDifference,
-  intervalIntersection,
   ProgressTracker,
 } from "@/utils/interval";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
@@ -158,8 +157,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       ...this.logFilters.map(async (logFilter) => {
         const { isHistoricalSyncRequired, startBlock, endBlock } =
           validateHistoricalBlockRange({
-            startBlock: logFilter.filter.startBlock,
-            endBlock: logFilter.filter.endBlock,
+            startBlock: logFilter.startBlock,
+            endBlock: logFilter.endBlock,
             finalizedBlockNumber,
             latestBlockNumber,
           });
@@ -180,15 +179,17 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           return;
         }
 
-        const logFilterProgressTracker = new ProgressTracker({
-          target: [startBlock, endBlock],
-          completed: await this.eventStore.getLogFilterIntervals({
+        const completedLogFilterIntervals =
+          await this.eventStore.getLogFilterIntervals({
             chainId: logFilter.chainId,
             logFilter: {
               address: logFilter.filter.address,
               topics: logFilter.filter.topics,
             },
-          }),
+          });
+        const logFilterProgressTracker = new ProgressTracker({
+          target: [startBlock, endBlock],
+          completed: completedLogFilterIntervals,
         });
         this.logFilterProgressTrackers[logFilter.name] =
           logFilterProgressTracker;
@@ -242,34 +243,41 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           return;
         }
 
-        const factoryProgressTracker = new ProgressTracker({
-          target: [startBlock, endBlock],
-          completed: await this.eventStore.getFactoryContractIntervals({
+        const completedFactoryContractIntervals =
+          await this.eventStore.getFactoryContractIntervals({
             chainId: factoryContract.chainId,
             factoryContract: {
               address: factoryContract.address,
               eventSelector: factoryContract.factoryEventSelector,
             },
-          }),
+          });
+
+        const factoryProgressTracker = new ProgressTracker({
+          target: [startBlock, endBlock],
+          completed: completedFactoryContractIntervals,
         });
         this.factoryContractProgressTrackers[factoryContract.name] =
           factoryProgressTracker;
 
-        const childProgressTracker = new ProgressTracker({
-          target: [startBlock, endBlock],
-          completed: await this.eventStore.getChildContractIntervals({
+        const completedChildContractIntervals =
+          await this.eventStore.getChildContractIntervals({
             chainId: factoryContract.chainId,
             factoryContract: {
               address: factoryContract.address,
               eventSelector: factoryContract.factoryEventSelector,
             },
-          }),
+          });
+        const childProgressTracker = new ProgressTracker({
+          target: [startBlock, endBlock],
+          completed: completedChildContractIntervals,
         });
         this.childContractProgressTrackers[factoryContract.name] =
           childProgressTracker;
 
+        const requiredFactoryContractIntervals =
+          factoryProgressTracker.getRequired();
         const factoryTaskChunks = getChunks({
-          intervals: factoryProgressTracker.getRequired(),
+          intervals: requiredFactoryContractIntervals,
           maxChunkSize:
             factoryContract.maxBlockRange ?? this.network.defaultMaxBlockRange,
         });
@@ -284,15 +292,18 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         // Manually add child log tasks for any intervals where the factory
         // logs are cached, but the child logs are not. These won't be added
         // automatically by the factory log tasks.
-        const missingChildTaskChunks = intervalIntersection(
-          factoryProgressTracker.getCheckpoint() >= startBlock
-            ? [[startBlock, factoryProgressTracker.getCheckpoint()]]
-            : [],
-          intervalDifference(
-            childProgressTracker.getRequired(),
-            factoryProgressTracker.getRequired()
-          )
+        const requiredChildContractIntervals =
+          childProgressTracker.getRequired();
+        const missingChildContractIntervals = intervalDifference(
+          requiredChildContractIntervals,
+          requiredFactoryContractIntervals
         );
+
+        const missingChildTaskChunks = getChunks({
+          intervals: missingChildContractIntervals,
+          maxChunkSize:
+            factoryContract.maxBlockRange ?? this.network.defaultMaxBlockRange,
+        });
 
         for (const [fromBlock, toBlock] of missingChildTaskChunks) {
           this.queue.addTask(
@@ -594,7 +605,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     // If toBlock is not already required, add it. This is necessary
     // to mark the full block range of the eth_getLogs request as cached.
-    if (requiredBlocks.length === 0 || requiredBlocks[-1] < task.toBlock) {
+    if (!requiredBlocks.includes(task.toBlock)) {
       requiredBlocks.push(task.toBlock);
     }
 
@@ -658,8 +669,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }) => {
     const { factoryContract, fromBlock, toBlock } = task;
 
-    console.log("in factoryContractTaskWorker", { fromBlock, toBlock });
-
     const stopClock = startClock();
     const logs = await this.network.client.request({
       method: "eth_getLogs",
@@ -682,10 +691,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       creationBlock: hexToBigInt(log.blockNumber!),
     }));
 
-    console.log({
-      newChildContracts,
-    });
-
     await this.eventStore.insertHistoricalFactoryContractInterval({
       chainId: factoryContract.chainId,
       newChildContracts: newChildContracts,
@@ -703,8 +708,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       this.factoryContractProgressTrackers[
         factoryContract.name
       ].addCompletedInterval([fromBlock, toBlock]);
-
-    console.log({ isUpdated, prevCheckpoint, newCheckpoint });
 
     if (isUpdated) {
       const childContractTaskChunks = getChunks({
@@ -736,11 +739,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       },
     });
 
-    console.log("in childContractTaskWorker", {
-      fromBlock: task.fromBlock,
-      toBlock: task.toBlock,
-    });
-
     for await (const childContractAddressBatch of iterator) {
       const stopClock = startClock();
       const logs = await this.network.client.request({
@@ -757,9 +755,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         { method: "eth_getLogs", network: this.network.name },
         stopClock()
       );
-
-      console.log({ childContractAddressBatch });
-      console.log("got logs:", logs.length);
 
       /** START: Same logic as log worker. */
 
@@ -778,12 +773,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         .map(Number)
         .sort((a, b) => a - b);
 
-      console.log({ requiredBlocks: requiredBlocks.length });
-
       // If toBlock is not already required, add it. This is necessary
       // to reflect the availability of logs for the full range of the
       // eth_getLogs request.
-      if (requiredBlocks.length === 0 || requiredBlocks[-1] < task.toBlock) {
+      if (!requiredBlocks.includes(task.toBlock)) {
         requiredBlocks.push(task.toBlock);
       }
 
@@ -850,19 +843,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     await Promise.all(callbacks.map((cb) => cb(block)));
 
-    console.log("finished block", blockNumber);
-
     const minInProgressBlockNumber = Math.min(...this.blockTasksInProgress);
     this.blockTasksInProgress.delete(blockNumber);
     if (
       this.blockTasksInProgress.size === 0 ||
       blockNumber === minInProgressBlockNumber
     ) {
-      console.log("emitting historical checkpoint", {
-        blockNumber: hexToNumber(block.number!),
-        blockTimestamp: hexToNumber(block.timestamp),
-      });
-
       this.emit("historicalCheckpoint", {
         blockNumber: hexToNumber(block.number!),
         blockTimestamp: hexToNumber(block.timestamp),
@@ -880,11 +866,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       )
     );
 
-    console.log({
-      blockTasksEnqueuedCheckpoint: this.blockTasksEnqueuedCheckpoint,
-      blockTasksCanBeEnqueuedTo,
-    });
-
     if (blockTasksCanBeEnqueuedTo > this.blockTasksEnqueuedCheckpoint) {
       const newBlocks = Object.keys(this.blockCallbacks)
         .map(Number)
@@ -892,11 +873,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       for (const blockNumber of newBlocks) {
         this.blockTasksInProgress.add(blockNumber);
-
-        console.log({
-          blockNumber,
-          callbacks: this.blockCallbacks[blockNumber],
-        });
 
         this.queue.addTask(
           {

@@ -93,16 +93,16 @@ export class Ponder {
     const networks = config.networks
       .map((network) => buildNetwork({ network }))
       .filter((network) => {
-        const hasLogFilters = logFilters.some(
-          (logFilter) => logFilter.network === network.name
+        const hasEventSources = [...logFilters, ...factoryContracts].some(
+          (eventSource) => eventSource.network === network.name
         );
-        if (!hasLogFilters) {
+        if (!hasEventSources) {
           this.common.logger.warn({
             service: "app",
-            msg: `No log filters found (network=${network.name})`,
+            msg: `No event sources found (network=${network.name})`,
           });
         }
-        return hasLogFilters;
+        return hasEventSources;
       });
 
     const database = buildDatabase({ options, config });
