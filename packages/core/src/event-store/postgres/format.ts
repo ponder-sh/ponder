@@ -163,12 +163,51 @@ type ContractReadResultsTable = {
   result: Hex;
 };
 
-type LogFilterCachedRangesTable = {
+type LogFiltersTable = {
   id: Generated<number>;
-  filterKey: string;
-  startBlock: Buffer; // BigInt
-  endBlock: Buffer; // BigInt
-  endBlockTimestamp: Buffer; // BigInt
+  chainId: number;
+  address: Hex | null;
+  topic0: Hex | null;
+  topic1: Hex | null;
+  topic2: Hex | null;
+  topic3: Hex | null;
+};
+
+type LogFilterIntervalsTable = {
+  id: Generated<number>;
+  logFilterId: number;
+  startBlock: bigint;
+  endBlock: bigint;
+  endBlockTimestamp: bigint;
+};
+
+type FactoryContractsTable = {
+  id: Generated<number>;
+  chainId: number;
+  address: Hex;
+  eventSelector: Hex;
+};
+
+type FactoryContractIntervalsTable = {
+  id: Generated<number>;
+  factoryContractId: number;
+  startBlock: bigint;
+  endBlock: bigint;
+};
+
+type ChildContractsTable = {
+  id: Generated<number>;
+  factoryContractId: number;
+  address: Hex;
+  creationBlock: bigint;
+};
+
+type ChildContractIntervalsTable = {
+  id: Generated<number>;
+  factoryContractId: number;
+  startBlock: bigint;
+  endBlock: bigint;
+  endBlockTimestamp: bigint;
 };
 
 export type EventStoreTables = {
@@ -176,5 +215,12 @@ export type EventStoreTables = {
   transactions: TransactionsTable;
   logs: LogsTable;
   contractReadResults: ContractReadResultsTable;
-  logFilterCachedRanges: LogFilterCachedRangesTable;
+
+  logFilters: LogFiltersTable;
+  logFilterIntervals: LogFilterIntervalsTable;
+
+  factoryContracts: FactoryContractsTable;
+  factoryContractIntervals: FactoryContractIntervalsTable;
+  childContracts: ChildContractsTable;
+  childContractIntervals: ChildContractIntervalsTable;
 };

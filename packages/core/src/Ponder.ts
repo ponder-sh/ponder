@@ -401,9 +401,14 @@ export class Ponder {
         });
       });
 
-      realtimeSyncService.on("shallowReorg", ({ commonAncestorTimestamp }) => {
-        this.eventAggregatorService.handleReorg({ commonAncestorTimestamp });
-      });
+      realtimeSyncService.on(
+        "shallowReorg",
+        ({ commonAncestorBlockTimestamp }) => {
+          this.eventAggregatorService.handleReorg({
+            commonAncestorTimestamp: commonAncestorBlockTimestamp,
+          });
+        }
+      );
     });
 
     this.eventAggregatorService.on("newCheckpoint", async () => {

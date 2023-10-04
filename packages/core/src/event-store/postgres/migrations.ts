@@ -214,6 +214,85 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  ["2023_09_19_0_new_sync_design"]: {
+    async up(db: Kysely<any>) {
+      await db.schema.dropTable("logFilterCachedRanges").execute();
+
+      await db.schema
+        .createTable("logFilters")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(66)")
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
+        .execute();
+
+      await db.schema
+        .createTable("logFilterIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("logFilterId", "integer", (col) =>
+          col.notNull().references("logFilters.id")
+        )
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlockTimestamp", "numeric(78, 0)", (col) =>
+          col.notNull()
+        )
+        .execute();
+
+      await db.schema
+        .createTable("factoryContracts")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(66)", (col) => col.notNull())
+        .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
+        .addUniqueConstraint("factoryContractsUnique", [
+          "chainId",
+          "address",
+          "eventSelector",
+        ])
+        .execute();
+
+      await db.schema
+        .createTable("factoryContractIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("factoryContractId", "integer", (col) =>
+          col.notNull().references("factoryContracts.id")
+        )
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+
+      await db.schema
+        .createTable("childContracts")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("factoryContractId", "integer", (col) =>
+          col.notNull().references("factoryContracts.id")
+        )
+        .addColumn("address", "varchar(66)", (col) => col.notNull())
+        .addColumn("creationBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+
+      await db.schema
+        .createTable("childContractIntervals")
+        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("factoryContractId", "integer", (col) =>
+          col.notNull().references("factoryContracts.id")
+        )
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlockTimestamp", "numeric(78, 0)", (col) =>
+          col.notNull()
+        )
+        .execute();
+    },
+    async down(db: Kysely<any>) {
+      await db.schema.dropTable("logFilters").cascade().execute();
+      await db.schema.dropTable("factoryContracts").cascade().execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

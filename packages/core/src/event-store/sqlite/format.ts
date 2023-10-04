@@ -163,14 +163,6 @@ type ContractReadResultsTable = {
   result: Hex;
 };
 
-type LogFilterCachedRangesTable = {
-  id: Generated<number>;
-  filterKey: string;
-  startBlock: Buffer; // BigInt
-  endBlock: Buffer; // BigInt
-  endBlockTimestamp: Buffer; // BigInt
-};
-
 type LogFiltersTable = {
   id: Generated<number>;
   chainId: number;
@@ -223,7 +215,6 @@ export type EventStoreTables = {
   transactions: TransactionsTable;
   logs: LogsTable;
   contractReadResults: ContractReadResultsTable;
-  logFilterCachedRanges: LogFilterCachedRangesTable;
 
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;

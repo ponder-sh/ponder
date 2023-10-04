@@ -1,5 +1,6 @@
 import {
   type ExpressionBuilder,
+  type Transaction as KyselyTransaction,
   CompiledQuery,
   Kysely,
   Migrator,
@@ -14,17 +15,17 @@ import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
 import type { NonNull } from "@/types/utils";
+import { bigIntMax, bigIntMin } from "@/utils/bigint";
 import { blobToBigInt } from "@/utils/decode";
 import { intToBlob } from "@/utils/encode";
-import { intervalUnion } from "@/utils/interval";
+import { intervalIntersectionMany } from "@/utils/interval";
+import { buildLogFilterFragments } from "@/utils/logFilter";
 import { range } from "@/utils/range";
 
 import type { EventStore } from "../store";
 import {
   type EventStoreTables,
-  type InsertableBlock,
-  type InsertableLog,
-  type InsertableTransaction,
+  InsertableLog,
   rpcToPostgresBlock,
   rpcToPostgresLog,
   rpcToPostgresTransaction,
@@ -78,86 +79,357 @@ export class PostgresEventStore implements EventStore {
     if (error) throw error;
   };
 
-  insertHistoricalLogs = async ({
-    chainId,
-    logs: rpcLogs,
-  }: {
-    chainId: number;
-    logs: RpcLog[];
-  }) => {
-    const logBatches = rpcLogs.reduce<InsertableLog[][]>((acc, log, index) => {
-      const batchIndex = Math.floor(index / 1000);
-      acc[batchIndex] = acc[batchIndex] ?? [];
-      acc[batchIndex].push({
-        ...rpcToPostgresLog(log),
-        chainId,
-      });
-      return acc;
-    }, []);
-
-    await Promise.all(
-      logBatches.map(async (batch) => {
-        await this.db
-          .insertInto("logs")
-          .values(batch)
-          .onConflict((oc) => oc.column("id").doNothing())
-          .execute();
-      })
-    );
-  };
-
-  insertHistoricalBlock = async ({
+  insertHistoricalLogFilterInterval = async ({
     chainId,
     block: rpcBlock,
     transactions: rpcTransactions,
-    logFilterRange: { logFilterKey, blockNumberToCacheFrom },
+    logs: rpcLogs,
+    logFilter,
+    interval,
   }: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
-    logFilterRange: {
-      logFilterKey: string;
-      blockNumberToCacheFrom: number;
+    logs: RpcLog[];
+    logFilter: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+    };
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
     };
   }) => {
-    const block: InsertableBlock = {
-      ...rpcToPostgresBlock(rpcBlock),
-      chainId,
-    };
-
-    const transactions: InsertableTransaction[] = rpcTransactions.map(
-      (transaction) => ({
-        ...rpcToPostgresTransaction(transaction),
-        chainId,
-      })
-    );
-
-    const logFilterCachedRange = {
-      filterKey: logFilterKey,
-      startBlock: intToBlob(blockNumberToCacheFrom),
-      endBlock: block.number,
-      endBlockTimestamp: block.timestamp,
-    };
-
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
-        .values(block)
+        .values({ ...rpcToPostgresBlock(rpcBlock), chainId })
         .onConflict((oc) => oc.column("hash").doNothing())
         .execute();
-      if (transactions.length > 0) {
+
+      if (rpcTransactions.length > 0) {
         await tx
           .insertInto("transactions")
-          .values(transactions)
+          .values(
+            rpcTransactions.map((transaction) => ({
+              ...rpcToPostgresTransaction(transaction),
+              chainId,
+            }))
+          )
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
       }
-      await tx
-        .insertInto("logFilterCachedRanges")
-        .values(logFilterCachedRange)
-        .execute();
+
+      const logBatches = rpcLogs.reduce<InsertableLog[][]>(
+        (acc, log, index) => {
+          const batchIndex = Math.floor(index / 1000);
+          acc[batchIndex] = acc[batchIndex] ?? [];
+          acc[batchIndex].push({
+            ...rpcToPostgresLog(log),
+            chainId,
+          });
+          return acc;
+        },
+        []
+      );
+
+      await Promise.all(
+        logBatches.map(async (batch) => {
+          await this.db
+            .insertInto("logs")
+            .values(batch)
+            .onConflict((oc) => oc.column("id").doNothing())
+            .execute();
+        })
+      );
+
+      await this.insertLogFilterInterval({
+        tx,
+        chainId,
+        logFilters: [logFilter],
+        interval,
+      });
     });
   };
+
+  getLogFilterIntervals = async ({
+    chainId,
+    logFilter: { address, topics },
+  }: {
+    chainId: number;
+    logFilter: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+    };
+  }) => {
+    const logFilterFragments = buildLogFilterFragments({
+      address,
+      topics,
+    }).map((f, idx) => ({ idx, ...f }));
+
+    const baseQuery = this.db
+      .with(
+        "logFilterFragments(fragmentIndex, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
+        () =>
+          sql`( values ${sql.join(
+            logFilterFragments.map(
+              (f) =>
+                sql`( ${sql.val(f.idx)}, ${sql.val(f.address)}, ${sql.val(
+                  f.topic0
+                )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
+                  f.topic3
+                )} )`
+            )
+          )} )`
+      )
+      .selectFrom("logFilterIntervals")
+      .leftJoin("logFilters", "logFilterId", "logFilters.id")
+      .innerJoin("logFilterFragments", (join) => {
+        let baseJoin = join.on(({ or, cmpr }) =>
+          or([
+            cmpr("address", "is", null),
+            cmpr("fragmentAddress", "=", sql.ref("address")),
+          ])
+        );
+        for (const idx_ of range(0, 4)) {
+          baseJoin = baseJoin.on(({ or, cmpr }) => {
+            const idx = idx_ as 0 | 1 | 2 | 3;
+            return or([
+              cmpr(`topic${idx}`, "is", null),
+              cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
+            ]);
+          });
+        }
+
+        return baseJoin;
+      })
+      .select(["fragmentIndex", "startBlock", "endBlock", "endBlockTimestamp"])
+      .where("chainId", "=", chainId);
+
+    const intervals = await baseQuery.execute();
+
+    const intervalsByFragment = intervals.reduce((acc, cur) => {
+      const { fragmentIndex, ...rest } = cur;
+      acc[fragmentIndex] ||= [];
+      acc[fragmentIndex].push(rest);
+      return acc;
+    }, {} as Record<number, { startBlock: bigint; endBlock: bigint; endBlockTimestamp: bigint }[]>);
+
+    const fragmentIntervals = logFilterFragments.map((f) => {
+      return (intervalsByFragment[f.idx] ?? []).map(
+        (r) =>
+          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
+      );
+    });
+
+    const totalIntervals = intervalIntersectionMany(fragmentIntervals);
+
+    return totalIntervals;
+  };
+
+  insertHistoricalFactoryContractInterval = async ({
+    chainId,
+    newChildContracts,
+    factoryContract,
+    interval,
+  }: {
+    chainId: number;
+    newChildContracts: {
+      address: Hex;
+      creationBlock: bigint;
+    }[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      const { address, eventSelector } = factoryContract;
+      const { id: factoryContractId } = await tx
+        .insertInto("factoryContracts")
+        .values({ chainId, address, eventSelector })
+        // Note that we need to REPLACE here rather than IGNORE so that the
+        // RETURNING clause works as expected (we need the ID of this row).
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      if (newChildContracts.length > 0) {
+        await tx
+          .insertInto("childContracts")
+          .values(
+            newChildContracts.map((childContract) => ({
+              factoryContractId,
+              address: childContract.address,
+              creationBlock: childContract.creationBlock,
+            }))
+          )
+          .execute();
+      }
+
+      await this.insertFactoryContractInterval({
+        tx,
+        chainId,
+        factoryContracts: [factoryContract],
+        interval,
+      });
+    });
+  };
+
+  getFactoryContractIntervals = async ({
+    chainId,
+    factoryContract: { address, eventSelector },
+  }: {
+    chainId: number;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }) => {
+    const intervals = await this.db
+      .selectFrom("factoryContractIntervals")
+      .select(["startBlock", "endBlock"])
+      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
+      .where("chainId", "=", chainId)
+      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.eventSelector", "=", eventSelector)
+      .execute();
+
+    return intervals.map(
+      (i) => [Number(i.startBlock), Number(i.endBlock)] as [number, number]
+    );
+  };
+
+  async *getChildContractAddresses({
+    chainId,
+    upToBlockNumber,
+    factoryContract: { address, eventSelector },
+    pageSize = 10_000,
+  }: {
+    chainId: number;
+    upToBlockNumber: bigint;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    pageSize?: number;
+  }) {
+    const baseQuery = this.db
+      .selectFrom("childContracts")
+      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
+      .select(["childContracts.address", "childContracts.creationBlock"])
+      .where("chainId", "=", chainId)
+      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.eventSelector", "=", eventSelector)
+      .limit(pageSize)
+      .where("childContracts.creationBlock", "<=", upToBlockNumber);
+
+    let cursor: bigint | undefined = undefined;
+
+    while (true) {
+      let query = baseQuery;
+
+      if (cursor) {
+        query = query.where("childContracts.creationBlock", ">", cursor);
+      }
+
+      const batch = await query.execute();
+
+      const lastRow = batch[batch.length - 1];
+      if (lastRow) {
+        cursor = lastRow.creationBlock;
+      }
+
+      yield batch.map((c) => c.address);
+
+      if (batch.length < pageSize) break;
+    }
+  }
+
+  insertHistoricalChildContractInterval = async ({
+    chainId,
+    block: rpcBlock,
+    transactions: rpcTransactions,
+    logs: rpcLogs,
+    factoryContract,
+    interval,
+  }: {
+    chainId: number;
+    block: RpcBlock;
+    transactions: RpcTransaction[];
+    logs: RpcLog[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await tx
+        .insertInto("blocks")
+        .values({ ...rpcToPostgresBlock(rpcBlock), chainId })
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
+
+      for (const rpcTransaction of rpcTransactions) {
+        await tx
+          .insertInto("transactions")
+          .values({ ...rpcToPostgresTransaction(rpcTransaction), chainId })
+          .onConflict((oc) => oc.column("hash").doNothing())
+          .execute();
+      }
+
+      for (const rpcLog of rpcLogs) {
+        await tx
+          .insertInto("logs")
+          .values({ ...rpcToPostgresLog(rpcLog), chainId })
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      }
+
+      await this.insertChildContractInterval({
+        tx,
+        chainId,
+        factoryContracts: [factoryContract],
+        interval,
+      });
+    });
+  };
+
+  getChildContractIntervals = async ({
+    chainId,
+    factoryContract: { address, eventSelector },
+  }: {
+    chainId: number;
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }) => {
+    const intervals = await this.db
+      .selectFrom("childContractIntervals")
+      .select(["startBlock", "endBlock"])
+      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
+      .where("chainId", "=", chainId)
+      .where("factoryContracts.address", "=", address)
+      .where("factoryContracts.eventSelector", "=", eventSelector)
+      .execute();
+
+    return intervals.map(
+      (i) => [Number(i.startBlock), Number(i.endBlock)] as [number, number]
+    );
+  };
+
+  /** REALTIME */
 
   insertRealtimeBlock = async ({
     chainId,
@@ -170,43 +442,112 @@ export class PostgresEventStore implements EventStore {
     transactions: RpcTransaction[];
     logs: RpcLog[];
   }) => {
-    const block: InsertableBlock = {
-      ...rpcToPostgresBlock(rpcBlock),
-      chainId,
-    };
-
-    const transactions: InsertableTransaction[] = rpcTransactions.map(
-      (transaction) => ({
-        ...rpcToPostgresTransaction(transaction),
-        chainId,
-      })
-    );
-
-    const logs: InsertableLog[] = rpcLogs.map((log) => ({
-      ...rpcToPostgresLog(log),
-      chainId,
-    }));
-
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
-        .values(block)
+        .values({ ...rpcToPostgresBlock(rpcBlock), chainId })
         .onConflict((oc) => oc.column("hash").doNothing())
         .execute();
-      if (transactions.length > 0) {
+
+      for (const rpcTransaction of rpcTransactions) {
         await tx
           .insertInto("transactions")
-          .values(transactions)
+          .values({ ...rpcToPostgresTransaction(rpcTransaction), chainId })
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
       }
-      if (logs.length > 0) {
+
+      for (const rpcLog of rpcLogs) {
         await tx
           .insertInto("logs")
-          .values(logs)
+          .values({ ...rpcToPostgresLog(rpcLog), chainId })
           .onConflict((oc) => oc.column("id").doNothing())
           .execute();
       }
+    });
+  };
+
+  insertRealtimeChildContracts = async ({
+    chainId,
+    newChildContracts,
+    factoryContract,
+  }: {
+    chainId: number;
+    newChildContracts: {
+      address: Hex;
+      creationBlock: bigint;
+    }[];
+    factoryContract: {
+      address: Hex;
+      eventSelector: Hex;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      const { address, eventSelector } = factoryContract;
+      const { id: factoryContractId } = await tx
+        .insertInto("factoryContracts")
+        .values({ chainId, address, eventSelector })
+        // Note that we need to REPLACE here rather than IGNORE so that the
+        // RETURNING clause works as expected (we need the ID of this row).
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      for (const childContract of newChildContracts) {
+        await tx
+          .insertInto("childContracts")
+          .values({
+            factoryContractId,
+            address: childContract.address,
+            creationBlock: childContract.creationBlock,
+          })
+          .execute();
+      }
+    });
+  };
+
+  insertRealtimeInterval = async ({
+    chainId,
+    logFilters,
+    factoryContracts,
+    interval,
+  }: {
+    chainId: number;
+    logFilters: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+    }[];
+    factoryContracts: {
+      address: Hex;
+      eventSelector: Hex;
+    }[];
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
+  }) => {
+    await this.db.transaction().execute(async (tx) => {
+      await this.insertLogFilterInterval({
+        tx,
+        chainId,
+        logFilters,
+        interval,
+      });
+
+      await this.insertFactoryContractInterval({
+        tx,
+        chainId,
+        factoryContracts,
+        interval,
+      });
+
+      await this.insertChildContractInterval({
+        tx,
+        chainId,
+        factoryContracts,
+        interval,
+      });
     });
   };
 
@@ -241,119 +582,325 @@ export class PostgresEventStore implements EventStore {
     });
   };
 
-  insertLogFilterCachedRanges = async ({
-    logFilterKeys,
-    startBlock,
-    endBlock,
-    endBlockTimestamp,
-  }: {
-    logFilterKeys: string[];
-    startBlock: number;
-    endBlock: number;
-    endBlockTimestamp: number;
-  }) => {
-    await this.db.transaction().execute(async (tx) => {
-      await Promise.all(
-        logFilterKeys.map((logFilterKey) =>
-          tx
-            .insertInto("logFilterCachedRanges")
-            .values({
-              filterKey: logFilterKey,
-              startBlock: intToBlob(startBlock),
-              endBlock: intToBlob(endBlock),
-              endBlockTimestamp: intToBlob(endBlockTimestamp),
-            })
-            .execute()
-        )
-      );
-    });
-  };
+  /** SYNC HELPER METHODS */
 
-  mergeLogFilterCachedRanges = async ({
-    logFilterKey,
-    logFilterStartBlockNumber,
+  private insertLogFilterInterval = async ({
+    tx,
+    chainId,
+    logFilters,
+    interval: { startBlock, endBlock, endBlockTimestamp },
   }: {
-    logFilterKey: string;
-    logFilterStartBlockNumber: number;
+    tx: KyselyTransaction<EventStoreTables>;
+    chainId: number;
+    logFilters: {
+      address?: Hex | Hex[];
+      topics?: (Hex | Hex[] | null)[];
+    }[];
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
   }) => {
-    const startingRangeEndTimestamp = await this.db
-      .transaction()
-      .execute(async (tx) => {
-        const existingRanges = await tx
-          .deleteFrom("logFilterCachedRanges")
-          .where("filterKey", "=", logFilterKey)
-          .returningAll()
-          .execute();
+    const logFilterFragments = logFilters
+      .map(({ address, topics }) =>
+        buildLogFilterFragments({
+          address,
+          topics,
+        })
+      )
+      .flat();
 
-        const mergedIntervals = intervalUnion(
-          existingRanges.map((r) => [
-            Number(blobToBigInt(r.startBlock)),
-            Number(blobToBigInt(r.endBlock)),
+    for (const logFilterFragment of logFilterFragments) {
+      // Get log filter fragment row (if it exists). This is ugly because we can't
+      // use a unique constraint that contains nullable columns in SQLite (`null`
+      // values are treated as different).
+      let logFilterRow = await tx
+        .selectFrom("logFilters")
+        .select("id")
+        .where(({ and, cmpr }) => {
+          const cmprs = [];
+
+          for (const field of [
+            "address",
+            "topic0",
+            "topic1",
+            "topic2",
+            "topic3",
+          ] as const) {
+            if (logFilterFragment[field] === null) {
+              cmprs.push(cmpr(field, "is", null));
+            } else {
+              cmprs.push(cmpr(field, "=", logFilterFragment[field]));
+            }
+          }
+          return and(cmprs);
+        })
+        .executeTakeFirst();
+
+      // Insert log filter fragment if not found.
+      if (!logFilterRow) {
+        logFilterRow = await tx
+          .insertInto("logFilters")
+          .values({ ...logFilterFragment, chainId })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+      }
+
+      const logFilterId = logFilterRow.id;
+
+      const overlappingIntervals = await tx
+        .selectFrom("logFilterIntervals")
+        .selectAll()
+        .where("logFilterId", "=", logFilterId)
+        .where(({ and, or, cmpr }) =>
+          or([
+            // Existing interval endBlock falls within new interval.
+            and([
+              cmpr("endBlock", ">=", startBlock - 1n),
+              cmpr("endBlock", "<=", endBlock - 1n),
+            ]),
+            // Existing interval startBlock falls within new interval.
+            and([
+              cmpr("startBlock", ">=", startBlock - 1n),
+              cmpr("startBlock", "<=", endBlock + 1n),
+            ]),
+            // New interval is fully within existing interval.
+            and([
+              cmpr("startBlock", "<=", startBlock - 1n),
+              cmpr("endBlock", ">=", endBlock + 1n),
+            ]),
           ])
-        );
+        )
+        .execute();
 
-        const mergedRanges = mergedIntervals.map((interval) => {
-          const [startBlock, endBlock] = interval;
-          // For each new merged range, its endBlock will be found EITHER in the newly
-          // added range OR among the endBlocks of the removed ranges.
-          // Find it so we can propogate the endBlockTimestamp correctly.
-          const endBlockTimestamp = existingRanges.find(
-            (r) => Number(blobToBigInt(r.endBlock)) === endBlock
-          )!.endBlockTimestamp;
+      if (overlappingIntervals.length > 0) {
+        await tx
+          .deleteFrom("logFilterIntervals")
+          .where(
+            "id",
+            "in",
+            overlappingIntervals.map((r) => r.id)
+          )
+          .execute();
+      }
 
-          return {
-            filterKey: logFilterKey,
-            startBlock: intToBlob(startBlock),
-            endBlock: intToBlob(endBlock),
-            endBlockTimestamp: endBlockTimestamp,
-          };
-        });
-
-        if (mergedRanges.length > 0) {
-          await tx
-            .insertInto("logFilterCachedRanges")
-            .values(mergedRanges)
-            .execute();
-        }
-
-        // After we've inserted the new ranges, find the range that contains the log filter start block number.
-        // We need this to determine the new latest available event timestamp for the log filter.
-        const startingRange = mergedRanges.find(
-          (range) =>
-            Number(blobToBigInt(range.startBlock)) <=
-              logFilterStartBlockNumber &&
-            Number(blobToBigInt(range.endBlock)) >= logFilterStartBlockNumber
-        );
-
-        if (!startingRange) {
-          // If there is no range containing the log filter start block number, return 0. This could happen if
-          // many block tasks run concurrently and the one containing the log filter start block number is late.
-          return 0;
-        } else {
-          return Number(blobToBigInt(startingRange.endBlockTimestamp));
-        }
-      });
-
-    return { startingRangeEndTimestamp };
+      await tx
+        .insertInto("logFilterIntervals")
+        .values({
+          logFilterId,
+          startBlock: bigIntMin([
+            ...overlappingIntervals.map((r) => r.startBlock),
+            startBlock,
+          ]),
+          endBlock: bigIntMax([
+            ...overlappingIntervals.map((r) => r.endBlock),
+            endBlock,
+          ]),
+          endBlockTimestamp: bigIntMax([
+            ...overlappingIntervals.map((r) => r.endBlockTimestamp),
+            endBlockTimestamp,
+          ]),
+        })
+        .execute();
+    }
   };
 
-  getLogFilterCachedRanges = async ({
-    logFilterKey,
+  private insertFactoryContractInterval = async ({
+    tx,
+    chainId,
+    factoryContracts,
+    interval: { startBlock, endBlock },
   }: {
-    logFilterKey: string;
+    tx: KyselyTransaction<EventStoreTables>;
+    chainId: number;
+    factoryContracts: {
+      address: Hex;
+      eventSelector: Hex;
+    }[];
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+    };
   }) => {
-    const results = await this.db
-      .selectFrom("logFilterCachedRanges")
-      .selectAll()
-      .where("filterKey", "=", logFilterKey)
-      .execute();
+    for (const factoryContract of factoryContracts) {
+      const { address, eventSelector } = factoryContract;
 
-    return results.map((range) => ({
-      filterKey: range.filterKey,
-      startBlock: Number(blobToBigInt(range.startBlock)),
-      endBlock: Number(blobToBigInt(range.endBlock)),
-      endBlockTimestamp: Number(blobToBigInt(range.endBlockTimestamp)),
-    }));
+      const { id: factoryContractId } = await tx
+        .insertInto("factoryContracts")
+        .values({ chainId, address, eventSelector })
+        // Note that we need to REPLACE here rather than IGNORE so that the
+        // RETURNING clause works as expected (we need the ID of this row).
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      const overlappingIntervals = await tx
+        .selectFrom("factoryContractIntervals")
+        .selectAll()
+        .where("factoryContractId", "=", factoryContractId)
+        .where(({ and, or, cmpr }) =>
+          or([
+            // Existing interval endBlock falls within new interval.
+            and([
+              cmpr("endBlock", ">=", startBlock - 1n),
+              cmpr("endBlock", "<=", endBlock - 1n),
+            ]),
+            // Existing interval startBlock falls within new interval.
+            and([
+              cmpr("startBlock", ">=", startBlock - 1n),
+              cmpr("startBlock", "<=", endBlock + 1n),
+            ]),
+            // New interval is fully within existing interval.
+            and([
+              cmpr("startBlock", "<=", startBlock - 1n),
+              cmpr("endBlock", ">=", endBlock + 1n),
+            ]),
+          ])
+        )
+        .execute();
+
+      if (overlappingIntervals.length > 0) {
+        await tx
+          .deleteFrom("factoryContractIntervals")
+          .where(
+            "id",
+            "in",
+            overlappingIntervals.map((r) => r.id)
+          )
+          .execute();
+      }
+
+      await tx
+        .insertInto("factoryContractIntervals")
+        .values({
+          factoryContractId,
+          startBlock: bigIntMin([
+            ...overlappingIntervals.map((r) => r.startBlock),
+            startBlock,
+          ]),
+          endBlock: bigIntMax([
+            ...overlappingIntervals.map((r) => r.endBlock),
+            endBlock,
+          ]),
+        })
+        .execute();
+    }
+  };
+
+  private insertChildContractInterval = async ({
+    tx,
+    chainId,
+    factoryContracts,
+    interval: { startBlock, endBlock, endBlockTimestamp },
+  }: {
+    tx: KyselyTransaction<EventStoreTables>;
+    chainId: number;
+    factoryContracts: {
+      address: Hex;
+      eventSelector: Hex;
+    }[];
+    interval: {
+      startBlock: bigint;
+      endBlock: bigint;
+      endBlockTimestamp: bigint;
+    };
+  }) => {
+    for (const factoryContract of factoryContracts) {
+      const { address, eventSelector } = factoryContract;
+
+      const { id: factoryContractId } = await tx
+        .insertInto("factoryContracts")
+        .values({ chainId, address, eventSelector })
+        // Note that we need to REPLACE here rather than IGNORE so that the
+        // RETURNING clause works as expected (we need the ID of this row).
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      const overlappingIntervals = await tx
+        .selectFrom("childContractIntervals")
+        .selectAll()
+        .where("factoryContractId", "=", factoryContractId)
+        .where(({ and, or, cmpr }) =>
+          or([
+            // Existing interval endBlock falls within new interval.
+            and([
+              cmpr("endBlock", ">=", startBlock - 1n),
+              cmpr("endBlock", "<=", endBlock - 1n),
+            ]),
+            // Existing interval startBlock falls within new interval.
+            and([
+              cmpr("startBlock", ">=", startBlock - 1n),
+              cmpr("startBlock", "<=", endBlock + 1n),
+            ]),
+            // New interval is fully within existing interval.
+            and([
+              cmpr("startBlock", "<=", startBlock - 1n),
+              cmpr("endBlock", ">=", endBlock + 1n),
+            ]),
+          ])
+        )
+        .execute();
+
+      if (overlappingIntervals.length > 0) {
+        await tx
+          .deleteFrom("childContractIntervals")
+          .where(
+            "id",
+            "in",
+            overlappingIntervals.map((r) => r.id)
+          )
+          .execute();
+      }
+
+      await tx
+        .insertInto("childContractIntervals")
+        .values({
+          factoryContractId,
+          startBlock: bigIntMin([
+            ...overlappingIntervals.map((r) => r.startBlock),
+            startBlock,
+          ]),
+          endBlock: bigIntMax([
+            ...overlappingIntervals.map((r) => r.endBlock),
+            endBlock,
+          ]),
+          endBlockTimestamp: bigIntMax([
+            ...overlappingIntervals.map((r) => r.endBlockTimestamp),
+            endBlockTimestamp,
+          ]),
+        })
+        .execute();
+    }
+  };
+
+  insertHistoricalLogs = async ({
+    chainId,
+    logs: rpcLogs,
+  }: {
+    chainId: number;
+    logs: RpcLog[];
+  }) => {
+    const logBatches = rpcLogs.reduce<InsertableLog[][]>((acc, log, index) => {
+      const batchIndex = Math.floor(index / 1000);
+      acc[batchIndex] = acc[batchIndex] ?? [];
+      acc[batchIndex].push({
+        ...rpcToPostgresLog(log),
+        chainId,
+      });
+      return acc;
+    }, []);
+
+    await Promise.all(
+      logBatches.map(async (batch) => {
+        await this.db
+          .insertInto("logs")
+          .values(batch)
+          .onConflict((oc) => oc.column("id").doNothing())
+          .execute();
+      })
+    );
   };
 
   insertContractReadResult = async ({
@@ -415,12 +962,13 @@ export class PostgresEventStore implements EventStore {
   async *getLogEvents({
     fromTimestamp,
     toTimestamp,
-    filters = [],
+    logFilters = [],
+    factoryContracts = [],
     pageSize = 10_000,
   }: {
     fromTimestamp: number;
     toTimestamp: number;
-    filters?: {
+    logFilters?: {
       name: string;
       chainId: number;
       address?: Address | Address[];
@@ -429,22 +977,33 @@ export class PostgresEventStore implements EventStore {
       toBlock?: number;
       includeEventSelectors?: Hex[];
     }[];
+    factoryContracts?: {
+      chainId: number;
+      address: string;
+      factoryEventSelector: Hex;
+      child: {
+        name: string;
+        includeEventSelectors?: Hex[];
+      };
+      fromBlock?: number;
+      toBlock?: number;
+    }[];
     pageSize: number;
   }) {
     const baseQuery = this.db
       .with(
-        "logFilters(logFilter_name)",
+        "eventSources(eventSource_name)",
         () =>
           sql`( values ${sql.join(
-            filters.map((f) => sql`( ${sql.val(f.name)} )`)
+            logFilters.map((f) => sql`( ${sql.val(f.name)} )`)
           )} )`
       )
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
-      .innerJoin("logFilters", (join) => join.onTrue())
+      .innerJoin("eventSources", (join) => join.onTrue())
       .select([
-        "logFilter_name",
+        "eventSource_name",
 
         "logs.address as log_address",
         "logs.blockHash as log_blockHash",
@@ -504,24 +1063,31 @@ export class PostgresEventStore implements EventStore {
       .where("blocks.timestamp", ">=", intToBlob(fromTimestamp))
       .where("blocks.timestamp", "<=", intToBlob(toTimestamp));
 
-    const buildFilterAndCmprs = (
-      where: ExpressionBuilder<any, any>,
-      filter: (typeof filters)[number]
-    ) => {
+    const buildLogFilterCmprs = ({
+      where,
+      logFilter,
+    }: {
+      where: ExpressionBuilder<any, any>;
+      logFilter: (typeof logFilters)[number];
+    }) => {
       const { cmpr, or } = where;
       const cmprs = [];
 
-      cmprs.push(cmpr("logFilter_name", "=", filter.name));
+      cmprs.push(cmpr("logFilter_name", "=", logFilter.name));
       cmprs.push(
-        cmpr("logs.chainId", "=", sql`${sql.val(filter.chainId)}::integer`)
+        cmpr(
+          "logs.chainId",
+          "=",
+          sql`cast (${sql.val(logFilter.chainId)} as integer)`
+        )
       );
 
-      if (filter.address) {
+      if (logFilter.address) {
         // If it's an array of length 1, collapse it.
         const address =
-          Array.isArray(filter.address) && filter.address.length === 1
-            ? filter.address[0]
-            : filter.address;
+          Array.isArray(logFilter.address) && logFilter.address.length === 1
+            ? logFilter.address[0]
+            : logFilter.address;
         if (Array.isArray(address)) {
           cmprs.push(or(address.map((a) => cmpr("logs.address", "=", a))));
         } else {
@@ -529,11 +1095,11 @@ export class PostgresEventStore implements EventStore {
         }
       }
 
-      if (filter.topics) {
+      if (logFilter.topics) {
         for (const idx_ of range(0, 4)) {
           const idx = idx_ as 0 | 1 | 2 | 3;
           // If it's an array of length 1, collapse it.
-          const raw = filter.topics[idx] ?? null;
+          const raw = logFilter.topics[idx] ?? null;
           if (raw === null) continue;
           const topic = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
           if (Array.isArray(topic)) {
@@ -544,22 +1110,67 @@ export class PostgresEventStore implements EventStore {
         }
       }
 
-      if (filter.fromBlock) {
+      if (logFilter.fromBlock) {
         cmprs.push(
           cmpr(
             "blocks.number",
             ">=",
-            sql`${sql.val(intToBlob(filter.fromBlock))}::bytea`
+            sql`cast (${sql.val(intToBlob(logFilter.fromBlock))} as blob)`
           )
         );
       }
 
-      if (filter.toBlock) {
+      if (logFilter.toBlock) {
         cmprs.push(
           cmpr(
             "blocks.number",
             "<=",
-            sql`${sql.val(intToBlob(filter.toBlock))}::bytea`
+            sql`cast (${sql.val(intToBlob(logFilter.toBlock))} as blob)`
+          )
+        );
+      }
+
+      return cmprs;
+    };
+
+    const buildFactoryContractCmprs = ({
+      where,
+      factoryContract,
+    }: {
+      where: ExpressionBuilder<any, any>;
+      factoryContract: (typeof factoryContracts)[number];
+    }) => {
+      const { cmpr } = where;
+      const cmprs = [];
+
+      cmprs.push(cmpr("childContract_name", "=", factoryContract.child.name));
+      cmprs.push(
+        cmpr(
+          "logs.chainId",
+          "=",
+          sql`cast (${sql.val(factoryContract.chainId)} as integer)`
+        )
+      );
+
+      // TODO: Figure out subquery to get all child contracts for a factory contract.
+      // cmprs.push(cmpr("logs.address", "in"));
+
+      if (factoryContract.fromBlock) {
+        cmprs.push(
+          cmpr(
+            "blocks.number",
+            ">=",
+            sql`cast (${sql.val(intToBlob(factoryContract.fromBlock))} as blob)`
+          )
+        );
+      }
+
+      if (factoryContract.toBlock) {
+        cmprs.push(
+          cmpr(
+            "blocks.number",
+            "<=",
+            sql`cast (${sql.val(intToBlob(factoryContract.toBlock))} as blob)`
           )
         );
       }
@@ -571,20 +1182,35 @@ export class PostgresEventStore implements EventStore {
     const includedLogsBaseQuery = baseQuery
       .where((where) => {
         const { cmpr, and, or } = where;
-        const cmprsForAllFilters = filters.map((filter) => {
-          const cmprsForFilter = buildFilterAndCmprs(where, filter);
-          if (filter.includeEventSelectors) {
-            cmprsForFilter.push(
+        const logFilterCmprs = logFilters.map((logFilter) => {
+          const cmprs = buildLogFilterCmprs({ where, logFilter });
+          if (logFilter.includeEventSelectors) {
+            cmprs.push(
               or(
-                filter.includeEventSelectors.map((t) =>
+                logFilter.includeEventSelectors.map((t) =>
                   cmpr("logs.topic0", "=", t)
                 )
               )
             );
           }
-          return and(cmprsForFilter);
+          return and(cmprs);
         });
-        return or(cmprsForAllFilters);
+
+        const factoryContractCmprs = factoryContracts.map((factoryContract) => {
+          const cmprs = buildFactoryContractCmprs({ where, factoryContract });
+          if (factoryContract.child.includeEventSelectors) {
+            cmprs.push(
+              or(
+                factoryContract.child.includeEventSelectors.map((t) =>
+                  cmpr("logs.topic0", "=", t)
+                )
+              )
+            );
+          }
+          return and(cmprs);
+        });
+
+        return or([...logFilterCmprs, ...factoryContractCmprs]);
       })
       .orderBy("blocks.timestamp", "asc")
       .orderBy("logs.chainId", "asc")
@@ -595,25 +1221,30 @@ export class PostgresEventStore implements EventStore {
     const eventCountsQuery = baseQuery
       .clearSelect()
       .select([
-        "logFilter_name",
+        "eventSource_name",
         "logs.topic0",
         this.db.fn.count("logs.id").as("count"),
       ])
       .where((where) => {
         const { and, or } = where;
-        const cmprsForAllFilters = filters.map((filter) => {
-          const cmprsForFilter = buildFilterAndCmprs(where, filter);
-          // NOTE: Not adding the includeEventSelectors clause here.
-          return and(cmprsForFilter);
-        });
-        return or(cmprsForAllFilters);
+
+        // NOTE: Not adding the includeEventSelectors clause here.
+        const logFilterCmprs = logFilters.map((logFilter) =>
+          and(buildLogFilterCmprs({ where, logFilter }))
+        );
+
+        const factoryContractCmprs = factoryContracts.map((factoryContract) =>
+          and(buildFactoryContractCmprs({ where, factoryContract }))
+        );
+
+        return or([...logFilterCmprs, ...factoryContractCmprs]);
       })
-      .groupBy(["logFilter_name", "logs.topic0"]);
+      .groupBy(["eventSource_name", "logs.topic0"]);
 
     // Fetch the event counts once and include it in every response.
     const eventCountsRaw = await eventCountsQuery.execute();
     const eventCounts = eventCountsRaw.map((c) => ({
-      logFilterName: String(c.logFilter_name),
+      eventSourceName: String(c.eventSource_name),
       selector: c.topic0 as Hex,
       count: Number(c.count),
     }));
@@ -665,7 +1296,7 @@ export class PostgresEventStore implements EventStore {
         // that those fields are indeed present before continuing here.
         const row = _row as NonNull<(typeof requestedLogs)[number]>;
         return {
-          logFilterName: row.logFilter_name,
+          eventSourceName: row.eventSource_name,
           log: {
             address: row.log_address,
             blockHash: row.log_blockHash,
@@ -752,7 +1383,7 @@ export class PostgresEventStore implements EventStore {
                 }),
           },
         } satisfies {
-          logFilterName: string;
+          eventSourceName: string;
           log: Log;
           block: Block;
           transaction: Transaction;
