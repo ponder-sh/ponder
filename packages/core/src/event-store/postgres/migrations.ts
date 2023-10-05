@@ -97,13 +97,6 @@ const migrations: Record<string, Migration> = {
         .addColumn("startBlock", sql`bytea`, (col) => col.notNull()) // BigInt
         .execute();
     },
-    async down(db: Kysely<any>) {
-      await db.schema.dropTable("blocks").execute();
-      await db.schema.dropTable("logs").execute();
-      await db.schema.dropTable("transactions").execute();
-      await db.schema.dropTable("contractReadResults").execute();
-      await db.schema.dropTable("logFilterCachedRanges").execute();
-    },
   },
   ["2023_06_20_0_indices"]: {
     async up(db: Kysely<any>) {
@@ -124,11 +117,6 @@ const migrations: Record<string, Migration> = {
         .on("logFilterCachedRanges")
         .columns(["filterKey"])
         .execute();
-    },
-    async down(db: Kysely<any>) {
-      await db.schema.dropIndex("log_events_index").execute();
-      await db.schema.dropIndex("blocks_index").execute();
-      await db.schema.dropIndex("logFilterCachedRanges_index").execute();
     },
   },
   ["2023_07_18_0_better_indices"]: {
@@ -173,14 +161,6 @@ const migrations: Record<string, Migration> = {
         .column("number")
         .execute();
     },
-    async down(db: Kysely<any>) {
-      await db.schema.dropIndex("log_block_hash_index").execute();
-      await db.schema.dropIndex("log_chain_id_index").execute();
-      await db.schema.dropIndex("log_address_index").execute();
-      await db.schema.dropIndex("log_topic0_index").execute();
-      await db.schema.dropIndex("block_timestamp_index").execute();
-      await db.schema.dropIndex("block_number_index").execute();
-    },
   },
   ["2023_07_24_0_drop_finalized"]: {
     async up(db: Kysely<any>) {
@@ -193,24 +173,6 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .alterTable("contractReadResults")
         .dropColumn("finalized")
-        .execute();
-    },
-    async down(db: Kysely<any>) {
-      await db.schema
-        .alterTable("blocks")
-        .addColumn("finalized", "integer", (col) => col.notNull())
-        .execute();
-      await db.schema
-        .alterTable("transactions")
-        .addColumn("finalized", "integer", (col) => col.notNull())
-        .execute();
-      await db.schema
-        .alterTable("logs")
-        .addColumn("finalized", "integer", (col) => col.notNull())
-        .execute();
-      await db.schema
-        .alterTable("contractReadResults")
-        .addColumn("finalized", "integer", (col) => col.notNull())
         .execute();
     },
   },
@@ -287,10 +249,6 @@ const migrations: Record<string, Migration> = {
           col.notNull()
         )
         .execute();
-    },
-    async down(db: Kysely<any>) {
-      await db.schema.dropTable("logFilters").cascade().execute();
-      await db.schema.dropTable("factoryContracts").cascade().execute();
     },
   },
 };

@@ -22,7 +22,6 @@ export interface EventStore {
   migrator: Migrator;
 
   migrateUp(): Promise<void>;
-  migrateDown(): Promise<void>;
 
   /** LOG FILTER METHODS */
 

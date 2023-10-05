@@ -4,7 +4,6 @@ import {
   type Transaction as KyselyTransaction,
   Kysely,
   Migrator,
-  NO_MIGRATIONS,
   sql,
   SqliteDialect,
 } from "kysely";
@@ -49,11 +48,6 @@ export class SqliteEventStore implements EventStore {
 
   migrateUp = async () => {
     const { error } = await this.migrator.migrateToLatest();
-    if (error) throw error;
-  };
-
-  migrateDown = async () => {
-    const { error } = await this.migrator.migrateTo(NO_MIGRATIONS);
     if (error) throw error;
   };
 

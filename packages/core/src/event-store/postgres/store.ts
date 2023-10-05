@@ -4,7 +4,6 @@ import {
   CompiledQuery,
   Kysely,
   Migrator,
-  NO_MIGRATIONS,
   PostgresDialect,
   sql,
 } from "kysely";
@@ -72,11 +71,6 @@ export class PostgresEventStore implements EventStore {
 
   migrateUp = async () => {
     const { error } = await this.migrator.migrateToLatest();
-    if (error) throw error;
-  };
-
-  migrateDown = async () => {
-    const { error } = await this.migrator.migrateTo(NO_MIGRATIONS);
     if (error) throw error;
   };
 
