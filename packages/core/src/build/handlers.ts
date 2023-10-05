@@ -154,17 +154,21 @@ export const buildRawHandlerFunctions = async ({
   const importErrors = await Promise.allSettled(
     outUserFilenames.map(async (file) => {
       try {
-        const _file = await import(file);
-        return _file;
+        return await import(file);
       } catch (err) {
         return err as Error;
       }
     })
   );
 
-  console.log(importErrors);
+  if (importErrors.some((result) => result.status === "rejected")) {
+    const errors = importErrors.filter(
+      (result) => result.status === "rejected"
+    );
+    throw errors[0];
+  }
 
-  // Then require the `_app.ts` file to grab the `app` instance.
+  // Then require the `index.ts` file to grab the `Ponder` instance.
   const result = await import(outAppFilename);
 
   const app = result.ponder;

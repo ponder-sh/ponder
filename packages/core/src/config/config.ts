@@ -1,19 +1,16 @@
 import type { AbiEvent } from "abitype";
 import { build } from "esbuild";
-import fs from "node:fs";
-// import { createRequire } from "node:module";
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
 import { ensureDirExists } from "@/utils/exists.js";
-
-// const require = createRequire(import.meta.url);
 
 export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
   database?:
     | {
         kind: "sqlite";
-        /** Path to SQLite database file. Default: `"./.ponder/cache.db.js"`. */
+        /** Path to SQLite database file. Default: `"./.ponder/cache.db"`. */
         filename?: string;
       }
     | {
@@ -98,17 +95,15 @@ export type Config =
   | (() => Promise<ResolvedConfig>);
 
 export const buildConfig = async ({ configFile }: { configFile: string }) => {
-  if (!fs.existsSync(configFile)) {
+  if (!existsSync(configFile)) {
     throw new Error(`Ponder config file not found, expected: ${configFile}`);
   }
 
   const buildFile = path.join(path.dirname(configFile), "__ponder__.js");
-  // const fileContent = fs.readFileSync(configFile, "utf-8");
-  // console.log(fileContent);
   ensureDirExists(buildFile);
 
   // Delete the build file before attempting to write it.
-  fs.rmSync(buildFile, { force: true });
+  rmSync(buildFile, { force: true });
 
   try {
     await build({
@@ -120,9 +115,8 @@ export const buildConfig = async ({ configFile }: { configFile: string }) => {
       logLevel: "silent",
     });
 
-    // const { default: rawDefault, config: rawConfig } = require(buildFile);
     const { default: rawDefault, config: rawConfig } = await import(buildFile);
-    fs.rmSync(buildFile, { force: true });
+    rmSync(buildFile, { force: true });
 
     if (!rawConfig) {
       if (rawDefault) {
@@ -149,7 +143,7 @@ export const buildConfig = async ({ configFile }: { configFile: string }) => {
 
     return resolvedConfig;
   } catch (err) {
-    fs.rmSync(buildFile, { force: true });
+    rmSync(buildFile, { force: true });
     throw err;
   }
 };
