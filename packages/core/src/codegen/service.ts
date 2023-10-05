@@ -6,7 +6,7 @@ import path from "node:path";
 import type { Contract } from "@/config/contracts";
 import type { LogFilter } from "@/config/logFilters";
 import type { Common } from "@/Ponder";
-import type { Schema } from "@/schema/types";
+import { Schema } from "@/schema/ts-types";
 import { ensureDirExists } from "@/utils/exists";
 
 import { buildContractTypes } from "./contract";

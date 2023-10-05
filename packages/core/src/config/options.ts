@@ -47,7 +47,7 @@ export const buildOptions = ({
   const defaults = {
     rootDir: path.resolve(cliOptions.rootDir),
     configFile: cliOptions.configFile,
-    schemaFile: "schema.graphql",
+    schemaFile: "schema.ponder.ts",
     srcDir: "src",
     generatedDir: "generated",
     ponderDir: ".ponder",

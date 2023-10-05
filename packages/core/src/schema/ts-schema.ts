@@ -14,10 +14,13 @@ const _addColumn = <
 ) =>
   ({
     ...table,
-    [name]: {
-      type,
-      optional: modifiers?.optional ?? false,
-      list: modifiers?.list ?? false,
+    columns: {
+      ...(table.columns as object),
+      [name]: {
+        type,
+        optional: modifiers?.optional ?? false,
+        list: modifiers?.list ?? false,
+      },
     },
   } as Table<
     TTable["name"],
@@ -81,13 +84,13 @@ export const createTable = <TTableName extends string>(
  * Used for advanced type checking
  */
 export const createSchema = <
-  const TSchema extends readonly IT<
+  TSchema extends readonly IT<
     string,
     { id: Column<ID, false, false> } & Record<string, Column>
   >[]
 >(
   schema: TSchema
-): { [key in keyof TSchema]: TSchema[key]["table"] } => {
+): { entities: { [key in keyof TSchema]: TSchema[key]["table"] } } => {
   const tables = schema.map((it) => it.table);
 
   tables.forEach((t) => {
@@ -127,7 +130,11 @@ export const createSchema = <
     });
   });
 
-  return tables as { [key in keyof TSchema]: TSchema[key]["table"] };
+  return { entities: tables } as {
+    entities: {
+      [key in keyof TSchema]: TSchema[key]["table"];
+    };
+  };
 };
 
 const noSpaces = (name: string) => {

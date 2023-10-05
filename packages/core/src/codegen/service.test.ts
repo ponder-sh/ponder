@@ -1,30 +1,16 @@
-import { buildSchema as buildGraphqlSchema } from "graphql";
 import { expect, test } from "vitest";
 
-import { schemaHeader } from "@/build/schema";
 import { buildEntityTypes } from "@/codegen/entity";
-import { buildSchema } from "@/schema/schema";
 
-const graphqlSchema = buildGraphqlSchema(`
-  ${schemaHeader}
-
-  type Entity @entity {
-    id: String!
-    int: Int
-    float: Float
-    bool: Boolean
-    bytes: Bytes
-    bigInt: BigInt
-    nonNullInt: Int!
-    nonNullFloat: Float!
-    nonNullBool: Boolean!
-    nonNullBytes: Bytes!
-    nonNullBigInt: BigInt!
-  }
-`);
+import { createSchema, createTable } from "..";
 
 test("entity type codegen succeeds", () => {
-  const schema = buildSchema(graphqlSchema);
-  const output = buildEntityTypes(schema.entities);
-  expect(output).not.toBeNull();
+  const output = buildEntityTypes(
+    createSchema([
+      createTable("name").addColumn("id", "bigint").addColumn("age", "number"),
+    ]).entities
+  );
+  expect(output).toStrictEqual(`export type name = {
+        id: bigint;age: number;
+        };`);
 });

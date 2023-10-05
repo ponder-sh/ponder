@@ -1,7 +1,7 @@
 import { assertType, test } from "vitest";
 
-import { createTable } from "./ts-schema";
-import { RecoverColumnType, RecoverTableType } from "./ts-types";
+import { createSchema, createTable } from "./ts-schema";
+import { RecoverColumnType, RecoverTableType, Schema } from "./ts-types";
 
 test("column scalar", () => {
   const table = createTable("table").addColumn("id", "string");
@@ -47,4 +47,10 @@ test("table optional", () => {
   //   ^?
 
   assertType<t>({} as { table: { id: string; age?: number } });
+});
+
+test("schema", () => {
+  const schema = createSchema([createTable("table").addColumn("id", "string")]);
+
+  assertType<Schema>(schema);
 });

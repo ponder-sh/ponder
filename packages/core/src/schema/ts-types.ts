@@ -28,6 +28,15 @@ export type Table<
   columns: TColumns;
 };
 
+export type Entity = {
+  name: string;
+  columns: { id: Column<ID, false, false> } & Record<string, Column>;
+};
+
+export type Schema = {
+  entities: readonly Entity[];
+};
+
 /**
  * Intermediate Type
  *

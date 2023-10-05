@@ -1,5 +1,6 @@
 export { PonderApp } from "@/build/handlers";
 export type { Config, ResolvedConfig } from "@/config/config";
+export { createSchema, createTable } from "@/schema/ts-schema";
 export type { Block } from "@/types/block";
 export type { ReadOnlyContract } from "@/types/contract";
 export type { Log } from "@/types/log";

@@ -20,5 +20,7 @@ import { createSchema, createTable } from "./ts-schema";
 // ]);
 
 test("create schema", () => {
-  createSchema([createTable("name").addColumn("id", "bigint")]);
+  createSchema([
+    createTable("name").addColumn("id", "bigint").addColumn("age", "number"),
+  ]);
 });

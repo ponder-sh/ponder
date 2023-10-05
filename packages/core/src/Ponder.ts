@@ -287,9 +287,9 @@ export class Ponder {
 
     const result = this.buildService.buildSchema();
     if (result) {
-      const { schema, graphqlSchema } = result;
+      const { schema } = result;
       this.codegenService.generateAppFile({ schema });
-      this.codegenService.generateSchemaFile({ graphqlSchema });
+      // this.codegenService.generateSchemaFile({ graphqlSchema });
     }
 
     await this.kill();
@@ -338,11 +338,11 @@ export class Ponder {
 
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
       this.codegenService.generateAppFile({ schema });
-      this.codegenService.generateSchemaFile({ graphqlSchema });
+      // this.codegenService.generateSchemaFile({ graphqlSchema });
 
       this.serverService.reload({ graphqlSchema });
 
-      await this.eventHandlerService.reset({ schema });
+      // await this.eventHandlerService.reset({ schema });
       await this.eventHandlerService.processEvents();
     });
 

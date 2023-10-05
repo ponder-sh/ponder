@@ -8,16 +8,13 @@ import path from "node:path";
 import type { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
-import { buildSchema } from "@/schema/schema";
-import type { Schema } from "@/schema/types";
-import { buildGqlSchema } from "@/server/graphql/schema";
+import type { Schema } from "@/schema/ts-types";
 
 import {
   type HandlerFunctions,
   buildRawHandlerFunctions,
   hydrateHandlerFunctions,
 } from "./handlers";
-import { readGraphqlSchema } from "./schema";
 
 type BuildServiceEvents = {
   newConfig: undefined;
@@ -128,11 +125,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   buildSchema() {
     try {
-      const userGraphqlSchema = readGraphqlSchema({
-        options: this.common.options,
-      });
-      const schema = buildSchema(userGraphqlSchema);
-      const graphqlSchema = buildGqlSchema(schema);
+      const schema = require(this.common.options.schemaFile) as Schema;
+      const graphqlSchema = {} as GraphQLSchema;
       this.emit("newSchema", { schema, graphqlSchema });
       return { schema, graphqlSchema };
     } catch (error_) {
