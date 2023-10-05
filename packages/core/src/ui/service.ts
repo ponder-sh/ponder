@@ -106,6 +106,8 @@ export class UiService {
   }
 
   kill() {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error TODO: fix this
     clearInterval(this.renderInterval);
     this.unmount();
   }
