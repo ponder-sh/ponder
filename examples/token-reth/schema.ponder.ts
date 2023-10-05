@@ -1,6 +1,6 @@
-import { createSchema, createTable } from "@ponder/core";
+const { createSchema, createTable } = require("@ponder/core");
 
-export const schema = createSchema([
+exports.schema = createSchema([
   createTable("Transfer")
     .addColumn("id", "string")
     .addColumn("sender", "string"),
