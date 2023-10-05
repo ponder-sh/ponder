@@ -65,16 +65,16 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     userStore,
     eventAggregatorService,
     contracts,
-    logFilters,
-    factoryContracts,
+    logFilters = [],
+    factoryContracts = [],
   }: {
     common: Common;
     eventStore: EventStore;
     userStore: UserStore;
     eventAggregatorService: EventAggregatorService;
     contracts: Contract[];
-    logFilters: LogFilter[];
-    factoryContracts: FactoryContract[];
+    logFilters?: LogFilter[];
+    factoryContracts?: FactoryContract[];
   }) {
     super();
     this.common = common;
