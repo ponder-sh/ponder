@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
-import type { Schema } from "@/schema/types";
+import type { Scalar, Schema } from "@/schema/ts-types";
 import { blobToBigInt } from "@/utils/decode";
 
 import type {
@@ -21,13 +21,13 @@ import {
 const MAX_INTEGER = 2_147_483_647 as const;
 const MAX_BATCH_SIZE = 1_000 as const;
 
-const gqlScalarToSqlType = {
-  Boolean: "integer",
-  Int: "integer",
-  String: "text",
-  BigInt: sql`bytea`,
-  Bytes: "text",
-  Float: "text",
+// TODO: should we have two different types for number and float
+const scalarToSqlType = {
+  boolean: "integer",
+  number: "text",
+  string: "text",
+  bigint: sql`bytea`,
+  bytes: "text",
 } as const;
 
 export class PostgresUserStore implements UserStore {
@@ -92,57 +92,21 @@ export class PostgresUserStore implements UserStore {
         this.schema!.entities.map(async (model) => {
           const tableName = `${model.name}_${this.versionId}`;
           let tableBuilder = tx.schema.createTable(tableName);
-          model.fields.forEach((field) => {
-            switch (field.kind) {
-              case "SCALAR": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  gqlScalarToSqlType[field.scalarTypeName],
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    return col;
-                  }
-                );
-                break;
-              }
-              case "ENUM": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  "text",
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    col = col.check(
-                      sql`${sql.ref(field.name)} in (${sql.join(
-                        field.enumValues.map((v) => sql.lit(v))
-                      )})`
-                    );
-                    return col;
-                  }
-                );
-                break;
-              }
-              case "LIST": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  "text",
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    return col;
-                  }
-                );
-                break;
-              }
-              case "RELATIONSHIP": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  gqlScalarToSqlType[field.relatedEntityIdType.name],
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    return col;
-                  }
-                );
-                break;
-              }
+          Object.keys(model.columns).forEach((key) => {
+            if (!model.columns[key].list) {
+              tableBuilder = tableBuilder.addColumn(
+                key,
+                scalarToSqlType[model.columns[key].type as Scalar],
+                (col) => {
+                  if (!model.columns[key].optional) col = col.notNull();
+                  return col;
+                }
+              );
+            } else {
+              tableBuilder = tableBuilder.addColumn(key, "text", (col) => {
+                if (!model.columns[key].optional) col = col.notNull();
+                return col;
+              });
             }
           });
 
@@ -687,45 +651,33 @@ export class PostgresUserStore implements UserStore {
 
     const deserializedInstance = {} as ModelInstance;
 
-    entity.fields.forEach((field) => {
-      const value = instance[field.name] as string | number | null | undefined;
+    Object.keys(entity.columns).forEach((key) => {
+      const value = instance[key] as string | number | null | undefined;
 
       if (value === null || value === undefined) {
-        deserializedInstance[field.name] = null;
+        deserializedInstance[key] = null;
         return;
       }
 
-      if (field.kind === "SCALAR" && field.scalarTypeName === "Boolean") {
-        deserializedInstance[field.name] = value === 1 ? true : false;
+      if (entity.columns[key].type === "boolean") {
+        deserializedInstance[key] = value === 1 ? true : false;
         return;
       }
 
-      if (field.kind === "SCALAR" && field.scalarTypeName === "BigInt") {
-        deserializedInstance[field.name] = blobToBigInt(
-          value as unknown as Buffer
-        );
+      if (entity.columns[key].type === "bigint") {
+        deserializedInstance[key] = blobToBigInt(value as unknown as Buffer);
         return;
       }
 
-      if (
-        field.kind === "RELATIONSHIP" &&
-        field.relatedEntityIdType.name === "BigInt"
-      ) {
-        deserializedInstance[field.name] = blobToBigInt(
-          value as unknown as Buffer
-        );
-        return;
-      }
-
-      if (field.kind === "LIST") {
+      if (entity.columns[key].list) {
         let parsedValue = JSON.parse(value as string);
-        if (field.baseGqlType.name === "BigInt")
+        if (entity.columns[key].type === "bigint")
           parsedValue = parsedValue.map(BigInt);
-        deserializedInstance[field.name] = parsedValue;
+        deserializedInstance[key] = parsedValue;
         return;
       }
 
-      deserializedInstance[field.name] = value;
+      deserializedInstance[key] = value;
     });
 
     return deserializedInstance;

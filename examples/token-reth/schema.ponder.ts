@@ -3,27 +3,20 @@ const { createSchema, createTable } = require("@ponder/core");
 exports.schema = createSchema([
   createTable("Transfer")
     .addColumn("id", "string")
-    .addColumn("sender", "string"),
+    .addColumn("sender", "string")
+    .addColumn("receiver", "string")
+    .addColumn("amount", "bigint")
+    .addColumn("timestamp", "bigint")
+    .addColumn("txHash", "string")
+    .addColumn("blockNumber", "bigint")
+    .addColumn("logIndex", "number"),
+  createTable("Approval")
+    .addColumn("id", "string")
+    .addColumn("owner", "string")
+    .addColumn("spender", "string")
+    .addColumn("value", "bigint")
+    .addColumn("timestamp", "bigint")
+    .addColumn("txHash", "string")
+    .addColumn("blockNumber", "bigint")
+    .addColumn("logIndex", "number"),
 ]);
-
-// type Transfer @entity {
-//   id: String!
-//   sender: String!
-//   receiver: String!
-//   amount: BigInt!
-//   timestamp: BigInt!
-//   txHash: String!
-//   blockNumber: BigInt!
-//   logIndex: Int!
-// }
-
-// type Approval @entity {
-//   id: String!
-//   owner: String!
-//   spender: String!
-//   value: BigInt!
-//   timestamp: BigInt!
-//   txHash: String!
-//   blockNumber: BigInt!
-//   logIndex: Int!
-// }

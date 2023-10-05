@@ -1,4 +1,4 @@
-import type { Schema } from "@/schema/types";
+import type { Schema } from "@/schema/ts-types";
 import { Prettify } from "@/types/utils";
 
 export type ModelDefinition = {
