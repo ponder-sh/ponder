@@ -471,16 +471,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       if (queue.size > 0 || queue.pending > 1) return;
 
       // If this is the final task, run the cleanup/completion logic.
-
-      // // It's possible for multiple block sync tasks to run simultaneously,
-      // // resulting in a scenario where cached ranges are not fully merged.
-      // // Merge all cached ranges once last time before emitting the `syncComplete` event.
-      // await Promise.all(
-      //   this.logFilters.map((logFilter) =>
-      //     this.updateHistoricalCheckpoint({ logFilter })
-      //   )
-      // );
-
       this.emit("syncComplete");
       const duration = hrTimeToMs(process.hrtime(this.startTimestamp));
       this.common.logger.info({
@@ -500,8 +490,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         autoStart: false,
       },
       onError: ({ error, task, queue }) => {
-        console.log({ error, task });
-
         switch (task.kind) {
           case "LOG_FILTER": {
             // Handle Alchemy response size error.
@@ -517,9 +505,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
               queue.addTask(
                 { ...task, fromBlock: safeStart, toBlock: safeEnd },
-                {
-                  priority: Number.MAX_SAFE_INTEGER - safeStart,
-                }
+                { priority: Number.MAX_SAFE_INTEGER - safeStart }
               );
               queue.addTask(
                 { ...task, fromBlock: safeEnd + 1 },
@@ -580,25 +566,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
             break;
           }
-          // case "BLOCK_SYNC": {
-          //   this.common.logger.error({
-          //     service: "historical",
-          //     msg: `Block sync task failed (network=${this.network.name}, logFilter=${task.logFilter.name})`,
-          //     error,
-          //     network: this.network.name,
-          //     logFilter: task.logFilter.name,
-          //     blockNumberToCacheFrom: task.blockNumberToCacheFrom,
-          //     blockNumber: task.blockNumber,
-          //     requiredTransactionCount: task.requiredTxHashes.size,
-          //   });
+          case "BLOCK": {
+            this.common.logger.warn({
+              service: "historical",
+              msg: `Block sync task failed (network=${this.network.name}, blockNumber=${task.blockNumber})`,
+              error,
+            });
 
-          //   // Default to a retry (uses the retry options passed to the queue).
-          //   const priority =
-          //     Number.MAX_SAFE_INTEGER - task.blockNumberToCacheFrom;
-          //   queue.addTask(task, { priority, retry: true });
+            // Default to a retry (uses the retry options passed to the queue).
+            const priority = Number.MAX_SAFE_INTEGER - task.blockNumber;
+            queue.addTask(task, { priority, retry: true });
 
-          //   break;
-          // }
+            break;
+          }
         }
       },
     });
