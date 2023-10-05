@@ -1,6 +1,7 @@
 import Conf from "conf";
 import { randomBytes } from "crypto";
-import { detect, getNpmVersion } from "detect-package-manager";
+// import { detect, getNpmVersion } from "detect-package-manager";
+import { createRequire } from "module";
 import child_process from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -12,6 +13,10 @@ import process from "process";
 
 import type { Options } from "@/config/options";
 import { getGitRemoteUrl } from "@/telemetry/remote";
+
+const require = createRequire(import.meta.url);
+
+const { detect, getNpmVersion } = require("detect-package-manager");
 
 type TelemetryEvent = {
   event: string;

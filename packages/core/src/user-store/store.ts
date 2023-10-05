@@ -1,5 +1,5 @@
 import type { Schema } from "@/schema/types";
-import { Prettify } from "@/types/utils";
+import type { Prettify } from "@/types/utils";
 
 export type ModelDefinition = {
   [key: string]:

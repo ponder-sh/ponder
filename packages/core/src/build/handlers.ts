@@ -1,6 +1,7 @@
 import { type Message, build, formatMessagesSync } from "esbuild";
 import glob from "glob";
 import { existsSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
 import type { Hex } from "viem";
@@ -10,6 +11,8 @@ import type { Options } from "@/config/options";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
+
+const require = createRequire(import.meta.url);
 
 export interface LogEvent {
   name: string;

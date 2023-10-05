@@ -3,6 +3,7 @@
   "version": "0.0.90",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/0xOlias/ponder",
@@ -41,7 +42,7 @@
     "conf": "^10.2.0",
     "cors": "^2.8.5",
     "data-uri-to-buffer": "3.0.1",
-    "detect-package-manager": "^2.0.1",
+    "detect-package-manager": "^3.0.1",
     "dotenv": "^16.0.1",
     "emittery": "^0.13.1",
     "esbuild": "^0.15.2",
