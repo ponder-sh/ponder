@@ -2,23 +2,23 @@ import Emittery from "emittery";
 import pLimit from "p-limit";
 import { hexToNumber, numberToHex } from "viem";
 
-import type { LogFilter } from "@/config/logFilters";
-import type { Network } from "@/config/networks";
-import { QueueError } from "@/errors/queue";
-import type { EventStore } from "@/event-store/store";
-import type { Common } from "@/Ponder";
-import { poll } from "@/utils/poll";
-import { type Queue, createQueue } from "@/utils/queue";
-import { range } from "@/utils/range";
-import { startClock } from "@/utils/timer";
+import type { LogFilter } from "@/config/logFilters.js";
+import type { Network } from "@/config/networks.js";
+import { QueueError } from "@/errors/queue.js";
+import type { EventStore } from "@/event-store/store.js";
+import type { Common } from "@/Ponder.js";
+import { poll } from "@/utils/poll.js";
+import { type Queue, createQueue } from "@/utils/queue.js";
+import { range } from "@/utils/range.js";
+import { startClock } from "@/utils/timer.js";
 
-import { isMatchedLogInBloomFilter } from "./bloom";
-import { filterLogs } from "./filter";
+import { isMatchedLogInBloomFilter } from "./bloom.js";
+import { filterLogs } from "./filter.js";
 import {
   type BlockWithTransactions,
   type LightBlock,
   rpcBlockToLightBlock,
-} from "./format";
+} from "./format.js";
 
 type RealtimeSyncEvents = {
   realtimeCheckpoint: { timestamp: number };

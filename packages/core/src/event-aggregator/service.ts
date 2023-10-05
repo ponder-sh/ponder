@@ -1,15 +1,15 @@
 import Emittery from "emittery";
 import { type Hex, decodeEventLog } from "viem";
 
-import type { LogFilterName } from "@/build/handlers";
-import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
-import type { Network } from "@/config/networks";
-import type { EventStore } from "@/event-store/store";
-import type { Common } from "@/Ponder";
-import type { Block } from "@/types/block";
-import type { Log } from "@/types/log";
-import type { Transaction } from "@/types/transaction";
-import { formatShortDate } from "@/utils/date";
+import type { LogFilterName } from "@/build/handlers.js";
+import type { LogEventMetadata, LogFilter } from "@/config/logFilters.js";
+import type { Network } from "@/config/networks.js";
+import type { EventStore } from "@/event-store/store.js";
+import type { Common } from "@/Ponder.js";
+import type { Block } from "@/types/block.js";
+import type { Log } from "@/types/log.js";
+import type { Transaction } from "@/types/transaction.js";
+import { formatShortDate } from "@/utils/date.js";
 
 export type LogEvent = {
   logFilterName: string;

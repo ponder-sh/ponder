@@ -1,20 +1,22 @@
 import Conf from "conf";
 import { randomBytes } from "crypto";
-// import { detect, getNpmVersion } from "detect-package-manager";
 import { createRequire } from "module";
 import child_process from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import url from "node:url";
 import os from "os";
 import PQueue from "p-queue";
 import path from "path";
 import pc from "picocolors";
 import process from "process";
 
-import type { Options } from "@/config/options";
-import { getGitRemoteUrl } from "@/telemetry/remote";
+import type { Options } from "@/config/options.js";
+import { getGitRemoteUrl } from "@/telemetry/remote.js";
 
 const require = createRequire(import.meta.url);
+
+const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 
 const { detect, getNpmVersion } = require("detect-package-manager");
 

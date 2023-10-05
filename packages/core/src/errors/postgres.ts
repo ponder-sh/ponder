@@ -1,8 +1,8 @@
-import { DatabaseError } from "pg";
+import pg from "pg";
 
-import { prettyPrint } from "@/utils/print";
+import { prettyPrint } from "@/utils/print.js";
 
-import { BaseError } from "./base";
+import { BaseError } from "./base.js";
 
 export class PostgresError extends BaseError {
   override name = "PostgresError";
@@ -14,7 +14,7 @@ export class PostgresError extends BaseError {
   }: {
     statement: string;
     parameters: (string | number | bigint)[];
-    pgError: DatabaseError;
+    pgError: pg.DatabaseError;
   }) {
     const params = parameters.reduce<Record<number, any>>(
       (acc, parameter, idx) => {

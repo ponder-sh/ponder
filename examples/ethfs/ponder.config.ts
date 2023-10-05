@@ -1,7 +1,7 @@
 import type { Config } from "@ponder/core";
 
-import FileStoreAbi from "./abis/FileStore.json";
-import FileStoreFrontendAbi from "./abis/FileStoreFrontend.json";
+import FileStoreAbi from "./abis/FileStore.json" assert { type: "json" };
+import FileStoreFrontendAbi from "./abis/FileStoreFrontend.json" assert { type: "json" };
 
 export const config: Config = {
   networks: [

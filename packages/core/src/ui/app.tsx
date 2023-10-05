@@ -1,10 +1,10 @@
 import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
-import type { LogFilter } from "@/config/logFilters";
+import type { LogFilter } from "@/config/logFilters.js";
 
-import { HandlersBar } from "./HandlersBar";
-import { HistoricalBar } from "./HistoricalBar";
+import { HandlersBar } from "./HandlersBar.js";
+import { HistoricalBar } from "./HistoricalBar.js";
 
 export type UiState = {
   port: number;

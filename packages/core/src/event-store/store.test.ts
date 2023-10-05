@@ -9,8 +9,8 @@ import {
   blockTwoLogs,
   blockTwoTransactions,
   usdcContractConfig,
-} from "@/_test/constants";
-import { setupEventStore } from "@/_test/setup";
+} from "@/_test/constants.js";
+import { setupEventStore } from "@/_test/setup.js";
 
 beforeEach((context) => setupEventStore(context));
 

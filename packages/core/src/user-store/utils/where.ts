@@ -1,8 +1,8 @@
 import type { ComparisonOperatorExpression } from "kysely";
 
-import { intToBlob } from "@/utils/encode";
+import { intToBlob } from "@/utils/encode.js";
 
-import type { ModelDefinition, OrderByInput, WhereInput } from "../store";
+import type { ModelDefinition, OrderByInput, WhereInput } from "../store.js";
 
 export const sqlOperatorsByCondition = {
   // universal

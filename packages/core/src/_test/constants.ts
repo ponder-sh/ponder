@@ -1,10 +1,10 @@
 import type { RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import { getEvents } from "@/config/abi";
+import { getEvents } from "@/config/abi.js";
 import type {
   ContractReadResult,
   LogFilterCachedRange,
-} from "@/event-store/store";
+} from "@/event-store/store.js";
 
 export const FORK_BLOCK_NUMBER = 16380000n;
 

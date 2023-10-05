@@ -6,11 +6,11 @@ import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
 import type { Hex } from "viem";
 
-import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
-import type { Options } from "@/config/options";
-import type { Block } from "@/types/block";
-import type { Log } from "@/types/log";
-import type { Transaction } from "@/types/transaction";
+import type { LogEventMetadata, LogFilter } from "@/config/logFilters.js";
+import type { Options } from "@/config/options.js";
+import type { Block } from "@/types/block.js";
+import type { Log } from "@/types/log.js";
+import type { Transaction } from "@/types/transaction.js";
 
 const require = createRequire(import.meta.url);
 
@@ -108,7 +108,7 @@ export const buildRawHandlerFunctions = async ({
       outdir: buildDir,
       platform: "node",
       bundle: false,
-      format: "cjs",
+      format: "esm",
       logLevel: "silent",
       sourcemap: "inline",
     });
@@ -132,7 +132,7 @@ export const buildRawHandlerFunctions = async ({
     });
   } else {
     throw new Error(
-      `tsconfig.json not found, unable to resolve "@/*" path aliases. Expected at: ${tsconfigPath}`
+      `tsconfig.json not found, unable to resolve "@/*.js" path aliases. Expected at: ${tsconfigPath}`
     );
   }
 
@@ -151,23 +151,21 @@ export const buildRawHandlerFunctions = async ({
     (name) => name !== outAppFilename
   );
 
-  const requireErrors = outUserFilenames
-    .map((file) => {
+  const importErrors = await Promise.allSettled(
+    outUserFilenames.map(async (file) => {
       try {
-        require(file);
-        return undefined;
+        const _file = await import(file);
+        return _file;
       } catch (err) {
         return err as Error;
       }
     })
-    .filter((err): err is Error => err !== undefined);
+  );
 
-  if (requireErrors.length > 0) {
-    throw requireErrors[0];
-  }
+  console.log(importErrors);
 
   // Then require the `_app.ts` file to grab the `app` instance.
-  const result = require(outAppFilename);
+  const result = await import(outAppFilename);
 
   const app = result.ponder;
 

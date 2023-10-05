@@ -6,10 +6,10 @@ import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
-import type { Common } from "@/Ponder";
-import { graphiQLPage } from "@/ui/graphiql.html";
-import type { UserStore } from "@/user-store/store";
-import { startClock } from "@/utils/timer";
+import type { Common } from "@/Ponder.js";
+import { graphiQLPage } from "@/ui/graphiql.html.js";
+import type { UserStore } from "@/user-store/store.js";
+import { startClock } from "@/utils/timer.js";
 
 export class ServerService {
   private common: Common;

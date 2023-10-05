@@ -1,10 +1,10 @@
 import { type GraphQLType, buildSchema as _buildGraphqlSchema } from "graphql";
 import { expect, test } from "vitest";
 
-import { schemaHeader } from "@/build/schema";
-import { buildSchema as _buildSchema } from "@/schema/schema";
+import { schemaHeader } from "@/build/schema.js";
+import { buildSchema as _buildSchema } from "@/schema/schema.js";
 
-import { buildGqlSchema } from "./schema";
+import { buildGqlSchema } from "./schema.js";
 
 const buildSchema = (source: string) => {
   return _buildSchema(_buildGraphqlSchema(schemaHeader + source));

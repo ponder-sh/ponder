@@ -6,7 +6,7 @@ import PQueue, {
 import retry, { type CreateTimeoutOptions } from "retry";
 import { setTimeout } from "timers/promises";
 
-import type { Prettify } from "@/types/utils";
+import type { Prettify } from "@/types/utils.js";
 
 type TaskOptions = { priority?: number; retry?: boolean };
 

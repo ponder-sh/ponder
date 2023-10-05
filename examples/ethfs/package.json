@@ -1,6 +1,7 @@
 {
   "name": "ponder-examples-ethfs",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "ponder dev",
     "start": "ponder start",

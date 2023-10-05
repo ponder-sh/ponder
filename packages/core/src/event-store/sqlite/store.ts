@@ -9,16 +9,16 @@ import {
 } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type { Block } from "@/types/block";
-import type { Log } from "@/types/log";
-import type { Transaction } from "@/types/transaction";
-import type { NonNull } from "@/types/utils";
-import { blobToBigInt } from "@/utils/decode";
-import { intToBlob } from "@/utils/encode";
-import { mergeIntervals } from "@/utils/intervals";
-import { range } from "@/utils/range";
+import type { Block } from "@/types/block.js";
+import type { Log } from "@/types/log.js";
+import type { Transaction } from "@/types/transaction.js";
+import type { NonNull } from "@/types/utils.js";
+import { blobToBigInt } from "@/utils/decode.js";
+import { intToBlob } from "@/utils/encode.js";
+import { mergeIntervals } from "@/utils/intervals.js";
+import { range } from "@/utils/range.js";
 
-import type { EventStore } from "../store";
+import type { EventStore } from "../store.js";
 import {
   type EventStoreTables,
   type InsertableBlock,
@@ -27,8 +27,8 @@ import {
   rpcToSqliteBlock,
   rpcToSqliteLog,
   rpcToSqliteTransaction,
-} from "./format";
-import { migrationProvider } from "./migrations";
+} from "./format.js";
+import { migrationProvider } from "./migrations.js";
 
 export class SqliteEventStore implements EventStore {
   kind = "sqlite" as const;
@@ -351,6 +351,8 @@ export class SqliteEventStore implements EventStore {
         data,
         result,
       })
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-expect-error TODO: fix this
       .onConflict((oc) => oc.doUpdateSet({ result }))
       .execute();
   };
@@ -550,6 +552,8 @@ export class SqliteEventStore implements EventStore {
       .where((where) => {
         const { cmpr, and, or } = where;
         const cmprsForAllFilters = filters.map((filter) => {
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-expect-error TODO: fix this
           const cmprsForFilter = buildFilterAndCmprs(where, filter);
           if (filter.includeEventSelectors) {
             cmprsForFilter.push(
@@ -580,6 +584,8 @@ export class SqliteEventStore implements EventStore {
       .where((where) => {
         const { and, or } = where;
         const cmprsForAllFilters = filters.map((filter) => {
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-expect-error TODO: fix this
           const cmprsForFilter = buildFilterAndCmprs(where, filter);
           // NOTE: Not adding the includeEventSelectors clause here.
           return and(cmprsForFilter);

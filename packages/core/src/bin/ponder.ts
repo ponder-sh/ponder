@@ -3,14 +3,14 @@ import { cac } from "cac";
 import dotenv from "dotenv";
 import path from "node:path";
 
-import { buildConfig } from "@/config/config";
-import { buildOptions } from "@/config/options";
-import { Ponder } from "@/Ponder";
+import { buildConfig } from "@/config/config.js";
+import { buildOptions } from "@/config/options.js";
+import { Ponder } from "@/Ponder.js";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import packageJson from "../../package.json";
+import packageJson from "../../package.json" assert { type: "json" };
 
 dotenv.config({ path: ".env.local" });
 

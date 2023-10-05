@@ -1,16 +1,16 @@
 import { buildSchema as _buildGraphqlSchema } from "graphql";
 import { expect, test } from "vitest";
 
-import { schemaHeader } from "@/build/schema";
+import { schemaHeader } from "@/build/schema.js";
 
-import { buildSchema } from "./schema";
+import { buildSchema } from "./schema.js";
 import type {
   DerivedField,
   EnumField,
   ListField,
   RelationshipField,
   ScalarField,
-} from "./types";
+} from "./types.js";
 
 const buildGraphqlSchema = (source: string) => {
   return _buildGraphqlSchema(schemaHeader + source);

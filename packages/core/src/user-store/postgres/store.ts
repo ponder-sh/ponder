@@ -1,22 +1,22 @@
 import { randomBytes } from "crypto";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
-import { Pool } from "pg";
+import pg from "pg";
 
-import type { Schema } from "@/schema/types";
-import { blobToBigInt } from "@/utils/decode";
+import type { Schema } from "@/schema/types.js";
+import { blobToBigInt } from "@/utils/decode.js";
 
 import type {
   ModelInstance,
   OrderByInput,
   UserStore,
   WhereInput,
-} from "../store";
-import { formatModelFieldValue, formatModelInstance } from "../utils/format";
-import { validateSkip, validateTake } from "../utils/pagination";
+} from "../store.js";
+import { formatModelFieldValue, formatModelInstance } from "../utils/format.js";
+import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
   buildSqlWhereConditions,
-} from "../utils/where";
+} from "../utils/where.js";
 
 const MAX_INTEGER = 2_147_483_647 as const;
 const MAX_BATCH_SIZE = 1_000 as const;
@@ -40,7 +40,7 @@ export class PostgresUserStore implements UserStore {
     pool,
     databaseSchema,
   }: {
-    pool: Pool;
+    pool: pg.Pool;
     databaseSchema?: string;
   }) {
     this.db = new Kysely({

@@ -7,14 +7,14 @@ import {
   blockOneTransactions,
   contractReadResultOne,
   logFilterCachedRangeOne,
-} from "@/_test/constants";
-import { setupEventStore } from "@/_test/setup";
+} from "@/_test/constants.js";
+import { setupEventStore } from "@/_test/setup.js";
 
 import {
   rpcToPostgresBlock,
   rpcToPostgresLog,
   rpcToPostgresTransaction,
-} from "./format";
+} from "./format.js";
 
 beforeEach((context) => setupEventStore(context, { skipMigrateUp: true }));
 

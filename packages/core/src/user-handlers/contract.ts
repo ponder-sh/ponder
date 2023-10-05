@@ -12,8 +12,8 @@ import {
   getContractError,
 } from "viem";
 
-import type { Contract } from "@/config/contracts";
-import type { EventStore } from "@/event-store/store";
+import type { Contract } from "@/config/contracts.js";
+import type { EventStore } from "@/event-store/store.js";
 
 export function buildReadOnlyContracts({
   contracts,

@@ -1,13 +1,13 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { usdcContractConfig } from "@/_test/constants";
-import { setupEventStore } from "@/_test/setup";
-import { publicClient } from "@/_test/utils";
-import { encodeLogFilterKey } from "@/config/logFilterKey";
-import type { LogFilter } from "@/config/logFilters";
-import type { Network } from "@/config/networks";
+import { usdcContractConfig } from "@/_test/constants.js";
+import { setupEventStore } from "@/_test/setup.js";
+import { publicClient } from "@/_test/utils.js";
+import { encodeLogFilterKey } from "@/config/logFilterKey.js";
+import type { LogFilter } from "@/config/logFilters.js";
+import type { Network } from "@/config/networks.js";
 
-import { EventAggregatorService } from "./service";
+import { EventAggregatorService } from "./service.js";
 
 beforeEach((context) => setupEventStore(context));
 

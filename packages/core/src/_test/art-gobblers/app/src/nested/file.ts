@@ -1,4 +1,4 @@
-import { ponder } from "@/generated";
+import { ponder } from "@/generated.js";
 
 ponder.on("ArtGobblers:GobblerClaimed", async ({ event, context }) => {
   const { Account, Token } = context.entities;

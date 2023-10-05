@@ -1,10 +1,10 @@
 import type { Abi, Address } from "abitype";
 
-import type { ResolvedConfig } from "@/config/config";
-import type { Options } from "@/config/options";
+import type { ResolvedConfig } from "@/config/config.js";
+import type { Options } from "@/config/options.js";
 
-import { buildAbi } from "./abi";
-import { type Network, buildNetwork } from "./networks";
+import { buildAbi } from "./abi.js";
+import { type Network, buildNetwork } from "./networks.js";
 
 export type Contract = {
   name: string;

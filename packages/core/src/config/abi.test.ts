@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, expect, test } from "vitest";
 
-import { buildAbi, getEvents } from "./abi";
+import { buildAbi, getEvents } from "./abi.js";
 
 const abiSimple = [
   {
@@ -93,7 +93,7 @@ test("buildAbi handles a single ABI passed as a file path", () => {
   writeFileSync(abiSimplePath, JSON.stringify(abiSimple));
 
   const { abi, filePaths } = buildAbi({
-    abiConfig: "./abiSimple.json",
+    abiConfig: "./abiSimple.json.js",
     configFilePath,
   });
 
@@ -116,7 +116,7 @@ test("buildAbi handles an array with a single ABI passed as a file path", () => 
   writeFileSync(abiSimplePath, JSON.stringify(abiSimple));
 
   const { abi, filePaths } = buildAbi({
-    abiConfig: ["./abiSimple.json"],
+    abiConfig: ["./abiSimple.json.js"],
     configFilePath,
   });
 
@@ -131,7 +131,7 @@ test("buildAbi handles an array of ABIs passed as file paths", () => {
   writeFileSync(abiWithSameEventPath, JSON.stringify(abiWithSameEvent));
 
   const { abi, filePaths } = buildAbi({
-    abiConfig: ["./abiSimple.json", "./abiWithSameEvent.json"],
+    abiConfig: ["./abiSimple.json.js", "./abiWithSameEvent.json.js"],
     configFilePath,
   });
 
@@ -146,7 +146,7 @@ test("buildAbi handles an array of ABIs with both file paths and objects", () =>
   writeFileSync(abiSimplePath, JSON.stringify(abiSimple));
 
   const { abi, filePaths } = buildAbi({
-    abiConfig: ["./abiSimple.json", abiWithSameEvent],
+    abiConfig: ["./abiSimple.json.js", abiWithSameEvent],
     configFilePath,
   });
 
@@ -161,7 +161,7 @@ test("buildAbi handles an array of ABIs and removes duplicate abi items", () => 
   writeFileSync(abiSimplePath, JSON.stringify(abiSimple));
 
   const { abi, filePaths } = buildAbi({
-    abiConfig: ["./abiSimple.json", abiWithSameEvent],
+    abiConfig: ["./abiSimple.json.js", abiWithSameEvent],
     configFilePath,
   });
 

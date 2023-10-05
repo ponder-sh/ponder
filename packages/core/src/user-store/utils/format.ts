@@ -1,6 +1,6 @@
-import { intToBlob } from "@/utils/encode";
+import { intToBlob } from "@/utils/encode.js";
 
-import type { ModelInstance } from "../store";
+import type { ModelInstance } from "../store.js";
 
 /**
  * Convert a user-land model instance into a database-ready object.
