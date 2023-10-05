@@ -72,14 +72,14 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     common,
     eventStore,
     networks,
-    logFilters,
-    factoryContracts,
+    logFilters = [],
+    factoryContracts = [],
   }: {
     common: Common;
     eventStore: EventStore;
     networks: Network[];
-    logFilters: LogFilter[];
-    factoryContracts: FactoryContract[];
+    logFilters?: LogFilter[];
+    factoryContracts?: FactoryContract[];
   }) {
     super();
 
