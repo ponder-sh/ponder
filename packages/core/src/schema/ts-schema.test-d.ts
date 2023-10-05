@@ -1,50 +1,50 @@
 import { assertType, test } from "vitest";
 
 import { createTable } from "./ts-schema";
-import { RecoverColumnType, RecoverIDType } from "./ts-types";
-
-test("id", () => {
-  const table = createTable("table").addColumn("id", "string");
-
-  type t = RecoverIDType<(typeof table)["table"]>;
-  //   ^?
-
-  assertType<t>({} as string);
-});
+import { RecoverColumnType, RecoverTableType } from "./ts-types";
 
 test("column scalar", () => {
   const table = createTable("table").addColumn("id", "string");
 
   const column = table.table.columns;
 
-  type t = RecoverColumnType<"id", (typeof column)["id"]>;
+  type t = RecoverColumnType<(typeof column)["id"]>;
   //   ^?
 
-  assertType<t>({} as { id: string });
-});
-
-test("column optional", () => {
-  const table = createTable("table").addColumn("id", "string", {
-    optional: true,
-  });
-
-  const column = table.table.columns;
-
-  type t = RecoverColumnType<"id", (typeof column)["id"]>;
-  //   ^?
-
-  assertType<t>({} as { id?: string });
+  assertType<t>({} as string);
 });
 
 test("column list", () => {
-  const table = createTable("table").addColumn("id", "string", {
+  const table = createTable("table").addColumn("age", "string", {
     list: true,
   });
 
   const column = table.table.columns;
 
-  type t = RecoverColumnType<"id", (typeof column)["id"]>;
+  type t = RecoverColumnType<(typeof column)["age"]>;
   //   ^?
 
-  assertType<t>({} as { id: string[] });
+  assertType<t>({} as string[]);
+});
+
+test("table", () => {
+  const table = createTable("table")
+    .addColumn("id", "string")
+    .addColumn("age", "number");
+
+  type t = RecoverTableType<(typeof table)["table"]>;
+  //   ^?
+
+  assertType<t>({} as { table: { id: string; age: number } });
+});
+
+test("table optional", () => {
+  const table = createTable("table")
+    .addColumn("id", "string")
+    .addColumn("age", "number", { optional: true });
+
+  type t = RecoverTableType<(typeof table)["table"]>;
+  //   ^?
+
+  assertType<t>({} as { table: { id: string; age?: number } });
 });

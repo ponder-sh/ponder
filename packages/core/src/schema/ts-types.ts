@@ -1,5 +1,7 @@
 import { Hex } from "viem";
 
+import { Prettify } from "@/types/utils";
+
 export type Scalar = "string" | "number" | "boolean" | "bytes" | "bigint";
 export type ID = "string" | "number" | "bytes" | "bigint";
 
@@ -19,7 +21,7 @@ export type Column<
 export type Table<
   TName extends string | unknown = unknown,
   TColumns extends
-    | ({ id?: Column<ID, false, false> } & { columns: Column[] })
+    | ({ id: Column<ID, false, false> } & Record<string, Column>)
     | unknown = unknown
 > = {
   name: TName;
@@ -36,15 +38,15 @@ export type Table<
 export type IT<
   TTableName extends string | unknown = unknown,
   TColumns extends
-    | ({ id?: Column<ID, false, false> } & Record<string, Column>)
+    | ({ id: Column<ID, false, false> } & Record<string, Column>)
     | unknown = unknown
 > = {
   table: Table<TTableName, TColumns>;
   addColumn: <
     TName extends string,
     TType extends Scalar,
-    TOptional extends boolean = false,
-    TList extends boolean = false
+    TOptional extends "id" extends TName ? false : boolean = false,
+    TList extends "id" extends TName ? false : boolean = false
   >(
     name: TName,
     type: TType,
@@ -58,7 +60,6 @@ export type IT<
 /**
  * Recover raw typescript types from the intermediate representation
  */
-
 export type RecoverScalarType<TScalar extends Scalar> = TScalar extends "string"
   ? string
   : TScalar extends "number"
@@ -71,23 +72,53 @@ export type RecoverScalarType<TScalar extends Scalar> = TScalar extends "string"
   ? bigint
   : never;
 
-export type RecoverIDType<TTable extends Table> = TTable extends {
-  columns: { id: infer _id extends Column<ID, false, false> };
-}
-  ? RecoverScalarType<_id["type"]>
-  : never;
-
-export type RecoverColumnType<
-  TName extends string,
-  TColumn extends Column
-> = TColumn extends {
+export type RecoverColumnType<TColumn extends Column> = TColumn extends {
   type: infer _type extends Scalar;
 }
-  ? TColumn["optional"] extends false
-    ? TColumn["list"] extends false
-      ? Record<TName, RecoverScalarType<_type>>
-      : Record<TName, RecoverScalarType<_type>[]>
-    : TColumn["list"] extends false
-    ? Partial<Record<TName, RecoverScalarType<_type>>>
-    : Partial<Record<TName, RecoverScalarType<_type>[]>>
+  ? TColumn["list"] extends false
+    ? RecoverScalarType<_type>
+    : RecoverScalarType<_type>[]
+  : never;
+
+export type RecoverOptionalColumns<TColumns extends Record<string, Column>> =
+  Pick<
+    TColumns,
+    {
+      [key in keyof TColumns]: TColumns[key]["optional"] extends true
+        ? key
+        : never;
+    }[keyof TColumns]
+  >;
+
+export type RecoverRequiredColumns<TColumns extends Record<string, Column>> =
+  Pick<
+    TColumns,
+    {
+      [key in keyof TColumns]: TColumns[key]["optional"] extends false
+        ? key
+        : never;
+    }[keyof TColumns]
+  >;
+
+export type RecoverTableType<TTable extends Table> = TTable extends {
+  name: infer _name extends string;
+  columns: infer _columns extends { id: Column<ID, false, false> } & Record<
+    string,
+    Column
+  >;
+}
+  ? Record<
+      _name,
+      Prettify<
+        Record<"id", RecoverScalarType<_columns["id"]["type"]>> & {
+          [key in keyof RecoverRequiredColumns<_columns>]: RecoverColumnType<
+            _columns[key]
+          >;
+        } & {
+          [key in keyof RecoverOptionalColumns<_columns>]?: RecoverColumnType<
+            _columns[key]
+          >;
+        }
+      >
+    >
   : never;

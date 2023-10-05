@@ -1,11 +1,11 @@
-import { Column, IT, Scalar, Table } from "./ts-types";
+import { Column, ID, IT, Scalar, Table } from "./ts-types";
 
 const _addColumn = <
   TTable extends Table,
   TName extends string,
   TType extends Scalar,
-  TOptional extends boolean = false,
-  TList extends boolean = false
+  TOptional extends "id" extends TName ? false : boolean = false,
+  TList extends "id" extends TName ? false : boolean = false
 >(
   table: TTable,
   name: TName,
@@ -28,8 +28,8 @@ const addColumn = <
   TTable extends Table,
   TName extends string,
   TType extends Scalar,
-  TOptional extends boolean = false,
-  TList extends boolean = false
+  TOptional extends "id" extends TName ? false : boolean = false,
+  TList extends "id" extends TName ? false : boolean = false
 >(
   table: TTable,
   name: TName,
@@ -46,8 +46,8 @@ const addColumn = <
     addColumn: <
       TName extends string,
       TType extends Scalar,
-      TOptional extends boolean = false,
-      TList extends boolean = false
+      TOptional extends "id" extends TName ? false : boolean = false,
+      TList extends "id" extends TName ? false : boolean = false
     >(
       name: TName,
       type: TType,
@@ -66,8 +66,8 @@ export const createTable = <TTableName extends string>(
     addColumn: <
       TName extends string,
       TType extends Scalar,
-      TOptional extends boolean = false,
-      TList extends boolean = false
+      TOptional extends "id" extends TName ? false : boolean = false,
+      TList extends "id" extends TName ? false : boolean = false
     >(
       name: TName,
       type: TType,
@@ -79,7 +79,57 @@ export const createTable = <TTableName extends string>(
 
 /**
  * Used for advanced type checking
- *
- * Every table must have an id field, and refernces must be strictly typed to the id field
  */
-export const createSchema = (tables: IT[]) => tables.map((t) => t.table);
+export const createSchema = <
+  const TSchema extends readonly IT<
+    string,
+    { id: Column<ID, false, false> } & Record<string, Column>
+  >[]
+>(
+  schema: TSchema
+): { [key in keyof TSchema]: TSchema[key]["table"] } => {
+  const tables = schema.map((it) => it.table);
+
+  tables.forEach((t) => {
+    noSpaces(t.name);
+
+    if (t.columns.id === undefined)
+      throw Error('Table doesn\'t contain an "id" field');
+    if (
+      t.columns.id.type !== "bigint" &&
+      t.columns.id.type !== "string" &&
+      t.columns.id.type !== "bytes" &&
+      t.columns.id.type !== "number"
+    )
+      throw Error('"id" is not of the correct type');
+    // NOTE: This is a to make sure the user didn't override the optional type
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    if (t.columns.id.optional === true) throw Error('"id" cannot be optional');
+    // NOTE: This is a to make sure the user didn't override the list type
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    if (t.columns.id.list === true) throw Error('"id" cannot be a list');
+
+    Object.keys(t.columns).forEach((key) => {
+      if (key === "id") return;
+
+      noSpaces(key);
+
+      if (
+        t.columns[key].type !== "bigint" &&
+        t.columns[key].type !== "string" &&
+        t.columns[key].type !== "bytes" &&
+        t.columns[key].type !== "number" &&
+        t.columns[key].type !== "bytes"
+      )
+        throw Error("Column is not a valid type");
+    });
+  });
+
+  return tables as { [key in keyof TSchema]: TSchema[key]["table"] };
+};
+
+const noSpaces = (name: string) => {
+  if (name.includes(" ")) throw Error("Table or column name contains a space");
+};

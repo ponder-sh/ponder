@@ -19,8 +19,6 @@ import { createSchema, createTable } from "./ts-schema";
 //     .addColumn("shareId", "string", { references: "share.id" }),
 // ]);
 
-test("", () => {
-  createSchema([
-    createTable("Account").addColumn("j", "bigint").addColumn("r", "string"),
-  ]);
+test("create schema", () => {
+  createSchema([createTable("name").addColumn("id", "bigint")]);
 });
