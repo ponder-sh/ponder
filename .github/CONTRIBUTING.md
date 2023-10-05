@@ -8,22 +8,16 @@ If you want to contribute, but aren't sure where to start, reach out in Ponder's
 
 This guide is intended to help you get started with contributing. By following these steps, you will understand the development process and workflow.
 
-- [Contributing](#contributing)
-  - [Get started](#get-started)
-  - [Fork the repository](#fork-the-repository)
-  - [Install Node.js and pnpm](#install-nodejs-and-pnpm)
-  - [Install Foundry](#install-foundry)
-  - [Install dependencies](#install-dependencies)
-  - [Build packages](#build-packages)
-  - [Run the test suite](#run-the-test-suite)
-    - [Environment variables](#environment-variables)
-    - [Running tests](#running-tests)
-  - [Write documentation](#write-documentation)
-  - [Submit a pull request](#submit-a-pull-request)
-  - [Versioning and releases](#versioning-and-releases)
-    - [Changesets workflow](#changesets-workflow)
-    - [Releases](#releases)
-  - [That's it!](#thats-it)
+- [Fork the repository](#fork-the-repository)
+- [Install Node.js and pnpm](#install-nodejs-and-pnpm)
+- [Install Foundry](#install-foundry)
+- [Install dependencies](#install-dependencies)
+- [Build packages](#build-packages)
+- [Run the test suite](#run-the-test-suite)
+- [Write documentation](#write-documentation)
+- [Submit a pull request](#submit-a-pull-request)
+- [Versioning and releases](#versioning-and-releases)
+- [That's it!](#thats-it)
 
 <br>
 
