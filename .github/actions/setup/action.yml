@@ -6,16 +6,16 @@ runs:
   using: composite
   steps:
     - name: Set up pnpm
-      uses: pnpm/action-setup@v2
+      uses: pnpm/action-setup@v2.4.0
 
     - name: Set up node
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v3.8.1
       with:
         cache: pnpm
         node-version: ${{ matrix.node-version == 'Node 16' && 16 || matrix.node-version == 'Node 18' && 18 || 20 }}
 
     - name: Set up foundry
-      uses: foundry-rs/foundry-toolchain@v1
+      uses: foundry-rs/foundry-toolchain@v1.0.10
 
     - name: Install dependencies
       shell: bash
