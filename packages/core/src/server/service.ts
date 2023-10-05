@@ -28,10 +28,6 @@ export class ServerService {
     this.port = this.common.options.port;
   }
 
-  #getOwnUrlFromRequest(request: express.Request) {
-    return `${request.protocol}://${request.get("host")}`;
-  }
-
   async start() {
     this.app = express();
     this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
@@ -174,11 +170,14 @@ export class ServerService {
         case "POST":
           return graphqlMiddleware(request, response, next);
         case "GET": {
-          const SERVER_URL = this.#getOwnUrlFromRequest(request);
           return response
             .status(200)
             .setHeader("Content-Type", "text/html")
-            .send(graphiQLHtml({ endpoint: `${SERVER_URL}/graphql` }));
+            .send(
+              graphiQLHtml({
+                endpoint: `${request.protocol}://${request.get("host")}`,
+              })
+            );
         }
         case "HEAD":
           return response.status(200).send();
@@ -196,11 +195,14 @@ export class ServerService {
         case "POST":
           return graphqlMiddleware(request, response, next);
         case "GET": {
-          const SERVER_URL = this.#getOwnUrlFromRequest(request);
           return response
             .status(200)
             .setHeader("Content-Type", "text/html")
-            .send(graphiQLHtml({ endpoint: `${SERVER_URL}/graphql` }));
+            .send(
+              graphiQLHtml({
+                endpoint: `${request.protocol}://${request.get("host")}`,
+              })
+            );
         }
         case "HEAD":
           return response.status(200).send();
