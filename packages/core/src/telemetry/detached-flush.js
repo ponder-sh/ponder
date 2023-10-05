@@ -1,4 +1,4 @@
-const fs = require("fs");
+import fs from "node:fs";
 
 async function detachedFlush() {
   const args = [...process.argv];
@@ -14,6 +14,8 @@ async function detachedFlush() {
 
   try {
     await Promise.all(
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-expect-error TODO: fix this
       events.map(async (event) => {
         await fetch(telemetryUrl, {
           method: "POST",

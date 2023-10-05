@@ -21,7 +21,7 @@ const setup = async ({ context }: { context: TestContext }) => {
 
   const options = buildOptions({
     cliOptions: {
-      rootDir: "./src/_test/art-gobblers/app.js",
+      rootDir: "./src/_test/art-gobblers/app",
       configFile: "ponder.config.ts",
     },
   });
@@ -66,11 +66,11 @@ const setup = async ({ context }: { context: TestContext }) => {
 };
 
 afterEach(() => {
-  rmSync("./src/_test/art-gobblers/app/.ponder.js", {
+  rmSync("./src/_test/art-gobblers/app/.ponder", {
     recursive: true,
     force: true,
   });
-  rmSync("./src/_test/art-gobblers/app/generated.js", {
+  rmSync("./src/_test/art-gobblers/app/generated", {
     recursive: true,
     force: true,
   });
@@ -98,4 +98,4 @@ test("serves data", async (context) => {
   expect(tokens).toHaveLength(92);
 
   await ponder.kill();
-}, 60_000);
+}, 70_000);

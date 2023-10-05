@@ -6,6 +6,5 @@ export const ensureDirExists = async (filePath: string) => {
   if (existsSync(dirname)) {
     return;
   }
-  console.log("Directory does not exist");
   mkdirSync(dirname, { recursive: true });
 };

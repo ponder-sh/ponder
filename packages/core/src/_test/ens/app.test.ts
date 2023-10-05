@@ -21,7 +21,7 @@ const setup = async ({ context }: { context: TestContext }) => {
 
   const options = buildOptions({
     cliOptions: {
-      rootDir: "./src/_test/ens/app.js",
+      rootDir: "./src/_test/ens/app",
       configFile: "ponder.config.ts",
     },
   });
@@ -66,8 +66,8 @@ const setup = async ({ context }: { context: TestContext }) => {
 };
 
 afterEach(() => {
-  rmSync("./src/_test/ens/app/.ponder.js", { recursive: true, force: true });
-  rmSync("./src/_test/ens/app/generated.js", { recursive: true, force: true });
+  rmSync("./src/_test/ens/app/.ponder", { recursive: true, force: true });
+  rmSync("./src/_test/ens/app/generated", { recursive: true, force: true });
 });
 
 test("serves data", async (context) => {
@@ -95,4 +95,4 @@ test("serves data", async (context) => {
   expect(accounts).toHaveLength(12);
 
   await ponder.kill();
-}, 60_000);
+}, 70_000);

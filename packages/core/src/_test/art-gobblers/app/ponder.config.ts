@@ -1,4 +1,4 @@
-import ArtGobblersAbi from "./ArtGobblers.json.js";
+import ArtGobblersAbi from "./ArtGobblers.json";
 
 export const config = {
   networks: [{ name: "mainnet", chainId: 1, rpcUrl: "http://127.0.0.1:8545" }],

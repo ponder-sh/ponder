@@ -1,4 +1,4 @@
-import BaseRegistrarImplementationAbi from "./BaseRegistrarImplementation.abi.json.js";
+import BaseRegistrarImplementationAbi from "./BaseRegistrarImplementation.abi.json";
 
 export const config = {
   networks: [{ name: "mainnet", chainId: 1, rpcUrl: "http://127.0.0.1:8545" }],
