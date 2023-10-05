@@ -15,6 +15,7 @@
   "search.exclude": {
     "node_modules": true,
     "pnpm-lock.yaml": true,
+    "package-lock.json": true,
     ".eslintcache": true,
     ".prettiercache": true,
     "patches": true,
