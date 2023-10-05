@@ -1,6 +1,6 @@
+import prettier from "@prettier/sync";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import prettier from "prettier";
 import type { Contract, Network, PartialConfig } from "src/index";
 import { parse } from "yaml";
 

@@ -1,3 +1,4 @@
+import { format } from "@prettier/sync";
 import prettier from "prettier";
 
 let prettierConfig: prettier.Options = { parser: "typescript" };
@@ -21,5 +22,5 @@ export const formatPrettier = (
   source: string,
   configOverrides?: Partial<prettier.Options>
 ) => {
-  return prettier.format(source, { ...prettierConfig, ...configOverrides });
+  return format(source, { ...prettierConfig, ...configOverrides });
 };
