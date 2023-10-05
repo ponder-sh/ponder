@@ -412,8 +412,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       }
 
       this.emit("realtimeCheckpoint", {
-        blockTimestamp: hexToNumber(newBlockWithTransactions.timestamp),
         blockNumber: hexToNumber(newBlockWithTransactions.number),
+        blockTimestamp: hexToNumber(newBlockWithTransactions.timestamp),
       });
 
       // Add this block the local chain.
@@ -469,8 +469,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.finalizedBlockNumber = newFinalizedBlock.number;
 
         this.emit("finalityCheckpoint", {
-          blockTimestamp: newFinalizedBlock.timestamp,
           blockNumber: newFinalizedBlock.number,
+          blockTimestamp: newFinalizedBlock.timestamp,
         });
 
         this.common.logger.debug({

@@ -40,9 +40,7 @@ const usdcLogFilter = {
   name: "USDC",
   ...usdcContractConfig,
   network: network.name,
-  filter: {
-    address: usdcContractConfig.address,
-  },
+  filter: { address: usdcContractConfig.address },
   startBlock: 16369995, // 5 blocks
   maxBlockRange: 3,
 } satisfies LogFilter;

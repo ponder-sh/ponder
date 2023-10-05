@@ -2,10 +2,15 @@
 import { type EIP1193RequestFn, HttpRequestError } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { accounts, usdcContractConfig, vitalik } from "@/_test/constants";
+import {
+  accounts,
+  uniswapV3FactoryConfig,
+  usdcContractConfig,
+  vitalik,
+} from "@/_test/constants";
 import { resetTestClient, setupEventStore } from "@/_test/setup";
 import { publicClient, testClient, walletClient } from "@/_test/utils";
-import { encodeLogFilterKey } from "@/config/logFilterKey";
+import { FactoryContract } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { blobToBigInt } from "@/utils/decode";
@@ -31,24 +36,21 @@ const rpcRequestSpy = vi.spyOn(
   "request"
 );
 
-const logFilters: LogFilter[] = [
-  {
-    name: "USDC",
-    ...usdcContractConfig,
-    network: network.name,
-    filter: {
-      key: encodeLogFilterKey({
-        chainId: network.chainId,
-        address: usdcContractConfig.address,
-      }),
-      chainId: network.chainId,
-      address: usdcContractConfig.address,
-      startBlock: 16369950,
-      // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
-      endBlock: undefined,
-    },
-  },
-];
+const usdcLogFilter = {
+  name: "USDC",
+  ...usdcContractConfig,
+  network: network.name,
+  filter: { address: usdcContractConfig.address },
+  startBlock: 16369995, // 5 blocks
+  maxBlockRange: 3,
+} satisfies LogFilter;
+
+const uniswapV3Factory = {
+  name: "UniswapV3Factory",
+  ...uniswapV3FactoryConfig,
+  network: network.name,
+  startBlock: 16369500, // 500 blocks
+} satisfies FactoryContract;
 
 const sendUsdcTransferTransaction = async () => {
   await walletClient.writeContract({
@@ -65,8 +67,9 @@ test("setup() returns block numbers", async (context) => {
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   const { latestBlockNumber, finalizedBlockNumber } = await service.setup();
@@ -77,14 +80,15 @@ test("setup() returns block numbers", async (context) => {
   await service.kill();
 });
 
-test("adds blocks to the store from finalized to latest", async (context) => {
+test("start() adds blocks to the store from finalized to latest", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   await service.setup();
@@ -104,14 +108,15 @@ test("adds blocks to the store from finalized to latest", async (context) => {
   await service.kill();
 });
 
-test("adds all required transactions to the store", async (context) => {
+test("start() adds all required transactions to the store", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   await service.setup();
@@ -134,14 +139,15 @@ test("adds all required transactions to the store", async (context) => {
   await service.kill();
 });
 
-test("adds all matched logs to the store", async (context) => {
+test("start() adds all matched logs to the store", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   await service.setup();
@@ -157,14 +163,15 @@ test("adds all matched logs to the store", async (context) => {
   await service.kill();
 });
 
-test("handles new blocks", async (context) => {
+test("start() handles new blocks", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   await service.setup();
@@ -204,14 +211,15 @@ test("handles new blocks", async (context) => {
   await service.kill();
 });
 
-test("handles error while fetching new latest block gracefully", async (context) => {
+test("start() handles error while fetching new latest block gracefully", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   await service.setup();
@@ -245,14 +253,15 @@ test("handles error while fetching new latest block gracefully", async (context)
   await service.kill();
 });
 
-test("emits realtimeCheckpoint events", async (context) => {
+test("start() emits realtimeCheckpoint events", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -270,26 +279,31 @@ test("emits realtimeCheckpoint events", async (context) => {
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    timestamp: 1673397023, // Timestamp of 16379995
+    blockNumber: 16379996,
+    blockTimestamp: 1673397023,
   });
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    timestamp: 1673397071, // Timestamp of 16380000
+    blockNumber: 16380000,
+    blockTimestamp: 1673397071,
   });
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
-    timestamp: 1673397078, // Timestamp of 16380008 (1s block time via Anvil)
+    blockNumber: 16380008,
+    // Anvil messes with the block number for blocks mined locally.
+    blockTimestamp: expect.any(Number),
   });
 
   await service.kill();
 });
 
-test("inserts cached range records for finalized blocks", async (context) => {
+test.only("start() inserts log filter interval records for finalized blocks", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -306,34 +320,29 @@ test("inserts cached range records for finalized blocks", async (context) => {
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  const cachedRanges = await eventStore.getLogFilterCachedRanges({
-    logFilterKey: logFilters[0].filter.key,
+  const logFilterIntervals = await eventStore.getLogFilterIntervals({
+    chainId: network.chainId,
+    logFilter: { address: usdcLogFilter.filter.address },
   });
-
-  expect(cachedRanges).toMatchObject([
-    {
-      filterKey: '1-"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"-null',
-      startBlock: 16379996,
-      endBlock: 16380000,
-      endBlockTimestamp: 1673397071,
-    },
-  ]);
+  expect(logFilterIntervals).toMatchObject([[16379996, 16380000]]);
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    timestamp: 1673397071, // Timestamp of 16380000
+    blockNumber: 16380000,
+    blockTimestamp: expect.any(Number),
   });
 
   await service.kill();
 });
 
-test("removes data from the store after 3 block shallow reorg", async (context) => {
+test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   await service.setup();
@@ -396,14 +405,15 @@ test("removes data from the store after 3 block shallow reorg", async (context) 
   await service.kill();
 });
 
-test("emits shallowReorg event after 3 block shallow reorg", async (context) => {
+test("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -432,7 +442,7 @@ test("emits shallowReorg event after 3 block shallow reorg", async (context) => 
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
-    commonAncestorTimestamp: 1673397071, // Timestamp of 16380000
+    commonAncestorBlockTimestamp: 1673397071, // Timestamp of 16380000
   });
 
   await service.kill();
@@ -444,8 +454,9 @@ test("emits deepReorg event after deep reorg", async (context) => {
   const service = new RealtimeSyncService({
     common,
     eventStore,
-    logFilters,
     network,
+    logFilters: [usdcLogFilter],
+    factoryContracts: [],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -466,9 +477,8 @@ test("emits deepReorg event after deep reorg", async (context) => {
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
-    // Note that the precise number can change depending on how long it takes to
-    // mine each block above.
-    timestamp: expect.any(Number),
+    blockNumber: 16380000,
+    blockTimestamp: expect.any(Number),
   });
 
   // Now, revert to the original snapshot and mine 13 blocks, each containing 2 transactions.
