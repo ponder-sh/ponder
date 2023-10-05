@@ -50,14 +50,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     common,
     eventStore,
     network,
-    logFilters,
-    factoryContracts,
+    logFilters = [],
+    factoryContracts = [],
   }: {
     common: Common;
     eventStore: EventStore;
     network: Network;
-    logFilters: LogFilter[];
-    factoryContracts: FactoryContract[];
+    logFilters?: LogFilter[];
+    factoryContracts?: FactoryContract[];
   }) {
     super();
 

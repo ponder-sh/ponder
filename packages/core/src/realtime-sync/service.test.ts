@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { type EIP1193RequestFn, HttpRequestError } from "viem";
+import { type EIP1193RequestFn, HttpRequestError, parseAbi } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import {
@@ -45,6 +45,16 @@ const usdcLogFilter = {
   maxBlockRange: 3,
 } satisfies LogFilter;
 
+const sendUsdcTransferTransaction = async () => {
+  await walletClient.writeContract({
+    account: vitalik.account,
+    address: usdcContractConfig.address,
+    abi: usdcContractConfig.abi,
+    functionName: "transfer",
+    args: [accounts[0].address, 1n],
+  });
+};
+
 const uniswapV3Factory = {
   name: "UniswapV3Factory",
   ...uniswapV3FactoryConfig,
@@ -52,12 +62,28 @@ const uniswapV3Factory = {
   startBlock: 16369500, // 500 blocks
 } satisfies FactoryContract;
 
-const sendUsdcTransferTransaction = async () => {
+const createAndInitializeUniswapV3Pool = async () => {
   await walletClient.writeContract({
-    ...usdcContractConfig,
-    functionName: "transfer",
-    args: [accounts[0].address, 1n],
     account: vitalik.account,
+    address: uniswapV3FactoryConfig.address,
+    abi: uniswapV3FactoryConfig.abi,
+    functionName: "createPool",
+    args: [
+      // ENS https://etherscan.io/token/0xc18360217d8f7ab5e7c516566761ea12ce7f9d72
+      "0xc18360217d8f7ab5e7c516566761ea12ce7f9d72",
+      // Dingo https://etherscan.io/token/0x1f961BCEAEF8eDF6fb2797C0293FfBDe3E994614
+      "0x1f961BCEAEF8eDF6fb2797C0293FfBDe3E994614",
+      500,
+    ],
+  });
+
+  // Small hack - the pool gets deterministically created at this address.
+  await walletClient.writeContract({
+    account: vitalik.account,
+    address: "0x25e0870d42b6cef90b6dc8216588fad55d5f55c4",
+    abi: parseAbi(["function initialize(uint160 sqrtPriceX96)"]),
+    functionName: "initialize",
+    args: [93739913940949312680865654n],
   });
 };
 
@@ -69,7 +95,6 @@ test("setup() returns block numbers", async (context) => {
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   const { latestBlockNumber, finalizedBlockNumber } = await service.setup();
@@ -88,7 +113,6 @@ test("start() adds blocks to the store from finalized to latest", async (context
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   await service.setup();
@@ -116,7 +140,6 @@ test("start() adds all required transactions to the store", async (context) => {
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   await service.setup();
@@ -147,7 +170,6 @@ test("start() adds all matched logs to the store", async (context) => {
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   await service.setup();
@@ -171,7 +193,6 @@ test("start() handles new blocks", async (context) => {
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   await service.setup();
@@ -219,7 +240,6 @@ test("start() handles error while fetching new latest block gracefully", async (
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   await service.setup();
@@ -261,7 +281,6 @@ test("start() emits realtimeCheckpoint events", async (context) => {
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -295,7 +314,7 @@ test("start() emits realtimeCheckpoint events", async (context) => {
   await service.kill();
 });
 
-test.only("start() inserts log filter interval records for finalized blocks", async (context) => {
+test("start() inserts log filter interval records for finalized blocks", async (context) => {
   const { common, eventStore } = context;
 
   const service = new RealtimeSyncService({
@@ -303,7 +322,6 @@ test.only("start() inserts log filter interval records for finalized blocks", as
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -342,7 +360,6 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   await service.setup();
@@ -413,7 +430,6 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -456,7 +472,6 @@ test("emits deepReorg event after deep reorg", async (context) => {
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -498,6 +513,71 @@ test("emits deepReorg event after deep reorg", async (context) => {
     detectedAtBlockNumber: 16380013,
     minimumDepth: 8,
   });
+
+  await service.kill();
+});
+
+test("start() with factory contract inserts new child contracts records and child contract events", async (context) => {
+  const { common, eventStore } = context;
+
+  const service = new RealtimeSyncService({
+    common,
+    eventStore,
+    network,
+    factoryContracts: [uniswapV3Factory],
+  });
+
+  await service.setup();
+  await service.start();
+
+  await createAndInitializeUniswapV3Pool();
+  await testClient.mine({ blocks: 1 });
+
+  await service.addNewLatestBlock();
+  await service.onIdle();
+
+  const iterator = eventStore.getChildContractAddresses({
+    chainId: uniswapV3Factory.chainId,
+    upToBlockNumber: 16380010n,
+    factoryContract: {
+      address: uniswapV3Factory.address,
+      eventSelector: uniswapV3Factory.factoryEventSelector,
+    },
+  });
+
+  const childContractAddresses = [];
+  for await (const page of iterator) childContractAddresses.push(...page);
+
+  expect(childContractAddresses).toMatchObject([
+    "0x25e0870d42b6cef90b6dc8216588fad55d5f55c4",
+  ]);
+
+  const eventIterator = eventStore.getLogEvents({
+    fromTimestamp: 0,
+    toTimestamp: Number.MAX_SAFE_INTEGER,
+    factoryContracts: [
+      {
+        chainId: network.chainId,
+        address: uniswapV3Factory.address,
+        factoryEventSelector: uniswapV3Factory.factoryEventSelector,
+        child: {
+          name: "UniswapV3Pool",
+        },
+      },
+    ],
+  });
+  const events = [];
+  for await (const page of eventIterator) events.push(...page.events);
+
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject(
+    expect.objectContaining({
+      eventSourceName: "UniswapV3Pool",
+      log: expect.objectContaining({
+        address: "0x25e0870d42b6cef90b6dc8216588fad55d5f55c4",
+      }),
+    })
+  );
 
   await service.kill();
 });
