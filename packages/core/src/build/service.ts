@@ -125,7 +125,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   buildSchema() {
     try {
-      const schema = require(this.common.options.schemaFile) as Schema;
+      const schema = require(this.common.options.schemaFile).schema as Schema;
       const graphqlSchema = {} as GraphQLSchema;
       this.emit("newSchema", { schema, graphqlSchema });
       return { schema, graphqlSchema };

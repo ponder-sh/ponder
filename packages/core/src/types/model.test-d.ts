@@ -8,7 +8,7 @@ import { Model } from "..";
 test("model", () => {
   const schema = createSchema([createTable("name").addColumn("id", "bigint")]);
 
-  type t = RecoverTableType<(typeof schema)[0]>;
+  type t = RecoverTableType<(typeof schema)["entities"][0]>;
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
