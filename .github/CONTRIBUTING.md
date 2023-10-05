@@ -8,16 +8,22 @@ If you want to contribute, but aren't sure where to start, reach out in Ponder's
 
 This guide is intended to help you get started with contributing. By following these steps, you will understand the development process and workflow.
 
-- [Fork the repository](#fork-the-repository)
-- [Install Node.js and pnpm](#install-nodejs-and-pnpm)
-- [Install Foundry](#install-foundry)
-- [Install dependencies](#install-dependencies)
-- [Build packages](#build-packages)
-- [Run the test suite](#run-the-test-suite)
-- [Write documentation](#write-documentation)
-- [Submit a pull request](#submit-a-pull-request)
-- [Versioning and releases](#versioning-and-releases)
-- [That's it!](#thats-it)
+- [Contributing](#contributing)
+  - [Get started](#get-started)
+  - [Fork the repository](#fork-the-repository)
+  - [Install Node.js and pnpm](#install-nodejs-and-pnpm)
+  - [Install Foundry](#install-foundry)
+  - [Install dependencies](#install-dependencies)
+  - [Build packages](#build-packages)
+  - [Run the test suite](#run-the-test-suite)
+    - [Environment variables](#environment-variables)
+    - [Running tests](#running-tests)
+  - [Write documentation](#write-documentation)
+  - [Submit a pull request](#submit-a-pull-request)
+  - [Versioning and releases](#versioning-and-releases)
+    - [Changesets workflow](#changesets-workflow)
+    - [Releases](#releases)
+  - [That's it!](#thats-it)
 
 <br>
 
@@ -41,7 +47,7 @@ gh repo fork 0xOlias/ponder --clone
 
 ## Install Node.js and pnpm
 
-Ponder uses [pnpm workspaces](https://pnpm.io/workspaces) to manage multiple projects. You need to install **Node.js v16 or higher** and **pnpm v7 or higher**.
+Ponder uses [pnpm workspaces](https://pnpm.io/workspaces) to manage multiple projects. You need to install **Node.js v18 or higher** and **pnpm v7 or higher**.
 
 You can run the following commands in your terminal to check your local Node.js and pnpm versions:
 

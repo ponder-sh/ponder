@@ -12,7 +12,7 @@ runs:
       uses: actions/setup-node@v3.8.1
       with:
         cache: pnpm
-        node-version: ${{ matrix.node-version == 'Node 16' && 16 || matrix.node-version == 'Node 18' && 18 || 20 }}
+        node-version: ${{ matrix.node-version == 'Node 18' && 18 || 20 }}
 
     - name: Set up foundry
       uses: foundry-rs/foundry-toolchain@v1.0.10
