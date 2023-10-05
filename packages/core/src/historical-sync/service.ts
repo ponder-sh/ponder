@@ -351,12 +351,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           completedChildContractIntervals
         );
 
-        console.log({
-          cachedChildContractBlockCount,
-          targetChildContractBlockCount,
-          requiredChildContractIntervals,
-        });
-
         this.common.metrics.ponder_historical_total_blocks.set(
           {
             network: this.network.name,
@@ -692,6 +686,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         );
       });
     }
+
+    this.logFilterProgressTrackers[task.logFilter.name].addCompletedInterval([
+      task.fromBlock,
+      task.toBlock,
+    ]);
 
     this.enqueueBlockTasks();
 
