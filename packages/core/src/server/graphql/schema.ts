@@ -14,7 +14,7 @@ import { buildSingularField } from "./singular";
 export type Source = { request: unknown };
 export type Context = { store: UserStore };
 
-const buildGqlSchema = (schema: Schema): GraphQLSchema => {
+export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Source, Context>> = {};
 
   const entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
@@ -50,5 +50,3 @@ const buildGqlSchema = (schema: Schema): GraphQLSchema => {
 
   return gqlSchema;
 };
-
-export { buildGqlSchema };

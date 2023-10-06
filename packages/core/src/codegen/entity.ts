@@ -1,4 +1,4 @@
-import { Entity, Scalar } from "@/schema/ts-types";
+import { Entity, Scalar } from "@/schema/types";
 
 const scalarToTsType: Record<Scalar, string> = {
   string: "string",

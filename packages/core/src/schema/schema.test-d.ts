@@ -1,7 +1,7 @@
 import { assertType, test } from "vitest";
 
-import { createSchema, createTable } from "./ts-schema";
-import { RecoverColumnType, RecoverTableType, Schema } from "./ts-types";
+import { createSchema, createTable } from "./schema";
+import { RecoverColumnType, RecoverTableType, Schema } from "./types";
 
 test("column int", () => {
   const table = createTable("table").addColumn("x", "int");

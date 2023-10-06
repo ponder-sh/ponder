@@ -1,6 +1,6 @@
 import { test } from "vitest";
 
-import { createSchema, createTable } from "./ts-schema";
+import { createSchema, createTable } from "./schema";
 
 // This may be in a museum one day
 // We like this one!!

@@ -8,7 +8,7 @@ import type { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
 import { buildSchema } from "@/schema/build";
-import type { Schema } from "@/schema/ts-types";
+import type { Schema } from "@/schema/types";
 
 import {
   type HandlerFunctions,

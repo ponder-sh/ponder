@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { ensureDirExists } from "@/utils/exists";
 
-import { Schema } from "./ts-types";
+import { Schema } from "./types";
 
 export const buildSchema = async ({ schemaFile }: { schemaFile: string }) => {
   if (!existsSync(schemaFile)) {

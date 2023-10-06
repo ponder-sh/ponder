@@ -1,5 +1,5 @@
 import type { Common } from "@/Ponder";
-import type { Schema } from "@/schema/ts-types";
+import type { Schema } from "@/schema/types";
 import type { Model } from "@/types/model";
 import type { ModelInstance, UserStore } from "@/user-store/store";
 

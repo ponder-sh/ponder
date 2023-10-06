@@ -1,7 +1,7 @@
 import { test } from "vitest";
 
-import { createSchema, createTable } from "@/schema/ts-schema";
-import { RecoverTableType } from "@/schema/ts-types";
+import { createSchema, createTable } from "@/schema/schema";
+import { RecoverTableType } from "@/schema/types";
 
 import { Model } from "..";
 

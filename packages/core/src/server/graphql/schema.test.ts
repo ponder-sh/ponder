@@ -1,45 +1,23 @@
-import { type GraphQLType, buildSchema as _buildGraphqlSchema } from "graphql";
+import { type GraphQLType } from "graphql";
 import { expect, test } from "vitest";
 
-import { schemaHeader } from "@/build/schema";
-import { buildSchema as _buildSchema } from "@/schema/schema";
+import { createSchema, createTable } from "@/schema/schema";
 
 import { buildGqlSchema } from "./schema";
 
-const buildSchema = (source: string) => {
-  return _buildSchema(_buildGraphqlSchema(schemaHeader + source));
-};
-
 test("filter type has correct suffixes and types", () => {
-  const schema = buildSchema(`
-    enum SimpleEnum {
-      VALUE
-      ANOTHER_VALUE
-    }
+  const schema = createSchema([
+    createTable("Entity")
+      .addColumn("id", "string")
+      .addColumn("int", "int")
+      .addColumn("float", "float")
+      .addColumn("bool", "boolean")
+      .addColumn("bytes", "bytes")
+      .addColumn("bigint", "bigint")
+      .addColumn("listString", "string", { list: true })
+      .addColumn("listBigInt", "bigint", { list: true }),
+  ]);
 
-    type RelatedEntityStringId @entity {
-      id: String!
-    }
-
-    type RelatedEntityBigIntId @entity {
-      id: BigInt!
-    }
-
-    type Entity @entity {
-      id: String!
-      int: Int!
-      float: Float!
-      bool: Boolean!
-      bytes: Bytes!
-      bigInt: BigInt!
-      enum: SimpleEnum!
-      listString: [String!]!
-      listBigInt: [BigInt!]!
-      listEnum: [SimpleEnum!]!
-      relatedEntityStringId: RelatedEntityStringId!
-      relatedEntityBigIntId: RelatedEntityBigIntId!
-    }
-  `);
   const serverSchema = buildGqlSchema(schema);
 
   const typeMap = serverSchema.getTypeMap();
@@ -107,10 +85,10 @@ test("filter type has correct suffixes and types", () => {
     bigInt_lt: "BigInt",
     bigInt_gte: "BigInt",
     bigInt_lte: "BigInt",
-    enum: "SimpleEnum",
-    enum_not: "SimpleEnum",
-    enum_in: "[SimpleEnum]",
-    enum_not_in: "[SimpleEnum]",
+    // enum: "SimpleEnum",
+    // enum_not: "SimpleEnum",
+    // enum_in: "[SimpleEnum]",
+    // enum_not_in: "[SimpleEnum]",
     listString: "[String]",
     listString_not: "[String]",
     listString_has: "String",
@@ -119,27 +97,27 @@ test("filter type has correct suffixes and types", () => {
     listBigInt_not: "[BigInt]",
     listBigInt_has: "BigInt",
     listBigInt_not_has: "BigInt",
-    listEnum: "[SimpleEnum]",
-    listEnum_not: "[SimpleEnum]",
-    listEnum_has: "SimpleEnum",
-    listEnum_not_has: "SimpleEnum",
-    relatedEntityStringId: "String",
-    relatedEntityStringId_not: "String",
-    relatedEntityStringId_in: "[String]",
-    relatedEntityStringId_not_in: "[String]",
-    relatedEntityStringId_contains: "String",
-    relatedEntityStringId_not_contains: "String",
-    relatedEntityStringId_starts_with: "String",
-    relatedEntityStringId_ends_with: "String",
-    relatedEntityStringId_not_starts_with: "String",
-    relatedEntityStringId_not_ends_with: "String",
-    relatedEntityBigIntId: "BigInt",
-    relatedEntityBigIntId_not: "BigInt",
-    relatedEntityBigIntId_in: "[BigInt]",
-    relatedEntityBigIntId_not_in: "[BigInt]",
-    relatedEntityBigIntId_gt: "BigInt",
-    relatedEntityBigIntId_lt: "BigInt",
-    relatedEntityBigIntId_gte: "BigInt",
-    relatedEntityBigIntId_lte: "BigInt",
+    // listEnum: "[SimpleEnum]",
+    // listEnum_not: "[SimpleEnum]",
+    // listEnum_has: "SimpleEnum",
+    // listEnum_not_has: "SimpleEnum",
+    // relatedEntityStringId: "String",
+    // relatedEntityStringId_not: "String",
+    // relatedEntityStringId_in: "[String]",
+    // relatedEntityStringId_not_in: "[String]",
+    // relatedEntityStringId_contains: "String",
+    // relatedEntityStringId_not_contains: "String",
+    // relatedEntityStringId_starts_with: "String",
+    // relatedEntityStringId_ends_with: "String",
+    // relatedEntityStringId_not_starts_with: "String",
+    // relatedEntityStringId_not_ends_with: "String",
+    // relatedEntityBigIntId: "BigInt",
+    // relatedEntityBigIntId_not: "BigInt",
+    // relatedEntityBigIntId_in: "[BigInt]",
+    // relatedEntityBigIntId_not_in: "[BigInt]",
+    // relatedEntityBigIntId_gt: "BigInt",
+    // relatedEntityBigIntId_lt: "BigInt",
+    // relatedEntityBigIntId_gte: "BigInt",
+    // relatedEntityBigIntId_lte: "BigInt",
   });
 });

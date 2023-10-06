@@ -1,16 +1,14 @@
-import { buildSchema as buildGraphqlSchema } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore, setupUserStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import type { HandlerFunctions } from "@/build/handlers";
-import { schemaHeader } from "@/build/schema";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import type { LogEventMetadata } from "@/config/logFilters";
 import { EventAggregatorService } from "@/event-aggregator/service";
-import { buildSchema } from "@/schema/schema";
 
+import { createSchema, createTable } from "..";
 import { EventHandlerService } from "./service";
 
 beforeEach((context) => setupEventStore(context));
@@ -47,14 +45,11 @@ const logFilters = [
 
 const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
 
-const schema = buildSchema(
-  buildGraphqlSchema(`${schemaHeader}
-    type TransferEvent @entity {
-      id: String!
-      timestamp: Int!
-    }
-  `)
-);
+const schema = createSchema([
+  createTable("TransferEvent")
+    .addColumn("id", "string")
+    .addColumn("timestamp", "int"),
+]);
 
 const transferHandler = vi.fn(async ({ event, context }) => {
   await context.entities.TransferEvent.create({

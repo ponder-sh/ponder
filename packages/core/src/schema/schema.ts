@@ -1,29 +1,12 @@
 import {
-  type FieldDefinitionNode,
-  type StringValueNode,
   GraphQLBoolean,
-  GraphQLEnumType,
   GraphQLFloat,
-  GraphQLID,
-  GraphQLInputObjectType,
   GraphQLInt,
-  GraphQLObjectType,
   GraphQLScalarType,
-  GraphQLSchema,
   GraphQLString,
-  Kind,
 } from "graphql";
 
-import type {
-  DerivedField,
-  Entity,
-  EnumField,
-  Field,
-  ListField,
-  RelationshipField,
-  ScalarField,
-  Schema,
-} from "./types";
+import { Column, ID, IT, Scalar, Table } from "./types";
 
 const GraphQLBigInt = new GraphQLScalarType({
   name: "BigInt",
@@ -40,302 +23,153 @@ const GraphQLBigInt = new GraphQLScalarType({
   },
 });
 
-const gqlScalarTypeByName: Record<string, GraphQLScalarType | undefined> = {
-  ID: GraphQLID,
-  Int: GraphQLInt,
-  Float: GraphQLFloat,
-  String: GraphQLString,
-  Boolean: GraphQLBoolean,
-  BigInt: GraphQLBigInt,
-  Bytes: GraphQLString,
+export const tsTypeToGqlScalar: { [type in Scalar]: GraphQLScalarType } = {
+  int: GraphQLInt,
+  float: GraphQLFloat,
+  string: GraphQLString,
+  boolean: GraphQLBoolean,
+  bigint: GraphQLBigInt,
+  bytes: GraphQLString,
 };
 
-export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
-  const gqlEntityTypes = getEntityTypes(graphqlSchema);
-  const gqlEnumTypes = getEnumTypes(graphqlSchema);
+const _addColumn = <
+  TTable extends Table,
+  TName extends string,
+  TType extends Scalar,
+  TOptional extends "id" extends TName ? false : boolean = false,
+  TList extends "id" extends TName ? false : boolean = false
+>(
+  table: TTable,
+  name: TName,
+  type: TType,
+  modifiers?: { optional?: TOptional; list?: TList }
+) =>
+  ({
+    ...table,
+    columns: {
+      ...(table.columns as object),
+      [name]: {
+        type,
+        optional: modifiers?.optional ?? false,
+        list: modifiers?.list ?? false,
+      },
+    },
+  } as Table<
+    TTable["name"],
+    TTable["columns"] & Record<TName, Column<TType, TOptional, TList>>
+  >);
 
-  const userDefinedScalars = getUserDefinedScalarTypes(graphqlSchema);
-  if (userDefinedScalars.length > 0) {
-    throw new Error(
-      `Custom scalars are not supported: ${userDefinedScalars[0]}`
-    );
-  }
-
-  const entities = gqlEntityTypes.map((entity) => {
-    const entityName = entity.name;
-    const entityIsImmutable = !!entity.astNode?.directives
-      ?.find((directive) => directive.name.value === "entity")
-      ?.arguments?.find(
-        (arg) =>
-          arg.name.value === "immutable" &&
-          arg.value.kind === "BooleanValue" &&
-          arg.value.value
-      );
-
-    const gqlFields = entity.astNode?.fields || [];
-
-    const fields = gqlFields.map((field) => {
-      const originalFieldType = field.type;
-
-      const {
-        fieldName,
-        fieldTypeName,
-        isNotNull,
-        isList,
-        isListElementNotNull,
-      } = unwrapFieldDefinition(field);
-
-      // Try to find a type that matches the base type of this field.
-      const scalarBaseType = gqlScalarTypeByName[fieldTypeName];
-      const enumBaseType = gqlEnumTypes.find((t) => t.name === fieldTypeName);
-      const entityBaseType = gqlEntityTypes.find(
-        (t) => t.name === fieldTypeName
-      );
-
-      const derivedFromDirective = field.directives?.find(
-        (directive) => directive.name.value === "derivedFrom"
-      );
-
-      // Handle derived fields.
-      if (derivedFromDirective) {
-        if (!entityBaseType || !isList) {
-          throw new Error(
-            `Resolved type of a @derivedFrom field must be a list of entities`
-          );
-        }
-
-        const derivedFromFieldArgument = derivedFromDirective.arguments?.find(
-          (arg) =>
-            arg.name.value === "field" && arg.value.kind === "StringValue"
-        );
-        if (!derivedFromFieldArgument) {
-          throw new Error(
-            `The @derivedFrom directive requires an argument: field`
-          );
-        }
-
-        const derivedFromFieldName = (
-          derivedFromFieldArgument.value as StringValueNode
-        ).value;
-
-        const baseTypeAsInputType =
-          entityBaseType as unknown as GraphQLInputObjectType;
-
-        return <DerivedField>{
-          name: fieldName,
-          kind: "DERIVED",
-          baseGqlType: baseTypeAsInputType,
-          originalFieldType,
-          notNull: isNotNull,
-          derivedFromEntityName: entityBaseType.name,
-          derivedFromFieldName: derivedFromFieldName,
-        };
-      }
-
-      // Handle relationship types.
-      if (entityBaseType) {
-        if (isList) {
-          throw new Error(
-            `Invalid field: ${entityName}.${fieldName}. Lists of entities must use the @derivedFrom directive.`
-          );
-        }
-
-        const relatedEntityIdField = entityBaseType.getFields()["id"]?.astNode;
-        if (!relatedEntityIdField) {
-          throw new Error(
-            `Related entity is missing an id field: ${entityBaseType.name}`
-          );
-        }
-
-        const { fieldTypeName } = unwrapFieldDefinition(relatedEntityIdField);
-        const relatedEntityIdType = gqlScalarTypeByName[fieldTypeName];
-        if (!relatedEntityIdType) {
-          throw new Error(
-            `Related entity id field is not a scalar: ${entityBaseType.name}`
-          );
-        }
-
-        // Everything downstream requires the base type as a GraphQLInputObject type, but idk how to safely convert it.
-        // AFAICT, the GraphQLObjectType is a strict superset of GraphQLInputObject, so this should be fine.
-        const entityBaseTypeAsInputType =
-          entityBaseType as unknown as GraphQLInputObjectType;
-
-        return <RelationshipField>{
-          name: fieldName,
-          kind: "RELATIONSHIP",
-          baseGqlType: entityBaseTypeAsInputType,
-          originalFieldType,
-          notNull: isNotNull,
-          relatedEntityName: entityBaseType.name,
-          relatedEntityIdType: relatedEntityIdType,
-        };
-      }
-
-      // Handle list types.
-      if (isList) {
-        if (scalarBaseType) {
-          return <ListField>{
-            name: fieldName,
-            kind: "LIST",
-            baseGqlType: scalarBaseType,
-            originalFieldType,
-            notNull: isNotNull,
-            isListElementNotNull,
-          };
-        }
-
-        if (enumBaseType) {
-          return <ListField>{
-            name: fieldName,
-            kind: "LIST",
-            baseGqlType: enumBaseType,
-            originalFieldType,
-            notNull: isNotNull,
-            isListElementNotNull,
-          };
-        }
-      }
-
-      // Handle scalar types.
-      if (scalarBaseType) {
-        const baseType = scalarBaseType;
-
-        // Validate the id field.
-        if (fieldName === "id") {
-          if (!isNotNull) {
-            throw new Error(`${entityName}.id field must be non-null`);
-          }
-          if (isList) {
-            throw new Error(`${entityName}.id field must not be a list`);
-          }
-          if (!["BigInt", "String", "Int", "Bytes"].includes(baseType.name)) {
-            throw new Error(
-              `${entityName}.id field must be a String, BigInt, Int, or Bytes.`
-            );
-          }
-        }
-
-        return <ScalarField>{
-          name: fieldName,
-          kind: "SCALAR",
-          notNull: isNotNull,
-          originalFieldType,
-          scalarTypeName: fieldTypeName,
-          scalarGqlType: baseType,
-        };
-      }
-
-      // Handle enum types.
-      if (enumBaseType) {
-        const enumValues = (enumBaseType.astNode?.values || []).map(
-          (v) => v.name.value
-        );
-        return <EnumField>{
-          name: fieldName,
-          kind: "ENUM",
-          enumGqlType: enumBaseType,
-          originalFieldType,
-          notNull: isNotNull,
-          enumValues,
-        };
-      }
-
-      throw new Error(`Unhandled field type: ${fieldTypeName}`);
-    });
-
-    const fieldByName: Record<string, Field> = {};
-    fields.forEach((field) => {
-      fieldByName[field.name] = field;
-    });
-
-    return <Entity>{
-      name: entityName,
-      gqlType: entity,
-      isImmutable: entityIsImmutable,
-      fields,
-      fieldByName,
-    };
-  });
-
-  const schema: Schema = {
-    entities,
-  };
-
-  return schema;
-};
-
-// ------------------------------- UTILITIES -------------------------------- //
-
-// Find the name and base type of a field definition,
-// handling any wrapper types (NON_NULL_TYPE and LIST_TYPE).
-const unwrapFieldDefinition = (field: FieldDefinitionNode) => {
-  const fieldName = field.name.value;
-  let fieldType = field.type;
-  let isNotNull = false;
-  let isList = false;
-  let isListElementNotNull = false;
-
-  // First check if the field is non-null and unwrap it.
-  if (fieldType.kind === Kind.NON_NULL_TYPE) {
-    isNotNull = true;
-    fieldType = fieldType.type;
-  }
-
-  // Then check if the field is a list and unwrap it.
-  if (fieldType.kind === Kind.LIST_TYPE) {
-    isList = true;
-    fieldType = fieldType.type;
-
-    // Now check if the list element type is non-null
-    if (fieldType.kind === Kind.NON_NULL_TYPE) {
-      isListElementNotNull = true;
-      fieldType = fieldType.type;
-    }
-  }
-
-  if (fieldType.kind === Kind.LIST_TYPE) {
-    throw new Error(
-      `Invalid field "${fieldName}": nested lists are not supported`
-    );
-  }
+const addColumn = <
+  TTable extends Table,
+  TName extends string,
+  TType extends Scalar,
+  TOptional extends "id" extends TName ? false : boolean = false,
+  TList extends "id" extends TName ? false : boolean = false
+>(
+  table: TTable,
+  name: TName,
+  type: TType,
+  modifiers?: { optional?: TOptional; list?: TList }
+): IT<
+  TTable["name"],
+  TTable["columns"] & Record<TName, Column<TType, TOptional, TList>>
+> => {
+  const newTable = _addColumn(table, name, type, modifiers);
 
   return {
-    fieldName,
-    fieldTypeName: fieldType.name.value,
-    isNotNull,
-    isList,
-    isListElementNotNull,
+    table: newTable,
+    addColumn: <
+      TName extends string,
+      TType extends Scalar,
+      TOptional extends "id" extends TName ? false : boolean = false,
+      TList extends "id" extends TName ? false : boolean = false
+    >(
+      name: TName,
+      type: TType,
+      modifiers?: { optional?: TOptional; list?: TList }
+    ) => addColumn(newTable, name, type, modifiers),
   };
 };
 
-// Find all types in the schema that are marked with the @entity directive.
-const getEntityTypes = (schema: GraphQLSchema) => {
-  const entities = Object.values(schema.getTypeMap())
-    .filter((type): type is GraphQLObjectType => {
-      return type.astNode?.kind === Kind.OBJECT_TYPE_DEFINITION;
-    })
-    .filter((type) => {
-      return !!type.astNode?.directives?.find(
-        (directive) => directive.name.value === "entity"
-      );
+export const createTable = <TTableName extends string>(
+  name: TTableName
+): IT<TTableName, {}> => {
+  const table = { name, columns: {} } as const;
+
+  return {
+    table,
+    addColumn: <
+      TName extends string,
+      TType extends Scalar,
+      TOptional extends "id" extends TName ? false : boolean = false,
+      TList extends "id" extends TName ? false : boolean = false
+    >(
+      name: TName,
+      type: TType,
+      modifiers?: { optional?: TOptional; list?: TList }
+    ): IT<TTableName, Record<TName, Column<TType, TOptional, TList>>> =>
+      addColumn(table, name, type, modifiers),
+  };
+};
+
+/**
+ * Used for advanced type checking
+ */
+export const createSchema = <
+  TSchema extends readonly IT<
+    string,
+    { id: Column<ID, false, false> } & Record<string, Column>
+  >[]
+>(
+  schema: TSchema
+): { entities: { [key in keyof TSchema]: TSchema[key]["table"] } } => {
+  const tables = schema.map((it) => it.table);
+
+  tables.forEach((t) => {
+    noSpaces(t.name);
+
+    if (t.columns.id === undefined)
+      throw Error('Table doesn\'t contain an "id" field');
+    if (
+      t.columns.id.type !== "bigint" &&
+      t.columns.id.type !== "string" &&
+      t.columns.id.type !== "bytes" &&
+      t.columns.id.type !== "int"
+    )
+      throw Error('"id" is not of the correct type');
+    // NOTE: This is a to make sure the user didn't override the optional type
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    if (t.columns.id.optional === true) throw Error('"id" cannot be optional');
+    // NOTE: This is a to make sure the user didn't override the list type
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    if (t.columns.id.list === true) throw Error('"id" cannot be a list');
+
+    Object.keys(t.columns).forEach((key) => {
+      if (key === "id") return;
+
+      noSpaces(key);
+
+      if (
+        t.columns[key].type !== "bigint" &&
+        t.columns[key].type !== "string" &&
+        t.columns[key].type !== "boolean" &&
+        t.columns[key].type !== "int" &&
+        t.columns[key].type !== "float" &&
+        t.columns[key].type !== "bytes"
+      )
+        throw Error("Column is not a valid type");
     });
+  });
 
-  return entities;
+  return { entities: tables } as {
+    entities: {
+      [key in keyof TSchema]: TSchema[key]["table"];
+    };
+  };
 };
 
-// Find all scalar types in the schema that were created by the user.
-const getUserDefinedScalarTypes = (schema: GraphQLSchema) => {
-  return Object.values(schema.getTypeMap()).filter(
-    (type) =>
-      !!type.astNode &&
-      type.astNode.kind === Kind.SCALAR_TYPE_DEFINITION &&
-      !["BigInt", "Bytes"].includes(type.name)
-  ) as GraphQLScalarType[];
-};
-
-// Find all types in the schema that were created by the user.
-const getEnumTypes = (schema: GraphQLSchema) => {
-  return Object.values(schema.getTypeMap()).filter(
-    (type) => !!type.astNode && type.astNode.kind === Kind.ENUM_TYPE_DEFINITION
-  ) as GraphQLEnumType[];
+const noSpaces = (name: string) => {
+  if (name.includes(" ")) throw Error("Table or column name contains a space");
 };

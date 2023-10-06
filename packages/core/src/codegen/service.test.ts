@@ -7,7 +7,7 @@ import { createSchema, createTable } from "..";
 test("entity type codegen succeeds", () => {
   const output = buildEntityTypes(
     createSchema([
-      createTable("name").addColumn("id", "bigint").addColumn("age", "number"),
+      createTable("name").addColumn("id", "bigint").addColumn("age", "int"),
     ]).entities
   );
   expect(output).toStrictEqual(`export type name = {

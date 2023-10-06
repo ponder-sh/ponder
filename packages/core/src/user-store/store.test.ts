@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
-import { createSchema, createTable } from "@/schema/ts-schema";
+import { createSchema, createTable } from "@/schema/schema";
 
 beforeEach((context) => setupUserStore(context));
 

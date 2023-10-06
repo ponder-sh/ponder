@@ -2,7 +2,7 @@ import type Sqlite from "better-sqlite3";
 import { randomBytes } from "crypto";
 import { Kysely, SqliteDialect } from "kysely";
 
-import type { Scalar, Schema } from "@/schema/ts-types";
+import type { Scalar, Schema } from "@/schema/types";
 import { blobToBigInt } from "@/utils/decode";
 
 import type {
