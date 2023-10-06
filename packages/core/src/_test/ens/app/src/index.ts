@@ -1,4 +1,4 @@
-import { ponder } from "@/generated.js";
+import { ponder } from "../generated/index.js";
 
 ponder.on(
   "BaseRegistrarImplementation:Transfer",
