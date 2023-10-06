@@ -5,10 +5,10 @@ import {
   GraphQLObjectType,
 } from "graphql";
 
-import { tsTypeToGqlScalar } from "@/schema/schema";
 import type { Entity, Scalar } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
+import { tsTypeToGqlScalar } from "./schema";
 
 export const buildEntityType = ({
   entity,

@@ -10,10 +10,10 @@ import {
   GraphQLString,
 } from "graphql";
 
-import { tsTypeToGqlScalar } from "@/schema/schema";
 import type { Entity, Scalar } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
+import { tsTypeToGqlScalar } from "./schema";
 
 type PluralArgs = {
   timestamp?: number;

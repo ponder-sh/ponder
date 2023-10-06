@@ -6,10 +6,10 @@ import {
   GraphQLObjectType,
 } from "graphql";
 
-import { tsTypeToGqlScalar } from "@/schema/schema";
 import type { Entity } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
+import { tsTypeToGqlScalar } from "./schema";
 
 type SingularArgs = {
   id?: string;

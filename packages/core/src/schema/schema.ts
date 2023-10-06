@@ -1,36 +1,4 @@
-import {
-  GraphQLBoolean,
-  GraphQLFloat,
-  GraphQLInt,
-  GraphQLScalarType,
-  GraphQLString,
-} from "graphql";
-
 import { Column, ID, IT, Scalar, Table } from "./types";
-
-const GraphQLBigInt = new GraphQLScalarType({
-  name: "BigInt",
-  serialize: (value) => String(value),
-  parseValue: (value) => BigInt(value),
-  parseLiteral: (value) => {
-    if (value.kind === "StringValue") {
-      return BigInt(value.value);
-    } else {
-      throw new Error(
-        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`
-      );
-    }
-  },
-});
-
-export const tsTypeToGqlScalar: { [type in Scalar]: GraphQLScalarType } = {
-  int: GraphQLInt,
-  float: GraphQLFloat,
-  string: GraphQLString,
-  boolean: GraphQLBoolean,
-  bigint: GraphQLBigInt,
-  bytes: GraphQLString,
-};
 
 const _addColumn = <
   TTable extends Table,
