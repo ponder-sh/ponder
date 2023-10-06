@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
-import type { Contract, Network, PartialConfig } from "src/index";
+import type { Contract, Network, PartialConfig } from "src/index.js";
 import { parse } from "yaml";
 
 import { getGraphProtocolChainId } from "@/helpers/getGraphProtocolChainId";

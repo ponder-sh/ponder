@@ -5,7 +5,6 @@ import path from "node:path";
 import pico from "picocolors";
 import prettier from "prettier";
 
-import { CreatePonderOptions, TemplateKind } from "@/common";
 import { getPackageManager } from "@/helpers/getPackageManager";
 import { tryGitInit } from "@/helpers/git";
 import { fromBasic } from "@/templates/basic";
@@ -17,6 +16,7 @@ import { fromSubgraphRepo } from "@/templates/subgraphRepo";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import rootPackageJson from "../package.json";
+import { type CreatePonderOptions, TemplateKind } from "./common.js";
 
 export type Network = {
   name: string;

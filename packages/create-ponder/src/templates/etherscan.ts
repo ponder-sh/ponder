@@ -2,7 +2,7 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
-import type { PartialConfig } from "src/index";
+import type { PartialConfig } from "src/index.js";
 
 import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId";
 import { wait } from "@/helpers/wait";

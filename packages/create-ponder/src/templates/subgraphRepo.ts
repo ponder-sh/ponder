@@ -8,7 +8,7 @@ import {
   subgraphYamlFileNames,
 } from "@/helpers/getGraphProtocolChainId";
 import { validateGraphProtocolSource } from "@/helpers/validateGraphProtocolSource";
-import type { Contract, Network, PartialConfig } from "@/index";
+import type { Contract, Network, PartialConfig } from "@/index.js";
 
 export const fromSubgraphRepo = ({
   rootDir,

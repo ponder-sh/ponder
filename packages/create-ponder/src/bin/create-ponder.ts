@@ -3,7 +3,11 @@ import { cac } from "cac";
 import path from "node:path";
 import prompts from "prompts";
 
-import { CreatePonderOptions, Template, TemplateKind } from "@/common";
+import {
+  type CreatePonderOptions,
+  type Template,
+  TemplateKind,
+} from "@/common.js";
 import { run } from "@/index";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.

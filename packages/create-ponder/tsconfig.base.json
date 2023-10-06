@@ -22,17 +22,18 @@
     "jsx": "react",
 
     // Interop constraints. These will remain loose until we start emitting ESM.
-    "verbatimModuleSyntax": false,
+    "verbatimModuleSyntax": true,
+    "allowArbitraryExtensions": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
 
     // Language and environment
-    "moduleResolution": "NodeNext",
+    "moduleResolution": "Bundler",
     "module": "ESNext",
     "target": "ESNext",
     "lib": [
-      "ES2022", // By using ES2022 we get access to the `.cause` property on `Error` instances.
+      "ESNext", // By using ES2022 we get access to the `.cause` property on `Error` instances.
       "DOM" // We are adding `DOM` here to get the `fetch`, etc. types. This should be removed once these types are available via DefinitelyTyped.
     ],
 
