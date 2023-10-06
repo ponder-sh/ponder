@@ -41,7 +41,7 @@ gh repo fork 0xOlias/ponder --clone
 
 ## Install Node.js and pnpm
 
-Ponder uses [pnpm workspaces](https://pnpm.io/workspaces) to manage multiple projects. You need to install **Node.js v16 or higher** and **pnpm v7 or higher**.
+Ponder uses [pnpm workspaces](https://pnpm.io/workspaces) to manage multiple projects. You need to install **Node.js v18 or higher** and **pnpm v7 or higher**.
 
 You can run the following commands in your terminal to check your local Node.js and pnpm versions:
 

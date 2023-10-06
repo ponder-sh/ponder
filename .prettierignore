@@ -6,3 +6,5 @@ LICENSE
 .gitignore
 .prettierignore
 *.sh
+Dockerfile
+*.Dockerfile
