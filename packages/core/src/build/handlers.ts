@@ -11,6 +11,7 @@ import type { Options } from "@/config/options.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
+import { isRejected } from "@/utils/promise.js";
 
 const require = createRequire(import.meta.url);
 
@@ -113,6 +114,7 @@ export const buildRawHandlerFunctions = async ({
       sourcemap: "inline",
     });
   } catch (err) {
+    console.log("esbuild t");
     const error = err as Error & { errors: Message[]; warnings: Message[] };
     // Hack to use esbuilds very pretty stack traces when rendering errors to the user.
     const stackTraces = formatMessagesSync(error.errors, {
@@ -152,20 +154,14 @@ export const buildRawHandlerFunctions = async ({
   );
 
   const importErrors = await Promise.allSettled(
-    outUserFilenames.map(async (file) => {
-      try {
-        return await import(file);
-      } catch (err) {
-        return err as Error;
-      }
-    })
+    outUserFilenames.map((filename) => import(filename))
   );
 
-  if (importErrors.some((result) => result.status === "rejected")) {
-    const errors = importErrors.filter(
-      (result) => result.status === "rejected"
-    );
-    throw errors[0];
+  const rejecteds = importErrors.filter(isRejected);
+
+  if (rejecteds.length > 0) {
+    rejecteds.map(console.warn);
+    throw rejecteds[0].reason;
   }
 
   // Then require the `index.ts` file to grab the `Ponder` instance.

@@ -351,9 +351,11 @@ export class SqliteEventStore implements EventStore {
         data,
         result,
       })
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-expect-error TODO: fix this
-      .onConflict((oc) => oc.doUpdateSet({ result }))
+      .onConflict((oc) =>
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error TODO: fix this
+        oc.doUpdateSet({ result })
+      )
       .execute();
   };
 
@@ -552,9 +554,12 @@ export class SqliteEventStore implements EventStore {
       .where((where) => {
         const { cmpr, and, or } = where;
         const cmprsForAllFilters = filters.map((filter) => {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-expect-error TODO: fix this
-          const cmprsForFilter = buildFilterAndCmprs(where, filter);
+          const cmprsForFilter = buildFilterAndCmprs(
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-expect-error TODO: fix this
+            where,
+            filter
+          );
           if (filter.includeEventSelectors) {
             cmprsForFilter.push(
               or(
@@ -584,9 +589,12 @@ export class SqliteEventStore implements EventStore {
       .where((where) => {
         const { and, or } = where;
         const cmprsForAllFilters = filters.map((filter) => {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-expect-error TODO: fix this
-          const cmprsForFilter = buildFilterAndCmprs(where, filter);
+          const cmprsForFilter = buildFilterAndCmprs(
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-expect-error TODO: fix this
+            where,
+            filter
+          );
           // NOTE: Not adding the includeEventSelectors clause here.
           return and(cmprsForFilter);
         });
