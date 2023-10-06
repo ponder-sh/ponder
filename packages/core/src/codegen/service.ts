@@ -79,7 +79,6 @@ export class CodegenService extends Emittery {
     const final = formatPrettier(raw);
 
     const filePath = path.join(this.common.options.generatedDir, "index.ts");
-
     ensureDirExists(filePath);
     writeFileSync(filePath, final, "utf8");
 
