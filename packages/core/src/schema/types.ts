@@ -15,11 +15,19 @@ export type ID = "string" | "int" | "bytes" | "bigint";
  * SQL Schema types
  */
 export type Column<
+  TTables extends readonly Table[] | unknown = unknown,
   TType extends Scalar | unknown = unknown,
+  TReferneces extends
+    | (TTables extends Table[]
+        ? `${(TTables & Table[])[number]["name"] & string}.id`
+        : never)
+    | never
+    | unknown = unknown,
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown
 > = {
   type: TType;
+  references: TReferneces;
   optional: TOptional;
   list: TList;
 };
@@ -27,7 +35,10 @@ export type Column<
 export type Table<
   TName extends string | unknown = unknown,
   TColumns extends
-    | ({ id: Column<ID, false, false> } & Record<string, Column>)
+    | ({ id: Column<Table[], ID, never, false, false> } & Record<
+        string,
+        Column
+      >)
     | unknown = unknown
 > = {
   name: TName;
@@ -36,9 +47,9 @@ export type Table<
 
 export type Entity = {
   name: string;
-  columns: { id: Column<ID, false, false> } & Record<
+  columns: { id: Column<Table[], ID, never, false, false> } & Record<
     string,
-    Column<Scalar, boolean, boolean>
+    Column<Table[], Scalar, unknown, boolean, boolean>
   >;
 };
 
@@ -56,22 +67,30 @@ export type Schema = {
 export type IT<
   TTableName extends string | unknown = unknown,
   TColumns extends
-    | ({ id: Column<ID, false, false> } & Record<string, Column>)
+    | ({ id: Column<Table[], ID, never, false, false> } & Record<
+        string,
+        Column
+      >)
     | unknown = unknown
 > = {
   table: Table<TTableName, TColumns>;
   addColumn: <
+    TTables extends readonly Table[],
     TName extends string,
     TType extends Scalar,
+    TReferneces extends "id" extends TName
+      ? never
+      : `${(TTables & Table[])[number]["name"] & string}.id`,
     TOptional extends "id" extends TName ? false : boolean = false,
     TList extends "id" extends TName ? false : boolean = false
   >(
     name: TName,
     type: TType,
-    modifiers?: { optional?: TOptional; list?: TList }
+    modifiers?: { references?: TReferneces; optional?: TOptional; list?: TList }
   ) => IT<
     TTableName,
-    TColumns & Record<TName, Column<TType, TOptional, TList>>
+    TColumns &
+      Record<TName, Column<TTables, TType, TReferneces, TOptional, TList>>
   >;
 };
 
@@ -122,10 +141,9 @@ export type RecoverRequiredColumns<TColumns extends Record<string, Column>> =
 
 export type RecoverTableType<TTable extends Table> = TTable extends {
   name: infer _name extends string;
-  columns: infer _columns extends { id: Column<ID, false, false> } & Record<
-    string,
-    Column
-  >;
+  columns: infer _columns extends {
+    id: Column<Table[], ID, never, false, false>;
+  } & Record<string, Column>;
 }
   ? Record<
       _name,

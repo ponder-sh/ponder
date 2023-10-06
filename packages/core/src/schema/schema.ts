@@ -1,16 +1,24 @@
 import { Column, ID, IT, Scalar, Table } from "./types";
 
 const _addColumn = <
+  TTables extends readonly Table[],
   TTable extends Table,
   TName extends string,
   TType extends Scalar,
+  TReferneces extends "id" extends TName
+    ? never
+    : `${(TTables & Table[])[number]["name"] & string}.id`,
   TOptional extends "id" extends TName ? false : boolean = false,
   TList extends "id" extends TName ? false : boolean = false
 >(
   table: TTable,
   name: TName,
   type: TType,
-  modifiers?: { optional?: TOptional; list?: TList }
+  modifiers?: {
+    references?: TReferneces;
+    optional?: TOptional;
+    list?: TList;
+  }
 ) =>
   ({
     ...table,
@@ -24,37 +32,55 @@ const _addColumn = <
     },
   } as Table<
     TTable["name"],
-    TTable["columns"] & Record<TName, Column<TType, TOptional, TList>>
+    TTable["columns"] &
+      Record<TName, Column<TTables, TType, TReferneces, TOptional, TList>>
   >);
 
 const addColumn = <
+  TTables extends readonly Table[],
   TTable extends Table,
   TName extends string,
   TType extends Scalar,
+  TReferneces extends "id" extends TName
+    ? never
+    : `${(TTables & Table[])[number]["name"] & string}.id`,
   TOptional extends "id" extends TName ? false : boolean = false,
   TList extends "id" extends TName ? false : boolean = false
 >(
   table: TTable,
   name: TName,
   type: TType,
-  modifiers?: { optional?: TOptional; list?: TList }
+  modifiers?: {
+    references?: TReferneces;
+    optional?: TOptional;
+    list?: TList;
+  }
 ): IT<
   TTable["name"],
-  TTable["columns"] & Record<TName, Column<TType, TOptional, TList>>
+  TTable["columns"] &
+    Record<TName, Column<TTables, TType, TReferneces, TOptional, TList>>
 > => {
   const newTable = _addColumn(table, name, type, modifiers);
 
   return {
     table: newTable,
     addColumn: <
+      TTables extends readonly Table[],
       TName extends string,
       TType extends Scalar,
+      TReferneces extends "id" extends TName
+        ? never
+        : `${(TTables & Table[])[number]["name"] & string}.id`,
       TOptional extends "id" extends TName ? false : boolean = false,
       TList extends "id" extends TName ? false : boolean = false
     >(
       name: TName,
       type: TType,
-      modifiers?: { optional?: TOptional; list?: TList }
+      modifiers?: {
+        references?: TReferneces;
+        optional?: TOptional;
+        list?: TList;
+      }
     ) => addColumn(newTable, name, type, modifiers),
   };
 };
@@ -67,16 +93,26 @@ export const createTable = <TTableName extends string>(
   return {
     table,
     addColumn: <
+      TTables extends readonly Table[],
       TName extends string,
       TType extends Scalar,
+      TReferneces extends "id" extends TName
+        ? never
+        : `${(TTables & Table[])[number]["name"] & string}.id`,
       TOptional extends "id" extends TName ? false : boolean = false,
       TList extends "id" extends TName ? false : boolean = false
     >(
       name: TName,
       type: TType,
-      modifiers?: { optional?: TOptional; list?: TList }
-    ): IT<TTableName, Record<TName, Column<TType, TOptional, TList>>> =>
-      addColumn(table, name, type, modifiers),
+      modifiers?: {
+        references?: TReferneces;
+        optional?: TOptional;
+        list?: TList;
+      }
+    ): IT<
+      TTableName,
+      Record<TName, Column<TTables, TType, TReferneces, TOptional, TList>>
+    > => addColumn(table, name, type, modifiers),
   };
 };
 
@@ -84,13 +120,18 @@ export const createTable = <TTableName extends string>(
  * Used for advanced type checking
  */
 export const createSchema = <
-  TSchema extends readonly IT<
+  const TSchema extends readonly IT<
     string,
-    { id: Column<ID, false, false> } & Record<string, Column>
+    { id: Column<Table[], ID, never, false, false> } & Record<
+      string,
+      Column<Table[], Scalar, unknown, boolean, boolean>
+    >
   >[]
 >(
   schema: TSchema
-): { entities: { [key in keyof TSchema]: TSchema[key]["table"] } } => {
+): {
+  entities: { [key in keyof TSchema]: TSchema[key]["table"] };
+} => {
   const tables = schema.map((it) => it.table);
 
   tables.forEach((t) => {
@@ -113,13 +154,30 @@ export const createSchema = <
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     if (t.columns.id.list === true) throw Error('"id" cannot be a list');
+    // NOTE: This is a to make sure the user didn't override the reference type
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    if (!t.columns.id.references) throw Error('"id" cannot be a reference');
 
     Object.keys(t.columns).forEach((key) => {
       if (key === "id") return;
 
       noSpaces(key);
 
-      if (
+      if (t.columns[key].references) {
+        if (
+          tables
+            .filter((_t) => _t.name !== t.name)
+            .some((_t) => `${_t.name}.id` === t.columns[key].references)
+        )
+          throw Error("Column doesn't reference a valid table");
+
+        if (
+          tables.find((_t) => _t.name === t.name)!.columns.id.type !==
+          t.columns[key].type
+        )
+          throw Error("Column type doesn't match the referred table id type");
+      } else if (
         t.columns[key].type !== "bigint" &&
         t.columns[key].type !== "string" &&
         t.columns[key].type !== "boolean" &&

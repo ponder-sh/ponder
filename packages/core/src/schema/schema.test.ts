@@ -24,3 +24,12 @@ test("create schema", () => {
     createTable("name").addColumn("id", "bigint").addColumn("age", "int"),
   ]);
 });
+
+test("references", () => {
+  createSchema([
+    createTable("Person").addColumn("id", "string").addColumn("age", "int"),
+    createTable("Dog")
+      .addColumn("id", "string")
+      .addColumn("owner", "string", { references: "Person.id" }),
+  ]);
+});
