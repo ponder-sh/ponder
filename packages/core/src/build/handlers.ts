@@ -156,11 +156,9 @@ export const buildRawHandlerFunctions = async ({
     outUserFilenames.map((filename) => import(filename))
   );
 
-  const rejectedImports = importUserFiles.filter(isRejected);
+  const [rejectedImport] = importUserFiles.filter(isRejected);
 
-  if (rejectedImports.length > 0) {
-    throw rejectedImports[0].reason;
-  }
+  if (rejectedImport) throw rejectedImport.reason;
 
   // Then require the `index.ts` file to grab the `Ponder` instance.
   const result = await import(outAppFilename);

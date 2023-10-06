@@ -12,6 +12,8 @@
   ],
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
+  // automatically append .js to local imports
+  "typescript.preferences.importModuleSpecifierEnding": "js",
   "search.exclude": {
     "node_modules": true,
     "pnpm-lock.yaml": true,
