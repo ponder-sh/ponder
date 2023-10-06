@@ -162,6 +162,7 @@ export const run = async (
   const packageJson = `
     {
       "private": true,
+      "type": "module",
       "scripts": {
         "dev": "ponder dev",
         "start": "ponder start",
@@ -192,7 +193,7 @@ export const run = async (
       "compilerOptions": {
         "target": "ESNext",
         "module": "ESNext",
-        "moduleResolution": "node",
+        "moduleResolution": "Bundler",
         "resolveJsonModule": true,
         "esModuleInterop": true,
         "strict": true,

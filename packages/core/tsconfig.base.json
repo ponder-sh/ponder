@@ -17,7 +17,7 @@
     // "noUncheckedIndexedAccess": true,
 
     // JavaScript support
-    "allowJs": false,
+    "allowJs": true,
     "checkJs": false,
     "jsx": "react",
 
