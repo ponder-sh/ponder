@@ -336,13 +336,14 @@ export class Ponder {
       await this.kill();
     });
 
-    this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
+    this.buildService.on("newSchema", async ({ schema }) => {
       this.codegenService.generateAppFile({ schema });
-      // this.codegenService.generateSchemaFile({ graphqlSchema });
+      this.codegenService.generateSchemaFile({ schema });
 
-      this.serverService.reload({ graphqlSchema });
+      // TODO:Kyle Do we need this?
+      // this.serverService.reload({ graphqlSchema });
 
-      // await this.eventHandlerService.reset({ schema });
+      await this.eventHandlerService.reset({ schema });
       await this.eventHandlerService.processEvents();
     });
 

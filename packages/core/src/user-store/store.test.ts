@@ -16,7 +16,6 @@ const schema = createSchema([
 
 test("reload() binds the schema", async (context) => {
   const { userStore } = context;
-  console.log(userStore);
   await userStore.reload({ schema });
 
   expect(userStore.schema).toBe(schema);
