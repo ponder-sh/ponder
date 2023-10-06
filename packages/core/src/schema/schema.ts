@@ -117,7 +117,7 @@ export const createTable = <TTableName extends string>(
 };
 
 /**
- * Used for advanced type checking
+ * Type inference and runtime validation
  */
 export const createSchema = <
   const TSchema extends readonly IT<
@@ -177,6 +177,9 @@ export const createSchema = <
           t.columns[key].type
         )
           throw Error("Column type doesn't match the referred table id type");
+
+        if (t.columns[key].list)
+          throw Error("Columns can't be both refernce and list types");
       } else if (
         t.columns[key].type !== "bigint" &&
         t.columns[key].type !== "string" &&
