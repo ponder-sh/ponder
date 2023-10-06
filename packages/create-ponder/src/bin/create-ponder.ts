@@ -8,7 +8,7 @@ import {
   type Template,
   TemplateKind,
 } from "@/common.js";
-import { run } from "@/index";
+import { run } from "@/index.js";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment

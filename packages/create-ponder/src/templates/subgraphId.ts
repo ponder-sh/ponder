@@ -4,8 +4,8 @@ import prettier from "prettier";
 import type { Contract, Network, PartialConfig } from "src/index.js";
 import { parse } from "yaml";
 
-import { getGraphProtocolChainId } from "@/helpers/getGraphProtocolChainId";
-import { validateGraphProtocolSource } from "@/helpers/validateGraphProtocolSource";
+import { getGraphProtocolChainId } from "@/helpers/getGraphProtocolChainId.js";
+import { validateGraphProtocolSource } from "@/helpers/validateGraphProtocolSource.js";
 
 const fetchIpfsFile = async (cid: string) => {
   const url = `https://ipfs.network.thegraph.com/api/v0/cat?arg=${cid}`;

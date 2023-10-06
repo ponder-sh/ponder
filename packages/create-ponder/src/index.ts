@@ -5,12 +5,12 @@ import path from "node:path";
 import pico from "picocolors";
 import prettier from "prettier";
 
-import { getPackageManager } from "@/helpers/getPackageManager";
-import { tryGitInit } from "@/helpers/git";
-import { fromBasic } from "@/templates/basic";
-import { fromEtherscan } from "@/templates/etherscan";
-import { fromSubgraphId } from "@/templates/subgraphId";
-import { fromSubgraphRepo } from "@/templates/subgraphRepo";
+import { getPackageManager } from "@/helpers/getPackageManager.js";
+import { tryGitInit } from "@/helpers/git.js";
+import { fromBasic } from "@/templates/basic.js";
+import { fromEtherscan } from "@/templates/etherscan.js";
+import { fromSubgraphId } from "@/templates/subgraphId.js";
+import { fromSubgraphRepo } from "@/templates/subgraphRepo.js";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -174,9 +174,9 @@ export const run = async (
       "devDependencies": {
         ${options.eslint ? `"eslint-config-ponder": "${ponderVersion}",` : ""}
         ${options.eslint ? `"eslint": "^8.43.0",` : ""}
-        "@types/node": "^18.11.18",
+        "@types/node": "^20.8.2",
         "abitype": "^0.8.11",
-        "typescript": "^5.1.3",
+        "typescript": "^5.2.2",
         "viem": "^1.2.6"
       }
     }

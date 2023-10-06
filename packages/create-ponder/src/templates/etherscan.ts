@@ -4,8 +4,8 @@ import path from "node:path";
 import prettier from "prettier";
 import type { PartialConfig } from "src/index.js";
 
-import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId";
-import { wait } from "@/helpers/wait";
+import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId.js";
+import { wait } from "@/helpers/wait.js";
 
 export const fromEtherscan = async ({
   rootDir,
