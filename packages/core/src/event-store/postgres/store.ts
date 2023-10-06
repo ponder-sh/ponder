@@ -379,8 +379,6 @@ export class PostgresEventStore implements EventStore {
         result,
       })
       .onConflict((oc) =>
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error TODO: fix this
         oc.constraint("contractReadResultPrimaryKey").doUpdateSet({ result })
       )
       .execute();
@@ -574,12 +572,7 @@ export class PostgresEventStore implements EventStore {
       .where((where) => {
         const { cmpr, and, or } = where;
         const cmprsForAllFilters = filters.map((filter) => {
-          const cmprsForFilter = buildFilterAndCmprs(
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-expect-error TODO: fix this
-            where,
-            filter
-          );
+          const cmprsForFilter = buildFilterAndCmprs(where, filter);
           if (filter.includeEventSelectors) {
             cmprsForFilter.push(
               or(
@@ -609,12 +602,7 @@ export class PostgresEventStore implements EventStore {
       .where((where) => {
         const { and, or } = where;
         const cmprsForAllFilters = filters.map((filter) => {
-          const cmprsForFilter = buildFilterAndCmprs(
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-expect-error TODO: fix this
-            where,
-            filter
-          );
+          const cmprsForFilter = buildFilterAndCmprs(where, filter);
           // NOTE: Not adding the includeEventSelectors clause here.
           return and(cmprsForFilter);
         });
