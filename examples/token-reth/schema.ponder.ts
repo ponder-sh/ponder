@@ -1,6 +1,6 @@
-const { createSchema, createTable } = require("@ponder/core");
+import { createSchema, createTable } from "@ponder/core";
 
-exports.schema = createSchema([
+export const schema = createSchema([
   createTable("Transfer")
     .addColumn("id", "string")
     .addColumn("sender", "string")
@@ -9,7 +9,7 @@ exports.schema = createSchema([
     .addColumn("timestamp", "bigint")
     .addColumn("txHash", "string")
     .addColumn("blockNumber", "bigint")
-    .addColumn("logIndex", "number"),
+    .addColumn("logIndex", "int"),
   createTable("Approval")
     .addColumn("id", "string")
     .addColumn("owner", "string")
@@ -18,5 +18,5 @@ exports.schema = createSchema([
     .addColumn("timestamp", "bigint")
     .addColumn("txHash", "string")
     .addColumn("blockNumber", "bigint")
-    .addColumn("logIndex", "number"),
+    .addColumn("logIndex", "int"),
 ]);

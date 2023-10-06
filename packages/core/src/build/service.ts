@@ -8,6 +8,7 @@ import path from "node:path";
 import type { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
+import { buildSchema } from "@/schema/build";
 import type { Schema } from "@/schema/ts-types";
 
 import {
@@ -123,9 +124,11 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
   }
 
-  buildSchema() {
+  async buildSchema() {
     try {
-      const schema = require(this.common.options.schemaFile).schema as Schema;
+      const schema = await buildSchema({
+        schemaFile: this.common.options.schemaFile,
+      });
       const graphqlSchema = {} as GraphQLSchema;
       this.emit("newSchema", { schema, graphqlSchema });
       return { schema, graphqlSchema };

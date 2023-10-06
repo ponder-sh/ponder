@@ -1,11 +1,9 @@
 import { Entity, Scalar } from "@/schema/ts-types";
 
-const scalarToTsType: Record<
-  "string" | "number" | "boolean" | "bytes" | "bigint",
-  string
-> = {
+const scalarToTsType: Record<Scalar, string> = {
   string: "string",
-  number: "number",
+  int: "number",
+  float: "number",
   boolean: "boolean",
   bigint: "bigint",
   bytes: "0x{string}", // TODO: Not sure about this

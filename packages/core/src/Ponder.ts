@@ -204,7 +204,7 @@ export class Ponder {
 
     // Manually trigger loading schema and handlers. Subsequent loads
     // are triggered by changes to project files (handled in BuildService).
-    this.buildService.buildSchema();
+    await this.buildService.buildSchema();
     await this.buildService.buildHandlers();
 
     return undefined;
@@ -285,7 +285,7 @@ export class Ponder {
   async codegen() {
     this.codegenService.generateAppFile();
 
-    const result = this.buildService.buildSchema();
+    const result = await this.buildService.buildSchema();
     if (result) {
       const { schema } = result;
       this.codegenService.generateAppFile({ schema });

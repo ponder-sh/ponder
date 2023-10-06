@@ -11,7 +11,7 @@ import type {
 } from "@/event-aggregator/service";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
-import type { Schema } from "@/schema/types";
+import type { Schema } from "@/schema/ts-types";
 import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";
 import type { ModelInstance, UserStore } from "@/user-store/store";
