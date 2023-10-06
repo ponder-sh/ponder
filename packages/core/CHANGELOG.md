@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.91
+
+### Patch Changes
+
+- [#371](https://github.com/0xOlias/ponder/pull/371) [`5a21302`](https://github.com/0xOlias/ponder/commit/5a21302ee2fa6255eee3b7cc80a47e0d14d87030) Thanks [@o-az](https://github.com/o-az)! - Updated GraphiQL styles.
+
 ## 0.0.90
 
 ### Patch Changes
