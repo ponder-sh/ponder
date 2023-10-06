@@ -24,7 +24,8 @@ const MAX_BATCH_SIZE = 1_000 as const;
 // TODO: should we have two different types for number and float
 const scalarToSqlType = {
   boolean: "integer",
-  number: "text",
+  int: "integer",
+  float: "text",
   string: "text",
   bigint: sql`bytea`,
   bytes: "text",

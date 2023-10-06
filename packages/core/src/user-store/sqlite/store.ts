@@ -23,7 +23,8 @@ const MAX_BATCH_SIZE = 1_000 as const;
 
 const scalarToSqlType = {
   boolean: "integer",
-  number: "text",
+  int: "integer",
+  float: "text",
   string: "text",
   bigint: "blob",
   bytes: "text",

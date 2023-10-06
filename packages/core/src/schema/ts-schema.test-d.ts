@@ -3,12 +3,45 @@ import { assertType, test } from "vitest";
 import { createSchema, createTable } from "./ts-schema";
 import { RecoverColumnType, RecoverTableType, Schema } from "./ts-types";
 
-test("column scalar", () => {
-  const table = createTable("table").addColumn("id", "string");
+test("column int", () => {
+  const table = createTable("table").addColumn("x", "int");
 
   const column = table.table.columns;
 
-  type t = RecoverColumnType<(typeof column)["id"]>;
+  type t = RecoverColumnType<(typeof column)["x"]>;
+  //   ^?
+
+  assertType<t>({} as number);
+});
+
+test("column float", () => {
+  const table = createTable("table").addColumn("x", "float");
+
+  const column = table.table.columns;
+
+  type t = RecoverColumnType<(typeof column)["x"]>;
+  //   ^?
+
+  assertType<t>({} as number);
+});
+
+test("column bytes", () => {
+  const table = createTable("table").addColumn("x", "bytes");
+
+  const column = table.table.columns;
+
+  type t = RecoverColumnType<(typeof column)["x"]>;
+  //   ^?
+
+  assertType<t>({} as `0x{string}`);
+});
+
+test("column string", () => {
+  const table = createTable("table").addColumn("x", "string");
+
+  const column = table.table.columns;
+
+  type t = RecoverColumnType<(typeof column)["x"]>;
   //   ^?
 
   assertType<t>({} as string);
@@ -30,7 +63,7 @@ test("column list", () => {
 test("table", () => {
   const table = createTable("table")
     .addColumn("id", "string")
-    .addColumn("age", "number");
+    .addColumn("age", "int");
 
   type t = RecoverTableType<(typeof table)["table"]>;
   //   ^?
@@ -41,7 +74,7 @@ test("table", () => {
 test("table optional", () => {
   const table = createTable("table")
     .addColumn("id", "string")
-    .addColumn("age", "number", { optional: true });
+    .addColumn("age", "int", { optional: true });
 
   type t = RecoverTableType<(typeof table)["table"]>;
   //   ^?

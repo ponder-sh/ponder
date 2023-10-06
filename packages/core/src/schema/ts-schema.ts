@@ -102,7 +102,7 @@ export const createSchema = <
       t.columns.id.type !== "bigint" &&
       t.columns.id.type !== "string" &&
       t.columns.id.type !== "bytes" &&
-      t.columns.id.type !== "number"
+      t.columns.id.type !== "int"
     )
       throw Error('"id" is not of the correct type');
     // NOTE: This is a to make sure the user didn't override the optional type
@@ -123,7 +123,8 @@ export const createSchema = <
         t.columns[key].type !== "bigint" &&
         t.columns[key].type !== "string" &&
         t.columns[key].type !== "bytes" &&
-        t.columns[key].type !== "number" &&
+        t.columns[key].type !== "int" &&
+        t.columns[key].type !== "float" &&
         t.columns[key].type !== "bytes"
       )
         throw Error("Column is not a valid type");

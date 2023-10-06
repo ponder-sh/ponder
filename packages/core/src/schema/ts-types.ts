@@ -2,8 +2,14 @@ import { Hex } from "viem";
 
 import { Prettify } from "@/types/utils";
 
-export type Scalar = "string" | "number" | "boolean" | "bytes" | "bigint";
-export type ID = "string" | "number" | "bytes" | "bigint";
+export type Scalar =
+  | "string"
+  | "int"
+  | "float"
+  | "boolean"
+  | "bytes"
+  | "bigint";
+export type ID = "string" | "int" | "bytes" | "bigint";
 
 /**
  * SQL Schema types
@@ -71,7 +77,9 @@ export type IT<
  */
 export type RecoverScalarType<TScalar extends Scalar> = TScalar extends "string"
   ? string
-  : TScalar extends "number"
+  : TScalar extends "int"
+  ? number
+  : TScalar extends "float"
   ? number
   : TScalar extends "boolean"
   ? boolean
