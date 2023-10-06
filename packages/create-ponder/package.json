@@ -45,5 +45,9 @@
     "tsc-alias": "^1.8.8",
     "typescript": "^5.2.2",
     "vitest": "^0.34.6"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.x"
   }
 }

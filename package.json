@@ -46,6 +46,9 @@
     "pre-commit": "npx lint-staged"
   },
   "packageManager": "pnpm@8.6.10",
+  "engines": {
+    "node": ">=18.x"
+  },
   "pnpm": {
     "patchedDependencies": {
       "graphql@15.8.0": "patches/graphql@15.8.0.patch"
