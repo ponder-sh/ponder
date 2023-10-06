@@ -8,6 +8,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // need this for src/_test/ens and src/_test/art-gobblers
+      "@ponder/core": path.resolve(__dirname, "dist/index.js"),
     },
   },
   test: {

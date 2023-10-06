@@ -114,7 +114,6 @@ export const buildRawHandlerFunctions = async ({
       sourcemap: "inline",
     });
   } catch (err) {
-    console.log("esbuild t");
     const error = err as Error & { errors: Message[]; warnings: Message[] };
     // Hack to use esbuilds very pretty stack traces when rendering errors to the user.
     const stackTraces = formatMessagesSync(error.errors, {
@@ -134,7 +133,7 @@ export const buildRawHandlerFunctions = async ({
     });
   } else {
     throw new Error(
-      `tsconfig.json not found, unable to resolve "@/*.js" path aliases. Expected at: ${tsconfigPath}`
+      `tsconfig.json not found, unable to resolve "@/*" path aliases. Expected at: ${tsconfigPath}`
     );
   }
 
@@ -153,14 +152,13 @@ export const buildRawHandlerFunctions = async ({
     (name) => name !== outAppFilename
   );
 
-  const importErrors = await Promise.allSettled(
+  const importUserFiles = await Promise.allSettled(
     outUserFilenames.map((filename) => import(filename))
   );
 
-  const rejecteds = importErrors.filter(isRejected);
+  const rejecteds = importUserFiles.filter(isRejected);
 
   if (rejecteds.length > 0) {
-    rejecteds.map(console.warn);
     throw rejecteds[0].reason;
   }
 
