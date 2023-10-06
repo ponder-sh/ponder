@@ -5,7 +5,7 @@ import {
   GraphQLObjectType,
 } from "graphql";
 
-import type { Entity, Scalar } from "@/schema/types";
+import type { Entity } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
 import { tsTypeToGqlScalar } from "./schema";
@@ -25,10 +25,8 @@ export const buildEntityType = ({
         if (!entity.columns[key].list) {
           fieldConfigMap[key] = {
             type: !entity.columns[key].optional
-              ? new GraphQLNonNull(
-                  tsTypeToGqlScalar[entity.columns[key].type as Scalar]
-                )
-              : tsTypeToGqlScalar[entity.columns[key].type as Scalar],
+              ? new GraphQLNonNull(tsTypeToGqlScalar[entity.columns[key].type])
+              : tsTypeToGqlScalar[entity.columns[key].type],
             // Convert bigints to strings for GraphQL responses.
             resolve:
               entity.columns[key].type === "bigint"
@@ -39,9 +37,7 @@ export const buildEntityType = ({
           };
         } else {
           const listType = new GraphQLList(
-            new GraphQLNonNull(
-              tsTypeToGqlScalar[entity.columns[key].type as Scalar]
-            )
+            new GraphQLNonNull(tsTypeToGqlScalar[entity.columns[key].type])
           );
           fieldConfigMap[key] = {
             type: !entity.columns[key].optional

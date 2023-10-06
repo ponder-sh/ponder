@@ -2,7 +2,7 @@ import type Sqlite from "better-sqlite3";
 import { randomBytes } from "crypto";
 import { Kysely, SqliteDialect } from "kysely";
 
-import type { Scalar, Schema } from "@/schema/types";
+import type { Schema } from "@/schema/types";
 import { blobToBigInt } from "@/utils/decode";
 
 import type {
@@ -76,7 +76,7 @@ export class SqliteUserStore implements UserStore {
             if (!model.columns[key].list) {
               tableBuilder = tableBuilder.addColumn(
                 key,
-                scalarToSqlType[model.columns[key].type as Scalar],
+                scalarToSqlType[model.columns[key].type],
                 (col) => {
                   if (!model.columns[key].optional) col = col.notNull();
                   return col;

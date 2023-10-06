@@ -20,7 +20,7 @@ export const buildEntityTypes = (entities: readonly Entity[]) => {
       return `export type ${entity.name} = {
         ${Object.keys(entity.columns)
           .map((key) => {
-            const scalar = scalarToTsType[entity.columns[key].type as Scalar];
+            const scalar = scalarToTsType[entity.columns[key].type];
 
             return `${key}${
               entity.columns[key].optional === true ? "?" : ""

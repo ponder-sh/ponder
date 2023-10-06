@@ -36,7 +36,10 @@ export type Table<
 
 export type Entity = {
   name: string;
-  columns: { id: Column<ID, false, false> } & Record<string, Column>;
+  columns: { id: Column<ID, false, false> } & Record<
+    string,
+    Column<Scalar, boolean, boolean>
+  >;
 };
 
 export type Schema = {

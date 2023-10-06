@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
-import type { Scalar, Schema } from "@/schema/types";
+import type { Schema } from "@/schema/types";
 import { blobToBigInt } from "@/utils/decode";
 
 import type {
@@ -97,7 +97,7 @@ export class PostgresUserStore implements UserStore {
             if (!model.columns[key].list) {
               tableBuilder = tableBuilder.addColumn(
                 key,
-                scalarToSqlType[model.columns[key].type as Scalar],
+                scalarToSqlType[model.columns[key].type],
                 (col) => {
                   if (!model.columns[key].optional) col = col.notNull();
                   return col;
