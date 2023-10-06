@@ -1,4 +1,4 @@
-import { ponder } from "../generated/index.js";
+import { ponder } from "@/generated";
 
 ponder.on("setup", async ({ context }) => {
   const { SetupEntity } = context.entities;
