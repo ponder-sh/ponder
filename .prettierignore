@@ -5,3 +5,5 @@ LICENSE
 **/dist
 .gitignore
 .prettierignore
+Dockerfile
+*.Dockerfile
