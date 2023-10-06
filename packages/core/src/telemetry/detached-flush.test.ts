@@ -3,7 +3,10 @@ import { existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+import url from "node:url";
 import { expect, test } from "vitest";
+
+const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 
 test("detached flush script should run without error", async () => {
   // This is a service that always responds to POST requests with a 200 OK.

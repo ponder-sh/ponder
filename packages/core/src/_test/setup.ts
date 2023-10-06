@@ -1,6 +1,7 @@
 import SqliteDatabase from "better-sqlite3";
 import moduleAlias from "module-alias";
 import path from "node:path";
+import url from "node:url";
 import pg from "pg";
 import { type TestContext, beforeEach } from "vitest";
 
@@ -21,6 +22,7 @@ import type { UserStore } from "@/user-store/store.js";
 import { FORK_BLOCK_NUMBER, vitalik } from "./constants.js";
 import { poolId, testClient } from "./utils.js";
 
+const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 /**
  * Set up a package alias so we can reference `@ponder/core` by name in test files.
  */

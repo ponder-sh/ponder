@@ -48,20 +48,26 @@ test("getInjectedContract() returns data", async (context) => {
   expect(decimals).toBe(6);
 });
 
-test("getInjectedContract() uses current block number if no overrides are provided", async (context) => {
-  const { eventStore } = context;
+test(
+  "getInjectedContract() uses current block number if no overrides are provided",
+  async (context) => {
+    const { eventStore } = context;
 
-  const readOnlyContracts = buildReadOnlyContracts({
-    contracts,
-    getCurrentBlockNumber: () => 16375000n,
-    eventStore,
-  });
-  const contract = readOnlyContracts["USDC"];
+    const readOnlyContracts = buildReadOnlyContracts({
+      contracts,
+      getCurrentBlockNumber: () => 16375000n,
+      eventStore,
+    });
+    const contract = readOnlyContracts["USDC"];
 
-  const totalSupply = await contract.read.totalSupply();
+    const totalSupply = await contract.read.totalSupply();
 
-  expect(totalSupply).toBe(usdcTotalSupply16375000);
-});
+    expect(totalSupply).toBe(usdcTotalSupply16375000);
+  },
+  {
+    timeout: 10_000,
+  }
+);
 
 test("getInjectedContract() caches the read result if no overrides are provided", async (context) => {
   const { eventStore } = context;

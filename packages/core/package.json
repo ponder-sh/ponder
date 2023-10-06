@@ -20,10 +20,13 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "typings": "./dist/index.d.ts",
+  "module": "./dist/index.js",
   "exports": {
-    "default": "./dist/index.js",
-    "types": "./dist/index.d.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "pnpm clean && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
