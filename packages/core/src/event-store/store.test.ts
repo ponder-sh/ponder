@@ -157,6 +157,58 @@ test("insertHistoricalLogFilterInterval merges ranges on insertion", async (cont
   expect(logFilterRanges).toMatchObject([[15495110, 15495112]]);
 });
 
+test("insertHistoricalLogFilterInterval merges log intervals inserted concurrently", async (context) => {
+  const { eventStore } = context;
+
+  await Promise.all([
+    eventStore.insertHistoricalLogFilterInterval({
+      chainId: usdcContractConfig.chainId,
+      block: blockOne,
+      transactions: [],
+      logs: [],
+      logFilter: {
+        address: usdcContractConfig.address,
+      },
+      interval: {
+        startBlock: hexToBigInt(blockOne.number!),
+        endBlock: hexToBigInt(blockOne.number!),
+        endBlockTimestamp: hexToBigInt(blockOne.timestamp),
+      },
+    }),
+    eventStore.insertHistoricalLogFilterInterval({
+      chainId: usdcContractConfig.chainId,
+      block: blockTwo,
+      transactions: [],
+      logs: [],
+      logFilter: { address: usdcContractConfig.address },
+      interval: {
+        startBlock: hexToBigInt(blockTwo.number!),
+        endBlock: hexToBigInt(blockTwo.number!),
+        endBlockTimestamp: hexToBigInt(blockTwo.timestamp),
+      },
+    }),
+    eventStore.insertHistoricalLogFilterInterval({
+      chainId: usdcContractConfig.chainId,
+      block: blockThree,
+      transactions: [],
+      logs: [],
+      logFilter: { address: usdcContractConfig.address },
+      interval: {
+        startBlock: hexToBigInt(blockThree.number!),
+        endBlock: hexToBigInt(blockThree.number!),
+        endBlockTimestamp: hexToBigInt(blockThree.timestamp),
+      },
+    }),
+  ]);
+
+  const logFilterRanges = await eventStore.getLogFilterIntervals({
+    chainId: 1,
+    logFilter: { address: usdcContractConfig.address },
+  });
+
+  expect(logFilterRanges).toMatchObject([[15495110, 15495112]]);
+});
+
 test("getLogFilterIntervals respects log filter inclusivity rules", async (context) => {
   const { eventStore } = context;
 

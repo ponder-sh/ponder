@@ -896,34 +896,6 @@ export class PostgresEventStore implements EventStore {
     }
   };
 
-  insertHistoricalLogs = async ({
-    chainId,
-    logs: rpcLogs,
-  }: {
-    chainId: number;
-    logs: RpcLog[];
-  }) => {
-    const logBatches = rpcLogs.reduce<InsertableLog[][]>((acc, log, index) => {
-      const batchIndex = Math.floor(index / 1000);
-      acc[batchIndex] = acc[batchIndex] ?? [];
-      acc[batchIndex].push({
-        ...rpcToPostgresLog(log),
-        chainId,
-      });
-      return acc;
-    }, []);
-
-    await Promise.all(
-      logBatches.map(async (batch) => {
-        await this.db
-          .insertInto("logs")
-          .values(batch)
-          .onConflict((oc) => oc.column("id").doNothing())
-          .execute();
-      })
-    );
-  };
-
   insertContractReadResult = async ({
     address,
     blockNumber,
