@@ -1433,38 +1433,38 @@ test("serves plural entities versioned at specified timestamp", async (context) 
   await userStore.teardown();
 });
 
-// test("derived field respects skip argument", async (context) => {
-//   const { common, userStore } = context;
-//   const { service, gql, createTestEntity, createEntityWithBigIntId } =
-//     await setup({
-//       common,
-//       userStore,
-//     });
+test.todo("derived field respects skip argument", async (context) => {
+  const { common, userStore } = context;
+  const { service, gql, createTestEntity, createEntityWithBigIntId } =
+    await setup({
+      common,
+      userStore,
+    });
 
-//   await createTestEntity({ id: 0 });
-//   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
-//   await createEntityWithBigIntId({ id: BigInt(1), testEntityId: "0" });
-//   await createEntityWithBigIntId({ id: BigInt(2), testEntityId: "0" });
+  await createTestEntity({ id: 0 });
+  await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
+  await createEntityWithBigIntId({ id: BigInt(1), testEntityId: "0" });
+  await createEntityWithBigIntId({ id: BigInt(2), testEntityId: "0" });
 
-//   const response = await gql(`
-//     testEntitys {
-//       id
-//       derived(skip: 2) {
-//         id
-//       }
-//     }
-//   `);
-//   expect(response.body.errors).toBe(undefined);
-//   expect(response.statusCode).toBe(200);
-//   const testEntitys = response.body.data.testEntitys;
-//   expect(testEntitys[0].derived).toHaveLength(1);
-//   expect(testEntitys[0].derived[0]).toMatchObject({
-//     id: "2",
-//   });
+  const response = await gql(`
+    testEntitys {
+      id
+      derived(skip: 2) {
+        id
+      }
+    }
+  `);
+  expect(response.body.errors).toBe(undefined);
+  expect(response.statusCode).toBe(200);
+  const testEntitys = response.body.data.testEntitys;
+  expect(testEntitys[0].derived).toHaveLength(1);
+  expect(testEntitys[0].derived[0]).toMatchObject({
+    id: "2",
+  });
 
-//   await service.kill();
-//   await userStore.teardown();
-// });
+  await service.kill();
+  await userStore.teardown();
+});
 
 test("responds with appropriate status code pre and post historical sync", async (context) => {
   const { common, userStore } = context;

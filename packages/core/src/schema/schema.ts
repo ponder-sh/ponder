@@ -136,7 +136,7 @@ export const createSchema = <
   const tables = schema.map((it) => it.table);
 
   tables.forEach((t) => {
-    noSpaces(t.name);
+    verifyKey(t.name);
 
     if (t.columns.id === undefined)
       throw Error('Table doesn\'t contain an "id" field');
@@ -163,7 +163,7 @@ export const createSchema = <
     Object.keys(t.columns).forEach((key) => {
       if (key === "id") return;
 
-      noSpaces(key);
+      verifyKey(key);
 
       if (t.columns[key].references) {
         if (
@@ -202,6 +202,9 @@ export const createSchema = <
   };
 };
 
-const noSpaces = (name: string) => {
-  if (name.includes(" ")) throw Error("Table or column name contains a space");
+const verifyKey = (key: string) => {
+  if (key === "") throw Error("Table to column name can't be an empty string");
+
+  if (!/^[a-z|A-Z|0-9]+$/.test(key))
+    throw Error("Table or column name contains an invalid character");
 };

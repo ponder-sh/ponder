@@ -131,43 +131,43 @@ test("create() respects optional fields", async (context) => {
   await userStore.teardown();
 });
 
-// test("create() accepts enums", async (context) => {
-//   const { userStore } = context;
-//   await userStore.reload({ schema });
+test.todo("create() accepts enums", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
 
-//   await userStore.create({
-//     modelName: "Pet",
-//     timestamp: 10,
-//     id: "id1",
-//     data: { name: "Skip", kind: "CAT" },
-//   });
+  await userStore.create({
+    modelName: "Pet",
+    timestamp: 10,
+    id: "id1",
+    data: { name: "Skip", kind: "CAT" },
+  });
 
-//   const instance = await userStore.findUnique({
-//     modelName: "Pet",
-//     timestamp: 11,
-//     id: "id1",
-//   });
+  const instance = await userStore.findUnique({
+    modelName: "Pet",
+    timestamp: 11,
+    id: "id1",
+  });
 
-//   expect(instance).toMatchObject({ id: "id1", name: "Skip", kind: "CAT" });
+  expect(instance).toMatchObject({ id: "id1", name: "Skip", kind: "CAT" });
 
-//   await userStore.teardown();
-// });
+  await userStore.teardown();
+});
 
-// test("create() throws on invalid enum value", async (context) => {
-//   const { userStore } = context;
-//   await userStore.reload({ schema });
+test.todo("create() throws on invalid enum value", async (context) => {
+  const { userStore } = context;
+  await userStore.reload({ schema });
 
-//   await expect(() =>
-//     userStore.create({
-//       modelName: "Pet",
-//       timestamp: 10,
-//       id: "id1",
-//       data: { name: "Skip", kind: "NOTACAT" },
-//     })
-//   ).rejects.toThrow();
+  await expect(() =>
+    userStore.create({
+      modelName: "Pet",
+      timestamp: 10,
+      id: "id1",
+      data: { name: "Skip", kind: "NOTACAT" },
+    })
+  ).rejects.toThrow();
 
-//   await userStore.teardown();
-// });
+  await userStore.teardown();
+});
 
 test("create() accepts BigInt fields as bigint and returns as bigint", async (context) => {
   const { userStore } = context;
