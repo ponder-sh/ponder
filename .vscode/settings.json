@@ -1,13 +1,24 @@
 {
-  "editor.defaultFormatter": "rvest.vs-code-prettier-eslint",
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": true
   },
+  "eslint.enable": true,
   "eslint.workingDirectories": [
     {
       "mode": "auto"
     }
   ],
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "search.exclude": {
+    "node_modules": true,
+    "pnpm-lock.yaml": true,
+    "package-lock.json": true,
+    ".eslintcache": true,
+    ".prettiercache": true,
+    "patches": true,
+    "_": true
+  }
 }

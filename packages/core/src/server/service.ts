@@ -1,12 +1,13 @@
 import cors from "cors";
 import express from "express";
-import { graphqlHTTP } from "express-graphql";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { formatError, GraphQLError } from "graphql";
+import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
 import { createServer, Server } from "node:http";
 
 import type { Common } from "@/Ponder";
+import { graphiQLHtml } from "@/ui/graphiql.html";
 import type { UserStore } from "@/user-store/store";
 import { startClock } from "@/utils/timer";
 
@@ -29,8 +30,7 @@ export class ServerService {
 
   async start() {
     this.app = express();
-    this.app.use(cors());
-
+    this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
     this.app.use((req, res, next) => {
       const endClock = startClock();
       res.on("finish", () => {
@@ -141,14 +141,16 @@ export class ServerService {
   }
 
   reload({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
-    // This uses a small hack to update the GraphQL server on the fly.
-    const graphqlMiddleware = graphqlHTTP({
+    const graphqlMiddleware = createHandler({
       schema: graphqlSchema,
       context: { store: this.userStore },
-      graphiql: true,
     });
 
-    this.app?.use("/graphql", (req, res) => {
+    /**
+     * GET /graphql -> returns graphiql page html
+     * POST /graphql -> returns query result
+     */
+    this.app?.use("/graphql", (request, response, next) => {
       // While waiting for historical indexing to complete, we want to respond back
       // with an error to prevent the requester from accepting incomplete data.
       if (!this.isHistoricalIndexingComplete) {
@@ -161,15 +163,53 @@ export class ServerService {
           data: undefined,
           errors,
         };
-        return res.status(503).json(result);
+        return response.status(503).json(result);
       }
 
-      return graphqlMiddleware(req, res);
+      switch (request.method) {
+        case "POST":
+          return graphqlMiddleware(request, response, next);
+        case "GET": {
+          return response
+            .status(200)
+            .setHeader("Content-Type", "text/html")
+            .send(
+              graphiQLHtml({
+                endpoint: `${request.protocol}://${request.get("host")}`,
+              })
+            );
+        }
+        case "HEAD":
+          return response.status(200).send();
+        default:
+          return next();
+      }
     });
 
-    // NOTE: Deprecating use of root endpoint for GraphQL queries in favor of /graphql.
-    // This will be removed in a future release.
-    this.app?.use("/", graphqlMiddleware);
+    /**
+     * GET / -> returns graphiql page html
+     * POST / -> expects returns query result
+     */
+    this.app?.use("/", (request, response, next) => {
+      switch (request.method) {
+        case "POST":
+          return graphqlMiddleware(request, response, next);
+        case "GET": {
+          return response
+            .status(200)
+            .setHeader("Content-Type", "text/html")
+            .send(
+              graphiQLHtml({
+                endpoint: `${request.protocol}://${request.get("host")}`,
+              })
+            );
+        }
+        case "HEAD":
+          return response.status(200).send();
+        default:
+          return next();
+      }
+    });
   }
 
   async kill() {

@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.0.90",
+  "version": "0.0.91",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "repository": {
@@ -35,7 +35,7 @@
     "@babel/code-frame": "^7.18.6",
     "@jridgewell/trace-mapping": "^0.3.17",
     "async-mutex": "^0.4.0",
-    "better-sqlite3": "^8.5.0",
+    "better-sqlite3": "^8.7.0",
     "cac": "^6.7.14",
     "chokidar": "^3.5.3",
     "conf": "^10.2.0",
@@ -47,9 +47,9 @@
     "esbuild": "^0.15.2",
     "ethereum-bloom-filters": "^1.0.10",
     "express": "^4.18.1",
-    "express-graphql": "^0.12.0",
     "glob": "^8.1.0",
     "graphql": "^15.3.0",
+    "graphql-http": "^1.22.0",
     "http-terminator": "^3.2.0",
     "ink": "^3.2.0",
     "kysely": "^0.24.2",
