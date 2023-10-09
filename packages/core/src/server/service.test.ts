@@ -177,7 +177,7 @@ test("serves all scalar types correctly", async (context) => {
   await service.kill();
 });
 
-test.skip("serves all scalar list types correctly", async (context) => {
+test("serves all scalar list types correctly", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,

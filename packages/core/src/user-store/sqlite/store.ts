@@ -72,21 +72,27 @@ export class SqliteUserStore implements UserStore {
         this.schema!.entities.map(async (model) => {
           const tableName = `${model.name}_${this.versionId}`;
           let tableBuilder = tx.schema.createTable(tableName);
-          Object.keys(model.columns).forEach((key) => {
-            if (!model.columns[key].list) {
+          Object.entries(model.columns).forEach(([columnName, column]) => {
+            if (column.list) {
+              // Handle scalar list columns
               tableBuilder = tableBuilder.addColumn(
-                key,
-                scalarToSqlType[model.columns[key].type],
+                columnName,
+                "text",
                 (col) => {
-                  if (!model.columns[key].optional) col = col.notNull();
+                  if (!column.optional) col = col.notNull();
                   return col;
                 }
               );
             } else {
-              tableBuilder = tableBuilder.addColumn(key, "text", (col) => {
-                if (!model.columns[key].optional) col = col.notNull();
-                return col;
-              });
+              // Handle all other column types
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                scalarToSqlType[column.type],
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  return col;
+                }
+              );
             }
           });
 
@@ -626,33 +632,34 @@ export class SqliteUserStore implements UserStore {
 
     const deserializedInstance = {} as ModelInstance;
 
-    Object.keys(entity.columns).forEach((key) => {
-      const value = instance[key] as string | number | null | undefined;
+    Object.entries(entity.columns).forEach(([columnName, column]) => {
+      const value = instance[columnName] as string | number | null | undefined;
 
       if (value === null || value === undefined) {
-        deserializedInstance[key] = null;
+        deserializedInstance[columnName] = null;
         return;
       }
 
-      if (entity.columns[key].type === "boolean") {
-        deserializedInstance[key] = value === 1 ? true : false;
-        return;
-      }
-
-      if (entity.columns[key].type === "bigint") {
-        deserializedInstance[key] = blobToBigInt(value as unknown as Buffer);
-        return;
-      }
-
-      if (entity.columns[key].list) {
+      if (column.list) {
         let parsedValue = JSON.parse(value as string);
-        if (entity.columns[key].type === "bigint")
-          parsedValue = parsedValue.map(BigInt);
-        deserializedInstance[key] = parsedValue;
+        if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
+        deserializedInstance[columnName] = parsedValue;
         return;
       }
 
-      deserializedInstance[key] = value;
+      if (column.type === "boolean") {
+        deserializedInstance[columnName] = value === 1 ? true : false;
+        return;
+      }
+
+      if (column.type === "bigint") {
+        deserializedInstance[columnName] = blobToBigInt(
+          value as unknown as Buffer
+        );
+        return;
+      }
+
+      deserializedInstance[columnName] = value;
     });
 
     return deserializedInstance;

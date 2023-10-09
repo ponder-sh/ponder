@@ -18,13 +18,13 @@ export const buildEntityTypes = (entities: readonly Entity[]) => {
   const entityModelTypes = entities
     .map((entity) => {
       return `export type ${entity.name} = {
-        ${Object.keys(entity.columns)
-          .map((key) => {
-            const scalar = scalarToTsType[entity.columns[key].type];
+        ${Object.entries(entity.columns)
+          .map(([columnName, column]) => {
+            const scalar = scalarToTsType[column.type];
 
-            return `${key}${
-              entity.columns[key].optional === true ? "?" : ""
-            }: ${scalar}${entity.columns[key].list === true ? "[]" : ""};`;
+            return `${columnName}${column.optional ? "?" : ""}: ${scalar}${
+              column.list ? "[]" : ""
+            };`;
           })
           .join("")}
         };`;

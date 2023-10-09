@@ -160,36 +160,35 @@ export const createSchema = <
     // @ts-ignore
     if (t.columns.id.references) throw Error('"id" cannot be a reference');
 
-    Object.keys(t.columns).forEach((key) => {
-      if (key === "id") return;
+    Object.entries(t.columns).forEach(([columnName, column]) => {
+      if (columnName === "id") return;
 
-      verifyKey(key);
+      verifyKey(columnName);
 
-      if (t.columns[key].references) {
+      if (column.references) {
         if (
           tables
             .filter((_t) => _t.name !== t.name)
-            .every((_t) => `${_t.name}.id` !== t.columns[key].references)
+            .every((_t) => `${_t.name}.id` !== column.references)
         )
           throw Error("Column doesn't reference a valid table");
 
         if (
           tables.find(
-            (_t) =>
-              _t.name === (t.columns[key].references as String).split(".")[0]
-          )!.columns.id.type !== t.columns[key].type
+            (_t) => _t.name === (column.references as String).split(".")[0]
+          )!.columns.id.type !== column.type
         )
           throw Error("Column type doesn't match the referred table id type");
 
-        if (t.columns[key].list)
+        if (column.list)
           throw Error("Columns can't be both refernce and list types");
       } else if (
-        t.columns[key].type !== "bigint" &&
-        t.columns[key].type !== "string" &&
-        t.columns[key].type !== "boolean" &&
-        t.columns[key].type !== "int" &&
-        t.columns[key].type !== "float" &&
-        t.columns[key].type !== "bytes"
+        column.type !== "bigint" &&
+        column.type !== "string" &&
+        column.type !== "boolean" &&
+        column.type !== "int" &&
+        column.type !== "float" &&
+        column.type !== "bytes"
       )
         throw Error("Column is not a valid type");
     });
