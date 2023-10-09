@@ -23,6 +23,8 @@ export interface EventStore {
 
   migrateUp(): Promise<void>;
 
+  kill(): Promise<void>;
+
   /** LOG FILTER METHODS */
 
   insertHistoricalLogFilterInterval(options: {

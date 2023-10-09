@@ -340,6 +340,8 @@ export class Ponder {
     await this.userStore.teardown();
     await this.common.telemetry.kill();
 
+    await this.eventStore.kill();
+
     this.common.logger.debug({
       service: "app",
       msg: `Finished shutdown sequence`,

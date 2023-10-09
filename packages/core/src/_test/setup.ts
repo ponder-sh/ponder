@@ -80,6 +80,7 @@ export async function setupEventStore(
 
     return async () => {
       await pool.query(`DROP SCHEMA IF EXISTS "${databaseSchema}" CASCADE`);
+      await context.eventStore.kill();
     };
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
@@ -88,7 +89,9 @@ export async function setupEventStore(
 
     if (!options.skipMigrateUp) await context.eventStore.migrateUp();
 
-    return;
+    return async () => {
+      await context.eventStore.kill();
+    };
   }
 }
 

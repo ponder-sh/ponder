@@ -51,6 +51,10 @@ export class SqliteEventStore implements EventStore {
     if (error) throw error;
   };
 
+  async kill() {
+    await this.db.destroy();
+  }
+
   insertHistoricalLogFilterInterval = async ({
     chainId,
     block: rpcBlock,
