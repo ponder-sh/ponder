@@ -7,6 +7,8 @@ import { buildGqlSchema } from "./schema";
 
 test("filter type has correct suffixes and types", () => {
   const schema = createSchema([
+    createTable("RelatedEntityStringId").addColumn("id", "string"),
+    createTable("RelatedEntityBigIntId").addColumn("id", "bigint"),
     createTable("Entity")
       .addColumn("id", "string")
       .addColumn("int", "int")
@@ -15,7 +17,13 @@ test("filter type has correct suffixes and types", () => {
       .addColumn("bytes", "bytes")
       .addColumn("bigint", "bigint")
       .addColumn("listString", "string", { list: true })
-      .addColumn("listBigInt", "bigint", { list: true }),
+      .addColumn("listBigInt", "bigint", { list: true })
+      .addColumn("relatedEntityStringId", "string", {
+        references: "RelatedEntityStringId.id",
+      })
+      .addColumn("relatedEntityBigIntId", "bigint", {
+        references: "RelatedEntityBigIntId.id",
+      }),
   ]);
 
   const serverSchema = buildGqlSchema(schema);
@@ -101,23 +109,23 @@ test("filter type has correct suffixes and types", () => {
     // listEnum_not: "[SimpleEnum]",
     // listEnum_has: "SimpleEnum",
     // listEnum_not_has: "SimpleEnum",
-    // relatedEntityStringId: "String",
-    // relatedEntityStringId_not: "String",
-    // relatedEntityStringId_in: "[String]",
-    // relatedEntityStringId_not_in: "[String]",
-    // relatedEntityStringId_contains: "String",
-    // relatedEntityStringId_not_contains: "String",
-    // relatedEntityStringId_starts_with: "String",
-    // relatedEntityStringId_ends_with: "String",
-    // relatedEntityStringId_not_starts_with: "String",
-    // relatedEntityStringId_not_ends_with: "String",
-    // relatedEntityBigIntId: "BigInt",
-    // relatedEntityBigIntId_not: "BigInt",
-    // relatedEntityBigIntId_in: "[BigInt]",
-    // relatedEntityBigIntId_not_in: "[BigInt]",
-    // relatedEntityBigIntId_gt: "BigInt",
-    // relatedEntityBigIntId_lt: "BigInt",
-    // relatedEntityBigIntId_gte: "BigInt",
-    // relatedEntityBigIntId_lte: "BigInt",
+    relatedEntityStringId: "String",
+    relatedEntityStringId_not: "String",
+    relatedEntityStringId_in: "[String]",
+    relatedEntityStringId_not_in: "[String]",
+    relatedEntityStringId_contains: "String",
+    relatedEntityStringId_not_contains: "String",
+    relatedEntityStringId_starts_with: "String",
+    relatedEntityStringId_ends_with: "String",
+    relatedEntityStringId_not_starts_with: "String",
+    relatedEntityStringId_not_ends_with: "String",
+    relatedEntityBigIntId: "BigInt",
+    relatedEntityBigIntId_not: "BigInt",
+    relatedEntityBigIntId_in: "[BigInt]",
+    relatedEntityBigIntId_not_in: "[BigInt]",
+    relatedEntityBigIntId_gt: "BigInt",
+    relatedEntityBigIntId_lt: "BigInt",
+    relatedEntityBigIntId_gte: "BigInt",
+    relatedEntityBigIntId_lte: "BigInt",
   });
 });

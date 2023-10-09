@@ -26,6 +26,7 @@ const _addColumn = <
       ...(table.columns as object),
       [name]: {
         type,
+        references: modifiers?.references ?? undefined,
         optional: modifiers?.optional ?? false,
         list: modifiers?.list ?? false,
       },
@@ -120,7 +121,7 @@ export const createTable = <TTableName extends string>(
  * Type inference and runtime validation
  */
 export const createSchema = <
-  const TSchema extends readonly IT<
+  TSchema extends readonly IT<
     string,
     { id: Column<Table[], ID, never, false, false> } & Record<
       string,
@@ -157,7 +158,7 @@ export const createSchema = <
     // NOTE: This is a to make sure the user didn't override the reference type
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    if (!t.columns.id.references) throw Error('"id" cannot be a reference');
+    if (t.columns.id.references) throw Error('"id" cannot be a reference');
 
     Object.keys(t.columns).forEach((key) => {
       if (key === "id") return;
@@ -168,13 +169,15 @@ export const createSchema = <
         if (
           tables
             .filter((_t) => _t.name !== t.name)
-            .some((_t) => `${_t.name}.id` === t.columns[key].references)
+            .every((_t) => `${_t.name}.id` !== t.columns[key].references)
         )
           throw Error("Column doesn't reference a valid table");
 
         if (
-          tables.find((_t) => _t.name === t.name)!.columns.id.type !==
-          t.columns[key].type
+          tables.find(
+            (_t) =>
+              _t.name === (t.columns[key].references as String).split(".")[0]
+          )!.columns.id.type !== t.columns[key].type
         )
           throw Error("Column type doesn't match the referred table id type");
 

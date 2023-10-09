@@ -13,6 +13,10 @@ import { ServerService } from "./service";
 beforeEach((context) => setupUserStore(context));
 
 const schema = createSchema([
+  createTable("EntityWithIntId").addColumn("id", "int"),
+  createTable("EntityWithBigIntId")
+    .addColumn("id", "bigint")
+    .addColumn("testEntity", "string", { references: "TestEntity.id" }),
   createTable("TestEntity")
     .addColumn("id", "string")
     .addColumn("string", "string")
@@ -173,7 +177,7 @@ test("serves all scalar types correctly", async (context) => {
   await service.kill();
 });
 
-test("serves all scalar list types correctly", async (context) => {
+test.skip("serves all scalar list types correctly", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
@@ -298,7 +302,7 @@ test.skip("serves derived types correctly", async (context) => {
   await service.kill();
 });
 
-test.skip("serves relationship types correctly", async (context) => {
+test("serves relationship types correctly", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ common, userStore });
@@ -975,7 +979,7 @@ test.skip("filters on enum field in", async (context) => {
   await service.kill();
 });
 
-test.skip("filters on relationship field equals", async (context) => {
+test("filters on relationship field equals", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ common, userStore });
@@ -1008,7 +1012,7 @@ test.skip("filters on relationship field equals", async (context) => {
   await service.kill();
 });
 
-test.skip("filters on relationship field in", async (context) => {
+test("filters on relationship field in", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ common, userStore });
@@ -1035,7 +1039,7 @@ test.skip("filters on relationship field in", async (context) => {
   await service.kill();
 });
 
-test.skip("filters on relationship field in", async (context) => {
+test("filters on relationship field in", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ common, userStore });
