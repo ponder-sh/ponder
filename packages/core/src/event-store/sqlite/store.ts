@@ -132,9 +132,7 @@ export class SqliteEventStore implements EventStore {
             .insertInto("logFilters")
             .values({ chainId, ...logFilterFragment })
             .onConflict((oc) =>
-              oc
-                .constraint("logFiltersUnique")
-                .doUpdateSet({ chainId, ...logFilterFragment })
+              oc.doUpdateSet({ chainId, ...logFilterFragment })
             )
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -261,11 +259,7 @@ export class SqliteEventStore implements EventStore {
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
         .values({ chainId, address, eventSelector })
-        .onConflict((oc) =>
-          oc
-            .constraint("factoryContractsUnique")
-            .doUpdateSet({ chainId, address, eventSelector })
-        )
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -305,11 +299,7 @@ export class SqliteEventStore implements EventStore {
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
         .values({ chainId, address, eventSelector })
-        .onConflict((oc) =>
-          oc
-            .constraint("factoryContractsUnique")
-            .doUpdateSet({ chainId, address, eventSelector })
-        )
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -455,11 +445,7 @@ export class SqliteEventStore implements EventStore {
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
         .values({ chainId, address, eventSelector })
-        .onConflict((oc) =>
-          oc
-            .constraint("factoryContractsUnique")
-            .doUpdateSet({ chainId, address, eventSelector })
-        )
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -552,11 +538,7 @@ export class SqliteEventStore implements EventStore {
       const { id: factoryContractId } = await tx
         .insertInto("factoryContracts")
         .values({ chainId, address, eventSelector })
-        .onConflict((oc) =>
-          oc
-            .constraint("factoryContractsUnique")
-            .doUpdateSet({ chainId, address, eventSelector })
-        )
+        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -681,11 +663,7 @@ export class SqliteEventStore implements EventStore {
         const { id: logFilterId } = await tx
           .insertInto("logFilters")
           .values({ chainId, ...logFilterFragment })
-          .onConflict((oc) =>
-            oc
-              .constraint("logFiltersUnique")
-              .doUpdateSet({ chainId, ...logFilterFragment })
-          )
+          .onConflict((oc) => oc.doUpdateSet({ chainId, ...logFilterFragment }))
           .returningAll()
           .executeTakeFirstOrThrow();
 
@@ -723,9 +701,7 @@ export class SqliteEventStore implements EventStore {
           .insertInto("factoryContracts")
           .values({ chainId, address, eventSelector })
           .onConflict((oc) =>
-            oc
-              .constraint("factoryContractsUnique")
-              .doUpdateSet({ chainId, address, eventSelector })
+            oc.doUpdateSet({ chainId, address, eventSelector })
           )
           .returningAll()
           .executeTakeFirstOrThrow();
@@ -764,9 +740,7 @@ export class SqliteEventStore implements EventStore {
           .insertInto("factoryContracts")
           .values({ chainId, address, eventSelector })
           .onConflict((oc) =>
-            oc
-              .constraint("factoryContractsUnique")
-              .doUpdateSet({ chainId, address, eventSelector })
+            oc.doUpdateSet({ chainId, address, eventSelector })
           )
           .returningAll()
           .executeTakeFirstOrThrow();
