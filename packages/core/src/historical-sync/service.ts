@@ -652,7 +652,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           interval: {
             startBlock: BigInt(startBlock),
             endBlock: BigInt(endBlock),
-            endBlockTimestamp: hexToBigInt(block.timestamp!),
           },
         });
 
@@ -833,7 +832,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             interval: {
               startBlock: BigInt(startBlock),
               endBlock: BigInt(endBlock),
-              endBlockTimestamp: hexToBigInt(block.timestamp!),
             },
           });
 

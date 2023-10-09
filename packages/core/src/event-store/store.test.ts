@@ -48,7 +48,6 @@ test("insertHistoricalLogFilterInterval inserts block, transactions, and logs", 
     interval: {
       startBlock: hexToBigInt(blockOne.number!) - 100n,
       endBlock: hexToBigInt(blockOne.number!),
-      endBlockTimestamp: hexToBigInt(blockOne.timestamp),
     },
   });
 
@@ -80,7 +79,6 @@ test("insertHistoricalLogFilterInterval inserts log filter intervals", async (co
     interval: {
       startBlock: 0n,
       endBlock: 100n,
-      endBlockTimestamp: 1200n,
     },
   });
 
@@ -109,7 +107,6 @@ test("insertHistoricalLogFilterInterval merges ranges on insertion", async (cont
     interval: {
       startBlock: hexToBigInt(blockOne.number!),
       endBlock: hexToBigInt(blockOne.number!),
-      endBlockTimestamp: hexToBigInt(blockOne.timestamp),
     },
   });
 
@@ -122,7 +119,6 @@ test("insertHistoricalLogFilterInterval merges ranges on insertion", async (cont
     interval: {
       startBlock: hexToBigInt(blockThree.number!),
       endBlock: hexToBigInt(blockThree.number!),
-      endBlockTimestamp: hexToBigInt(blockThree.timestamp),
     },
   });
 
@@ -145,7 +141,6 @@ test("insertHistoricalLogFilterInterval merges ranges on insertion", async (cont
     interval: {
       startBlock: hexToBigInt(blockTwo.number!),
       endBlock: hexToBigInt(blockTwo.number!),
-      endBlockTimestamp: hexToBigInt(blockTwo.timestamp),
     },
   });
 
@@ -172,7 +167,6 @@ test("insertHistoricalLogFilterInterval merges log intervals inserted concurrent
       interval: {
         startBlock: hexToBigInt(blockOne.number!),
         endBlock: hexToBigInt(blockOne.number!),
-        endBlockTimestamp: hexToBigInt(blockOne.timestamp),
       },
     }),
     eventStore.insertHistoricalLogFilterInterval({
@@ -184,7 +178,6 @@ test("insertHistoricalLogFilterInterval merges log intervals inserted concurrent
       interval: {
         startBlock: hexToBigInt(blockTwo.number!),
         endBlock: hexToBigInt(blockTwo.number!),
-        endBlockTimestamp: hexToBigInt(blockTwo.timestamp),
       },
     }),
     eventStore.insertHistoricalLogFilterInterval({
@@ -196,7 +189,6 @@ test("insertHistoricalLogFilterInterval merges log intervals inserted concurrent
       interval: {
         startBlock: hexToBigInt(blockThree.number!),
         endBlock: hexToBigInt(blockThree.number!),
-        endBlockTimestamp: hexToBigInt(blockThree.timestamp),
       },
     }),
   ]);
@@ -224,7 +216,6 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
     interval: {
       startBlock: 0n,
       endBlock: 100n,
-      endBlockTimestamp: 1200n,
     },
   });
 
@@ -274,7 +265,6 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
     interval: {
       startBlock: 0n,
       endBlock: 100n,
-      endBlockTimestamp: 1200n,
     },
   });
 
@@ -289,7 +279,6 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
     interval: {
       startBlock: 150n,
       endBlock: 250n,
-      endBlockTimestamp: 1500n,
     },
   });
 
@@ -507,7 +496,6 @@ test("insertHistoricalChildContractInterval inserts block, transactions, and log
     interval: {
       startBlock: 0n,
       endBlock: 500n,
-      endBlockTimestamp: 50_000n,
     },
   });
 
@@ -539,7 +527,6 @@ test("insertHistoricalChildContractInterval inserts and merges child contract in
     interval: {
       startBlock: 0n,
       endBlock: 500n,
-      endBlockTimestamp: 50_000n,
     },
   });
 
@@ -555,7 +542,6 @@ test("insertHistoricalChildContractInterval inserts and merges child contract in
     interval: {
       startBlock: 750n,
       endBlock: 1000n,
-      endBlockTimestamp: 100_000n,
     },
   });
 
@@ -584,7 +570,6 @@ test("insertHistoricalChildContractInterval inserts and merges child contract in
     interval: {
       startBlock: 501n,
       endBlock: 800n,
-      endBlockTimestamp: 75_000n,
     },
   });
 
@@ -642,41 +627,6 @@ test("insertHistoricalChildContractInterval inserts and merges child contract in
 
 //   const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
 //   expect(logs).toHaveLength(2);
-// });
-
-// test("insertLogFilterCachedRanges inserts many cached intervals", async (context) => {
-//   const { eventStore } = context;
-
-//   await eventStore.insertLogFilterCachedRanges({
-//     logFilterKeys: ["test-filter-key-1", "test-filter-key-2"],
-//     startBlock: 15131900,
-//     endBlock: 15495111,
-//     endBlockTimestamp: 1662619504,
-//   });
-
-//   const logFilterCachedRanges1 = await eventStore.getLogFilterCachedRanges({
-//     logFilterKey: "test-filter-key-1",
-//   });
-
-//   expect(logFilterCachedRanges1).toHaveLength(1);
-//   expect(logFilterCachedRanges1[0]).toMatchObject({
-//     endBlock: 15495111,
-//     endBlockTimestamp: 1662619504,
-//     filterKey: "test-filter-key-1",
-//     startBlock: 15131900,
-//   });
-
-//   const logFilterCachedRanges2 = await eventStore.getLogFilterCachedRanges({
-//     logFilterKey: "test-filter-key-2",
-//   });
-
-//   expect(logFilterCachedRanges2).toHaveLength(1);
-//   expect(logFilterCachedRanges2[0]).toMatchObject({
-//     endBlock: 15495111,
-//     endBlockTimestamp: 1662619504,
-//     filterKey: "test-filter-key-2",
-//     startBlock: 15131900,
-//   });
 // });
 
 test("insertContractReadResult inserts a contract call", async (context) => {

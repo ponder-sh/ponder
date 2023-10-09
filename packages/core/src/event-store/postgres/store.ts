@@ -97,7 +97,6 @@ export class PostgresEventStore implements EventStore {
     interval: {
       startBlock: bigint;
       endBlock: bigint;
-      endBlockTimestamp: bigint;
     };
   }) => {
     await this.db.transaction().execute(async (tx) => {
@@ -203,7 +202,7 @@ export class PostgresEventStore implements EventStore {
 
         return baseJoin;
       })
-      .select(["fragmentIndex", "startBlock", "endBlock", "endBlockTimestamp"])
+      .select(["fragmentIndex", "startBlock", "endBlock"])
       .where("chainId", "=", chainId);
 
     const intervals = await baseQuery.execute();
@@ -213,7 +212,7 @@ export class PostgresEventStore implements EventStore {
       acc[fragmentIndex] ||= [];
       acc[fragmentIndex].push(rest);
       return acc;
-    }, {} as Record<number, { startBlock: bigint; endBlock: bigint; endBlockTimestamp: bigint }[]>);
+    }, {} as Record<number, { startBlock: bigint; endBlock: bigint }[]>);
 
     const fragmentIntervals = logFilterFragments.map((f) => {
       return (intervalsByFragment[f.idx] ?? []).map(
@@ -375,7 +374,6 @@ export class PostgresEventStore implements EventStore {
     interval: {
       startBlock: bigint;
       endBlock: bigint;
-      endBlockTimestamp: bigint;
     };
   }) => {
     await this.db.transaction().execute(async (tx) => {
@@ -535,7 +533,6 @@ export class PostgresEventStore implements EventStore {
     interval: {
       startBlock: bigint;
       endBlock: bigint;
-      endBlockTimestamp: bigint;
     };
   }) => {
     await this.db.transaction().execute(async (tx) => {
@@ -599,7 +596,7 @@ export class PostgresEventStore implements EventStore {
     tx,
     chainId,
     logFilters,
-    interval: { startBlock, endBlock, endBlockTimestamp },
+    interval: { startBlock, endBlock },
   }: {
     tx: KyselyTransaction<EventStoreTables>;
     chainId: number;
@@ -610,7 +607,6 @@ export class PostgresEventStore implements EventStore {
     interval: {
       startBlock: bigint;
       endBlock: bigint;
-      endBlockTimestamp: bigint;
     };
   }) => {
     const logFilterFragments = logFilters
@@ -708,10 +704,6 @@ export class PostgresEventStore implements EventStore {
             ...overlappingIntervals.map((r) => r.endBlock),
             endBlock,
           ]),
-          endBlockTimestamp: bigIntMax([
-            ...overlappingIntervals.map((r) => r.endBlockTimestamp),
-            endBlockTimestamp,
-          ]),
         })
         .execute();
     }
@@ -808,7 +800,7 @@ export class PostgresEventStore implements EventStore {
     tx,
     chainId,
     factoryContracts,
-    interval: { startBlock, endBlock, endBlockTimestamp },
+    interval: { startBlock, endBlock },
   }: {
     tx: KyselyTransaction<EventStoreTables>;
     chainId: number;
@@ -819,7 +811,6 @@ export class PostgresEventStore implements EventStore {
     interval: {
       startBlock: bigint;
       endBlock: bigint;
-      endBlockTimestamp: bigint;
     };
   }) => {
     for (const factoryContract of factoryContracts) {
@@ -886,10 +877,6 @@ export class PostgresEventStore implements EventStore {
           endBlock: bigIntMax([
             ...overlappingIntervals.map((r) => r.endBlock),
             endBlock,
-          ]),
-          endBlockTimestamp: bigIntMax([
-            ...overlappingIntervals.map((r) => r.endBlockTimestamp),
-            endBlockTimestamp,
           ]),
         })
         .execute();

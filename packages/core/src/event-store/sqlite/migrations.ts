@@ -199,9 +199,6 @@ const migrations: Record<string, Migration> = {
         )
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("endBlockTimestamp", "numeric(78, 0)", (col) =>
-          col.notNull()
-        )
         .execute();
 
       await db.schema
@@ -245,9 +242,6 @@ const migrations: Record<string, Migration> = {
         )
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("endBlockTimestamp", "numeric(78, 0)", (col) =>
-          col.notNull()
-        )
         .execute();
     },
   },

@@ -39,7 +39,6 @@ export interface EventStore {
     interval: {
       startBlock: bigint;
       endBlock: bigint;
-      endBlockTimestamp: bigint;
     };
   }): Promise<void>;
 
@@ -118,7 +117,6 @@ export interface EventStore {
     interval: {
       startBlock: bigint;
       endBlock: bigint;
-      endBlockTimestamp: bigint;
     };
   }): Promise<void>;
 
@@ -181,7 +179,6 @@ export interface EventStore {
     interval: {
       startBlock: bigint;
       endBlock: bigint;
-      endBlockTimestamp: bigint;
     };
   }): Promise<void>;
 

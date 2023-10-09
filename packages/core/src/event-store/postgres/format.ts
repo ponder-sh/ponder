@@ -179,7 +179,6 @@ type LogFilterIntervalsTable = {
   logFilterId: number;
   startBlock: bigint;
   endBlock: bigint;
-  endBlockTimestamp: bigint;
 };
 
 type FactoryContractsTable = {
@@ -208,7 +207,6 @@ type ChildContractIntervalsTable = {
   factoryContractId: number;
   startBlock: bigint;
   endBlock: bigint;
-  endBlockTimestamp: bigint;
 };
 
 export type EventStoreTables = {

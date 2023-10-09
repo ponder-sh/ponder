@@ -462,7 +462,6 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           interval: {
             startBlock: BigInt(this.finalizedBlockNumber + 1),
             endBlock: BigInt(newFinalizedBlock.number),
-            endBlockTimestamp: BigInt(newFinalizedBlock.timestamp),
           },
         });
 
