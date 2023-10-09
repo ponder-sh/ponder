@@ -182,19 +182,20 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("logFilters")
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)")
         .addColumn("topic0", "varchar(66)")
         .addColumn("topic1", "varchar(66)")
         .addColumn("topic2", "varchar(66)")
         .addColumn("topic3", "varchar(66)")
+        .addUniqueConstraint("logFiltersUnique", ["id", "chainId"])
         .execute();
 
       await db.schema
         .createTable("logFilterIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("logFilterId", "integer", (col) =>
+        .addColumn("logFilterId", "text", (col) =>
           col.notNull().references("logFilters.id")
         )
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())

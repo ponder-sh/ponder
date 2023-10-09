@@ -14,6 +14,7 @@ export function buildLogFilterFragments({
   topics?: (Hex | Hex[] | null)[];
 }) {
   const fragments: {
+    id: string;
     address: Hex | null;
     topic0: Hex | null;
     topic1: Hex | null;
@@ -29,6 +30,7 @@ export function buildLogFilterFragments({
         for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
           for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
             fragments.push({
+              id: `${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}`,
               address: address_,
               topic0: topic0_,
               topic1: topic1_,
@@ -44,7 +46,7 @@ export function buildLogFilterFragments({
   return fragments;
 }
 
-export function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
+function parseTopics(topics: (Hex | Hex[] | null)[] | undefined) {
   return {
     topic0: topics?.[0] ?? null,
     topic1: topics?.[1] ?? null,

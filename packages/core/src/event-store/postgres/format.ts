@@ -165,7 +165,7 @@ type ContractReadResultsTable = {
 };
 
 type LogFiltersTable = {
-  id: Generated<number>;
+  id: string;
   chainId: number;
   address: Hex | null;
   topic0: Hex | null;
@@ -176,7 +176,7 @@ type LogFiltersTable = {
 
 type LogFilterIntervalsTable = {
   id: Generated<number>;
-  logFilterId: number;
+  logFilterId: string;
   startBlock: bigint;
   endBlock: bigint;
 };

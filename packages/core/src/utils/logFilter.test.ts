@@ -7,6 +7,7 @@ test("buildLogFilterFragments generates 1 log filter fragment for null filter", 
 
   expect(logFilterFragments).toMatchObject([
     {
+      id: "null_null_null_null_null",
       address: null,
       topic0: null,
       topic1: null,
@@ -23,6 +24,7 @@ test("buildLogFilterFragments generates 1 log filter fragment for simple filter"
 
   expect(logFilterFragments).toMatchObject([
     {
+      id: "0xa_null_null_null_null",
       address: "0xa",
       topic0: null,
       topic1: null,
@@ -40,6 +42,7 @@ test("buildLogFilterFragments generates 4 log filter fragment for 2x2 filter", (
 
   expect(logFilterFragments).toMatchObject([
     {
+      id: "0xa_0xc_null_0xe_null",
       address: "0xa",
       topic0: "0xc",
       topic1: null,
@@ -47,6 +50,7 @@ test("buildLogFilterFragments generates 4 log filter fragment for 2x2 filter", (
       topic3: null,
     },
     {
+      id: "0xa_0xd_null_0xe_null",
       address: "0xa",
       topic0: "0xd",
       topic1: null,
@@ -54,6 +58,7 @@ test("buildLogFilterFragments generates 4 log filter fragment for 2x2 filter", (
       topic3: null,
     },
     {
+      id: "0xb_0xc_null_0xe_null",
       address: "0xb",
       topic0: "0xc",
       topic1: null,
@@ -61,6 +66,7 @@ test("buildLogFilterFragments generates 4 log filter fragment for 2x2 filter", (
       topic3: null,
     },
     {
+      id: "0xb_0xd_null_0xe_null",
       address: "0xb",
       topic0: "0xd",
       topic1: null,
