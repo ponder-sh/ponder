@@ -18,6 +18,7 @@ import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import { formatEta, formatPercentage } from "@/utils/format";
 import {
+  BlockProgressTracker,
   getChunks,
   intervalDifference,
   intervalSum,
@@ -92,11 +93,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private logFilterProgressTrackers: Record<string, ProgressTracker> = {};
   private factoryContractProgressTrackers: Record<string, ProgressTracker> = {};
   private childContractProgressTrackers: Record<string, ProgressTracker> = {};
+  private blockProgressTracker: BlockProgressTracker =
+    new BlockProgressTracker();
 
   /**
    * Functions registered by log filter + child contract tasks. These functions accept
    * a raw block object, get required data from it, then insert data and cache metadata
-   * into the event store.
+   * into the event store. The keys of this object are used to keep track of which blocks
+   * must be fetched.
    */
   private blockCallbacks: Record<
     number,
@@ -105,15 +109,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   /**
    * Block tasks have been added to the queue up to and including this block number.
+   * Used alongside blockCallbacks to keep track of which block tasks to add to the queue.
    */
   private blockTasksEnqueuedCheckpoint = 0;
-
-  /**
-   * Block task numbers that are currently in progress. On completing a block task,
-   * this set is used to determine whether or not the historicalCheckpoint event should
-   * be emitted.
-   */
-  private blockTasksInProgress = new Set<number>();
 
   private queue: Queue<HistoricalSyncTask>;
   private startTimestamp?: [number, number];
@@ -478,8 +476,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         msg: `Completed sync in ${formatEta(duration)} (network=${
           this.network.name
         })`,
-        network: this.network.name,
-        duration,
       });
     };
 
@@ -884,16 +880,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     await Promise.all(callbacks.map((cb) => cb(block)));
 
-    const minInProgressBlockNumber = Math.min(...this.blockTasksInProgress);
-    this.blockTasksInProgress.delete(blockNumber);
-    if (
-      this.blockTasksInProgress.size === 0 ||
-      blockNumber === minInProgressBlockNumber
-    ) {
-      this.emit("historicalCheckpoint", {
-        blockNumber: hexToNumber(block.number!),
-        blockTimestamp: hexToNumber(block.timestamp),
-      });
+    const newBlockCheckpoint = this.blockProgressTracker.addCompletedBlock({
+      blockNumber,
+      blockTimestamp: hexToNumber(block.timestamp),
+    });
+
+    if (newBlockCheckpoint) {
+      this.emit("historicalCheckpoint", newBlockCheckpoint);
     }
 
     this.common.logger.trace({
@@ -919,9 +912,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         .map(Number)
         .filter((blockNumber) => blockNumber <= blockTasksCanBeEnqueuedTo);
 
-      for (const blockNumber of newBlocks) {
-        this.blockTasksInProgress.add(blockNumber);
+      this.blockProgressTracker.addPendingBlocks({ blockNumbers: newBlocks });
 
+      for (const blockNumber of newBlocks) {
         this.queue.addTask(
           {
             kind: "BLOCK",
@@ -930,7 +923,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           },
           { priority: Number.MAX_SAFE_INTEGER - blockNumber }
         );
-        delete this.blockCallbacks[blockNumber]; // TODO: Is this necessary?
+        delete this.blockCallbacks[blockNumber];
       }
 
       this.blockTasksEnqueuedCheckpoint = blockTasksCanBeEnqueuedTo;

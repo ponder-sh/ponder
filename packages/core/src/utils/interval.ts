@@ -267,3 +267,147 @@ export class ProgressTracker {
     this._checkpoint = null;
   }
 }
+
+// export class BlockProgressTracker {
+//   private pendingBlocks: number[] = [];
+// private completedBlocks: {
+//   blockNumber: number;
+//   blockTimestamp: number;
+// }[] = [];
+
+//   addPendingBlocks({ blockNumbers }: { blockNumbers: number[] }): void {
+//     blockNumbers.forEach((blockNumber) => {
+//       if (
+//         this.pendingBlocks.length > 0 &&
+//         blockNumber < this.pendingBlocks[this.pendingBlocks.length - 1]
+//       ) {
+//         throw new Error(
+//           `Pending block number ${blockNumber} was added out of order. Already added block number ${
+//             this.pendingBlocks[this.pendingBlocks.length - 1]
+//           }.`
+//         );
+//       }
+//       this.pendingBlocks.push(blockNumber);
+//     });
+//   }
+
+//   addCompletedBlock({
+//     blockNumber,
+//     blockTimestamp,
+//   }: {
+//     blockNumber: number;
+//     blockTimestamp: number;
+//   }) {
+//     if (!this.pendingBlocks.includes(blockNumber)) {
+//       throw new Error(
+//         `Block number ${blockNumber} was not pending. Ensure to add blocks as pending before marking them as completed.`
+//       );
+//     }
+
+//     this.completedBlocks.push({ blockNumber, blockTimestamp });
+//     this.completedBlocks.sort((a, b) => a.blockNumber - b.blockNumber);
+
+//     if (this.completedBlocks[0].blockNumber !== this.pendingBlocks[0]) {
+//       return null;
+//     }
+
+//     let checkpoint: {
+//       blockNumber: number;
+//       blockTimestamp: number;
+//     } | null = null;
+
+//     for (let i = 0; i < this.completedBlocks.length; i++) {
+//       if (this.completedBlocks[i].blockNumber === this.pendingBlocks[i]) {
+//         checkpoint = this.completedBlocks[i];
+//       } else {
+//         break;
+//       }
+//     }
+
+//     return checkpoint;
+//   }
+// }
+
+export class BlockProgressTracker {
+  private pendingBlocks: number[] = [];
+
+  private completedBlocks: {
+    blockNumber: number;
+    blockTimestamp: number;
+  }[] = [];
+
+  addPendingBlocks({ blockNumbers }: { blockNumbers: number[] }): void {
+    if (blockNumbers.length === 0) return;
+
+    const maxPendingBlock = this.pendingBlocks[this.pendingBlocks.length - 1];
+
+    const sorted = blockNumbers.sort((a, b) => a - b);
+    const minNewPendingBlock = sorted[0];
+
+    if (
+      this.pendingBlocks.length > 0 &&
+      minNewPendingBlock <= maxPendingBlock
+    ) {
+      throw new Error(
+        `New pending block number ${minNewPendingBlock} was added out of order. Already added block number ${maxPendingBlock}.`
+      );
+    }
+
+    sorted.forEach((blockNumber) => {
+      this.pendingBlocks.push(blockNumber);
+    });
+  }
+
+  addCompletedBlock({
+    blockNumber,
+    blockTimestamp,
+  }: {
+    blockNumber: number;
+    blockTimestamp: number;
+  }) {
+    // Find and remove the completed block from the pending list.
+    const pendingBlockIndex = this.pendingBlocks.findIndex(
+      (pendingBlock) => pendingBlock === blockNumber
+    );
+    if (pendingBlockIndex === -1) {
+      throw new Error(
+        `Block number ${blockNumber} was not pending. Ensure to add blocks as pending before marking them as completed.`
+      );
+    }
+    this.pendingBlocks.splice(pendingBlockIndex, 1);
+
+    // Add the new completed block to the completed block list, and maintain the sort order.
+    // Note that this could be optimized using a for loop with a break.
+    this.completedBlocks.push({
+      blockNumber,
+      blockTimestamp,
+    });
+    this.completedBlocks.sort((a, b) => a.blockNumber - b.blockNumber);
+
+    // If the pending blocks list is now empty, return the max block present in
+    // the list of completed blocks. This happens at the end of the sync.
+    if (this.pendingBlocks.length === 0) {
+      return this.completedBlocks[this.completedBlocks.length - 1];
+    }
+
+    // Find all completed blocks that are less than the minimum pending block.
+    // These blocks are "safe".
+    const safeCompletedBlocks = this.completedBlocks.filter(
+      ({ blockNumber }) => blockNumber < this.pendingBlocks[0]
+    );
+
+    // If there are no safe blocks, the first pending block has not been completed yet.
+    if (safeCompletedBlocks.length === 0) return null;
+
+    const maximumSafeCompletedBlock =
+      safeCompletedBlocks[safeCompletedBlocks.length - 1];
+
+    // Remove all safe completed blocks that are less than the new checkpoint.
+    // This avoid a memory leak and speeds up subsequent calls.
+    this.completedBlocks = this.completedBlocks.filter(
+      ({ blockNumber }) => blockNumber >= maximumSafeCompletedBlock.blockNumber
+    );
+
+    return maximumSafeCompletedBlock;
+  }
+}
