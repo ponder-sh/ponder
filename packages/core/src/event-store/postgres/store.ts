@@ -252,7 +252,11 @@ export class PostgresEventStore implements EventStore {
         .values({ chainId, address, eventSelector })
         // Note that we need to REPLACE here rather than IGNORE so that the
         // RETURNING clause works as expected (we need the ID of this row).
-        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .onConflict((oc) =>
+          oc
+            .constraint("factoryContractsUnique")
+            .doUpdateSet({ chainId, address, eventSelector })
+        )
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -488,7 +492,11 @@ export class PostgresEventStore implements EventStore {
         .values({ chainId, address, eventSelector })
         // Note that we need to REPLACE here rather than IGNORE so that the
         // RETURNING clause works as expected (we need the ID of this row).
-        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .onConflict((oc) =>
+          oc
+            .constraint("factoryContractsUnique")
+            .doUpdateSet({ chainId, address, eventSelector })
+        )
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -731,7 +739,11 @@ export class PostgresEventStore implements EventStore {
         .values({ chainId, address, eventSelector })
         // Note that we need to REPLACE here rather than IGNORE so that the
         // RETURNING clause works as expected (we need the ID of this row).
-        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .onConflict((oc) =>
+          oc
+            .constraint("factoryContractsUnique")
+            .doUpdateSet({ chainId, address, eventSelector })
+        )
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -815,7 +827,11 @@ export class PostgresEventStore implements EventStore {
         .values({ chainId, address, eventSelector })
         // Note that we need to REPLACE here rather than IGNORE so that the
         // RETURNING clause works as expected (we need the ID of this row).
-        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .onConflict((oc) =>
+          oc
+            .constraint("factoryContractsUnique")
+            .doUpdateSet({ chainId, address, eventSelector })
+        )
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -1079,7 +1095,7 @@ export class PostgresEventStore implements EventStore {
       const { cmpr, or } = where;
       const cmprs = [];
 
-      cmprs.push(cmpr("logFilter_name", "=", logFilter.name));
+      cmprs.push(cmpr("eventSource_name", "=", logFilter.name));
       cmprs.push(
         cmpr(
           "logs.chainId",
@@ -1121,7 +1137,7 @@ export class PostgresEventStore implements EventStore {
           cmpr(
             "blocks.number",
             ">=",
-            sql`cast (${sql.val(intToBlob(logFilter.fromBlock))} as blob)`
+            sql`${sql.val(intToBlob(logFilter.fromBlock))}::bytea`
           )
         );
       }
@@ -1131,7 +1147,7 @@ export class PostgresEventStore implements EventStore {
           cmpr(
             "blocks.number",
             "<=",
-            sql`cast (${sql.val(intToBlob(logFilter.toBlock))} as blob)`
+            sql`${sql.val(intToBlob(logFilter.toBlock))}::bytea`
           )
         );
       }
@@ -1189,7 +1205,7 @@ export class PostgresEventStore implements EventStore {
           cmpr(
             "blocks.number",
             ">=",
-            sql`cast (${sql.val(intToBlob(factoryContract.fromBlock))} as blob)`
+            sql`${sql.val(intToBlob(factoryContract.fromBlock))}::bytea`
           )
         );
       }
@@ -1199,7 +1215,7 @@ export class PostgresEventStore implements EventStore {
           cmpr(
             "blocks.number",
             "<=",
-            sql`cast (${sql.val(intToBlob(factoryContract.toBlock))} as blob)`
+            sql`${sql.val(intToBlob(factoryContract.toBlock))}::bytea`
           )
         );
       }

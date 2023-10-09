@@ -182,7 +182,7 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("logFilters")
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)")
         .addColumn("topic0", "varchar(66)")
@@ -193,7 +193,7 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("logFilterIntervals")
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("logFilterId", "integer", (col) =>
           col.notNull().references("logFilters.id")
         )
@@ -206,7 +206,7 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("factoryContracts")
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)", (col) => col.notNull())
         .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
@@ -219,7 +219,7 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("factoryContractIntervals")
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("factoryContractId", "integer", (col) =>
           col.notNull().references("factoryContracts.id")
         )
@@ -229,7 +229,7 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("childContracts")
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("factoryContractId", "integer", (col) =>
           col.notNull().references("factoryContracts.id")
         )
@@ -239,7 +239,7 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .createTable("childContractIntervals")
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("factoryContractId", "integer", (col) =>
           col.notNull().references("factoryContracts.id")
         )
