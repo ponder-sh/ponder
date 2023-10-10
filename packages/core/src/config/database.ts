@@ -55,7 +55,7 @@ Client.prototype.query = async function query(
   }
 };
 
-export const patchSqliteDatabase = ({ db }: { db: any }) => {
+export const patchSqliteDatabase = ({ db }: { db: Sqlite.Database }) => {
   const oldPrepare = db.prepare;
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore

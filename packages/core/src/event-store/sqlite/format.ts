@@ -177,8 +177,8 @@ type LogFiltersTable = {
 type LogFilterIntervalsTable = {
   id: Generated<number>;
   logFilterId: string;
-  startBlock: bigint;
-  endBlock: bigint;
+  startBlock: Buffer; // BigInt
+  endBlock: Buffer; // BigInt
 };
 
 type FactoryContractsTable = {
@@ -191,22 +191,22 @@ type FactoryContractsTable = {
 type FactoryContractIntervalsTable = {
   id: Generated<number>;
   factoryContractId: number;
-  startBlock: bigint;
-  endBlock: bigint;
+  startBlock: Buffer; // BigInt
+  endBlock: Buffer; // BigInt
 };
 
 type ChildContractsTable = {
   id: Generated<number>;
   factoryContractId: number;
   address: Hex;
-  creationBlock: bigint;
+  creationBlock: Buffer; // BigInt
 };
 
 type ChildContractIntervalsTable = {
   id: Generated<number>;
   factoryContractId: number;
-  startBlock: bigint;
-  endBlock: bigint;
+  startBlock: Buffer; // BigInt
+  endBlock: Buffer; // BigInt
 };
 
 export type EventStoreTables = {

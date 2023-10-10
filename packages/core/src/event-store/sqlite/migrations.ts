@@ -178,11 +178,13 @@ const migrations: Record<string, Migration> = {
   },
   ["2023_09_19_0_new_sync_design"]: {
     async up(db: Kysely<any>) {
+      /** This table is no longer being used. */
       await db.schema.dropTable("logFilterCachedRanges").execute();
 
+      /** Add new log filter and factory contract interval tables. */
       await db.schema
         .createTable("logFilters")
-        .addColumn("id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}`
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)")
         .addColumn("topic0", "varchar(66)")
@@ -191,17 +193,15 @@ const migrations: Record<string, Migration> = {
         .addColumn("topic3", "varchar(66)")
         .addUniqueConstraint("logFiltersUnique", ["id", "chainId"])
         .execute();
-
       await db.schema
         .createTable("logFilterIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("logFilterId", "text", (col) =>
           col.notNull().references("logFilters.id")
         )
-        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("startBlock", "blob", (col) => col.notNull()) // BigInt
+        .addColumn("endBlock", "blob", (col) => col.notNull()) // BigInt
         .execute();
-
       await db.schema
         .createTable("factoryContracts")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
@@ -214,17 +214,15 @@ const migrations: Record<string, Migration> = {
           "eventSelector",
         ])
         .execute();
-
       await db.schema
         .createTable("factoryContractIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("factoryContractId", "integer", (col) =>
           col.notNull().references("factoryContracts.id")
         )
-        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("startBlock", "blob", (col) => col.notNull()) // BigInt
+        .addColumn("endBlock", "blob", (col) => col.notNull()) // BigInt
         .execute();
-
       await db.schema
         .createTable("childContracts")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
@@ -232,17 +230,16 @@ const migrations: Record<string, Migration> = {
           col.notNull().references("factoryContracts.id")
         )
         .addColumn("address", "varchar(66)", (col) => col.notNull())
-        .addColumn("creationBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("creationBlock", "blob", (col) => col.notNull()) // BigInt
         .execute();
-
       await db.schema
         .createTable("childContractIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("factoryContractId", "integer", (col) =>
           col.notNull().references("factoryContracts.id")
         )
-        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
-        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("startBlock", "blob", (col) => col.notNull()) // BigInt
+        .addColumn("endBlock", "blob", (col) => col.notNull()) // BigInt
         .execute();
     },
   },

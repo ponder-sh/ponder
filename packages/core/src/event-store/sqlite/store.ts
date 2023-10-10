@@ -145,16 +145,16 @@ export class SqliteEventStore implements EventStore {
 
           const mergedIntervals = intervalUnion(
             existingIntervals.map((i) => [
-              Number(i.startBlock),
-              Number(i.endBlock),
+              Number(blobToBigInt(i.startBlock)),
+              Number(blobToBigInt(i.endBlock)),
             ])
           );
 
           const mergedIntervalRows = mergedIntervals.map(
             ([startBlock, endBlock]) => ({
               logFilterId,
-              startBlock: BigInt(startBlock),
-              endBlock: BigInt(endBlock),
+              startBlock: intToBlob(startBlock),
+              endBlock: intToBlob(endBlock),
             })
           );
 
@@ -218,7 +218,10 @@ export class SqliteEventStore implements EventStore {
     const intervalsByFragment = intervals.reduce((acc, cur) => {
       const { fragmentIndex, ...rest } = cur;
       acc[fragmentIndex] ||= [];
-      acc[fragmentIndex].push(rest);
+      acc[fragmentIndex].push({
+        startBlock: blobToBigInt(rest.startBlock),
+        endBlock: blobToBigInt(rest.endBlock),
+      });
       return acc;
     }, {} as Record<number, { startBlock: bigint; endBlock: bigint }[]>);
 
@@ -270,7 +273,7 @@ export class SqliteEventStore implements EventStore {
             newChildContracts.map((childContract) => ({
               factoryContractId,
               address: toLowerCase(childContract.address),
-              creationBlock: childContract.creationBlock,
+              creationBlock: intToBlob(childContract.creationBlock),
             }))
           )
           .execute();
@@ -310,14 +313,17 @@ export class SqliteEventStore implements EventStore {
         .execute();
 
       const mergedIntervals = intervalUnion(
-        existingIntervals.map((i) => [Number(i.startBlock), Number(i.endBlock)])
+        existingIntervals.map((i) => [
+          Number(blobToBigInt(i.startBlock)),
+          Number(blobToBigInt(i.endBlock)),
+        ])
       );
 
       const mergedIntervalRows = mergedIntervals.map(
         ([startBlock, endBlock]) => ({
           factoryContractId,
-          startBlock: BigInt(startBlock),
-          endBlock: BigInt(endBlock),
+          startBlock: intToBlob(startBlock),
+          endBlock: intToBlob(endBlock),
         })
       );
 
@@ -354,9 +360,9 @@ export class SqliteEventStore implements EventStore {
       .where("factoryContracts.address", "=", toLowerCase(address))
       .where("factoryContracts.eventSelector", "=", eventSelector)
       .limit(pageSize)
-      .where("childContracts.creationBlock", "<=", upToBlockNumber);
+      .where("childContracts.creationBlock", "<=", intToBlob(upToBlockNumber));
 
-    let cursor: bigint | undefined = undefined;
+    let cursor: Buffer | undefined = undefined;
 
     while (true) {
       let query = baseQuery;
@@ -456,14 +462,17 @@ export class SqliteEventStore implements EventStore {
         .execute();
 
       const mergedIntervals = intervalUnion(
-        existingIntervals.map((i) => [Number(i.startBlock), Number(i.endBlock)])
+        existingIntervals.map((i) => [
+          Number(blobToBigInt(i.startBlock)),
+          Number(blobToBigInt(i.endBlock)),
+        ])
       );
 
       const mergedIntervalRows = mergedIntervals.map(
         ([startBlock, endBlock]) => ({
           factoryContractId,
-          startBlock: BigInt(startBlock),
-          endBlock: BigInt(endBlock),
+          startBlock: intToBlob(startBlock),
+          endBlock: intToBlob(endBlock),
         })
       );
 
@@ -548,7 +557,7 @@ export class SqliteEventStore implements EventStore {
           .values({
             factoryContractId,
             address: toLowerCase(childContract.address),
-            creationBlock: childContract.creationBlock,
+            creationBlock: intToBlob(childContract.creationBlock),
           })
           .execute();
       }
@@ -604,7 +613,7 @@ export class SqliteEventStore implements EventStore {
     fromBlockNumber,
   }: {
     chainId: number;
-    fromBlockNumber: number;
+    fromBlockNumber: bigint;
   }) => {
     await this.db.transaction().execute(async (tx) => {
       await tx
@@ -669,7 +678,11 @@ export class SqliteEventStore implements EventStore {
 
         await tx
           .insertInto("logFilterIntervals")
-          .values({ logFilterId, startBlock, endBlock })
+          .values({
+            logFilterId,
+            startBlock: intToBlob(startBlock),
+            endBlock: intToBlob(endBlock),
+          })
           .execute();
       })
     );
@@ -708,7 +721,11 @@ export class SqliteEventStore implements EventStore {
 
         await tx
           .insertInto("factoryContractIntervals")
-          .values({ factoryContractId, startBlock, endBlock })
+          .values({
+            factoryContractId,
+            startBlock: intToBlob(startBlock),
+            endBlock: intToBlob(endBlock),
+          })
           .execute();
       })
     );
@@ -747,7 +764,11 @@ export class SqliteEventStore implements EventStore {
 
         await tx
           .insertInto("childContractIntervals")
-          .values({ factoryContractId, startBlock, endBlock })
+          .values({
+            factoryContractId,
+            startBlock: intToBlob(startBlock),
+            endBlock: intToBlob(endBlock),
+          })
           .execute();
       })
     );
