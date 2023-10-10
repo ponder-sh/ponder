@@ -178,11 +178,127 @@ const migrations: Record<string, Migration> = {
   },
   ["2023_09_19_0_new_sync_design"]: {
     async up(db: Kysely<any>) {
+      /** This table is no longer being used. */
       await db.schema.dropTable("logFilterCachedRanges").execute();
 
+      /** Drop and re-create all tables to fix bigint encoding. */
+      await db.schema.dropTable("blocks").execute();
+      await db.schema
+        .createTable("blocks")
+        .addColumn("baseFeePerGas", "numeric(78, 0)")
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("difficulty", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("extraData", "text", (col) => col.notNull())
+        .addColumn("gasLimit", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("hash", "text", (col) => col.notNull().primaryKey())
+        .addColumn("logsBloom", "text", (col) => col.notNull())
+        .addColumn("miner", "text", (col) => col.notNull())
+        .addColumn("mixHash", "text", (col) => col.notNull())
+        .addColumn("nonce", "text", (col) => col.notNull())
+        .addColumn("number", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("parentHash", "text", (col) => col.notNull())
+        .addColumn("receiptsRoot", "text", (col) => col.notNull())
+        .addColumn("sha3Uncles", "text", (col) => col.notNull())
+        .addColumn("size", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("stateRoot", "text", (col) => col.notNull())
+        .addColumn("timestamp", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("totalDifficulty", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("transactionsRoot", "text", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("blockTimestampIndex")
+        .on("blocks")
+        .column("timestamp")
+        .execute();
+      await db.schema
+        .createIndex("blockNumberIndex")
+        .on("blocks")
+        .column("number")
+        .execute();
+
+      await db.schema.dropTable("transactions").execute();
+      await db.schema
+        .createTable("transactions")
+        .addColumn("accessList", "text")
+        .addColumn("blockHash", "text", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("from", "text", (col) => col.notNull())
+        .addColumn("gas", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("gasPrice", "numeric(78, 0)")
+        .addColumn("hash", "text", (col) => col.notNull().primaryKey())
+        .addColumn("input", "text", (col) => col.notNull())
+        .addColumn("maxFeePerGas", "numeric(78, 0)")
+        .addColumn("maxPriorityFeePerGas", "numeric(78, 0)")
+        .addColumn("nonce", "integer", (col) => col.notNull())
+        .addColumn("r", "text", (col) => col.notNull())
+        .addColumn("s", "text", (col) => col.notNull())
+        .addColumn("to", "text")
+        .addColumn("transactionIndex", "integer", (col) => col.notNull())
+        .addColumn("type", "text", (col) => col.notNull())
+        .addColumn("value", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("v", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+
+      await db.schema.dropTable("logs").execute();
+      await db.schema
+        .createTable("logs")
+        .addColumn("address", "text", (col) => col.notNull())
+        .addColumn("blockHash", "text", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("data", "text", (col) => col.notNull())
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("logIndex", "integer", (col) => col.notNull())
+        .addColumn("topic0", "text")
+        .addColumn("topic1", "text")
+        .addColumn("topic2", "text")
+        .addColumn("topic3", "text")
+        .addColumn("transactionHash", "text", (col) => col.notNull())
+        .addColumn("transactionIndex", "integer", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("logBlockHashIndex")
+        .on("logs")
+        .column("blockHash")
+        .execute();
+      await db.schema
+        .createIndex("logChainIdIndex")
+        .on("logs")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("logAddressIndex")
+        .on("logs")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("logTopic0Inder")
+        .on("logs")
+        .column("topic0")
+        .execute();
+
+      await db.schema.dropTable("contractReadResults").execute();
+      await db.schema
+        .createTable("contractReadResults")
+        .addColumn("address", "text", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("data", "text", (col) => col.notNull())
+        .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("contractReadResultPrimaryKey", [
+          "chainId",
+          "blockNumber",
+          "address",
+          "data",
+        ])
+        .execute();
+
+      /** Add new log filter and factory contract interval tables. */
       await db.schema
         .createTable("logFilters")
-        .addColumn("id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}`
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)")
         .addColumn("topic0", "varchar(66)")
@@ -191,7 +307,6 @@ const migrations: Record<string, Migration> = {
         .addColumn("topic3", "varchar(66)")
         .addUniqueConstraint("logFiltersUnique", ["id", "chainId"])
         .execute();
-
       await db.schema
         .createTable("logFilterIntervals")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
@@ -201,7 +316,6 @@ const migrations: Record<string, Migration> = {
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
         .execute();
-
       await db.schema
         .createTable("factoryContracts")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
@@ -214,7 +328,6 @@ const migrations: Record<string, Migration> = {
           "eventSelector",
         ])
         .execute();
-
       await db.schema
         .createTable("factoryContractIntervals")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
@@ -224,7 +337,6 @@ const migrations: Record<string, Migration> = {
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
         .execute();
-
       await db.schema
         .createTable("childContracts")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
@@ -234,7 +346,6 @@ const migrations: Record<string, Migration> = {
         .addColumn("address", "varchar(66)", (col) => col.notNull())
         .addColumn("creationBlock", "numeric(78, 0)", (col) => col.notNull())
         .execute();
-
       await db.schema
         .createTable("childContractIntervals")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment

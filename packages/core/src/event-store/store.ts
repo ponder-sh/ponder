@@ -5,17 +5,6 @@ import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
 
-/**
- * A record representing a call to a contract made at a specific block height.
- */
-export type ContractReadResult = {
-  address: string;
-  blockNumber: bigint;
-  chainId: number;
-  data: Hex;
-  result: Hex;
-};
-
 export interface EventStore {
   kind: "sqlite" | "postgres";
   db: Kysely<any>;
@@ -190,7 +179,7 @@ export interface EventStore {
    */
   deleteRealtimeData(options: {
     chainId: number;
-    fromBlockNumber: number;
+    fromBlockNumber: bigint;
   }): Promise<void>;
 
   /** CONTRACT READ METHODS */
@@ -208,7 +197,13 @@ export interface EventStore {
     blockNumber: bigint;
     chainId: number;
     data: Hex;
-  }): Promise<ContractReadResult | null>;
+  }): Promise<{
+    address: string;
+    blockNumber: bigint;
+    chainId: number;
+    data: Hex;
+    result: Hex;
+  } | null>;
 
   /** EVENTS METHOD */
 
