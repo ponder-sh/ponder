@@ -26,6 +26,11 @@ export const buildEntityType = ({
       Object.entries(entity.columns).forEach(([columnName, column]) => {
         if (column.references) {
           // Column is a reference to another table
+
+          const referencedEntityName = (column.references as string).split(
+            "."
+          )[0];
+
           const resolver: GraphQLFieldResolver<Source, Context> = async (
             parent,
             _args,
@@ -41,13 +46,13 @@ export const buildEntityType = ({
             const relatedInstanceId = parent[columnName];
 
             return await store.findUnique({
-              modelName: (column.references as string).split(".")[0],
+              modelName: referencedEntityName,
               id: relatedInstanceId,
             });
           };
 
           fieldConfigMap[columnName] = {
-            type: entityGqlTypes[(column.references as string).split(".")[0]],
+            type: entityGqlTypes[referencedEntityName],
             resolve: resolver,
           };
         } else if (column.list) {
