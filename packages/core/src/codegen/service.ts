@@ -1,4 +1,5 @@
 import Emittery from "emittery";
+import { GraphQLSchema, printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -82,6 +83,28 @@ export class CodegenService extends Emittery {
     this.common.logger.debug({
       service: "codegen",
       msg: `Wrote new file at generated/index.ts`,
+    });
+  }
+
+  generateGraphqlSchemaFile({
+    graphqlSchema,
+  }: {
+    graphqlSchema: GraphQLSchema;
+  }) {
+    const final = formatPrettier(printSchema(graphqlSchema), {
+      parser: "graphql",
+    });
+
+    const filePath = path.join(
+      this.common.options.generatedDir,
+      "schema.graphql"
+    );
+    ensureDirExists(filePath);
+    writeFileSync(filePath, final, "utf8");
+
+    this.common.logger.debug({
+      service: "codegen",
+      msg: `Wrote new file at generated/schema.graphql`,
     });
   }
 }

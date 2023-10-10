@@ -287,9 +287,9 @@ export class Ponder {
 
     const result = await this.buildService.buildSchema();
     if (result) {
-      const { schema } = result;
+      const { schema, graphqlSchema } = result;
       this.codegenService.generateAppFile({ schema });
-      // this.codegenService.generateSchemaFile({ graphqlSchema });
+      this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
     }
 
     await this.kill();
@@ -338,6 +338,7 @@ export class Ponder {
 
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
       this.codegenService.generateAppFile({ schema });
+      this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
 
       this.serverService.reload({ graphqlSchema });
 

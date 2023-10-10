@@ -132,7 +132,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       });
       const graphqlSchema = buildGqlSchema(schema);
       this.emit("newSchema", { schema, graphqlSchema });
-      return { schema };
+      return { schema, graphqlSchema };
     } catch (error_) {
       const error = error_ as Error;
 
@@ -141,7 +141,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
       // TODO: Build the UserError object within readHandlers, check instanceof,
       // then log/submit as-is if it's already a UserError.
-      const message = `Error while building schema.ponder.ts: ${error.message}`;
+      const message = `Error while building ponder.schema.ts: ${error.message}`;
       const userError = new UserError(message, {
         stack: error.stack,
       });
