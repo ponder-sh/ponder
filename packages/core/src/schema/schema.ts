@@ -4,84 +4,68 @@ export const referencedEntityName = (references: unknown) =>
   (references as string).split(".")[0];
 
 const _addColumn = <
-  TTables extends readonly Table[],
-  TTable extends Table,
+  TColumns extends Record<string, Column>,
   TName extends string,
   TType extends Scalar,
-  TReferneces extends "id" extends TName
-    ? never
-    : `${(TTables & Table[])[number]["name"] & string}.id`,
-  TOptional extends "id" extends TName ? false : boolean = false,
-  TList extends "id" extends TName ? false : boolean = false
+  TReferences extends `${string}.id` | never = never,
+  TOptional extends boolean = false,
+  TList extends boolean = false
 >(
-  table: TTable,
+  columns: TColumns,
   name: TName,
   type: TType,
   modifiers?: {
-    references?: TReferneces;
+    references?: TReferences;
     optional?: TOptional;
     list?: TList;
   }
 ) =>
   ({
-    ...table,
-    columns: {
-      ...(table.columns as object),
-      [name]: {
-        type,
-        references: modifiers?.references ?? undefined,
-        optional: modifiers?.optional ?? false,
-        list: modifiers?.list ?? false,
-      },
+    ...columns,
+    [name]: {
+      type,
+      references: modifiers?.references ?? undefined,
+      optional: modifiers?.optional ?? false,
+      list: modifiers?.list ?? false,
     },
   } as Table<
-    TTable["name"],
-    TTable["columns"] &
-      Record<TName, Column<TTables, TType, TReferneces, TOptional, TList>>
+    TColumns & Record<TName, Column<TType, TReferences, TOptional, TList>>
   >);
 
 const addColumn = <
-  TTables extends readonly Table[],
-  TTable extends Table,
+  TColumns extends Record<string, Column>,
   TName extends string,
   TType extends Scalar,
-  TReferneces extends "id" extends TName
-    ? never
-    : `${(TTables & Table[])[number]["name"] & string}.id`,
-  TOptional extends "id" extends TName ? false : boolean = false,
-  TList extends "id" extends TName ? false : boolean = false
+  TReferences extends `${string}.id` | never = never,
+  TOptional extends boolean = false,
+  TList extends boolean = false
 >(
-  table: TTable,
+  columns: TColumns,
   name: TName,
   type: TType,
   modifiers?: {
-    references?: TReferneces;
+    references?: TReferences;
     optional?: TOptional;
     list?: TList;
   }
 ): IT<
-  TTable["name"],
-  TTable["columns"] &
-    Record<TName, Column<TTables, TType, TReferneces, TOptional, TList>>
+  TColumns & Record<TName, Column<TType, TReferences, TOptional, TList>>
 > => {
-  const newTable = _addColumn(table, name, type, modifiers);
+  const newTable = _addColumn(columns, name, type, modifiers);
 
   return {
     table: newTable,
     addColumn: <
-      TTables extends readonly Table[],
       TName extends string,
       TType extends Scalar,
-      TReferneces extends "id" extends TName
-        ? never
-        : `${(TTables & Table[])[number]["name"] & string}.id`,
-      TOptional extends "id" extends TName ? false : boolean = false,
-      TList extends "id" extends TName ? false : boolean = false
+      TReferences extends `${string}.id` | never = never,
+      TOptional extends boolean = false,
+      TList extends boolean = false
     >(
       name: TName,
       type: TType,
       modifiers?: {
-        references?: TReferneces;
+        references?: TReferences;
         optional?: TOptional;
         list?: TList;
       }
@@ -89,99 +73,74 @@ const addColumn = <
   };
 };
 
-export const createTable = <TTableName extends string>(
-  name: TTableName
-): IT<TTableName, {}> => {
-  const table = { name, columns: {} } as const;
-
-  return {
-    table,
-    addColumn: <
-      TTables extends readonly Table[],
-      TName extends string,
-      TType extends Scalar,
-      TReferneces extends "id" extends TName
-        ? never
-        : `${(TTables & Table[])[number]["name"] & string}.id`,
-      TOptional extends "id" extends TName ? false : boolean = false,
-      TList extends "id" extends TName ? false : boolean = false
-    >(
-      name: TName,
-      type: TType,
-      modifiers?: {
-        references?: TReferneces;
-        optional?: TOptional;
-        list?: TList;
-      }
-    ): IT<
-      TTableName,
-      Record<TName, Column<TTables, TType, TReferneces, TOptional, TList>>
-    > => addColumn(table, name, type, modifiers),
-  };
-};
+export const createColumn = <TType extends ID>(name: "id", type: TType) =>
+  addColumn({}, name, type);
 
 /**
  * Type inference and runtime validation
  */
-export const createSchema = <
-  TSchema extends readonly IT<
-    string,
-    { id: Column<Table[], ID, never, false, false> } & Record<
-      string,
-      Column<Table[], Scalar, unknown, boolean, boolean>
-    >
-  >[]
->(
-  schema: TSchema
-): {
-  entities: { [key in keyof TSchema]: TSchema[key]["table"] };
-} => {
-  const tables = schema.map((it) => it.table);
+export const createSchema = <TSchema extends Record<string, IT>>(schema: {
+  [key in keyof TSchema]: TSchema[key]["table"] extends Table<{
+    [columnName in keyof TSchema[key]["table"]]: Column<
+      TSchema[key]["table"][columnName]["type"],
+      TSchema[key]["table"][columnName]["references"] extends never
+        ? never
+        : `${keyof TSchema & string}.id`,
+      TSchema[key]["table"][columnName]["optional"],
+      TSchema[key]["table"][columnName]["list"]
+    >;
+  }>
+    ? TSchema[key]
+    : never;
+}): { [key in keyof TSchema]: TSchema[key]["table"] } => {
+  Object.entries(schema as TSchema).forEach(([tableName, table]) => {
+    verifyKey(tableName);
 
-  tables.forEach((t) => {
-    verifyKey(t.name);
-
-    if (t.columns.id === undefined)
+    if (table.table.id === undefined)
       throw Error('Table doesn\'t contain an "id" field');
     if (
-      t.columns.id.type !== "bigint" &&
-      t.columns.id.type !== "string" &&
-      t.columns.id.type !== "bytes" &&
-      t.columns.id.type !== "int"
+      table.table.id.type !== "bigint" &&
+      table.table.id.type !== "string" &&
+      table.table.id.type !== "bytes" &&
+      table.table.id.type !== "int"
     )
       throw Error('"id" is not of the correct type');
     // NOTE: This is a to make sure the user didn't override the optional type
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    if (t.columns.id.optional === true) throw Error('"id" cannot be optional');
+    if (table.table.id.optional === true)
+      throw Error('"id" cannot be optional');
     // NOTE: This is a to make sure the user didn't override the list type
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    if (t.columns.id.list === true) throw Error('"id" cannot be a list');
+    if (table.table.id.list === true) throw Error('"id" cannot be a list');
     // NOTE: This is a to make sure the user didn't override the reference type
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    if (t.columns.id.references) throw Error('"id" cannot be a reference');
+    if (table.table.id.references) throw Error('"id" cannot be a reference');
 
-    Object.entries(t.columns).forEach(([columnName, column]) => {
+    Object.entries(table.table).forEach(([columnName, column]) => {
       if (columnName === "id") return;
 
       verifyKey(columnName);
 
       if (column.references) {
         if (
-          tables
-            .filter((_t) => _t.name !== t.name)
-            .every((_t) => `${_t.name}.id` !== column.references)
+          Object.keys(schema)
+            .filter((name) => name !== tableName)
+            .every((name) => `${name}.id` !== column.references)
         )
           throw Error("Column doesn't reference a valid table");
 
-        if (
-          tables.find(
-            (_t) => _t.name === referencedEntityName(column.references)
-          )!.columns.id.type !== column.type
-        )
-          throw Error("Column type doesn't match the referred table id type");
+        // TODO:Kyle Allow for multiple references in the same table
+        const referencingTables = Object.entries(schema as TSchema).filter(
+          ([name]) => name === referencedEntityName(column.references)
+        );
+
+        for (const [, referencingTable] of referencingTables) {
+          if (referencingTable.table.id.type !== column.type)
+            throw Error("Column type doesn't match the referred table id type");
+        }
 
         if (column.list)
           throw Error("Columns can't be both refernce and list types");
@@ -197,11 +156,13 @@ export const createSchema = <
     });
   });
 
-  return { entities: tables } as {
-    entities: {
-      [key in keyof TSchema]: TSchema[key]["table"];
-    };
-  };
+  return Object.entries(schema as TSchema).reduce(
+    (acc: Record<string, Table>, [tableName, table]) => ({
+      ...acc,
+      [tableName]: table.table,
+    }),
+    {}
+  ) as { [key in keyof TSchema]: TSchema[key]["table"] };
 };
 
 const verifyKey = (key: string) => {

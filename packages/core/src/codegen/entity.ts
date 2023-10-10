@@ -1,4 +1,4 @@
-import { Entity, Scalar } from "@/schema/types";
+import { Scalar, Schema } from "@/schema/types";
 
 const scalarToTsType: Record<Scalar, string> = {
   string: "string",
@@ -9,17 +9,13 @@ const scalarToTsType: Record<Scalar, string> = {
   bytes: "0x{string}",
 };
 
-export const buildEntityTypes = (entities: readonly Entity[]) => {
+export const buildEntityTypes = (schema: Schema) => {
   // TODO:Kyle use recovered types inferred from the entity
-  // const entityModelTypes = entities
-  // .map((entity, i) => {
-  //   return `export type ${entity.name} = RecoverTableType<((typeof schema)[${i}][${entity.name}])["table"]>`;
-  // })
-  // .join("");
-  const entityModelTypes = entities
-    .map((entity) => {
-      return `export type ${entity.name} = {
-        ${Object.entries(entity.columns)
+
+  const entityModelTypes = Object.entries(schema)
+    .map(([tableName, table]) => {
+      return `export type ${tableName} = {
+        ${Object.entries(table)
           .map(([columnName, column]) => {
             const scalar = scalarToTsType[column.type];
 

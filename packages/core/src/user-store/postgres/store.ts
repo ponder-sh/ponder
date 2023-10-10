@@ -76,9 +76,9 @@ export class PostgresUserStore implements UserStore {
       // Drop tables from existing schema.
       if (this.schema) {
         await Promise.all(
-          this.schema.entities.map((model) => {
-            const tableName = `${model.name}_${this.versionId}`;
-            tx.schema.dropTable(tableName);
+          Object.keys(this.schema).map((tableName) => {
+            const dbTableName = `${tableName}_${this.versionId}`;
+            tx.schema.dropTable(dbTableName);
           })
         );
       }
@@ -89,10 +89,10 @@ export class PostgresUserStore implements UserStore {
 
       // Create tables for new schema.
       await Promise.all(
-        this.schema!.entities.map(async (model) => {
-          const tableName = `${model.name}_${this.versionId}`;
-          let tableBuilder = tx.schema.createTable(tableName);
-          Object.entries(model.columns).forEach(([columnName, column]) => {
+        Object.entries(this.schema!).map(async ([tableName, table]) => {
+          const dbTableName = `${tableName}_${this.versionId}`;
+          let tableBuilder = tx.schema.createTable(dbTableName);
+          Object.entries(table).forEach(([columnName, column]) => {
             // Handle scalar list columns
             if (column.list) {
               tableBuilder = tableBuilder.addColumn(
@@ -128,7 +128,7 @@ export class PostgresUserStore implements UserStore {
             (col) => col.notNull()
           );
           tableBuilder = tableBuilder.addPrimaryKeyConstraint(
-            `${tableName}_id_effectiveTo_unique`,
+            `${dbTableName}_id_effectiveTo_unique`,
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore
             ["id", "effectiveTo"]
@@ -149,9 +149,9 @@ export class PostgresUserStore implements UserStore {
     // Drop tables from existing schema.
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        this.schema!.entities.map((model) => {
-          const tableName = `${model.name}_${this.versionId}`;
-          tx.schema.dropTable(tableName);
+        Object.keys(this.schema!).map((tableName) => {
+          const dbTableName = `${tableName}_${this.versionId}`;
+          tx.schema.dropTable(dbTableName);
         })
       );
     });
@@ -624,20 +624,18 @@ export class PostgresUserStore implements UserStore {
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        (this.schema?.entities ?? []).map(async (entity) => {
-          const modelName = entity.name;
-          const tableName = `${modelName}_${this.versionId}`;
-
+        Object.keys(this.schema ?? {}).map(async (tableName) => {
+          const dbTableName = `${tableName}_${this.versionId}`;
           // Delete any versions that are newer than the safe timestamp.
           await tx
-            .deleteFrom(tableName)
+            .deleteFrom(dbTableName)
             .where("effectiveFrom", ">", safeTimestamp)
             .execute();
 
           // Now, any versions that have effectiveTo greater than or equal
           // to the safe timestamp are the new latest version.
           await tx
-            .updateTable(tableName)
+            .updateTable(dbTableName)
             .where("effectiveTo", ">=", safeTimestamp)
             .set({ effectiveTo: MAX_INTEGER })
             .execute();
@@ -653,11 +651,12 @@ export class PostgresUserStore implements UserStore {
     modelName: string;
     instance: Record<string, unknown>;
   }) => {
-    const entity = this.schema!.entities.find((e) => e.name === modelName)!;
-
+    const entity = Object.entries(this.schema!).find(
+      ([name]) => name === modelName
+    )![1];
     const deserializedInstance = {} as ModelInstance;
 
-    Object.entries(entity.columns).forEach(([columnName, column]) => {
+    Object.entries(entity).forEach(([columnName, column]) => {
       const value = instance[columnName] as string | number | null | undefined;
 
       if (value === null || value === undefined) {

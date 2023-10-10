@@ -3,7 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
 import type { Common } from "@/Ponder";
-import { createSchema, createTable } from "@/schema/schema";
+import { createColumn, createSchema } from "@/schema/schema";
 import type { UserStore } from "@/user-store/store";
 import { range } from "@/utils/range";
 
@@ -12,9 +12,8 @@ import { ServerService } from "./service";
 
 beforeEach((context) => setupUserStore(context));
 
-const schema = createSchema([
-  createTable("TestEntity")
-    .addColumn("id", "string")
+const schema = createSchema({
+  TestEntity: createColumn("id", "string")
     .addColumn("string", "string")
     .addColumn("int", "int")
     .addColumn("float", "float")
@@ -26,11 +25,13 @@ const schema = createSchema([
     .addColumn("floatList", "float", { list: true })
     .addColumn("booleanList", "boolean", { list: true })
     .addColumn("bytesList", "bytes", { list: true }),
-  createTable("EntityWithIntId").addColumn("id", "int"),
-  createTable("EntityWithBigIntId")
-    .addColumn("id", "bigint")
-    .addColumn("testEntity", "string", { references: "TestEntity.id" }),
-]);
+  EntityWithIntId: createColumn("id", "int"),
+  EntityWithBigIntId: createColumn("id", "bigint").addColumn(
+    "testEntity",
+    "string",
+    { references: "TestEntity.id" }
+  ),
+});
 
 const graphqlSchema = buildGqlSchema(schema);
 

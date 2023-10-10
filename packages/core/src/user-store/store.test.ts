@@ -1,18 +1,17 @@
 import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
-import { createSchema, createTable } from "@/schema/schema";
+import { createColumn, createSchema } from "@/schema/schema";
 
 beforeEach((context) => setupUserStore(context));
 
-const schema = createSchema([
-  createTable("Pet")
-    .addColumn("id", "string")
+const schema = createSchema({
+  Pet: createColumn("id", "string")
     .addColumn("name", "string")
     .addColumn("age", "int", { optional: true })
     .addColumn("bigAge", "bigint", { optional: true }),
-  createTable("Person").addColumn("id", "string").addColumn("name", "string"),
-]);
+  Person: createColumn("id", "string").addColumn("name", "string"),
+});
 
 test("reload() binds the schema", async (context) => {
   const { userStore } = context;

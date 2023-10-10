@@ -12,7 +12,7 @@ import {
 import type { Scalar, Schema } from "@/schema/types";
 import type { UserStore } from "@/user-store/store";
 
-import { buildEntityType } from "./entity";
+import { buildEntityTypes } from "./entity";
 import { buildPluralField } from "./plural";
 import { buildSingularField } from "./singular";
 
@@ -46,30 +46,29 @@ export type Context = { store: UserStore };
 export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Source, Context>> = {};
 
-  const entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
-
   // First build the entity types. These have resolvers defined for any
   // relationship or derived fields. This is also important for the thunk nonsense.
-  for (const entity of schema.entities) {
-    entityGqlTypes[entity.name] = buildEntityType({
-      entity,
-      entities: schema.entities,
-      entityGqlTypes,
-    });
-  }
+  const entityGqlTypes = buildEntityTypes({
+    schema,
+  });
 
-  for (const entity of schema.entities) {
-    const entityGqlType = entityGqlTypes[entity.name];
+  for (const [tableName, table] of Object.entries(schema)) {
+    const entityGqlType = entityGqlTypes[tableName];
 
     const singularFieldName =
-      entity.name.charAt(0).toLowerCase() + entity.name.slice(1);
+      tableName.charAt(0).toLowerCase() + tableName.slice(1);
     queryFields[singularFieldName] = buildSingularField({
-      entity,
+      tableName,
+      table,
       entityGqlType,
     });
 
     const pluralFieldName = singularFieldName + "s";
-    queryFields[pluralFieldName] = buildPluralField({ entity, entityGqlType });
+    queryFields[pluralFieldName] = buildPluralField({
+      table,
+      tableName,
+      entityGqlType,
+    });
   }
 
   const queryType = new GraphQLObjectType({

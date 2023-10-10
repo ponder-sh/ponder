@@ -56,8 +56,8 @@ export class SqliteUserStore implements UserStore {
       // Drop tables from existing schema.
       if (this.schema) {
         await Promise.all(
-          this.schema.entities.map((model) => {
-            const tableName = `${model.name}_${this.versionId}`;
+          Object.keys(this.schema).map((modelName) => {
+            const tableName = `${modelName}_${this.versionId}`;
             tx.schema.dropTable(tableName);
           })
         );
@@ -69,10 +69,10 @@ export class SqliteUserStore implements UserStore {
 
       // Create tables for new schema.
       await Promise.all(
-        this.schema!.entities.map(async (model) => {
-          const tableName = `${model.name}_${this.versionId}`;
+        Object.entries(this.schema!).map(async ([modelName, model]) => {
+          const tableName = `${modelName}_${this.versionId}`;
           let tableBuilder = tx.schema.createTable(tableName);
-          Object.entries(model.columns).forEach(([columnName, column]) => {
+          Object.entries(model).forEach(([columnName, column]) => {
             if (column.list) {
               // Handle scalar list columns
               tableBuilder = tableBuilder.addColumn(
@@ -129,8 +129,8 @@ export class SqliteUserStore implements UserStore {
     // Drop tables from existing schema.
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        this.schema!.entities.map((model) => {
-          const tableName = `${model.name}_${this.versionId}`;
+        Object.keys(this.schema!).map((modelName) => {
+          const tableName = `${modelName}_${this.versionId}`;
           tx.schema.dropTable(tableName);
         })
       );
@@ -599,8 +599,7 @@ export class SqliteUserStore implements UserStore {
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        (this.schema?.entities ?? []).map(async (entity) => {
-          const modelName = entity.name;
+        Object.keys(this.schema ?? {}).map(async (modelName) => {
           const tableName = `${modelName}_${this.versionId}`;
 
           // Delete any versions that are newer than the safe timestamp.
@@ -628,11 +627,13 @@ export class SqliteUserStore implements UserStore {
     modelName: string;
     instance: Record<string, unknown>;
   }) => {
-    const entity = this.schema!.entities.find((e) => e.name === modelName)!;
+    const entity = Object.entries(this.schema!).find(
+      ([name]) => name === modelName
+    )![1];
 
     const deserializedInstance = {} as ModelInstance;
 
-    Object.entries(entity.columns).forEach(([columnName, column]) => {
+    Object.entries(entity).forEach(([columnName, column]) => {
       const value = instance[columnName] as string | number | null | undefined;
 
       if (value === null || value === undefined) {

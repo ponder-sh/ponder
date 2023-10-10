@@ -14,8 +14,8 @@ export function buildModels({
   schema: Schema;
   getCurrentEventTimestamp: () => number;
 }) {
-  return schema.entities.reduce<Record<string, Model<ModelInstance>>>(
-    (acc, { name: modelName }) => {
+  return Object.keys(schema).reduce<Record<string, Model<ModelInstance>>>(
+    (acc, modelName) => {
       acc[modelName] = {
         findUnique: ({ id }) => {
           common.logger.trace({

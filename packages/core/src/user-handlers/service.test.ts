@@ -8,7 +8,7 @@ import { encodeLogFilterKey } from "@/config/logFilterKey";
 import type { LogEventMetadata } from "@/config/logFilters";
 import { EventAggregatorService } from "@/event-aggregator/service";
 
-import { createSchema, createTable } from "..";
+import { createColumn, createSchema } from "..";
 import { EventHandlerService } from "./service";
 
 beforeEach((context) => setupEventStore(context));
@@ -45,11 +45,9 @@ const logFilters = [
 
 const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
 
-const schema = createSchema([
-  createTable("TransferEvent")
-    .addColumn("id", "string")
-    .addColumn("timestamp", "int"),
-]);
+const schema = createSchema({
+  TransferEvent: createColumn("id", "string").addColumn("timestamp", "int"),
+});
 
 const transferHandler = vi.fn(async ({ event, context }) => {
   await context.entities.TransferEvent.create({

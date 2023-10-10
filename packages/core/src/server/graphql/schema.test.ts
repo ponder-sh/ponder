@@ -1,16 +1,15 @@
 import { type GraphQLType } from "graphql";
 import { expect, test } from "vitest";
 
-import { createSchema, createTable } from "@/schema/schema";
+import { createColumn, createSchema } from "@/schema/schema";
 
 import { buildGqlSchema } from "./schema";
 
 test("filter type has correct suffixes and types", () => {
-  const schema = createSchema([
-    createTable("RelatedEntityStringId").addColumn("id", "string"),
-    createTable("RelatedEntityBigIntId").addColumn("id", "bigint"),
-    createTable("Entity")
-      .addColumn("id", "string")
+  const schema = createSchema({
+    RelatedEntityStringId: createColumn("id", "string"),
+    RelatedEntityBigIntId: createColumn("id", "bigint"),
+    Entity: createColumn("id", "string")
       .addColumn("int", "int")
       .addColumn("float", "float")
       .addColumn("bool", "boolean")
@@ -24,7 +23,7 @@ test("filter type has correct suffixes and types", () => {
       .addColumn("relatedEntityBigIntId", "bigint", {
         references: "RelatedEntityBigIntId.id",
       }),
-  ]);
+  });
 
   const serverSchema = buildGqlSchema(schema);
 

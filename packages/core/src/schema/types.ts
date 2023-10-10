@@ -15,82 +15,54 @@ export type ID = "string" | "int" | "bytes" | "bigint";
  * SQL Schema types
  */
 export type Column<
-  TTables extends readonly Table[] | unknown = unknown,
   TType extends Scalar | unknown = unknown,
-  TReferneces extends
-    | (TTables extends Table[]
-        ? `${(TTables & Table[])[number]["name"] & string}.id`
-        : never)
-    | never
-    | unknown = unknown,
+  TReferences extends `${string}.id` | never | unknown = unknown,
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown
 > = {
   type: TType;
-  references: TReferneces;
+  references: TReferences;
   optional: TOptional;
   list: TList;
 };
 
 export type Table<
-  TName extends string | unknown = unknown,
-  TColumns extends
-    | ({ id: Column<Table[], ID, never, false, false> } & Record<
-        string,
-        Column
-      >)
-    | unknown = unknown
+  TColumns extends Record<string, Column> = Record<string, Column>
 > = {
-  name: TName;
-  columns: TColumns;
-};
+  id: Column<ID, never, false, false>;
+} & TColumns;
 
-export type Entity = {
-  name: string;
-  columns: { id: Column<Table[], ID, never, false, false> } & Record<
+export type Schema = Record<
+  string,
+  { id: Column<ID, never, false, false> } & Record<
     string,
-    Column<Table[], Scalar, unknown, boolean, boolean>
-  >;
-};
-
-export type Schema = {
-  entities: readonly Entity[];
-};
+    Column<Scalar, unknown, boolean, boolean>
+  >
+>;
 
 /**
  * Intermediate Type
  *
- * Type returned from createTable() or .addColumn() and accepted by createSchema()
+ * Type returned from createColumn() or .addColumn()
  *
- * Is there something to name table so that it doesn't show up in intellisense
+ * TODO:Kyle Is there something to name table so that it doesn't show up in intellisense
  */
 export type IT<
-  TTableName extends string | unknown = unknown,
-  TColumns extends
-    | ({ id: Column<Table[], ID, never, false, false> } & Record<
-        string,
-        Column
-      >)
-    | unknown = unknown
+  TColumns extends Record<string, Column> = Record<string, Column>
 > = {
-  table: Table<TTableName, TColumns>;
+  table: Table<TColumns>;
   addColumn: <
-    TTables extends readonly Table[],
     TName extends string,
     TType extends Scalar,
-    TReferneces extends "id" extends TName
-      ? never
-      : `${(TTables & Table[])[number]["name"] & string}.id`,
-    TOptional extends "id" extends TName ? false : boolean = false,
-    TList extends "id" extends TName ? false : boolean = false
+    TReferences extends `${string}.id` | never = never,
+    TOptional extends boolean = false,
+    TList extends boolean = false
   >(
     name: TName,
     type: TType,
-    modifiers?: { references?: TReferneces; optional?: TOptional; list?: TList }
+    modifiers?: { references?: TReferences; optional?: TOptional; list?: TList }
   ) => IT<
-    TTableName,
-    TColumns &
-      Record<TName, Column<TTables, TType, TReferneces, TOptional, TList>>
+    TColumns & Record<TName, Column<TType, TReferences, TOptional, TList>>
   >;
 };
 
@@ -139,15 +111,11 @@ export type RecoverRequiredColumns<TColumns extends Record<string, Column>> =
     }[keyof TColumns]
   >;
 
-export type RecoverTableType<TTable extends Table> = TTable extends {
-  name: infer _name extends string;
-  columns: infer _columns extends {
-    id: Column<Table[], ID, never, false, false>;
-  } & Record<string, Column>;
-}
-  ? Record<
-      _name,
-      Prettify<
+export type RecoverTableType<TTable extends Table> =
+  TTable extends infer _columns extends {
+    id: Column<ID, never, false, false>;
+  } & Record<string, Column>
+    ? Prettify<
         Record<"id", RecoverScalarType<_columns["id"]["type"]>> & {
           [key in keyof RecoverRequiredColumns<_columns>]: RecoverColumnType<
             _columns[key]
@@ -158,5 +126,4 @@ export type RecoverTableType<TTable extends Table> = TTable extends {
           >;
         }
       >
-    >
-  : never;
+    : never;

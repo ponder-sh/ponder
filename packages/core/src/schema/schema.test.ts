@@ -1,6 +1,6 @@
 import { test } from "vitest";
 
-import { createSchema, createTable } from "./schema";
+import { createColumn, createSchema } from "./schema";
 
 // This may be in a museum one day
 // We like this one!!
@@ -19,17 +19,39 @@ import { createSchema, createTable } from "./schema";
 //     .addColumn("shareId", "string", { references: "share.id" }),
 // ]);
 
+// const schema = createSchema({
+//   share: createColumn("id", "string")
+//     .addColumn("name", "string")
+//     .addColumn("usernames", "string", { optional: true, list: true }),
+//   account: createColumn("id", "string")
+//     .addColumn("name", "string")
+//     .addColumn("shareId", "string", { references: "share.id" }),
+// });
+
+// const schema = createSchema({
+//   share: [
+//     createColumn("id", "string"),
+//     createColumn("name", "string"),
+//     createColumn("usernames", "string", { optional: true, list: true }),
+//   ],
+//   account: [
+//     createColumn("id", "string"),
+//     createColumn("name", "string"),
+//     createColumn("shareId", "string", { references: "share.id" }),
+//   ],
+// });
+
 test("create schema", () => {
-  createSchema([
-    createTable("name").addColumn("id", "bigint").addColumn("age", "int"),
-  ]);
+  createSchema({
+    name: createColumn("id", "bigint").addColumn("age", "boolean"),
+  });
 });
 
 test("references", () => {
-  createSchema([
-    createTable("Person").addColumn("id", "string").addColumn("age", "int"),
-    createTable("Dog")
-      .addColumn("id", "string")
-      .addColumn("owner", "string", { references: "Person.id" }),
-  ]);
+  createSchema({
+    Person: createColumn("id", "string").addColumn("age", "int"),
+    Dog: createColumn("id", "string").addColumn("owner", "string", {
+      references: "Person.id",
+    }),
+  });
 });

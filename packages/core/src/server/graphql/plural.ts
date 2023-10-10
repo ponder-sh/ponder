@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from "graphql";
 
-import type { Entity } from "@/schema/types";
+import type { Schema } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
 import { tsTypeToGqlScalar } from "./schema";
@@ -46,15 +46,17 @@ const operators = {
 };
 
 export const buildPluralField = ({
-  entity,
+  tableName,
+  table,
   entityGqlType,
 }: {
-  entity: Entity;
+  tableName: string;
+  table: Schema[string];
   entityGqlType: GraphQLObjectType<Source, Context>;
 }): GraphQLFieldConfig<Source, Context> => {
   const filterFields: Record<string, { type: GraphQLInputType }> = {};
 
-  Object.entries(entity.columns).forEach(([columnName, column]) => {
+  Object.entries(table).forEach(([columnName, column]) => {
     if (column.list) {
       // List fields => universal, plural
       operators.universal.forEach((suffix) => {
@@ -102,7 +104,7 @@ export const buildPluralField = ({
   });
 
   const filterType = new GraphQLInputObjectType({
-    name: `${entity.name}Filter`,
+    name: `${tableName}Filter`,
     fields: filterFields,
   });
 
@@ -112,7 +114,7 @@ export const buildPluralField = ({
     const { timestamp, where, skip, first, orderBy, orderDirection } = args;
 
     return await store.findMany({
-      modelName: entity.name,
+      modelName: tableName,
       timestamp: timestamp ? timestamp : undefined,
       where: where ? buildWhereObject({ where }) : undefined,
       skip: skip,
