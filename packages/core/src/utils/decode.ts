@@ -9,7 +9,9 @@ const EVM_MAX_UINT =
  * @param value Integer to be encoded.
  * @returns 33-byte Buffer representing the encoded integer.
  */
-export function blobToBigInt(buffer: Buffer) {
+export function blobToBigInt(buffer: Buffer | bigint) {
+  if (typeof buffer === "bigint") return buffer;
+
   const signByte = buffer.at(0);
   const hexString = buffer.subarray(1).toString("hex").replace(/^0+/, "");
   if (hexString.length === 0) return 0n;
