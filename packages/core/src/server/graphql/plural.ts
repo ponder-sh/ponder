@@ -55,7 +55,20 @@ export const buildPluralField = ({
   const filterFields: Record<string, { type: GraphQLInputType }> = {};
 
   Object.entries(entity.columns).forEach(([columnName, column]) => {
-    if (!column.list) {
+    if (column.list) {
+      // List fields => universal, plural
+      operators.universal.forEach((suffix) => {
+        filterFields[`${tsTypeToGqlField(columnName)}${suffix}`] = {
+          type: new GraphQLList(tsTypeToGqlScalar[column.type]),
+        };
+      });
+
+      operators.plural.forEach((suffix) => {
+        filterFields[`${tsTypeToGqlField(columnName)}${suffix}`] = {
+          type: tsTypeToGqlScalar[column.type],
+        };
+      });
+    } else {
       // Scalar fields => universal, singular, numeric OR string depending on base type
       // Note: Booleans => universal and singular only.
       operators.universal.forEach((suffix) => {
@@ -85,19 +98,6 @@ export const buildPluralField = ({
           };
         });
       }
-    } else {
-      // List fields => universal, plural
-      operators.universal.forEach((suffix) => {
-        filterFields[`${tsTypeToGqlField(columnName)}${suffix}`] = {
-          type: new GraphQLList(tsTypeToGqlScalar[column.type]),
-        };
-      });
-
-      operators.plural.forEach((suffix) => {
-        filterFields[`${tsTypeToGqlField(columnName)}${suffix}`] = {
-          type: tsTypeToGqlScalar[column.type],
-        };
-      });
     }
   });
 

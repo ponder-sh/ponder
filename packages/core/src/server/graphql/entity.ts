@@ -25,6 +25,7 @@ export const buildEntityType = ({
 
       Object.entries(entity.columns).forEach(([columnName, column]) => {
         if (column.references) {
+          // Column is a reference to another table
           const resolver: GraphQLFieldResolver<Source, Context> = async (
             parent,
             _args,
@@ -57,6 +58,8 @@ export const buildEntityType = ({
             type: column.optional ? listType : new GraphQLNonNull(listType),
           };
         } else {
+          // Normal scalar
+
           fieldConfigMap[columnName] = {
             type: column.optional
               ? tsTypeToGqlScalar[column.type]
