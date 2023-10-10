@@ -1,5 +1,6 @@
 import chokidar from "chokidar";
 import Emittery from "emittery";
+import { GraphQLSchema } from "graphql";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -9,6 +10,7 @@ import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
 import { buildSchema } from "@/schema/build";
 import type { Schema } from "@/schema/types";
+import { buildGqlSchema } from "@/server/graphql/schema";
 
 import {
   type HandlerFunctions,
@@ -19,7 +21,7 @@ import {
 type BuildServiceEvents = {
   newConfig: undefined;
   newHandlers: { handlers: HandlerFunctions };
-  newSchema: { schema: Schema };
+  newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
@@ -128,7 +130,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       const schema = await buildSchema({
         schemaFile: this.common.options.schemaFile,
       });
-      this.emit("newSchema", { schema });
+      const graphqlSchema = buildGqlSchema(schema);
+      this.emit("newSchema", { schema, graphqlSchema });
       return { schema };
     } catch (error_) {
       const error = error_ as Error;
