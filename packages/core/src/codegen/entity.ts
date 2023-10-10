@@ -6,10 +6,11 @@ const scalarToTsType: Record<Scalar, string> = {
   float: "number",
   boolean: "boolean",
   bigint: "bigint",
-  bytes: "0x{string}", // TODO: Not sure about this
+  bytes: "0x{string}",
 };
 
 export const buildEntityTypes = (entities: readonly Entity[]) => {
+  // TODO:Kyle use recovered types inferred from the entity
   // const entityModelTypes = entities
   // .map((entity, i) => {
   //   return `export type ${entity.name} = RecoverTableType<((typeof schema)[${i}][${entity.name}])["table"]>`;
