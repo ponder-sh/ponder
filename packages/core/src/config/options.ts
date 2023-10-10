@@ -3,7 +3,7 @@ import type { LevelWithSilent } from "pino";
 
 import type { CliOptions } from "@/bin/ponder";
 
-import type { ResolvedConfig } from "./config";
+import type { ResolvedConfig } from "./types";
 
 export type Options = {
   configFile: string;

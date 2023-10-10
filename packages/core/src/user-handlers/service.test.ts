@@ -7,8 +7,8 @@ import type { HandlerFunctions } from "@/build/handlers";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import type { LogEventMetadata } from "@/config/logFilters";
 import { EventAggregatorService } from "@/event-aggregator/service";
+import { createColumn, createSchema } from "@/schema/schema";
 
-import { createColumn, createSchema } from "..";
 import { EventHandlerService } from "./service";
 
 beforeEach((context) => setupEventStore(context));
