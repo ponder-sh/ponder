@@ -1,5 +1,8 @@
 import { Column, ID, IT, Scalar, Table } from "./types";
 
+export const referencedEntityName = (references: unknown) =>
+  (references as string).split(".")[0];
+
 const _addColumn = <
   TTables extends readonly Table[],
   TTable extends Table,
@@ -175,7 +178,7 @@ export const createSchema = <
 
         if (
           tables.find(
-            (_t) => _t.name === (column.references as String).split(".")[0]
+            (_t) => _t.name === referencedEntityName(column.references)
           )!.columns.id.type !== column.type
         )
           throw Error("Column type doesn't match the referred table id type");

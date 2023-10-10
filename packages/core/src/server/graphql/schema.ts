@@ -51,7 +51,11 @@ export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
   // First build the entity types. These have resolvers defined for any
   // relationship or derived fields. This is also important for the thunk nonsense.
   for (const entity of schema.entities) {
-    entityGqlTypes[entity.name] = buildEntityType({ entity, entityGqlTypes });
+    entityGqlTypes[entity.name] = buildEntityType({
+      entity,
+      entities: schema.entities,
+      entityGqlTypes,
+    });
   }
 
   for (const entity of schema.entities) {

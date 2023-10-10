@@ -13,10 +13,6 @@ import { ServerService } from "./service";
 beforeEach((context) => setupUserStore(context));
 
 const schema = createSchema([
-  createTable("EntityWithIntId").addColumn("id", "int"),
-  createTable("EntityWithBigIntId")
-    .addColumn("id", "bigint")
-    .addColumn("testEntity", "string", { references: "TestEntity.id" }),
   createTable("TestEntity")
     .addColumn("id", "string")
     .addColumn("string", "string")
@@ -30,6 +26,10 @@ const schema = createSchema([
     .addColumn("floatList", "float", { list: true })
     .addColumn("booleanList", "boolean", { list: true })
     .addColumn("bytesList", "bytes", { list: true }),
+  createTable("EntityWithIntId").addColumn("id", "int"),
+  createTable("EntityWithBigIntId")
+    .addColumn("id", "bigint")
+    .addColumn("testEntity", "string", { references: "TestEntity.id" }),
 ]);
 
 const graphqlSchema = buildGqlSchema(schema);
@@ -271,7 +271,7 @@ test.skip("serves enum types correctly", async (context) => {
   await service.kill();
 });
 
-test.skip("serves derived types correctly", async (context) => {
+test("serves derived types correctly", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ common, userStore });
@@ -283,7 +283,7 @@ test.skip("serves derived types correctly", async (context) => {
   const response = await gql(`
     testEntitys {
       id
-      derived {
+      derivedEntityWithBigIntId {
         id
       }
     }
@@ -296,7 +296,7 @@ test.skip("serves derived types correctly", async (context) => {
   expect(testEntitys).toHaveLength(1);
   expect(testEntitys[0]).toMatchObject({
     id: "0",
-    derived: [{ id: "0" }, { id: "1" }],
+    derivedEntityWithBigIntId: [{ id: "0" }, { id: "1" }],
   });
 
   await service.kill();
@@ -1433,7 +1433,7 @@ test("serves plural entities versioned at specified timestamp", async (context) 
   await userStore.teardown();
 });
 
-test.todo("derived field respects skip argument", async (context) => {
+test("derived field respects skip argument", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({
@@ -1449,7 +1449,7 @@ test.todo("derived field respects skip argument", async (context) => {
   const response = await gql(`
     testEntitys {
       id
-      derived(skip: 2) {
+      derivedEntityWithBigIntId(skip: 2) {
         id
       }
     }
@@ -1457,8 +1457,8 @@ test.todo("derived field respects skip argument", async (context) => {
   expect(response.body.errors).toBe(undefined);
   expect(response.statusCode).toBe(200);
   const testEntitys = response.body.data.testEntitys;
-  expect(testEntitys[0].derived).toHaveLength(1);
-  expect(testEntitys[0].derived[0]).toMatchObject({
+  expect(testEntitys[0].derivedEntityWithBigIntId).toHaveLength(1);
+  expect(testEntitys[0].derivedEntityWithBigIntId[0]).toMatchObject({
     id: "2",
   });
 

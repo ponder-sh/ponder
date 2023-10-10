@@ -1,11 +1,14 @@
 import {
   type GraphQLFieldConfigMap,
   GraphQLFieldResolver,
+  GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
+  GraphQLString,
 } from "graphql";
 
+import { referencedEntityName } from "@/schema/schema";
 import type { Entity } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
@@ -13,9 +16,11 @@ import { tsTypeToGqlScalar } from "./schema";
 
 export const buildEntityType = ({
   entity,
+  entities,
   entityGqlTypes,
 }: {
   entity: Entity;
+  entities: readonly Entity[];
   entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>>;
 }): GraphQLObjectType<Source, Context> => {
   return new GraphQLObjectType({
@@ -26,10 +31,6 @@ export const buildEntityType = ({
       Object.entries(entity.columns).forEach(([columnName, column]) => {
         if (column.references) {
           // Column is a reference to another table
-
-          const referencedEntityName = (column.references as string).split(
-            "."
-          )[0];
 
           const resolver: GraphQLFieldResolver<Source, Context> = async (
             parent,
@@ -46,13 +47,13 @@ export const buildEntityType = ({
             const relatedInstanceId = parent[columnName];
 
             return await store.findUnique({
-              modelName: referencedEntityName,
+              modelName: referencedEntityName(column.references),
               id: relatedInstanceId,
             });
           };
 
           fieldConfigMap[columnName] = {
-            type: entityGqlTypes[referencedEntityName],
+            type: entityGqlTypes[referencedEntityName(column.references)],
             resolve: resolver,
           };
         } else if (column.list) {
@@ -79,6 +80,70 @@ export const buildEntityType = ({
           };
         }
       });
+
+      // Derived fields
+      // check for other tables referencing this one
+      const referencingEntities = entities.filter((t) =>
+        Object.values(t.columns).some(
+          (c) =>
+            c.references && referencedEntityName(c.references) === entity.name
+        )
+      );
+
+      for (const otherEntity of referencingEntities) {
+        // name of the column that is referencing the current entity
+        const referencingColumnName = Object.entries(otherEntity.columns).find(
+          ([, column]) =>
+            column.references &&
+            referencedEntityName(column.references) === entity.name
+        )![0];
+
+        const resolver: GraphQLFieldResolver<Source, Context> = async (
+          parent,
+          args,
+          context
+        ) => {
+          const { store } = context;
+
+          // The parent object gets passed in here with relationship fields defined as the
+          // string ID of the related entity. Here, we get the ID and query for that entity.
+          // Then, the GraphQL server serves the resolved object here instead of the ID.
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          const entityId = parent.id;
+
+          const filter = args;
+
+          return await store.findMany({
+            modelName: otherEntity.name,
+            timestamp: filter.timestamp ? filter.timestamp : undefined,
+            where: { [referencingColumnName]: entityId },
+            skip: filter.skip,
+            take: filter.first,
+            orderBy: filter.orderBy
+              ? {
+                  [filter.orderBy]: filter.orderDirection || "asc",
+                }
+              : undefined,
+          });
+        };
+
+        fieldConfigMap[`derived${otherEntity.name}`] = {
+          type: new GraphQLNonNull(
+            new GraphQLList(
+              new GraphQLNonNull(entityGqlTypes[otherEntity.name])
+            )
+          ),
+          args: {
+            skip: { type: GraphQLInt, defaultValue: 0 },
+            first: { type: GraphQLInt, defaultValue: 100 },
+            orderBy: { type: GraphQLString, defaultValue: "id" },
+            orderDirection: { type: GraphQLString, defaultValue: "asc" },
+            timestamp: { type: GraphQLInt },
+          },
+          resolve: resolver,
+        };
+      }
 
       return fieldConfigMap;
     },
