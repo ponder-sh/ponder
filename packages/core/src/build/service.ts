@@ -5,10 +5,10 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { buildSchema } from "@/build/schema";
 import type { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
-import { buildSchema } from "@/schema/build";
 import type { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/schema";
 

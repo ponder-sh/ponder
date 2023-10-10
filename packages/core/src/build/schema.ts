@@ -2,9 +2,8 @@ import { build } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
+import { Schema } from "@/schema/types";
 import { ensureDirExists } from "@/utils/exists";
-
-import { Schema } from "./types";
 
 export const buildSchema = async ({ schemaFile }: { schemaFile: string }) => {
   if (!existsSync(schemaFile)) {
