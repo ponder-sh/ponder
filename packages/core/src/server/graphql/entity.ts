@@ -91,58 +91,64 @@ export const buildEntityType = ({
       );
 
       for (const otherEntity of referencingEntities) {
-        // name of the column that is referencing the current entity
-        const referencingColumnName = Object.entries(otherEntity.columns).find(
-          ([, column]) =>
-            column.references &&
-            referencedEntityName(column.references) === entity.name
-        )![0];
+        // Several columns can be referencing the table
+        const referencingColumnNames = Object.entries(otherEntity.columns)
+          .filter(
+            ([, column]) =>
+              column.references &&
+              referencedEntityName(column.references) === entity.name
+          )
+          .map((c) => c[0]);
 
-        const resolver: GraphQLFieldResolver<Source, Context> = async (
-          parent,
-          args,
-          context
-        ) => {
-          const { store } = context;
+        for (const columnName of referencingColumnNames) {
+          const resolver: GraphQLFieldResolver<Source, Context> = async (
+            parent,
+            args,
+            context
+          ) => {
+            const { store } = context;
 
-          // The parent object gets passed in here with relationship fields defined as the
-          // string ID of the related entity. Here, we get the ID and query for that entity.
-          // Then, the GraphQL server serves the resolved object here instead of the ID.
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          const entityId = parent.id;
+            // The parent object gets passed in here with relationship fields defined as the
+            // string ID of the related entity. Here, we get the ID and query for that entity.
+            // Then, the GraphQL server serves the resolved object here instead of the ID.
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            const entityId = parent.id;
 
-          const filter = args;
+            const filter = args;
 
-          return await store.findMany({
-            modelName: otherEntity.name,
-            timestamp: filter.timestamp ? filter.timestamp : undefined,
-            where: { [referencingColumnName]: entityId },
-            skip: filter.skip,
-            take: filter.first,
-            orderBy: filter.orderBy
-              ? {
-                  [filter.orderBy]: filter.orderDirection || "asc",
-                }
-              : undefined,
-          });
-        };
+            return await store.findMany({
+              modelName: otherEntity.name,
+              timestamp: filter.timestamp ? filter.timestamp : undefined,
+              where: { [columnName]: entityId },
+              skip: filter.skip,
+              take: filter.first,
+              orderBy: filter.orderBy
+                ? {
+                    [filter.orderBy]: filter.orderDirection || "asc",
+                  }
+                : undefined,
+            });
+          };
 
-        fieldConfigMap[`derived${otherEntity.name}`] = {
-          type: new GraphQLNonNull(
-            new GraphQLList(
-              new GraphQLNonNull(entityGqlTypes[otherEntity.name])
-            )
-          ),
-          args: {
-            skip: { type: GraphQLInt, defaultValue: 0 },
-            first: { type: GraphQLInt, defaultValue: 100 },
-            orderBy: { type: GraphQLString, defaultValue: "id" },
-            orderDirection: { type: GraphQLString, defaultValue: "asc" },
-            timestamp: { type: GraphQLInt },
-          },
-          resolve: resolver,
-        };
+          fieldConfigMap[
+            `derived${columnName.charAt(0).toUpperCase() + columnName.slice(1)}`
+          ] = {
+            type: new GraphQLNonNull(
+              new GraphQLList(
+                new GraphQLNonNull(entityGqlTypes[otherEntity.name])
+              )
+            ),
+            args: {
+              skip: { type: GraphQLInt, defaultValue: 0 },
+              first: { type: GraphQLInt, defaultValue: 100 },
+              orderBy: { type: GraphQLString, defaultValue: "id" },
+              orderDirection: { type: GraphQLString, defaultValue: "asc" },
+              timestamp: { type: GraphQLInt },
+            },
+            resolve: resolver,
+          };
+        }
       }
 
       return fieldConfigMap;

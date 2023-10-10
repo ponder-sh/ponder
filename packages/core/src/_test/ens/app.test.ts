@@ -85,7 +85,7 @@ test("serves data", async (context) => {
     accounts {
       id
       lastActive
-      tokens {
+      derivedOwner {
         id
       }
     }

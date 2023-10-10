@@ -283,7 +283,7 @@ test("serves derived types correctly", async (context) => {
   const response = await gql(`
     testEntitys {
       id
-      derivedEntityWithBigIntId {
+      derivedTestEntity {
         id
       }
     }
@@ -296,7 +296,7 @@ test("serves derived types correctly", async (context) => {
   expect(testEntitys).toHaveLength(1);
   expect(testEntitys[0]).toMatchObject({
     id: "0",
-    derivedEntityWithBigIntId: [{ id: "0" }, { id: "1" }],
+    derivedTestEntity: [{ id: "0" }, { id: "1" }],
   });
 
   await service.kill();
@@ -1449,7 +1449,7 @@ test("derived field respects skip argument", async (context) => {
   const response = await gql(`
     testEntitys {
       id
-      derivedEntityWithBigIntId(skip: 2) {
+      derivedTestEntity(skip: 2) {
         id
       }
     }
@@ -1457,8 +1457,8 @@ test("derived field respects skip argument", async (context) => {
   expect(response.body.errors).toBe(undefined);
   expect(response.statusCode).toBe(200);
   const testEntitys = response.body.data.testEntitys;
-  expect(testEntitys[0].derivedEntityWithBigIntId).toHaveLength(1);
-  expect(testEntitys[0].derivedEntityWithBigIntId[0]).toMatchObject({
+  expect(testEntitys[0].derivedTestEntity).toHaveLength(1);
+  expect(testEntitys[0].derivedTestEntity[0]).toMatchObject({
     id: "2",
   });
 
