@@ -2,7 +2,6 @@ import { build } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import { Schema } from "@/schema/types";
 import { ensureDirExists } from "@/utils/exists";
 
 export const buildSchema = async ({ schemaFile }: { schemaFile: string }) => {
@@ -44,15 +43,7 @@ export const buildSchema = async ({ schemaFile }: { schemaFile: string }) => {
       );
     }
 
-    let resolvedSchema: Schema;
-
-    if (typeof rawSchema === "function") {
-      resolvedSchema = await rawSchema();
-    } else {
-      resolvedSchema = await rawSchema;
-    }
-
-    return resolvedSchema;
+    return rawSchema;
   } catch (err) {
     rmSync(buildFile, { force: true });
     throw err;
