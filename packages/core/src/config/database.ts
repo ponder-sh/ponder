@@ -22,6 +22,7 @@ export type Database = SqliteDb | PostgresDb;
 
 // See https://github.com/brianc/node-pg-types for details.
 // Set pg protocol to use BigInt for `bytea` types.
+// TODO: Remove this once the UserStore migrates to `numeric`.
 pg.types.setTypeParser(20, BigInt);
 // Set pg protocol to use BigInt for `numeric` types.
 pg.types.setTypeParser(1700, BigInt);
@@ -55,7 +56,7 @@ Client.prototype.query = async function query(
   }
 };
 
-export const patchSqliteDatabase = ({ db }: { db: Sqlite.Database }) => {
+export const patchSqliteDatabase = ({ db }: { db: any }) => {
   const oldPrepare = db.prepare;
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
