@@ -94,7 +94,7 @@ export const createSchema = <TSchema extends Record<string, IT>>(schema: {
     : never;
 }): { [key in keyof TSchema]: TSchema[key]["table"] } => {
   Object.entries(schema as TSchema).forEach(([tableName, table]) => {
-    verifyKey(tableName);
+    validateTableOrColumnName(tableName);
 
     if (table.table.id === undefined)
       throw Error('Table doesn\'t contain an "id" field');
@@ -122,7 +122,7 @@ export const createSchema = <TSchema extends Record<string, IT>>(schema: {
     Object.entries(table.table).forEach(([columnName, column]) => {
       if (columnName === "id") return;
 
-      verifyKey(columnName);
+      validateTableOrColumnName(columnName);
 
       if (column.references) {
         if (
@@ -165,7 +165,7 @@ export const createSchema = <TSchema extends Record<string, IT>>(schema: {
   ) as { [key in keyof TSchema]: TSchema[key]["table"] };
 };
 
-const verifyKey = (key: string) => {
+const validateTableOrColumnName = (key: string) => {
   if (key === "") throw Error("Table to column name can't be an empty string");
 
   if (!/^[a-z|A-Z|0-9]+$/.test(key))
