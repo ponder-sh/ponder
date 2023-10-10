@@ -6,7 +6,6 @@ import {
 } from "viem";
 
 import { getEvents } from "@/config/abi";
-import type { ContractReadResult } from "@/event-store/store";
 
 export const FORK_BLOCK_NUMBER = 16380000n;
 
@@ -1236,10 +1235,10 @@ export const blockThree: RpcBlock = {
   transactions: [],
 };
 
-export const contractReadResultOne: ContractReadResult = {
+export const contractReadResultOne = {
   address: "0x93d4c048f83bd7e37d49ea4c83a07267ec4203da",
   blockNumber: BigInt(16000010),
   data: "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
   result: "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
   chainId: 1,
-};
+} as const;
