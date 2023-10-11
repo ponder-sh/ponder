@@ -1,6 +1,6 @@
 import { test } from "vitest";
 
-import { createColumn, createSchema } from "./schema";
+import { createColumn, createEnum, createSchema } from "./schema";
 
 // This may be in a museum one day
 // We like this one!!
@@ -20,8 +20,10 @@ import { createColumn, createSchema } from "./schema";
 // ]);
 
 // const schema = createSchema({
+//   enum: createEnum("one", "two", "three"),
 //   share: createColumn("id", "string")
 //     .addColumn("name", "string")
+//     .addColumn("ref", "enum:enum")
 //     .addColumn("usernames", "string", { optional: true, list: true }),
 //   account: createColumn("id", "string")
 //     .addColumn("name", "string")
@@ -44,6 +46,13 @@ import { createColumn, createSchema } from "./schema";
 test("create schema", () => {
   createSchema({
     name: createColumn("id", "bigint").addColumn("age", "boolean"),
+  });
+});
+
+test("create enum", () => {
+  createSchema({
+    enummm: createEnum("ONE", "TWO", "THREE"),
+    name: createColumn("id", "bigint").addColumn("age", "enum:enummm"),
   });
 });
 

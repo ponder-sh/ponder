@@ -1,7 +1,8 @@
 import type Sqlite from "better-sqlite3";
 import { randomBytes } from "crypto";
-import { Kysely, SqliteDialect } from "kysely";
+import { Kysely, sql, SqliteDialect } from "kysely";
 
+import { isEnumType } from "@/schema/schema";
 import type { Schema } from "@/schema/types";
 import { blobToBigInt } from "@/utils/decode";
 
@@ -56,7 +57,7 @@ export class SqliteUserStore implements UserStore {
       // Drop tables from existing schema.
       if (this.schema) {
         await Promise.all(
-          Object.keys(this.schema).map((modelName) => {
+          Object.keys(this.schema.tables).map((modelName) => {
             const tableName = `${modelName}_${this.versionId}`;
             tx.schema.dropTable(tableName);
           })
@@ -69,7 +70,7 @@ export class SqliteUserStore implements UserStore {
 
       // Create tables for new schema.
       await Promise.all(
-        Object.entries(this.schema!).map(async ([modelName, model]) => {
+        Object.entries(this.schema!.tables).map(async ([modelName, model]) => {
           const tableName = `${modelName}_${this.versionId}`;
           let tableBuilder = tx.schema.createTable(tableName);
           Object.entries(model).forEach(([columnName, column]) => {
@@ -80,6 +81,21 @@ export class SqliteUserStore implements UserStore {
                 "text",
                 (col) => {
                   if (!column.optional) col = col.notNull();
+                  return col;
+                }
+              );
+            } else if (isEnumType(column.type)) {
+              // Handle enum types
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                "text",
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  col = col.check(
+                    sql`${sql.ref(columnName)} in (${sql.join(
+                      schema!.enums[column.type.slice(5)].map((v) => sql.lit(v))
+                    )})`
+                  );
                   return col;
                 }
               );
@@ -129,7 +145,7 @@ export class SqliteUserStore implements UserStore {
     // Drop tables from existing schema.
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        Object.keys(this.schema!).map((modelName) => {
+        Object.keys(this.schema!.tables).map((modelName) => {
           const tableName = `${modelName}_${this.versionId}`;
           tx.schema.dropTable(tableName);
         })
@@ -599,7 +615,7 @@ export class SqliteUserStore implements UserStore {
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        Object.keys(this.schema ?? {}).map(async (modelName) => {
+        Object.keys(this.schema?.tables ?? {}).map(async (modelName) => {
           const tableName = `${modelName}_${this.versionId}`;
 
           // Delete any versions that are newer than the safe timestamp.
@@ -627,7 +643,7 @@ export class SqliteUserStore implements UserStore {
     modelName: string;
     instance: Record<string, unknown>;
   }) => {
-    const entity = Object.entries(this.schema!).find(
+    const entity = Object.entries(this.schema!.tables).find(
       ([name]) => name === modelName
     )![1];
 

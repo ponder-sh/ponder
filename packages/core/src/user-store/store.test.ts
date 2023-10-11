@@ -1,15 +1,17 @@
 import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
-import { createColumn, createSchema } from "@/schema/schema";
+import { createColumn, createEnum, createSchema } from "@/schema/schema";
 
 beforeEach((context) => setupUserStore(context));
 
 const schema = createSchema({
+  PetKind: createEnum("CAT", "DOG"),
   Pet: createColumn("id", "string")
     .addColumn("name", "string")
     .addColumn("age", "int", { optional: true })
-    .addColumn("bigAge", "bigint", { optional: true }),
+    .addColumn("bigAge", "bigint", { optional: true })
+    .addColumn("kind", "enum:PetKind", { optional: true }),
   Person: createColumn("id", "string").addColumn("name", "string"),
 });
 
@@ -130,7 +132,7 @@ test("create() respects optional fields", async (context) => {
   await userStore.teardown();
 });
 
-test.todo("create() accepts enums", async (context) => {
+test("create() accepts enums", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
 
@@ -152,7 +154,7 @@ test.todo("create() accepts enums", async (context) => {
   await userStore.teardown();
 });
 
-test.todo("create() throws on invalid enum value", async (context) => {
+test("create() throws on invalid enum value", async (context) => {
   const { userStore } = context;
   await userStore.reload({ schema });
 

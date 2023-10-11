@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
+import { isEnumType } from "@/schema/schema";
 import type { Schema } from "@/schema/types";
 import { blobToBigInt } from "@/utils/decode";
 
@@ -76,7 +77,7 @@ export class PostgresUserStore implements UserStore {
       // Drop tables from existing schema.
       if (this.schema) {
         await Promise.all(
-          Object.keys(this.schema).map((tableName) => {
+          Object.keys(this.schema.tables).map((tableName) => {
             const dbTableName = `${tableName}_${this.versionId}`;
             tx.schema.dropTable(dbTableName);
           })
@@ -89,7 +90,7 @@ export class PostgresUserStore implements UserStore {
 
       // Create tables for new schema.
       await Promise.all(
-        Object.entries(this.schema!).map(async ([tableName, table]) => {
+        Object.entries(this.schema!.tables).map(async ([tableName, table]) => {
           const dbTableName = `${tableName}_${this.versionId}`;
           let tableBuilder = tx.schema.createTable(dbTableName);
           Object.entries(table).forEach(([columnName, column]) => {
@@ -100,6 +101,21 @@ export class PostgresUserStore implements UserStore {
                 "text",
                 (col) => {
                   if (!column.optional) col = col.notNull();
+                  return col;
+                }
+              );
+            } else if (isEnumType(column.type)) {
+              // Handle enum types
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                "text",
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  col = col.check(
+                    sql`${sql.ref(columnName)} in (${sql.join(
+                      schema!.enums[column.type.slice(5)].map((v) => sql.lit(v))
+                    )})`
+                  );
                   return col;
                 }
               );
@@ -149,7 +165,7 @@ export class PostgresUserStore implements UserStore {
     // Drop tables from existing schema.
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        Object.keys(this.schema!).map((tableName) => {
+        Object.keys(this.schema!.tables).map((tableName) => {
           const dbTableName = `${tableName}_${this.versionId}`;
           tx.schema.dropTable(dbTableName);
         })
@@ -624,7 +640,7 @@ export class PostgresUserStore implements UserStore {
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        Object.keys(this.schema ?? {}).map(async (tableName) => {
+        Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
           const dbTableName = `${tableName}_${this.versionId}`;
           // Delete any versions that are newer than the safe timestamp.
           await tx
@@ -651,7 +667,7 @@ export class PostgresUserStore implements UserStore {
     modelName: string;
     instance: Record<string, unknown>;
   }) => {
-    const entity = Object.entries(this.schema!).find(
+    const entity = Object.entries(this.schema!.tables).find(
       ([name]) => name === modelName
     )![1];
     const deserializedInstance = {} as ModelInstance;

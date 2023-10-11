@@ -45,7 +45,7 @@ export class CodegenService extends Emittery {
 
       /* ENTITY TYPES */
 
-      ${buildEntityTypes(schema ?? {})}
+      ${buildEntityTypes(schema ?? { tables: {}, enums: {} })}
   
       /* CONTRACT TYPES */
 

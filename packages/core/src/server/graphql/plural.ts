@@ -10,7 +10,8 @@ import {
   GraphQLString,
 } from "graphql";
 
-import type { Schema } from "@/schema/types";
+import { isEnumType } from "@/schema/schema";
+import type { Scalar, Schema } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
 import { tsTypeToGqlScalar } from "./schema";
@@ -24,11 +25,6 @@ type PluralArgs = {
   orderDirection?: "asc" | "desc";
 };
 type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
-
-/**
- * Need this so query fields are backwards compatible
- */
-const tsTypeToGqlField = (key: string) => (key === "bigint" ? "bigInt" : key);
 
 const operators = {
   universal: ["", "_not"],
@@ -51,44 +47,58 @@ export const buildPluralField = ({
   entityGqlType,
 }: {
   tableName: string;
-  table: Schema[string];
+  table: Schema["tables"][string];
   entityGqlType: GraphQLObjectType<Source, Context>;
 }): GraphQLFieldConfig<Source, Context> => {
   const filterFields: Record<string, { type: GraphQLInputType }> = {};
 
   Object.entries(table).forEach(([columnName, column]) => {
-    if (column.list) {
+    if (isEnumType(column.type)) {
+      const enumType = entityGqlType.getFields()[columnName].type;
+
+      operators.universal.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = {
+          type: enumType as GraphQLInputType, // TODO:Kyle this is probably a bad idea
+        };
+      });
+
+      operators.singular.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = {
+          type: new GraphQLList(enumType),
+        };
+      });
+    } else if (column.list) {
       // List fields => universal, plural
       operators.universal.forEach((suffix) => {
-        filterFields[`${tsTypeToGqlField(columnName)}${suffix}`] = {
-          type: new GraphQLList(tsTypeToGqlScalar[column.type]),
+        filterFields[`${columnName}${suffix}`] = {
+          type: new GraphQLList(tsTypeToGqlScalar[column.type as Scalar]),
         };
       });
 
       operators.plural.forEach((suffix) => {
-        filterFields[`${tsTypeToGqlField(columnName)}${suffix}`] = {
-          type: tsTypeToGqlScalar[column.type],
+        filterFields[`${columnName}${suffix}`] = {
+          type: tsTypeToGqlScalar[column.type as Scalar],
         };
       });
     } else {
       // Scalar fields => universal, singular, numeric OR string depending on base type
       // Note: Booleans => universal and singular only.
       operators.universal.forEach((suffix) => {
-        filterFields[`${tsTypeToGqlField(columnName)}${suffix}`] = {
-          type: tsTypeToGqlScalar[column.type],
+        filterFields[`${columnName}${suffix}`] = {
+          type: tsTypeToGqlScalar[column.type as Scalar],
         };
       });
 
       operators.singular.forEach((suffix) => {
-        filterFields[`${tsTypeToGqlField(columnName)}${suffix}`] = {
-          type: new GraphQLList(tsTypeToGqlScalar[column.type]),
+        filterFields[`${columnName}${suffix}`] = {
+          type: new GraphQLList(tsTypeToGqlScalar[column.type as Scalar]),
         };
       });
 
       if (["int", "bigint", "float"].includes(column.type)) {
         operators.numeric.forEach((suffix) => {
-          filterFields[`${tsTypeToGqlField(columnName)}${suffix}`] = {
-            type: tsTypeToGqlScalar[column.type],
+          filterFields[`${columnName}${suffix}`] = {
+            type: tsTypeToGqlScalar[column.type as Scalar],
           };
         });
       }
@@ -96,7 +106,7 @@ export const buildPluralField = ({
       if (["string", "bytes"].includes(column.type)) {
         operators.string.forEach((suffix) => {
           filterFields[`${columnName}${suffix}`] = {
-            type: tsTypeToGqlScalar[column.type],
+            type: tsTypeToGqlScalar[column.type as Scalar],
           };
         });
       }

@@ -3,7 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
 import type { Common } from "@/Ponder";
-import { createColumn, createSchema } from "@/schema/schema";
+import { createColumn, createEnum, createSchema } from "@/schema/schema";
 import type { UserStore } from "@/user-store/store";
 import { range } from "@/utils/range";
 
@@ -13,6 +13,7 @@ import { ServerService } from "./service";
 beforeEach((context) => setupUserStore(context));
 
 const schema = createSchema({
+  TestEnum: createEnum("ZERO", "ONE", "TWO"),
   TestEntity: createColumn("id", "string")
     .addColumn("string", "string")
     .addColumn("int", "int")
@@ -24,7 +25,8 @@ const schema = createSchema({
     .addColumn("intList", "int", { list: true })
     .addColumn("floatList", "float", { list: true })
     .addColumn("booleanList", "boolean", { list: true })
-    .addColumn("bytesList", "bytes", { list: true }),
+    .addColumn("bytesList", "bytes", { list: true })
+    .addColumn("enum", "enum:TestEnum"),
   EntityWithIntId: createColumn("id", "int"),
   EntityWithBigIntId: createColumn("id", "bigint").addColumn(
     "testEntity",
@@ -80,7 +82,7 @@ const setup = async ({
         floatList: [id / Math.pow(10, 1)],
         booleanList: [id % 2 === 0],
         bytesList: [String(id)],
-        // enum: ["ZERO", "ONE", "TWO"][id % 3],
+        enum: ["ZERO", "ONE", "TWO"][id % 3],
       },
     });
   };
@@ -233,7 +235,7 @@ test("serves all scalar list types correctly", async (context) => {
   await service.kill();
 });
 
-test.skip("serves enum types correctly", async (context) => {
+test("serves enum types correctly", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
@@ -925,7 +927,7 @@ test("filters on string list field has", async (context) => {
   await service.kill();
 });
 
-test.skip("filters on enum field equals", async (context) => {
+test("filters on enum field equals", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
@@ -952,7 +954,7 @@ test.skip("filters on enum field equals", async (context) => {
   await service.kill();
 });
 
-test.skip("filters on enum field in", async (context) => {
+test("filters on enum field in", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
@@ -1539,7 +1541,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   const responseOld = await gql(`
     testEntitys(timestamp: 5) {
       id
-      derived {
+      derivedTestEntity {
         id
       }
     }
@@ -1550,13 +1552,13 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   expect(testEntitysOld).toHaveLength(1);
   expect(testEntitysOld[0]).toMatchObject({
     id: "0",
-    derived: [{ id: "0" }],
+    derivedTestEntity: [{ id: "0" }],
   });
 
   const response = await gql(`
     testEntitys {
       id
-      derived {
+      derivedTestEntity {
         id
       }
     }
@@ -1567,7 +1569,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   expect(testEntitys).toHaveLength(1);
   expect(testEntitys[0]).toMatchObject({
     id: "0",
-    derived: [],
+    derivedTestEntity: [],
   });
 
   await service.kill();

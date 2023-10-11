@@ -15,7 +15,7 @@ export type ID = "string" | "int" | "bytes" | "bigint";
  * SQL Schema types
  */
 export type Column<
-  TType extends Scalar | unknown = unknown,
+  TType extends Scalar | `enum:${string}` | unknown = unknown,
   TReferences extends `${string}.id` | never | unknown = unknown,
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown
@@ -32,13 +32,22 @@ export type Table<
   id: Column<ID, never, false, false>;
 } & TColumns;
 
-export type Schema = Record<
-  string,
-  { id: Column<ID, never, false, false> } & Record<
+export type Schema = {
+  tables: Record<
     string,
-    Column<Scalar, unknown, boolean, boolean>
-  >
->;
+    { id: Column<ID, never, false, false> } & Record<
+      string,
+      Column<Scalar | `enum:${string}`, unknown, boolean, boolean>
+    >
+  >;
+  enums: Record<string, Enum["values"]>;
+};
+
+export type Enum<TValues extends string[] = string[]> = {
+  isEnum: true;
+  table: Record<string, Column>;
+  values: TValues;
+};
 
 /**
  * Intermediate Type
@@ -50,10 +59,11 @@ export type Schema = Record<
 export type IT<
   TColumns extends Record<string, Column> = Record<string, Column>
 > = {
+  isEnum: false;
   table: Table<TColumns>;
   addColumn: <
     TName extends string,
-    TType extends Scalar,
+    TType extends Scalar | `enum:${string}`,
     TReferences extends `${string}.id` | never = never,
     TOptional extends boolean = false,
     TList extends boolean = false

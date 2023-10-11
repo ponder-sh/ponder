@@ -1,12 +1,13 @@
 import { type GraphQLType } from "graphql";
 import { expect, test } from "vitest";
 
-import { createColumn, createSchema } from "@/schema/schema";
+import { createColumn, createEnum, createSchema } from "@/schema/schema";
 
 import { buildGqlSchema } from "./schema";
 
 test("filter type has correct suffixes and types", () => {
   const schema = createSchema({
+    SimpleEnum: createEnum("VALUE", "ANOTHER_VALUE"),
     RelatedEntityStringId: createColumn("id", "string"),
     RelatedEntityBigIntId: createColumn("id", "bigint"),
     Entity: createColumn("id", "string")
@@ -15,6 +16,7 @@ test("filter type has correct suffixes and types", () => {
       .addColumn("bool", "boolean")
       .addColumn("bytes", "bytes")
       .addColumn("bigint", "bigint")
+      .addColumn("enum", "enum:SimpleEnum")
       .addColumn("listString", "string", { list: true })
       .addColumn("listBigInt", "bigint", { list: true })
       .addColumn("relatedEntityStringId", "string", {
@@ -84,18 +86,18 @@ test("filter type has correct suffixes and types", () => {
     bytes_ends_with: "String",
     bytes_not_starts_with: "String",
     bytes_not_ends_with: "String",
-    bigInt: "BigInt",
-    bigInt_not: "BigInt",
-    bigInt_in: "[BigInt]",
-    bigInt_not_in: "[BigInt]",
-    bigInt_gt: "BigInt",
-    bigInt_lt: "BigInt",
-    bigInt_gte: "BigInt",
-    bigInt_lte: "BigInt",
-    // enum: "SimpleEnum",
-    // enum_not: "SimpleEnum",
-    // enum_in: "[SimpleEnum]",
-    // enum_not_in: "[SimpleEnum]",
+    bigint: "BigInt",
+    bigint_not: "BigInt",
+    bigint_in: "[BigInt]",
+    bigint_not_in: "[BigInt]",
+    bigint_gt: "BigInt",
+    bigint_lt: "BigInt",
+    bigint_gte: "BigInt",
+    bigint_lte: "BigInt",
+    enum: "SimpleEnum",
+    enum_not: "SimpleEnum",
+    enum_in: "[SimpleEnum]",
+    enum_not_in: "[SimpleEnum]",
     listString: "[String]",
     listString_not: "[String]",
     listString_has: "String",

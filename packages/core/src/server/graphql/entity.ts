@@ -1,5 +1,6 @@
 import {
   type GraphQLFieldConfigMap,
+  GraphQLEnumType,
   GraphQLFieldResolver,
   GraphQLInt,
   GraphQLList,
@@ -8,7 +9,7 @@ import {
   GraphQLString,
 } from "graphql";
 
-import { referencedEntityName } from "@/schema/schema";
+import { isEnumType, referencedEntityName } from "@/schema/schema";
 import { Schema } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
@@ -21,7 +22,7 @@ export const buildEntityTypes = ({
 }): Record<string, GraphQLObjectType<Source, Context>> => {
   const entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
 
-  for (const [tableName, table] of Object.entries(schema)) {
+  for (const [tableName, table] of Object.entries(schema.tables)) {
     entityGqlTypes[tableName] = new GraphQLObjectType({
       name: tableName,
       fields: () => {
@@ -55,6 +56,19 @@ export const buildEntityTypes = ({
               type: entityGqlTypes[referencedEntityName(column.references)],
               resolve: resolver,
             };
+          } else if (isEnumType(column.type)) {
+            const enumName = column.type.slice(5);
+            const enumType = new GraphQLEnumType({
+              name: enumName,
+              values: schema.enums[enumName].reduce(
+                (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
+                {}
+              ),
+            });
+
+            fieldConfigMap[columnName] = {
+              type: column.optional ? new GraphQLNonNull(enumType) : enumType,
+            };
           } else if (column.list) {
             const listType = new GraphQLList(
               new GraphQLNonNull(tsTypeToGqlScalar[column.type])
@@ -82,11 +96,12 @@ export const buildEntityTypes = ({
 
         // Derived fields
         // check for other tables referencing this one
-        const referencingEntities = Object.entries(schema).filter(([, t]) =>
-          Object.values(t).some(
-            (c) =>
-              c.references && referencedEntityName(c.references) === tableName
-          )
+        const referencingEntities = Object.entries(schema.tables).filter(
+          ([, t]) =>
+            Object.values(t).some(
+              (c) =>
+                c.references && referencedEntityName(c.references) === tableName
+            )
         );
 
         for (const [otherTableName, otherTable] of referencingEntities) {

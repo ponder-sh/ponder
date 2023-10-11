@@ -1,6 +1,6 @@
 import { assertType, test } from "vitest";
 
-import { createColumn, createSchema } from "./schema";
+import { createColumn, createEnum, createSchema } from "./schema";
 import { RecoverColumnType, RecoverTableType, Schema } from "./types";
 
 test("column int", () => {
@@ -74,6 +74,16 @@ test("schema", () => {
   const schema = createSchema({
     //  ^?
     table: createColumn("id", "string").addColumn("age", "int"),
+  });
+
+  assertType<Schema>(schema);
+});
+
+test("schema with enums", () => {
+  const schema = createSchema({
+    //  ^?
+    enummm: createEnum("ONE", "TWO", "THREE"),
+    table: createColumn("id", "string").addColumn("e", "enum:enummm"),
   });
 
   assertType<Schema>(schema);

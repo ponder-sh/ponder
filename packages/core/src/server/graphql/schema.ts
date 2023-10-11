@@ -52,7 +52,7 @@ export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
     schema,
   });
 
-  for (const [tableName, table] of Object.entries(schema)) {
+  for (const [tableName, table] of Object.entries(schema.tables)) {
     const entityGqlType = entityGqlTypes[tableName];
 
     const singularFieldName =
