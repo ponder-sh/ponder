@@ -83,13 +83,6 @@ export const buildEntityTypes = ({
               type: column.optional
                 ? tsTypeToGqlScalar[column.type]
                 : new GraphQLNonNull(tsTypeToGqlScalar[column.type]),
-              // Convert bigints to strings for GraphQL responses.
-              resolve:
-                column.type === "bigint"
-                  ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                    // @ts-ignore
-                    (parent) => (parent[columnName] as bigint).toString()
-                  : undefined,
             };
           }
         });
