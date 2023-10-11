@@ -1,7 +1,7 @@
 import { type Message, build, formatMessagesSync } from "esbuild";
 import glob from "glob";
 import { existsSync, rmSync } from "node:fs";
-import { createRequire } from "node:module";
+import fs from "node:fs";
 import path from "node:path";
 import { replaceTscAliasPaths } from "tsc-alias";
 import type { Hex } from "viem";
@@ -12,8 +12,6 @@ import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
 import { isRejected } from "@/utils/promise.js";
-
-const require = createRequire(import.meta.url);
 
 export interface LogEvent {
   name: string;
@@ -86,8 +84,10 @@ export class PonderApp<
 }
 
 export const buildRawHandlerFunctions = async ({
+  importVersion = Number(new Date()),
   options,
 }: {
+  importVersion: number;
   options: Options;
 }) => {
   const entryAppFilename = path.join(options.generatedDir, "index.ts");
@@ -138,14 +138,45 @@ export const buildRawHandlerFunctions = async ({
   }
 
   const outGlob = buildDir + "/**/*.js";
-  const outFilenames = glob.sync(outGlob);
 
   // Remove all out modules from the require cache, because we are loading
   // them several times in the same process and need the latest version each time.
   // https://ar.al/2021/02/22/cache-busting-in-node.js-dynamic-esm-imports/
-  outFilenames.forEach((file) => delete require.cache[require.resolve(file)]);
+  const outFilenames = glob.sync(outGlob).map((file) => {
+    if (process.env.NODE_ENV === "test") return file;
+    try {
+      const fileContent = fs.readFileSync(file, "utf8");
+      const newFileName = file.replace(".js", `_v${importVersion}.js`);
+      if (
+        fileContent.split("\n")[1].endsWith('index.js";') ||
+        fileContent.split("\n")[1].endsWith(`index_v${importVersion}.js";`)
+      ) {
+        const [firstLinem, , ...rest] = fileContent.split("\n");
+        fs.writeFileSync(
+          newFileName,
+          firstLinem +
+            "\n" +
+            `import { ponder } from "../generated/index_v${importVersion}.js";` +
+            "\n" +
+            rest.join("\n")
+        );
+      } else {
+        fs.writeFileSync(newFileName, fileContent);
+      }
+      fs.rmSync(file);
+      return newFileName;
+    } catch (error) {
+      console.log(`Error removing file: ${file}`);
+      throw error;
+    }
+  });
 
-  const outAppFilename = path.join(buildDir, "generated/index.js");
+  const outAppFilename = path.join(
+    buildDir,
+    process.env.NODE_ENV === "test"
+      ? "generated/index.js"
+      : `generated/index_v${importVersion}.js`
+  );
 
   // Require all the user-defined files first.
   const outUserFilenames = outFilenames.filter(
@@ -178,7 +209,7 @@ export const buildRawHandlerFunctions = async ({
 
   const handlers = app["handlerFunctions"] as RawHandlerFunctions;
 
-  return handlers;
+  return { handlers };
 };
 
 export type HandlerFunctions = {

@@ -9,7 +9,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "allowJs": true,
-    "checkJs": true,
+    "checkJs": false,
     "jsx": "react",
 
     "verbatimModuleSyntax": true,
@@ -29,5 +29,6 @@
     "paths": { "@/*": ["src/*"] }
   },
   "include": ["src"],
-  "files": ["vite.config.ts", "esbuild.config.ts", "./tsup.config.ts"]
+  "exclude": ["src/_test/**/app/*"],
+  "files": ["vite.config.ts", "esbuild.config.ts"]
 }

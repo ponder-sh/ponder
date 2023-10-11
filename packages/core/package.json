@@ -33,7 +33,7 @@
     "#*": "./dist/*"
   },
   "scripts": {
-    "build": "node --loader=tsx --env-file=.env esbuild.config.ts",
+    "build": "node --loader=tsx --no-warnings esbuild.config.ts",
     "build:watch": "pnpm build -- --watch",
     "clean": "rimraf ./dist",
     "test": "vitest",

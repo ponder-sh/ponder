@@ -13,6 +13,9 @@ export default defineConfig({
     },
   },
   test: {
+    env: {
+      NODE_ENV: "test",
+    },
     globalSetup: ["src/_test/globalSetup.ts"],
     setupFiles: ["src/_test/setup.ts"],
   },

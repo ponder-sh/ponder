@@ -91,7 +91,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   async buildHandlers() {
     try {
-      const rawHandlerFunctions = await buildRawHandlerFunctions({
+      const { handlers: rawHandlerFunctions } = await buildRawHandlerFunctions({
+        importVersion: Number(new Date()),
         options: this.common.options,
       });
 

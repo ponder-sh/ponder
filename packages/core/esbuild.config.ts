@@ -8,21 +8,13 @@ import tsconfig from "./tsconfig.build.json" assert { type: "json" };
 
 const tsconfigPath = "tsconfig.build.json";
 
+type BuildOptions = Parameters<typeof esbuild.build>[0];
+
 const WATCH = process.argv.includes("--watch");
 
 const buildFiles = glob.sync("src/**/*!(.test).@(ts|tsx)", {
   ignore: ["**/_test/**/*", "**/*.test.ts"],
 });
-
-const outFiles = buildFiles.map((file) =>
-  file
-    .replaceAll("src/", "dist/")
-    .replaceAll(".ts", ".js")
-    .replaceAll(".tsx", ".js")
-    .replaceAll(".jsx", ".js")
-);
-
-type BuildOptions = Parameters<typeof esbuild.build>[0];
 
 const buildOptions = {
   color: true,
@@ -89,18 +81,23 @@ function esbuildDeclarationsPlugin({
 /**
  * As it stands right now, this assumes there's only one path alias and it's:
  * `{ "@/*": ["./src/*"] }`
+ *
+ * The simplest way to handle tsconfig path aliases in built files is to replace `@/` with `#`,
+ * and let Node.js' package.json#imports native path aliasing support handle the rest.
+ * https://nodejs.org/api/packages.html#imports ("imports" field entries must start with `#`)
  */
 function esbuildPathAliasPlugin(): Plugin {
   return {
     name: "esbuild-path-alias-plugin",
     setup: (build) => {
       build.onEnd((result) => {
-        if (result.errors.length > 0) {
-          return console.error(
-            "esbuild-path-alias-plugin error",
-            result.errors
-          );
-        }
+        if (result.errors.length > 0) return console.error(result.errors);
+        const outFiles = buildFiles.map((file) =>
+          file
+            .replaceAll("src/", "dist/")
+            .replaceAll(".tsx", ".js")
+            .replaceAll(".ts", ".js")
+        );
         outFiles.forEach((file) => {
           const content = fs.readFileSync(file, "utf-8");
           const aliasTransformation = content.replaceAll("@/", "#");
