@@ -1,4 +1,5 @@
-import { fromHex, Hex } from "viem";
+import type { Hex } from "viem";
+import { fromHex } from "viem";
 
 import { ponder } from "@/generated";
 
@@ -11,6 +12,7 @@ const parseJson = (encodedJson: string, defaultValue: any = null) => {
 };
 
 ponder.on("FileStore:FileCreated", async ({ event, context }) => {
+  console.log({ event });
   const { filename, size, metadata: rawMetadata } = event.params;
 
   const metadata = parseJson(fromHex(rawMetadata as Hex, "string"));

@@ -10,5 +10,6 @@
     "declarationMap": true,
     "rootDir": "src",
     "outDir": "dist"
-  }
+  },
+  "files": ["package.json"]
 }

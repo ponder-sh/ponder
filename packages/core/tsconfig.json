@@ -1,10 +1,33 @@
 {
-  // This configuration is used for local development and type checking.
-  "extends": "./tsconfig.base.json",
-  "include": ["src"],
   "compilerOptions": {
-    "types": ["node"]
+    "strict": true,
+    "useDefineForClassFields": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "useUnknownInCatchVariables": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowJs": true,
+    "checkJs": true,
+    "jsx": "react",
+
+    "verbatimModuleSyntax": true,
+    "allowArbitraryExtensions": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+
+    "moduleResolution": "Bundler",
+    "module": "ESNext",
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM"],
+
+    "skipLibCheck": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] }
   },
-  // Exclude end-to-end test project files.
-  "exclude": ["src/_test/**/app/*"]
+  "include": ["src"],
+  "files": ["vite.config.ts", "esbuild.config.ts", "./tsup.config.ts"]
 }

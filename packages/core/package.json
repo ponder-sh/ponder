@@ -29,9 +29,12 @@
       "default": "./dist/index.js"
     }
   },
+  "imports": {
+    "#*": "./dist/*"
+  },
   "scripts": {
-    "build": "pnpm clean && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
-    "build:watch": "concurrently \"tsc --project tsconfig.build.json --watch\" \"tsc-alias --project tsconfig.build.json --watch\"",
+    "build": "node --loader=tsx --env-file=.env esbuild.config.ts",
+    "build:watch": "pnpm build -- --watch",
     "clean": "rimraf ./dist",
     "test": "vitest",
     "typecheck": "tsc --project tsconfig.json --noEmit"
@@ -49,7 +52,7 @@
     "detect-package-manager": "^3.0.1",
     "dotenv": "^16.0.1",
     "emittery": "^0.13.1",
-    "esbuild": "^0.15.2",
+    "esbuild": "^0.19.4",
     "ethereum-bloom-filters": "^1.0.10",
     "express": "^4.18.1",
     "glob": "^8.1.0",
@@ -90,6 +93,8 @@
     "module-alias": "^2.2.2",
     "rimraf": "^5.0.1",
     "supertest": "^6.3.3",
+    "tsconfig-paths": "^4.2.0",
+    "tsx": "^3.13.0",
     "typescript": "^5.2.2",
     "vite": "^4.4.11",
     "vitest": "^0.34.6"

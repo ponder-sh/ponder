@@ -1,15 +1,22 @@
 {
-  // This configuration is used to compile cjs and types (see package.json build script). It should exclude all test files.
-  "extends": "./tsconfig.base.json",
-  "include": ["src"],
-  "exclude": ["src/_test", "src/**/*.test.ts"],
   "compilerOptions": {
-    "module": "ESNext",
-    "sourceMap": true,
     "declaration": true,
+    "emitDeclarationOnly": true,
+    "baseUrl": ".",
+    "outDir": "dist",
+    "strict": true,
+    "jsx": "react",
+    "skipLibCheck": true,
+    "sourceMap": true,
     "declarationMap": true,
     "rootDir": "src",
-    "outDir": "dist",
-    "allowJs": true
-  }
+    "allowJs": true,
+    "module": "ESNext",
+    "target": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["DOM", "ESNext", "DOM.Iterable"],
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["src/_test", "src/**/*.test.ts"]
 }
