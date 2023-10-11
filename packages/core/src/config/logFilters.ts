@@ -1,8 +1,8 @@
 import type { Abi, AbiEvent, Address } from "abitype";
 import { type Hex, encodeEventTopics } from "viem";
 
-import type { ResolvedConfig } from "@/config/config";
 import type { Options } from "@/config/options";
+import type { ResolvedConfig } from "@/config/types";
 
 import { buildAbi, getEvents } from "./abi";
 import { encodeLogFilterKey } from "./logFilterKey";

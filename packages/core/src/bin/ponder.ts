@@ -3,7 +3,7 @@ import { cac } from "cac";
 import dotenv from "dotenv";
 import path from "node:path";
 
-import { buildConfig } from "@/config/config";
+import { buildConfig } from "@/build/config";
 import { buildOptions } from "@/config/options";
 import { Ponder } from "@/Ponder";
 
