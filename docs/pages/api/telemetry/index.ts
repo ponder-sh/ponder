@@ -1,5 +1,6 @@
-import { Analytics, TrackParams } from "@segment/analytics-node";
-import { NextApiRequest, NextApiResponse } from "next";
+import type { TrackParams } from "@segment/analytics-node";
+import { Analytics } from "@segment/analytics-node";
+import type { NextApiRequest, NextApiResponse } from "next";
 
 if (!process.env.SEGMENT_WRITE_KEY) {
   throw new Error('Missing required environment variable "SEGMENT_WRITE_KEY".');

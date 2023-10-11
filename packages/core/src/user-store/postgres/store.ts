@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
-import pg from "pg";
+import type pg from "pg";
 
 import type { Schema } from "@/schema/types.js";
 import { blobToBigInt } from "@/utils/decode.js";

@@ -7,7 +7,7 @@ import {
   PostgresDialect,
   sql,
 } from "kysely";
-import pg from "pg";
+import type pg from "pg";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type { Block } from "@/types/block.js";

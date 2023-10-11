@@ -4,7 +4,8 @@ import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { formatError, GraphQLError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
-import { createServer, Server } from "node:http";
+import type { Server } from "node:http";
+import { createServer } from "node:http";
 
 import type { Common } from "@/Ponder.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";

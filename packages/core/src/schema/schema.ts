@@ -1,15 +1,17 @@
+import type {
+  GraphQLEnumType,
+  GraphQLInputObjectType,
+  GraphQLObjectType,
+  GraphQLSchema,
+} from "graphql";
 import {
   type FieldDefinitionNode,
   type StringValueNode,
   GraphQLBoolean,
-  GraphQLEnumType,
   GraphQLFloat,
   GraphQLID,
-  GraphQLInputObjectType,
   GraphQLInt,
-  GraphQLObjectType,
   GraphQLScalarType,
-  GraphQLSchema,
   GraphQLString,
   Kind,
 } from "graphql";

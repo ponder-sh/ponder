@@ -8,7 +8,7 @@ import type { HandlerFunctions } from "@/build/handlers.js";
 import { schemaHeader } from "@/build/schema.js";
 import { encodeLogFilterKey } from "@/config/logFilterKey.js";
 import type { LogEventMetadata } from "@/config/logFilters.js";
-import { EventAggregatorService } from "@/event-aggregator/service.js";
+import type { EventAggregatorService } from "@/event-aggregator/service.js";
 import { buildSchema } from "@/schema/schema.js";
 
 import { EventHandlerService } from "./service.js";

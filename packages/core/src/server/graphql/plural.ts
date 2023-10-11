@@ -1,3 +1,4 @@
+import type { GraphQLObjectType } from "graphql";
 import {
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
@@ -6,7 +7,6 @@ import {
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
-  GraphQLObjectType,
   GraphQLString,
 } from "graphql";
 

@@ -1,9 +1,9 @@
+import type { GraphQLObjectType } from "graphql";
 import {
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
   GraphQLInt,
   GraphQLNonNull,
-  GraphQLObjectType,
 } from "graphql";
 
 import type { Entity } from "@/schema/types.js";

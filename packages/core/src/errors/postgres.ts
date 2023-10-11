@@ -1,4 +1,4 @@
-import pg from "pg";
+import type pg from "pg";
 
 import { prettyPrint } from "@/utils/print.js";
 
