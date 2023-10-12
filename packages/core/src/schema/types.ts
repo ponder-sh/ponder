@@ -37,7 +37,12 @@ export type Schema = {
     string,
     { id: Column<ID, never, false, false> } & Record<
       string,
-      Column<Scalar | `enum:${string}`, unknown, boolean, boolean>
+      Column<
+        Scalar | `enum:${string}`,
+        `${string}.id` | never,
+        boolean,
+        boolean
+      >
     >
   >;
   enums: Record<string, Enum["values"]>;
@@ -45,6 +50,7 @@ export type Schema = {
 
 export type Enum<TValues extends string[] = string[]> = {
   isEnum: true;
+  /** @internal */
   table: Record<string, Column>;
   values: TValues;
 };
@@ -59,7 +65,9 @@ export type Enum<TValues extends string[] = string[]> = {
 export type IT<
   TColumns extends Record<string, Column> = Record<string, Column>
 > = {
+  /** @internal */
   isEnum: false;
+  /** @internal */
   table: Table<TColumns>;
   addColumn: <
     TName extends string,
