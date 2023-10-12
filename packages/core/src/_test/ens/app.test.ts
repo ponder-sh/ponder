@@ -5,7 +5,7 @@ import { type TestContext, afterEach, beforeEach, expect, test } from "vitest";
 
 import { setupEventStore, setupUserStore } from "@/_test/setup.js";
 import { testNetworkConfig } from "@/_test/utils.js";
-import { buildConfig } from "@/config/config.js";
+import { buildConfig } from "@/build/config.js";
 import { buildOptions } from "@/config/options.js";
 import { Ponder } from "@/Ponder.js";
 

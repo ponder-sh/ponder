@@ -3,12 +3,12 @@ import process from "node:process";
 
 import { BuildService } from "@/build/service.js";
 import { CodegenService } from "@/codegen/service.js";
-import { type ResolvedConfig } from "@/config/config.js";
 import { buildContracts } from "@/config/contracts.js";
 import { buildDatabase } from "@/config/database.js";
 import { type LogFilter, buildLogFilters } from "@/config/logFilters.js";
 import { type Network, buildNetwork } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
+import { type ResolvedConfig } from "@/config/types.js";
 import { UserErrorService } from "@/errors/service.js";
 import { EventAggregatorService } from "@/event-aggregator/service.js";
 import { PostgresEventStore } from "@/event-store/postgres/store.js";

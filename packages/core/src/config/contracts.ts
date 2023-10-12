@@ -1,7 +1,7 @@
 import type { Abi, Address } from "abitype";
 
-import type { ResolvedConfig } from "@/config/config.js";
 import type { Options } from "@/config/options.js";
+import type { ResolvedConfig } from "@/config/types.js";
 
 import { buildAbi } from "./abi.js";
 import { type Network, buildNetwork } from "./networks.js";
