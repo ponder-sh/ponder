@@ -2,8 +2,8 @@ import { build } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import type { ResolvedConfig } from "@/config/types";
-import { ensureDirExists } from "@/utils/exists";
+import type { ResolvedConfig } from "@/config/types.js";
+import { ensureDirExists } from "@/utils/exists.js";
 
 export const buildConfig = async ({ configFile }: { configFile: string }) => {
   if (!existsSync(configFile)) {
