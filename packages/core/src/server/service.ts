@@ -170,14 +170,18 @@ export class ServerService {
         case "POST":
           return graphqlMiddleware(request, response, next);
         case "GET": {
+          const host = request.get("host");
+          if (!host) {
+            return response.status(400).send("No host header provided");
+          }
+          const protocol = ["localhost", "0.0.0.0", "127.0.0.1"].includes(host)
+            ? "http"
+            : "https";
+          const endpoint = `${protocol}://${host}`;
           return response
             .status(200)
             .setHeader("Content-Type", "text/html")
-            .send(
-              graphiQLHtml({
-                endpoint: `${request.protocol}://${request.get("host")}`,
-              })
-            );
+            .send(graphiQLHtml({ endpoint }));
         }
         case "HEAD":
           return response.status(200).send();
@@ -195,14 +199,18 @@ export class ServerService {
         case "POST":
           return graphqlMiddleware(request, response, next);
         case "GET": {
+          const host = request.get("host");
+          if (!host) {
+            return response.status(400).send("No host header provided");
+          }
+          const protocol = ["localhost", "0.0.0.0", "127.0.0.1"].includes(host)
+            ? "http"
+            : "https";
+          const endpoint = `${protocol}://${host}`;
           return response
             .status(200)
             .setHeader("Content-Type", "text/html")
-            .send(
-              graphiQLHtml({
-                endpoint: `${request.protocol}://${request.get("host")}`,
-              })
-            );
+            .send(graphiQLHtml({ endpoint }));
         }
         case "HEAD":
           return response.status(200).send();
