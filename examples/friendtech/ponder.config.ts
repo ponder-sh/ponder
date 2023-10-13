@@ -1,8 +1,13 @@
 import type { Config } from "@ponder/core";
+import { http } from "viem";
 
 export const config: Config = {
   networks: [
-    { name: "base", chainId: 8453, rpcUrl: process.env.PONDER_RPC_URL_8453 },
+    {
+      name: "base",
+      chainId: 8453,
+      transport: http(process.env.PONDER_RPC_URL_8453),
+    },
   ],
   contracts: [
     {

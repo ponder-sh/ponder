@@ -1,6 +1,11 @@
 import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import prettier from "prettier";
+import type {
+  SerializableConfig,
+  SerializableContract,
+  SerializableNetwork,
+} from "src/index";
 import { parse } from "yaml";
 
 import {
@@ -8,7 +13,6 @@ import {
   subgraphYamlFileNames,
 } from "@/helpers/getGraphProtocolChainId";
 import { validateGraphProtocolSource } from "@/helpers/validateGraphProtocolSource";
-import type { Contract, Network, PartialConfig } from "@/index";
 
 export const fromSubgraphRepo = ({
   rootDir,
@@ -19,8 +23,8 @@ export const fromSubgraphRepo = ({
 }) => {
   const subgraphRootDir = path.resolve(subgraphPath);
 
-  const ponderNetworks: Network[] = [];
-  let ponderContracts: Contract[] = [];
+  const ponderNetworks: SerializableNetwork[] = [];
+  let ponderContracts: SerializableContract[] = [];
 
   // If the `--from-subgraph` option was passed, parse subgraph files
   const subgraphRootDirPath = path.resolve(subgraphRootDir);
@@ -84,7 +88,7 @@ export const fromSubgraphRepo = ({
         ponderNetworks.push({
           name: network,
           chainId: chainId,
-          rpcUrl: `process.env.PONDER_RPC_URL_${chainId}`,
+          transport: `http(process.env.PONDER_RPC_URL_${chainId})`,
         });
       }
 
@@ -97,20 +101,17 @@ export const fromSubgraphRepo = ({
 
       copyFileSync(abiAbsolutePath, ponderAbiAbsolutePath);
 
-      return <Contract>{
+      return {
         name: source.name,
         network: network,
         address: source.source.address,
         abi: ponderAbiRelativePath,
         startBlock: source.source.startBlock,
-      };
+      } satisfies SerializableContract;
     });
 
-  // Build the partial ponder config.
-  const config: PartialConfig = {
+  return {
     networks: ponderNetworks,
     contracts: ponderContracts,
-  };
-
-  return config;
+  } satisfies SerializableConfig;
 };

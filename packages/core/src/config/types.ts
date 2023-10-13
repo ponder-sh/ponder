@@ -1,4 +1,5 @@
 import type { AbiEvent } from "abitype";
+import type { Transport } from "viem";
 
 export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
@@ -19,8 +20,21 @@ export type ResolvedConfig = {
     name: string;
     /** Chain ID of the network. */
     chainId: number;
-    /** RPC URL. Default: if available, a public RPC provider. */
-    rpcUrl?: string;
+    /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
+     *
+     * __To avoid rate limiting, include a custom RPC URL.__ Usage:
+     *
+     * ```ts
+     * import { http } from "viem";
+     *
+     * const network = {
+     *    name: "mainnet",
+     *    chainId: 1,
+     *    transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+     * }
+     * ```
+     */
+    transport: Transport;
     /** Polling frequency (in ms). Default: `1_000`. */
     pollingInterval?: number;
     /** Maximum concurrency of RPC requests during the historical sync. Default: `10`. */
