@@ -4,6 +4,7 @@ import {
   type RpcTransaction,
   HttpRequestError,
   InvalidParamsRpcError,
+  LimitExceededRpcError,
   toHex,
 } from "viem";
 
@@ -466,6 +467,34 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           queue.addTask(
             { ...task, fromBlock: midpoint + 1 },
             { priority: Number.MAX_SAFE_INTEGER - midpoint + 1 }
+          );
+          // Splitting the task into two parts increases the total count by 1.
+          this.common.metrics.ponder_historical_scheduled_tasks.inc({
+            network: this.network.name,
+            kind: "log",
+          });
+          return;
+        }
+
+        // Handle Infura block range limit error.
+        if (
+          task.kind === "LOG_SYNC" &&
+          error instanceof LimitExceededRpcError &&
+          error.details.includes("query returned more than 10000 results")
+        ) {
+          const safe = error.details.split("Try with this block range ")[1];
+          const safeStart = Number(safe.split(", ")[0].slice(1));
+          const safeEnd = Number(safe.split(", ")[1].slice(0, -2));
+
+          queue.addTask(
+            { ...task, fromBlock: safeStart, toBlock: safeEnd },
+            {
+              priority: Number.MAX_SAFE_INTEGER - safeStart,
+            }
+          );
+          queue.addTask(
+            { ...task, fromBlock: safeEnd + 1 },
+            { priority: Number.MAX_SAFE_INTEGER - safeEnd + 1 }
           );
           // Splitting the task into two parts increases the total count by 1.
           this.common.metrics.ponder_historical_scheduled_tasks.inc({
