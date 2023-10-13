@@ -1,9 +1,4 @@
-import {
-  type Client,
-  type PublicClient,
-  type Transport,
-  createPublicClient,
-} from "viem";
+import { type Client, type PublicClient, createPublicClient } from "viem";
 import * as chains from "viem/chains";
 
 import type { ResolvedConfig } from "@/config/types";
@@ -13,7 +8,6 @@ export type Network = {
   name: string;
   chainId: number;
   client: PublicClient;
-  transport?: Transport;
   pollingInterval: number;
   defaultMaxBlockRange: number;
   maxRpcRequestConcurrency: number;
@@ -55,7 +49,6 @@ export function buildNetwork({
   const resolvedNetwork: Network = {
     name: name,
     chainId: chainId,
-    transport: transport,
     client,
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
