@@ -2,19 +2,22 @@
 "@ponder/core": patch
 ---
 
-Support viem transport as configuration option.
+BREAKING: Dropped support for `rpcUrl` in favor of `transport` in `ponder.config.ts` network configuration.
 
-Instead of specifying a rpc url, you can now pass in a [viem transport](https://viem.sh/docs/clients/intro.html#transports) directly to the ponder network config. This allows you to have more control over the connection. For example, you can use a websocket transport to subscribe to events, or specify multiple transports to fallback to if one fails.
+The new `transport` field accepts a [viem transport](https://viem.sh/docs/clients/intro.html#transports) instead of an RPC url. This makes it possible to use transports other than HTTP, such as WebSockets and Fallback transports.
 
-```ts
-import { http } from "viem";
+Prior to this update, Ponder used an HTTP transport internally. To upgrade with no change in behavior:
+
+```diff
++ import { http } from "viem";
 
 export const config = {
   networks: [
     {
       name: "mainnet",
       chainId: 1,
-      transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+-     rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/...",
++     transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
     },
   ],
   contracts: [
