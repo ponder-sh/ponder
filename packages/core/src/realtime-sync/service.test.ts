@@ -4,13 +4,13 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 import {
   accounts,
-  uniswapV3FactoryConfig,
+  uniswapV3PoolFactoryConfig,
   usdcContractConfig,
   vitalik,
 } from "@/_test/constants";
 import { resetTestClient, setupEventStore } from "@/_test/setup";
 import { publicClient, testClient, walletClient } from "@/_test/utils";
-import { FactoryContract } from "@/config/factories";
+import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import { blobToBigInt } from "@/utils/decode";
@@ -40,7 +40,7 @@ const usdcLogFilter = {
   name: "USDC",
   ...usdcContractConfig,
   network: network.name,
-  filter: { address: usdcContractConfig.address },
+  criteria: { address: usdcContractConfig.address },
   startBlock: 16369995, // 5 blocks
   maxBlockRange: 3,
 } satisfies LogFilter;
@@ -56,17 +56,28 @@ const sendUsdcTransferTransaction = async () => {
 };
 
 const uniswapV3Factory = {
-  name: "UniswapV3Factory",
-  ...uniswapV3FactoryConfig,
+  ...uniswapV3PoolFactoryConfig,
   network: network.name,
   startBlock: 16369500, // 500 blocks
-} satisfies FactoryContract;
+} satisfies Factory;
 
 const createAndInitializeUniswapV3Pool = async () => {
   await walletClient.writeContract({
     account: vitalik.account,
-    address: uniswapV3FactoryConfig.address,
-    abi: uniswapV3FactoryConfig.abi,
+    address: uniswapV3Factory.criteria.address,
+    abi: [
+      {
+        inputs: [
+          { internalType: "address", name: "tokenA", type: "address" },
+          { internalType: "address", name: "tokenB", type: "address" },
+          { internalType: "uint24", name: "fee", type: "uint24" },
+        ],
+        name: "createPool",
+        outputs: [{ internalType: "address", name: "pool", type: "address" }],
+        stateMutability: "nonpayable",
+        type: "function",
+      } as const,
+    ],
     functionName: "createPool",
     args: [
       // ENS https://etherscan.io/token/0xc18360217d8f7ab5e7c516566761ea12ce7f9d72
@@ -340,7 +351,7 @@ test("start() inserts log filter interval records for finalized blocks", async (
 
   const logFilterIntervals = await eventStore.getLogFilterIntervals({
     chainId: network.chainId,
-    logFilter: { address: usdcLogFilter.filter.address },
+    logFilter: usdcLogFilter.criteria,
   });
   expect(logFilterIntervals).toMatchObject([[16379996, 16380000]]);
 
@@ -524,7 +535,7 @@ test("start() with factory contract inserts new child contracts records and chil
     common,
     eventStore,
     network,
-    factoryContracts: [uniswapV3Factory],
+    factories: [uniswapV3Factory],
   });
 
   await service.setup();
@@ -539,10 +550,7 @@ test("start() with factory contract inserts new child contracts records and chil
   const iterator = eventStore.getChildContractAddresses({
     chainId: uniswapV3Factory.chainId,
     upToBlockNumber: 16380010n,
-    factoryContract: {
-      address: uniswapV3Factory.address,
-      eventSelector: uniswapV3Factory.factoryEventSelector,
-    },
+    factory: uniswapV3Factory.criteria,
   });
 
   const childContractAddresses = [];
@@ -555,14 +563,11 @@ test("start() with factory contract inserts new child contracts records and chil
   const eventIterator = eventStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
-    factoryContracts: [
+    factories: [
       {
+        name: "UniswapV3Pool",
         chainId: network.chainId,
-        address: uniswapV3Factory.address,
-        factoryEventSelector: uniswapV3Factory.factoryEventSelector,
-        child: {
-          name: "UniswapV3Pool",
-        },
+        criteria: uniswapV3Factory.criteria,
       },
     ],
   });

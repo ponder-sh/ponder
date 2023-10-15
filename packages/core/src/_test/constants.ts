@@ -1,9 +1,4 @@
-import {
-  type RpcBlock,
-  type RpcLog,
-  type RpcTransaction,
-  decodeEventLog,
-} from "viem";
+import { type RpcBlock, type RpcLog, type RpcTransaction } from "viem";
 
 import { getEvents } from "@/config/abi";
 
@@ -250,141 +245,6 @@ export const usdcContractConfig = {
   abi: usdcContractAbi,
   events: getEvents({ abi: usdcContractAbi }),
 } as const;
-
-const uniswapV3FactoryAbi = [
-  { inputs: [], stateMutability: "nonpayable", type: "constructor" },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, internalType: "uint24", name: "fee", type: "uint24" },
-      {
-        indexed: true,
-        internalType: "int24",
-        name: "tickSpacing",
-        type: "int24",
-      },
-    ],
-    name: "FeeAmountEnabled",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "oldOwner",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "newOwner",
-        type: "address",
-      },
-    ],
-    name: "OwnerChanged",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "token0",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "token1",
-        type: "address",
-      },
-      { indexed: true, internalType: "uint24", name: "fee", type: "uint24" },
-      {
-        indexed: false,
-        internalType: "int24",
-        name: "tickSpacing",
-        type: "int24",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "pool",
-        type: "address",
-      },
-    ],
-    name: "PoolCreated",
-    type: "event",
-  },
-  {
-    inputs: [
-      { internalType: "address", name: "tokenA", type: "address" },
-      { internalType: "address", name: "tokenB", type: "address" },
-      { internalType: "uint24", name: "fee", type: "uint24" },
-    ],
-    name: "createPool",
-    outputs: [{ internalType: "address", name: "pool", type: "address" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      { internalType: "uint24", name: "fee", type: "uint24" },
-      { internalType: "int24", name: "tickSpacing", type: "int24" },
-    ],
-    name: "enableFeeAmount",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "uint24", name: "", type: "uint24" }],
-    name: "feeAmountTickSpacing",
-    outputs: [{ internalType: "int24", name: "", type: "int24" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { internalType: "address", name: "", type: "address" },
-      { internalType: "address", name: "", type: "address" },
-      { internalType: "uint24", name: "", type: "uint24" },
-    ],
-    name: "getPool",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "owner",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "parameters",
-    outputs: [
-      { internalType: "address", name: "factory", type: "address" },
-      { internalType: "address", name: "token0", type: "address" },
-      { internalType: "address", name: "token1", type: "address" },
-      { internalType: "uint24", name: "fee", type: "uint24" },
-      { internalType: "int24", name: "tickSpacing", type: "int24" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "_owner", type: "address" }],
-    name: "setOwner",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 const uniswapV3PoolAbi = [
   { inputs: [], stateMutability: "nonpayable", type: "constructor" },
@@ -1029,30 +889,17 @@ const uniswapV3PoolAbi = [
   },
 ] as const;
 
-export const uniswapV3FactoryConfig = {
+export const uniswapV3PoolFactoryConfig = {
   chainId: 1,
-  address: "0x1f98431c8ad98523631ae4a59f267346ea31f984",
-  abi: uniswapV3FactoryAbi,
-
-  // event PoolCreated(indexed address token0, indexed address token1, indexed uint24 fee, int24 tickSpacing, address pool)
-  factoryEventSelector:
-    "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-  getAddressFromFactoryEventLog: (log: RpcLog) => {
-    const result = decodeEventLog({
-      abi: uniswapV3FactoryAbi,
-      topics: log.topics,
-      data: log.data,
-    });
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    return result.args.pool;
+  name: "UniswapV3Pool",
+  criteria: {
+    address: "0x1f98431c8ad98523631ae4a59f267346ea31f984",
+    eventSelector:
+      "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
+    childContractAddressOffset: 12,
   },
-
-  child: {
-    name: "UniswapV3Pool",
-    abi: uniswapV3PoolAbi,
-    events: getEvents({ abi: uniswapV3PoolAbi }),
-  },
+  abi: uniswapV3PoolAbi,
+  events: getEvents({ abi: uniswapV3PoolAbi }),
 } as const;
 
 export const blockOne: RpcBlock = {

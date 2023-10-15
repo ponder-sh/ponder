@@ -1,4 +1,4 @@
-import { FactoryContract } from "@/config/factories";
+import type { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Common } from "@/Ponder";
 
@@ -7,7 +7,7 @@ import { type UiState, buildUiState, setupInkApp } from "./app";
 export class UiService {
   private common: Common;
   private logFilters: LogFilter[];
-  private factoryContracts: FactoryContract[];
+  private factories: Factory[];
 
   ui: UiState;
   renderInterval: NodeJS.Timer;
@@ -17,19 +17,19 @@ export class UiService {
   constructor({
     common,
     logFilters,
-    factoryContracts,
+    factories,
   }: {
     common: Common;
     logFilters: LogFilter[];
-    factoryContracts: FactoryContract[];
+    factories: Factory[];
   }) {
     this.common = common;
     this.logFilters = logFilters;
-    this.factoryContracts = factoryContracts;
+    this.factories = factories;
 
     this.ui = buildUiState({
       logFilters: this.logFilters,
-      factoryContracts: this.factoryContracts,
+      factories: this.factories,
     });
 
     if (this.common.options.uiEnabled) {

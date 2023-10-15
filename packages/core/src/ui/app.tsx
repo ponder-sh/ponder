@@ -1,7 +1,7 @@
 import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
-import { FactoryContract } from "@/config/factories";
+import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 
 import { HandlersBar } from "./HandlersBar";
@@ -12,10 +12,7 @@ export type UiState = {
 
   historicalSyncEventSourceStats: Record<
     string,
-    {
-      rate: number;
-      eta?: number;
-    }
+    { rate: number; eta?: number }
   >;
 
   isHistoricalSyncComplete: boolean;
@@ -31,10 +28,10 @@ export type UiState = {
 
 export const buildUiState = ({
   logFilters,
-  factoryContracts,
+  factories,
 }: {
   logFilters: LogFilter[];
-  factoryContracts: FactoryContract[];
+  factories: Factory[];
 }) => {
   const ui: UiState = {
     port: 0,
@@ -54,8 +51,7 @@ export const buildUiState = ({
 
   const eventSourceNames = [
     ...logFilters.map((l) => l.name),
-    ...factoryContracts.map((f) => f.name),
-    ...factoryContracts.map((f) => f.child.name),
+    ...factories.map((f) => f.name),
   ];
 
   eventSourceNames.forEach((name) => {

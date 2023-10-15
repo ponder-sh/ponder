@@ -157,7 +157,7 @@ export function rpcToSqliteLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
 }
 
 type ContractReadResultsTable = {
-  address: string;
+  address: Address;
   blockNumber: Buffer; // BigInt
   chainId: number;
   data: Hex;
@@ -181,30 +181,30 @@ type LogFilterIntervalsTable = {
   endBlock: Buffer; // BigInt
 };
 
-type FactoryContractsTable = {
+type FactorysTable = {
   id: Generated<number>;
   chainId: number;
   address: Hex;
   eventSelector: Hex;
 };
 
-type FactoryContractIntervalsTable = {
+type FactoryIntervalsTable = {
   id: Generated<number>;
-  factoryContractId: number;
+  factoryId: number;
   startBlock: Buffer; // BigInt
   endBlock: Buffer; // BigInt
 };
 
 type ChildContractsTable = {
   id: Generated<number>;
-  factoryContractId: number;
+  factoryId: number;
   address: Hex;
   creationBlock: Buffer; // BigInt
 };
 
 type ChildContractIntervalsTable = {
   id: Generated<number>;
-  factoryContractId: number;
+  factoryId: number;
   startBlock: Buffer; // BigInt
   endBlock: Buffer; // BigInt
 };
@@ -218,8 +218,8 @@ export type EventStoreTables = {
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;
 
-  factoryContracts: FactoryContractsTable;
-  factoryContractIntervals: FactoryContractIntervalsTable;
+  factories: FactorysTable;
+  factoryIntervals: FactoryIntervalsTable;
   childContracts: ChildContractsTable;
   childContractIntervals: ChildContractIntervalsTable;
 };

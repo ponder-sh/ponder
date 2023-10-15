@@ -2,7 +2,7 @@ import Emittery from "emittery";
 import { type Hex, decodeEventLog } from "viem";
 
 import { LogEventMetadata } from "@/config/abi";
-import { FactoryContract } from "@/config/factories";
+import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
@@ -45,7 +45,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   private eventStore: EventStore;
   private networks: Network[];
   private logFilters: LogFilter[];
-  private factoryContracts: FactoryContract[];
+  private factories: Factory[];
 
   // Minimum timestamp at which events are available (across all networks).
   checkpoint: number;
@@ -73,13 +73,13 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     eventStore,
     networks,
     logFilters = [],
-    factoryContracts = [],
+    factories = [],
   }: {
     common: Common;
     eventStore: EventStore;
     networks: Network[];
     logFilters?: LogFilter[];
-    factoryContracts?: FactoryContract[];
+    factories?: Factory[];
   }) {
     super();
 
@@ -87,7 +87,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     this.eventStore = eventStore;
     this.networks = networks;
     this.logFilters = logFilters;
-    this.factoryContracts = factoryContracts;
+    this.factories = factories;
     this.metrics = {};
 
     this.checkpoint = 0;
@@ -132,26 +132,22 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       logFilters: this.logFilters.map((logFilter) => ({
         name: logFilter.name,
         chainId: logFilter.chainId,
-        address: logFilter.filter.address,
-        topics: logFilter.filter.topics,
+        criteria: logFilter.criteria,
         fromBlock: logFilter.startBlock,
         toBlock: logFilter.endBlock,
         includeEventSelectors: Object.keys(
           handledEventMetadata[logFilter.name]?.bySelector ?? {}
         ) as Hex[],
       })),
-      factoryContracts: this.factoryContracts.map((factoryContract) => ({
-        chainId: factoryContract.chainId,
-        address: factoryContract.address,
-        factoryEventSelector: factoryContract.factoryEventSelector,
-        child: {
-          name: factoryContract.child.name,
-          includeEventSelectors: Object.keys(
-            handledEventMetadata[factoryContract.child.name]?.bySelector ?? {}
-          ) as Hex[],
-        },
-        fromBlock: factoryContract.startBlock,
-        toBlock: factoryContract.endBlock,
+      factories: this.factories.map((factory) => ({
+        name: factory.name,
+        chainId: factory.chainId,
+        criteria: factory.criteria,
+        fromBlock: factory.startBlock,
+        toBlock: factory.endBlock,
+        includeEventSelectors: Object.keys(
+          handledEventMetadata[factory.name]?.bySelector ?? {}
+        ) as Hex[],
       })),
     });
 

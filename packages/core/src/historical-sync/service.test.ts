@@ -5,10 +5,13 @@ import {
 } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { uniswapV3FactoryConfig, usdcContractConfig } from "@/_test/constants";
+import {
+  uniswapV3PoolFactoryConfig,
+  usdcContractConfig,
+} from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
-import { FactoryContract } from "@/config/factories";
+import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 
@@ -40,17 +43,16 @@ const usdcLogFilter = {
   name: "USDC",
   ...usdcContractConfig,
   network: network.name,
-  filter: { address: usdcContractConfig.address },
+  criteria: { address: usdcContractConfig.address },
   startBlock: 16369995, // 5 blocks
   maxBlockRange: 3,
 } satisfies LogFilter;
 
 const uniswapV3Factory = {
-  name: "UniswapV3Factory",
-  ...uniswapV3FactoryConfig,
+  ...uniswapV3PoolFactoryConfig,
   network: network.name,
   startBlock: 16369500, // 500 blocks
-} satisfies FactoryContract;
+} satisfies Factory;
 
 test("start() with log filter inserts log filter interval records", async (context) => {
   const { common, eventStore } = context;
@@ -67,7 +69,7 @@ test("start() with log filter inserts log filter interval records", async (conte
 
   const logFilterIntervals = await eventStore.getLogFilterIntervals({
     chainId: network.chainId,
-    logFilter: { address: usdcLogFilter.filter.address },
+    logFilter: usdcLogFilter.criteria,
   });
 
   expect(logFilterIntervals).toMatchObject([[16369995, 16370000]]);
@@ -82,29 +84,21 @@ test("start() with factory contract inserts factory and child interval records",
     common,
     eventStore,
     network,
-    factoryContracts: [uniswapV3Factory],
+    factories: [uniswapV3Factory],
   });
   await service.setup(blockNumbers);
   service.start();
   await service.onIdle();
 
-  const factoryContractIntervals = await eventStore.getFactoryContractIntervals(
-    {
-      chainId: uniswapV3Factory.chainId,
-      factoryContract: {
-        address: uniswapV3Factory.address,
-        eventSelector: uniswapV3Factory.factoryEventSelector,
-      },
-    }
-  );
-  expect(factoryContractIntervals).toMatchObject([[16369500, 16370000]]);
+  const factoryIntervals = await eventStore.getFactoryIntervals({
+    chainId: uniswapV3Factory.chainId,
+    factory: uniswapV3Factory.criteria,
+  });
+  expect(factoryIntervals).toMatchObject([[16369500, 16370000]]);
 
   const childContractIntervals = await eventStore.getChildContractIntervals({
     chainId: uniswapV3Factory.chainId,
-    factoryContract: {
-      address: uniswapV3Factory.address,
-      eventSelector: uniswapV3Factory.factoryEventSelector,
-    },
+    factory: uniswapV3Factory.criteria,
   });
   expect(childContractIntervals).toMatchObject([[16369500, 16370000]]);
 
@@ -118,7 +112,7 @@ test("start() with factory contract inserts child contract addresses", async (co
     common,
     eventStore,
     network,
-    factoryContracts: [uniswapV3Factory],
+    factories: [uniswapV3Factory],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -127,10 +121,7 @@ test("start() with factory contract inserts child contract addresses", async (co
   const iterator = eventStore.getChildContractAddresses({
     chainId: uniswapV3Factory.chainId,
     upToBlockNumber: 16370000n,
-    factoryContract: {
-      address: uniswapV3Factory.address,
-      eventSelector: uniswapV3Factory.factoryEventSelector,
-    },
+    factory: uniswapV3Factory.criteria,
   });
 
   const childContractAddresses = [];
@@ -156,7 +147,7 @@ test("setup() with log filter and factory contract updates block metrics", async
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [uniswapV3Factory],
+    factories: [uniswapV3Factory],
   });
   await service.setup(blockNumbers);
 
@@ -198,7 +189,7 @@ test("start() with log filter and factory contract updates completed blocks metr
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [uniswapV3Factory],
+    factories: [uniswapV3Factory],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -280,7 +271,7 @@ test("start() adds log filter events to event store", async (context) => {
       {
         name: "USDC",
         chainId: network.chainId,
-        address: usdcContractConfig.address,
+        criteria: usdcLogFilter.criteria,
       },
     ],
   });
@@ -322,7 +313,7 @@ test("start() adds log filter and factory contract events to event store", async
     eventStore,
     network,
     logFilters: [usdcLogFilter],
-    factoryContracts: [uniswapV3Factory],
+    factories: [uniswapV3Factory],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -335,17 +326,14 @@ test("start() adds log filter and factory contract events to event store", async
       {
         name: "USDC",
         chainId: network.chainId,
-        address: usdcContractConfig.address,
+        criteria: usdcLogFilter.criteria,
       },
     ],
-    factoryContracts: [
+    factories: [
       {
+        name: "UniswapV3Pool",
         chainId: network.chainId,
-        address: uniswapV3Factory.address,
-        factoryEventSelector: uniswapV3Factory.factoryEventSelector,
-        child: {
-          name: "UniswapV3Pool",
-        },
+        criteria: uniswapV3Factory.criteria,
       },
     ],
   });
@@ -377,7 +365,7 @@ test("start() retries unexpected error in log filter task", async (context) => {
 
   const logFilterIntervals = await eventStore.getLogFilterIntervals({
     chainId: network.chainId,
-    logFilter: { address: usdcLogFilter.filter.address },
+    logFilter: usdcLogFilter.criteria,
   });
 
   expect(logFilterIntervals).toMatchObject([[16369995, 16370000]]);
@@ -403,7 +391,7 @@ test("start() retries unexpected error in block task", async (context) => {
 
   const logFilterIntervals = await eventStore.getLogFilterIntervals({
     chainId: network.chainId,
-    logFilter: { address: usdcLogFilter.filter.address },
+    logFilter: usdcLogFilter.criteria,
   });
 
   expect(logFilterIntervals).toMatchObject([[16369995, 16370000]]);
@@ -435,7 +423,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
 
   const logFilterIntervals = await eventStore.getLogFilterIntervals({
     chainId: network.chainId,
-    logFilter: { address: usdcLogFilter.filter.address },
+    logFilter: usdcLogFilter.criteria,
   });
   expect(logFilterIntervals).toMatchObject([[16369995, 16370000]]);
 
@@ -465,7 +453,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
 
   const logFilterIntervals = await eventStore.getLogFilterIntervals({
     chainId: network.chainId,
-    logFilter: { address: usdcLogFilter.filter.address },
+    logFilter: usdcLogFilter.criteria,
   });
   expect(logFilterIntervals).toMatchObject([[16369995, 16370000]]);
 

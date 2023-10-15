@@ -203,22 +203,22 @@ const migrations: Record<string, Migration> = {
         .addColumn("endBlock", "blob", (col) => col.notNull()) // BigInt
         .execute();
       await db.schema
-        .createTable("factoryContracts")
+        .createTable("factories")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)", (col) => col.notNull())
         .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
-        .addUniqueConstraint("factoryContractsUnique", [
+        .addUniqueConstraint("factoriesUnique", [
           "chainId",
           "address",
           "eventSelector",
         ])
         .execute();
       await db.schema
-        .createTable("factoryContractIntervals")
+        .createTable("factoryIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("factoryContractId", "integer", (col) =>
-          col.notNull().references("factoryContracts.id")
+        .addColumn("factoryId", "integer", (col) =>
+          col.notNull().references("factories.id")
         )
         .addColumn("startBlock", "blob", (col) => col.notNull()) // BigInt
         .addColumn("endBlock", "blob", (col) => col.notNull()) // BigInt
@@ -226,8 +226,8 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("childContracts")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("factoryContractId", "integer", (col) =>
-          col.notNull().references("factoryContracts.id")
+        .addColumn("factoryId", "integer", (col) =>
+          col.notNull().references("factories.id")
         )
         .addColumn("address", "varchar(66)", (col) => col.notNull())
         .addColumn("creationBlock", "blob", (col) => col.notNull()) // BigInt
@@ -235,8 +235,8 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("childContractIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("factoryContractId", "integer", (col) =>
-          col.notNull().references("factoryContracts.id")
+        .addColumn("factoryId", "integer", (col) =>
+          col.notNull().references("factories.id")
         )
         .addColumn("startBlock", "blob", (col) => col.notNull()) // BigInt
         .addColumn("endBlock", "blob", (col) => col.notNull()) // BigInt

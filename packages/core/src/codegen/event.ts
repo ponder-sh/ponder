@@ -1,13 +1,13 @@
 import type { LogEventMetadata } from "@/config/abi";
-import type { FactoryContract } from "@/config/factories";
+import type { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 
 export const buildEventTypes = ({
   logFilters,
-  factoryContracts,
+  factories,
 }: {
   logFilters: LogFilter[];
-  factoryContracts: FactoryContract[];
+  factories: Factory[];
 }) => {
   const allHandlers = [
     ...logFilters.map((logFilter) => {
@@ -37,8 +37,8 @@ export const buildEventTypes = ({
         })
         .join("");
     }),
-    ...factoryContracts.map((factoryContract) => {
-      return Object.values(factoryContract.child.events)
+    ...factories.map((factory) => {
+      return Object.values(factory.events)
         .filter((val): val is LogEventMetadata => !!val)
         .map(({ safeName, abiItem }) => {
           const paramsType = `{${abiItem.inputs
@@ -49,7 +49,7 @@ export const buildEventTypes = ({
             })
             .join(";")}}`;
 
-          return `["${factoryContract.child.name}:${safeName}"]: ({
+          return `["${factory.name}:${safeName}"]: ({
             event, context
             }: {
               event: {

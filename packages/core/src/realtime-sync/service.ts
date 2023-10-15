@@ -2,7 +2,7 @@ import Emittery from "emittery";
 import pLimit from "p-limit";
 import { Hex, hexToBigInt, hexToNumber, numberToHex, RpcLog } from "viem";
 
-import { FactoryContract } from "@/config/factories";
+import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
@@ -35,7 +35,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private eventStore: EventStore;
   private network: Network;
   private logFilters: LogFilter[];
-  private factoryContracts: FactoryContract[];
+  private factories: Factory[];
 
   // Queue of unprocessed blocks.
   private queue: RealtimeSyncQueue;
@@ -51,13 +51,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     eventStore,
     network,
     logFilters = [],
-    factoryContracts = [],
+    factories = [],
   }: {
     common: Common;
     eventStore: EventStore;
     network: Network;
     logFilters?: LogFilter[];
-    factoryContracts?: FactoryContract[];
+    factories?: Factory[];
   }) {
     super();
 
@@ -65,7 +65,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.eventStore = eventStore;
     this.network = network;
     this.logFilters = logFilters;
-    this.factoryContracts = factoryContracts;
+    this.factories = factories;
 
     this.queue = this.buildQueue();
   }
@@ -105,7 +105,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // If an endBlock is specified for every event source on this network, and the
     // latest end blcock is less than the finalized block number, we can stop here.
     // The service won't poll for new blocks and won't emit any events.
-    const endBlocks = [...this.logFilters, ...this.factoryContracts].map(
+    const endBlocks = [...this.logFilters, ...this.factories].map(
       (f) => f.endBlock
     );
     if (
@@ -268,12 +268,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       let logs: RpcLog[];
       let matchedLogs: RpcLog[];
 
-      if (this.factoryContracts.length === 0) {
+      if (this.factories.length === 0) {
         // If there are no factory contracts, we can attempt to skip calling eth_getLogs by
         // checking if the block logsBloom matches any of the log filters.
         const doesBlockHaveLogFilterLogs = isMatchedLogInBloomFilter({
           bloom: newBlockWithTransactions.logsBloom!,
-          logFilters: this.logFilters.map((l) => l.filter),
+          logFilters: this.logFilters.map((l) => l.criteria),
         });
 
         if (!doesBlockHaveLogFilterLogs) {
@@ -297,7 +297,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
           matchedLogs = filterLogs({
             logs,
-            logFilters: this.logFilters.map((l) => l.filter),
+            logFilters: this.logFilters.map((l) => l.criteria),
           });
         }
       } else {
@@ -315,27 +315,24 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         // Find and insert any new child contracts.
         await Promise.all(
-          this.factoryContracts.map(async (factoryContract) => {
+          this.factories.map(async (factory) => {
             const matchedFactoryLogs = filterLogs({
               logs,
               logFilters: [
                 {
-                  address: factoryContract.address,
-                  topics: [factoryContract.factoryEventSelector],
+                  address: factory.criteria.address,
+                  topics: [factory.criteria.eventSelector],
                 },
               ],
             });
 
             await this.eventStore.insertRealtimeChildContracts({
               chainId: this.network.chainId,
+              factory: factory.criteria,
               newChildContracts: matchedFactoryLogs.map((log) => ({
-                address: factoryContract.getAddressFromFactoryEventLog(log),
+                address: factory.getAddressFromFactoryEventLog(log),
                 creationBlock: hexToBigInt(log.blockNumber!),
               })),
-              factoryContract: {
-                address: factoryContract.address,
-                eventSelector: factoryContract.factoryEventSelector,
-              },
             });
           })
         );
@@ -346,14 +343,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // latency and database growth.
         const allChildContractAddresses = (
           await Promise.all(
-            this.factoryContracts.map(async (factoryContract) => {
+            this.factories.map(async (factory) => {
               const iterator = this.eventStore.getChildContractAddresses({
                 chainId: this.network.chainId,
+                factory: factory.criteria,
                 upToBlockNumber: hexToBigInt(block.number!),
-                factoryContract: {
-                  address: factoryContract.address,
-                  eventSelector: factoryContract.factoryEventSelector,
-                },
               });
               const childContractAddresses: Hex[] = [];
               for await (const batch of iterator) {
@@ -367,7 +361,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         matchedLogs = filterLogs({
           logs,
           logFilters: [
-            ...this.logFilters.map((l) => l.filter),
+            ...this.logFilters.map((l) => l.criteria),
             ...(allChildContractAddresses.length > 0
               ? [{ address: allChildContractAddresses }]
               : []),
@@ -451,14 +445,8 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // 3) Child filter intervals
         await this.eventStore.insertRealtimeInterval({
           chainId: this.network.chainId,
-          logFilters: this.logFilters.map((l) => ({
-            address: l.filter.address,
-            topics: l.filter.topics,
-          })),
-          factoryContracts: this.factoryContracts.map((f) => ({
-            address: f.address,
-            eventSelector: f.factoryEventSelector,
-          })),
+          logFilters: this.logFilters.map((l) => l.criteria),
+          factories: this.factories.map((f) => f.criteria),
           interval: {
             startBlock: BigInt(this.finalizedBlockNumber + 1),
             endBlock: BigInt(newFinalizedBlock.number),

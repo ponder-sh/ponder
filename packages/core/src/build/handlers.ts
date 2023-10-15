@@ -6,7 +6,7 @@ import { replaceTscAliasPaths } from "tsc-alias";
 import type { Hex } from "viem";
 
 import { LogEventMetadata } from "@/config/abi";
-import { FactoryContract } from "@/config/factories";
+import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Options } from "@/config/options";
 import type { Block } from "@/types/block";
@@ -209,11 +209,11 @@ export type HandlerFunctions = {
 export const hydrateHandlerFunctions = ({
   rawHandlerFunctions,
   logFilters,
-  factoryContracts,
+  factories,
 }: {
   rawHandlerFunctions: RawHandlerFunctions;
   logFilters: LogFilter[];
-  factoryContracts: FactoryContract[];
+  factories: Factory[];
 }) => {
   const handlerFunctions: HandlerFunctions = {
     _meta_: {},
@@ -227,18 +227,16 @@ export const hydrateHandlerFunctions = ({
   Object.entries(rawHandlerFunctions.eventSources).forEach(
     ([eventSourceName, eventSourceFunctions]) => {
       const logFilter = logFilters.find((l) => l.name === eventSourceName);
-      const factoryContract = factoryContracts.find(
-        (f) => f.child.name === eventSourceName
-      );
+      const factory = factories.find((f) => f.name === eventSourceName);
 
-      if (!logFilter && !factoryContract) {
+      if (!logFilter && !factory) {
         throw new Error(`Event source not found in config: ${eventSourceName}`);
       }
 
       Object.entries(eventSourceFunctions).forEach(([eventName, fn]) => {
         const eventData = logFilter
           ? logFilter.events[eventName]
-          : factoryContract?.child.events[eventName];
+          : factory?.events[eventName];
 
         if (!eventData) {
           throw new Error(`Log event not found in ABI: ${eventName}`);

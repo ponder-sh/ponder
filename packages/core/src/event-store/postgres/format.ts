@@ -156,7 +156,7 @@ export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
 }
 
 type ContractReadResultsTable = {
-  address: string;
+  address: Address;
   blockNumber: bigint;
   chainId: number;
   data: Hex;
@@ -180,30 +180,30 @@ type LogFilterIntervalsTable = {
   endBlock: bigint;
 };
 
-type FactoryContractsTable = {
+type FactoriesTable = {
   id: Generated<number>;
   chainId: number;
   address: Hex;
   eventSelector: Hex;
 };
 
-type FactoryContractIntervalsTable = {
+type FactoryIntervalsTable = {
   id: Generated<number>;
-  factoryContractId: number;
+  factoryId: number;
   startBlock: bigint;
   endBlock: bigint;
 };
 
 type ChildContractsTable = {
   id: Generated<number>;
-  factoryContractId: number;
+  factoryId: number;
   address: Hex;
   creationBlock: bigint;
 };
 
 type ChildContractIntervalsTable = {
   id: Generated<number>;
-  factoryContractId: number;
+  factoryId: number;
   startBlock: bigint;
   endBlock: bigint;
 };
@@ -217,8 +217,8 @@ export type EventStoreTables = {
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;
 
-  factoryContracts: FactoryContractsTable;
-  factoryContractIntervals: FactoryContractIntervalsTable;
+  factories: FactoriesTable;
+  factoryIntervals: FactoryIntervalsTable;
   childContracts: ChildContractsTable;
   childContractIntervals: ChildContractIntervalsTable;
 };

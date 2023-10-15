@@ -10,6 +10,8 @@ import {
 import type { Pool } from "pg";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
+import { FactoryCriteria } from "@/config/factories";
+import { LogFilterCriteria } from "@/config/logFilters";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
@@ -270,10 +272,10 @@ export class PostgresEventStore implements EventStore {
     return intervalIntersectionMany(fragmentIntervals);
   };
 
-  insertHistoricalFactoryContractInterval = async ({
+  insertHistoricalFactoryInterval = async ({
     chainId,
     newChildContracts,
-    factoryContract,
+    factory,
     interval,
   }: {
     chainId: number;
@@ -281,7 +283,7 @@ export class PostgresEventStore implements EventStore {
       address: Hex;
       creationBlock: bigint;
     }[];
-    factoryContract: {
+    factory: {
       address: Hex;
       eventSelector: Hex;
     };
@@ -291,15 +293,15 @@ export class PostgresEventStore implements EventStore {
     };
   }) => {
     await this.db.transaction().execute(async (tx) => {
-      const address = toLowerCase(factoryContract.address);
-      const eventSelector = factoryContract.eventSelector;
+      const address = toLowerCase(factory.address);
+      const eventSelector = factory.eventSelector;
 
-      const { id: factoryContractId } = await tx
-        .insertInto("factoryContracts")
+      const { id: factoryId } = await tx
+        .insertInto("factories")
         .values({ chainId, address, eventSelector })
         .onConflict((oc) =>
           oc
-            .constraint("factoryContractsUnique")
+            .constraint("factoriesUnique")
             .doUpdateSet({ chainId, address, eventSelector })
         )
         .returningAll()
@@ -310,7 +312,7 @@ export class PostgresEventStore implements EventStore {
           .insertInto("childContracts")
           .values(
             newChildContracts.map((childContract) => ({
-              factoryContractId,
+              factoryId,
               address: toLowerCase(childContract.address),
               creationBlock: childContract.creationBlock,
             }))
@@ -318,40 +320,40 @@ export class PostgresEventStore implements EventStore {
           .execute();
       }
 
-      await this.insertFactoryContractInterval({
+      await this.insertFactoryInterval({
         tx,
         chainId,
-        factoryContracts: [factoryContract],
+        factories: [factory],
         interval,
       });
     });
   };
 
-  getFactoryContractIntervals = async ({
+  getFactoryIntervals = async ({
     chainId,
-    factoryContract: { address, eventSelector },
+    factory: { address, eventSelector },
   }: {
     chainId: number;
-    factoryContract: {
+    factory: {
       address: Hex;
       eventSelector: Hex;
     };
   }) => {
     return await this.db.transaction().execute(async (tx) => {
-      const { id: factoryContractId } = await tx
-        .insertInto("factoryContracts")
+      const { id: factoryId } = await tx
+        .insertInto("factories")
         .values({ chainId, address, eventSelector })
         .onConflict((oc) =>
           oc
-            .constraint("factoryContractsUnique")
+            .constraint("factoriesUnique")
             .doUpdateSet({ chainId, address, eventSelector })
         )
         .returningAll()
         .executeTakeFirstOrThrow();
 
       const existingIntervals = await tx
-        .deleteFrom("factoryContractIntervals")
-        .where("factoryContractId", "=", factoryContractId)
+        .deleteFrom("factoryIntervals")
+        .where("factoryId", "=", factoryId)
         .returningAll()
         .execute();
 
@@ -361,7 +363,7 @@ export class PostgresEventStore implements EventStore {
 
       const mergedIntervalRows = mergedIntervals.map(
         ([startBlock, endBlock]) => ({
-          factoryContractId,
+          factoryId,
           startBlock: BigInt(startBlock),
           endBlock: BigInt(endBlock),
         })
@@ -369,7 +371,7 @@ export class PostgresEventStore implements EventStore {
 
       if (mergedIntervalRows.length > 0) {
         await tx
-          .insertInto("factoryContractIntervals")
+          .insertInto("factoryIntervals")
           .values(mergedIntervalRows)
           .execute();
       }
@@ -381,12 +383,12 @@ export class PostgresEventStore implements EventStore {
   async *getChildContractAddresses({
     chainId,
     upToBlockNumber,
-    factoryContract: { address, eventSelector },
+    factory: { address, eventSelector },
     pageSize = 10_000,
   }: {
     chainId: number;
     upToBlockNumber: bigint;
-    factoryContract: {
+    factory: {
       address: Hex;
       eventSelector: Hex;
     };
@@ -394,11 +396,11 @@ export class PostgresEventStore implements EventStore {
   }) {
     const baseQuery = this.db
       .selectFrom("childContracts")
-      .leftJoin("factoryContracts", "factoryContractId", "factoryContracts.id")
+      .leftJoin("factories", "factoryId", "factories.id")
       .select(["childContracts.address", "childContracts.creationBlock"])
       .where("chainId", "=", chainId)
-      .where("factoryContracts.address", "=", toLowerCase(address))
-      .where("factoryContracts.eventSelector", "=", eventSelector)
+      .where("factories.address", "=", toLowerCase(address))
+      .where("factories.eventSelector", "=", eventSelector)
       .limit(pageSize)
       .where("childContracts.creationBlock", "<=", upToBlockNumber);
 
@@ -429,14 +431,14 @@ export class PostgresEventStore implements EventStore {
     block: rpcBlock,
     transactions: rpcTransactions,
     logs: rpcLogs,
-    factoryContract,
+    factory,
     interval,
   }: {
     chainId: number;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logs: RpcLog[];
-    factoryContract: {
+    factory: {
       address: Hex;
       eventSelector: Hex;
     };
@@ -471,7 +473,7 @@ export class PostgresEventStore implements EventStore {
       await this.insertChildContractInterval({
         tx,
         chainId,
-        factoryContracts: [factoryContract],
+        factories: [factory],
         interval,
       });
     });
@@ -479,21 +481,21 @@ export class PostgresEventStore implements EventStore {
 
   getChildContractIntervals = async ({
     chainId,
-    factoryContract: { address, eventSelector },
+    factory: { address, eventSelector },
   }: {
     chainId: number;
-    factoryContract: {
+    factory: {
       address: Hex;
       eventSelector: Hex;
     };
   }) => {
     return await this.db.transaction().execute(async (tx) => {
-      const { id: factoryContractId } = await tx
-        .insertInto("factoryContracts")
+      const { id: factoryId } = await tx
+        .insertInto("factories")
         .values({ chainId, address, eventSelector })
         .onConflict((oc) =>
           oc
-            .constraint("factoryContractsUnique")
+            .constraint("factoriesUnique")
             .doUpdateSet({ chainId, address, eventSelector })
         )
         .returningAll()
@@ -501,7 +503,7 @@ export class PostgresEventStore implements EventStore {
 
       const existingIntervals = await tx
         .deleteFrom("childContractIntervals")
-        .where("factoryContractId", "=", factoryContractId)
+        .where("factoryId", "=", factoryId)
         .returningAll()
         .execute();
 
@@ -511,7 +513,7 @@ export class PostgresEventStore implements EventStore {
 
       const mergedIntervalRows = mergedIntervals.map(
         ([startBlock, endBlock]) => ({
-          factoryContractId,
+          factoryId,
           startBlock: BigInt(startBlock),
           endBlock: BigInt(endBlock),
         })
@@ -569,28 +571,28 @@ export class PostgresEventStore implements EventStore {
   insertRealtimeChildContracts = async ({
     chainId,
     newChildContracts,
-    factoryContract,
+    factory,
   }: {
     chainId: number;
     newChildContracts: {
       address: Hex;
       creationBlock: bigint;
     }[];
-    factoryContract: {
+    factory: {
       address: Hex;
       eventSelector: Hex;
     };
   }) => {
     await this.db.transaction().execute(async (tx) => {
-      const address = toLowerCase(factoryContract.address);
-      const eventSelector = factoryContract.eventSelector;
+      const address = toLowerCase(factory.address);
+      const eventSelector = factory.eventSelector;
 
-      const { id: factoryContractId } = await tx
-        .insertInto("factoryContracts")
+      const { id: factoryId } = await tx
+        .insertInto("factories")
         .values({ chainId, address, eventSelector })
         .onConflict((oc) =>
           oc
-            .constraint("factoryContractsUnique")
+            .constraint("factoriesUnique")
             .doUpdateSet({ chainId, address, eventSelector })
         )
         .returningAll()
@@ -600,7 +602,7 @@ export class PostgresEventStore implements EventStore {
         await tx
           .insertInto("childContracts")
           .values({
-            factoryContractId,
+            factoryId,
             address: toLowerCase(childContract.address),
             creationBlock: childContract.creationBlock,
           })
@@ -612,7 +614,7 @@ export class PostgresEventStore implements EventStore {
   insertRealtimeInterval = async ({
     chainId,
     logFilters,
-    factoryContracts,
+    factories,
     interval,
   }: {
     chainId: number;
@@ -620,7 +622,7 @@ export class PostgresEventStore implements EventStore {
       address?: Hex | Hex[];
       topics?: (Hex | Hex[] | null)[];
     }[];
-    factoryContracts: {
+    factories: {
       address: Hex;
       eventSelector: Hex;
     }[];
@@ -637,17 +639,17 @@ export class PostgresEventStore implements EventStore {
         interval,
       });
 
-      await this.insertFactoryContractInterval({
+      await this.insertFactoryInterval({
         tx,
         chainId,
-        factoryContracts,
+        factories,
         interval,
       });
 
       await this.insertChildContractInterval({
         tx,
         chainId,
-        factoryContracts,
+        factories,
         interval,
       });
     });
@@ -733,15 +735,15 @@ export class PostgresEventStore implements EventStore {
     );
   };
 
-  private insertFactoryContractInterval = async ({
+  private insertFactoryInterval = async ({
     tx,
     chainId,
-    factoryContracts,
+    factories,
     interval: { startBlock, endBlock },
   }: {
     tx: KyselyTransaction<EventStoreTables>;
     chainId: number;
-    factoryContracts: {
+    factories: {
       address: Hex;
       eventSelector: Hex;
     }[];
@@ -751,24 +753,24 @@ export class PostgresEventStore implements EventStore {
     };
   }) => {
     await Promise.all(
-      factoryContracts.map(async (factoryContract) => {
-        const address = toLowerCase(factoryContract.address);
-        const eventSelector = factoryContract.eventSelector;
+      factories.map(async (factory) => {
+        const address = toLowerCase(factory.address);
+        const eventSelector = factory.eventSelector;
 
-        const { id: factoryContractId } = await tx
-          .insertInto("factoryContracts")
+        const { id: factoryId } = await tx
+          .insertInto("factories")
           .values({ chainId, address, eventSelector })
           .onConflict((oc) =>
             oc
-              .constraint("factoryContractsUnique")
+              .constraint("factoriesUnique")
               .doUpdateSet({ chainId, address, eventSelector })
           )
           .returningAll()
           .executeTakeFirstOrThrow();
 
         await tx
-          .insertInto("factoryContractIntervals")
-          .values({ factoryContractId, startBlock, endBlock })
+          .insertInto("factoryIntervals")
+          .values({ factoryId, startBlock, endBlock })
           .execute();
       })
     );
@@ -777,12 +779,12 @@ export class PostgresEventStore implements EventStore {
   private insertChildContractInterval = async ({
     tx,
     chainId,
-    factoryContracts,
+    factories,
     interval: { startBlock, endBlock },
   }: {
     tx: KyselyTransaction<EventStoreTables>;
     chainId: number;
-    factoryContracts: {
+    factories: {
       address: Hex;
       eventSelector: Hex;
     }[];
@@ -792,16 +794,16 @@ export class PostgresEventStore implements EventStore {
     };
   }) => {
     await Promise.all(
-      factoryContracts.map(async (factoryContract) => {
-        const address = toLowerCase(factoryContract.address);
-        const eventSelector = factoryContract.eventSelector;
+      factories.map(async (factory) => {
+        const address = toLowerCase(factory.address);
+        const eventSelector = factory.eventSelector;
 
-        const { id: factoryContractId } = await tx
-          .insertInto("factoryContracts")
+        const { id: factoryId } = await tx
+          .insertInto("factories")
           .values({ chainId, address, eventSelector })
           .onConflict((oc) =>
             oc
-              .constraint("factoryContractsUnique")
+              .constraint("factoriesUnique")
               .doUpdateSet({ chainId, address, eventSelector })
           )
           .returningAll()
@@ -809,7 +811,7 @@ export class PostgresEventStore implements EventStore {
 
         await tx
           .insertInto("childContractIntervals")
-          .values({ factoryContractId, startBlock, endBlock })
+          .values({ factoryId, startBlock, endBlock })
           .execute();
       })
     );
@@ -822,7 +824,7 @@ export class PostgresEventStore implements EventStore {
     data,
     result,
   }: {
-    address: string;
+    address: Address;
     blockNumber: bigint;
     chainId: number;
     data: Hex;
@@ -843,7 +845,7 @@ export class PostgresEventStore implements EventStore {
     chainId,
     data,
   }: {
-    address: string;
+    address: Address;
     blockNumber: bigint;
     chainId: number;
     data: Hex;
@@ -864,7 +866,7 @@ export class PostgresEventStore implements EventStore {
     fromTimestamp,
     toTimestamp,
     logFilters = [],
-    factoryContracts = [],
+    factories = [],
     pageSize = 10_000,
   }: {
     fromTimestamp: number;
@@ -872,28 +874,24 @@ export class PostgresEventStore implements EventStore {
     logFilters?: {
       name: string;
       chainId: number;
-      address?: Address | Address[];
-      topics?: (Hex | Hex[] | null)[];
+      criteria: LogFilterCriteria;
       fromBlock?: number;
       toBlock?: number;
       includeEventSelectors?: Hex[];
     }[];
-    factoryContracts?: {
+    factories?: {
+      name: string;
       chainId: number;
-      address: Address;
-      factoryEventSelector: Hex;
-      child: {
-        name: string;
-        includeEventSelectors?: Hex[];
-      };
+      criteria: FactoryCriteria;
       fromBlock?: number;
       toBlock?: number;
+      includeEventSelectors?: Hex[];
     }[];
     pageSize: number;
   }) {
     const eventSourceNames = [
       ...logFilters.map((f) => f.name),
-      ...factoryContracts.map((f) => f.child.name),
+      ...factories.map((f) => f.name),
     ];
 
     const baseQuery = this.db
@@ -988,12 +986,13 @@ export class PostgresEventStore implements EventStore {
         )
       );
 
-      if (logFilter.address) {
+      if (logFilter.criteria.address) {
         // If it's an array of length 1, collapse it.
         const address =
-          Array.isArray(logFilter.address) && logFilter.address.length === 1
-            ? logFilter.address[0]
-            : logFilter.address;
+          Array.isArray(logFilter.criteria.address) &&
+          logFilter.criteria.address.length === 1
+            ? logFilter.criteria.address[0]
+            : logFilter.criteria.address;
         if (Array.isArray(address)) {
           cmprs.push(or(address.map((a) => cmpr("logs.address", "=", a))));
         } else {
@@ -1001,11 +1000,11 @@ export class PostgresEventStore implements EventStore {
         }
       }
 
-      if (logFilter.topics) {
+      if (logFilter.criteria.topics) {
         for (const idx_ of range(0, 4)) {
           const idx = idx_ as 0 | 1 | 2 | 3;
           // If it's an array of length 1, collapse it.
-          const raw = logFilter.topics[idx] ?? null;
+          const raw = logFilter.criteria.topics[idx] ?? null;
           if (raw === null) continue;
           const topic = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
           if (Array.isArray(topic)) {
@@ -1027,22 +1026,22 @@ export class PostgresEventStore implements EventStore {
       return cmprs;
     };
 
-    const buildFactoryContractCmprs = ({
+    const buildFactoryCmprs = ({
       where,
-      factoryContract,
+      factory,
     }: {
       where: ExpressionBuilder<any, any>;
-      factoryContract: (typeof factoryContracts)[number];
+      factory: (typeof factories)[number];
     }) => {
       const { cmpr, selectFrom } = where;
       const cmprs = [];
 
-      cmprs.push(cmpr("eventSource_name", "=", factoryContract.child.name));
+      cmprs.push(cmpr("eventSource_name", "=", factory.name));
       cmprs.push(
         cmpr(
           "logs.chainId",
           "=",
-          sql`cast (${sql.val(factoryContract.chainId)} as integer)`
+          sql`cast (${sql.val(factory.chainId)} as integer)`
         )
       );
 
@@ -1053,35 +1052,31 @@ export class PostgresEventStore implements EventStore {
           selectFrom("childContracts")
             .select("address")
             .where(
-              "childContracts.factoryContractId",
+              "childContracts.factoryId",
               "=",
-              selectFrom("factoryContracts")
+              selectFrom("factories")
                 .select("id")
                 .where(
-                  "factoryContracts.chainId",
+                  "factories.chainId",
                   "=",
-                  sql`cast (${sql.val(factoryContract.chainId)} as integer)`
+                  sql`cast (${sql.val(factory.chainId)} as integer)`
                 )
-                .where("factoryContracts.address", "=", factoryContract.address)
+                .where("factories.address", "=", factory.criteria.address)
                 .where(
-                  "factoryContracts.eventSelector",
+                  "factories.eventSelector",
                   "=",
-                  factoryContract.factoryEventSelector
+                  factory.criteria.eventSelector
                 )
             )
         )
       );
 
-      if (factoryContract.fromBlock) {
-        cmprs.push(
-          cmpr("blocks.number", ">=", BigInt(factoryContract.fromBlock))
-        );
+      if (factory.fromBlock) {
+        cmprs.push(cmpr("blocks.number", ">=", BigInt(factory.fromBlock)));
       }
 
-      if (factoryContract.toBlock) {
-        cmprs.push(
-          cmpr("blocks.number", "<=", BigInt(factoryContract.toBlock))
-        );
+      if (factory.toBlock) {
+        cmprs.push(cmpr("blocks.number", "<=", BigInt(factory.toBlock)));
       }
 
       return cmprs;
@@ -1105,12 +1100,12 @@ export class PostgresEventStore implements EventStore {
           return and(cmprs);
         });
 
-        const factoryContractCmprs = factoryContracts.map((factoryContract) => {
-          const cmprs = buildFactoryContractCmprs({ where, factoryContract });
-          if (factoryContract.child.includeEventSelectors) {
+        const factoryCmprs = factories.map((factory) => {
+          const cmprs = buildFactoryCmprs({ where, factory });
+          if (factory.includeEventSelectors) {
             cmprs.push(
               or(
-                factoryContract.child.includeEventSelectors.map((t) =>
+                factory.includeEventSelectors.map((t) =>
                   cmpr("logs.topic0", "=", t)
                 )
               )
@@ -1119,7 +1114,7 @@ export class PostgresEventStore implements EventStore {
           return and(cmprs);
         });
 
-        return or([...logFilterCmprs, ...factoryContractCmprs]);
+        return or([...logFilterCmprs, ...factoryCmprs]);
       })
       .orderBy("blocks.timestamp", "asc")
       .orderBy("logs.chainId", "asc")
@@ -1142,11 +1137,11 @@ export class PostgresEventStore implements EventStore {
           and(buildLogFilterCmprs({ where, logFilter }))
         );
 
-        const factoryContractCmprs = factoryContracts.map((factoryContract) =>
-          and(buildFactoryContractCmprs({ where, factoryContract }))
+        const factoryCmprs = factories.map((factory) =>
+          and(buildFactoryCmprs({ where, factory }))
         );
 
-        return or([...logFilterCmprs, ...factoryContractCmprs]);
+        return or([...logFilterCmprs, ...factoryCmprs]);
       })
       .groupBy(["eventSource_name", "logs.topic0"]);
 

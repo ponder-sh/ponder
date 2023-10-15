@@ -6,16 +6,18 @@ import type { Options } from "@/config/options";
 
 import { AbiEvents, buildAbi, getEvents } from "./abi";
 
+export type LogFilterCriteria = {
+  address?: Address | Address[];
+  topics?: (Hex | Hex[] | null)[];
+};
+
 export type LogFilter = {
   name: string;
   network: string;
   chainId: number;
+  criteria: LogFilterCriteria;
   abi: Abi;
   events: AbiEvents;
-  filter: {
-    address?: Hex | Hex[];
-    topics?: (Hex | Hex[] | null)[];
-  };
   startBlock: number;
   endBlock?: number;
   maxBlockRange?: number;
@@ -55,10 +57,7 @@ export function buildLogFilters({
         chainId: network.chainId,
         abi,
         events,
-        filter: {
-          address,
-          topics,
-        },
+        criteria: { address, topics },
         startBlock: contract.startBlock ?? 0,
         endBlock: contract.endBlock,
         maxBlockRange: contract.maxBlockRange,
@@ -103,10 +102,7 @@ export function buildLogFilters({
       chainId: network.chainId,
       abi,
       events,
-      filter: {
-        address,
-        topics,
-      },
+      criteria: { address, topics },
       startBlock: filter.startBlock ?? 0,
       endBlock: filter.endBlock,
       maxBlockRange: filter.maxBlockRange,

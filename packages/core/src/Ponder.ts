@@ -6,10 +6,7 @@ import { CodegenService } from "@/codegen/service";
 import { type ResolvedConfig } from "@/config/config";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
-import {
-  type FactoryContract,
-  buildFactoryContracts,
-} from "@/config/factories";
+import { type Factory, buildFactories } from "@/config/factories";
 import { type LogFilter, buildLogFilters } from "@/config/logFilters";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
@@ -49,7 +46,7 @@ export class Ponder {
   networkSyncServices: {
     network: Network;
     logFilters: LogFilter[];
-    factoryContracts: FactoryContract[];
+    factories: Factory[];
     historicalSyncService: HistoricalSyncService;
     realtimeSyncService: RealtimeSyncService;
   }[] = [];
@@ -88,12 +85,12 @@ export class Ponder {
     const logFilters = buildLogFilters({ options, config });
     this.logFilters = logFilters;
     const contracts = buildContracts({ options, config });
-    const factoryContracts = buildFactoryContracts({ options, config });
+    const factories = buildFactories({ options, config });
 
     const networks = config.networks
       .map((network) => buildNetwork({ network }))
       .filter((network) => {
-        const hasEventSources = [...logFilters, ...factoryContracts].some(
+        const hasEventSources = [...logFilters, ...factories].some(
           (eventSource) => eventSource.network === network.name
         );
         if (!hasEventSources) {
@@ -122,26 +119,26 @@ export class Ponder {
       const logFiltersForNetwork = logFilters.filter(
         (logFilter) => logFilter.network === network.name
       );
-      const factoryContractsForNetwork = factoryContracts.filter(
+      const factoriesForNetwork = factories.filter(
         (logFilter) => logFilter.network === network.name
       );
       this.networkSyncServices.push({
         network,
         logFilters: logFiltersForNetwork,
-        factoryContracts: factoryContractsForNetwork,
+        factories: factoriesForNetwork,
         historicalSyncService: new HistoricalSyncService({
           common,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
-          factoryContracts: factoryContractsForNetwork,
+          factories: factoriesForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
           common,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
-          factoryContracts,
+          factories,
         }),
       });
     });
@@ -151,7 +148,7 @@ export class Ponder {
       eventStore: this.eventStore,
       networks,
       logFilters,
-      factoryContracts,
+      factories,
     });
 
     this.eventHandlerService = new EventHandlerService({
@@ -161,7 +158,7 @@ export class Ponder {
       eventAggregatorService: this.eventAggregatorService,
       contracts,
       logFilters,
-      factoryContracts,
+      factories,
     });
 
     this.serverService = new ServerService({
@@ -171,15 +168,15 @@ export class Ponder {
     this.buildService = new BuildService({
       common,
       logFilters,
-      factoryContracts,
+      factories,
     });
     this.codegenService = new CodegenService({
       common,
       contracts,
       logFilters,
-      factoryContracts,
+      factories,
     });
-    this.uiService = new UiService({ common, logFilters, factoryContracts });
+    this.uiService = new UiService({ common, logFilters, factories });
   }
 
   async setup() {

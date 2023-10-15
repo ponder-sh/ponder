@@ -4,7 +4,7 @@ import Emittery from "emittery";
 import type { HandlerFunctions } from "@/build/handlers";
 import { LogEventMetadata } from "@/config/abi";
 import type { Contract } from "@/config/contracts";
-import { FactoryContract } from "@/config/factories";
+import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type {
@@ -40,7 +40,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
   private logFilters: LogFilter[];
-  private factoryContracts: FactoryContract[];
+  private factories: Factory[];
 
   private readOnlyContracts: Record<string, ReadOnlyContract> = {};
 
@@ -66,7 +66,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     eventAggregatorService,
     contracts,
     logFilters = [],
-    factoryContracts = [],
+    factories = [],
   }: {
     common: Common;
     eventStore: EventStore;
@@ -74,14 +74,14 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     eventAggregatorService: EventAggregatorService;
     contracts: Contract[];
     logFilters?: LogFilter[];
-    factoryContracts?: FactoryContract[];
+    factories?: Factory[];
   }) {
     super();
     this.common = common;
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
     this.logFilters = logFilters;
-    this.factoryContracts = factoryContracts;
+    this.factories = factories;
 
     // The read-only contract objects only depend on config, so they can
     // be built in the constructor (they can't be hot-reloaded).
@@ -294,9 +294,8 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
               const safeName = Object.values({
                 ...(this.logFilters.find((f) => f.name === eventSourceName)
                   ?.events || {}),
-                ...(this.factoryContracts.find(
-                  (f) => f.child.name === eventSourceName
-                )?.child.events || {}),
+                ...(this.factories.find((f) => f.name === eventSourceName)
+                  ?.events || {}),
               })
                 .filter((m): m is LogEventMetadata => !!m)
                 .find((m) => m.selector === selector)?.safeName;
