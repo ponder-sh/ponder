@@ -20,29 +20,40 @@ export function buildContracts({
   config: ResolvedConfig;
   options: Options;
 }): Contract[] {
-  return (config.contracts ?? []).map((contract) => {
-    const address = contract.address.toLowerCase() as Address;
+  const contracts = config.contracts ?? [];
 
-    const { abi } = buildAbi({
-      abiConfig: contract.abi,
-      configFilePath: options.configFile,
-    });
+  return contracts
+    .filter(
+      (
+        contract
+      ): contract is (typeof contracts)[number] & { address: Address } =>
+        !!contract.address
+    )
+    .map((contract) => {
+      const address = contract.address.toLowerCase() as Address;
 
-    // Get the contract network/provider.
-    const rawNetwork = config.networks.find((n) => n.name === contract.network);
-    if (!rawNetwork) {
-      throw new Error(
-        `Network [${contract.network}] not found for contract: ${contract.name}`
+      const { abi } = buildAbi({
+        abiConfig: contract.abi,
+        configFilePath: options.configFile,
+      });
+
+      // Get the contract network/provider.
+      const rawNetwork = config.networks.find(
+        (n) => n.name === contract.network
       );
-    }
+      if (!rawNetwork) {
+        throw new Error(
+          `Network [${contract.network}] not found for contract: ${contract.name}`
+        );
+      }
 
-    const network = buildNetwork({ network: rawNetwork });
+      const network = buildNetwork({ network: rawNetwork });
 
-    return {
-      name: contract.name,
-      address,
-      network: network,
-      abi,
-    };
-  });
+      return {
+        name: contract.name,
+        address,
+        network: network,
+        abi,
+      };
+    });
 }

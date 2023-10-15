@@ -30,7 +30,15 @@ export function buildLogFilters({
   config: ResolvedConfig;
   options: Options;
 }) {
-  const contractLogFilters = (config.contracts ?? [])
+  const contracts = config.contracts ?? [];
+
+  const contractLogFilters = contracts
+    .filter(
+      (
+        contract
+      ): contract is (typeof contracts)[number] & { address: Address } =>
+        !!contract.address
+    )
     .filter((contract) => contract.isLogEventSource ?? true)
     .map((contract) => {
       const { abi } = buildAbi({

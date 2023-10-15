@@ -11,7 +11,7 @@ import {
   toHex,
 } from "viem";
 
-import { Factory } from "@/config/factories";
+import { Factory, getAddressFromFactoryEventLog } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
@@ -683,7 +683,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     );
 
     const newChildContracts = logs.map((log) => ({
-      address: factory.getAddressFromFactoryEventLog(log),
+      address: getAddressFromFactoryEventLog({
+        criteria: factory.criteria,
+        log,
+      }),
       creationBlock: hexToBigInt(log.blockNumber!),
     }));
 

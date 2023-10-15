@@ -1,5 +1,5 @@
-import type { Abi, Address } from "abitype";
-import { decodeEventLog, getEventSelector, Hex } from "viem";
+import type { Abi, AbiEvent, Address } from "abitype";
+import { getEventSelector, Hex, RpcLog, slice } from "viem";
 
 import type { ResolvedConfig } from "@/config/config";
 import type { Options } from "@/config/options";
@@ -40,97 +40,114 @@ export function buildFactories({
   config: ResolvedConfig;
   options: Options;
 }) {
-  const factories = (config.factories ?? []).map((factory) => {
-    const factoryEventSelector = getEventSelector(factory.factoryEvent);
+  const contracts = config.contracts ?? [];
 
-    //   {
-    //     childContractAddressTopic: 1 | 2 | 3;
-    //     childContractAddressOffset?: undefined;
-    // } | {
-    //     childContractAddressTopic?: undefined;
-    //     childContractAddressOffset: number;
-    // }
+  const factories = contracts
+    .filter(
+      (
+        contract
+      ): contract is (typeof contracts)[number] & {
+        factory: NonNullable<(typeof contracts)[number]["factory"]>;
+      } => !!contract.factory
+    )
+    .map((contract) => {
+      const criteria = buildFactoryCriteria(contract.factory);
 
-    const { abi: childAbi } = buildAbi({
-      abiConfig: factory.child.abi,
-      configFilePath: options.configFile,
-    });
+      const { abi } = buildAbi({
+        abiConfig: contract.abi,
+        configFilePath: options.configFile,
+      });
 
-    const childEvents = getEvents({ abi: childAbi });
+      const childEvents = getEvents({ abi });
 
-    const network = config.networks.find((n) => n.name === factory.network);
-    if (!network) {
-      throw new Error(
-        `Network [${factory.network}] not found for factory contract: ${factory.name}`
-      );
-    }
+      const network = config.networks.find((n) => n.name === contract.network);
+      if (!network) {
+        throw new Error(
+          `Network [${contract.network}] not found for factory contract: ${contract.name}`
+        );
+      }
 
-    const address = factory.address.toLowerCase() as Address;
+      return <Factory>{
+        name: contract.name,
+        network: network.name,
+        chainId: network.chainId,
 
-    return <Factory>{
-      name: factory.name,
-      network: network.name,
-      chainId: network.chainId,
+        criteria,
 
-      child: {
-        name: factory.child.name,
-        abi: childAbi,
+        abi,
         events: childEvents,
-      },
 
-      startBlock: factory.startBlock ?? 0,
-      endBlock: factory.endBlock,
-      maxBlockRange: factory.maxBlockRange,
-    };
-  });
+        startBlock: contract.startBlock ?? 0,
+        endBlock: contract.endBlock,
+        maxBlockRange: contract.maxBlockRange,
+      };
+    });
 
   return factories;
 }
 
-function buildFactoryCriteria({}: {}) {
-  const { address, eventSelector } = factory;
+function buildFactoryCriteria({
+  address,
+  event,
+  parameter,
+}: {
+  address: `0x${string}`;
+  event: AbiEvent;
+  parameter: string;
+}) {
+  const eventSelector = getEventSelector(event);
 
-  // TODO: Update this logic to find the childAddressTopicIndex OR childAddressDataOffset
-  // from the provided config. This will be required to provide a serializable config
-  // to support remote sync services. In the meantime, this simple function works.
-  // Naive validation that the user has provided a valid name for the
-  // child contract address parameter.
-  const factoryEventAddressParameter = factory.factoryEvent.inputs.find(
-    (i) => i.name === factory.factoryEventAddressArgument
-  );
-  if (!factoryEventAddressParameter) {
+  // Check if the provided parameter is present in the list of indexed inputs.
+  const indexedInputPosition = event.inputs
+    .filter((x) => "indexed" in x && x.indexed)
+    .findIndex((input) => input.name === parameter);
+
+  if (indexedInputPosition > -1) {
+    return {
+      address: toLowerCase(address),
+      eventSelector,
+      // Add 1 because inputs will not contain an element for topic0 (the signature).
+      childContractAddressTopic: (indexedInputPosition + 1) as 1 | 2 | 3,
+    } satisfies FactoryCriteria;
+  }
+
+  const nonIndexedInputPosition = event.inputs
+    .filter((x) => !("indexed" in x && x.indexed))
+    .findIndex((input) => input.name === parameter);
+
+  if (nonIndexedInputPosition === -1) {
     throw new Error(
-      `Factory event address argument '${
-        factory.factoryEventAddressArgument
-      }' not found in factory event signature. Found inputs: ${factory.factoryEvent.inputs
+      `Factory event parameter '${parameter}' not found in factory event signature. Found: ${event.inputs
         .map((i) => i.name)
-        .join(",")}`
+        .join(", ")}.`
     );
   }
 
-  const { args } = decodeEventLog({
-    abi: [factory.factoryEvent],
-    topics: log.topics,
-    data: log.data,
-  });
-
-  if (!(factory.factoryEventAddressArgument in args)) {
-    throw new Error(`Unable to decode factory event log`);
-  }
-
-  return toLowerCase(
-    (args as any)[factory.factoryEventAddressArgument] as Address
-  );
+  return {
+    address: toLowerCase(address),
+    eventSelector,
+    // The offset of the provided parameter is equal to the parameter position * 32 bytes.
+    // Source: https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types
+    childContractAddressOffset: nonIndexedInputPosition * 32,
+  } satisfies FactoryCriteria;
 }
 
-// // event PoolCreated(indexed address token0, indexed address token1, indexed uint24 fee, int24 tickSpacing, address pool)
-// getAddressFromFactoryEventLog: (log: RpcLog) => {
-//   const result = decodeEventLog({
-//     abi: uniswapV3FactoryAbi,
-//     topics: log.topics,
-//     data: log.data,
-//   });
-//   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-//   // @ts-ignore
-//   return result.args.pool;
-// },
+export function getAddressFromFactoryEventLog({
+  criteria,
+  log,
+}: {
+  criteria: FactoryCriteria;
+  log: RpcLog;
+}) {
+  const address = criteria.childContractAddressOffset
+    ? slice(log.data, criteria.childContractAddressOffset, 32)
+    : log.topics[criteria.childContractAddressTopic!];
+
+  if (!address) {
+    throw new Error(
+      `Unable to get child contract address from factory event log`
+    );
+  }
+
+  return address;
+}

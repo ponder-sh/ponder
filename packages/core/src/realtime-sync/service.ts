@@ -2,7 +2,7 @@ import Emittery from "emittery";
 import pLimit from "p-limit";
 import { Hex, hexToBigInt, hexToNumber, numberToHex, RpcLog } from "viem";
 
-import { Factory } from "@/config/factories";
+import { Factory, getAddressFromFactoryEventLog } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
@@ -330,7 +330,10 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
               chainId: this.network.chainId,
               factory: factory.criteria,
               newChildContracts: matchedFactoryLogs.map((log) => ({
-                address: factory.getAddressFromFactoryEventLog(log),
+                address: getAddressFromFactoryEventLog({
+                  criteria: factory.criteria,
+                  log,
+                }),
                 creationBlock: hexToBigInt(log.blockNumber!),
               })),
             });

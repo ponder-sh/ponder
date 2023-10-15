@@ -30,9 +30,7 @@ const logFilters = [
     name: "USDC",
     ...usdcContractConfig,
     network: network.name,
-    filter: {
-      address: usdcContractConfig.address,
-    },
+    criteria: { address: usdcContractConfig.address },
     startBlock: 16369950,
   },
 ];

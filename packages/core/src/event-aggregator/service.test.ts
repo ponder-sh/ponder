@@ -33,7 +33,7 @@ const usdcLogFilter = {
   name: "USDC",
   network: mainnet.name,
   chainId: mainnet.chainId,
-  filter: { address: usdcContractConfig.address },
+  criteria: { address: usdcContractConfig.address },
   startBlock: 16369950,
 };
 
