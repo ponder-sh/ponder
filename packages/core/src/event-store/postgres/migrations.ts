@@ -298,7 +298,7 @@ const migrations: Record<string, Migration> = {
       /** Add new log filter and factory contract interval tables. */
       await db.schema
         .createTable("logFilters")
-        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}`
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${address}_${topic0}_${topic1}_${topic2}_${topic3}`
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)")
         .addColumn("topic0", "varchar(66)")
@@ -318,20 +318,17 @@ const migrations: Record<string, Migration> = {
         .execute();
       await db.schema
         .createTable("factories")
-        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${address}_${eventSelector}_${childAddressLocation}`
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)", (col) => col.notNull())
         .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
-        .addUniqueConstraint("factoriesUnique", [
-          "chainId",
-          "address",
-          "eventSelector",
-        ])
+        .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
+        .addUniqueConstraint("factoriesUnique", ["id", "chainId"])
         .execute();
       await db.schema
         .createTable("factoryIntervals")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("factoryId", "integer", (col) =>
+        .addColumn("factoryId", "text", (col) =>
           col.notNull().references("factories.id")
         )
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
@@ -340,7 +337,7 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("childContracts")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("factoryId", "integer", (col) =>
+        .addColumn("factoryId", "text", (col) =>
           col.notNull().references("factories.id")
         )
         .addColumn("address", "varchar(66)", (col) => col.notNull())
@@ -349,7 +346,7 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("childContractIntervals")
         .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("factoryId", "integer", (col) =>
+        .addColumn("factoryId", "text", (col) =>
           col.notNull().references("factories.id")
         )
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())

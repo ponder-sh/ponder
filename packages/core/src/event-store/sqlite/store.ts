@@ -9,8 +9,8 @@ import {
 } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import { FactoryCriteria } from "@/config/factories";
-import { LogFilterCriteria } from "@/config/logFilters";
+import { type FactoryCriteria, buildFactoryId } from "@/config/factories";
+import type { LogFilterCriteria } from "@/config/logFilters";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
@@ -58,24 +58,18 @@ export class SqliteEventStore implements EventStore {
 
   insertHistoricalLogFilterInterval = async ({
     chainId,
+    logFilter,
     block: rpcBlock,
     transactions: rpcTransactions,
     logs: rpcLogs,
-    logFilter,
     interval,
   }: {
     chainId: number;
+    logFilter: LogFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logs: RpcLog[];
-    logFilter: {
-      address?: Hex | Hex[];
-      topics?: (Hex | Hex[] | null)[];
-    };
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     await this.db.transaction().execute(async (tx) => {
       await tx
@@ -119,10 +113,7 @@ export class SqliteEventStore implements EventStore {
     logFilter,
   }: {
     chainId: number;
-    logFilter: {
-      address?: Hex | Hex[];
-      topics?: (Hex | Hex[] | null)[];
-    };
+    logFilter: LogFilterCriteria;
   }) => {
     const logFilterFragments = buildLogFilterFragments(logFilter);
 
@@ -239,32 +230,21 @@ export class SqliteEventStore implements EventStore {
 
   insertHistoricalFactoryInterval = async ({
     chainId,
-    newChildContracts,
     factory,
+    newChildContracts,
     interval,
   }: {
     chainId: number;
-    newChildContracts: {
-      address: Hex;
-      creationBlock: bigint;
-    }[];
-    factory: {
-      address: Hex;
-      eventSelector: Hex;
-    };
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    factory: FactoryCriteria;
+    newChildContracts: { address: Hex; creationBlock: bigint }[];
+    interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     await this.db.transaction().execute(async (tx) => {
-      const address = toLowerCase(factory.address);
-      const eventSelector = factory.eventSelector;
-
+      const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
       const { id: factoryId } = await tx
         .insertInto("factories")
-        .values({ chainId, address, eventSelector })
-        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .values(factory_)
+        .onConflict((oc) => oc.doUpdateSet(factory_))
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -292,19 +272,17 @@ export class SqliteEventStore implements EventStore {
 
   getFactoryIntervals = async ({
     chainId,
-    factory: { address, eventSelector },
+    factory,
   }: {
     chainId: number;
-    factory: {
-      address: Hex;
-      eventSelector: Hex;
-    };
+    factory: FactoryCriteria;
   }) => {
     return await this.db.transaction().execute(async (tx) => {
+      const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
       const { id: factoryId } = await tx
         .insertInto("factories")
-        .values({ chainId, address, eventSelector })
-        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .values(factory_)
+        .onConflict((oc) => oc.doUpdateSet(factory_))
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -348,10 +326,7 @@ export class SqliteEventStore implements EventStore {
   }: {
     chainId: number;
     upToBlockNumber: bigint;
-    factory: {
-      address: Hex;
-      eventSelector: Hex;
-    };
+    factory: FactoryCriteria;
     pageSize?: number;
   }) {
     const baseQuery = this.db
@@ -388,24 +363,18 @@ export class SqliteEventStore implements EventStore {
 
   insertHistoricalChildContractInterval = async ({
     chainId,
+    factory,
     block: rpcBlock,
     transactions: rpcTransactions,
     logs: rpcLogs,
-    factory,
     interval,
   }: {
     chainId: number;
+    factory: FactoryCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logs: RpcLog[];
-    factory: {
-      address: Hex;
-      eventSelector: Hex;
-    };
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     await this.db.transaction().execute(async (tx) => {
       await tx
@@ -441,19 +410,17 @@ export class SqliteEventStore implements EventStore {
 
   getChildContractIntervals = async ({
     chainId,
-    factory: { address, eventSelector },
+    factory,
   }: {
     chainId: number;
-    factory: {
-      address: Hex;
-      eventSelector: Hex;
-    };
+    factory: FactoryCriteria;
   }) => {
     return await this.db.transaction().execute(async (tx) => {
+      const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
       const { id: factoryId } = await tx
         .insertInto("factories")
-        .values({ chainId, address, eventSelector })
-        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .values(factory_)
+        .onConflict((oc) => oc.doUpdateSet(factory_))
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -529,27 +496,22 @@ export class SqliteEventStore implements EventStore {
 
   insertRealtimeChildContracts = async ({
     chainId,
-    newChildContracts,
     factory,
+    newChildContracts,
   }: {
     chainId: number;
+    factory: FactoryCriteria;
     newChildContracts: {
       address: Hex;
       creationBlock: bigint;
     }[];
-    factory: {
-      address: Hex;
-      eventSelector: Hex;
-    };
   }) => {
     await this.db.transaction().execute(async (tx) => {
-      const address = toLowerCase(factory.address);
-      const eventSelector = factory.eventSelector;
-
+      const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
       const { id: factoryId } = await tx
         .insertInto("factories")
-        .values({ chainId, address, eventSelector })
-        .onConflict((oc) => oc.doUpdateSet({ chainId, address, eventSelector }))
+        .values(factory_)
+        .onConflict((oc) => oc.doUpdateSet(factory_))
         .returningAll()
         .executeTakeFirstOrThrow();
 
@@ -573,18 +535,9 @@ export class SqliteEventStore implements EventStore {
     interval,
   }: {
     chainId: number;
-    logFilters: {
-      address?: Hex | Hex[];
-      topics?: (Hex | Hex[] | null)[];
-    }[];
-    factories: {
-      address: Hex;
-      eventSelector: Hex;
-    }[];
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    logFilters: LogFilterCriteria[];
+    factories: FactoryCriteria[];
+    interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     await this.db.transaction().execute(async (tx) => {
       await this.insertLogFilterInterval({
@@ -651,14 +604,8 @@ export class SqliteEventStore implements EventStore {
   }: {
     tx: KyselyTransaction<EventStoreTables>;
     chainId: number;
-    logFilters: {
-      address?: Hex | Hex[];
-      topics?: (Hex | Hex[] | null)[];
-    }[];
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    logFilters: LogFilterCriteria[];
+    interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     const logFilterFragments = logFilters
       .map(({ address, topics }) =>
@@ -698,26 +645,16 @@ export class SqliteEventStore implements EventStore {
   }: {
     tx: KyselyTransaction<EventStoreTables>;
     chainId: number;
-    factories: {
-      address: Hex;
-      eventSelector: Hex;
-    }[];
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    factories: FactoryCriteria[];
+    interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     await Promise.all(
       factories.map(async (factory) => {
-        const address = toLowerCase(factory.address);
-        const eventSelector = factory.eventSelector;
-
+        const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
         const { id: factoryId } = await tx
           .insertInto("factories")
-          .values({ chainId, address, eventSelector })
-          .onConflict((oc) =>
-            oc.doUpdateSet({ chainId, address, eventSelector })
-          )
+          .values(factory_)
+          .onConflict((oc) => oc.doUpdateSet(factory_))
           .returningAll()
           .executeTakeFirstOrThrow();
 
@@ -741,26 +678,16 @@ export class SqliteEventStore implements EventStore {
   }: {
     tx: KyselyTransaction<EventStoreTables>;
     chainId: number;
-    factories: {
-      address: Hex;
-      eventSelector: Hex;
-    }[];
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    factories: FactoryCriteria[];
+    interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     await Promise.all(
       factories.map(async (factory) => {
-        const address = toLowerCase(factory.address);
-        const eventSelector = factory.eventSelector;
-
+        const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
         const { id: factoryId } = await tx
           .insertInto("factories")
-          .values({ chainId, address, eventSelector })
-          .onConflict((oc) =>
-            oc.doUpdateSet({ chainId, address, eventSelector })
-          )
+          .values(factory_)
+          .onConflict((oc) => oc.doUpdateSet(factory_))
           .returningAll()
           .executeTakeFirstOrThrow();
 

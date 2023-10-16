@@ -314,7 +314,7 @@ test("insertHistoricalFactoryInterval inserts child contracts", async (context) 
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
     interval: {
       startBlock: 0n,
@@ -328,7 +328,7 @@ test("insertHistoricalFactoryInterval inserts child contracts", async (context) 
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
   });
 
@@ -350,7 +350,7 @@ test("insertHistoricalFactoryInterval inserts and merges factory contract interv
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
     interval: {
       startBlock: 0n,
@@ -363,7 +363,7 @@ test("insertHistoricalFactoryInterval inserts and merges factory contract interv
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
   });
 
@@ -375,7 +375,7 @@ test("insertHistoricalFactoryInterval inserts and merges factory contract interv
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
     interval: {
       startBlock: 251n,
@@ -388,7 +388,7 @@ test("insertHistoricalFactoryInterval inserts and merges factory contract interv
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
   });
 
@@ -407,7 +407,7 @@ test("getChildContractAddresses respects upToBlockNumber argument", async (conte
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
     interval: {
       startBlock: 0n,
@@ -421,7 +421,7 @@ test("getChildContractAddresses respects upToBlockNumber argument", async (conte
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
   });
 
@@ -436,7 +436,7 @@ test("getChildContractAddresses respects upToBlockNumber argument", async (conte
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
   });
 
@@ -461,7 +461,7 @@ test("getChildContractAddresses paginates", async (context) => {
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
     interval: {
       startBlock: 0n,
@@ -475,7 +475,7 @@ test("getChildContractAddresses paginates", async (context) => {
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
     pageSize: 2,
   });
@@ -503,7 +503,7 @@ test("insertHistoricalChildContractInterval inserts block, transactions, and log
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
     interval: {
       startBlock: 0n,
@@ -535,7 +535,7 @@ test("insertHistoricalChildContractInterval inserts and merges child contract in
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
     interval: {
       startBlock: 0n,
@@ -551,7 +551,7 @@ test("insertHistoricalChildContractInterval inserts and merges child contract in
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
     interval: {
       startBlock: 750n,
@@ -564,7 +564,7 @@ test("insertHistoricalChildContractInterval inserts and merges child contract in
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
   });
 
@@ -581,7 +581,7 @@ test("insertHistoricalChildContractInterval inserts and merges child contract in
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
     interval: {
       startBlock: 501n,
@@ -594,7 +594,7 @@ test("insertHistoricalChildContractInterval inserts and merges child contract in
     factory: {
       address: "0xparent",
       eventSelector: "0xa",
-      childContractAddressTopic: 1,
+      childAddressLocation: "topic1",
     },
   });
 

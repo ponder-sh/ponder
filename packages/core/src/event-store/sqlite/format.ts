@@ -182,29 +182,30 @@ type LogFilterIntervalsTable = {
 };
 
 type FactorysTable = {
-  id: Generated<number>;
+  id: string;
   chainId: number;
   address: Hex;
   eventSelector: Hex;
+  childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
 };
 
 type FactoryIntervalsTable = {
   id: Generated<number>;
-  factoryId: number;
+  factoryId: string;
   startBlock: Buffer; // BigInt
   endBlock: Buffer; // BigInt
 };
 
 type ChildContractsTable = {
   id: Generated<number>;
-  factoryId: number;
+  factoryId: string;
   address: Hex;
   creationBlock: Buffer; // BigInt
 };
 
 type ChildContractIntervalsTable = {
   id: Generated<number>;
-  factoryId: number;
+  factoryId: string;
   startBlock: Buffer; // BigInt
   endBlock: Buffer; // BigInt
 };
