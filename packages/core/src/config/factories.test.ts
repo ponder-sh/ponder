@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 
 import {
   buildFactoryCriteria,
+  buildFactoryId,
   getAddressFromFactoryEventLog,
 } from "./factories";
 
@@ -29,10 +30,11 @@ test("buildFactoryCriteria handles LlamaInstanceCreated llamaCore", () => {
     parameter: "llamaCore",
   });
 
-  expect(criteria.eventSelector).toBe(
-    getEventSelector(llamaFactoryEventAbiItem)
-  );
-  expect(criteria.childContractAddressOffset).toBe(0);
+  expect(criteria).toMatchObject({
+    address: "0xa",
+    eventSelector: getEventSelector(llamaFactoryEventAbiItem),
+    childAddressLocation: "offset0",
+  });
 });
 
 test("buildFactoryCriteria handles LlamaInstanceCreated llamaPolicy", () => {
@@ -42,10 +44,11 @@ test("buildFactoryCriteria handles LlamaInstanceCreated llamaPolicy", () => {
     parameter: "llamaPolicy",
   });
 
-  expect(criteria.eventSelector).toBe(
-    getEventSelector(llamaFactoryEventAbiItem)
-  );
-  expect(criteria.childContractAddressOffset).toBe(64);
+  expect(criteria).toMatchObject({
+    address: "0xa",
+    eventSelector: getEventSelector(llamaFactoryEventAbiItem),
+    childAddressLocation: "offset64",
+  });
 });
 
 const llamaInstanceCreatedLog: RpcLog = {
@@ -66,16 +69,20 @@ const llamaInstanceCreatedLog: RpcLog = {
   transactionIndex: "0x4",
 };
 
-test("getAddressFromFactoryEventLog throws for invalid criteria", () => {
+test("getAddressFromFactoryEventLog throws for invalid child address location", () => {
   expect(() =>
     getAddressFromFactoryEventLog({
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      criteria: { address: "0xa" },
+      criteria: {
+        address: "0xa",
+        eventSelector: getEventSelector(llamaFactoryEventAbiItem),
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        childAddressLocation: "notATopicOrOffset123",
+      },
       log: llamaInstanceCreatedLog,
     })
   ).toThrowError(
-    "Invalid factory criteria: Missing both childContractAddressOffset and childContractAddressTopic."
+    "Invalid child address location identifier: notATopicOrOffset123"
   );
 });
 
@@ -163,4 +170,28 @@ test("getAddressFromFactoryEventLog gets address from nonindexed parameter 3", (
   });
 
   expect(address).toBe("0x5a6480483462533564634b8c81aea01cf87c6ddb");
+});
+
+test("buildFactoryId builds id containing topic", () => {
+  const criteria = buildFactoryCriteria({
+    address: "0xa",
+    event: llamaFactoryEventAbiItem,
+    parameter: "deployer",
+  });
+
+  expect(buildFactoryId(criteria)).toBe(
+    "0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_topic1"
+  );
+});
+
+test("buildFactoryId builds id containing offset", () => {
+  const criteria = buildFactoryCriteria({
+    address: "0xa",
+    event: llamaFactoryEventAbiItem,
+    parameter: "llamaPolicy",
+  });
+
+  expect(buildFactoryId(criteria)).toBe(
+    "0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64"
+  );
 });
