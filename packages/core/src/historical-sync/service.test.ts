@@ -157,7 +157,7 @@ test("setup() with log filter and factory contract updates block metrics", async
   expect(cachedBlocksMetric).toMatchObject([
     { labels: { network: "mainnet", eventSource: "USDC" }, value: 0 },
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Factory" },
+      labels: { network: "mainnet", eventSource: "UniswapV3Pool_factory" },
       value: 0,
     },
     { labels: { network: "mainnet", eventSource: "UniswapV3Pool" }, value: 0 },
@@ -169,7 +169,7 @@ test("setup() with log filter and factory contract updates block metrics", async
   expect(totalBlocksMetric).toMatchObject([
     { labels: { network: "mainnet", eventSource: "USDC" }, value: 6 },
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Factory" },
+      labels: { network: "mainnet", eventSource: "UniswapV3Pool_factory" },
       value: 501,
     },
     {
@@ -200,7 +200,7 @@ test("start() with log filter and factory contract updates completed blocks metr
   ).values;
   expect(completedBlocksMetric).toMatchObject([
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Factory" },
+      labels: { network: "mainnet", eventSource: "UniswapV3Pool_factory" },
       value: 501,
     },
     {

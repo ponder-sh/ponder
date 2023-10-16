@@ -59,7 +59,7 @@ export function buildLogFilters({
       const address = contract.address.toLowerCase() as Address;
       const topics = undefined;
 
-      const logFilter: LogFilter = {
+      return {
         name: contract.name,
         network: network.name,
         chainId: network.chainId,
@@ -69,9 +69,7 @@ export function buildLogFilters({
         startBlock: contract.startBlock ?? 0,
         endBlock: contract.endBlock,
         maxBlockRange: contract.maxBlockRange,
-      };
-
-      return logFilter;
+      } satisfies LogFilter;
     });
 
   const filterLogFilters = (config.filters ?? []).map((filter) => {
@@ -104,7 +102,7 @@ export function buildLogFilters({
         })
       : undefined;
 
-    const logFilter: LogFilter = {
+    return {
       name: filter.name,
       network: network.name,
       chainId: network.chainId,
@@ -114,12 +112,8 @@ export function buildLogFilters({
       startBlock: filter.startBlock ?? 0,
       endBlock: filter.endBlock,
       maxBlockRange: filter.maxBlockRange,
-    };
-
-    return logFilter;
+    } satisfies LogFilter;
   });
 
-  const logFilters = contractLogFilters.concat(filterLogFilters);
-
-  return logFilters;
+  return (contractLogFilters as LogFilter[]).concat(filterLogFilters);
 }

@@ -19,7 +19,7 @@ export function buildContracts({
 }: {
   config: ResolvedConfig;
   options: Options;
-}): Contract[] {
+}) {
   const contracts = config.contracts ?? [];
 
   return contracts
@@ -54,6 +54,6 @@ export function buildContracts({
         address,
         network: network,
         abi,
-      };
+      } satisfies Contract;
     });
 }

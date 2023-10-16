@@ -1,6 +1,12 @@
-import { type RpcBlock, type RpcLog, type RpcTransaction } from "viem";
+import {
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+  parseAbiItem,
+} from "viem";
 
 import { getEvents } from "@/config/abi";
+import { buildFactoryCriteria } from "@/config/factories";
 
 export const FORK_BLOCK_NUMBER = 16380000n;
 
@@ -892,12 +898,13 @@ const uniswapV3PoolAbi = [
 export const uniswapV3PoolFactoryConfig = {
   chainId: 1,
   name: "UniswapV3Pool",
-  criteria: {
+  criteria: buildFactoryCriteria({
     address: "0x1f98431c8ad98523631ae4a59f267346ea31f984",
-    eventSelector:
-      "0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118",
-    childContractAddressOffset: 12,
-  },
+    event: parseAbiItem(
+      "event PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24 tickSpacing, address pool)"
+    ),
+    parameter: "pool",
+  }),
   abi: uniswapV3PoolAbi,
   events: getEvents({ abi: uniswapV3PoolAbi }),
 } as const;

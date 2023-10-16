@@ -692,8 +692,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     await this.eventStore.insertHistoricalFactoryInterval({
       chainId: factory.chainId,
-      newChildContracts: newChildContracts,
       factory: factory.criteria,
+      newChildContracts,
       interval: {
         startBlock: BigInt(fromBlock),
         endBlock: BigInt(toBlock),

@@ -1,5 +1,5 @@
 import type { Abi, AbiEvent, Address } from "abitype";
-import { getEventSelector, Hex, RpcLog, slice } from "viem";
+import { getEventSelector, Hex, RpcLog } from "viem";
 
 import type { ResolvedConfig } from "@/config/config";
 import type { Options } from "@/config/options";
@@ -67,7 +67,7 @@ export function buildFactories({
         );
       }
 
-      return <Factory>{
+      return {
         name: contract.name,
         network: network.name,
         chainId: network.chainId,
@@ -80,13 +80,13 @@ export function buildFactories({
         startBlock: contract.startBlock ?? 0,
         endBlock: contract.endBlock,
         maxBlockRange: contract.maxBlockRange,
-      };
+      } satisfies Factory;
     });
 
   return factories;
 }
 
-function buildFactoryCriteria({
+export function buildFactoryCriteria({
   address,
   event,
   parameter,
@@ -139,15 +139,35 @@ export function getAddressFromFactoryEventLog({
   criteria: FactoryCriteria;
   log: RpcLog;
 }) {
-  const address = criteria.childContractAddressOffset
-    ? slice(log.data, criteria.childContractAddressOffset, 32)
-    : log.topics[criteria.childContractAddressTopic!];
+  const { childContractAddressOffset, childContractAddressTopic } = criteria;
 
-  if (!address) {
+  if (childContractAddressOffset !== undefined) {
+    const start = 2 + 12 * 2 + childContractAddressOffset * 2;
+    const end = start + 20 * 2;
+    if (log.data.length < end) {
+      throw new Error(
+        `Invalid log for factory criteria: Data size too small, expected at least ${
+          end / 2 - 1
+        } bytes`
+      );
+    }
+
+    return ("0x" + log.data.slice(start, end)) as `0x${string}`;
+  } else if (childContractAddressTopic !== undefined) {
+    const topic = log.topics[childContractAddressTopic];
+    if (topic === undefined) {
+      throw new Error(
+        `Invalid log for factory criteria: Not enough topic values, expected at least ${childContractAddressTopic}`
+      );
+    }
+
+    const start = 2 + 12 * 2;
+    const end = start + 20 * 2;
+
+    return ("0x" + topic.slice(start, end)) as `0x${string}`;
+  } else {
     throw new Error(
-      `Unable to get child contract address from factory event log`
+      `Invalid factory criteria: Missing both childContractAddressOffset and childContractAddressTopic.`
     );
   }
-
-  return address;
 }
