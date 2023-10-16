@@ -2,7 +2,11 @@ import type { Config } from "@ponder/core";
 import { parseAbiItem } from "abitype";
 
 import LlamaCoreAbi from "./abis/LlamaCore.json";
-import LlamaFactoryAbi from "./abis/LlamaFactory.json";
+import LlamaPolicyAbi from "./abis/LlamaPolicy.json";
+
+const llamaFactoryEvent = parseAbiItem(
+  "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)"
+);
 
 export const config: Config = {
   networks: [
@@ -12,21 +16,28 @@ export const config: Config = {
       rpcUrl: process.env.PONDER_RPC_URL_11155111,
     },
   ],
-  factories: [
+  contracts: [
     {
-      name: "LlamaFactory",
+      name: "LlamaCore",
       network: "sepolia",
-      address: "0xFf5d4E226D9A3496EECE31083a8F493edd79AbEB",
-      startBlock: 4121269,
-      abi: LlamaFactoryAbi,
-      factoryEvent: parseAbiItem(
-        "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)"
-      ),
-      factoryEventAddressArgument: "llamaCore",
-      child: {
-        name: "LlamaCore",
-        abi: LlamaCoreAbi,
+      abi: LlamaCoreAbi,
+      factory: {
+        address: "0xFf5d4E226D9A3496EECE31083a8F493edd79AbEB",
+        event: llamaFactoryEvent,
+        parameter: "llamaCore",
       },
+      startBlock: 4121269,
+    },
+    {
+      name: "LlamaPolicy",
+      network: "sepolia",
+      abi: LlamaPolicyAbi,
+      factory: {
+        address: "0xFf5d4E226D9A3496EECE31083a8F493edd79AbEB",
+        event: llamaFactoryEvent,
+        parameter: "llamaPolicy",
+      },
+      startBlock: 4121269,
     },
   ],
 };
