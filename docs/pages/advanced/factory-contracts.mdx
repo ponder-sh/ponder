@@ -13,13 +13,11 @@ When you register an event handler function for a child contract, that function 
 
 ## Add a child contract
 
-To index contracts created by a factory, first add the child contract and ABI as an item in the `contracts` field of `ponder.config.ts`.
-
 <Steps>
 
 ### Set the `factory` field in `ponder.config.ts`
 
-To add a contract that is created by a factory, add the **child contract** name and ABI to the `contracts` field in `ponder.config.ts`. Then, rather than setting an explicit `address` as you would for a normal contract, add the `factory` configuration object.
+To add a contract that is created by a factory, add the **child contract** name and ABI to the `contracts` field in `ponder.config.ts`. Then, rather than setting an explicit `address` as you would for a normal contract, add the [`factory` configuration object](/api-reference/ponder-config#factory).
 
 ```ts filename="ponder.config.ts"
 import type { Config } from "@ponder/core";
@@ -67,7 +65,7 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 
 Ponder only supports factory contracts where the following requirements are met:
 
-1. The factory contract emits an event log announcing the creation of a new child contract.
+1. The factory contract emits an event log announcing the creation of each new child contract.
 2. The event log contains the new child contract address as a named parameter of type `"address"`. The parameter can be either indexed or non-indexed.
 
 Here are a few factory event signatures with their eligibility explained:
