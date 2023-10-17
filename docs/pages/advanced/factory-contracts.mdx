@@ -7,9 +7,7 @@ import { Steps } from "nextra/components";
 
 # Factory contracts
 
-Factory contracts are a common smart contract design pattern where one contract (the factory) creates many instances of another kind of contract.
-
-When you register an event handler function for a child contract, that function will process events for every instance of that child contract. The `event.log.address` field contains the address of the specific child contract that emitted the event.
+**Factory contracts** are a common smart contract design pattern where one contract (a "factory") creates many instances of another kind of contract (the "child" contract).
 
 ## Add a child contract
 
@@ -17,13 +15,11 @@ When you register an event handler function for a child contract, that function 
 
 ### Set the `factory` field in `ponder.config.ts`
 
-To add a contract that is created by a factory, add the **child contract** name and ABI to the `contracts` field in `ponder.config.ts`. Then, rather than setting an explicit `address` as you would for a normal contract, add the [`factory` configuration object](/api-reference/ponder-config#factory).
+Add the **child contract** to the `contracts` list in `ponder.config.ts`. Be sure to use the child contract name and ABI. Then, rather than setting an explicit `address` as you would for a normal contract, use the [`factory`](/api-reference/ponder-config#factory) option.
 
 ```ts filename="ponder.config.ts"
 import type { Config } from "@ponder/core";
 import { parseAbiItem } from "viem";
-
-const factoryEvent = parseAbiItem("event NewPair(address poolAddress)");
 
 export const config: Config = {
   networks: [
@@ -35,8 +31,11 @@ export const config: Config = {
       abi: "./abis/SudoswapPool.json",
       network: "mainnet",
       factory: {
+        // The address of the factory contract that creates instances of this child contract.
         address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
-        event: factoryEvent,
+        // The event emitted by the factory that announces a new instance of this child contract.
+        event: parseAbiItem("event NewPair(address poolAddress)"),
+        // The name of the parameter that contains the address of the new child contract.
         parameter: "poolAddress",
       },
       startBlock: 14645816,
@@ -47,7 +46,9 @@ export const config: Config = {
 
 ### Register event handlers
 
-Now, you can register an event handler that runs for every `SudoswapPool` contract created by the factory.
+When you register a handler function for a child contract event, that function will process events for **every** instance of that child contract. The `event.log.address` field contains the address of the specific child contract that emitted the event.
+
+This event handler function will run for every `SudoswapPool` contract created by the factory.
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
@@ -61,7 +62,21 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 
 </Steps>
 
-## Factory event signature requirements
+## Requirements and limitations
+
+### Scaling
+
+Ponder does not currently support factory contracts with **more than 10,000 children.** This includes Uniswap V2, V3, and many other permisionless pool-based DeFi protocols.
+
+Why not? The Ethereum JSON-RPC API does not scale well for factory contracts. There's only so much that Ponder's sync engine can do about this while remaining compatible with the JSON-RPC API.
+
+<Callout type="warning">
+  **A note from the developers:** We're actively working to address scaling
+  challenges via features like remote sync, shared caching, concurrent indexing,
+  and other fun tricks. Thanks for your patience.
+</Callout>
+
+### Factory event signature
 
 Ponder only supports factory contracts where the following requirements are met:
 
@@ -82,6 +97,12 @@ event PoolCreated(address indexed deployer, address indexed pool, uint256 fee);
 event ContractsCreated(address[] contracts);
 
 // ❌ Ineligible. The parameter "child" is a struct/tuple, which is not supported.
-struct ChildContract { address addr; }
+struct ChildContract {
+  address addr;
+}
 event ChildCreated(ChildContract child);
 ```
+
+### Nested factory patterns
+
+Ponder doesn't support factory patterns that are nested beyond a single layer.
