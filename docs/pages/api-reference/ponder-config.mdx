@@ -37,16 +37,25 @@ Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundr
 
 Contracts are smart contracts deployed to a network. All contracts defined here will become available as `ReadOnlyContract` objects in the event context. Ponder will fetch and handle event logs emitted by all contracts with `isLogEventSource: true` (the default).
 
-| field                |          type          |                                                                                                                                                                                                                                  |
-| :------------------- | :--------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **name**             |        `string`        | A unique name for the smart contract. Must be unique across all contracts & filters.                                                                                                                                             |
-| **network**          |        `string`        | The name of the network this contract is deployed to. References the `networks.name` field.                                                                                                                                      |
-| **abi**              |   `string \| any[]`    | The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html). Can be a path to a JSON file, the ABI as a string, or the ABI as a JavaScript Array.                                                                 |
-| **address**          |        `string`        | The contract address.                                                                                                                                                                                                            |
-| **startBlock**       | `number \| undefined`  | **Default: `0`**. Block number to start handling events. Usually set to the contract deployment block number. **Default: `0`**                                                                                                   |
-| **endBlock**         | `number \| undefined`  | **Default: `undefined`**. Block number to stop handling events. If this field is specified, Ponder will not listen to "live" events. This field can be used alongside `startBlock` to only process events for a range of blocks. |
-| **maxBlockRange**    | `number \| undefined`  | The maximum block range that Ponder will use when calling `eth_getLogs`. If not provided, Ponder uses a sane default for the network.                                                                                            |
-| **isLogEventSource** | `boolean \| undefined` | **Default: `true`**. Specifies if events should be handled for this contract. If `false`, this contrat will still be available on the event handler `context.contracts`.                                                         |
+| field                |                      type                       |                                                                                                                                                                                                                                  |
+| :------------------- | :---------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **name**             |                    `string`                     | A unique name for the smart contract. Must be unique across all contracts & filters.                                                                                                                                             |
+| **network**          |                    `string`                     | The name of the network this contract is deployed to. References the `networks.name` field.                                                                                                                                      |
+| **abi**              |                `string \| any[]`                | The contract [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html). Can be a path to a JSON file, the ABI as a string, or the ABI as a JavaScript Array.                                                                 |
+| **address**          |                    `string?`                    | The contract address. Not required if `factory` is provided.                                                                                                                                                                     |
+| **factory**          | [`FactoryConfig`](#factoryconfig)`\| undefined` | Factory contract configuration to be set if instances of this contract are created by a factory. Not required if `address` is provided.                                                                                          |
+| **startBlock**       |              `number \| undefined`              | **Default: `0`**. Block number to start handling events. Usually set to the contract deployment block number. **Default: `0`**                                                                                                   |
+| **endBlock**         |              `number \| undefined`              | **Default: `undefined`**. Block number to stop handling events. If this field is specified, Ponder will not listen to "live" events. This field can be used alongside `startBlock` to only process events for a range of blocks. |
+| **maxBlockRange**    |              `number \| undefined`              | The maximum block range that Ponder will use when calling `eth_getLogs`. If not provided, Ponder uses a sane default based on the network.                                                                                       |
+| **isLogEventSource** |             `boolean \| undefined`              | **Default: `true`**. Specifies if events should be handled for this contract. If `false`, this contrat will still be available on the event handler `context.contracts`.                                                         |
+
+#### FactoryConfig
+
+| field         |                         type                         |                                                                                               |
+| :------------ | :--------------------------------------------------: | :-------------------------------------------------------------------------------------------- |
+| **address**   |                       `string`                       | The address of the factory contract that creates instances of this contract.                  |
+| **event**     | [`AbiEvent`](https://abitype.dev/api/types#abievent) | The ABI item of the event that announces the creation of a new child contract.                |
+| **parameter** |                       `string`                       | The name of the parameter within `event` that contains the address of the new child contract. |
 
 ### Filters
 
@@ -56,7 +65,7 @@ Filters are custom event log filters that are more flexible than `contracts`. Po
 | **name** | `string` | A unique name for the custom filter. Must be unique across all contracts & filters. |
 | **network** | `string` | The name of the network for this filter. References the `networks.name` field. |
 | **abi** | `string \| any[]` | An [ABI](https://docs.soliditylang.org/en/v0.8.17/abi-spec.html) containing all events matched by this filter. Can be a path to a JSON file, the ABI as a string, or the ABI as a JavaScript Array. |
-| **filter** | `Filter` | The filter object, see [Filter](#filter). |
+| **filter** | [`Filter`](#filter) | The filter criteria. |
 | **startBlock** | `number \| undefined` | **Default: `0`**. Block number to start handling events. **Default: `0`** |
 | **endBlock** | `number \| undefined` | **Default: `undefined`**. Block number to stop handling events. If this field is specified, Ponder will not listen to "live" events. This field can be used alongside `startBlock` to only process events for a range of blocks. |
 | **maxBlockRange** | `number \| undefined` | The maximum block range that Ponder will use when calling `eth_getLogs`. If not provided, Ponder uses a sane default for the network. |

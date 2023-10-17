@@ -1,0 +1,89 @@
+---
+description: "Guide to custom filters"
+---
+
+import { Callout } from "nextra-theme-docs";
+import { Steps } from "nextra/components";
+
+# Factory contracts
+
+Factory contracts are a common smart contract design pattern where one contract (the factory) creates many instances of another kind of contract.
+
+When you register an event handler function for a child contract, that function will process events for every instance of that child contract. The `event.log.address` field contains the address of the specific child contract that emitted the event.
+
+## Add a child contract
+
+To index contracts created by a factory, first add the child contract and ABI as an item in the `contracts` field of `ponder.config.ts`.
+
+<Steps>
+
+### Set the `factory` field in `ponder.config.ts`
+
+To add a contract that is created by a factory, add the **child contract** name and ABI to the `contracts` field in `ponder.config.ts`. Then, rather than setting an explicit `address` as you would for a normal contract, add the `factory` configuration object.
+
+```ts filename="ponder.config.ts"
+import type { Config } from "@ponder/core";
+import { parseAbiItem } from "viem";
+
+const factoryEvent = parseAbiItem("event NewPair(address poolAddress)");
+
+export const config: Config = {
+  networks: [
+    /* ... */
+  ],
+  contracts: [
+    {
+      name: "SudoswapPool",
+      abi: "./abis/SudoswapPool.json",
+      network: "mainnet",
+      factory: {
+        address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
+        event: factoryEvent,
+        parameter: "poolAddress",
+      },
+      startBlock: 14645816,
+    },
+  ],
+};
+```
+
+### Register event handlers
+
+Now, you can register an event handler that runs for every `SudoswapPool` contract created by the factory.
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("SudoswapPool:Transfer", async ({ event }) => {
+  // Here, `event.log.address` will vary depending on which
+  // Sudoswap pool contract emitted this Transfer event.
+  console.log(event.log.address);
+});
+```
+
+</Steps>
+
+## Factory event signature requirements
+
+Ponder only supports factory contracts where the following requirements are met:
+
+1. The factory contract emits an event log announcing the creation of a new child contract.
+2. The event log contains the new child contract address as a named parameter of type `"address"`. The parameter can be either indexed or non-indexed.
+
+Here are a few factory event signatures with their eligibility explained:
+
+```solidity
+// ✅ Eligible. The parameter "child" has type "address" and is non-indexed.
+event ChildContractCreated(address child);
+
+// ✅ Eligible. The parameter "pool" has type "address" and is indexed.
+event PoolCreated(address indexed deployer, address indexed pool, uint256 fee);
+
+// ❌ Ineligible. The parameter "contracts" is an array type, which is not supported.
+// Always emit a separate event for each child contract, even if they are created in a batch.
+event ContractsCreated(address[] contracts);
+
+// ❌ Ineligible. The parameter "child" is a struct/tuple, which is not supported.
+struct ChildContract { address addr; }
+event ChildCreated(ChildContract child);
+```
