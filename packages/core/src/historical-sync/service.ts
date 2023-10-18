@@ -36,9 +36,9 @@ type HistoricalSyncEvents = {
    */
   syncComplete: undefined;
   /**
-   * Emitted when the minimum cached timestamp among all registered log filters moves forward.
+   * Emitted when the minimum cached timestamp among all registered event sources moves forward.
    * This indicates to consumers that the connected event store now contains a complete history
-   * of events for all registered log filters between their start block and this timestamp (inclusive).
+   * of events for all registered event sources between their start block and this timestamp (inclusive).
    */
   historicalCheckpoint: { blockNumber: number; blockTimestamp: number };
 };
@@ -709,10 +709,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       chainId: factory.chainId,
       factory: factory.criteria,
       newChildContracts,
-      interval: {
-        startBlock: BigInt(fromBlock),
-        endBlock: BigInt(toBlock),
-      },
+      interval: { startBlock: BigInt(fromBlock), endBlock: BigInt(toBlock) },
     });
 
     const { isUpdated, prevCheckpoint, newCheckpoint } =
