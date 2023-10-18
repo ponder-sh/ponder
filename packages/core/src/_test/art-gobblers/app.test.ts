@@ -5,7 +5,7 @@ import { type TestContext, afterEach, beforeEach, expect, test } from "vitest";
 
 import { setupEventStore, setupUserStore } from "@/_test/setup";
 import { testNetworkConfig } from "@/_test/utils";
-import { buildConfig } from "@/config/config";
+import { buildConfig } from "@/build/config";
 import { buildOptions } from "@/config/options";
 import { Ponder } from "@/Ponder";
 
@@ -53,7 +53,7 @@ const setup = async ({ context }: { context: TestContext }) => {
 
   const gql = async (query: string) => {
     const response = await request(ponder.serverService.app)
-      .post("/")
+      .post("/graphql")
       .send({ query: `query { ${query} }` });
 
     expect(response.body.errors).toBe(undefined);

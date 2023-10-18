@@ -1,7 +1,11 @@
+import { http } from "viem";
+
 import ArtGobblersAbi from "./ArtGobblers.json";
 
 export const config = {
-  networks: [{ name: "mainnet", chainId: 1, rpcUrl: "http://127.0.0.1:8545" }],
+  networks: [
+    { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
+  ],
   contracts: [
     {
       name: "ArtGobblers",

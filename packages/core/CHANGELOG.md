@@ -1,5 +1,49 @@
 # @ponder/core
 
+## 0.0.92
+
+### Patch Changes
+
+- [#383](https://github.com/0xOlias/ponder/pull/383) [`f3b0be6`](https://github.com/0xOlias/ponder/commit/f3b0be62bfe86e2347e00b87b422aba1d6396df9) Thanks [@o-az](https://github.com/o-az)! - Fixed a bug introduced in `0.0.91` that broke the GraphiQL interface.
+
+- [#384](https://github.com/0xOlias/ponder/pull/384) [`2206f3c`](https://github.com/0xOlias/ponder/commit/2206f3c3653e4288278cd092bf494ec1a0ba8a1a) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where Infura "query returned more than 10000 results" errors would block the historical sync.
+
+- [#355](https://github.com/0xOlias/ponder/pull/355) [`986c2e2`](https://github.com/0xOlias/ponder/commit/986c2e236178da53d0a15fccf3b840966d710a83) Thanks [@arberx](https://github.com/arberx)! - BREAKING: Dropped support for `rpcUrl` in favor of `transport` in `ponder.config.ts` network configuration.
+
+  The new `transport` field accepts a [viem transport](https://viem.sh/docs/clients/intro.html#transports) instead of an RPC url. This makes it possible to use transports other than HTTP, such as WebSockets and Fallback transports.
+
+  Prior to this update, Ponder used an HTTP transport internally. To upgrade with no change in behavior:
+
+  ```diff
+  + import { http } from "viem";
+
+  export const config = {
+    networks: [
+      {
+        name: "mainnet",
+        chainId: 1,
+  -     rpcUrl: "https://eth-mainnet.g.alchemy.com/v2/...",
+  +     transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+      },
+    ],
+    contracts: [
+      {
+        name: "BaseRegistrar",
+        network: "mainnet",
+        abi: "./abis/BaseRegistrar.json",
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 9380410,
+      },
+    ],
+  };
+  ```
+
+## 0.0.91
+
+### Patch Changes
+
+- [#371](https://github.com/0xOlias/ponder/pull/371) [`5a21302`](https://github.com/0xOlias/ponder/commit/5a21302ee2fa6255eee3b7cc80a47e0d14d87030) Thanks [@o-az](https://github.com/o-az)! - Updated GraphiQL styles.
+
 ## 0.0.90
 
 ### Patch Changes

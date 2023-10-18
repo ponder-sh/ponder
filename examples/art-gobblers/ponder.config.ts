@@ -1,4 +1,5 @@
 import type { Config } from "@ponder/core";
+import { http } from "viem";
 
 import ArtGobblersAbi from "./abis/ArtGobblers.json";
 
@@ -7,7 +8,7 @@ export const config: Config = {
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: process.env.PONDER_RPC_URL_1,
+      transport: http(process.env.PONDER_RPC_URL_1),
     },
   ],
   contracts: [

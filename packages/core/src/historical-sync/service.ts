@@ -6,6 +6,7 @@ import {
   hexToNumber,
   HttpRequestError,
   InvalidParamsRpcError,
+  LimitExceededRpcError,
   RpcBlock,
   RpcLog,
   toHex,
@@ -536,11 +537,33 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               return;
             }
 
-            this.common.logger.error({
-              service: "historical",
-              msg: `Log sync task failed (network=${this.network.name}, logFilter=${task.logFilter.name})`,
-              error,
-            });
+            // Handle Infura block range limit error.
+            if (
+              task.kind === "LOG_SYNC" &&
+              error instanceof LimitExceededRpcError &&
+              error.details.includes("query returned more than 10000 results")
+            ) {
+              const safe = error.details.split("Try with this block range ")[1];
+              const safeStart = Number(safe.split(", ")[0].slice(1));
+              const safeEnd = Number(safe.split(", ")[1].slice(0, -2));
+
+              queue.addTask(
+                { ...task, fromBlock: safeStart, toBlock: safeEnd },
+                {
+                  priority: Number.MAX_SAFE_INTEGER - safeStart,
+                }
+              );
+              queue.addTask(
+                { ...task, fromBlock: safeEnd + 1 },
+                { priority: Number.MAX_SAFE_INTEGER - safeEnd + 1 }
+              );
+              // Splitting the task into two parts increases the total count by 1.
+              this.common.metrics.ponder_historical_scheduled_tasks.inc({
+                network: this.network.name,
+                kind: "log",
+              });
+              return;
+            }
 
             // Default to a retry (uses the retry options passed to the queue).
             const priority = Number.MAX_SAFE_INTEGER - task.fromBlock;

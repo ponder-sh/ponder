@@ -3,13 +3,13 @@ import process from "node:process";
 
 import { BuildService } from "@/build/service";
 import { CodegenService } from "@/codegen/service";
-import { type ResolvedConfig } from "@/config/config";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
 import { type Factory, buildFactories } from "@/config/factories";
 import { type LogFilter, buildLogFilters } from "@/config/logFilters";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
+import { type ResolvedConfig } from "@/config/types";
 import { UserErrorService } from "@/errors/service";
 import { EventAggregatorService } from "@/event-aggregator/service";
 import { PostgresEventStore } from "@/event-store/postgres/store";
@@ -82,25 +82,13 @@ export class Ponder {
     const common = { options, logger, errors, metrics, telemetry };
     this.common = common;
 
-    const logFilters = buildLogFilters({ options, config });
-    this.logFilters = logFilters;
-    const contracts = buildContracts({ options, config });
-    const factories = buildFactories({ options, config });
-
-    const networks = config.networks
-      .map((network) => buildNetwork({ network }))
-      .filter((network) => {
-        const hasEventSources = [...logFilters, ...factories].some(
-          (eventSource) => eventSource.network === network.name
-        );
-        if (!hasEventSources) {
-          this.common.logger.warn({
-            service: "app",
-            msg: `No event sources found (network=${network.name})`,
-          });
-        }
-        return hasEventSources;
-      });
+    this.common.logger.debug({
+      service: "app",
+      msg: `Started using config file: ${path.relative(
+        this.common.options.rootDir,
+        this.common.options.configFile
+      )}`,
+    });
 
     const database = buildDatabase({ options, config });
     this.eventStore =
@@ -115,7 +103,30 @@ export class Ponder {
         ? new SqliteUserStore({ db: database.db })
         : new PostgresUserStore({ pool: database.pool }));
 
-    networks.forEach((network) => {
+    const networks = config.networks.map((network) =>
+      buildNetwork({ network, common })
+    );
+    const logFilters = buildLogFilters({ options, config });
+    this.logFilters = logFilters;
+    const contracts = buildContracts({ options, config, networks });
+    const factories = buildFactories({ options, config });
+
+    const networksToSync = config.networks
+      .map((network) => buildNetwork({ network, common }))
+      .filter((network) => {
+        const hasEventSources = [...logFilters, ...factories].some(
+          (eventSource) => eventSource.network === network.name
+        );
+        if (!hasEventSources) {
+          this.common.logger.warn({
+            service: "app",
+            msg: `No event sources found (network=${network.name})`,
+          });
+        }
+        return hasEventSources;
+      });
+
+    networksToSync.forEach((network) => {
       const logFiltersForNetwork = logFilters.filter(
         (logFilter) => logFilter.network === network.name
       );
@@ -180,33 +191,7 @@ export class Ponder {
   }
 
   async setup() {
-    this.common.logger.debug({
-      service: "app",
-      msg: `Started using config file: ${path.relative(
-        this.common.options.rootDir,
-        this.common.options.configFile
-      )}`,
-    });
-
     this.registerServiceDependencies();
-
-    // If any of the provided networks do not have a valid RPC url,
-    // kill the app here. This happens here rather than in the constructor because
-    // `ponder codegen` should still be able to if an RPC url is missing. In fact,
-    // that is part of the happy path for `create-ponder`.
-    const networksMissingRpcUrl: Network[] = [];
-    this.networkSyncServices.forEach(({ network }) => {
-      if (!network.rpcUrl) {
-        networksMissingRpcUrl.push(network);
-      }
-    });
-    if (networksMissingRpcUrl.length > 0) {
-      return new Error(
-        `missing RPC URL for networks (${networksMissingRpcUrl.map(
-          (n) => `"${n.name}"`
-        )}). Did you forget to add an RPC URL in .env.local?`
-      );
-    }
 
     // Start the HTTP server.
     await this.serverService.start();
@@ -222,31 +207,19 @@ export class Ponder {
     // are triggered by changes to project files (handled in BuildService).
     this.buildService.buildSchema();
     await this.buildService.buildHandlers();
-
-    return undefined;
   }
 
   async dev() {
-    const setupError = await this.setup();
+    await this.setup();
 
     this.common.telemetry.record({
       event: "App Started",
       properties: {
         command: "ponder dev",
-        hasSetupError: !!setupError,
         logFilterCount: this.logFilters.length,
         databaseKind: this.eventStore.kind,
       },
     });
-
-    if (setupError) {
-      this.common.logger.error({
-        service: "app",
-        msg: setupError.message,
-        error: setupError,
-      });
-      return await this.kill();
-    }
 
     await Promise.all(
       this.networkSyncServices.map(
@@ -264,26 +237,16 @@ export class Ponder {
   }
 
   async start() {
-    const setupError = await this.setup();
+    await this.setup();
 
     this.common.telemetry.record({
       event: "App Started",
       properties: {
         command: "ponder start",
-        hasSetupError: !!setupError,
         logFilterCount: this.logFilters.length,
         databaseKind: this.eventStore.kind,
       },
     });
-
-    if (setupError) {
-      this.common.logger.error({
-        service: "app",
-        msg: setupError.message,
-        error: setupError,
-      });
-      return await this.kill();
-    }
 
     await Promise.all(
       this.networkSyncServices.map(

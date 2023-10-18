@@ -1,9 +1,5 @@
-import { type AbiEvent } from "abitype";
-import { build } from "esbuild";
-import { existsSync, rmSync } from "node:fs";
-import path from "node:path";
-
-import { ensureDirExists } from "@/utils/exists";
+import type { AbiEvent } from "abitype";
+import type { Transport } from "viem";
 
 export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
@@ -24,8 +20,21 @@ export type ResolvedConfig = {
     name: string;
     /** Chain ID of the network. */
     chainId: number;
-    /** RPC URL. Default: if available, a public RPC provider. */
-    rpcUrl?: string;
+    /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
+     *
+     * __To avoid rate limiting, include a custom RPC URL.__ Usage:
+     *
+     * ```ts
+     * import { http } from "viem";
+     *
+     * const network = {
+     *    name: "mainnet",
+     *    chainId: 1,
+     *    transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+     * }
+     * ```
+     */
+    transport: Transport;
     /** Polling frequency (in ms). Default: `1_000`. */
     pollingInterval?: number;
     /** Maximum concurrency of RPC requests during the historical sync. Default: `10`. */
@@ -110,57 +119,3 @@ export type Config =
   | Promise<ResolvedConfig>
   | (() => ResolvedConfig)
   | (() => Promise<ResolvedConfig>);
-
-export const buildConfig = async ({ configFile }: { configFile: string }) => {
-  if (!existsSync(configFile)) {
-    throw new Error(`Ponder config file not found, expected: ${configFile}`);
-  }
-
-  const buildFile = path.join(path.dirname(configFile), "__ponder__.js");
-  ensureDirExists(buildFile);
-
-  // Delete the build file before attempting to write it.
-  rmSync(buildFile, { force: true });
-
-  try {
-    await build({
-      entryPoints: [configFile],
-      outfile: buildFile,
-      platform: "node",
-      format: "cjs",
-      bundle: false,
-      logLevel: "silent",
-    });
-
-    const { default: rawDefault, config: rawConfig } = require(buildFile);
-    rmSync(buildFile, { force: true });
-
-    if (!rawConfig) {
-      if (rawDefault) {
-        throw new Error(
-          `Ponder config not found. ${path.basename(
-            configFile
-          )} must export a variable named "config" (Cannot be a default export)`
-        );
-      }
-      throw new Error(
-        `Ponder config not found. ${path.basename(
-          configFile
-        )} must export a variable named "config"`
-      );
-    }
-
-    let resolvedConfig: ResolvedConfig;
-
-    if (typeof rawConfig === "function") {
-      resolvedConfig = await rawConfig();
-    } else {
-      resolvedConfig = await rawConfig;
-    }
-
-    return resolvedConfig;
-  } catch (err) {
-    rmSync(buildFile, { force: true });
-    throw err;
-  }
-};

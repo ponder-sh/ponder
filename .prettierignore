@@ -3,3 +3,7 @@ LICENSE
 **/generated
 **/.next
 **/dist
+.gitignore
+.prettierignore
+Dockerfile
+*.Dockerfile
