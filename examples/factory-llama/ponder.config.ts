@@ -1,5 +1,6 @@
 import type { Config } from "@ponder/core";
 import { parseAbiItem } from "abitype";
+import { http } from "viem";
 
 import LlamaCoreAbi from "./abis/LlamaCore.json";
 import LlamaPolicyAbi from "./abis/LlamaPolicy.json";
@@ -13,7 +14,7 @@ export const config: Config = {
     {
       name: "sepolia",
       chainId: 11155111,
-      rpcUrl: process.env.PONDER_RPC_URL_11155111,
+      transport: http(process.env.PONDER_RPC_URL_11155111),
     },
   ],
   contracts: [
