@@ -2,6 +2,7 @@ import type { Abi, Address } from "abitype";
 
 import type { Options } from "@/config/options";
 import type { ResolvedConfig } from "@/config/types";
+import { toLowerCase } from "@/utils/lowercase";
 
 import { buildAbi } from "./abi";
 import type { Network } from "./networks";
@@ -32,7 +33,7 @@ export function buildContracts({
         !!contract.address
     )
     .map((contract) => {
-      const address = contract.address.toLowerCase() as Address;
+      const address = toLowerCase(contract.address);
 
       const { abi } = buildAbi({
         abiConfig: contract.abi,

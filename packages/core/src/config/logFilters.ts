@@ -3,6 +3,7 @@ import { type Hex, encodeEventTopics } from "viem";
 
 import type { Options } from "@/config/options";
 import type { ResolvedConfig } from "@/config/types";
+import { toLowerCase } from "@/utils/lowercase";
 
 import { AbiEvents, buildAbi, getEvents } from "./abi";
 
@@ -56,7 +57,7 @@ export function buildLogFilters({
         );
       }
 
-      const address = contract.address.toLowerCase() as Address;
+      const address = toLowerCase(contract.address);
       const topics = undefined;
 
       return {
@@ -89,9 +90,9 @@ export function buildLogFilters({
     }
 
     const address = Array.isArray(filter.filter.address)
-      ? filter.filter.address.map((a) => a.toLowerCase() as Address)
+      ? filter.filter.address.map(toLowerCase)
       : typeof filter.filter.address === "string"
-      ? (filter.filter.address.toLowerCase() as Address)
+      ? toLowerCase(filter.filter.address)
       : undefined;
 
     const topics = filter.filter.event
