@@ -28,15 +28,10 @@ runs:
         path: node_modules
         key: modules-${{ hashFiles('pnpm-lock.yaml') }}
 
-    - name: Install Dependencies
-      shell: bash
-      if: steps.cache-node-modules.outputs.cache-hit != 'true'
-      run: pnpm i --frozen-lockfile
-
     - name: Set up foundry
       uses: foundry-rs/foundry-toolchain@v1.0.10
 
-    - name: Install Dependencies
+    - name: Install dependencies
       shell: bash
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: pnpm i --frozen-lockfile
