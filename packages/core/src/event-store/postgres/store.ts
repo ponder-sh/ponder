@@ -358,7 +358,7 @@ export class PostgresEventStore implements EventStore {
     chainId,
     upToBlockNumber,
     factory: { address, eventSelector },
-    pageSize = 10_000,
+    pageSize = 500,
   }: {
     chainId: number;
     upToBlockNumber: bigint;
@@ -394,7 +394,9 @@ export class PostgresEventStore implements EventStore {
         cursor = lastRow.creationBlock;
       }
 
-      yield batch.map((c) => c.address);
+      if (batch.length > 0) {
+        yield batch.map((c) => c.address);
+      }
 
       if (batch.length < pageSize) break;
     }

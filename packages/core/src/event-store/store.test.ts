@@ -492,6 +492,28 @@ test("getChildContractAddresses paginates", async (context) => {
   }
 });
 
+test("getChildContractAddresses does not yield empty list", async (context) => {
+  const { eventStore } = context;
+
+  const iterator = eventStore.getChildContractAddresses({
+    chainId: 1,
+    upToBlockNumber: 1000n,
+    factory: {
+      address: "0xparent",
+      eventSelector: "0xa",
+      childAddressLocation: "topic1",
+    },
+  });
+
+  let didYield = false;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for await (const _page of iterator) {
+    didYield = true;
+  }
+
+  expect(didYield).toBe(false);
+});
+
 test("insertHistoricalChildContractInterval inserts block, transactions, and logs", async (context) => {
   const { eventStore } = context;
 
