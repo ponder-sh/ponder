@@ -357,15 +357,12 @@ export class PostgresEventStore implements EventStore {
   async *getChildContractAddresses({
     chainId,
     upToBlockNumber,
-    factory: { address, eventSelector },
+    factory,
     pageSize = 500,
   }: {
     chainId: number;
     upToBlockNumber: bigint;
-    factory: {
-      address: Hex;
-      eventSelector: Hex;
-    };
+    factory: FactoryCriteria;
     pageSize?: number;
   }) {
     const baseQuery = this.db
@@ -373,8 +370,13 @@ export class PostgresEventStore implements EventStore {
       .leftJoin("factories", "factoryId", "factories.id")
       .select(["childContracts.address", "childContracts.creationBlock"])
       .where("chainId", "=", chainId)
-      .where("factories.address", "=", toLowerCase(address))
-      .where("factories.eventSelector", "=", eventSelector)
+      .where("factories.address", "=", factory.address)
+      .where("factories.eventSelector", "=", factory.eventSelector)
+      .where(
+        "factories.childAddressLocation",
+        "=",
+        factory.childAddressLocation
+      )
       .limit(pageSize)
       .where("childContracts.creationBlock", "<=", upToBlockNumber);
 
@@ -987,6 +989,11 @@ export class PostgresEventStore implements EventStore {
                   "factories.eventSelector",
                   "=",
                   factory.criteria.eventSelector
+                )
+                .where(
+                  "factories.childAddressLocation",
+                  "=",
+                  factory.criteria.childAddressLocation
                 )
             )
         )
