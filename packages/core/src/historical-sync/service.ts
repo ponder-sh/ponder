@@ -755,9 +755,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       factory: task.factory.criteria,
     });
 
+    const logs: RpcLog[] = [];
+
     for await (const childContractAddressBatch of iterator) {
       const stopClock = startClock();
-      const logs = await this.network.client.request({
+      const batchLogs = await this.network.client.request({
         method: "eth_getLogs",
         params: [
           {
@@ -771,69 +773,70 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         { method: "eth_getLogs", network: this.network.name },
         stopClock()
       );
-
-      /** START: Same logic as log worker. */
-
-      const logsByBlockNumber: Record<number, RpcLog[] | undefined> = {};
-      const txHashesByBlockNumber: Record<number, Set<Hash> | undefined> = {};
-
-      logs.forEach((log) => {
-        const blockNumber = hexToNumber(log.blockNumber!);
-        (txHashesByBlockNumber[blockNumber] ||= new Set<Hash>()).add(
-          log.transactionHash!
-        );
-        (logsByBlockNumber[blockNumber] ||= []).push(log);
-      });
-
-      const requiredBlocks = Object.keys(txHashesByBlockNumber)
-        .map(Number)
-        .sort((a, b) => a - b);
-
-      // If toBlock is not already required, add it. This is necessary
-      // to reflect the availability of logs for the full range of the
-      // eth_getLogs request.
-      if (!requiredBlocks.includes(task.toBlock)) {
-        requiredBlocks.push(task.toBlock);
-      }
-
-      const requiredIntervals: [number, number][] = [];
-      let prev = task.fromBlock;
-      for (const blockNumber of requiredBlocks) {
-        requiredIntervals.push([prev, blockNumber]);
-        prev = blockNumber + 1;
-      }
-
-      for (const [startBlock, endBlock] of requiredIntervals) {
-        (this.blockCallbacks[endBlock] ||= []).push(async (block) => {
-          // Filter down to only required transactions (transactions that emitted events we care about).
-          const requiredTxHashes = txHashesByBlockNumber[endBlock] ?? new Set();
-          const transactions = (block.transactions as RpcTransaction[]).filter(
-            (tx) => requiredTxHashes.has(tx.hash)
-          );
-
-          const logs = logsByBlockNumber[endBlock] ?? [];
-
-          await this.eventStore.insertHistoricalChildContractInterval({
-            chainId: task.factory.chainId,
-            factory: task.factory.criteria,
-            block,
-            transactions,
-            logs,
-            interval: {
-              startBlock: BigInt(startBlock),
-              endBlock: BigInt(endBlock),
-            },
-          });
-
-          this.common.metrics.ponder_historical_completed_blocks.inc(
-            { network: this.network.name, eventSource: task.factory.name },
-            endBlock - startBlock + 1
-          );
-        });
-      }
-
-      /** END: Same logic as log worker. */
+      logs.push(...batchLogs);
     }
+
+    /** START: Same logic as log worker. */
+
+    const logsByBlockNumber: Record<number, RpcLog[] | undefined> = {};
+    const txHashesByBlockNumber: Record<number, Set<Hash> | undefined> = {};
+
+    logs.forEach((log) => {
+      const blockNumber = hexToNumber(log.blockNumber!);
+      (txHashesByBlockNumber[blockNumber] ||= new Set<Hash>()).add(
+        log.transactionHash!
+      );
+      (logsByBlockNumber[blockNumber] ||= []).push(log);
+    });
+
+    const requiredBlocks = Object.keys(txHashesByBlockNumber)
+      .map(Number)
+      .sort((a, b) => a - b);
+
+    // If toBlock is not already required, add it. This is necessary
+    // to reflect the availability of logs for the full range of the
+    // eth_getLogs request.
+    if (!requiredBlocks.includes(task.toBlock)) {
+      requiredBlocks.push(task.toBlock);
+    }
+
+    const requiredIntervals: [number, number][] = [];
+    let prev = task.fromBlock;
+    for (const blockNumber of requiredBlocks) {
+      requiredIntervals.push([prev, blockNumber]);
+      prev = blockNumber + 1;
+    }
+
+    for (const [startBlock, endBlock] of requiredIntervals) {
+      (this.blockCallbacks[endBlock] ||= []).push(async (block) => {
+        // Filter down to only required transactions (transactions that emitted events we care about).
+        const requiredTxHashes = txHashesByBlockNumber[endBlock] ?? new Set();
+        const transactions = (block.transactions as RpcTransaction[]).filter(
+          (tx) => requiredTxHashes.has(tx.hash)
+        );
+
+        const logs = logsByBlockNumber[endBlock] ?? [];
+
+        await this.eventStore.insertHistoricalChildContractInterval({
+          chainId: task.factory.chainId,
+          factory: task.factory.criteria,
+          block,
+          transactions,
+          logs,
+          interval: {
+            startBlock: BigInt(startBlock),
+            endBlock: BigInt(endBlock),
+          },
+        });
+
+        this.common.metrics.ponder_historical_completed_blocks.inc(
+          { network: this.network.name, eventSource: task.factory.name },
+          endBlock - startBlock + 1
+        );
+      });
+    }
+
+    /** END: Same logic as log worker. */
 
     this.childContractProgressTrackers[task.factory.name].addCompletedInterval([
       task.fromBlock,
