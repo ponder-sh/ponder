@@ -74,8 +74,8 @@ export class Runtime {
   }
 
   /**
-   * @template {any} T
-   * @param {(module: Promise<T | any>, filePath?: string) => void} handleModule
+   * @template T=any
+   * @param {(module: Promise<T | any>, filePath: string) => void} handleModule
    */
   async start(handleModule) {
     const viteServer = await this.#createViteServer();

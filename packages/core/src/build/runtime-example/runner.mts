@@ -24,14 +24,13 @@ const runtime = new Runtime({
   files,
   viteServerConfig: {
     resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "./src"),
-      },
+      alias: { "@": path.resolve(__dirname, "./src") },
     },
   },
 });
 runtime.start(async (module, filePath) => {
-  if (__filename === filePath) return; // ignore changes to this file
+  // Ignore files that are not in the `files` glob.
+  if (!files.includes(filePath)) return;
 
   const { default: MyClass } = await module;
   const mod = new MyClass();
