@@ -144,14 +144,14 @@ export interface EventStore {
   }): Promise<void>;
 
   /**
-   * Deletes ALL data from the store with a block number greater than the
-   * specified block number.
+   * Deletes ALL data from the store with a block number GREATER than the
+   * specified block number. Any data at fromBlock is not deleted.
    *
    * This includes block/transaction/logs, child contracts, and intervals.
    */
   deleteRealtimeData(options: {
     chainId: number;
-    fromBlockNumber: bigint;
+    fromBlock: bigint;
   }): Promise<void>;
 
   /** CONTRACT READ METHODS */

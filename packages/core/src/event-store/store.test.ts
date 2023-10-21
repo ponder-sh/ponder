@@ -12,6 +12,8 @@ import {
   usdcContractConfig,
 } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
+import type { FactoryCriteria } from "@/config/factories";
+import type { LogFilterCriteria } from "@/config/logFilters";
 
 beforeEach((context) => setupEventStore(context));
 
@@ -39,12 +41,10 @@ test("insertHistoricalLogFilterInterval inserts block, transactions, and logs", 
 
   await eventStore.insertHistoricalLogFilterInterval({
     chainId: usdcContractConfig.chainId,
+    logFilter: { address: usdcContractConfig.address },
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
-    logFilter: {
-      address: usdcContractConfig.address,
-    },
     interval: {
       startBlock: hexToBigInt(blockOne.number!) - 100n,
       endBlock: hexToBigInt(blockOne.number!),
@@ -69,17 +69,14 @@ test("insertHistoricalLogFilterInterval inserts log filter intervals", async (co
 
   await eventStore.insertHistoricalLogFilterInterval({
     chainId: 1,
-    block: blockOne,
-    transactions: [],
-    logs: [],
     logFilter: {
       address: ["0xa", "0xb"],
       topics: [["0xc", "0xd"], null, "0xe", null],
     },
-    interval: {
-      startBlock: 0n,
-      endBlock: 100n,
-    },
+    block: blockOne,
+    transactions: [],
+    logs: [],
+    interval: { startBlock: 0n, endBlock: 100n },
   });
 
   const logFilterRanges = await eventStore.getLogFilterIntervals({
@@ -98,12 +95,10 @@ test("insertHistoricalLogFilterInterval merges ranges on insertion", async (cont
 
   await eventStore.insertHistoricalLogFilterInterval({
     chainId: usdcContractConfig.chainId,
+    logFilter: { address: usdcContractConfig.address },
     block: blockOne,
     transactions: [],
     logs: [],
-    logFilter: {
-      address: usdcContractConfig.address,
-    },
     interval: {
       startBlock: hexToBigInt(blockOne.number!),
       endBlock: hexToBigInt(blockOne.number!),
@@ -112,10 +107,10 @@ test("insertHistoricalLogFilterInterval merges ranges on insertion", async (cont
 
   await eventStore.insertHistoricalLogFilterInterval({
     chainId: usdcContractConfig.chainId,
+    logFilter: { address: usdcContractConfig.address },
     block: blockThree,
     transactions: [],
     logs: [],
-    logFilter: { address: usdcContractConfig.address },
     interval: {
       startBlock: hexToBigInt(blockThree.number!),
       endBlock: hexToBigInt(blockThree.number!),
@@ -134,10 +129,10 @@ test("insertHistoricalLogFilterInterval merges ranges on insertion", async (cont
 
   await eventStore.insertHistoricalLogFilterInterval({
     chainId: usdcContractConfig.chainId,
+    logFilter: { address: usdcContractConfig.address },
     block: blockTwo,
     transactions: [],
     logs: [],
-    logFilter: { address: usdcContractConfig.address },
     interval: {
       startBlock: hexToBigInt(blockTwo.number!),
       endBlock: hexToBigInt(blockTwo.number!),
@@ -158,12 +153,10 @@ test("insertHistoricalLogFilterInterval merges log intervals inserted concurrent
   await Promise.all([
     eventStore.insertHistoricalLogFilterInterval({
       chainId: usdcContractConfig.chainId,
+      logFilter: { address: usdcContractConfig.address },
       block: blockOne,
       transactions: [],
       logs: [],
-      logFilter: {
-        address: usdcContractConfig.address,
-      },
       interval: {
         startBlock: hexToBigInt(blockOne.number!),
         endBlock: hexToBigInt(blockOne.number!),
@@ -171,10 +164,10 @@ test("insertHistoricalLogFilterInterval merges log intervals inserted concurrent
     }),
     eventStore.insertHistoricalLogFilterInterval({
       chainId: usdcContractConfig.chainId,
+      logFilter: { address: usdcContractConfig.address },
       block: blockTwo,
       transactions: [],
       logs: [],
-      logFilter: { address: usdcContractConfig.address },
       interval: {
         startBlock: hexToBigInt(blockTwo.number!),
         endBlock: hexToBigInt(blockTwo.number!),
@@ -182,10 +175,10 @@ test("insertHistoricalLogFilterInterval merges log intervals inserted concurrent
     }),
     eventStore.insertHistoricalLogFilterInterval({
       chainId: usdcContractConfig.chainId,
+      logFilter: { address: usdcContractConfig.address },
       block: blockThree,
       transactions: [],
       logs: [],
-      logFilter: { address: usdcContractConfig.address },
       interval: {
         startBlock: hexToBigInt(blockThree.number!),
         endBlock: hexToBigInt(blockThree.number!),
@@ -206,26 +199,20 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
 
   await eventStore.insertHistoricalLogFilterInterval({
     chainId: 1,
-    block: blockOne,
-    transactions: [],
-    logs: [],
     logFilter: {
       address: ["0xa", "0xb"],
       topics: [["0xc", "0xd"], null, "0xe", null],
     },
-    interval: {
-      startBlock: 0n,
-      endBlock: 100n,
-    },
+    block: blockOne,
+    transactions: [],
+    logs: [],
+    interval: { startBlock: 0n, endBlock: 100n },
   });
 
   // This is a narrower inclusion criteria on `address` and `topic0`. Full range is available.
   let logFilterRanges = await eventStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: {
-      address: ["0xa"],
-      topics: [["0xc"], null, "0xe", null],
-    },
+    logFilter: { address: ["0xa"], topics: [["0xc"], null, "0xe", null] },
   });
 
   expect(logFilterRanges).toMatchObject([[0, 100]]);
@@ -233,10 +220,7 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
   // This is a broader inclusion criteria on `address`. No ranges available.
   logFilterRanges = await eventStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: {
-      address: undefined,
-      topics: [["0xc"], null, "0xe", null],
-    },
+    logFilter: { address: undefined, topics: [["0xc"], null, "0xe", null] },
   });
 
   expect(logFilterRanges).toMatchObject([]);
@@ -244,10 +228,7 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
   // This is a narrower inclusion criteria on `topic1`. Full range available.
   logFilterRanges = await eventStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: {
-      address: ["0xa"],
-      topics: [["0xc"], "0xd", "0xe", null],
-    },
+    logFilter: { address: ["0xa"], topics: [["0xc"], "0xd", "0xe", null] },
   });
 
   expect(logFilterRanges).toMatchObject([[0, 100]]);
@@ -258,28 +239,20 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
 
   await eventStore.insertHistoricalLogFilterInterval({
     chainId: 1,
+    logFilter: {},
     block: blockOne,
     transactions: [],
     logs: [],
-    logFilter: {},
-    interval: {
-      startBlock: 0n,
-      endBlock: 100n,
-    },
+    interval: { startBlock: 0n, endBlock: 100n },
   });
 
   await eventStore.insertHistoricalLogFilterInterval({
     chainId: 1,
+    logFilter: { topics: [null, ["0xc", "0xd"]] },
     block: blockOne,
     transactions: [],
     logs: [],
-    logFilter: {
-      topics: [null, ["0xc", "0xd"]],
-    },
-    interval: {
-      startBlock: 150n,
-      endBlock: 250n,
-    },
+    interval: { startBlock: 150n, endBlock: 250n },
   });
 
   // Broad criteria only includes broad intervals.
@@ -292,9 +265,7 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
   // Narrower criteria includes both broad and specific intervals.
   logFilterIntervals = await eventStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: {
-      topics: [null, "0xc"],
-    },
+    logFilter: { topics: [null, "0xc"] },
   });
   expect(logFilterIntervals).toMatchObject([
     [0, 100],
@@ -305,31 +276,26 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
 test("insertHistoricalFactoryInterval inserts child contracts", async (context) => {
   const { eventStore } = context;
 
+  const factoryCriteria = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "topic1",
+  } satisfies FactoryCriteria;
+
   await eventStore.insertHistoricalFactoryInterval({
     chainId: 1,
+    factory: factoryCriteria,
     newChildContracts: [
       { address: "0xchild1", creationBlock: 100n },
       { address: "0xchild2", creationBlock: 200n },
     ],
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
-    interval: {
-      startBlock: 0n,
-      endBlock: 250n,
-    },
+    interval: { startBlock: 0n, endBlock: 250n },
   });
 
   const iterator = eventStore.getChildContractAddresses({
     chainId: 1,
+    factory: factoryCriteria,
     upToBlockNumber: 1000n,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
   });
 
   const results = [];
@@ -341,55 +307,39 @@ test("insertHistoricalFactoryInterval inserts child contracts", async (context) 
 test("insertHistoricalFactoryInterval inserts and merges factory contract intervals", async (context) => {
   const { eventStore } = context;
 
+  const factoryCriteria = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "topic1",
+  } satisfies FactoryCriteria;
+
   await eventStore.insertHistoricalFactoryInterval({
     chainId: 1,
+    factory: factoryCriteria,
     newChildContracts: [
       { address: "0xchild1", creationBlock: 100n },
       { address: "0xchild2", creationBlock: 200n },
     ],
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
-    interval: {
-      startBlock: 0n,
-      endBlock: 250n,
-    },
+    interval: { startBlock: 0n, endBlock: 250n },
   });
 
   let intervals = await eventStore.getFactoryIntervals({
     chainId: 1,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
+    factory: factoryCriteria,
   });
 
   expect(intervals).toMatchObject([[0, 250]]);
 
   await eventStore.insertHistoricalFactoryInterval({
     chainId: 1,
+    factory: factoryCriteria,
     newChildContracts: [{ address: "0xchild3", creationBlock: 600n }],
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
-    interval: {
-      startBlock: 251n,
-      endBlock: 1000n,
-    },
+    interval: { startBlock: 251n, endBlock: 1000n },
   });
 
   intervals = await eventStore.getFactoryIntervals({
     chainId: 1,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
+    factory: factoryCriteria,
   });
 
   expect(intervals).toMatchObject([[0, 1000]]);
@@ -398,31 +348,26 @@ test("insertHistoricalFactoryInterval inserts and merges factory contract interv
 test("getChildContractAddresses respects upToBlockNumber argument", async (context) => {
   const { eventStore } = context;
 
+  const factoryCriteria = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "topic1",
+  } satisfies FactoryCriteria;
+
   await eventStore.insertHistoricalFactoryInterval({
     chainId: 1,
+    factory: factoryCriteria,
     newChildContracts: [
       { address: "0xchild1", creationBlock: 100n },
       { address: "0xchild2", creationBlock: 200n },
     ],
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
-    interval: {
-      startBlock: 0n,
-      endBlock: 250n,
-    },
+    interval: { startBlock: 0n, endBlock: 250n },
   });
 
   let iterator = eventStore.getChildContractAddresses({
     chainId: 1,
+    factory: factoryCriteria,
     upToBlockNumber: 150n,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
   });
 
   let results = [];
@@ -432,12 +377,8 @@ test("getChildContractAddresses respects upToBlockNumber argument", async (conte
 
   iterator = eventStore.getChildContractAddresses({
     chainId: 1,
+    factory: factoryCriteria,
     upToBlockNumber: 250n,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
   });
 
   results = [];
@@ -449,8 +390,15 @@ test("getChildContractAddresses respects upToBlockNumber argument", async (conte
 test("getChildContractAddresses paginates", async (context) => {
   const { eventStore } = context;
 
+  const factoryCriteria = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "topic1",
+  } satisfies FactoryCriteria;
+
   await eventStore.insertHistoricalFactoryInterval({
     chainId: 1,
+    factory: factoryCriteria,
     newChildContracts: [
       { address: "0xchild1", creationBlock: 100n },
       { address: "0xchild2", creationBlock: 200n },
@@ -458,11 +406,6 @@ test("getChildContractAddresses paginates", async (context) => {
       { address: "0xchild4", creationBlock: 400n },
       { address: "0xchild5", creationBlock: 500n },
     ],
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
     interval: {
       startBlock: 0n,
       endBlock: 250n,
@@ -471,12 +414,8 @@ test("getChildContractAddresses paginates", async (context) => {
 
   const iterator = eventStore.getChildContractAddresses({
     chainId: 1,
+    factory: factoryCriteria,
     upToBlockNumber: 1000n,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
     pageSize: 2,
   });
 
@@ -495,14 +434,16 @@ test("getChildContractAddresses paginates", async (context) => {
 test("getChildContractAddresses does not yield empty list", async (context) => {
   const { eventStore } = context;
 
+  const factoryCriteria = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "topic1",
+  } satisfies FactoryCriteria;
+
   const iterator = eventStore.getChildContractAddresses({
     chainId: 1,
+    factory: factoryCriteria,
     upToBlockNumber: 1000n,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
   });
 
   let didYield = false;
@@ -517,20 +458,19 @@ test("getChildContractAddresses does not yield empty list", async (context) => {
 test("insertHistoricalChildContractInterval inserts block, transactions, and logs", async (context) => {
   const { eventStore } = context;
 
+  const factoryCriteria = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "topic1",
+  } satisfies FactoryCriteria;
+
   await eventStore.insertHistoricalChildContractInterval({
     chainId: 1,
+    factory: factoryCriteria,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
-    interval: {
-      startBlock: 0n,
-      endBlock: 500n,
-    },
+    interval: { startBlock: 0n, endBlock: 500n },
   });
 
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
@@ -549,45 +489,33 @@ test("insertHistoricalChildContractInterval inserts block, transactions, and log
 test("insertHistoricalChildContractInterval inserts and merges child contract intervals", async (context) => {
   const { eventStore } = context;
 
+  const factoryCriteria = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "topic1",
+  } satisfies FactoryCriteria;
+
   await eventStore.insertHistoricalChildContractInterval({
     chainId: 1,
+    factory: factoryCriteria,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
-    interval: {
-      startBlock: 0n,
-      endBlock: 500n,
-    },
+    interval: { startBlock: 0n, endBlock: 500n },
   });
 
   await eventStore.insertHistoricalChildContractInterval({
     chainId: 1,
+    factory: factoryCriteria,
     block: blockThree,
     transactions: [],
     logs: [],
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
-    interval: {
-      startBlock: 750n,
-      endBlock: 1000n,
-    },
+    interval: { startBlock: 750n, endBlock: 1000n },
   });
 
   let intervals = await eventStore.getChildContractIntervals({
     chainId: 1,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
+    factory: factoryCriteria,
   });
 
   expect(intervals).toMatchObject([
@@ -597,76 +525,276 @@ test("insertHistoricalChildContractInterval inserts and merges child contract in
 
   await eventStore.insertHistoricalChildContractInterval({
     chainId: 1,
+    factory: factoryCriteria,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
-    interval: {
-      startBlock: 501n,
-      endBlock: 800n,
-    },
+    interval: { startBlock: 501n, endBlock: 800n },
   });
 
   intervals = await eventStore.getChildContractIntervals({
     chainId: 1,
-    factory: {
-      address: "0xparent",
-      eventSelector: "0xa",
-      childAddressLocation: "topic1",
-    },
+    factory: factoryCriteria,
   });
 
   expect(intervals).toMatchObject([[0, 1000]]);
 });
 
-// test("insertRealtimeBlock inserts block", async (context) => {
-//   const { eventStore } = context;
+test("insertRealtimeBlock inserts data", async (context) => {
+  const { eventStore } = context;
 
-//   await eventStore.insertRealtimeBlock({
-//     chainId: 1,
-//     block: blockOne,
-//     transactions: [],
-//     logs: [],
-//   });
+  await eventStore.insertRealtimeBlock({
+    chainId: 1,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+  });
 
-//   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
-//   expect(blocks).toHaveLength(1);
-// });
+  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  expect(blocks).toHaveLength(1);
 
-// test("insertRealtimeBlock inserts transactions", async (context) => {
-//   const { eventStore } = context;
+  const transactions = await eventStore.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+  expect(transactions).toHaveLength(2);
 
-//   await eventStore.insertRealtimeBlock({
-//     chainId: 1,
-//     block: blockOne,
-//     transactions: blockOneTransactions,
-//     logs: [],
-//   });
+  const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  expect(logs).toHaveLength(2);
+});
 
-//   const transactions = await eventStore.db
-//     .selectFrom("transactions")
-//     .selectAll()
-//     .execute();
-//   expect(transactions).toHaveLength(2);
-// });
+test("insertRealtimeChildContracts inserts child contracts", async (context) => {
+  const { eventStore } = context;
 
-// test("insertRealtimeBlock inserts logs", async (context) => {
-//   const { eventStore } = context;
+  const factoryCriteria = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "topic1",
+  } satisfies FactoryCriteria;
 
-//   await eventStore.insertRealtimeBlock({
-//     chainId: 1,
-//     block: blockOne,
-//     transactions: blockOneTransactions,
-//     logs: blockOneLogs,
-//   });
+  await eventStore.insertRealtimeChildContracts({
+    chainId: 1,
+    factory: factoryCriteria,
+    newChildContracts: [
+      { address: "0xchild1", creationBlock: 100n },
+      { address: "0xchild2", creationBlock: 200n },
+    ],
+  });
 
-//   const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
-//   expect(logs).toHaveLength(2);
-// });
+  const iterator = eventStore.getChildContractAddresses({
+    chainId: 1,
+    factory: factoryCriteria,
+    upToBlockNumber: 1000n,
+  });
+
+  const results = [];
+  for await (const page of iterator) results.push(...page);
+
+  expect(results).toMatchObject(["0xchild1", "0xchild2"]);
+});
+
+test("insertRealtimeInterval inserts log filter intervals", async (context) => {
+  const { eventStore } = context;
+
+  const logFilterCriteria = {
+    address: usdcContractConfig.address,
+  } satisfies LogFilterCriteria;
+
+  const factoryCriteriaOne = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "topic1",
+  } satisfies FactoryCriteria;
+
+  const factoryCriteriaTwo = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "offset64",
+  } satisfies FactoryCriteria;
+
+  await eventStore.insertRealtimeInterval({
+    chainId: 1,
+    logFilters: [logFilterCriteria],
+    factories: [factoryCriteriaOne, factoryCriteriaTwo],
+    interval: { startBlock: 500n, endBlock: 550n },
+  });
+
+  expect(
+    await eventStore.getLogFilterIntervals({
+      chainId: 1,
+      logFilter: logFilterCriteria,
+    })
+  ).toMatchObject([[500, 550]]);
+
+  expect(
+    await eventStore.getFactoryIntervals({
+      chainId: 1,
+      factory: factoryCriteriaOne,
+    })
+  ).toMatchObject([[500, 550]]);
+
+  expect(
+    await eventStore.getChildContractIntervals({
+      chainId: 1,
+      factory: factoryCriteriaOne,
+    })
+  ).toMatchObject([[500, 550]]);
+});
+
+test("deleteRealtimeData deletes blocks, transactions and logs", async (context) => {
+  const { eventStore } = context;
+
+  await eventStore.insertHistoricalLogFilterInterval({
+    chainId: usdcContractConfig.chainId,
+    logFilter: { address: usdcContractConfig.address },
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+    interval: {
+      startBlock: hexToBigInt(blockOne.number!),
+      endBlock: hexToBigInt(blockOne.number!),
+    },
+  });
+
+  await eventStore.insertHistoricalLogFilterInterval({
+    chainId: usdcContractConfig.chainId,
+    logFilter: { address: usdcContractConfig.address },
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+    interval: {
+      startBlock: hexToBigInt(blockTwo.number!),
+      endBlock: hexToBigInt(blockTwo.number!),
+    },
+  });
+
+  let blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  expect(blocks).toHaveLength(2);
+
+  let transactions = await eventStore.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+  expect(transactions).toHaveLength(3);
+
+  let logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  expect(logs).toHaveLength(3);
+
+  await eventStore.deleteRealtimeData({
+    chainId: usdcContractConfig.chainId,
+    fromBlock: hexToBigInt(blockOne.number!),
+  });
+
+  blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  expect(blocks).toHaveLength(1);
+
+  transactions = await eventStore.db
+    .selectFrom("transactions")
+    .selectAll()
+    .execute();
+  expect(transactions).toHaveLength(2);
+
+  logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  expect(logs).toHaveLength(2);
+});
+
+test("deleteRealtimeData updates interval data", async (context) => {
+  const { eventStore } = context;
+
+  const logFilterCriteria = {
+    address: usdcContractConfig.address,
+  } satisfies LogFilterCriteria;
+
+  const factoryCriteria = {
+    address: "0xparent",
+    eventSelector: "0xa",
+    childAddressLocation: "topic1",
+  } satisfies FactoryCriteria;
+
+  await eventStore.insertHistoricalLogFilterInterval({
+    chainId: usdcContractConfig.chainId,
+    logFilter: logFilterCriteria,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+    interval: {
+      startBlock: hexToBigInt(blockOne.number!),
+      endBlock: hexToBigInt(blockTwo.number!),
+    },
+  });
+
+  await eventStore.insertHistoricalFactoryInterval({
+    chainId: 1,
+    factory: factoryCriteria,
+    newChildContracts: [
+      { address: "0xchild1", creationBlock: hexToBigInt(blockOne.number!) },
+      { address: "0xchild2", creationBlock: hexToBigInt(blockTwo.number!) },
+    ],
+    interval: {
+      startBlock: hexToBigInt(blockOne.number!),
+      endBlock: hexToBigInt(blockTwo.number!),
+    },
+  });
+
+  await eventStore.insertHistoricalChildContractInterval({
+    chainId: 1,
+    factory: factoryCriteria,
+    block: blockTwo,
+    transactions: blockTwoTransactions,
+    logs: blockTwoLogs,
+    interval: {
+      startBlock: hexToBigInt(blockOne.number!),
+      endBlock: hexToBigInt(blockTwo.number!),
+    },
+  });
+
+  expect(
+    await eventStore.getLogFilterIntervals({
+      chainId: 1,
+      logFilter: logFilterCriteria,
+    })
+  ).toMatchObject([[15495110, 15495111]]);
+
+  expect(
+    await eventStore.getFactoryIntervals({
+      chainId: 1,
+      factory: factoryCriteria,
+    })
+  ).toMatchObject([[15495110, 15495111]]);
+
+  expect(
+    await eventStore.getChildContractIntervals({
+      chainId: 1,
+      factory: factoryCriteria,
+    })
+  ).toMatchObject([[15495110, 15495111]]);
+
+  await eventStore.deleteRealtimeData({
+    chainId: usdcContractConfig.chainId,
+    fromBlock: hexToBigInt(blockOne.number!),
+  });
+
+  expect(
+    await eventStore.getLogFilterIntervals({
+      chainId: 1,
+      logFilter: logFilterCriteria,
+    })
+  ).toMatchObject([[15495110, 15495110]]);
+
+  expect(
+    await eventStore.getFactoryIntervals({
+      chainId: 1,
+      factory: factoryCriteria,
+    })
+  ).toMatchObject([[15495110, 15495110]]);
+
+  expect(
+    await eventStore.getChildContractIntervals({
+      chainId: 1,
+      factory: factoryCriteria,
+    })
+  ).toMatchObject([[15495110, 15495110]]);
+});
 
 test("insertContractReadResult inserts a contract call", async (context) => {
   const { eventStore } = context;
@@ -807,7 +935,7 @@ test("getLogEvents returns log events", async (context) => {
     {
       "address": "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
       "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 15131999n,
+      "blockNumber": 15495110n,
       "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
       "id": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd-0x6c",
       "logIndex": 108,
@@ -849,7 +977,7 @@ test("getLogEvents returns log events", async (context) => {
   expect(events[0].transaction).toMatchInlineSnapshot(`
     {
       "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 69420n,
+      "blockNumber": 15495110n,
       "from": "0x1",
       "gas": 69420420n,
       "gasPrice": 69n,
@@ -870,7 +998,7 @@ test("getLogEvents returns log events", async (context) => {
     {
       "address": "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
       "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 15131999n,
+      "blockNumber": 15495110n,
       "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
       "id": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd-0x6d",
       "logIndex": 109,
@@ -916,7 +1044,7 @@ test("getLogEvents returns log events", async (context) => {
         },
       ],
       "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-      "blockNumber": 69420n,
+      "blockNumber": 15495110n,
       "from": "0x1",
       "gas": 69420420n,
       "gasPrice": 69n,
