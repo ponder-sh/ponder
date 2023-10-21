@@ -203,7 +203,11 @@ export class ServerService {
           if (!host) {
             return response.status(400).send("No host header provided");
           }
-          const protocol = ["localhost", "0.0.0.0", "127.0.0.1"].includes(host)
+          const protocol = [
+            "localhost:42069",
+            "0.0.0.0:42069",
+            "127.0.0.1:42069",
+          ].includes(host)
             ? "http"
             : "https";
           const endpoint = `${protocol}://${host}`;
