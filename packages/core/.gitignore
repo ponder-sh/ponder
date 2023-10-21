@@ -1,4 +1,5 @@
 dist/
 .ponder/
 generated/
+coverage/
 .env.local
