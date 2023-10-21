@@ -2,7 +2,7 @@
   // This configuration is used to compile cjs and types (see package.json build script). It should exclude all test files.
   "extends": "./tsconfig.base.json",
   "include": ["src"],
-  "exclude": ["src/_test", "src/**/*.test.ts"],
+  "exclude": ["src/_test", "src/**/*.test.ts", "./src/build/runtime-example"],
   "compilerOptions": {
     "module": "commonjs",
     "sourceMap": true,

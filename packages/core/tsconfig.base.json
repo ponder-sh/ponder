@@ -17,13 +17,14 @@
     // "noUncheckedIndexedAccess": true,
 
     // JavaScript support
-    "allowJs": false,
-    "checkJs": false,
+    "allowJs": true,
+    "checkJs": true,
     "jsx": "react",
 
     // Interop constraints. These will remain loose until we start emitting ESM.
     "verbatimModuleSyntax": false,
     "esModuleInterop": true,
+    "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
 
