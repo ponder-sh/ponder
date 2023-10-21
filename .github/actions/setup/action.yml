@@ -21,7 +21,7 @@ runs:
 
     - name: Install dependencies
       shell: bash
-      run: pnpm install --frozen-lockfile --ignore-scripts
+      run: pnpm install --frozen-lockfile
 
     - name: Build
       shell: bash
