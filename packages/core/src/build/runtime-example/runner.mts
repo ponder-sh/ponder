@@ -7,8 +7,11 @@ import { Runtime } from "@/build/runtime.mjs";
 /**
  * Node.js LTS (20):
  * `node --import=tsx runner.mts`
- * Node.js < 20:
+ * Node.js 18:
  * `node --loader=tsx runner.mts`
+ * Or as JS file:
+ *  - rename to `runner.mjs`,
+ *  - change `Runtime` import to `import { Runtime } from "../runtime.js"`,
  */
 
 const __filename = url.fileURLToPath(import.meta.url);
@@ -34,6 +37,9 @@ runtime.start(async (module, filePath) => {
   if (__filename === filePath) return; // ignore changes to this file
   const { default: MyClass } = await module;
   const mod = new MyClass();
-  console.log(`\nCalling getParams method:`, mod.getParams());
-  console.log(`\nCalling getTimestamp method:`, mod.getTimestamp());
+  const params = mod.getParams();
+  console.log(
+    `\nCalling getParams method:`,
+    JSON.stringify(params, undefined, 2)
+  );
 });
