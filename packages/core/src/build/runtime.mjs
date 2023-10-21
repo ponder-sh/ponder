@@ -74,7 +74,7 @@ export class Runtime {
   }
 
   /**
-   * @template T
+   * @template {any} T
    * @param {(module: Promise<T | any>, filePath?: string) => void} handleModule
    */
   async start(handleModule) {
