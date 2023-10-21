@@ -949,7 +949,7 @@ export const blockOneTransactions: RpcTransaction[] = [
     accessList: undefined,
     blockHash:
       "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-    blockNumber: "0x10f2c",
+    blockNumber: "0xec6fc6",
     chainId: "0x1",
     from: "0x1",
     gas: "0x4234584",
@@ -975,7 +975,7 @@ export const blockOneTransactions: RpcTransaction[] = [
     ],
     blockHash:
       "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-    blockNumber: "0x10f2c",
+    blockNumber: "0xec6fc6",
     chainId: "0x1",
     from: "0x1",
     gas: "0x4234584",
@@ -1000,7 +1000,7 @@ export const blockOneLogs: RpcLog[] = [
     address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
     blockHash:
       "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-    blockNumber: "0xe6e55f",
+    blockNumber: "0xec6fc6",
     data: "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
     logIndex: "0x6c",
     removed: false,
@@ -1017,7 +1017,7 @@ export const blockOneLogs: RpcLog[] = [
     address: "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
     blockHash:
       "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-    blockNumber: "0xe6e55f",
+    blockNumber: "0xec6fc6",
     data: "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
     logIndex: "0x6d",
     removed: false,
@@ -1043,7 +1043,7 @@ export const blockTwoTransactions: RpcTransaction[] = [
     accessList: undefined,
     blockHash:
       "0xf123644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
-    blockNumber: "0x10f2c",
+    blockNumber: "0xec6fc7",
     chainId: "0x1",
     from: "0x1",
     gas: "0x4234584",

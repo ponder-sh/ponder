@@ -568,7 +568,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         await this.eventStore.deleteRealtimeData({
           chainId: this.network.chainId,
-          fromBlockNumber: BigInt(commonAncestorBlock.number + 1),
+          fromBlock: BigInt(commonAncestorBlock.number),
         });
 
         // Clear the queue of all blocks (some might be from the non-canonical chain).
