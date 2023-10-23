@@ -274,7 +274,7 @@ const migrations: Record<string, Migration> = {
         .column("address")
         .execute();
       await db.schema
-        .createIndex("logTopic0Inder")
+        .createIndex("logTopic0Index")
         .on("logs")
         .column("topic0")
         .execute();
@@ -316,6 +316,12 @@ const migrations: Record<string, Migration> = {
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
         .execute();
       await db.schema
+        .createIndex("logFilterIntervalsLogFilterId")
+        .on("logFilterIntervals")
+        .column("logFilterId")
+        .execute();
+
+      await db.schema
         .createTable("factories")
         .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${eventSelector}_${childAddressLocation}`
         .addColumn("chainId", "integer", (col) => col.notNull())
@@ -331,6 +337,11 @@ const migrations: Record<string, Migration> = {
         )
         .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("factoryLogFilterIntervalsFactoryId")
+        .on("factoryLogFilterIntervals")
+        .column("factoryId")
         .execute();
     },
   },
