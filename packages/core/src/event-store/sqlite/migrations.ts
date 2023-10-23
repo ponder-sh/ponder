@@ -181,6 +181,120 @@ const migrations: Record<string, Migration> = {
       /** This table is no longer being used. */
       await db.schema.dropTable("logFilterCachedRanges").execute();
 
+      /** Drop and re-create all tables to fix bigint encoding. */
+      await db.schema.dropTable("blocks").execute();
+      await db.schema
+        .createTable("blocks")
+        .addColumn("baseFeePerGas", "varchar(79)")
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("difficulty", "varchar(79)", (col) => col.notNull())
+        .addColumn("extraData", "text", (col) => col.notNull())
+        .addColumn("gasLimit", "varchar(79)", (col) => col.notNull())
+        .addColumn("gasUsed", "varchar(79)", (col) => col.notNull())
+        .addColumn("hash", "varchar(66)", (col) => col.notNull().primaryKey())
+        .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
+        .addColumn("miner", "varchar(42)", (col) => col.notNull())
+        .addColumn("mixHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("nonce", "varchar(18)", (col) => col.notNull())
+        .addColumn("number", "varchar(79)", (col) => col.notNull())
+        .addColumn("parentHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("receiptsRoot", "varchar(66)", (col) => col.notNull())
+        .addColumn("sha3Uncles", "varchar(66)", (col) => col.notNull())
+        .addColumn("size", "varchar(79)", (col) => col.notNull())
+        .addColumn("stateRoot", "varchar(66)", (col) => col.notNull())
+        .addColumn("timestamp", "varchar(79)", (col) => col.notNull())
+        .addColumn("totalDifficulty", "varchar(79)", (col) => col.notNull())
+        .addColumn("transactionsRoot", "varchar(66)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("blockTimestampIndex")
+        .on("blocks")
+        .column("timestamp")
+        .execute();
+      await db.schema
+        .createIndex("blockNumberIndex")
+        .on("blocks")
+        .column("number")
+        .execute();
+
+      await db.schema.dropTable("transactions").execute();
+      await db.schema
+        .createTable("transactions")
+        .addColumn("accessList", "text")
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("gas", "varchar(79)", (col) => col.notNull())
+        .addColumn("gasPrice", "varchar(79)")
+        .addColumn("hash", "varchar(66)", (col) => col.notNull().primaryKey())
+        .addColumn("input", "text", (col) => col.notNull())
+        .addColumn("maxFeePerGas", "varchar(79)")
+        .addColumn("maxPriorityFeePerGas", "varchar(79)")
+        .addColumn("nonce", "integer", (col) => col.notNull())
+        .addColumn("r", "varchar(66)", (col) => col.notNull())
+        .addColumn("s", "varchar(66)", (col) => col.notNull())
+        .addColumn("to", "varchar(42)")
+        .addColumn("transactionIndex", "integer", (col) => col.notNull())
+        .addColumn("type", "text", (col) => col.notNull())
+        .addColumn("value", "varchar(79)", (col) => col.notNull())
+        .addColumn("v", "varchar(79)", (col) => col.notNull())
+        .execute();
+
+      await db.schema.dropTable("logs").execute();
+      await db.schema
+        .createTable("logs")
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("data", "text", (col) => col.notNull())
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("logIndex", "integer", (col) => col.notNull())
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
+        .addColumn("transactionHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("transactionIndex", "integer", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("logBlockHashIndex")
+        .on("logs")
+        .column("blockHash")
+        .execute();
+      await db.schema
+        .createIndex("logChainIdIndex")
+        .on("logs")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("logAddressIndex")
+        .on("logs")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("logTopic0Inder")
+        .on("logs")
+        .column("topic0")
+        .execute();
+
+      await db.schema.dropTable("contractReadResults").execute();
+      await db.schema
+        .createTable("contractReadResults")
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("data", "text", (col) => col.notNull())
+        .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("contractReadResultPrimaryKey", [
+          "chainId",
+          "blockNumber",
+          "address",
+          "data",
+        ])
+        .execute();
+
       /** Add new log filter and factory contract interval tables. */
       await db.schema
         .createTable("logFilters")
@@ -198,14 +312,14 @@ const migrations: Record<string, Migration> = {
         .addColumn("logFilterId", "text", (col) =>
           col.notNull().references("logFilters.id")
         )
-        .addColumn("startBlock", "blob", (col) => col.notNull()) // BigInt
-        .addColumn("endBlock", "blob", (col) => col.notNull()) // BigInt
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
         .execute();
       await db.schema
         .createTable("factories")
         .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${eventSelector}_${childAddressLocation}`
         .addColumn("chainId", "integer", (col) => col.notNull())
-        .addColumn("address", "varchar(66)", (col) => col.notNull())
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
         .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
         .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
         .execute();
@@ -215,8 +329,8 @@ const migrations: Record<string, Migration> = {
         .addColumn("factoryId", "text", (col) =>
           col.notNull().references("factories.id")
         )
-        .addColumn("startBlock", "blob", (col) => col.notNull()) // BigInt
-        .addColumn("endBlock", "blob", (col) => col.notNull()) // BigInt
+        .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
+        .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
         .execute();
     },
   },

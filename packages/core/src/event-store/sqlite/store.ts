@@ -15,8 +15,7 @@ import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
 import type { NonNull } from "@/types/utils";
-import { blobToBigInt } from "@/utils/decode";
-import { intToBlob } from "@/utils/encode";
+import { decodeToBigInt, encodeAsText } from "@/utils/encoding";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval";
 import { buildLogFilterFragments } from "@/utils/logFilter";
 import { range } from "@/utils/range";
@@ -24,6 +23,7 @@ import { range } from "@/utils/range";
 import type { EventStore } from "../store";
 import {
   type EventStoreTables,
+  BigIntText,
   rpcToSqliteBlock,
   rpcToSqliteLog,
   rpcToSqliteTransaction,
@@ -130,16 +130,16 @@ export class SqliteEventStore implements EventStore {
 
           const mergedIntervals = intervalUnion(
             existingIntervalRows.map((i) => [
-              Number(blobToBigInt(i.startBlock)),
-              Number(blobToBigInt(i.endBlock)),
+              Number(decodeToBigInt(i.startBlock)),
+              Number(decodeToBigInt(i.endBlock)),
             ])
           );
 
           const mergedIntervalRows = mergedIntervals.map(
             ([startBlock, endBlock]) => ({
               logFilterId,
-              startBlock: intToBlob(startBlock),
-              endBlock: intToBlob(endBlock),
+              startBlock: encodeAsText(startBlock),
+              endBlock: encodeAsText(endBlock),
             })
           );
 
@@ -201,8 +201,8 @@ export class SqliteEventStore implements EventStore {
       const { fragmentIndex, ...rest } = cur;
       acc[fragmentIndex] ||= [];
       acc[fragmentIndex].push({
-        startBlock: blobToBigInt(rest.startBlock),
-        endBlock: blobToBigInt(rest.endBlock),
+        startBlock: decodeToBigInt(rest.startBlock),
+        endBlock: decodeToBigInt(rest.endBlock),
       });
       return acc;
     }, {} as Record<number, { startBlock: bigint; endBlock: bigint }[]>);
@@ -257,10 +257,10 @@ export class SqliteEventStore implements EventStore {
       .where("chainId", "=", chainId)
       .where("address", "=", address)
       .where("topic0", "=", eventSelector)
-      .where("blockNumber", "<=", intToBlob(upToBlockNumber))
+      .where("blockNumber", "<=", encodeAsText(upToBlockNumber))
       .limit(pageSize);
 
-    let cursor: Buffer | undefined = undefined;
+    let cursor: BigIntText | undefined = undefined;
 
     while (true) {
       let query = baseQuery;
@@ -359,16 +359,16 @@ export class SqliteEventStore implements EventStore {
 
       const mergedIntervals = intervalUnion(
         existingIntervals.map((i) => [
-          Number(blobToBigInt(i.startBlock)),
-          Number(blobToBigInt(i.endBlock)),
+          Number(decodeToBigInt(i.startBlock)),
+          Number(decodeToBigInt(i.endBlock)),
         ])
       );
 
       const mergedIntervalRows = mergedIntervals.map(
         ([startBlock, endBlock]) => ({
           factoryId,
-          startBlock: intToBlob(startBlock),
-          endBlock: intToBlob(endBlock),
+          startBlock: encodeAsText(startBlock),
+          endBlock: encodeAsText(endBlock),
         })
       );
 
@@ -460,7 +460,7 @@ export class SqliteEventStore implements EventStore {
     chainId: number;
     fromBlock: bigint;
   }) => {
-    const fromBlock = intToBlob(fromBlock_);
+    const fromBlock = encodeAsText(fromBlock_);
 
     await this.db.transaction().execute(async (tx) => {
       await tx
@@ -587,8 +587,8 @@ export class SqliteEventStore implements EventStore {
           .insertInto("logFilterIntervals")
           .values({
             logFilterId,
-            startBlock: intToBlob(startBlock),
-            endBlock: intToBlob(endBlock),
+            startBlock: encodeAsText(startBlock),
+            endBlock: encodeAsText(endBlock),
           })
           .execute();
       })
@@ -624,8 +624,8 @@ export class SqliteEventStore implements EventStore {
           .insertInto("factoryLogFilterIntervals")
           .values({
             factoryId,
-            startBlock: intToBlob(startBlock),
-            endBlock: intToBlob(endBlock),
+            startBlock: encodeAsText(startBlock),
+            endBlock: encodeAsText(endBlock),
           })
           .execute();
       })
@@ -651,7 +651,7 @@ export class SqliteEventStore implements EventStore {
       .insertInto("contractReadResults")
       .values({
         address,
-        blockNumber: intToBlob(blockNumber),
+        blockNumber: encodeAsText(blockNumber),
         chainId,
         data,
         result,
@@ -675,7 +675,7 @@ export class SqliteEventStore implements EventStore {
       .selectFrom("contractReadResults")
       .selectAll()
       .where("address", "=", address)
-      .where("blockNumber", "=", intToBlob(blockNumber))
+      .where("blockNumber", "=", encodeAsText(blockNumber))
       .where("chainId", "=", chainId)
       .where("data", "=", data)
       .executeTakeFirst();
@@ -683,7 +683,7 @@ export class SqliteEventStore implements EventStore {
     return contractReadResult
       ? {
           ...contractReadResult,
-          blockNumber: blobToBigInt(contractReadResult.blockNumber),
+          blockNumber: decodeToBigInt(contractReadResult.blockNumber),
         }
       : null;
   };
@@ -790,8 +790,8 @@ export class SqliteEventStore implements EventStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
-      .where("blocks.timestamp", ">=", intToBlob(fromTimestamp))
-      .where("blocks.timestamp", "<=", intToBlob(toTimestamp))
+      .where("blocks.timestamp", ">=", encodeAsText(fromTimestamp))
+      .where("blocks.timestamp", "<=", encodeAsText(toTimestamp))
       .orderBy("blocks.timestamp", "asc")
       .orderBy("logs.chainId", "asc")
       .orderBy("blocks.number", "asc")
@@ -850,7 +850,7 @@ export class SqliteEventStore implements EventStore {
           cmpr(
             "blocks.number",
             ">=",
-            sql`cast (${sql.val(intToBlob(logFilter.fromBlock))} as blob)`
+            sql`cast (${sql.val(encodeAsText(logFilter.fromBlock))} as blob)`
           )
         );
       }
@@ -860,7 +860,7 @@ export class SqliteEventStore implements EventStore {
           cmpr(
             "blocks.number",
             "<=",
-            sql`cast (${sql.val(intToBlob(logFilter.toBlock))} as blob)`
+            sql`cast (${sql.val(encodeAsText(logFilter.toBlock))} as blob)`
           )
         );
       }
@@ -909,7 +909,7 @@ export class SqliteEventStore implements EventStore {
           cmpr(
             "blocks.number",
             ">=",
-            sql`cast (${sql.val(intToBlob(factory.fromBlock))} as blob)`
+            sql`cast (${sql.val(encodeAsText(factory.fromBlock))} as blob)`
           )
         );
       }
@@ -919,7 +919,7 @@ export class SqliteEventStore implements EventStore {
           cmpr(
             "blocks.number",
             "<=",
-            sql`cast (${sql.val(intToBlob(factory.toBlock))} as blob)`
+            sql`cast (${sql.val(encodeAsText(factory.toBlock))} as blob)`
           )
         );
       }
@@ -1000,9 +1000,9 @@ export class SqliteEventStore implements EventStore {
 
     let cursor:
       | {
-          timestamp: Buffer;
+          timestamp: BigIntText;
           chainId: number;
-          blockNumber: Buffer;
+          blockNumber: BigIntText;
           logIndex: number;
         }
       | undefined = undefined;
@@ -1049,7 +1049,7 @@ export class SqliteEventStore implements EventStore {
           log: {
             address: row.log_address,
             blockHash: row.log_blockHash,
-            blockNumber: blobToBigInt(row.log_blockNumber),
+            blockNumber: decodeToBigInt(row.log_blockNumber),
             data: row.log_data,
             id: row.log_id,
             logIndex: Number(row.log_logIndex),
@@ -1065,32 +1065,32 @@ export class SqliteEventStore implements EventStore {
           },
           block: {
             baseFeePerGas: row.block_baseFeePerGas
-              ? blobToBigInt(row.block_baseFeePerGas)
+              ? decodeToBigInt(row.block_baseFeePerGas)
               : null,
-            difficulty: blobToBigInt(row.block_difficulty),
+            difficulty: decodeToBigInt(row.block_difficulty),
             extraData: row.block_extraData,
-            gasLimit: blobToBigInt(row.block_gasLimit),
-            gasUsed: blobToBigInt(row.block_gasUsed),
+            gasLimit: decodeToBigInt(row.block_gasLimit),
+            gasUsed: decodeToBigInt(row.block_gasUsed),
             hash: row.block_hash,
             logsBloom: row.block_logsBloom,
             miner: row.block_miner,
             mixHash: row.block_mixHash,
             nonce: row.block_nonce,
-            number: blobToBigInt(row.block_number),
+            number: decodeToBigInt(row.block_number),
             parentHash: row.block_parentHash,
             receiptsRoot: row.block_receiptsRoot,
             sha3Uncles: row.block_sha3Uncles,
-            size: blobToBigInt(row.block_size),
+            size: decodeToBigInt(row.block_size),
             stateRoot: row.block_stateRoot,
-            timestamp: blobToBigInt(row.block_timestamp),
-            totalDifficulty: blobToBigInt(row.block_totalDifficulty),
+            timestamp: decodeToBigInt(row.block_timestamp),
+            totalDifficulty: decodeToBigInt(row.block_totalDifficulty),
             transactionsRoot: row.block_transactionsRoot,
           },
           transaction: {
             blockHash: row.tx_blockHash,
-            blockNumber: blobToBigInt(row.tx_blockNumber),
+            blockNumber: decodeToBigInt(row.tx_blockNumber),
             from: row.tx_from,
-            gas: blobToBigInt(row.tx_gas),
+            gas: decodeToBigInt(row.tx_gas),
             hash: row.tx_hash,
             input: row.tx_input,
             nonce: Number(row.tx_nonce),
@@ -1098,32 +1098,32 @@ export class SqliteEventStore implements EventStore {
             s: row.tx_s,
             to: row.tx_to,
             transactionIndex: Number(row.tx_transactionIndex),
-            value: blobToBigInt(row.tx_value),
-            v: blobToBigInt(row.tx_v),
+            value: decodeToBigInt(row.tx_value),
+            v: decodeToBigInt(row.tx_v),
             ...(row.tx_type === "0x0"
               ? {
                   type: "legacy",
-                  gasPrice: blobToBigInt(row.tx_gasPrice),
+                  gasPrice: decodeToBigInt(row.tx_gasPrice),
                 }
               : row.tx_type === "0x1"
               ? {
                   type: "eip2930",
-                  gasPrice: blobToBigInt(row.tx_gasPrice),
+                  gasPrice: decodeToBigInt(row.tx_gasPrice),
                   accessList: JSON.parse(row.tx_accessList),
                 }
               : row.tx_type === "0x2"
               ? {
                   type: "eip1559",
-                  maxFeePerGas: blobToBigInt(row.tx_maxFeePerGas),
-                  maxPriorityFeePerGas: blobToBigInt(
+                  maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
+                  maxPriorityFeePerGas: decodeToBigInt(
                     row.tx_maxPriorityFeePerGas
                   ),
                 }
               : row.tx_type === "0x7e"
               ? {
                   type: "deposit",
-                  maxFeePerGas: blobToBigInt(row.tx_maxFeePerGas),
-                  maxPriorityFeePerGas: blobToBigInt(
+                  maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
+                  maxPriorityFeePerGas: decodeToBigInt(
                     row.tx_maxPriorityFeePerGas
                   ),
                 }
@@ -1151,7 +1151,7 @@ export class SqliteEventStore implements EventStore {
 
       const lastEventBlockTimestamp = lastRow?.block_timestamp;
       const pageEndsAtTimestamp = lastEventBlockTimestamp
-        ? Number(blobToBigInt(lastEventBlockTimestamp))
+        ? Number(decodeToBigInt(lastEventBlockTimestamp))
         : toTimestamp;
 
       yield {

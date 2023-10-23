@@ -1,4 +1,4 @@
-import { intToBlob } from "@/utils/encode";
+import { encodeAsText } from "@/utils/encoding";
 
 import type { ModelInstance } from "../store";
 
@@ -22,7 +22,7 @@ export function formatModelFieldValue({ value }: { value: unknown }) {
   if (typeof value === "boolean") {
     return value ? 1 : 0;
   } else if (typeof value === "bigint") {
-    return intToBlob(value);
+    return encodeAsText(value);
   } else if (typeof value === "undefined") {
     return null;
   } else if (Array.isArray(value)) {

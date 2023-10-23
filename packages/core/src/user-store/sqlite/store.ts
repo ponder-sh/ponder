@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { Kysely, sql, SqliteDialect } from "kysely";
 
 import type { Schema } from "@/schema/types";
-import { blobToBigInt } from "@/utils/decode";
+import { decodeToBigInt } from "@/utils/encoding";
 
 import type {
   ModelInstance,
@@ -676,8 +676,8 @@ export class SqliteUserStore implements UserStore {
       }
 
       if (field.kind === "SCALAR" && field.scalarTypeName === "BigInt") {
-        deserializedInstance[field.name] = blobToBigInt(
-          value as unknown as Buffer
+        deserializedInstance[field.name] = decodeToBigInt(
+          value as unknown as string
         );
         return;
       }
@@ -686,8 +686,8 @@ export class SqliteUserStore implements UserStore {
         field.kind === "RELATIONSHIP" &&
         field.relatedEntityIdType.name === "BigInt"
       ) {
-        deserializedInstance[field.name] = blobToBigInt(
-          value as unknown as Buffer
+        deserializedInstance[field.name] = decodeToBigInt(
+          value as unknown as string
         );
         return;
       }

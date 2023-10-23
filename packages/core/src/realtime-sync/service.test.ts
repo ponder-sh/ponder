@@ -13,7 +13,7 @@ import { publicClient, testClient, walletClient } from "@/_test/utils";
 import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
-import { blobToBigInt } from "@/utils/decode";
+import { decodeToBigInt } from "@/utils/encoding";
 import { range } from "@/utils/range";
 
 import { RealtimeSyncService } from "./service";
@@ -132,7 +132,7 @@ test("start() adds blocks to the store from finalized to latest", async (context
 
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(5);
-  expect(blocks.map((block) => blobToBigInt(block.number))).toMatchObject([
+  expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
     16379996n,
     16379997n,
     16379998n,
@@ -229,7 +229,7 @@ test("start() handles new blocks", async (context) => {
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(7);
 
-  expect(blocks.map((block) => blobToBigInt(block.number))).toMatchObject([
+  expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
     16379996n,
     16379997n,
     16379998n,
@@ -272,7 +272,7 @@ test("start() handles error while fetching new latest block gracefully", async (
 
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(6);
-  expect(blocks.map((block) => blobToBigInt(block.number))).toMatchObject([
+  expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
     16379996n,
     16379997n,
     16379998n,
@@ -389,7 +389,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   await service.onIdle();
 
   const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
-  expect(blocks.map((block) => blobToBigInt(block.number))).toMatchObject([
+  expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
     16379996n,
     16379997n,
     16379998n,
@@ -419,7 +419,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     .selectAll()
     .execute();
   expect(
-    blocksAfterReorg.map((block) => blobToBigInt(block.number))
+    blocksAfterReorg.map((block) => decodeToBigInt(block.number))
   ).toMatchObject([
     16379996n,
     16379997n,
