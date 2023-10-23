@@ -4,6 +4,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 
 import type { Contract } from "@/config/contracts";
+import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
@@ -18,20 +19,24 @@ export class CodegenService extends Emittery {
   private common: Common;
   private contracts: Contract[];
   private logFilters: LogFilter[];
+  private factories: Factory[];
 
   constructor({
     common,
     contracts,
     logFilters,
+    factories,
   }: {
     common: Common;
     contracts: Contract[];
     logFilters: LogFilter[];
+    factories: Factory[];
   }) {
     super();
     this.common = common;
     this.contracts = contracts;
     this.logFilters = logFilters;
+    this.factories = factories;
   }
 
   generateAppFile({ schema }: { schema?: Schema } = {}) {
@@ -71,7 +76,10 @@ export class CodegenService extends Emittery {
   
       /* HANDLER TYPES */
     
-      ${buildEventTypes(this.logFilters)}
+      ${buildEventTypes({
+        logFilters: this.logFilters,
+        factories: this.factories,
+      })}
 
       export const ponder = new PonderApp<AppType>();
     `;

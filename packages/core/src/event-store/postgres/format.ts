@@ -7,27 +7,27 @@ import {
   hexToNumber,
 } from "viem";
 
-import { intToBlob } from "@/utils/encode";
+import { toLowerCase } from "@/utils/lowercase";
 
 type BlocksTable = {
-  baseFeePerGas: Buffer | null; // BigInt
-  difficulty: Buffer; // BigInt
+  baseFeePerGas: bigint | null;
+  difficulty: bigint;
   extraData: Hex;
-  gasLimit: Buffer; // BigInt
-  gasUsed: Buffer; // BigInt
+  gasLimit: bigint;
+  gasUsed: bigint;
   hash: Hash;
   logsBloom: Hex;
   miner: Address;
   mixHash: Hash;
   nonce: Hex;
-  number: Buffer; // BigInt
+  number: bigint;
   parentHash: Hash;
   receiptsRoot: Hex;
   sha3Uncles: Hash;
-  size: Buffer; // BigInt
+  size: bigint;
   stateRoot: Hash;
-  timestamp: Buffer; // BigInt
-  totalDifficulty: Buffer; // BigInt
+  timestamp: bigint;
+  totalDifficulty: bigint;
   transactionsRoot: Hash;
 
   chainId: number;
@@ -39,33 +39,33 @@ export function rpcToPostgresBlock(
   block: RpcBlock
 ): Omit<InsertableBlock, "chainId"> {
   return {
-    baseFeePerGas: block.baseFeePerGas ? intToBlob(block.baseFeePerGas) : null,
-    difficulty: intToBlob(block.difficulty),
+    baseFeePerGas: block.baseFeePerGas ? BigInt(block.baseFeePerGas) : null,
+    difficulty: BigInt(block.difficulty),
     extraData: block.extraData,
-    gasLimit: intToBlob(block.gasLimit),
-    gasUsed: intToBlob(block.gasUsed),
+    gasLimit: BigInt(block.gasLimit),
+    gasUsed: BigInt(block.gasUsed),
     hash: block.hash!,
     logsBloom: block.logsBloom!,
-    miner: block.miner,
+    miner: toLowerCase(block.miner),
     mixHash: block.mixHash,
     nonce: block.nonce!,
-    number: intToBlob(block.number!),
+    number: BigInt(block.number!),
     parentHash: block.parentHash,
     receiptsRoot: block.receiptsRoot,
     sha3Uncles: block.sha3Uncles,
-    size: intToBlob(block.size),
+    size: BigInt(block.size),
     stateRoot: block.stateRoot,
-    timestamp: intToBlob(block.timestamp),
-    totalDifficulty: intToBlob(block.totalDifficulty!),
+    timestamp: BigInt(block.timestamp),
+    totalDifficulty: BigInt(block.totalDifficulty!),
     transactionsRoot: block.transactionsRoot,
   };
 }
 
 type TransactionsTable = {
   blockHash: Hash;
-  blockNumber: Buffer; // BigInt
+  blockNumber: bigint;
   from: Address;
-  gas: Buffer; // BigInt
+  gas: bigint;
   hash: Hash;
   input: Hex;
   nonce: number;
@@ -73,13 +73,13 @@ type TransactionsTable = {
   s: Hex;
   to: Address | null;
   transactionIndex: number;
-  v: Buffer; // BigInt
-  value: Buffer; // BigInt
+  v: bigint;
+  value: bigint;
 
   type: Hex;
-  gasPrice: Buffer | null; // BigInt
-  maxFeePerGas: Buffer | null; // BigInt
-  maxPriorityFeePerGas: Buffer | null; // BigInt
+  gasPrice: bigint | null;
+  maxFeePerGas: bigint | null;
+  maxPriorityFeePerGas: bigint | null;
   accessList: string | null;
 
   chainId: number;
@@ -95,26 +95,26 @@ export function rpcToPostgresTransaction(
       ? JSON.stringify(transaction.accessList)
       : undefined,
     blockHash: transaction.blockHash!,
-    blockNumber: intToBlob(transaction.blockNumber!),
-    from: transaction.from,
-    gas: intToBlob(transaction.gas),
-    gasPrice: transaction.gasPrice ? intToBlob(transaction.gasPrice) : null,
+    blockNumber: BigInt(transaction.blockNumber!),
+    from: toLowerCase(transaction.from),
+    gas: BigInt(transaction.gas),
+    gasPrice: transaction.gasPrice ? BigInt(transaction.gasPrice) : null,
     hash: transaction.hash,
     input: transaction.input,
     maxFeePerGas: transaction.maxFeePerGas
-      ? intToBlob(transaction.maxFeePerGas)
+      ? BigInt(transaction.maxFeePerGas)
       : null,
     maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
-      ? intToBlob(transaction.maxPriorityFeePerGas)
+      ? BigInt(transaction.maxPriorityFeePerGas)
       : null,
     nonce: hexToNumber(transaction.nonce),
     r: transaction.r,
     s: transaction.s,
-    to: transaction.to ? transaction.to : null,
+    to: transaction.to ? toLowerCase(transaction.to) : null,
     transactionIndex: Number(transaction.transactionIndex),
     type: transaction.type ?? "0x0",
-    value: intToBlob(transaction.value),
-    v: intToBlob(transaction.v),
+    value: BigInt(transaction.value),
+    v: BigInt(transaction.v),
   };
 }
 
@@ -122,16 +122,16 @@ type LogsTable = {
   id: string;
   address: Address;
   blockHash: Hash;
-  blockNumber: Buffer; // BigInt
+  blockNumber: bigint;
   data: Hex;
   logIndex: number;
   transactionHash: Hash;
   transactionIndex: number;
 
-  topic0: string | null;
-  topic1: string | null;
-  topic2: string | null;
-  topic3: string | null;
+  topic0: Hex | null;
+  topic1: Hex | null;
+  topic2: Hex | null;
+  topic3: Hex | null;
 
   chainId: number;
 };
@@ -140,9 +140,9 @@ export type InsertableLog = Insertable<LogsTable>;
 
 export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   return {
-    address: log.address,
+    address: toLowerCase(log.address),
     blockHash: log.blockHash!,
-    blockNumber: intToBlob(log.blockNumber!),
+    blockNumber: BigInt(log.blockNumber!),
     data: log.data,
     id: `${log.blockHash}-${log.logIndex}`,
     logIndex: Number(log.logIndex!),
@@ -156,19 +156,43 @@ export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
 }
 
 type ContractReadResultsTable = {
-  address: string;
-  blockNumber: Buffer; // BigInt
+  address: Address;
+  blockNumber: bigint;
   chainId: number;
   data: Hex;
   result: Hex;
 };
 
-type LogFilterCachedRangesTable = {
+type LogFiltersTable = {
+  id: string;
+  chainId: number;
+  address: Hex | null;
+  topic0: Hex | null;
+  topic1: Hex | null;
+  topic2: Hex | null;
+  topic3: Hex | null;
+};
+
+type LogFilterIntervalsTable = {
   id: Generated<number>;
-  filterKey: string;
-  startBlock: Buffer; // BigInt
-  endBlock: Buffer; // BigInt
-  endBlockTimestamp: Buffer; // BigInt
+  logFilterId: string;
+  startBlock: bigint;
+  endBlock: bigint;
+};
+
+type FactoriesTable = {
+  id: string;
+  chainId: number;
+  address: Hex;
+  eventSelector: Hex;
+  childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
+};
+
+type FactoryLogFilterIntervalsTable = {
+  id: Generated<number>;
+  factoryId: string;
+  startBlock: bigint;
+  endBlock: bigint;
 };
 
 export type EventStoreTables = {
@@ -176,5 +200,9 @@ export type EventStoreTables = {
   transactions: TransactionsTable;
   logs: LogsTable;
   contractReadResults: ContractReadResultsTable;
-  logFilterCachedRanges: LogFilterCachedRangesTable;
+
+  logFilters: LogFiltersTable;
+  logFilterIntervals: LogFilterIntervalsTable;
+  factories: FactoriesTable;
+  factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
 };

@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import type { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
@@ -28,6 +29,7 @@ type BuildServiceEvents = {
 export class BuildService extends Emittery<BuildServiceEvents> {
   private common: Common;
   private logFilters: LogFilter[];
+  private factories: Factory[];
 
   private closeWatcher?: () => Promise<void>;
   private latestFileHashes: Record<string, string | undefined> = {};
@@ -35,13 +37,16 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   constructor({
     common,
     logFilters,
+    factories,
   }: {
     common: Common;
     logFilters: LogFilter[];
+    factories: Factory[];
   }) {
     super();
     this.common = common;
     this.logFilters = logFilters;
+    this.factories = factories;
   }
 
   async kill() {
@@ -98,9 +103,10 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       const handlers = hydrateHandlerFunctions({
         rawHandlerFunctions,
         logFilters: this.logFilters,
+        factories: this.factories,
       });
 
-      if (Object.values(handlers.logFilters).length === 0) {
+      if (Object.values(handlers.eventSources).length === 0) {
         this.common.logger.warn({
           service: "build",
           msg: "No event handler functions found",

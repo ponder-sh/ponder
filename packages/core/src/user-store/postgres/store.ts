@@ -3,7 +3,6 @@ import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
 import type { Schema } from "@/schema/types";
-import { blobToBigInt } from "@/utils/decode";
 
 import type {
   ModelInstance,
@@ -25,7 +24,7 @@ const gqlScalarToSqlType = {
   Boolean: "integer",
   Int: "integer",
   String: "text",
-  BigInt: sql`bytea`,
+  BigInt: "numeric(78, 0)",
   Bytes: "text",
   Float: "text",
 } as const;
@@ -197,7 +196,10 @@ export class PostgresUserStore implements UserStore {
     id: string | number | bigint;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({ value: id });
+    const formattedId = formatModelFieldValue({
+      value: id,
+      encodeBigInts: false,
+    });
 
     const instances = await this.db
       .selectFrom(tableName)
@@ -228,7 +230,7 @@ export class PostgresUserStore implements UserStore {
     data?: Omit<ModelInstance, "id">;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const createInstance = formatModelInstance({ id, ...data });
+    const createInstance = formatModelInstance({ id, ...data }, false);
 
     const instance = await this.db
       .insertInto(tableName)
@@ -259,7 +261,10 @@ export class PostgresUserStore implements UserStore {
         }) => Partial<Omit<ModelInstance, "id">>);
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({ value: id });
+    const formattedId = formatModelFieldValue({
+      value: id,
+      encodeBigInts: false,
+    });
 
     const instance = await this.db.transaction().execute(async (tx) => {
       // Find the latest version of this instance.
@@ -279,9 +284,9 @@ export class PostgresUserStore implements UserStore {
             instance: latestInstance,
           }),
         });
-        updateInstance = formatModelInstance({ id, ...updateObject });
+        updateInstance = formatModelInstance({ id, ...updateObject }, false);
       } else {
-        updateInstance = formatModelInstance({ id, ...data });
+        updateInstance = formatModelInstance({ id, ...data }, false);
       }
 
       // If the latest version has the same effectiveFrom timestamp as the update,
@@ -342,8 +347,11 @@ export class PostgresUserStore implements UserStore {
         }) => Partial<Omit<ModelInstance, "id">>);
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({ value: id });
-    const createInstance = formatModelInstance({ id, ...create });
+    const formattedId = formatModelFieldValue({
+      value: id,
+      encodeBigInts: false,
+    });
+    const createInstance = formatModelInstance({ id, ...create }, false);
 
     const instance = await this.db.transaction().execute(async (tx) => {
       // Attempt to find the latest version of this instance.
@@ -376,9 +384,9 @@ export class PostgresUserStore implements UserStore {
             instance: latestInstance,
           }),
         });
-        updateInstance = formatModelInstance({ id, ...updateObject });
+        updateInstance = formatModelInstance({ id, ...updateObject }, false);
       } else {
-        updateInstance = formatModelInstance({ id, ...update });
+        updateInstance = formatModelInstance({ id, ...update }, false);
       }
 
       // If the latest version has the same effectiveFrom timestamp as the update,
@@ -431,7 +439,10 @@ export class PostgresUserStore implements UserStore {
     id: string | number | bigint;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({ value: id });
+    const formattedId = formatModelFieldValue({
+      value: id,
+      encodeBigInts: false,
+    });
 
     const instance = await this.db.transaction().execute(async (tx) => {
       // If the latest version is effective from the delete timestamp,
@@ -487,7 +498,10 @@ export class PostgresUserStore implements UserStore {
       .where("effectiveTo", ">=", timestamp);
 
     if (where) {
-      const whereConditions = buildSqlWhereConditions({ where });
+      const whereConditions = buildSqlWhereConditions({
+        where,
+        encodeBigInts: false,
+      });
       for (const whereCondition of whereConditions) {
         query = query.where(...whereCondition);
       }
@@ -534,7 +548,7 @@ export class PostgresUserStore implements UserStore {
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
     const createInstances = data.map((d) => ({
-      ...formatModelInstance({ ...d }),
+      ...formatModelInstance({ ...d }, false),
       effectiveFrom: timestamp,
       effectiveTo: MAX_INTEGER,
     }));
@@ -580,7 +594,10 @@ export class PostgresUserStore implements UserStore {
         .where("effectiveTo", ">=", timestamp);
 
       if (where) {
-        const whereConditions = buildSqlWhereConditions({ where });
+        const whereConditions = buildSqlWhereConditions({
+          where,
+          encodeBigInts: false,
+        });
         for (const whereCondition of whereConditions) {
           latestInstancesQuery = latestInstancesQuery.where(...whereCondition);
         }
@@ -602,9 +619,9 @@ export class PostgresUserStore implements UserStore {
                 instance: latestInstance,
               }),
             });
-            updateInstance = formatModelInstance(updateObject);
+            updateInstance = formatModelInstance(updateObject, false);
           } else {
-            updateInstance = formatModelInstance(data);
+            updateInstance = formatModelInstance(data, false);
           }
 
           // If the latest version has the same effectiveFrom timestamp as the update,
@@ -688,7 +705,12 @@ export class PostgresUserStore implements UserStore {
     const deserializedInstance = {} as ModelInstance;
 
     entity.fields.forEach((field) => {
-      const value = instance[field.name] as string | number | null | undefined;
+      const value = instance[field.name] as
+        | string
+        | number
+        | bigint
+        | null
+        | undefined;
 
       if (value === null || value === undefined) {
         deserializedInstance[field.name] = null;
@@ -701,9 +723,7 @@ export class PostgresUserStore implements UserStore {
       }
 
       if (field.kind === "SCALAR" && field.scalarTypeName === "BigInt") {
-        deserializedInstance[field.name] = blobToBigInt(
-          value as unknown as Buffer
-        );
+        deserializedInstance[field.name] = value;
         return;
       }
 
@@ -711,9 +731,7 @@ export class PostgresUserStore implements UserStore {
         field.kind === "RELATIONSHIP" &&
         field.relatedEntityIdType.name === "BigInt"
       ) {
-        deserializedInstance[field.name] = blobToBigInt(
-          value as unknown as Buffer
-        );
+        deserializedInstance[field.name] = value;
         return;
       }
 

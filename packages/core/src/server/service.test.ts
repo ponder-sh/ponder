@@ -1144,7 +1144,7 @@ test("orders by on int field descending", async (context) => {
   await service.kill();
 });
 
-test("orders by on bigInt field ascending", async (context) => {
+test("orders by on bigInt field ascending including negative values", async (context) => {
   const { common, userStore } = context;
   const { service, gql, createTestEntity } = await setup({
     common,
@@ -1153,7 +1153,8 @@ test("orders by on bigInt field ascending", async (context) => {
 
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 123 });
-  await createTestEntity({ id: 12 });
+  await createTestEntity({ id: -12 });
+  await createTestEntity({ id: -9999 });
 
   const response = await gql(`
     testEntitys(orderBy: "bigInt", orderDirection: "asc") {
@@ -1165,10 +1166,11 @@ test("orders by on bigInt field ascending", async (context) => {
   expect(response.statusCode).toBe(200);
   const { testEntitys } = response.body.data;
 
-  expect(testEntitys).toHaveLength(3);
-  expect(testEntitys[0]).toMatchObject({ id: "1" });
-  expect(testEntitys[1]).toMatchObject({ id: "12" });
-  expect(testEntitys[2]).toMatchObject({ id: "123" });
+  expect(testEntitys).toHaveLength(4);
+  expect(testEntitys[0]).toMatchObject({ id: "-9999" });
+  expect(testEntitys[1]).toMatchObject({ id: "-12" });
+  expect(testEntitys[2]).toMatchObject({ id: "1" });
+  expect(testEntitys[3]).toMatchObject({ id: "123" });
 
   await service.kill();
 });

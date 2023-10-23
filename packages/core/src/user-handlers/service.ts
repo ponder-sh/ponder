@@ -2,8 +2,10 @@ import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
 
 import type { HandlerFunctions } from "@/build/handlers";
+import { LogEventMetadata } from "@/config/abi";
 import type { Contract } from "@/config/contracts";
-import type { LogEventMetadata, LogFilter } from "@/config/logFilters";
+import { Factory } from "@/config/factories";
+import type { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
 import type {
   EventAggregatorService,
@@ -38,6 +40,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
   private logFilters: LogFilter[];
+  private factories: Factory[];
 
   private readOnlyContracts: Record<string, ReadOnlyContract> = {};
 
@@ -45,7 +48,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private models: Record<string, Model<ModelInstance>> = {};
 
   private handlers?: HandlerFunctions;
-  private includeLogFilterEvents: HandlerFunctions["logFilters"] = {};
+  private handledEventMetadata: HandlerFunctions["eventSources"] = {};
 
   private eventProcessingMutex: Mutex;
   private queue?: EventHandlerQueue;
@@ -62,20 +65,23 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     userStore,
     eventAggregatorService,
     contracts,
-    logFilters,
+    logFilters = [],
+    factories = [],
   }: {
     common: Common;
     eventStore: EventStore;
     userStore: UserStore;
     eventAggregatorService: EventAggregatorService;
     contracts: Contract[];
-    logFilters: LogFilter[];
+    logFilters?: LogFilter[];
+    factories?: Factory[];
   }) {
     super();
     this.common = common;
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
     this.logFilters = logFilters;
+    this.factories = factories;
 
     // The read-only contract objects only depend on config, so they can
     // be built in the constructor (they can't be hot-reloaded).
@@ -124,7 +130,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
     if (newHandlers) {
       this.handlers = newHandlers;
-      this.includeLogFilterEvents = this.handlers.logFilters;
+      this.handledEventMetadata = this.handlers.eventSources;
     }
 
     // If either the schema or handlers have not been provided yet,
@@ -274,7 +280,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         const iterator = this.eventAggregatorService.getEvents({
           fromTimestamp,
           toTimestamp,
-          includeLogFilterEvents: this.includeLogFilterEvents,
+          handledEventMetadata: this.handledEventMetadata,
         });
 
         let pageIndex = 0;
@@ -284,27 +290,30 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
           // Increment the metrics for the total number of matching & handled events in this timestamp range.
           if (pageIndex === 0) {
-            metadata.counts.forEach(({ logFilterName, selector, count }) => {
-              const safeName = Object.values(
-                this.logFilters.find((lf) => lf.name === logFilterName)
-                  ?.events || {}
-              )
+            metadata.counts.forEach(({ eventSourceName, selector, count }) => {
+              const safeName = Object.values({
+                ...(this.logFilters.find((f) => f.name === eventSourceName)
+                  ?.events || {}),
+                ...(this.factories.find((f) => f.name === eventSourceName)
+                  ?.events || {}),
+              })
                 .filter((m): m is LogEventMetadata => !!m)
                 .find((m) => m.selector === selector)?.safeName;
+
               if (!safeName) return;
 
               const isHandled =
-                !!this.handlers?.logFilters[logFilterName]?.bySelector?.[
+                !!this.handlers?.eventSources[eventSourceName]?.bySelector?.[
                   selector
                 ];
 
               this.common.metrics.ponder_handlers_matched_events.inc(
-                { eventName: `${logFilterName}:${safeName}` },
+                { eventName: `${eventSourceName}:${safeName}` },
                 count
               );
               if (isHandled) {
                 this.common.metrics.ponder_handlers_handled_events.inc(
-                  { eventName: `${logFilterName}:${safeName}` },
+                  { eventName: `${eventSourceName}:${safeName}` },
                   count
                 );
               }
@@ -429,12 +438,12 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           const event = task.event;
 
           const handlerData =
-            this.handlers?.logFilters[event.logFilterName].bySafeName[
+            this.handlers?.eventSources[event.eventSourceName].bySafeName[
               event.eventName
             ];
           if (!handlerData)
             throw new Error(
-              `Internal: Handler not found for log from log filter ${event.logFilterName}`
+              `Internal: Handler not found for event source ${event.eventSourceName}`
             );
 
           // This enables contract calls occurring within the
@@ -445,7 +454,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           try {
             this.common.logger.trace({
               service: "handlers",
-              msg: `Started handler (event="${event.logFilterName}:${event.eventName}", block=${event.block.number})`,
+              msg: `Started handler (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
             });
 
             // Running user code here!
@@ -459,7 +468,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
             this.common.logger.trace({
               service: "handlers",
-              msg: `Completed handler (event="${event.logFilterName}:${event.eventName}", block=${event.block.number})`,
+              msg: `Completed handler (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
             });
           } catch (error_) {
             // Remove all remaining tasks from the queue.
@@ -470,13 +479,13 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
             this.common.logger.trace({
               service: "handlers",
-              msg: `Failed while running handler (event="${event.logFilterName}:${event.eventName}", block=${event.block.number})`,
+              msg: `Failed while running handler (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
             });
 
             const error = error_ as Error;
             const trace = getStackTrace(error, this.common.options);
 
-            const message = `Error while handling "${event.logFilterName}:${
+            const message = `Error while handling "${event.eventSourceName}:${
               event.eventName
             }" event at block ${Number(event.block.number)}: ${error.message}`;
 
@@ -496,7 +505,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           }
 
           this.common.metrics.ponder_handlers_processed_events.inc({
-            eventName: `${event.logFilterName}:${event.eventName}`,
+            eventName: `${event.eventSourceName}:${event.eventName}`,
           });
           this.common.metrics.ponder_handlers_latest_processed_timestamp.set(
             this.currentEventTimestamp

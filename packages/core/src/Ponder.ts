@@ -5,6 +5,7 @@ import { BuildService } from "@/build/service";
 import { CodegenService } from "@/codegen/service";
 import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
+import { type Factory, buildFactories } from "@/config/factories";
 import { type LogFilter, buildLogFilters } from "@/config/logFilters";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
@@ -45,6 +46,7 @@ export class Ponder {
   networkSyncServices: {
     network: Network;
     logFilters: LogFilter[];
+    factories: Factory[];
     historicalSyncService: HistoricalSyncService;
     realtimeSyncService: RealtimeSyncService;
   }[] = [];
@@ -80,8 +82,8 @@ export class Ponder {
     const common = { options, logger, errors, metrics, telemetry };
     this.common = common;
 
-    common.logger.debug({
-      service: "config",
+    this.common.logger.debug({
+      service: "app",
       msg: `Started using config file: ${path.relative(
         this.common.options.rootDir,
         this.common.options.configFile
@@ -104,42 +106,50 @@ export class Ponder {
     const networks = config.networks.map((network) =>
       buildNetwork({ network, common })
     );
-    const contracts = buildContracts({ options, config, networks });
-
     const logFilters = buildLogFilters({ options, config });
     this.logFilters = logFilters;
+    const contracts = buildContracts({ options, config, networks });
+    const factories = buildFactories({ options, config });
 
-    const networksWithLogFilters = networks.filter((network) => {
-      const hasLogFilters = logFilters.some(
+    const networksToSync = config.networks
+      .map((network) => buildNetwork({ network, common }))
+      .filter((network) => {
+        const hasEventSources = [...logFilters, ...factories].some(
+          (eventSource) => eventSource.network === network.name
+        );
+        if (!hasEventSources) {
+          this.common.logger.warn({
+            service: "app",
+            msg: `No event sources found (network=${network.name})`,
+          });
+        }
+        return hasEventSources;
+      });
+
+    networksToSync.forEach((network) => {
+      const logFiltersForNetwork = logFilters.filter(
         (logFilter) => logFilter.network === network.name
       );
-      if (!hasLogFilters) {
-        this.common.logger.warn({
-          service: "app",
-          msg: `No log filters found (network=${network.name})`,
-        });
-      }
-      return hasLogFilters;
-    });
-
-    networksWithLogFilters.forEach((network) => {
-      const logFiltersForNetwork = logFilters.filter(
+      const factoriesForNetwork = factories.filter(
         (logFilter) => logFilter.network === network.name
       );
       this.networkSyncServices.push({
         network,
         logFilters: logFiltersForNetwork,
+        factories: factoriesForNetwork,
         historicalSyncService: new HistoricalSyncService({
           common,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
+          factories: factoriesForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
           common,
           eventStore: this.eventStore,
           network,
           logFilters: logFiltersForNetwork,
+          factories,
         }),
       });
     });
@@ -149,6 +159,7 @@ export class Ponder {
       eventStore: this.eventStore,
       networks,
       logFilters,
+      factories,
     });
 
     this.eventHandlerService = new EventHandlerService({
@@ -158,19 +169,25 @@ export class Ponder {
       eventAggregatorService: this.eventAggregatorService,
       contracts,
       logFilters,
+      factories,
     });
 
     this.serverService = new ServerService({
       common,
       userStore: this.userStore,
     });
-    this.buildService = new BuildService({ common, logFilters });
+    this.buildService = new BuildService({
+      common,
+      logFilters,
+      factories,
+    });
     this.codegenService = new CodegenService({
       common,
       contracts,
       logFilters,
+      factories,
     });
-    this.uiService = new UiService({ common, logFilters });
+    this.uiService = new UiService({ common, logFilters, factories });
   }
 
   async setup() {
@@ -283,6 +300,8 @@ export class Ponder {
     await this.userStore.teardown();
     await this.common.telemetry.kill();
 
+    await this.eventStore.kill();
+
     this.common.logger.debug({
       service: "app",
       msg: `Finished shutdown sequence`,
@@ -317,10 +336,10 @@ export class Ponder {
       const { chainId } = networkSyncService.network;
       const { historicalSyncService, realtimeSyncService } = networkSyncService;
 
-      historicalSyncService.on("historicalCheckpoint", ({ timestamp }) => {
+      historicalSyncService.on("historicalCheckpoint", ({ blockTimestamp }) => {
         this.eventAggregatorService.handleNewHistoricalCheckpoint({
           chainId,
-          timestamp,
+          timestamp: blockTimestamp,
         });
       });
 
@@ -330,23 +349,28 @@ export class Ponder {
         });
       });
 
-      realtimeSyncService.on("realtimeCheckpoint", ({ timestamp }) => {
+      realtimeSyncService.on("realtimeCheckpoint", ({ blockTimestamp }) => {
         this.eventAggregatorService.handleNewRealtimeCheckpoint({
           chainId,
-          timestamp,
+          timestamp: blockTimestamp,
         });
       });
 
-      realtimeSyncService.on("finalityCheckpoint", ({ timestamp }) => {
+      realtimeSyncService.on("finalityCheckpoint", ({ blockTimestamp }) => {
         this.eventAggregatorService.handleNewFinalityCheckpoint({
           chainId,
-          timestamp,
+          timestamp: blockTimestamp,
         });
       });
 
-      realtimeSyncService.on("shallowReorg", ({ commonAncestorTimestamp }) => {
-        this.eventAggregatorService.handleReorg({ commonAncestorTimestamp });
-      });
+      realtimeSyncService.on(
+        "shallowReorg",
+        ({ commonAncestorBlockTimestamp }) => {
+          this.eventAggregatorService.handleReorg({
+            commonAncestorTimestamp: commonAncestorBlockTimestamp,
+          });
+        }
+      );
     });
 
     this.eventAggregatorService.on("newCheckpoint", async () => {

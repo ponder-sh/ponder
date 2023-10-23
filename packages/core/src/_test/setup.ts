@@ -79,7 +79,14 @@ export async function setupEventStore(
     if (!options.skipMigrateUp) await context.eventStore.migrateUp();
 
     return async () => {
-      await pool.query(`DROP SCHEMA IF EXISTS "${databaseSchema}" CASCADE`);
+      try {
+        await pool.query(`DROP SCHEMA IF EXISTS "${databaseSchema}" CASCADE`);
+      } catch (e) {
+        // This query fails in end-to-end tests where the pool has
+        // already been shut down during the Ponder instance kill() method.
+        // It's fine to ignore the error.
+      }
+      await context.eventStore.kill();
     };
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
@@ -88,7 +95,9 @@ export async function setupEventStore(
 
     if (!options.skipMigrateUp) await context.eventStore.migrateUp();
 
-    return;
+    return async () => {
+      await context.eventStore.kill();
+    };
   }
 }
 
