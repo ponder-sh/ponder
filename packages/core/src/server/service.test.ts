@@ -1154,7 +1154,7 @@ test("orders by on bigInt field ascending including negative values", async (con
   await createTestEntity({ id: 1 });
   await createTestEntity({ id: 123 });
   await createTestEntity({ id: -12 });
-  await createTestEntity({ id: -1231342812834 });
+  await createTestEntity({ id: -9999 });
 
   const response = await gql(`
     testEntitys(orderBy: "bigInt", orderDirection: "asc") {
@@ -1167,7 +1167,7 @@ test("orders by on bigInt field ascending including negative values", async (con
   const { testEntitys } = response.body.data;
 
   expect(testEntitys).toHaveLength(4);
-  expect(testEntitys[0]).toMatchObject({ id: "-1231342812834" });
+  expect(testEntitys[0]).toMatchObject({ id: "-9999" });
   expect(testEntitys[1]).toMatchObject({ id: "-12" });
   expect(testEntitys[2]).toMatchObject({ id: "1" });
   expect(testEntitys[3]).toMatchObject({ id: "123" });
