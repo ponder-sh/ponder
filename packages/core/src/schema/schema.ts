@@ -1,81 +1,10 @@
-import { Column, Enum, ID, IT, Scalar, Table } from "./types";
+import { Column, ITEnum, ITTable, Scalar, Table } from "./types";
 
 export const referencedEntityName = (references: unknown) =>
   (references as string).split(".")[0];
 
 export const isEnumType = (type: string): type is `enum:${string}` =>
   type.slice(0, 5) === "enum:";
-
-const _addColumn = <
-  TColumns extends Record<string, Column>,
-  TName extends string,
-  TType extends Scalar | `enum:${string}`,
-  TReferences extends `${string}.id` | never = never,
-  TOptional extends boolean = false,
-  TList extends boolean = false
->(
-  columns: TColumns,
-  name: TName,
-  type: TType,
-  modifiers?: {
-    references?: TReferences;
-    optional?: TOptional;
-    list?: TList;
-  }
-) =>
-  ({
-    ...columns,
-    [name]: {
-      type,
-      references: modifiers?.references ?? undefined,
-      optional: modifiers?.optional ?? false,
-      list: modifiers?.list ?? false,
-    },
-  } as Table<
-    TColumns & Record<TName, Column<TType, TReferences, TOptional, TList>>
-  >);
-
-const addColumn = <
-  TColumns extends Record<string, Column>,
-  TName extends string,
-  TType extends Scalar | `enum:${string}`,
-  TReferences extends `${string}.id` | never = never,
-  TOptional extends boolean = false,
-  TList extends boolean = false
->(
-  columns: TColumns,
-  name: TName,
-  type: TType,
-  modifiers?: {
-    references?: TReferences;
-    optional?: TOptional;
-    list?: TList;
-  }
-): IT<
-  TColumns & Record<TName, Column<TType, TReferences, TOptional, TList>>
-> => {
-  const newTable = _addColumn(columns, name, type, modifiers);
-
-  return {
-    isEnum: false,
-    table: newTable,
-    addColumn: <
-      TName extends string,
-      TType extends Scalar | `enum:${string}`,
-      TReferences extends `${string}.id` | never = never,
-      TOptional extends boolean = false,
-      TList extends boolean = false
-    >(
-      name: TName,
-      type: TType,
-      modifiers?: {
-        references?: TReferences;
-        optional?: TOptional;
-        list?: TList;
-      }
-    ) => addColumn(newTable, name, type, modifiers),
-  };
-};
 
 export const column = <
   TType extends Scalar | `enum:${string}`,
@@ -97,32 +26,41 @@ export const column = <
     list: modifiers?.list ?? false,
   } as Column<TType, TReferences, TOptional, TList>);
 
-export const createEnum = <TValues extends string[]>(
+export const table = <const TTable>(
+  table: TTable
+): TTable extends Table ? ITTable<TTable> : never =>
+  ({
+    isEnum: false,
+    table,
+  } as TTable extends Table ? ITTable<TTable> : never);
+
+export const enumerable = <TValues extends string[]>(
   ...args: TValues
-): Enum<TValues> => ({ isEnum: true, table: {}, values: args });
+): ITEnum<TValues> => ({ isEnum: true, table: {}, values: args });
 
-export type FilterEnums<TSchema extends Record<string, IT | Enum>> = Pick<
-  TSchema,
-  {
-    [key in keyof TSchema]: TSchema[key]["isEnum"] extends true ? key : never;
-  }[keyof TSchema]
->;
+export type FilterEnums<TSchema extends Record<string, ITTable | ITEnum>> =
+  Pick<
+    TSchema,
+    {
+      [key in keyof TSchema]: TSchema[key]["isEnum"] extends true ? key : never;
+    }[keyof TSchema]
+  >;
 
-export type FilterNonEnums<TSchema extends Record<string, IT | Enum>> = Pick<
-  TSchema,
-  {
-    [key in keyof TSchema]: TSchema[key]["isEnum"] extends false ? key : never;
-  }[keyof TSchema]
->;
-
-export const createColumn = <TType extends ID>(name: "id", type: TType) =>
-  addColumn({}, name, type);
+export type FilterNonEnums<TSchema extends Record<string, ITTable | ITEnum>> =
+  Pick<
+    TSchema,
+    {
+      [key in keyof TSchema]: TSchema[key]["isEnum"] extends false
+        ? key
+        : never;
+    }[keyof TSchema]
+  >;
 
 /**
  * Type inference and runtime validation
  */
-export const createSchema = <
-  TSchema extends Record<string, IT | Enum>
+export const schema = <
+  const TSchema extends Record<string, ITTable | ITEnum>
 >(schema: {
   [key in keyof TSchema]: TSchema[key]["table"] extends Table<{
     [columnName in keyof TSchema[key]["table"]]: Column<
@@ -141,7 +79,7 @@ export const createSchema = <
 }): {
   tables: { [key in keyof FilterNonEnums<TSchema>]: TSchema[key]["table"] };
   enums: {
-    [key in keyof FilterEnums<TSchema>]: (TSchema[key] & Enum)["values"];
+    [key in keyof FilterEnums<TSchema>]: (TSchema[key] & ITEnum)["values"];
   };
 } => {
   Object.entries(schema as TSchema).forEach(([tableName, table]) => {
@@ -152,7 +90,7 @@ export const createSchema = <
       const set = new Set<(typeof table.values)[number]>();
 
       for (const val of table.values) {
-        if (val in set) throw Error("Enum contains duplicate values");
+        if (val in set) throw Error("ITEnum contains duplicate values");
         set.add(val);
       }
     } else {
@@ -228,7 +166,7 @@ export const createSchema = <
   return Object.entries(schema as TSchema).reduce(
     (
       acc: {
-        enums: Record<string, Enum["values"]>;
+        enums: Record<string, ITEnum["values"]>;
         tables: Record<string, Table>;
       },
       [tableName, table]
@@ -243,7 +181,7 @@ export const createSchema = <
   ) as {
     tables: { [key in keyof FilterNonEnums<TSchema>]: TSchema[key]["table"] };
     enums: {
-      [key in keyof FilterEnums<TSchema>]: (TSchema[key] & Enum)["values"];
+      [key in keyof FilterEnums<TSchema>]: (TSchema[key] & ITEnum)["values"];
     };
   };
 };

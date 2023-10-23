@@ -15,10 +15,10 @@ export type ID = "string" | "int" | "bytes" | "bigint";
  * SQL Schema types
  */
 export type Column<
-  TType extends Scalar | `enum:${string}` | unknown = unknown,
-  TReferences extends `${string}.id` | never | unknown = unknown,
-  TOptional extends boolean | unknown = unknown,
-  TList extends boolean | unknown = unknown
+  TType extends Scalar | `enum:${string}` = Scalar | `enum:${string}`,
+  TReferences extends `${string}.id` | never = `${string}.id` | never,
+  TOptional extends boolean = boolean,
+  TList extends boolean = boolean
 > = {
   type: TType;
   references: TReferences;
@@ -33,22 +33,11 @@ export type Table<
 } & TColumns;
 
 export type Schema = {
-  tables: Record<
-    string,
-    { id: Column<ID, never, false, false> } & Record<
-      string,
-      Column<
-        Scalar | `enum:${string}`,
-        `${string}.id` | never,
-        boolean,
-        boolean
-      >
-    >
-  >;
-  enums: Record<string, Enum["values"]>;
+  tables: Record<string, Table>;
+  enums: Record<string, ITEnum["values"]>;
 };
 
-export type Enum<TValues extends string[] = string[]> = {
+export type ITEnum<TValues extends string[] = string[]> = {
   isEnum: true;
   /** @internal */
   table: Record<string, Column>;
@@ -59,29 +48,12 @@ export type Enum<TValues extends string[] = string[]> = {
  * Intermediate Type
  *
  * Type returned from createColumn() or .addColumn()
- *
- * TODO:Kyle Is there something to name table so that it doesn't show up in intellisense
  */
-export type IT<
-  TColumns extends Record<string, Column> = Record<string, Column>
-> = {
+export type ITTable<TTable extends Table> = {
   /** @internal */
   isEnum: false;
   /** @internal */
-  table: Table<TColumns>;
-  addColumn: <
-    TName extends string,
-    TType extends Scalar | `enum:${string}`,
-    TReferences extends `${string}.id` | never = never,
-    TOptional extends boolean = false,
-    TList extends boolean = false
-  >(
-    name: TName,
-    type: TType,
-    modifiers?: { references?: TReferences; optional?: TOptional; list?: TList }
-  ) => IT<
-    TColumns & Record<TName, Column<TType, TReferences, TOptional, TList>>
-  >;
+  table: TTable;
 };
 
 /**

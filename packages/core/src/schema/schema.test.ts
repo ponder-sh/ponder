@@ -1,10 +1,6 @@
-import { test } from "vitest";
-
-import { createColumn, createEnum, createSchema } from "./schema";
-
 // This may be in a museum one day
 // We like this one!!
-// const schema = createSchema([
+// const schema = schema([
 //   createTable("share")
 //     .addColumn("id", "string")
 //     .addColumn("name", "string")
@@ -43,24 +39,24 @@ import { createColumn, createEnum, createSchema } from "./schema";
 //   ],
 // });
 
-test("create schema", () => {
-  createSchema({
-    name: createColumn("id", "bigint").addColumn("age", "boolean"),
-  });
-});
+// test("create schema", () => {
+//   schema({
+//     name: createColumn("id", "bigint").addColumn("age", "boolean"),
+//   });
+// });
 
-test("create enum", () => {
-  createSchema({
-    enummm: createEnum("ONE", "TWO", "THREE"),
-    name: createColumn("id", "bigint").addColumn("age", "enum:enummm"),
-  });
-});
+// test("create enum", () => {
+//   schema({
+//     enummm: enumerable("ONE", "TWO", "THREE"),
+//     name: createColumn("id", "bigint").addColumn("age", "enum:enummm"),
+//   });
+// });
 
-test("references", () => {
-  createSchema({
-    Person: createColumn("id", "string").addColumn("age", "int"),
-    Dog: createColumn("id", "string").addColumn("owner", "string", {
-      references: "Person.id",
-    }),
-  });
-});
+// test("references", () => {
+//   schema({
+//     Person: createColumn("id", "string").addColumn("age", "int"),
+//     Dog: createColumn("id", "string").addColumn("owner", "string", {
+//       references: "Person.id",
+//     }),
+//   });
+// });

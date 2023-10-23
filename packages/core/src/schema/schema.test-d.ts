@@ -1,6 +1,6 @@
 import { assertType, test } from "vitest";
 
-import { column, createColumn, createEnum, createSchema } from "./schema";
+import { column, enumerable, schema, table } from "./schema";
 import { RecoverColumnType, RecoverTableType, Schema } from "./types";
 
 test("column int", () => {
@@ -49,40 +49,50 @@ test("column list", () => {
 });
 
 test("table", () => {
-  const table = createColumn("id", "string").addColumn("age", "int");
+  const t = table({
+    id: column("string"),
+    age: column("int"),
+  });
 
-  type t = RecoverTableType<(typeof table)["table"]>;
+  type t = RecoverTableType<(typeof t)["table"]>;
   //   ^?
 
   assertType<t>({} as { id: string; age: number });
 });
 
 test("table optional", () => {
-  const table = createColumn("id", "string").addColumn("age", "int", {
-    optional: true,
+  const t = table({
+    id: column("string"),
+    age: column("int", { optional: true }),
   });
 
-  type t = RecoverTableType<(typeof table)["table"]>;
+  type t = RecoverTableType<(typeof t)["table"]>;
   //   ^?
 
   assertType<t>({} as { id: string; age?: number });
 });
 
 test("schema", () => {
-  const schema = createSchema({
+  const s = schema({
     //  ^?
-    table: createColumn("id", "string").addColumn("age", "int"),
+    t: table({
+      id: column("string"),
+      age: column("int", { optional: true }),
+    }),
   });
 
-  assertType<Schema>(schema);
+  assertType<Schema>(s);
 });
 
 test("schema with enums", () => {
-  const schema = createSchema({
+  const s = schema({
     //  ^?
-    enummm: createEnum("ONE", "TWO", "THREE"),
-    table: createColumn("id", "string").addColumn("e", "enum:enummm"),
+    enummm: enumerable("ONE", "TWO", "THREE"),
+    t: table({
+      id: column("string"),
+      age: column("enum:enumm"),
+    }),
   });
 
-  assertType<Schema>(schema);
+  assertType<Schema>(s);
 });
