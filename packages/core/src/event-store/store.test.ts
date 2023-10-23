@@ -348,6 +348,55 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
   ]);
 });
 
+test("getFactoryChildAddresses gets child addresses for offset location", async (context) => {
+  const { eventStore } = context;
+
+  const factoryCriteria = {
+    address: "0xfactory",
+    eventSelector:
+      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    childAddressLocation: "offset32",
+  } satisfies FactoryCriteria;
+
+  await eventStore.insertFactoryChildAddressLogs({
+    chainId: 1,
+    logs: [
+      {
+        ...blockOneLogs[0],
+        address: "0xfactory",
+        topics: [
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        ],
+        data: "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000child10000000000000000000000000000000000000000000000000000000000child30000000000000000000000000000000000",
+        blockNumber: toHex(100),
+      },
+      {
+        ...blockOneLogs[1],
+        address: "0xfactory",
+        topics: [
+          "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        ],
+        data: "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000child20000000000000000000000000000000000000000000000000000000000child30000000000000000000000000000000000",
+        blockNumber: toHex(100),
+      },
+    ],
+  });
+
+  const iterator = eventStore.getFactoryChildAddresses({
+    chainId: 1,
+    factory: factoryCriteria,
+    upToBlockNumber: 150n,
+  });
+
+  const results = [];
+  for await (const page of iterator) results.push(...page);
+
+  expect(results).toMatchObject([
+    "0xchild10000000000000000000000000000000000",
+    "0xchild20000000000000000000000000000000000",
+  ]);
+});
+
 test("getFactoryChildAddresses respects upToBlockNumber argument", async (context) => {
   const { eventStore } = context;
 
