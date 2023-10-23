@@ -6,10 +6,12 @@ runs:
   using: composite
   steps:
     - name: Set up pnpm
-      uses: pnpm/action-setup@v2.4.0
+      uses: pnpm/action-setup@v2
+      with:
+        version: latest
 
     - name: Set up node
-      uses: actions/setup-node@v3.8.1
+      uses: actions/setup-node@v3
       with:
         cache: pnpm
         node-version: ${{ matrix.node-version == 'Node 18' && 18 || 20 }}
@@ -19,12 +21,8 @@ runs:
 
     - name: Install dependencies
       shell: bash
-      run: pnpm install
+      run: pnpm install --frozen-lockfile
 
     - name: Build
       shell: bash
       run: pnpm build
-
-    - name: Link workspace binaries
-      shell: bash
-      run: pnpm install

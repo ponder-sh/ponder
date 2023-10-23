@@ -20,7 +20,7 @@ jobs:
         node-version: ["Node 20"]
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4.1.0
+        uses: actions/checkout@v4
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -41,7 +41,7 @@ jobs:
         node-version: ["Node 18", "Node 20"]
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4.1.0
+        uses: actions/checkout@v4
 
       - name: Setup Postgres
         if: ${{ matrix.database == 'Postgres' }}
@@ -67,7 +67,7 @@ jobs:
         node-version: ["Node 18", "Node 20"]
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4.1.0
+        uses: actions/checkout@v4
 
       - name: Setup
         uses: ./.github/actions/setup

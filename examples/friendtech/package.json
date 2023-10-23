@@ -7,7 +7,7 @@
     "codegen": "ponder codegen"
   },
   "dependencies": {
-    "@ponder/core": "workspace:latest"
+    "@ponder/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^18.11.18",
