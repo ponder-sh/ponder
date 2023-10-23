@@ -77,6 +77,26 @@ const addColumn = <
   };
 };
 
+export const column = <
+  TType extends Scalar | `enum:${string}`,
+  TReferences extends `${string}.id` | never = never,
+  TOptional extends boolean = false,
+  TList extends boolean = false
+>(
+  type: TType,
+  modifiers?: {
+    references?: TReferences;
+    optional?: TOptional;
+    list?: TList;
+  }
+) =>
+  ({
+    type,
+    references: modifiers?.references ?? undefined,
+    optional: modifiers?.optional ?? false,
+    list: modifiers?.list ?? false,
+  } as Column<TType, TReferences, TOptional, TList>);
+
 export const createEnum = <TValues extends string[]>(
   ...args: TValues
 ): Enum<TValues> => ({ isEnum: true, table: {}, values: args });

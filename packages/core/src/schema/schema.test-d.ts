@@ -1,50 +1,48 @@
 import { assertType, test } from "vitest";
 
-import { createColumn, createEnum, createSchema } from "./schema";
+import { column, createColumn, createEnum, createSchema } from "./schema";
 import { RecoverColumnType, RecoverTableType, Schema } from "./types";
 
 test("column int", () => {
-  const table = createColumn("id", "int").addColumn("x", "int");
+  const c = column("int");
 
-  type t = RecoverColumnType<(typeof table)["table"]["x"]>;
+  type t = RecoverColumnType<typeof c>;
   //   ^?
 
   assertType<t>({} as number);
 });
 
 test("column float", () => {
-  const table = createColumn("id", "int").addColumn("x", "float");
+  const c = column("float");
 
-  type t = RecoverColumnType<(typeof table)["table"]["x"]>;
+  type t = RecoverColumnType<typeof c>;
   //   ^?
 
   assertType<t>({} as number);
 });
 
 test("column bytes", () => {
-  const table = createColumn("id", "int").addColumn("x", "bytes");
+  const c = column("bytes");
 
-  type t = RecoverColumnType<(typeof table)["table"]["x"]>;
+  type t = RecoverColumnType<typeof c>;
   //   ^?
 
   assertType<t>({} as `0x{string}`);
 });
 
 test("column string", () => {
-  const table = createColumn("id", "int").addColumn("x", "string");
+  const c = column("string");
 
-  type t = RecoverColumnType<(typeof table)["table"]["x"]>;
+  type t = RecoverColumnType<typeof c>;
   //   ^?
 
   assertType<t>({} as string);
 });
 
 test("column list", () => {
-  const table = createColumn("id", "int").addColumn("x", "string", {
-    list: true,
-  });
+  const c = column("string", { list: true });
 
-  type t = RecoverColumnType<(typeof table)["table"]["x"]>;
+  type t = RecoverColumnType<typeof c>;
   //   ^?
 
   assertType<t>({} as string[]);
