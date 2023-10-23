@@ -1,18 +1,23 @@
 import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
-import { createColumn, createEnum, createSchema } from "@/schema/schema";
+import { column, createSchema, enumerable, table } from "@/schema/schema";
 
 beforeEach((context) => setupUserStore(context));
 
 const schema = createSchema({
-  PetKind: createEnum("CAT", "DOG"),
-  Pet: createColumn("id", "string")
-    .addColumn("name", "string")
-    .addColumn("age", "int", { optional: true })
-    .addColumn("bigAge", "bigint", { optional: true })
-    .addColumn("kind", "enum:PetKind", { optional: true }),
-  Person: createColumn("id", "string").addColumn("name", "string"),
+  PetKind: enumerable("CAT", "DOG"),
+  Pet: table({
+    id: column("string"),
+    name: column("string"),
+    age: column("int", { optional: true }),
+    bigAge: column("bigint", { optional: true }),
+    kind: column("enum:PetKind", { optional: true }),
+  }),
+  Person: table({
+    id: column("string"),
+    name: column("string"),
+  }),
 });
 
 test("reload() binds the schema", async (context) => {

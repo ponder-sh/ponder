@@ -49,7 +49,7 @@ export type ITEnum<TValues extends string[] = string[]> = {
  *
  * Type returned from createColumn() or .addColumn()
  */
-export type ITTable<TTable extends Table> = {
+export type ITTable<TTable extends Table = Table> = {
   /** @internal */
   isEnum: false;
   /** @internal */

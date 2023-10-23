@@ -1,33 +1,35 @@
 import { type GraphQLType } from "graphql";
 import { expect, test } from "vitest";
 
-import { createColumn, createEnum, createSchema } from "@/schema/schema";
+import { column, createSchema, enumerable, table } from "@/schema/schema";
 
 import { buildGqlSchema } from "./schema";
 
 test("filter type has correct suffixes and types", () => {
-  const schema = createSchema({
-    SimpleEnum: createEnum("VALUE", "ANOTHER_VALUE"),
-    RelatedEntityStringId: createColumn("id", "string"),
-    RelatedEntityBigIntId: createColumn("id", "bigint"),
-    Entity: createColumn("id", "string")
-      .addColumn("int", "int")
-      .addColumn("float", "float")
-      .addColumn("bool", "boolean")
-      .addColumn("bytes", "bytes")
-      .addColumn("bigint", "bigint")
-      .addColumn("enum", "enum:SimpleEnum")
-      .addColumn("listString", "string", { list: true })
-      .addColumn("listBigInt", "bigint", { list: true })
-      .addColumn("relatedEntityStringId", "string", {
+  const s = createSchema({
+    SimpleEnum: enumerable("VALUE", "ANOTHER_VALUE"),
+    RelatedEntityStringId: table({ id: column("string") }),
+    RelatedEntityBigIntId: table({ id: column("bigint") }),
+    Entity: table({
+      id: column("string"),
+      int: column("int"),
+      float: column("float"),
+      bool: column("boolean"),
+      bytes: column("bytes"),
+      bigint: column("bigint"),
+      enum: column("enum:SimpleEnum"),
+      listString: column("string", { list: true }),
+      listBigInt: column("bigint", { list: true }),
+      relatedEntityStringId: column("string", {
         references: "RelatedEntityStringId.id",
-      })
-      .addColumn("relatedEntityBigIntId", "bigint", {
+      }),
+      relatedEntityBigIntId: column("bigint", {
         references: "RelatedEntityBigIntId.id",
       }),
+    }),
   });
 
-  const serverSchema = buildGqlSchema(schema);
+  const serverSchema = buildGqlSchema(s);
 
   const typeMap = serverSchema.getTypeMap();
 

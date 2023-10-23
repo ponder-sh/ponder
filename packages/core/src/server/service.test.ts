@@ -3,7 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
 import type { Common } from "@/Ponder";
-import { createColumn, createEnum, createSchema } from "@/schema/schema";
+import { column, createSchema, enumerable, table } from "@/schema/schema";
 import type { UserStore } from "@/user-store/store";
 import { range } from "@/utils/range";
 
@@ -12,30 +12,32 @@ import { ServerService } from "./service";
 
 beforeEach((context) => setupUserStore(context));
 
-const schema = createSchema({
-  TestEnum: createEnum("ZERO", "ONE", "TWO"),
-  TestEntity: createColumn("id", "string")
-    .addColumn("string", "string")
-    .addColumn("int", "int")
-    .addColumn("float", "float")
-    .addColumn("boolean", "boolean")
-    .addColumn("bytes", "bytes")
-    .addColumn("bigInt", "bigint")
-    .addColumn("stringList", "string", { list: true })
-    .addColumn("intList", "int", { list: true })
-    .addColumn("floatList", "float", { list: true })
-    .addColumn("booleanList", "boolean", { list: true })
-    .addColumn("bytesList", "bytes", { list: true })
-    .addColumn("enum", "enum:TestEnum"),
-  EntityWithIntId: createColumn("id", "int"),
-  EntityWithBigIntId: createColumn("id", "bigint").addColumn(
-    "testEntity",
-    "string",
-    { references: "TestEntity.id" }
-  ),
+const s = createSchema({
+  TestEnum: enumerable("ZERO", "ONE", "TWO"),
+  TestEntity: table({
+    id: column("string"),
+    string: column("string"),
+    int: column("int"),
+    float: column("float"),
+    boolean: column("boolean"),
+    bytes: column("bytes"),
+    bigInt: column("bigint"),
+    stringList: column("string", { list: true }),
+    intList: column("int", { list: true }),
+    floatList: column("float", { list: true }),
+    booleanList: column("boolean", { list: true }),
+    bytesList: column("bytes", { list: true }),
+    enum: column("enum:TestEnum"),
+  }),
+  EntityWithIntId: table({ id: column("int") }),
+
+  EntityWithBigIntId: table({
+    id: column("bigint"),
+    testEntity: column("string", { references: "TestEntity.id" }),
+  }),
 });
 
-const graphqlSchema = buildGqlSchema(schema);
+const graphqlSchema = buildGqlSchema(s);
 
 const setup = async ({
   common,
@@ -50,7 +52,7 @@ const setup = async ({
     hasCompletedHistoricalIndexing?: boolean;
   };
 }) => {
-  await userStore.reload({ schema });
+  await userStore.reload({ schema: s });
 
   const service = new ServerService({ common, userStore });
   await service.start();

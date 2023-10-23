@@ -1,6 +1,6 @@
 import { assertType, test } from "vitest";
 
-import { column, enumerable, schema, table } from "./schema";
+import { column, createSchema, enumerable, table } from "./schema";
 import { RecoverColumnType, RecoverTableType, Schema } from "./types";
 
 test("column int", () => {
@@ -72,8 +72,8 @@ test("table optional", () => {
   assertType<t>({} as { id: string; age?: number });
 });
 
-test("schema", () => {
-  const s = schema({
+test("createSchema", () => {
+  const s = createSchema({
     //  ^?
     t: table({
       id: column("string"),
@@ -84,13 +84,13 @@ test("schema", () => {
   assertType<Schema>(s);
 });
 
-test("schema with enums", () => {
-  const s = schema({
+test("createSchema with enums", () => {
+  const s = createSchema({
     //  ^?
     enummm: enumerable("ONE", "TWO", "THREE"),
     t: table({
       id: column("string"),
-      age: column("enum:enumm"),
+      age: column("enum:enummm"),
     }),
   });
 

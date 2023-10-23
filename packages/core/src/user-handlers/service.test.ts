@@ -7,7 +7,7 @@ import type { HandlerFunctions } from "@/build/handlers";
 import { encodeLogFilterKey } from "@/config/logFilterKey";
 import type { LogEventMetadata } from "@/config/logFilters";
 import { EventAggregatorService } from "@/event-aggregator/service";
-import { createColumn, createSchema } from "@/schema/schema";
+import { column, createSchema, table } from "@/schema/schema";
 
 import { EventHandlerService } from "./service";
 
@@ -45,8 +45,11 @@ const logFilters = [
 
 const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
 
-const schema = createSchema({
-  TransferEvent: createColumn("id", "string").addColumn("timestamp", "int"),
+const s = createSchema({
+  TransferEvent: table({
+    id: column("string"),
+    timestamp: column("int"),
+  }),
 });
 
 const transferHandler = vi.fn(async ({ event, context }) => {
@@ -130,7 +133,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     logFilters,
   });
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   expect(getEvents).not.toHaveBeenCalled();
 
@@ -169,7 +172,7 @@ test("processEvents() calls event handler functions with correct arguments", asy
     logFilters,
   });
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -207,7 +210,7 @@ test("processEvents() model methods insert data into the user store", async (con
     logFilters,
   });
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -232,7 +235,7 @@ test("processEvents() updates event count metrics", async (context) => {
     logFilters,
   });
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -274,7 +277,7 @@ test("reset() reloads the user store", async (context) => {
     logFilters,
   });
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -286,7 +289,7 @@ test("reset() reloads the user store", async (context) => {
 
   const versionIdBeforeReset = userStore.versionId;
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   expect(userStore.versionId).not.toBe(versionIdBeforeReset);
 
@@ -310,7 +313,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     logFilters,
   });
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -320,7 +323,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   ).values[0].value;
   expect(latestProcessedTimestampMetric).toBe(10);
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   const latestProcessedTimestampMetricAfterReset = (
     await common.metrics.ponder_handlers_latest_processed_timestamp.get()
@@ -344,7 +347,7 @@ test("handleReorg() reverts the user store", async (context) => {
 
   const userStoreRevertSpy = vi.spyOn(userStore, "revert");
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -370,7 +373,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
   const userStoreRevertSpy = vi.spyOn(userStore, "revert");
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   transferHandler.mockImplementationOnce(() => {
     throw new Error("User error!");
@@ -398,7 +401,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     logFilters,
   });
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -438,7 +441,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     logFilters,
   });
 
-  await service.reset({ schema, handlers });
+  await service.reset({ schema: s, handlers });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();

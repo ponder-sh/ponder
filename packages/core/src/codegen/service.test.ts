@@ -1,12 +1,15 @@
 import { expect, test } from "vitest";
 
 import { buildEntityTypes } from "@/codegen/entity";
-import { createColumn, createEnum, createSchema } from "@/schema/schema";
+import { column, createSchema, enumerable, table } from "@/schema/schema";
 
 test("entity type codegen succeeds", () => {
   const output = buildEntityTypes(
     createSchema({
-      name: createColumn("id", "bigint").addColumn("age", "int"),
+      name: table({
+        id: column("bigint"),
+        age: column("int"),
+      }),
     })
   );
   expect(output).toStrictEqual(`export type name = {
@@ -17,8 +20,11 @@ test("entity type codegen succeeds", () => {
 test("enum type codegen succeeds", () => {
   const output = buildEntityTypes(
     createSchema({
-      e: createEnum("ONE", "TWO"),
-      name: createColumn("id", "bigint").addColumn("age", "enum:e"),
+      e: enumerable("ONE", "TWO"),
+      name: table({
+        id: column("bigint"),
+        age: column("enum:e"),
+      }),
     })
   );
   expect(output).toStrictEqual(`export type name = {

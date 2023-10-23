@@ -26,7 +26,7 @@ export const column = <
     list: modifiers?.list ?? false,
   } as Column<TType, TReferences, TOptional, TList>);
 
-export const table = <const TTable>(
+export const table = <TTable>(
   table: TTable
 ): TTable extends Table ? ITTable<TTable> : never =>
   ({
@@ -58,9 +58,11 @@ export type FilterNonEnums<TSchema extends Record<string, ITTable | ITEnum>> =
 
 /**
  * Type inference and runtime validation
+ *
+ * No idea why the "any" works
  */
-export const schema = <
-  const TSchema extends Record<string, ITTable | ITEnum>
+export const createSchema = <
+  TSchema extends Record<string, ITTable<any> | ITEnum>
 >(schema: {
   [key in keyof TSchema]: TSchema[key]["table"] extends Table<{
     [columnName in keyof TSchema[key]["table"]]: Column<
@@ -117,10 +119,12 @@ export const schema = <
       // @ts-ignore
       if (table.table.id.references) throw Error('"id" cannot be a reference');
 
-      Object.entries(table.table).forEach(([columnName, column]) => {
+      Object.entries(table.table).forEach(([columnName, _column]) => {
         if (columnName === "id") return;
 
         validateTableOrColumnName(columnName);
+
+        const column = _column as Column;
 
         if (column.references) {
           if (
