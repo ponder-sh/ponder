@@ -12,7 +12,7 @@ import { column, createSchema, enumerable, table } from "./schema";
 //   account: table({
 //     id: column("string"),
 //     name: column("string"),
-//     shareId: column("string", { references: "share.id" }),
+//     shareId: column("string", { refernces: "share.id" }),
 //   }),
 // });
 
@@ -43,7 +43,7 @@ test("references", () => {
     }),
     Dog: table({
       id: column("string"),
-      owner: column("string", { references: "Person.id" }),
+      ownerId: column("string", { references: "Person.id" }),
     }),
   });
 });

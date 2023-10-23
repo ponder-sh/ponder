@@ -37,6 +37,11 @@ export type Schema = {
   enums: Record<string, ITEnum["values"]>;
 };
 
+/**
+ * Intermediate Type
+ *
+ * Type returned from enumerable()
+ */
 export type ITEnum<TValues extends string[] = string[]> = {
   isEnum: true;
   /** @internal */
@@ -47,7 +52,7 @@ export type ITEnum<TValues extends string[] = string[]> = {
 /**
  * Intermediate Type
  *
- * Type returned from createColumn() or .addColumn()
+ * Type returned from table()
  */
 export type ITTable<TTable extends Table = Table> = {
   /** @internal */
@@ -55,6 +60,42 @@ export type ITTable<TTable extends Table = Table> = {
   /** @internal */
   table: TTable;
 };
+
+export type FilterEnums<TSchema extends Record<string, ITTable | ITEnum>> =
+  Pick<
+    TSchema,
+    {
+      [key in keyof TSchema]: TSchema[key]["isEnum"] extends true ? key : never;
+    }[keyof TSchema]
+  >;
+
+export type FilterNonEnums<TSchema extends Record<string, ITTable | ITEnum>> =
+  Pick<
+    TSchema,
+    {
+      [key in keyof TSchema]: TSchema[key]["isEnum"] extends false
+        ? key
+        : never;
+    }[keyof TSchema]
+  >;
+
+export type FilterReferences<TTable extends Table> = Pick<
+  TTable,
+  {
+    [key in keyof TTable]: TTable[key]["references"] extends never
+      ? never
+      : key;
+  }[keyof TTable]
+>;
+
+export type FilterNonReferences<TTable extends Table> = Pick<
+  TTable,
+  {
+    [key in keyof TTable]: TTable[key]["references"] extends never
+      ? key
+      : never;
+  }[keyof TTable]
+>;
 
 /**
  * Recover raw typescript types from the intermediate representation

@@ -1,4 +1,12 @@
-import { Column, ITEnum, ITTable, Scalar, Table } from "./types";
+import {
+  Column,
+  FilterEnums,
+  FilterNonEnums,
+  ITEnum,
+  ITTable,
+  Scalar,
+  Table,
+} from "./types";
 
 export const referencedEntityName = (references: unknown) =>
   (references as string).split(".")[0];
@@ -26,53 +34,42 @@ export const column = <
     list: modifiers?.list ?? false,
   } as Column<TType, TReferences, TOptional, TList>);
 
-export const table = <TTable>(
+export const table = <TTable extends Table>(
   table: TTable
-): TTable extends Table ? ITTable<TTable> : never =>
-  ({
-    isEnum: false,
-    table,
-  } as TTable extends Table ? ITTable<TTable> : never);
+): ITTable<TTable> => ({
+  isEnum: false,
+  table,
+});
 
 export const enumerable = <TValues extends string[]>(
   ...args: TValues
 ): ITEnum<TValues> => ({ isEnum: true, table: {}, values: args });
 
-export type FilterEnums<TSchema extends Record<string, ITTable | ITEnum>> =
-  Pick<
-    TSchema,
-    {
-      [key in keyof TSchema]: TSchema[key]["isEnum"] extends true ? key : never;
-    }[keyof TSchema]
-  >;
-
-export type FilterNonEnums<TSchema extends Record<string, ITTable | ITEnum>> =
-  Pick<
-    TSchema,
-    {
-      [key in keyof TSchema]: TSchema[key]["isEnum"] extends false
-        ? key
-        : never;
-    }[keyof TSchema]
-  >;
-
 /**
  * Type inference and runtime validation
  *
  * No idea why the "any" works
+ * : `${keyof TSchema & string}.id`
  */
 export const createSchema = <
   TSchema extends Record<string, ITTable<any> | ITEnum>
 >(schema: {
   [key in keyof TSchema]: TSchema[key]["table"] extends Table<{
-    [columnName in keyof TSchema[key]["table"]]: Column<
-      Scalar | `enum:${keyof FilterEnums<TSchema> & string}`,
-      TSchema[key]["table"][columnName]["references"] extends never
-        ? never
-        : `${keyof TSchema & string}.id`,
-      TSchema[key]["table"][columnName]["optional"],
-      TSchema[key]["table"][columnName]["list"]
-    >;
+    [columnName in keyof TSchema[key]["table"]]: TSchema[key]["table"][columnName]["references"] extends never
+      ? Column<
+          Scalar | `enum:${keyof FilterEnums<TSchema> & string}`,
+          never,
+          TSchema[key]["table"][columnName]["optional"],
+          TSchema[key]["table"][columnName]["list"]
+        >
+      : columnName extends `${string}Id`
+      ? Column<
+          Scalar | `enum:${keyof FilterEnums<TSchema> & string}`,
+          `${keyof TSchema & string}.id`,
+          TSchema[key]["table"][columnName]["optional"],
+          TSchema[key]["table"][columnName]["list"]
+        >
+      : never;
   }>
     ? TSchema[key]
     : TSchema[key]["isEnum"] extends true
@@ -127,6 +124,10 @@ export const createSchema = <
         const column = _column as Column;
 
         if (column.references) {
+          if (!columnName.endsWith("Id")) {
+            throw Error('Reference column name must end with "Id"');
+          }
+
           if (
             Object.keys(schema)
               .filter((name) => name !== tableName)
@@ -141,7 +142,7 @@ export const createSchema = <
           for (const [, referencingTable] of referencingTables) {
             if (referencingTable.table.id.type !== column.type)
               throw Error(
-                "Column type doesn't match the referred table id type"
+                "Column type doesn't match the referenced table id type"
               );
           }
 
