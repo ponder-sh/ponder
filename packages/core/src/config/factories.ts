@@ -172,6 +172,8 @@ export function getAddressFromFactoryEventLog({
   );
 }
 
-export function buildFactoryId(criteria: FactoryCriteria) {
-  return `${criteria.address}_${criteria.eventSelector}_${criteria.childAddressLocation}` as const;
+export function buildFactoryId(
+  criteria: FactoryCriteria & { chainId: number }
+) {
+  return `${criteria.chainId}_${criteria.address}_${criteria.eventSelector}_${criteria.childAddressLocation}` as const;
 }

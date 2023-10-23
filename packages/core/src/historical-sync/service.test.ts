@@ -77,7 +77,7 @@ test("start() with log filter inserts log filter interval records", async (conte
   await service.kill();
 });
 
-test("start() with factory contract inserts factory and child interval records", async (context) => {
+test("start() with factory contract inserts log filter and factory log filter interval records", async (context) => {
   const { common, eventStore } = context;
 
   const service = new HistoricalSyncService({
@@ -90,13 +90,19 @@ test("start() with factory contract inserts factory and child interval records",
   service.start();
   await service.onIdle();
 
-  const factoryIntervals = await eventStore.getFactoryIntervals({
-    chainId: uniswapV3Factory.chainId,
-    factory: uniswapV3Factory.criteria,
-  });
-  expect(factoryIntervals).toMatchObject([[16369500, 16370000]]);
+  const childAddressLogFilterIntervals = await eventStore.getLogFilterIntervals(
+    {
+      chainId: network.chainId,
+      logFilter: {
+        address: uniswapV3Factory.criteria.address,
+        topics: [uniswapV3Factory.criteria.eventSelector],
+      },
+    }
+  );
 
-  const childContractIntervals = await eventStore.getChildContractIntervals({
+  expect(childAddressLogFilterIntervals).toMatchObject([[16369500, 16370000]]);
+
+  const childContractIntervals = await eventStore.getFactoryLogFilterIntervals({
     chainId: uniswapV3Factory.chainId,
     factory: uniswapV3Factory.criteria,
   });
@@ -118,10 +124,10 @@ test("start() with factory contract inserts child contract addresses", async (co
   service.start();
   await service.onIdle();
 
-  const iterator = eventStore.getChildContractAddresses({
+  const iterator = eventStore.getFactoryChildAddresses({
     chainId: uniswapV3Factory.chainId,
-    upToBlockNumber: 16370000n,
     factory: uniswapV3Factory.criteria,
+    upToBlockNumber: 16370000n,
   });
 
   const childContractAddresses = [];
@@ -376,7 +382,7 @@ test("start() retries unexpected error in log filter task", async (context) => {
 test("start() retries unexpected error in block task", async (context) => {
   const { common, eventStore } = context;
 
-  const spy = vi.spyOn(eventStore, "insertHistoricalLogFilterInterval");
+  const spy = vi.spyOn(eventStore, "insertLogFilterInterval");
   spy.mockRejectedValueOnce(new Error("Unexpected error!"));
 
   const service = new HistoricalSyncService({

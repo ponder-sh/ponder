@@ -547,10 +547,10 @@ test("start() with factory contract inserts new child contracts records and chil
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  const iterator = eventStore.getChildContractAddresses({
+  const iterator = eventStore.getFactoryChildAddresses({
     chainId: uniswapV3Factory.chainId,
-    upToBlockNumber: 16380010n,
     factory: uniswapV3Factory.criteria,
+    upToBlockNumber: 16380010n,
   });
 
   const childContractAddresses = [];

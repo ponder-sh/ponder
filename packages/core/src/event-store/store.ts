@@ -16,60 +16,51 @@ export interface EventStore {
 
   kill(): Promise<void>;
 
-  /** LOG FILTER METHODS */
-
-  insertHistoricalLogFilterInterval(options: {
+  /**
+   * Insert a list of logs & associated transactions matching a given log filter
+   * within a specific block. Also insert the log interval recording the eth_getLogs
+   * request that was made and returned this result.
+   *
+   * Note that `block.number` should always be equal to `interval.endBlock`.
+   */
+  insertLogFilterInterval(options: {
     chainId: number;
     logFilter: LogFilterCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logs: RpcLog[];
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 
+  /**
+   * Get all block intervals where logs (and associated blocks & transactions)
+   * matching the specified log filter have already been inserted.
+   */
   getLogFilterIntervals(options: {
     chainId: number;
     logFilter: LogFilterCriteria;
   }): Promise<[number, number][]>;
 
-  /** FACTORY & CHILD CONTRACT METHODS */
-
   /**
-   * Insert a list of child contract addresses and creation block numbers
-   * for the specified factory.
+   * Insert a list of logs containing factory child addresses.
+   *
+   * Note that the log filter interval for these logs gets inserted
+   * in a separate call to `insertLogFilterInterval`. The purpose of this
+   * method is to make the logs available to `getFactoryChildAddresses`
+   * without requiring that the associated block & transaction have been inserted.
    */
-  insertHistoricalFactoryInterval(options: {
+  insertFactoryChildAddressLogs(options: {
     chainId: number;
-    factory: FactoryCriteria;
-    newChildContracts: {
-      address: Address;
-      creationBlock: bigint;
-    }[];
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    logs: RpcLog[];
   }): Promise<void>;
-
-  /**
-   * Get all block intervals where child contract addresses and creation
-   * block numbers for the specified factory have already been inserted.
-   */
-  getFactoryIntervals(options: {
-    chainId: number;
-    factory: FactoryCriteria;
-  }): Promise<[number, number][]>;
 
   /**
    * Get all child contract addresses that have been created by
    * the specified factory up to the specified block number.
    *
-   * Returns an async generator with a default page size of 10_000.
+   * Returns an async generator with a default page size of 500.
    */
-  getChildContractAddresses(options: {
+  getFactoryChildAddresses(options: {
     chainId: number;
     factory: FactoryCriteria;
     upToBlockNumber: bigint;
@@ -77,20 +68,19 @@ export interface EventStore {
   }): AsyncGenerator<Address[]>;
 
   /**
-   * Insert a list of logs (and associated blocks & transactions) produced by
-   * all child contracts of the specified factory within the specified
-   * block range.
+   * Insert a list of logs & associated transactions produced by all child
+   * contracts of the specified factory within a specific block. Also insert the log
+   * interval recording the eth_getLogs request that was made and returned this result.
+   *
+   * Note that `block.number` should always be equal to `interval.endBlock`.
    */
-  insertHistoricalChildContractInterval(options: {
+  insertFactoryLogFilterInterval(options: {
     chainId: number;
     factory: FactoryCriteria;
     block: RpcBlock;
     transactions: RpcTransaction[];
     logs: RpcLog[];
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 
   /**
@@ -98,24 +88,10 @@ export interface EventStore {
    * produced by all child contracts of the specified factory contract have already
    * been inserted.
    */
-  getChildContractIntervals(options: {
+  getFactoryLogFilterIntervals(options: {
     chainId: number;
     factory: FactoryCriteria;
   }): Promise<[number, number][]>;
-
-  /** BLAH */
-
-  /**
-   * Inserts new child contracts that are found in real-time.
-   */
-  insertRealtimeChildContracts(options: {
-    chainId: number;
-    factory: FactoryCriteria;
-    newChildContracts: {
-      address: Address;
-      creationBlock: bigint;
-    }[];
-  }): Promise<void>;
 
   /**
    * Inserts a new realtime block and any logs/transactions that match the
@@ -137,10 +113,7 @@ export interface EventStore {
     chainId: number;
     logFilters: LogFilterCriteria[];
     factories: FactoryCriteria[];
-    interval: {
-      startBlock: bigint;
-      endBlock: bigint;
-    };
+    interval: { startBlock: bigint; endBlock: bigint };
   }): Promise<void>;
 
   /**

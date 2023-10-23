@@ -1,4 +1,6 @@
-import { Hex } from "viem";
+import type { Hex } from "viem";
+
+import type { LogFilterCriteria } from "@/config/logFilters";
 
 /**
  * Generates log filter fragments from a log filter.
@@ -9,12 +11,13 @@ import { Hex } from "viem";
 export function buildLogFilterFragments({
   address,
   topics,
-}: {
-  address?: Hex | Hex[];
-  topics?: (Hex | Hex[] | null)[];
+  chainId,
+}: LogFilterCriteria & {
+  chainId: number;
 }) {
   const fragments: {
     id: string;
+    chainId: number;
     address: Hex | null;
     topic0: Hex | null;
     topic1: Hex | null;
@@ -30,7 +33,8 @@ export function buildLogFilterFragments({
         for (const topic2_ of Array.isArray(topic2) ? topic2 : [topic2]) {
           for (const topic3_ of Array.isArray(topic3) ? topic3 : [topic3]) {
             fragments.push({
-              id: `${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}`,
+              id: `${chainId}_${address_}_${topic0_}_${topic1_}_${topic2_}_${topic3_}`,
+              chainId,
               address: address_,
               topic0: topic0_,
               topic1: topic1_,

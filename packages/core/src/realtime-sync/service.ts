@@ -1,8 +1,14 @@
 import Emittery from "emittery";
 import pLimit from "p-limit";
-import { Hex, hexToBigInt, hexToNumber, numberToHex, RpcLog } from "viem";
+import {
+  type Hex,
+  type RpcLog,
+  hexToBigInt,
+  hexToNumber,
+  numberToHex,
+} from "viem";
 
-import { Factory, getAddressFromFactoryEventLog } from "@/config/factories";
+import type { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 import type { EventStore } from "@/event-store/store";
@@ -326,16 +332,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
               ],
             });
 
-            await this.eventStore.insertRealtimeChildContracts({
+            await this.eventStore.insertFactoryChildAddressLogs({
               chainId: this.network.chainId,
-              factory: factory.criteria,
-              newChildContracts: matchedFactoryLogs.map((log) => ({
-                address: getAddressFromFactoryEventLog({
-                  criteria: factory.criteria,
-                  log,
-                }),
-                creationBlock: hexToBigInt(log.blockNumber!),
-              })),
+              logs: matchedFactoryLogs,
             });
           })
         );
@@ -347,7 +346,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         const allChildContractAddresses = (
           await Promise.all(
             this.factories.map(async (factory) => {
-              const iterator = this.eventStore.getChildContractAddresses({
+              const iterator = this.eventStore.getFactoryChildAddresses({
                 chainId: this.network.chainId,
                 factory: factory.criteria,
                 upToBlockNumber: hexToBigInt(block.number!),

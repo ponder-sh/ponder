@@ -129,10 +129,10 @@ type LogsTable = {
   transactionHash: Hash;
   transactionIndex: number;
 
-  topic0: string | null;
-  topic1: string | null;
-  topic2: string | null;
-  topic3: string | null;
+  topic0: Hex | null;
+  topic1: Hex | null;
+  topic2: Hex | null;
+  topic3: Hex | null;
 
   chainId: number;
 };
@@ -181,7 +181,7 @@ type LogFilterIntervalsTable = {
   endBlock: Buffer; // BigInt
 };
 
-type FactorysTable = {
+type FactoriesTable = {
   id: string;
   chainId: number;
   address: Hex;
@@ -189,21 +189,7 @@ type FactorysTable = {
   childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
 };
 
-type FactoryIntervalsTable = {
-  id: Generated<number>;
-  factoryId: string;
-  startBlock: Buffer; // BigInt
-  endBlock: Buffer; // BigInt
-};
-
-type ChildContractsTable = {
-  id: Generated<number>;
-  factoryId: string;
-  address: Hex;
-  creationBlock: Buffer; // BigInt
-};
-
-type ChildContractIntervalsTable = {
+type FactoryLogFilterIntervalsTable = {
   id: Generated<number>;
   factoryId: string;
   startBlock: Buffer; // BigInt
@@ -218,9 +204,6 @@ export type EventStoreTables = {
 
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;
-
-  factories: FactorysTable;
-  factoryIntervals: FactoryIntervalsTable;
-  childContracts: ChildContractsTable;
-  childContractIntervals: ChildContractIntervalsTable;
+  factories: FactoriesTable;
+  factoryLogFilterIntervals: FactoryLogFilterIntervalsTable;
 };

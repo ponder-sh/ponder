@@ -184,14 +184,13 @@ const migrations: Record<string, Migration> = {
       /** Add new log filter and factory contract interval tables. */
       await db.schema
         .createTable("logFilters")
-        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${address}_${topic0}_${topic1}_${topic2}_${topic3}`
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${topic0}_${topic1}_${topic2}_${topic3}`
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)")
         .addColumn("topic0", "varchar(66)")
         .addColumn("topic1", "varchar(66)")
         .addColumn("topic2", "varchar(66)")
         .addColumn("topic3", "varchar(66)")
-        .addUniqueConstraint("logFiltersUnique", ["id", "chainId"])
         .execute();
       await db.schema
         .createTable("logFilterIntervals")
@@ -204,33 +203,14 @@ const migrations: Record<string, Migration> = {
         .execute();
       await db.schema
         .createTable("factories")
-        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${address}_${eventSelector}_${childAddressLocation}`
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${eventSelector}_${childAddressLocation}`
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("address", "varchar(66)", (col) => col.notNull())
         .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
         .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
-        .addUniqueConstraint("factoriesUnique", ["id", "chainId"])
         .execute();
       await db.schema
-        .createTable("factoryIntervals")
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("factoryId", "text", (col) =>
-          col.notNull().references("factories.id")
-        )
-        .addColumn("startBlock", "blob", (col) => col.notNull()) // BigInt
-        .addColumn("endBlock", "blob", (col) => col.notNull()) // BigInt
-        .execute();
-      await db.schema
-        .createTable("childContracts")
-        .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
-        .addColumn("factoryId", "text", (col) =>
-          col.notNull().references("factories.id")
-        )
-        .addColumn("address", "varchar(66)", (col) => col.notNull())
-        .addColumn("creationBlock", "blob", (col) => col.notNull()) // BigInt
-        .execute();
-      await db.schema
-        .createTable("childContractIntervals")
+        .createTable("factoryLogFilterIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("factoryId", "text", (col) =>
           col.notNull().references("factories.id")

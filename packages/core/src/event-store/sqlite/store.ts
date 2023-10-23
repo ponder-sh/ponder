@@ -19,7 +19,6 @@ import { blobToBigInt } from "@/utils/decode";
 import { intToBlob } from "@/utils/encode";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval";
 import { buildLogFilterFragments } from "@/utils/logFilter";
-import { toLowerCase } from "@/utils/lowercase";
 import { range } from "@/utils/range";
 
 import type { EventStore } from "../store";
@@ -56,7 +55,7 @@ export class SqliteEventStore implements EventStore {
     await this.db.destroy();
   }
 
-  insertHistoricalLogFilterInterval = async ({
+  insertLogFilterInterval = async ({
     chainId,
     logFilter,
     block: rpcBlock,
@@ -78,15 +77,10 @@ export class SqliteEventStore implements EventStore {
         .onConflict((oc) => oc.column("hash").doNothing())
         .execute();
 
-      if (rpcTransactions.length > 0) {
+      for (const rpcTransaction of rpcTransactions) {
         await tx
           .insertInto("transactions")
-          .values(
-            rpcTransactions.map((transaction) => ({
-              ...rpcToSqliteTransaction(transaction),
-              chainId,
-            }))
-          )
+          .values({ ...rpcToSqliteTransaction(rpcTransaction), chainId })
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
       }
@@ -99,7 +93,7 @@ export class SqliteEventStore implements EventStore {
           .execute();
       }
 
-      await this.insertLogFilterInterval({
+      await this._insertLogFilterInterval({
         tx,
         chainId,
         logFilters: [logFilter],
@@ -115,29 +109,27 @@ export class SqliteEventStore implements EventStore {
     chainId: number;
     logFilter: LogFilterCriteria;
   }) => {
-    const logFilterFragments = buildLogFilterFragments(logFilter);
+    const fragments = buildLogFilterFragments({ ...logFilter, chainId });
 
     // First, attempt to merge overlapping and adjacent intervals.
     await Promise.all(
-      logFilterFragments.map(async (logFilterFragment) => {
+      fragments.map(async (fragment) => {
         return await this.db.transaction().execute(async (tx) => {
           const { id: logFilterId } = await tx
             .insertInto("logFilters")
-            .values({ chainId, ...logFilterFragment })
-            .onConflict((oc) =>
-              oc.doUpdateSet({ chainId, ...logFilterFragment })
-            )
+            .values(fragment)
+            .onConflict((oc) => oc.doUpdateSet(fragment))
             .returningAll()
             .executeTakeFirstOrThrow();
 
-          const existingIntervals = await tx
+          const existingIntervalRows = await tx
             .deleteFrom("logFilterIntervals")
             .where("logFilterId", "=", logFilterId)
             .returningAll()
             .execute();
 
           const mergedIntervals = intervalUnion(
-            existingIntervals.map((i) => [
+            existingIntervalRows.map((i) => [
               Number(blobToBigInt(i.startBlock)),
               Number(blobToBigInt(i.endBlock)),
             ])
@@ -163,17 +155,14 @@ export class SqliteEventStore implements EventStore {
       })
     );
 
-    const logFilterFragmentsWithIdx = logFilterFragments.map((f, idx) => ({
-      idx,
-      ...f,
-    }));
+    const fragmentsWithIdx = fragments.map((f, idx) => ({ idx, ...f }));
 
     const intervals = await this.db
       .with(
         "logFilterFragments(fragmentIndex, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
         () =>
           sql`( values ${sql.join(
-            logFilterFragmentsWithIdx.map(
+            fragmentsWithIdx.map(
               (f) =>
                 sql`( ${sql.val(f.idx)}, ${sql.val(f.address)}, ${sql.val(
                   f.topic0
@@ -218,7 +207,7 @@ export class SqliteEventStore implements EventStore {
       return acc;
     }, {} as Record<number, { startBlock: bigint; endBlock: bigint }[]>);
 
-    const fragmentIntervals = logFilterFragmentsWithIdx.map((f) => {
+    const fragmentIntervals = fragmentsWithIdx.map((f) => {
       return (intervalsByFragment[f.idx] ?? []).map(
         (r) =>
           [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
@@ -228,97 +217,25 @@ export class SqliteEventStore implements EventStore {
     return intervalIntersectionMany(fragmentIntervals);
   };
 
-  insertHistoricalFactoryInterval = async ({
+  insertFactoryChildAddressLogs = async ({
     chainId,
-    factory,
-    newChildContracts,
-    interval,
+    logs: rpcLogs,
   }: {
     chainId: number;
-    factory: FactoryCriteria;
-    newChildContracts: { address: Hex; creationBlock: bigint }[];
-    interval: { startBlock: bigint; endBlock: bigint };
+    logs: RpcLog[];
   }) => {
     await this.db.transaction().execute(async (tx) => {
-      const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
-      const { id: factoryId } = await tx
-        .insertInto("factories")
-        .values(factory_)
-        .onConflict((oc) => oc.doUpdateSet(factory_))
-        .returningAll()
-        .executeTakeFirstOrThrow();
-
-      if (newChildContracts.length > 0) {
+      for (const rpcLog of rpcLogs) {
         await tx
-          .insertInto("childContracts")
-          .values(
-            newChildContracts.map((childContract) => ({
-              factoryId,
-              address: toLowerCase(childContract.address),
-              creationBlock: intToBlob(childContract.creationBlock),
-            }))
-          )
+          .insertInto("logs")
+          .values({ ...rpcToSqliteLog(rpcLog), chainId })
+          .onConflict((oc) => oc.column("id").doNothing())
           .execute();
       }
-
-      await this.insertFactoryInterval({
-        tx,
-        chainId,
-        factories: [factory],
-        interval,
-      });
     });
   };
 
-  getFactoryIntervals = async ({
-    chainId,
-    factory,
-  }: {
-    chainId: number;
-    factory: FactoryCriteria;
-  }) => {
-    return await this.db.transaction().execute(async (tx) => {
-      const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
-      const { id: factoryId } = await tx
-        .insertInto("factories")
-        .values(factory_)
-        .onConflict((oc) => oc.doUpdateSet(factory_))
-        .returningAll()
-        .executeTakeFirstOrThrow();
-
-      const existingIntervals = await tx
-        .deleteFrom("factoryIntervals")
-        .where("factoryId", "=", factoryId)
-        .returningAll()
-        .execute();
-
-      const mergedIntervals = intervalUnion(
-        existingIntervals.map((i) => [
-          Number(blobToBigInt(i.startBlock)),
-          Number(blobToBigInt(i.endBlock)),
-        ])
-      );
-
-      const mergedIntervalRows = mergedIntervals.map(
-        ([startBlock, endBlock]) => ({
-          factoryId,
-          startBlock: intToBlob(startBlock),
-          endBlock: intToBlob(endBlock),
-        })
-      );
-
-      if (mergedIntervalRows.length > 0) {
-        await tx
-          .insertInto("factoryIntervals")
-          .values(mergedIntervalRows)
-          .execute();
-      }
-
-      return mergedIntervals;
-    });
-  };
-
-  async *getChildContractAddresses({
+  async *getFactoryChildAddresses({
     chainId,
     upToBlockNumber,
     factory,
@@ -329,20 +246,19 @@ export class SqliteEventStore implements EventStore {
     factory: FactoryCriteria;
     pageSize?: number;
   }) {
+    const { address, eventSelector, childAddressLocation } = factory;
+
+    const selectChildAddressExpression =
+      buildFactoryChildAddressSelectExpression({ childAddressLocation });
+
     const baseQuery = this.db
-      .selectFrom("childContracts")
-      .leftJoin("factories", "factoryId", "factories.id")
-      .select(["childContracts.address", "childContracts.creationBlock"])
+      .selectFrom("logs")
+      .select([selectChildAddressExpression.as("childAddress"), "blockNumber"])
       .where("chainId", "=", chainId)
-      .where("factories.address", "=", factory.address)
-      .where("factories.eventSelector", "=", factory.eventSelector)
-      .where(
-        "factories.childAddressLocation",
-        "=",
-        factory.childAddressLocation
-      )
-      .limit(pageSize)
-      .where("childContracts.creationBlock", "<=", intToBlob(upToBlockNumber));
+      .where("address", "=", address)
+      .where("topic0", "=", eventSelector)
+      .where("blockNumber", "<=", intToBlob(upToBlockNumber))
+      .limit(pageSize);
 
     let cursor: Buffer | undefined = undefined;
 
@@ -350,25 +266,25 @@ export class SqliteEventStore implements EventStore {
       let query = baseQuery;
 
       if (cursor) {
-        query = query.where("childContracts.creationBlock", ">", cursor);
+        query = query.where("blockNumber", ">", cursor);
       }
 
       const batch = await query.execute();
 
       const lastRow = batch[batch.length - 1];
       if (lastRow) {
-        cursor = lastRow.creationBlock;
+        cursor = lastRow.blockNumber;
       }
 
       if (batch.length > 0) {
-        yield batch.map((c) => c.address);
+        yield batch.map((a) => a.childAddress);
       }
 
       if (batch.length < pageSize) break;
     }
   }
 
-  insertHistoricalChildContractInterval = async ({
+  insertFactoryLogFilterInterval = async ({
     chainId,
     factory,
     block: rpcBlock,
@@ -406,7 +322,7 @@ export class SqliteEventStore implements EventStore {
           .execute();
       }
 
-      await this.insertChildContractInterval({
+      await this._insertFactoryLogFilterInterval({
         tx,
         chainId,
         factories: [factory],
@@ -415,7 +331,7 @@ export class SqliteEventStore implements EventStore {
     });
   };
 
-  getChildContractIntervals = async ({
+  getFactoryLogFilterIntervals = async ({
     chainId,
     factory,
   }: {
@@ -423,7 +339,11 @@ export class SqliteEventStore implements EventStore {
     factory: FactoryCriteria;
   }) => {
     return await this.db.transaction().execute(async (tx) => {
-      const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
+      const factory_ = {
+        ...factory,
+        id: buildFactoryId({ ...factory, chainId }),
+        chainId,
+      };
       const { id: factoryId } = await tx
         .insertInto("factories")
         .values(factory_)
@@ -432,7 +352,7 @@ export class SqliteEventStore implements EventStore {
         .executeTakeFirstOrThrow();
 
       const existingIntervals = await tx
-        .deleteFrom("childContractIntervals")
+        .deleteFrom("factoryLogFilterIntervals")
         .where("factoryId", "=", factoryId)
         .returningAll()
         .execute();
@@ -454,7 +374,7 @@ export class SqliteEventStore implements EventStore {
 
       if (mergedIntervalRows.length > 0) {
         await tx
-          .insertInto("childContractIntervals")
+          .insertInto("factoryLogFilterIntervals")
           .values(mergedIntervalRows)
           .execute();
       }
@@ -462,8 +382,6 @@ export class SqliteEventStore implements EventStore {
       return mergedIntervals;
     });
   };
-
-  /** REALTIME */
 
   insertRealtimeBlock = async ({
     chainId,
@@ -501,37 +419,6 @@ export class SqliteEventStore implements EventStore {
     });
   };
 
-  insertRealtimeChildContracts = async ({
-    chainId,
-    factory,
-    newChildContracts,
-  }: {
-    chainId: number;
-    factory: FactoryCriteria;
-    newChildContracts: { address: Hex; creationBlock: bigint }[];
-  }) => {
-    await this.db.transaction().execute(async (tx) => {
-      const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
-      const { id: factoryId } = await tx
-        .insertInto("factories")
-        .values(factory_)
-        .onConflict((oc) => oc.doUpdateSet(factory_))
-        .returningAll()
-        .executeTakeFirstOrThrow();
-
-      for (const childContract of newChildContracts) {
-        await tx
-          .insertInto("childContracts")
-          .values({
-            factoryId,
-            address: toLowerCase(childContract.address),
-            creationBlock: intToBlob(childContract.creationBlock),
-          })
-          .execute();
-      }
-    });
-  };
-
   insertRealtimeInterval = async ({
     chainId,
     logFilters,
@@ -544,21 +431,20 @@ export class SqliteEventStore implements EventStore {
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     await this.db.transaction().execute(async (tx) => {
-      await this.insertLogFilterInterval({
+      await this._insertLogFilterInterval({
         tx,
         chainId,
-        logFilters,
+        logFilters: [
+          ...logFilters,
+          ...factories.map((f) => ({
+            address: f.address,
+            topics: [f.eventSelector],
+          })),
+        ],
         interval,
       });
 
-      await this.insertFactoryInterval({
-        tx,
-        chainId,
-        factories,
-        interval,
-      });
-
-      await this.insertChildContractInterval({
+      await this._insertFactoryLogFilterInterval({
         tx,
         chainId,
         factories,
@@ -597,20 +483,6 @@ export class SqliteEventStore implements EventStore {
         .where("chainId", "=", chainId)
         .where("blockNumber", ">", fromBlock)
         .execute();
-      await tx
-        .deleteFrom("childContracts")
-        .where(
-          (qb) =>
-            qb
-              .selectFrom("factories")
-              .select("factories.chainId")
-              .whereRef("factories.id", "=", "childContracts.factoryId")
-              .limit(1),
-          "=",
-          chainId
-        )
-        .where("creationBlock", ">", fromBlock)
-        .execute();
 
       // Delete all intervals with a startBlock greater than fromBlock.
       // Then, if any intervals have an endBlock greater than fromBlock,
@@ -646,13 +518,17 @@ export class SqliteEventStore implements EventStore {
         .execute();
 
       await tx
-        .deleteFrom("factoryIntervals")
+        .deleteFrom("factoryLogFilterIntervals")
         .where(
           (qb) =>
             qb
               .selectFrom("factories")
               .select("factories.chainId")
-              .whereRef("factories.id", "=", "factoryIntervals.factoryId")
+              .whereRef(
+                "factories.id",
+                "=",
+                "factoryLogFilterIntervals.factoryId"
+              )
               .limit(1),
           "=",
           chainId
@@ -660,44 +536,18 @@ export class SqliteEventStore implements EventStore {
         .where("startBlock", ">", fromBlock)
         .execute();
       await tx
-        .updateTable("factoryIntervals")
+        .updateTable("factoryLogFilterIntervals")
         .set({ endBlock: fromBlock })
         .where(
           (qb) =>
             qb
               .selectFrom("factories")
               .select("factories.chainId")
-              .whereRef("factories.id", "=", "factoryIntervals.factoryId")
-              .limit(1),
-          "=",
-          chainId
-        )
-        .where("endBlock", ">", fromBlock)
-        .execute();
-
-      await tx
-        .deleteFrom("childContractIntervals")
-        .where(
-          (qb) =>
-            qb
-              .selectFrom("factories")
-              .select("factories.chainId")
-              .whereRef("factories.id", "=", "childContractIntervals.factoryId")
-              .limit(1),
-          "=",
-          chainId
-        )
-        .where("startBlock", ">", fromBlock)
-        .execute();
-      await tx
-        .updateTable("childContractIntervals")
-        .set({ endBlock: fromBlock })
-        .where(
-          (qb) =>
-            qb
-              .selectFrom("factories")
-              .select("factories.chainId")
-              .whereRef("factories.id", "=", "childContractIntervals.factoryId")
+              .whereRef(
+                "factories.id",
+                "=",
+                "factoryLogFilterIntervals.factoryId"
+              )
               .limit(1),
           "=",
           chainId
@@ -709,7 +559,7 @@ export class SqliteEventStore implements EventStore {
 
   /** SYNC HELPER METHODS */
 
-  private insertLogFilterInterval = async ({
+  private _insertLogFilterInterval = async ({
     tx,
     chainId,
     logFilters,
@@ -721,20 +571,15 @@ export class SqliteEventStore implements EventStore {
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
     const logFilterFragments = logFilters
-      .map(({ address, topics }) =>
-        buildLogFilterFragments({
-          address,
-          topics,
-        })
-      )
+      .map((logFilter) => buildLogFilterFragments({ ...logFilter, chainId }))
       .flat();
 
     await Promise.all(
       logFilterFragments.map(async (logFilterFragment) => {
         const { id: logFilterId } = await tx
           .insertInto("logFilters")
-          .values({ chainId, ...logFilterFragment })
-          .onConflict((oc) => oc.doUpdateSet({ chainId, ...logFilterFragment }))
+          .values(logFilterFragment)
+          .onConflict((oc) => oc.doUpdateSet(logFilterFragment))
           .returningAll()
           .executeTakeFirstOrThrow();
 
@@ -750,7 +595,7 @@ export class SqliteEventStore implements EventStore {
     );
   };
 
-  private insertFactoryInterval = async ({
+  private _insertFactoryLogFilterInterval = async ({
     tx,
     chainId,
     factories,
@@ -763,7 +608,11 @@ export class SqliteEventStore implements EventStore {
   }) => {
     await Promise.all(
       factories.map(async (factory) => {
-        const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
+        const factory_ = {
+          id: buildFactoryId({ chainId, ...factory }),
+          chainId,
+          ...factory,
+        };
         const { id: factoryId } = await tx
           .insertInto("factories")
           .values(factory_)
@@ -772,40 +621,7 @@ export class SqliteEventStore implements EventStore {
           .executeTakeFirstOrThrow();
 
         await tx
-          .insertInto("factoryIntervals")
-          .values({
-            factoryId,
-            startBlock: intToBlob(startBlock),
-            endBlock: intToBlob(endBlock),
-          })
-          .execute();
-      })
-    );
-  };
-
-  private insertChildContractInterval = async ({
-    tx,
-    chainId,
-    factories,
-    interval: { startBlock, endBlock },
-  }: {
-    tx: KyselyTransaction<EventStoreTables>;
-    chainId: number;
-    factories: FactoryCriteria[];
-    interval: { startBlock: bigint; endBlock: bigint };
-  }) => {
-    await Promise.all(
-      factories.map(async (factory) => {
-        const factory_ = { id: buildFactoryId(factory), chainId, ...factory };
-        const { id: factoryId } = await tx
-          .insertInto("factories")
-          .values(factory_)
-          .onConflict((oc) => oc.doUpdateSet(factory_))
-          .returningAll()
-          .executeTakeFirstOrThrow();
-
-        await tx
-          .insertInto("childContractIntervals")
+          .insertInto("factoryLogFilterIntervals")
           .values({
             factoryId,
             startBlock: intToBlob(startBlock),
@@ -1071,34 +887,20 @@ export class SqliteEventStore implements EventStore {
         )
       );
 
+      const selectChildAddressExpression =
+        buildFactoryChildAddressSelectExpression({
+          childAddressLocation: factory.criteria.childAddressLocation,
+        });
+
       cmprs.push(
         cmpr(
           "logs.address",
           "in",
-          selectFrom("childContracts")
-            .select("address")
-            .where(
-              "childContracts.factoryId",
-              "=",
-              selectFrom("factories")
-                .select("id")
-                .where(
-                  "factories.chainId",
-                  "=",
-                  sql`cast (${sql.val(factory.chainId)} as integer)`
-                )
-                .where("factories.address", "=", factory.criteria.address)
-                .where(
-                  "factories.eventSelector",
-                  "=",
-                  factory.criteria.eventSelector
-                )
-                .where(
-                  "factories.childAddressLocation",
-                  "=",
-                  factory.criteria.childAddressLocation
-                )
-            )
+          selectFrom("logs")
+            .select(selectChildAddressExpression.as("childAddress"))
+            .where("chainId", "=", factory.chainId)
+            .where("address", "=", factory.criteria.address)
+            .where("topic0", "=", factory.criteria.eventSelector)
         )
       );
 
@@ -1362,5 +1164,24 @@ export class SqliteEventStore implements EventStore {
 
       if (events.length < pageSize) break;
     }
+  }
+}
+
+function buildFactoryChildAddressSelectExpression({
+  childAddressLocation,
+}: {
+  childAddressLocation: FactoryCriteria["childAddressLocation"];
+}) {
+  if (childAddressLocation.startsWith("offset")) {
+    const childAddressOffset = Number(childAddressLocation.substring(6));
+    const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
+    const end = start + 20 * 2;
+    return sql<Hex>`'0x' || substring(data, ${start}, ${end})`;
+  } else {
+    const start = 2 + 12 * 2 + 1;
+    const end = start + 20 * 2;
+    return sql<Hex>`'0x' || substring(${sql.ref(
+      childAddressLocation
+    )}, ${start}, ${end})`;
   }
 }
