@@ -20,11 +20,8 @@ export interface PostgresDb {
 
 export type Database = SqliteDb | PostgresDb;
 
-// See https://github.com/brianc/node-pg-types for details.
-// Set pg protocol to use BigInt for `bytea` types.
-// TODO: Remove this once the UserStore migrates to `numeric`.
-pg.types.setTypeParser(20, BigInt);
 // Set pg protocol to use BigInt for `numeric` types.
+// See https://github.com/brianc/node-pg-types for details.
 pg.types.setTypeParser(1700, BigInt);
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.

@@ -808,13 +808,7 @@ export class SqliteEventStore implements EventStore {
       const cmprs = [];
 
       cmprs.push(cmpr("eventSource_name", "=", logFilter.name));
-      cmprs.push(
-        cmpr(
-          "logs.chainId",
-          "=",
-          sql`cast (${sql.val(logFilter.chainId)} as integer)`
-        )
-      );
+      cmprs.push(cmpr("logs.chainId", "=", logFilter.chainId));
 
       if (logFilter.criteria.address) {
         // If it's an array of length 1, collapse it.
@@ -847,21 +841,13 @@ export class SqliteEventStore implements EventStore {
 
       if (logFilter.fromBlock) {
         cmprs.push(
-          cmpr(
-            "blocks.number",
-            ">=",
-            sql`cast (${sql.val(encodeAsText(logFilter.fromBlock))} as blob)`
-          )
+          cmpr("blocks.number", ">=", encodeAsText(logFilter.fromBlock))
         );
       }
 
       if (logFilter.toBlock) {
         cmprs.push(
-          cmpr(
-            "blocks.number",
-            "<=",
-            sql`cast (${sql.val(encodeAsText(logFilter.toBlock))} as blob)`
-          )
+          cmpr("blocks.number", "<=", encodeAsText(logFilter.toBlock))
         );
       }
 
@@ -879,13 +865,7 @@ export class SqliteEventStore implements EventStore {
       const cmprs = [];
 
       cmprs.push(cmpr("eventSource_name", "=", factory.name));
-      cmprs.push(
-        cmpr(
-          "logs.chainId",
-          "=",
-          sql`cast (${sql.val(factory.chainId)} as integer)`
-        )
-      );
+      cmprs.push(cmpr("logs.chainId", "=", factory.chainId));
 
       const selectChildAddressExpression =
         buildFactoryChildAddressSelectExpression({
@@ -906,22 +886,12 @@ export class SqliteEventStore implements EventStore {
 
       if (factory.fromBlock) {
         cmprs.push(
-          cmpr(
-            "blocks.number",
-            ">=",
-            sql`cast (${sql.val(encodeAsText(factory.fromBlock))} as blob)`
-          )
+          cmpr("blocks.number", ">=", encodeAsText(factory.fromBlock))
         );
       }
 
       if (factory.toBlock) {
-        cmprs.push(
-          cmpr(
-            "blocks.number",
-            "<=",
-            sql`cast (${sql.val(encodeAsText(factory.toBlock))} as blob)`
-          )
-        );
+        cmprs.push(cmpr("blocks.number", "<=", encodeAsText(factory.toBlock)));
       }
 
       return cmprs;

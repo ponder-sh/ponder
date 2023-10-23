@@ -60,8 +60,10 @@ export type ConditionName = keyof typeof sqlOperatorsByCondition;
 
 export function buildSqlWhereConditions({
   where,
+  encodeBigInts,
 }: {
   where: WhereInput<ModelDefinition>;
+  encodeBigInts: boolean;
 }) {
   // If the where clause has multiple conditions, they are combined using AND.
   // TODO: support complex filters with OR, NOT, and arbitrary nesting.
@@ -80,6 +82,7 @@ export function buildSqlWhereConditions({
         const { operator, parameter } = getOperatorAndParameter({
           condition,
           value,
+          encodeBigInts,
         });
         conditions.push([fieldName, operator, parameter]);
       }
@@ -88,6 +91,7 @@ export function buildSqlWhereConditions({
       const { operator, parameter } = getOperatorAndParameter({
         condition: "equals",
         value: rhs,
+        encodeBigInts,
       });
       conditions.push([fieldName, operator, parameter]);
     }
@@ -107,9 +111,11 @@ function validateConditionName(condition: string) {
 function getOperatorAndParameter({
   condition,
   value,
+  encodeBigInts,
 }: {
   condition: ConditionName;
   value: unknown;
+  encodeBigInts: boolean;
 }) {
   const operators = sqlOperatorsByCondition[condition];
 
@@ -153,7 +159,7 @@ function getOperatorAndParameter({
   }
 
   if (typeof value === "bigint") {
-    return { operator, parameter: encodeAsText(value) };
+    return { operator, parameter: encodeBigInts ? encodeAsText(value) : value };
   }
 
   // Handle strings and numbers.
