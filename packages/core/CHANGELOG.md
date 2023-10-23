@@ -1,5 +1,11 @@
 # @ponder/core
 
+## 0.0.93
+
+### Patch Changes
+
+- [#392](https://github.com/0xOlias/ponder/pull/392) [`254d71d`](https://github.com/0xOlias/ponder/commit/254d71de1886aabcc428f7e99567cbb58efaa473) Thanks [@kyscott18](https://github.com/kyscott18)! - Fix bug affecting local interactive graphql ui
+
 ## 0.0.92
 
 ### Patch Changes

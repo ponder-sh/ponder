@@ -11,7 +11,6 @@
     "lint": "eslint --cache .",
     "lint:fix": "pnpm lint --fix",
     "lint:format": "prettier --write .",
-    "preinstall": "npx -y only-allow pnpm",
     "prepare": "npx simple-git-hooks",
     "test": "pnpm --parallel --no-bail test",
     "test:core": "pnpm --filter \"@ponder/core\" test",
