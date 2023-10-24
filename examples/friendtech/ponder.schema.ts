@@ -1,7 +1,7 @@
 import { column, createSchema, enumerable, table, virtual } from "@ponder/core";
 
 export const schema = createSchema({
-  TradeType: enumerable("BUY", "SELL"),
+  TradeType: enumerable(["BUY", "SELL"]),
   Share: table({
     id: column("bytes"),
     subjectId: column("bytes", { references: "Subject.id" }),
