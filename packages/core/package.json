@@ -1,6 +1,6 @@
 {
   "name": "@ponder/core",
-  "version": "0.0.91",
+  "version": "0.0.93",
   "description": "An open-source framework for crypto application backends",
   "license": "MIT",
   "repository": {
@@ -34,6 +34,7 @@
   "dependencies": {
     "@babel/code-frame": "^7.18.6",
     "@jridgewell/trace-mapping": "^0.3.17",
+    "abitype": "^0.8.11",
     "async-mutex": "^0.4.0",
     "better-sqlite3": "^8.7.0",
     "cac": "^6.7.14",
@@ -80,7 +81,6 @@
     "@types/retry": "^0.12.2",
     "@types/supertest": "^2.0.12",
     "@viem/anvil": "^0.0.6",
-    "abitype": "^0.8.11",
     "concurrently": "^8.2.0",
     "module-alias": "^2.2.2",
     "rimraf": "^5.0.1",

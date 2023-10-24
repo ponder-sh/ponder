@@ -7,12 +7,12 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@ponder/core": "latest"
+    "@ponder/core": "workspace:*"
   },
   "devDependencies": {
     "abitype": "^0.8.11",
     "eslint": "^8.43.0",
-    "eslint-config-ponder": "workspace:latest",
+    "eslint-config-ponder": "workspace:*",
     "typescript": "^5.1.3",
     "viem": "^1.2.6"
   }

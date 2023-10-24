@@ -1,4 +1,5 @@
 import type { AbiEvent } from "abitype";
+import type { Transport } from "viem";
 
 export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
@@ -19,32 +20,62 @@ export type ResolvedConfig = {
     name: string;
     /** Chain ID of the network. */
     chainId: number;
-    /** RPC URL. Default: if available, a public RPC provider. */
-    rpcUrl?: string;
+    /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
+     *
+     * __To avoid rate limiting, include a custom RPC URL.__ Usage:
+     *
+     * ```ts
+     * import { http } from "viem";
+     *
+     * const network = {
+     *    name: "mainnet",
+     *    chainId: 1,
+     *    transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
+     * }
+     * ```
+     */
+    transport: Transport;
     /** Polling frequency (in ms). Default: `1_000`. */
     pollingInterval?: number;
     /** Maximum concurrency of RPC requests during the historical sync. Default: `10`. */
     maxRpcRequestConcurrency?: number;
   }[];
   /** List of contracts to fetch & handle events from. Contracts defined here will be present in `context.contracts`. */
-  contracts?: {
+  contracts?: ({
     /** Contract name. Must be unique across `contracts` and `filters`. */
     name: string;
     /** Network that this contract is deployed to. Must match a network name in `networks`. */
     network: string; // TODO: narrow this type to TNetworks[number]['name']
     /** Contract ABI as a file path or an Array object. Accepts a single ABI or a list of ABIs to be merged. */
     abi: string | any[] | readonly any[] | (string | any[] | readonly any[])[];
-    /** Contract address. */
-    address: `0x${string}`;
-    /** Block number at which to start processing events (inclusive). Default: `0`. */
-    startBlock?: number;
-    /** Block number at which to stop processing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
-    endBlock?: number;
-    /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
-    maxBlockRange?: number;
-    /** Whether to fetch & process event logs for this contract. If `false`, this contract will still be present in `context.contracts`. Default: `true`. */
-    isLogEventSource?: boolean;
-  }[];
+  } & (
+    | {
+        /** Contract address. */
+        address: `0x${string}`;
+        factory?: never;
+      }
+    | {
+        address?: never;
+        /** Factory contract configuration. */
+        factory: {
+          /** Address of the factory contract that creates this contract. */
+          address: `0x${string}`;
+          /** ABI event that announces the creation of a new instance of this contract. */
+          event: AbiEvent;
+          /** Name of the factory event parameter that contains the new child contract address. */
+          parameter: string; // TODO: Narrow type to known parameter names from `event`.
+        };
+      }
+  ) & {
+      /** Block number at which to start indexing events (inclusive). Default: `0`. */
+      startBlock?: number;
+      /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
+      endBlock?: number;
+      /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
+      maxBlockRange?: number;
+      /** Whether to fetch & process event logs for this contract. If `false`, this contract will still be present in `context.contracts`. Default: `true`. */
+      isLogEventSource?: boolean;
+    })[];
   /** List of log filters from which to fetch & handle event logs. */
   filters?: {
     /** Filter name. Must be unique across `contracts` and `filters`. */
@@ -69,9 +100,9 @@ export type ResolvedConfig = {
           args?: never;
         }
     );
-    /** Block number at which to start processing events (inclusive). Default: `0`. */
+    /** Block number at which to start indexing events (inclusive). Default: `0`. */
     startBlock?: number;
-    /** Block number at which to stop processing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
+    /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
     endBlock?: number;
     /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
     maxBlockRange?: number;

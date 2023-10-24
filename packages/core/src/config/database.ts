@@ -20,8 +20,9 @@ export interface PostgresDb {
 
 export type Database = SqliteDb | PostgresDb;
 
-// Set pg protocol to use BigInt.
-pg.types.setTypeParser(20, BigInt);
+// Set pg protocol to use BigInt for `numeric` types.
+// See https://github.com/brianc/node-pg-types for details.
+pg.types.setTypeParser(1700, BigInt);
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114

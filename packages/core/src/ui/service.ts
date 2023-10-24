@@ -1,3 +1,4 @@
+import type { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import type { Common } from "@/Ponder";
 
@@ -6,6 +7,7 @@ import { type UiState, buildUiState, setupInkApp } from "./app";
 export class UiService {
   private common: Common;
   private logFilters: LogFilter[];
+  private factories: Factory[];
 
   ui: UiState;
   renderInterval: NodeJS.Timer;
@@ -15,14 +17,20 @@ export class UiService {
   constructor({
     common,
     logFilters,
+    factories,
   }: {
     common: Common;
     logFilters: LogFilter[];
+    factories: Factory[];
   }) {
     this.common = common;
     this.logFilters = logFilters;
+    this.factories = factories;
 
-    this.ui = buildUiState({ logFilters: this.logFilters });
+    this.ui = buildUiState({
+      logFilters: this.logFilters,
+      factories: this.factories,
+    });
 
     if (this.common.options.uiEnabled) {
       const { render, unmount } = setupInkApp(this.ui);
@@ -34,7 +42,9 @@ export class UiService {
     }
 
     this.renderInterval = setInterval(async () => {
-      const logFilterNames = Object.keys(this.ui.historicalSyncLogFilterStats);
+      const eventSourceNames = Object.keys(
+        this.ui.historicalSyncEventSourceStats
+      );
 
       // Historical sync
       const rateMetric = (
@@ -44,19 +54,21 @@ export class UiService {
         await this.common.metrics.ponder_historical_completion_eta.get()
       ).values;
 
-      logFilterNames.forEach((name) => {
-        const rate = rateMetric.find((m) => m.labels.logFilter === name)?.value;
-        const eta = etaMetric.find((m) => m.labels.logFilter === name)?.value;
+      eventSourceNames.forEach((name) => {
+        const rate = rateMetric.find(
+          (m) => m.labels.eventSource === name
+        )?.value;
+        const eta = etaMetric.find((m) => m.labels.eventSource === name)?.value;
 
         if (rate !== undefined) {
-          this.ui.historicalSyncLogFilterStats[name].rate = rate;
+          this.ui.historicalSyncEventSourceStats[name].rate = rate;
         }
-        this.ui.historicalSyncLogFilterStats[name].eta = eta;
+        this.ui.historicalSyncEventSourceStats[name].eta = eta;
       });
 
       const minRate = Math.min(
-        ...logFilterNames.map(
-          (name) => this.ui.historicalSyncLogFilterStats[name].rate
+        ...eventSourceNames.map(
+          (name) => this.ui.historicalSyncEventSourceStats[name].rate
         )
       );
 

@@ -1,0 +1,3 @@
+type LlamaCoreInstance @entity {
+  id: String!
+}

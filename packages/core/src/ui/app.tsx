@@ -1,6 +1,7 @@
 import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
+import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 
 import { HandlersBar } from "./HandlersBar";
@@ -9,12 +10,9 @@ import { HistoricalBar } from "./HistoricalBar";
 export type UiState = {
   port: number;
 
-  historicalSyncLogFilterStats: Record<
+  historicalSyncEventSourceStats: Record<
     string,
-    {
-      rate: number;
-      eta?: number;
-    }
+    { rate: number; eta?: number }
   >;
 
   isHistoricalSyncComplete: boolean;
@@ -28,11 +26,17 @@ export type UiState = {
   networks: string[];
 };
 
-export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
+export const buildUiState = ({
+  logFilters,
+  factories,
+}: {
+  logFilters: LogFilter[];
+  factories: Factory[];
+}) => {
   const ui: UiState = {
     port: 0,
 
-    historicalSyncLogFilterStats: {},
+    historicalSyncEventSourceStats: {},
 
     isHistoricalSyncComplete: false,
 
@@ -45,8 +49,13 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
     networks: [],
   };
 
-  logFilters.forEach((logFilter) => {
-    ui.historicalSyncLogFilterStats[logFilter.name] = {
+  const eventSourceNames = [
+    ...logFilters.map((l) => l.name),
+    ...factories.map((f) => f.name),
+  ];
+
+  eventSourceNames.forEach((name) => {
+    ui.historicalSyncEventSourceStats[name] = {
       rate: 0,
     };
   });
@@ -57,7 +66,7 @@ export const buildUiState = ({ logFilters }: { logFilters: LogFilter[] }) => {
 const App = (ui: UiState) => {
   const {
     port,
-    historicalSyncLogFilterStats,
+    historicalSyncEventSourceStats,
     isHistoricalSyncComplete,
     handlersCurrent,
     handlerError,
@@ -92,11 +101,11 @@ const App = (ui: UiState) => {
       </Box>
       {!isHistoricalSyncComplete && (
         <Box flexDirection="column">
-          {Object.entries(historicalSyncLogFilterStats).map(
-            ([logFilterName, stat]) => (
+          {Object.entries(historicalSyncEventSourceStats).map(
+            ([eventSourceName, stat]) => (
               <HistoricalBar
-                key={logFilterName}
-                title={logFilterName}
+                key={eventSourceName}
+                title={eventSourceName}
                 stat={stat}
               />
             )

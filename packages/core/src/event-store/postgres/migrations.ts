@@ -97,13 +97,6 @@ const migrations: Record<string, Migration> = {
         .addColumn("startBlock", sql`bytea`, (col) => col.notNull()) // BigInt
         .execute();
     },
-    async down(db: Kysely<any>) {
-      await db.schema.dropTable("blocks").execute();
-      await db.schema.dropTable("logs").execute();
-      await db.schema.dropTable("transactions").execute();
-      await db.schema.dropTable("contractReadResults").execute();
-      await db.schema.dropTable("logFilterCachedRanges").execute();
-    },
   },
   ["2023_06_20_0_indices"]: {
     async up(db: Kysely<any>) {
@@ -124,11 +117,6 @@ const migrations: Record<string, Migration> = {
         .on("logFilterCachedRanges")
         .columns(["filterKey"])
         .execute();
-    },
-    async down(db: Kysely<any>) {
-      await db.schema.dropIndex("log_events_index").execute();
-      await db.schema.dropIndex("blocks_index").execute();
-      await db.schema.dropIndex("logFilterCachedRanges_index").execute();
     },
   },
   ["2023_07_18_0_better_indices"]: {
@@ -173,14 +161,6 @@ const migrations: Record<string, Migration> = {
         .column("number")
         .execute();
     },
-    async down(db: Kysely<any>) {
-      await db.schema.dropIndex("log_block_hash_index").execute();
-      await db.schema.dropIndex("log_chain_id_index").execute();
-      await db.schema.dropIndex("log_address_index").execute();
-      await db.schema.dropIndex("log_topic0_index").execute();
-      await db.schema.dropIndex("block_timestamp_index").execute();
-      await db.schema.dropIndex("block_number_index").execute();
-    },
   },
   ["2023_07_24_0_drop_finalized"]: {
     async up(db: Kysely<any>) {
@@ -195,22 +175,173 @@ const migrations: Record<string, Migration> = {
         .dropColumn("finalized")
         .execute();
     },
-    async down(db: Kysely<any>) {
+  },
+  ["2023_09_19_0_new_sync_design"]: {
+    async up(db: Kysely<any>) {
+      /** This table is no longer being used. */
+      await db.schema.dropTable("logFilterCachedRanges").execute();
+
+      /** Drop and re-create all tables to fix bigint encoding. */
+      await db.schema.dropTable("blocks").execute();
       await db.schema
-        .alterTable("blocks")
-        .addColumn("finalized", "integer", (col) => col.notNull())
+        .createTable("blocks")
+        .addColumn("baseFeePerGas", "numeric(78, 0)")
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("difficulty", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("extraData", "text", (col) => col.notNull())
+        .addColumn("gasLimit", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("gasUsed", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("hash", "varchar(66)", (col) => col.notNull().primaryKey())
+        .addColumn("logsBloom", "varchar(514)", (col) => col.notNull())
+        .addColumn("miner", "varchar(42)", (col) => col.notNull())
+        .addColumn("mixHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("nonce", "varchar(18)", (col) => col.notNull())
+        .addColumn("number", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("parentHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("receiptsRoot", "varchar(66)", (col) => col.notNull())
+        .addColumn("sha3Uncles", "varchar(66)", (col) => col.notNull())
+        .addColumn("size", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("stateRoot", "varchar(66)", (col) => col.notNull())
+        .addColumn("timestamp", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("totalDifficulty", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("transactionsRoot", "varchar(66)", (col) => col.notNull())
         .execute();
       await db.schema
-        .alterTable("transactions")
-        .addColumn("finalized", "integer", (col) => col.notNull())
+        .createIndex("blockTimestampIndex")
+        .on("blocks")
+        .column("timestamp")
         .execute();
       await db.schema
-        .alterTable("logs")
-        .addColumn("finalized", "integer", (col) => col.notNull())
+        .createIndex("blockNumberIndex")
+        .on("blocks")
+        .column("number")
+        .execute();
+
+      await db.schema.dropTable("transactions").execute();
+      await db.schema
+        .createTable("transactions")
+        .addColumn("accessList", "text")
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("from", "varchar(42)", (col) => col.notNull())
+        .addColumn("gas", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("gasPrice", "numeric(78, 0)")
+        .addColumn("hash", "varchar(66)", (col) => col.notNull().primaryKey())
+        .addColumn("input", "text", (col) => col.notNull())
+        .addColumn("maxFeePerGas", "numeric(78, 0)")
+        .addColumn("maxPriorityFeePerGas", "numeric(78, 0)")
+        .addColumn("nonce", "integer", (col) => col.notNull())
+        .addColumn("r", "varchar(66)", (col) => col.notNull())
+        .addColumn("s", "varchar(66)", (col) => col.notNull())
+        .addColumn("to", "varchar(42)")
+        .addColumn("transactionIndex", "integer", (col) => col.notNull())
+        .addColumn("type", "text", (col) => col.notNull())
+        .addColumn("value", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("v", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+
+      await db.schema.dropTable("logs").execute();
+      await db.schema
+        .createTable("logs")
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("blockHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("data", "text", (col) => col.notNull())
+        .addColumn("id", "text", (col) => col.notNull().primaryKey())
+        .addColumn("logIndex", "integer", (col) => col.notNull())
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
+        .addColumn("transactionHash", "varchar(66)", (col) => col.notNull())
+        .addColumn("transactionIndex", "integer", (col) => col.notNull())
         .execute();
       await db.schema
-        .alterTable("contractReadResults")
-        .addColumn("finalized", "integer", (col) => col.notNull())
+        .createIndex("logBlockHashIndex")
+        .on("logs")
+        .column("blockHash")
+        .execute();
+      await db.schema
+        .createIndex("logChainIdIndex")
+        .on("logs")
+        .column("chainId")
+        .execute();
+      await db.schema
+        .createIndex("logAddressIndex")
+        .on("logs")
+        .column("address")
+        .execute();
+      await db.schema
+        .createIndex("logTopic0Index")
+        .on("logs")
+        .column("topic0")
+        .execute();
+
+      await db.schema.dropTable("contractReadResults").execute();
+      await db.schema
+        .createTable("contractReadResults")
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("data", "text", (col) => col.notNull())
+        .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("contractReadResultPrimaryKey", [
+          "chainId",
+          "blockNumber",
+          "address",
+          "data",
+        ])
+        .execute();
+
+      /** Add new log filter and factory contract interval tables. */
+      await db.schema
+        .createTable("logFilters")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${topic0}_${topic1}_${topic2}_${topic3}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(66)")
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
+        .execute();
+      await db.schema
+        .createTable("logFilterIntervals")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("logFilterId", "text", (col) =>
+          col.notNull().references("logFilters.id")
+        )
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("logFilterIntervalsLogFilterId")
+        .on("logFilterIntervals")
+        .column("logFilterId")
+        .execute();
+
+      await db.schema
+        .createTable("factories")
+        .addColumn("id", "text", (col) => col.notNull().primaryKey()) // `${chainId}_${address}_${eventSelector}_${childAddressLocation}`
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("address", "varchar(42)", (col) => col.notNull())
+        .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
+        .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
+        .execute();
+      await db.schema
+        .createTable("factoryLogFilterIntervals")
+        .addColumn("id", "serial", (col) => col.notNull().primaryKey()) // Auto-increment
+        .addColumn("factoryId", "text", (col) =>
+          col.notNull().references("factories.id")
+        )
+        .addColumn("startBlock", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("endBlock", "numeric(78, 0)", (col) => col.notNull())
+        .execute();
+      await db.schema
+        .createIndex("factoryLogFilterIntervalsFactoryId")
+        .on("factoryLogFilterIntervals")
+        .column("factoryId")
         .execute();
     },
   },

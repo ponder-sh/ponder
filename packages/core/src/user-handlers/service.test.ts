@@ -4,8 +4,7 @@ import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore, setupUserStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import type { HandlerFunctions } from "@/build/handlers";
-import { encodeLogFilterKey } from "@/config/logFilterKey";
-import type { LogEventMetadata } from "@/config/logFilters";
+import type { LogEventMetadata } from "@/config/abi";
 import { EventAggregatorService } from "@/event-aggregator/service";
 import { column, createSchema, table } from "@/schema/schema";
 
@@ -29,17 +28,8 @@ const logFilters = [
     name: "USDC",
     ...usdcContractConfig,
     network: network.name,
-    filter: {
-      key: encodeLogFilterKey({
-        chainId: network.chainId,
-        address: usdcContractConfig.address,
-      }),
-      chainId: network.chainId,
-      address: usdcContractConfig.address,
-      startBlock: 16369950,
-      // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
-      endBlock: undefined,
-    },
+    criteria: { address: usdcContractConfig.address },
+    startBlock: 16369950,
   },
 ];
 
@@ -67,7 +57,7 @@ const transferEventMetadata = usdcContractConfig.events[
 
 const handlers: HandlerFunctions = {
   _meta_: {},
-  logFilters: {
+  eventSources: {
     USDC: {
       bySelector: {
         [transferEventMetadata.selector]: transferEventMetadata,
@@ -89,7 +79,7 @@ const getEvents = vi.fn(async function* getEvents({
   yield {
     events: [
       {
-        logFilterName: "USDC",
+        eventSourceName: "USDC",
         eventName: "Transfer",
         params: { from: "0x0", to: "0x1", amount: 100n },
         log: { id: String(toTimestamp) },
@@ -101,7 +91,7 @@ const getEvents = vi.fn(async function* getEvents({
       pageEndsAtTimestamp: toTimestamp,
       counts: [
         {
-          logFilterName: "USDC",
+          eventSourceName: "USDC",
           selector: transferEventMetadata.selector,
           count: 5,
         },
@@ -180,7 +170,7 @@ test("processEvents() calls event handler functions with correct arguments", asy
   expect(transferHandler).toHaveBeenCalledWith(
     expect.objectContaining({
       event: {
-        logFilterName: "USDC",
+        eventSourceName: "USDC",
         eventName: "Transfer",
         params: { from: "0x0", to: "0x1", amount: 100n },
         log: { id: "10" },

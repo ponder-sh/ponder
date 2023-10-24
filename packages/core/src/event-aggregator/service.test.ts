@@ -3,7 +3,6 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
-import { encodeLogFilterKey } from "@/config/logFilterKey";
 import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
 
@@ -30,19 +29,12 @@ const optimism: Network = {
 const networks = [mainnet, optimism];
 
 const usdcLogFilter = {
-  name: "USDC",
   ...usdcContractConfig,
+  name: "USDC",
   network: mainnet.name,
-  filter: {
-    key: encodeLogFilterKey({
-      chainId: mainnet.chainId,
-      address: usdcContractConfig.address,
-    }),
-    chainId: mainnet.chainId,
-    startBlock: 16369950,
-    // Note: the service uses the `finalizedBlockNumber` as the end block if undefined.
-    endBlock: undefined,
-  },
+  chainId: mainnet.chainId,
+  criteria: { address: usdcContractConfig.address },
+  startBlock: 16369950,
 };
 
 const logFilters: LogFilter[] = [
@@ -51,10 +43,7 @@ const logFilters: LogFilter[] = [
     ...usdcLogFilter,
     name: "USDC Optimism",
     network: optimism.name,
-    filter: {
-      ...usdcLogFilter.filter,
-      chainId: optimism.chainId,
-    },
+    chainId: optimism.chainId,
   },
 ];
 
@@ -64,8 +53,8 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
   const service = new EventAggregatorService({
     common,
     eventStore,
-    logFilters,
     networks,
+    logFilters,
   });
   const emitSpy = vi.spyOn(service, "emit");
 

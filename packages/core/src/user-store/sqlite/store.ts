@@ -4,7 +4,7 @@ import { Kysely, sql, SqliteDialect } from "kysely";
 
 import { isEnumType, isVirtual } from "@/schema/schema";
 import type { Schema } from "@/schema/types";
-import { blobToBigInt } from "@/utils/decode";
+import { decodeToBigInt } from "@/utils/encoding";
 
 import type {
   ModelInstance,
@@ -27,7 +27,7 @@ const scalarToSqlType = {
   int: "integer",
   float: "text",
   string: "text",
-  bigint: "blob",
+  bigint: "varchar(79)",
   bytes: "text",
 } as const;
 
@@ -164,7 +164,10 @@ export class SqliteUserStore implements UserStore {
     id: string | number | bigint;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({ value: id });
+    const formattedId = formatModelFieldValue({
+      value: id,
+      encodeBigInts: true,
+    });
 
     const instances = await this.db
       .selectFrom(tableName)
@@ -195,7 +198,7 @@ export class SqliteUserStore implements UserStore {
     data?: Omit<ModelInstance, "id">;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const createInstance = formatModelInstance({ id, ...data });
+    const createInstance = formatModelInstance({ id, ...data }, true);
 
     const instance = await this.db
       .insertInto(tableName)
@@ -226,7 +229,10 @@ export class SqliteUserStore implements UserStore {
         }) => Partial<Omit<ModelInstance, "id">>);
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({ value: id });
+    const formattedId = formatModelFieldValue({
+      value: id,
+      encodeBigInts: true,
+    });
 
     const instance = await this.db.transaction().execute(async (tx) => {
       // Find the latest version of this instance.
@@ -246,9 +252,9 @@ export class SqliteUserStore implements UserStore {
             instance: latestInstance,
           }),
         });
-        updateInstance = formatModelInstance({ id, ...updateObject });
+        updateInstance = formatModelInstance({ id, ...updateObject }, true);
       } else {
-        updateInstance = formatModelInstance({ id, ...data });
+        updateInstance = formatModelInstance({ id, ...data }, true);
       }
 
       // If the latest version has the same effectiveFrom timestamp as the update,
@@ -309,8 +315,11 @@ export class SqliteUserStore implements UserStore {
         }) => Partial<Omit<ModelInstance, "id">>);
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({ value: id });
-    const createInstance = formatModelInstance({ id, ...create });
+    const formattedId = formatModelFieldValue({
+      value: id,
+      encodeBigInts: true,
+    });
+    const createInstance = formatModelInstance({ id, ...create }, true);
 
     const instance = await this.db.transaction().execute(async (tx) => {
       // Attempt to find the latest version of this instance.
@@ -343,9 +352,9 @@ export class SqliteUserStore implements UserStore {
             instance: latestInstance,
           }),
         });
-        updateInstance = formatModelInstance({ id, ...updateObject });
+        updateInstance = formatModelInstance({ id, ...updateObject }, true);
       } else {
-        updateInstance = formatModelInstance({ id, ...update });
+        updateInstance = formatModelInstance({ id, ...update }, true);
       }
 
       // If the latest version has the same effectiveFrom timestamp as the update,
@@ -398,7 +407,10 @@ export class SqliteUserStore implements UserStore {
     id: string | number | bigint;
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({ value: id });
+    const formattedId = formatModelFieldValue({
+      value: id,
+      encodeBigInts: true,
+    });
 
     const instance = await this.db.transaction().execute(async (tx) => {
       // If the latest version is effective from the delete timestamp,
@@ -454,7 +466,10 @@ export class SqliteUserStore implements UserStore {
       .where("effectiveTo", ">=", timestamp);
 
     if (where) {
-      const whereConditions = buildSqlWhereConditions({ where });
+      const whereConditions = buildSqlWhereConditions({
+        where,
+        encodeBigInts: true,
+      });
       for (const whereCondition of whereConditions) {
         query = query.where(...whereCondition);
       }
@@ -496,7 +511,7 @@ export class SqliteUserStore implements UserStore {
   }) => {
     const tableName = `${modelName}_${this.versionId}`;
     const createInstances = data.map((d) => ({
-      ...formatModelInstance({ ...d }),
+      ...formatModelInstance({ ...d }, true),
       effectiveFrom: timestamp,
       effectiveTo: MAX_INTEGER,
     }));
@@ -542,7 +557,10 @@ export class SqliteUserStore implements UserStore {
         .where("effectiveTo", ">=", timestamp);
 
       if (where) {
-        const whereConditions = buildSqlWhereConditions({ where });
+        const whereConditions = buildSqlWhereConditions({
+          where,
+          encodeBigInts: true,
+        });
         for (const whereCondition of whereConditions) {
           latestInstancesQuery = latestInstancesQuery.where(...whereCondition);
         }
@@ -564,9 +582,9 @@ export class SqliteUserStore implements UserStore {
                 instance: latestInstance,
               }),
             });
-            updateInstance = formatModelInstance(updateObject);
+            updateInstance = formatModelInstance(updateObject, true);
           } else {
-            updateInstance = formatModelInstance(data);
+            updateInstance = formatModelInstance(data, true);
           }
 
           // If the latest version has the same effectiveFrom timestamp as the update,
@@ -672,8 +690,8 @@ export class SqliteUserStore implements UserStore {
       }
 
       if (column.type === "bigint") {
-        deserializedInstance[columnName] = blobToBigInt(
-          value as unknown as Buffer
+        deserializedInstance[columnName] = decodeToBigInt(
+          value as unknown as string
         );
         return;
       }

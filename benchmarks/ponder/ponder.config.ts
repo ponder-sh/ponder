@@ -1,4 +1,5 @@
 import type { Config } from "@ponder/core";
+import { http } from "viem";
 
 import RocketTokenRETHAbi from "./abis/RocketTokenRETH.json";
 
@@ -7,7 +8,7 @@ export const config: Config = {
     {
       name: "mainnet",
       chainId: 1,
-      rpcUrl: process.env.ANVIL_FORK_URL,
+      transport: http(process.env.ANVIL_FORK_URL),
     },
   ],
   contracts: [

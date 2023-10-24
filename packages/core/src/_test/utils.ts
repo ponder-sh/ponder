@@ -35,7 +35,7 @@ export const anvil: Chain = {
 export const testNetworkConfig = {
   name: "mainnet",
   chainId: anvil.id,
-  rpcUrl: anvil.rpcUrls.default.http[0],
+  transport: http(anvil.rpcUrls.default.http[0]),
   pollingInterval: 500,
 };
 
