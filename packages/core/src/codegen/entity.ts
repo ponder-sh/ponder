@@ -7,7 +7,7 @@ const scalarToTsType: Record<Scalar, string> = {
   float: "number",
   boolean: "boolean",
   bigint: "bigint",
-  bytes: "0x{string}",
+  bytes: "`0x${string}`",
 };
 
 export const buildEntityTypes = (schema: Schema) => {
