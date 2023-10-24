@@ -1,6 +1,6 @@
 import { test } from "vitest";
 
-import { column, createSchema, enumerable, table } from "./schema";
+import { column, createSchema, enumerable, table, virtual } from "./schema";
 
 // We like this one!!
 // const s = createSchema({
@@ -15,6 +15,14 @@ import { column, createSchema, enumerable, table } from "./schema";
 //     shareId: column("string", { refernces: "share.id" }),
 //   }),
 // });
+
+test("virtual column", () => {
+  table({
+    id: column("string"),
+    age: column("int"),
+    pets: virtual("Dog.ownerId"),
+  });
+});
 
 test("create schema", () => {
   createSchema({
@@ -40,6 +48,20 @@ test("references", () => {
     Person: table({
       id: column("string"),
       age: column("int"),
+    }),
+    Dog: table({
+      id: column("string"),
+      ownerId: column("string", { references: "Person.id" }),
+    }),
+  });
+});
+
+test("virtual", () => {
+  createSchema({
+    Person: table({
+      id: column("string"),
+      age: column("int"),
+      pets: virtual("Dog.ownerId"),
     }),
     Dog: table({
       id: column("string"),

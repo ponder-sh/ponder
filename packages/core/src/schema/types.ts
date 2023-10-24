@@ -26,8 +26,19 @@ export type Column<
   list: TList;
 };
 
+export type Virtual<
+  TTableName extends string = string,
+  TColumnName extends string = string
+> = {
+  referenceTable: TTableName;
+  referenceColumn: TColumnName;
+};
+
 export type Table<
-  TColumns extends Record<string, Column> = Record<string, Column>
+  TColumns extends Record<string, Column | Virtual> = Record<
+    string,
+    Column | Virtual
+  >
 > = {
   id: Column<ID, never, false, false>;
 } & TColumns;

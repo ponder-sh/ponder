@@ -2,12 +2,19 @@ import {
   type GraphQLFieldConfigMap,
   GraphQLEnumType,
   GraphQLFieldResolver,
+  GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
+  GraphQLString,
 } from "graphql";
 
-import { isEnumType, referencedEntityName, stripId } from "@/schema/schema";
+import {
+  isEnumType,
+  isVirtual,
+  referencedEntityName,
+  stripId,
+} from "@/schema/schema";
 import { Schema } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
@@ -27,7 +34,55 @@ export const buildEntityTypes = ({
         const fieldConfigMap: GraphQLFieldConfigMap<Source, Context> = {};
 
         Object.entries(table).forEach(([columnName, column]) => {
-          if (column.references) {
+          if (isVirtual(column)) {
+            // Column is virtual meant to tell graphQL to make a field
+
+            const resolver: GraphQLFieldResolver<Source, Context> = async (
+              parent,
+              args,
+              context
+            ) => {
+              const { store } = context;
+
+              // The parent object gets passed in here with relationship fields defined as the
+              // string ID of the related entity. Here, we get the ID and query for that entity.
+              // Then, the GraphQL server serves the resolved object here instead of the ID.
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore
+              const entityId = parent.id;
+
+              const filter = args;
+
+              return await store.findMany({
+                modelName: column.referenceTable,
+                timestamp: filter.timestamp ? filter.timestamp : undefined,
+                where: { [column.referenceColumn]: entityId },
+                skip: filter.skip,
+                take: filter.first,
+                orderBy: filter.orderBy
+                  ? {
+                      [filter.orderBy]: filter.orderDirection || "asc",
+                    }
+                  : undefined,
+              });
+            };
+
+            fieldConfigMap[columnName] = {
+              type: new GraphQLNonNull(
+                new GraphQLList(
+                  new GraphQLNonNull(entityGqlTypes[column.referenceTable])
+                )
+              ),
+              args: {
+                skip: { type: GraphQLInt, defaultValue: 0 },
+                first: { type: GraphQLInt, defaultValue: 100 },
+                orderBy: { type: GraphQLString, defaultValue: "id" },
+                orderDirection: { type: GraphQLString, defaultValue: "asc" },
+                timestamp: { type: GraphQLInt },
+              },
+              resolve: resolver,
+            };
+          } else if (column.references) {
             // Column is a reference to another table
 
             const resolver: GraphQLFieldResolver<Source, Context> = async (
@@ -84,77 +139,6 @@ export const buildEntityTypes = ({
             };
           }
         });
-
-        // Derived fields
-        // check for other tables referencing this one
-        // const referencingEntities = Object.entries(schema.tables).filter(
-        //   ([, t]) =>
-        //     Object.values(t).some(
-        //       (c) =>
-        //         c.references && referencedEntityName(c.references) === tableName
-        //     )
-        // );
-
-        // for (const [otherTableName, otherTable] of referencingEntities) {
-        //   // Several columns can be referencing the table
-        //   const referencingColumnNames = Object.entries(otherTable).filter(
-        //     ([, column]) =>
-        //       column.references &&
-        //       referencedEntityName(column.references) === tableName
-        //   );
-
-        //   for (const [columnName] of referencingColumnNames) {
-        //     const resolver: GraphQLFieldResolver<Source, Context> = async (
-        //       parent,
-        //       args,
-        //       context
-        //     ) => {
-        //       const { store } = context;
-
-        //       // The parent object gets passed in here with relationship fields defined as the
-        //       // string ID of the related entity. Here, we get the ID and query for that entity.
-        //       // Then, the GraphQL server serves the resolved object here instead of the ID.
-        //       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        //       // @ts-ignore
-        //       const entityId = parent.id;
-
-        //       const filter = args;
-
-        //       return await store.findMany({
-        //         modelName: otherTableName,
-        //         timestamp: filter.timestamp ? filter.timestamp : undefined,
-        //         where: { [columnName]: entityId },
-        //         skip: filter.skip,
-        //         take: filter.first,
-        //         orderBy: filter.orderBy
-        //           ? {
-        //               [filter.orderBy]: filter.orderDirection || "asc",
-        //             }
-        //           : undefined,
-        //       });
-        //     };
-
-        //     fieldConfigMap[
-        //       `derived${
-        //         columnName.charAt(0).toUpperCase() + columnName.slice(1)
-        //       }`
-        //     ] = {
-        //       type: new GraphQLNonNull(
-        //         new GraphQLList(
-        //           new GraphQLNonNull(entityGqlTypes[otherTableName])
-        //         )
-        //       ),
-        //       args: {
-        //         skip: { type: GraphQLInt, defaultValue: 0 },
-        //         first: { type: GraphQLInt, defaultValue: 100 },
-        //         orderBy: { type: GraphQLString, defaultValue: "id" },
-        //         orderDirection: { type: GraphQLString, defaultValue: "asc" },
-        //         timestamp: { type: GraphQLInt },
-        //       },
-        //       resolve: resolver,
-        //     };
-        //   }
-        // }
 
         return fieldConfigMap;
       },

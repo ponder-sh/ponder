@@ -6,13 +6,17 @@ import {
   ITTable,
   Scalar,
   Table,
+  Virtual,
 } from "./types";
 
 export const referencedEntityName = (references: unknown) =>
   (references as string).split(".")[0];
 
 export const isEnumType = (type: string): type is `enum:${string}` =>
-  type.slice(0, 5) === "enum:";
+  type.length > 5 && type.slice(0, 5) === "enum:";
+
+export const isVirtual = (column: Column | Virtual): column is Virtual =>
+  "referenceTable" in column;
 
 export const stripId = <T extends string>(columnName: `${T}Id`): T =>
   columnName.slice(0, -2) as T;
@@ -48,6 +52,13 @@ export const enumerable = <TValues extends string[]>(
   ...args: TValues
 ): ITEnum<TValues> => ({ isEnum: true, table: {}, values: args });
 
+export const virtual = <TTableName extends string, TColumnName extends string>(
+  derived: `${TTableName}.${TColumnName}`
+): Virtual<TTableName, TColumnName> => ({
+  referenceTable: derived.split(".")[0] as TTableName,
+  referenceColumn: derived.split(".")[1] as TColumnName,
+});
+
 /**
  * Type inference and runtime validation
  *
@@ -72,6 +83,8 @@ export const createSchema = <
           TSchema[key]["table"][columnName]["optional"],
           TSchema[key]["table"][columnName]["list"]
         >
+      : TSchema[key]["table"][columnName] extends Virtual
+      ? Virtual
       : never;
   }>
     ? TSchema[key]
@@ -124,9 +137,23 @@ export const createSchema = <
 
         validateTableOrColumnName(columnName);
 
-        const column = _column as Column;
+        const column = _column as Column | Virtual;
 
-        if (column.references) {
+        if (isVirtual(column)) {
+          if (
+            Object.keys(schema)
+              .filter((name) => name !== tableName)
+              .every((name) => name !== column.referenceTable)
+          )
+            throw Error("Virtual column doesn't reference a valid table");
+
+          if (
+            Object.entries(schema).find(
+              ([tableName]) => tableName === column.referenceTable
+            )![1].table[column.referenceColumn] === undefined
+          )
+            throw Error("Virtual column doesn't reference a valid column");
+        } else if (column.references) {
           if (!columnName.endsWith("Id")) {
             throw Error('Reference column name must end with "Id"');
           }

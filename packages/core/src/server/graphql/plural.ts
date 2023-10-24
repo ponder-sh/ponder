@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from "graphql";
 
-import { isEnumType } from "@/schema/schema";
+import { isEnumType, isVirtual } from "@/schema/schema";
 import type { Scalar, Schema } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
@@ -53,7 +53,9 @@ export const buildPluralField = ({
   const filterFields: Record<string, { type: GraphQLInputType }> = {};
 
   Object.entries(table).forEach(([columnName, column]) => {
-    if (isEnumType(column.type)) {
+    // Note: Only include non-virtual columns in plural fields
+    if (isVirtual(column)) return;
+    else if (isEnumType(column.type)) {
       const enumType = entityGqlType.getFields()[columnName].type;
 
       operators.universal.forEach((suffix) => {

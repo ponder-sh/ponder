@@ -82,7 +82,7 @@ test("serves data", async (context) => {
   const { accounts, tokens } = await gql(`
     accounts {
       id
-      derivedOwner {
+      tokens {
         id
       }
     }

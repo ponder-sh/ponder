@@ -1,4 +1,4 @@
-import { column, createSchema, table } from "@ponder/core";
+import { column, createSchema, table, virtual } from "@ponder/core";
 
 export const schema = createSchema({
   SetupEntity: table({
@@ -6,6 +6,7 @@ export const schema = createSchema({
   }),
   Account: table({
     id: column("string"),
+    tokens: virtual("Token.ownerId"),
   }),
 
   Token: table({

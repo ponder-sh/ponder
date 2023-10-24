@@ -2,7 +2,7 @@ import type Sqlite from "better-sqlite3";
 import { randomBytes } from "crypto";
 import { Kysely, sql, SqliteDialect } from "kysely";
 
-import { isEnumType } from "@/schema/schema";
+import { isEnumType, isVirtual } from "@/schema/schema";
 import type { Schema } from "@/schema/types";
 import { blobToBigInt } from "@/utils/decode";
 
@@ -74,6 +74,7 @@ export class SqliteUserStore implements UserStore {
           const tableName = `${modelName}_${this.versionId}`;
           let tableBuilder = tx.schema.createTable(tableName);
           Object.entries(model).forEach(([columnName, column]) => {
+            if (isVirtual(column)) return;
             if (column.list) {
               // Handle scalar list columns
               tableBuilder = tableBuilder.addColumn(
@@ -657,6 +658,7 @@ export class SqliteUserStore implements UserStore {
         return;
       }
 
+      if (isVirtual(column)) return;
       if (column.list) {
         let parsedValue = JSON.parse(value as string);
         if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);

@@ -1,4 +1,4 @@
-import { column, createSchema, table } from "@ponder/core";
+import { column, createSchema, table, virtual } from "@ponder/core";
 
 export const schema = createSchema({
   EnsNft: table({
@@ -12,5 +12,6 @@ export const schema = createSchema({
   Account: table({
     id: column("string"),
     lastActive: column("int"),
+    tokens: virtual("EnsNft.ownerId"),
   }),
 });
