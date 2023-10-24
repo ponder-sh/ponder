@@ -1,9 +1,16 @@
-import chokidar from "chokidar";
 import Emittery from "emittery";
+import glob from "glob";
 import { GraphQLSchema } from "graphql";
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import path from "node:path";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import type { ViteDevServer } from "vite";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import type { ViteNodeRunner } from "vite-node/client";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import type { ViteNodeServer } from "vite-node/server";
 
 import type { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
@@ -15,7 +22,7 @@ import { buildGqlSchema } from "@/server/graphql/schema";
 
 import {
   type HandlerFunctions,
-  buildRawHandlerFunctions,
+  type RawHandlerFunctions,
   hydrateHandlerFunctions,
 } from "./handlers";
 import { readGraphqlSchema } from "./schema";
@@ -31,8 +38,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   private logFilters: LogFilter[];
   private factories: Factory[];
 
-  private closeWatcher?: () => Promise<void>;
-  private latestFileHashes: Record<string, string | undefined> = {};
+  private viteDevServer: ViteDevServer = undefined!;
+  private viteNodeServer: ViteNodeServer = undefined!;
+  private viteNodeRunner: ViteNodeRunner = undefined!;
 
   constructor({
     common,
@@ -49,56 +57,121 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     this.factories = factories;
   }
 
+  async setup() {
+    // const __filename = url.fileURLToPath(import.meta.url);
+    const { createServer } = await import("vite");
+    const { ViteNodeServer } = await import("vite-node/server");
+    const { installSourcemapsSupport } = await import("vite-node/source-map");
+    const { ViteNodeRunner } = await import("vite-node/client");
+
+    this.viteDevServer = await createServer({
+      root: this.common.options.rootDir,
+      resolve: {
+        alias: [
+          {
+            find: "@/generated",
+            replacement: this.common.options.generatedDir,
+          },
+        ],
+      },
+      cacheDir: path.join(this.common.options.ponderDir, "vite"),
+      publicDir: false,
+      optimizeDeps: { disabled: true },
+      ssr: { noExternal: true },
+      clearScreen: false,
+    });
+    await this.viteDevServer.pluginContainer.buildStart({});
+
+    this.viteNodeServer = new ViteNodeServer(this.viteDevServer);
+    installSourcemapsSupport({
+      getSourceMap: (source) => this.viteNodeServer.getSourceMap(source),
+    });
+
+    this.viteNodeRunner = new ViteNodeRunner({
+      root: this.viteDevServer.config.root,
+      fetchModule: (id) => this.viteNodeServer.fetchModule(id),
+      resolveId: (id, importer) => this.viteNodeServer.resolveId(id, importer),
+    });
+
+    this.viteDevServer.watcher.on("all", async (event, filePath) => {
+      const relativePath = path.relative(this.common.options.rootDir, filePath);
+
+      // TODO: Should we handle events differently ("change", "add", "unlink", etc)?
+
+      if (filePath === this.common.options.configFile) {
+        this.emit("newConfig");
+        return;
+      }
+
+      if (filePath === this.common.options.schemaFile) {
+        this.buildSchema();
+        return;
+      }
+
+      const srcRegex = new RegExp(
+        "^" + this.common.options.srcDir + ".*\\.(js|cjs|mjs|ts|mts|tsx)$"
+      );
+
+      if (srcRegex.test(filePath)) {
+        this.buildHandlers();
+        return;
+      }
+
+      this.common.logger.debug({
+        service: "build",
+        msg: `Detected ${event} in ${relativePath} (no-op)`,
+      });
+    });
+  }
+
   async kill() {
-    this.closeWatcher?.();
+    await this.viteDevServer?.close();
     this.common.logger.debug({
       service: "build",
       msg: `Killed build service`,
     });
   }
 
-  watch() {
-    const watchFiles = [
-      this.common.options.configFile,
-      this.common.options.schemaFile,
-      this.common.options.srcDir,
-    ];
-
-    const watcher = chokidar.watch(watchFiles);
-    this.closeWatcher = async () => {
-      await watcher.close();
-    };
-
-    watcher.on("change", async (filePath) => {
-      if (filePath === this.common.options.configFile) {
-        this.emit("newConfig");
-        return;
-      }
-
-      if (this.isFileChanged(filePath)) {
-        const fileName = path.basename(filePath);
-
-        this.common.logger.info({
-          service: "build",
-          msg: `Detected change in ${fileName}`,
-        });
-
-        this.common.errors.hasUserError = false;
-
-        if (filePath === this.common.options.schemaFile) {
-          this.buildSchema();
-        } else {
-          await this.buildHandlers();
-        }
-      }
-    });
-  }
-
   async buildHandlers() {
     try {
-      const rawHandlerFunctions = await buildRawHandlerFunctions({
-        options: this.common.options,
-      });
+      const generatedFilePath = path.join(
+        this.common.options.generatedDir,
+        "index.ts"
+      );
+
+      // console.log("invalidating all");
+      // this.viteDevServer.moduleGraph.invalidateAll();
+
+      console.log("invalidating dep tree");
+      const res = this.viteNodeRunner.moduleCache.invalidateDepTree([
+        generatedFilePath,
+      ]);
+      console.log(res);
+
+      const sourceFiles = glob.sync(
+        path.join(this.common.options.srcDir, "*.{js,cjs,mjs,ts,mts,tsx}")
+      );
+
+      console.log("direct requesting ", sourceFiles);
+
+      for (const sourceFile of sourceFiles) {
+        await this.viteNodeRunner.directRequest(sourceFile, sourceFile, []);
+      }
+
+      const generatedModule = await this.viteNodeRunner.cachedRequest(
+        generatedFilePath,
+        generatedFilePath,
+        []
+      );
+      const app = generatedModule.ponder;
+
+      console.log("cached request for generated", app);
+
+      if (!app) throw new Error(`ponder not exported from generated/index.ts`);
+      if (!(app.constructor.name === "PonderApp"))
+        throw new Error(`exported ponder not instanceof PonderApp`);
+      if (app["errors"].length > 0) throw app["errors"][0];
+      const rawHandlerFunctions = <RawHandlerFunctions>app["handlerFunctions"];
 
       const handlers = hydrateHandlerFunctions({
         rawHandlerFunctions,
@@ -160,27 +233,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       });
       this.common.errors.submitUserError({ error: userError });
       return undefined;
-    }
-  }
-
-  private isFileChanged(filePath: string) {
-    // TODO: I think this throws if the file being watched gets deleted while
-    // the development server is running. Should handle this case gracefully.
-    try {
-      const content = readFileSync(filePath, "utf-8");
-      const hash = createHash("md5").update(content).digest("hex");
-
-      const prevHash = this.latestFileHashes[filePath];
-      this.latestFileHashes[filePath] = hash;
-      if (!prevHash) {
-        // If there is no previous hash, this file is being changed for the first time.
-        return true;
-      } else {
-        // If there is a previous hash, check if the content hash has changed.
-        return prevHash !== hash;
-      }
-    } catch (e) {
-      return true;
     }
   }
 }

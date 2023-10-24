@@ -200,8 +200,9 @@ export class Ponder {
     // Note that loadHandlers depends on the index.ts file being present.
     this.codegenService.generateAppFile();
 
-    // Note that this must occur before loadSchema and loadHandlers.
+    // Note that these must occur before loadSchema and loadHandlers.
     await this.eventStore.migrateUp();
+    await this.buildService.setup();
 
     // Manually trigger loading schema and handlers. Subsequent loads
     // are triggered by changes to project files (handled in BuildService).
@@ -232,8 +233,6 @@ export class Ponder {
         }
       )
     );
-
-    this.buildService.watch();
   }
 
   async start() {
@@ -318,6 +317,8 @@ export class Ponder {
     });
 
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
+      this.common.errors.hasUserError = false;
+
       this.codegenService.generateAppFile({ schema });
       this.codegenService.generateSchemaFile({ graphqlSchema });
 
@@ -328,6 +329,8 @@ export class Ponder {
     });
 
     this.buildService.on("newHandlers", async ({ handlers }) => {
+      this.common.errors.hasUserError = false;
+
       await this.eventHandlerService.reset({ handlers });
       await this.eventHandlerService.processEvents();
     });

@@ -17,8 +17,8 @@
     // "noUncheckedIndexedAccess": true,
 
     // JavaScript support
-    "allowJs": true,
-    "checkJs": true,
+    "allowJs": false,
+    "checkJs": false,
     "jsx": "react",
 
     // Interop constraints. These will remain loose until we start emitting ESM.
