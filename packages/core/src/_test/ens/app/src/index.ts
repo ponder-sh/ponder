@@ -8,14 +8,14 @@ ponder.on(
     await EnsNft.upsert({
       id: event.params.tokenId.toString(),
       create: {
-        owner: event.params.to,
+        ownerId: event.params.to,
         labelHash: "0x" + event.params.tokenId.toString(16),
         transferredAt: Number(event.block.timestamp),
         stringArray: ["123", "abc"],
         intArray: [123, 456],
       },
       update: {
-        owner: event.params.to,
+        ownerId: event.params.to,
         labelHash: "0x" + event.params.tokenId.toString(16),
         transferredAt: Number(event.block.timestamp),
       },

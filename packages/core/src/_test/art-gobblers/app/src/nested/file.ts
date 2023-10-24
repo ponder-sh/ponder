@@ -8,15 +8,15 @@ ponder.on("ArtGobblers:GobblerClaimed", async ({ event, context }) => {
   await Token.upsert({
     id: event.params.gobblerId,
     create: {
-      owner: event.params.user,
-      claimedBy: event.params.user,
+      ownerId: event.params.user,
+      claimedById: event.params.user,
     },
     update: {},
   });
 
   await Token.update({
     id: event.params.gobblerId,
-    data: { owner: event.params.user },
+    data: { ownerId: event.params.user },
   });
 
   const token = await Token.findUnique({ id: event.params.gobblerId });
@@ -29,8 +29,8 @@ ponder.on("ArtGobblers:GobblerClaimed", async ({ event, context }) => {
   await Token.create({
     id: token.id,
     data: {
-      owner: event.params.user,
-      claimedBy: event.params.user,
+      ownerId: event.params.user,
+      claimedById: event.params.user,
     },
   });
 });

@@ -14,6 +14,9 @@ export const referencedEntityName = (references: unknown) =>
 export const isEnumType = (type: string): type is `enum:${string}` =>
   type.slice(0, 5) === "enum:";
 
+export const stripId = <T extends string>(columnName: `${T}Id`): T =>
+  columnName.slice(0, -2) as T;
+
 export const column = <
   TType extends Scalar | `enum:${string}`,
   TReferences extends `${string}.id` | never = never,

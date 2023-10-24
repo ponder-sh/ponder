@@ -1,11 +1,16 @@
-import { createColumn, createSchema } from "@ponder/core";
+import { column, createSchema, table } from "@ponder/core";
 
 export const schema = createSchema({
-  EnsNft: createColumn("id", "string")
-    .addColumn("labelHash", "string")
-    .addColumn("owner", "string", { references: "Account.id" })
-    .addColumn("transferredAt", "int")
-    .addColumn("stringArray", "string", { list: true })
-    .addColumn("intArray", "int", { list: true }),
-  Account: createColumn("id", "string").addColumn("lastActive", "int"),
+  EnsNft: table({
+    id: column("string"),
+    labelHash: column("string"),
+    ownerId: column("string", { references: "Account.id" }),
+    transferredAt: column("int"),
+    stringArray: column("string", { list: true }),
+    intArray: column("int", { list: true }),
+  }),
+  Account: table({
+    id: column("string"),
+    lastActive: column("int"),
+  }),
 });

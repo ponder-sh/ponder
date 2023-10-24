@@ -1,13 +1,15 @@
 import { test } from "vitest";
 
-import { createColumn, createSchema } from "@/schema/schema";
+import { column, createSchema, table } from "@/schema/schema";
 import { RecoverTableType } from "@/schema/types";
 
 import { Model } from "..";
 
 test("model", () => {
   const schema = createSchema({
-    name: createColumn("id", "bigint"),
+    name: table({
+      id: column("bigint"),
+    }),
   });
 
   type t = RecoverTableType<(typeof schema)["tables"]["name"]>;

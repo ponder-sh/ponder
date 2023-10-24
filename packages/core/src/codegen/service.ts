@@ -60,7 +60,7 @@ export class CodegenService extends Emittery {
             .join("")}
         },
         entities: {
-          ${Object.keys(schema ?? {})
+          ${Object.keys(schema?.tables ?? {})
             .map((tableName) => `${tableName}: Model<${tableName}>;`)
             .join("")}
         },

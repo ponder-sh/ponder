@@ -79,24 +79,6 @@ export type FilterNonEnums<TSchema extends Record<string, ITTable | ITEnum>> =
     }[keyof TSchema]
   >;
 
-export type FilterReferences<TTable extends Table> = Pick<
-  TTable,
-  {
-    [key in keyof TTable]: TTable[key]["references"] extends never
-      ? never
-      : key;
-  }[keyof TTable]
->;
-
-export type FilterNonReferences<TTable extends Table> = Pick<
-  TTable,
-  {
-    [key in keyof TTable]: TTable[key]["references"] extends never
-      ? key
-      : never;
-  }[keyof TTable]
->;
-
 /**
  * Recover raw typescript types from the intermediate representation
  */
