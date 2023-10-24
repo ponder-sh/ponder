@@ -20,7 +20,7 @@ test("entity type codegen succeeds", () => {
 test("enum type codegen succeeds", () => {
   const output = buildEntityTypes(
     createSchema({
-      e: enumerable("ONE", "TWO"),
+      e: enumerable(["ONE", "TWO"]),
       name: table({
         id: column("bigint"),
         age: column("enum:e"),

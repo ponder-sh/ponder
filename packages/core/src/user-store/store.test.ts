@@ -6,7 +6,7 @@ import { column, createSchema, enumerable, table } from "@/schema/schema";
 beforeEach((context) => setupUserStore(context));
 
 const schema = createSchema({
-  PetKind: enumerable("CAT", "DOG"),
+  PetKind: enumerable(["CAT", "DOG"]),
   Pet: table({
     id: column("string"),
     name: column("string"),

@@ -49,8 +49,8 @@ export const table = <TTable extends Table>(
 });
 
 export const enumerable = <TValues extends string[]>(
-  ...args: TValues
-): ITEnum<TValues> => ({ isEnum: true, table: {}, values: args });
+  arg: TValues
+): ITEnum<TValues> => ({ isEnum: true, table: {}, values: arg });
 
 export const virtual = <TTableName extends string, TColumnName extends string>(
   derived: `${TTableName}.${TColumnName}`

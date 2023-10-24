@@ -87,7 +87,7 @@ test("createSchema", () => {
 test("createSchema with enums", () => {
   const s = createSchema({
     //  ^?
-    enummm: enumerable("ONE", "TWO", "THREE"),
+    enummm: enumerable(["ONE", "TWO", "THREE"]),
     t: table({
       id: column("string"),
       age: column("enum:enummm"),

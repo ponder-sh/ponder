@@ -7,7 +7,7 @@ import { buildGqlSchema } from "./schema";
 
 test("filter type has correct suffixes and types", () => {
   const s = createSchema({
-    SimpleEnum: enumerable("VALUE", "ANOTHER_VALUE"),
+    SimpleEnum: enumerable(["VALUE", "ANOTHER_VALUE"]),
     RelatedEntityStringId: table({ id: column("string") }),
     RelatedEntityBigIntId: table({ id: column("bigint") }),
     Entity: table({

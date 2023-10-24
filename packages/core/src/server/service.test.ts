@@ -19,7 +19,7 @@ import { ServerService } from "./service";
 beforeEach((context) => setupUserStore(context));
 
 const s = createSchema({
-  TestEnum: enumerable("ZERO", "ONE", "TWO"),
+  TestEnum: enumerable(["ZERO", "ONE", "TWO"]),
   TestEntity: table({
     id: column("string"),
     string: column("string"),
