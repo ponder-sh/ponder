@@ -26,7 +26,7 @@ const waitForSyncComplete = async () => {
       const metrics = await fetchPonderMetrics();
       const latestProcessedTimestamp =
         metrics.find(
-          (m) => m.name === "ponder_handlers_latest_processed_timestamp"
+          (m) => m.name === "ponder_indexing_latest_processed_timestamp"
         )?.metrics[0].value ?? 0;
       console.log(
         `Latest processed timestamp: ${latestProcessedTimestamp}/${END_BLOCK_TIMESTAMP}`
