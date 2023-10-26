@@ -7,7 +7,11 @@
     "ponder-examples-ethfs",
     "ponder-examples-art-gobblers",
     "ponder-examples-factory-llama",
-    "ponder-examples-friendtech"
+    "ponder-examples-friendtech",
+    "ponder-examples-token-erc20",
+    "ponder-examples-token-erc721",
+    "ponder-examples-token-reth",
+    "ponder-examples-with-docker"
   ],
   "linked": [],
   "access": "public",
