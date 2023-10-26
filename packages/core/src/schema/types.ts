@@ -9,6 +9,7 @@ export type Scalar =
   | "boolean"
   | "bytes"
   | "bigint";
+
 export type ID = "string" | "int" | "bytes" | "bigint";
 
 /**
