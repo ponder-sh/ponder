@@ -11,6 +11,11 @@ import { Callout } from "nextra-theme-docs";
 
 ### Create a new Ponder project
 
+<Callout type="info">
+  If the contract you're indexing has already been deployed, use the [Etherscan
+  contract link template](/api-reference/create-ponder#etherscan-contract-link).
+</Callout>
+
 {/* prettier-ignore */}
 <Tabs items={["pnpm", "yarn", "npm"]}>
   <Tab>
@@ -31,17 +36,6 @@ npm create ponder@latest
 </Tabs>
 
 You will be asked for a project name, and if you are using a [template](/api-reference/create-ponder#templates) (recommended). Then, it will create a project directory, install dependencies, and initialize a git repository.
-
-<Callout type="info">
-  If the contract you're indexing has already been deployed, use the [Etherscan
-  contract link template](/api-reference/create-ponder#etherscan-contract-link).
-</Callout>
-
-<Callout type="warning">
-  Ponder requires `node-gyp` to be installed globally. If you encounter an
-  installation error, try `pnpm install -g node-gyp` and then run
-  `create-ponder` again.
-</Callout>
 
 ### Start the development server
 
@@ -92,11 +86,11 @@ type BlitmapToken @entity {
 
 See [Design your schema](/guides/design-your-schema) for a detailed guide on schema design.
 
-### Write event handler functions
+### Write indexing functions
 
-Files in the `src/` directory contain **event handler functions**, which are simply TypeScript functions that process a contract event. The purpose of event handler functions is to insert data into the entity store.
+Files in the `src/` directory contain **indexing functions**, which are simply TypeScript functions that process a contract event. The purpose of these functions is to insert data into the entity store.
 
-Here's a sample event handler for an ERC721 `Transfer` event.
+Here's a sample indexing function for an ERC721 `Transfer` event.
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
@@ -113,11 +107,11 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
 });
 ```
 
-See [Create & update entities](/guides/create-update-entities) for a detailed guide on writing event handlers.
+See [Create & update entities](/guides/create-update-entities) for a detailed guide on writing indexing functions.
 
 ### Query the GraphQL API
 
-As you write your event handlers and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
+As you write your indexing functions and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
 
 <div className="code-columns">
 

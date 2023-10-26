@@ -6,7 +6,7 @@ import { Callout } from "nextra-theme-docs";
 
 # Proxy contracts
 
-Ponder supports [EIP-1967 proxy contracts](https://docs.openzeppelin.com/contracts/4.x/api/proxy) (Transparent and UUPS). Ponder handles proxy contracts by merging the ABI of the proxy contract with the ABI of the implementation contract.
+Ponder supports [EIP-1967 proxy contracts](https://docs.openzeppelin.com/contracts/4.x/api/proxy) (Transparent and UUPS) by merging the ABI of the proxy contract with the ABI of the implementation contract.
 
 The `create-ponder` Etherscan [contract link template](/api-reference/create-ponder#etherscan-contract-link) automatically detects proxy contracts and fetches all implementation contract ABIs.
 
@@ -45,7 +45,7 @@ export const config: Config = {
 };
 ```
 
-3. Add event handlers for events defined in the implementation ABI. That's it!
+3. Add indexing functions for events defined in the implementation ABI. That's it!
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";

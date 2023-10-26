@@ -30,7 +30,7 @@ Every entity type _must_ have an `id` field that is a `String!`, `Int!`, `Bytes!
 
 ### Scalars
 
-In GraphQL, **scalars** are the most primitive types – they represent concrete data like strings and numbers. Each GraphQL scalar maps to a TypeScript type (used in event handler code) and a JSON data type (returned by the GraphQL API).
+In GraphQL, **scalars** are the most primitive types – they represent concrete data like strings and numbers. Each GraphQL scalar maps to a TypeScript type (used in indexing function code) and a JSON data type (returned by the GraphQL API).
 
 | name      | description                                 | TypeScript type | JSON data type |
 | :-------- | :------------------------------------------ | :-------------- | :------------- |
@@ -290,7 +290,7 @@ const bob = await Person.get("Bob");
 
 ### Entity types should generally be nouns
 
-Blockchain events describe an action that has taken place (a verb). Event handler funtions are most effective when they convert events into the nouns that represent the current state of your application. For example, prefer modeling an ERC721 collection using `Account` and `Token` entities rather than `TransferEvent` entities. (Unless you need the full transfer history of every account).
+Blockchain events describe an action that has taken place (a verb). Indexing funtions are most effective when they convert events into the nouns that represent the current state of your application. For example, prefer modeling an ERC721 collection using `Account` and `Token` entities rather than `TransferEvent` entities. (Unless you need the full transfer history of every account).
 
 ### Use relationship types generously
 
