@@ -10,8 +10,8 @@ import {
   GraphQLString,
 } from "graphql";
 
-import { isEnumType, isVirtual } from "@/schema/schema";
 import type { Scalar, Schema } from "@/schema/types";
+import { isEnumType, isVirtual } from "@/schema/utils";
 
 import type { Context, Source } from "./schema";
 import { tsTypeToGqlScalar } from "./schema";

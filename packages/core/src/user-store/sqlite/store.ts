@@ -2,8 +2,8 @@ import type Sqlite from "better-sqlite3";
 import { randomBytes } from "crypto";
 import { Kysely, sql, SqliteDialect } from "kysely";
 
-import { isEnumType, isVirtual } from "@/schema/schema";
 import type { Schema } from "@/schema/types";
+import { isEnumType, isVirtual } from "@/schema/utils";
 import { decodeToBigInt } from "@/utils/encoding";
 
 import type {

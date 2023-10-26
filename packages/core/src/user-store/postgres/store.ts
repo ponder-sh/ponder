@@ -2,8 +2,8 @@ import { randomBytes } from "crypto";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
-import { isEnumType, isVirtual } from "@/schema/schema";
 import type { Schema } from "@/schema/types";
+import { isEnumType, isVirtual } from "@/schema/utils";
 
 import type {
   ModelInstance,

@@ -1,5 +1,5 @@
-import { isEnumType, isVirtual } from "@/schema/schema";
 import { Scalar, Schema } from "@/schema/types";
+import { isEnumType, isVirtual } from "@/schema/utils";
 
 const scalarToTsType: Record<Scalar, string> = {
   string: "string",

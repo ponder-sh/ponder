@@ -9,13 +9,13 @@ import {
   GraphQLString,
 } from "graphql";
 
+import { Schema } from "@/schema/types";
 import {
   isEnumType,
   isVirtual,
   referencedEntityName,
   stripId,
-} from "@/schema/schema";
-import { Schema } from "@/schema/types";
+} from "@/schema/utils";
 
 import type { Context, Source } from "./schema";
 import { tsTypeToGqlScalar } from "./schema";
