@@ -3,6 +3,12 @@
   "changelog": ["@changesets/changelog-github", { "repo": "0xOlias/ponder" }],
   "commit": false,
   "fixed": [["@ponder/core", "create-ponder", "eslint-config-ponder"]],
+  "ignore": [
+    "ponder-examples-ethfs",
+    "ponder-examples-art-gobblers",
+    "ponder-examples-factory-llama",
+    "ponder-examples-friendtech"
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "main",
