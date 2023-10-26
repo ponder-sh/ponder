@@ -4,8 +4,8 @@ import React from "react";
 import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 
-import { HandlersBar } from "./HandlersBar";
 import { HistoricalBar } from "./HistoricalBar";
+import { IndexingBar } from "./IndexingBar";
 
 export type UiState = {
   port: number;
@@ -14,14 +14,13 @@ export type UiState = {
     string,
     { rate: number; eta?: number }
   >;
-
   isHistoricalSyncComplete: boolean;
 
-  handlerError: boolean;
-  handlersCurrent: number;
-  handlersTotal: number;
-  handlersHandledTotal: number;
-  handlersToTimestamp: number;
+  indexingError: boolean;
+  processedEventCount: number;
+  totalEventCount: number;
+  totalMatchedEventCount: number;
+  eventsProcessedToTimestamp: number;
 
   networks: string[];
 };
@@ -40,11 +39,11 @@ export const buildUiState = ({
 
     isHistoricalSyncComplete: false,
 
-    handlerError: false,
-    handlersCurrent: 0,
-    handlersTotal: 0,
-    handlersHandledTotal: 0,
-    handlersToTimestamp: 0,
+    indexingError: false,
+    processedEventCount: 0,
+    totalEventCount: 0,
+    totalMatchedEventCount: 0,
+    eventsProcessedToTimestamp: 0,
 
     networks: [],
   };
@@ -68,12 +67,12 @@ const App = (ui: UiState) => {
     port,
     historicalSyncEventSourceStats,
     isHistoricalSyncComplete,
-    handlersCurrent,
-    handlerError,
+    processedEventCount,
+    indexingError,
     networks,
   } = ui;
 
-  if (handlerError) {
+  if (indexingError) {
     return (
       <Box flexDirection="column">
         <Text> </Text>
@@ -114,7 +113,7 @@ const App = (ui: UiState) => {
         </Box>
       )}
 
-      <HandlersBar ui={ui} />
+      <IndexingBar ui={ui} />
 
       {networks.length > 0 && (
         <Box flexDirection="column">
@@ -130,7 +129,7 @@ const App = (ui: UiState) => {
         </Box>
       )}
 
-      {handlersCurrent > 0 && (
+      {processedEventCount > 0 && (
         <Box flexDirection="column">
           <Text bold={true}>GraphQL </Text>
           <Box flexDirection="row">
