@@ -14,15 +14,15 @@ import type { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/schema";
 
 import {
-  type HandlerFunctions,
-  buildRawHandlerFunctions,
-  hydrateHandlerFunctions,
-} from "./handlers";
+  type IndexingFunctions,
+  buildRawIndexingFunctions,
+  hydrateIndexingFunctions,
+} from "./functions";
 import { readGraphqlSchema } from "./schema";
 
 type BuildServiceEvents = {
   newConfig: undefined;
-  newHandlers: { handlers: HandlerFunctions };
+  newIndexingFunctions: { indexingFunctions: IndexingFunctions };
   newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
 
@@ -88,38 +88,38 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         if (filePath === this.common.options.schemaFile) {
           this.buildSchema();
         } else {
-          await this.buildHandlers();
+          await this.buildIndexingFunctions();
         }
       }
     });
   }
 
-  async buildHandlers() {
+  async buildIndexingFunctions() {
     try {
-      const rawHandlerFunctions = await buildRawHandlerFunctions({
+      const rawIndexingFunctions = await buildRawIndexingFunctions({
         options: this.common.options,
       });
 
-      const handlers = hydrateHandlerFunctions({
-        rawHandlerFunctions,
+      const indexingFunctions = hydrateIndexingFunctions({
+        rawIndexingFunctions,
         logFilters: this.logFilters,
         factories: this.factories,
       });
 
-      if (Object.values(handlers.eventSources).length === 0) {
+      if (Object.values(indexingFunctions.eventSources).length === 0) {
         this.common.logger.warn({
           service: "build",
-          msg: "No event handler functions found",
+          msg: "No indexing functions found",
         });
       }
 
-      this.emit("newHandlers", { handlers });
+      this.emit("newIndexingFunctions", { indexingFunctions });
     } catch (error_) {
       const error = error_ as Error;
 
-      // TODO: Build the UserError object within readHandlers, check instanceof,
+      // TODO: Build the UserError object within readIndexingFunctions, check instanceof,
       // then log/submit as-is if it's already a UserError.
-      const message = `Error while building handlers: ${error.message}`;
+      const message = `Error during build: ${error.message}`;
       const userError = new UserError(message, {
         stack: error.stack,
       });
@@ -147,7 +147,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       // TODO: Parse GraphQLError instances better here.
       // We can use the `.locations` property to build a pretty codeframe.
 
-      // TODO: Build the UserError object within readHandlers, check instanceof,
+      // TODO: Build the UserError object within readIndexingFunctions, check instanceof,
       // then log/submit as-is if it's already a UserError.
       const message = `Error while building schema.graphql: ${error.message}`;
       const userError = new UserError(message, {

@@ -24,7 +24,7 @@ export interface LogEvent {
 type EventSourceName = string;
 type EventName = string;
 
-type LogEventHandlerFunction = ({
+type LogEventIndexingFunction = ({
   event,
   context,
 }: {
@@ -32,37 +32,38 @@ type LogEventHandlerFunction = ({
   context: unknown;
 }) => Promise<void> | void;
 
-type SetupEventHandlerFunction = ({
+type SetupEventIndexingFunction = ({
   context,
 }: {
   context: unknown;
 }) => Promise<void> | void;
 
-type RawHandlerFunctions = {
+type RawIndexingFunctions = {
   _meta_?: {
-    setup?: SetupEventHandlerFunction;
+    setup?: SetupEventIndexingFunction;
   };
   eventSources: {
     [key: EventSourceName]: {
-      [key: EventName]: LogEventHandlerFunction;
+      [key: EventName]: LogEventIndexingFunction;
     };
   };
 };
 
 // @ponder/core creates an instance of this class called `ponder`
 export class PonderApp<
-  EventHandlers = Record<string, LogEventHandlerFunction>
+  IndexingFunctions = Record<string, LogEventIndexingFunction>
 > {
-  private handlerFunctions: RawHandlerFunctions = { eventSources: {} };
+  private indexingFunctions: RawIndexingFunctions = { eventSources: {} };
   private errors: Error[] = [];
 
-  on<EventName extends Extract<keyof EventHandlers, string>>(
+  on<EventName extends Extract<keyof IndexingFunctions, string>>(
     name: EventName,
-    handler: EventHandlers[EventName]
+    indexingFunction: IndexingFunctions[EventName]
   ) {
     if (name === "setup") {
-      this.handlerFunctions._meta_ ||= {};
-      this.handlerFunctions._meta_.setup = handler as SetupEventHandlerFunction;
+      this.indexingFunctions._meta_ ||= {};
+      this.indexingFunctions._meta_.setup =
+        indexingFunction as SetupEventIndexingFunction;
       return;
     }
 
@@ -72,19 +73,19 @@ export class PonderApp<
       return;
     }
 
-    this.handlerFunctions.eventSources[eventSourceName] ||= {};
-    if (this.handlerFunctions.eventSources[eventSourceName][eventName]) {
+    this.indexingFunctions.eventSources[eventSourceName] ||= {};
+    if (this.indexingFunctions.eventSources[eventSourceName][eventName]) {
       this.errors.push(
-        new Error(`Cannot add multiple handler functions for event: ${name}`)
+        new Error(`Cannot add multiple indexing functions for event: ${name}`)
       );
       return;
     }
-    this.handlerFunctions.eventSources[eventSourceName][eventName] =
-      handler as LogEventHandlerFunction;
+    this.indexingFunctions.eventSources[eventSourceName][eventName] =
+      indexingFunction as LogEventIndexingFunction;
   }
 }
 
-export const buildRawHandlerFunctions = async ({
+export const buildRawIndexingFunctions = async ({
   options,
 }: {
   options: Options;
@@ -182,49 +183,47 @@ export const buildRawHandlerFunctions = async ({
     throw error;
   }
 
-  const handlers = app["handlerFunctions"] as RawHandlerFunctions;
-
-  return handlers;
+  return app["indexingFunctions"] as RawIndexingFunctions;
 };
 
-export type HandlerFunctions = {
+export type IndexingFunctions = {
   _meta_: {
     setup?: {
-      fn: SetupEventHandlerFunction;
+      fn: SetupEventIndexingFunction;
     };
   };
   eventSources: {
     [key: EventSourceName]: {
-      // This mapping is passed from the EventHandlerService to the EventAggregatorService, which uses
-      // it to fetch from the store _only_ the events that the user has handled.
+      // This mapping is passed from the IndexingService to the EventAggregatorService, which uses
+      // it to fetch from the store _only_ the events that the user has indexed.
       bySelector: { [key: Hex]: LogEventMetadata };
-      // This mapping is used by the EventHandlerService to fetch the user-provided `fn` before running it.
+      // This mapping is used by the IndexingService to fetch the user-provided `fn` before running it.
       bySafeName: {
-        [key: EventName]: LogEventMetadata & { fn: LogEventHandlerFunction };
+        [key: EventName]: LogEventMetadata & { fn: LogEventIndexingFunction };
       };
     };
   };
 };
 
-export const hydrateHandlerFunctions = ({
-  rawHandlerFunctions,
+export const hydrateIndexingFunctions = ({
+  rawIndexingFunctions,
   logFilters,
   factories,
 }: {
-  rawHandlerFunctions: RawHandlerFunctions;
+  rawIndexingFunctions: RawIndexingFunctions;
   logFilters: LogFilter[];
   factories: Factory[];
 }) => {
-  const handlerFunctions: HandlerFunctions = {
+  const indexingFunctions: IndexingFunctions = {
     _meta_: {},
     eventSources: {},
   };
 
-  if (rawHandlerFunctions._meta_?.setup) {
-    handlerFunctions._meta_.setup = { fn: rawHandlerFunctions._meta_.setup };
+  if (rawIndexingFunctions._meta_?.setup) {
+    indexingFunctions._meta_.setup = { fn: rawIndexingFunctions._meta_.setup };
   }
 
-  Object.entries(rawHandlerFunctions.eventSources).forEach(
+  Object.entries(rawIndexingFunctions.eventSources).forEach(
     ([eventSourceName, eventSourceFunctions]) => {
       const logFilter = logFilters.find((l) => l.name === eventSourceName);
       const factory = factories.find((f) => f.name === eventSourceName);
@@ -242,19 +241,19 @@ export const hydrateHandlerFunctions = ({
           throw new Error(`Log event not found in ABI: ${eventName}`);
         }
 
-        handlerFunctions.eventSources[eventSourceName] ||= {
+        indexingFunctions.eventSources[eventSourceName] ||= {
           bySafeName: {},
           bySelector: {},
         };
-        handlerFunctions.eventSources[eventSourceName].bySelector[
+        indexingFunctions.eventSources[eventSourceName].bySelector[
           eventData.selector
         ] = eventData;
-        handlerFunctions.eventSources[eventSourceName].bySafeName[
+        indexingFunctions.eventSources[eventSourceName].bySafeName[
           eventData.safeName
         ] = { ...eventData, fn: fn };
       });
     }
   );
 
-  return handlerFunctions;
+  return indexingFunctions;
 };

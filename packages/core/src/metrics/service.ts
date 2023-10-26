@@ -33,11 +33,11 @@ export class MetricsService {
     "network" | "method"
   >;
 
-  ponder_handlers_matched_events: prometheus.Gauge<"eventName">;
-  ponder_handlers_handled_events: prometheus.Gauge<"eventName">;
-  ponder_handlers_processed_events: prometheus.Gauge<"eventName">;
-  ponder_handlers_has_error: prometheus.Gauge;
-  ponder_handlers_latest_processed_timestamp: prometheus.Gauge;
+  ponder_indexing_matched_events: prometheus.Gauge<"eventName">;
+  ponder_indexing_handled_events: prometheus.Gauge<"eventName">;
+  ponder_indexing_processed_events: prometheus.Gauge<"eventName">;
+  ponder_indexing_has_error: prometheus.Gauge;
+  ponder_indexing_latest_processed_timestamp: prometheus.Gauge;
 
   ponder_server_port: prometheus.Gauge;
   ponder_server_request_size: prometheus.Histogram<
@@ -122,31 +122,31 @@ export class MetricsService {
       registers: [this.registry],
     });
 
-    this.ponder_handlers_matched_events = new prometheus.Gauge({
-      name: "ponder_handlers_matched_events",
+    this.ponder_indexing_matched_events = new prometheus.Gauge({
+      name: "ponder_indexing_matched_events",
       help: "Number of available events for all log filters",
       labelNames: ["eventName"] as const,
       registers: [this.registry],
     });
-    this.ponder_handlers_handled_events = new prometheus.Gauge({
-      name: "ponder_handlers_handled_events",
-      help: "Number of available events for which there is a handler function registered",
+    this.ponder_indexing_handled_events = new prometheus.Gauge({
+      name: "ponder_indexing_handled_events",
+      help: "Number of available events for which there is an indexing function registered",
       labelNames: ["eventName"] as const,
       registers: [this.registry],
     });
-    this.ponder_handlers_processed_events = new prometheus.Gauge({
-      name: "ponder_handlers_processed_events",
+    this.ponder_indexing_processed_events = new prometheus.Gauge({
+      name: "ponder_indexing_processed_events",
       help: "Number of available events that have been processed",
       labelNames: ["eventName"] as const,
       registers: [this.registry],
     });
-    this.ponder_handlers_has_error = new prometheus.Gauge({
-      name: "ponder_handlers_has_error",
-      help: "Boolean (0 or 1) indicating if an error was encountered while running handlers",
+    this.ponder_indexing_has_error = new prometheus.Gauge({
+      name: "ponder_indexing_has_error",
+      help: "Boolean (0 or 1) indicating if an error was encountered while running user code",
       registers: [this.registry],
     });
-    this.ponder_handlers_latest_processed_timestamp = new prometheus.Gauge({
-      name: "ponder_handlers_latest_processed_timestamp",
+    this.ponder_indexing_latest_processed_timestamp = new prometheus.Gauge({
+      name: "ponder_indexing_latest_processed_timestamp",
       help: "Block timestamp of the latest processed event",
       registers: [this.registry],
     });

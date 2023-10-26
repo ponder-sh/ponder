@@ -9,7 +9,7 @@ export const buildEventTypes = ({
   logFilters: LogFilter[];
   factories: Factory[];
 }) => {
-  const allHandlers = [
+  const allIndexingFunctions = [
     ...logFilters.map((logFilter) => {
       return Object.values(logFilter.events)
         .filter((val): val is LogEventMetadata => !!val)
@@ -66,13 +66,13 @@ export const buildEventTypes = ({
     }),
   ];
 
-  allHandlers.unshift(
+  allIndexingFunctions.unshift(
     `["setup"]: ({ context }: { context: Context; }) => Promise<any> | any;`
   );
 
   const final = `
     export type AppType = {
-      ${allHandlers.join("")}
+      ${allIndexingFunctions.join("")}
     }
   `;
 

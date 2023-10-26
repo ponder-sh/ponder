@@ -33,7 +33,7 @@ Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundr
 
 ### Contracts
 
-Contracts are smart contracts deployed to a network. All contracts defined here will become available as `ReadOnlyContract` objects in the event context. Ponder will fetch and handle event logs emitted by all contracts with `isLogEventSource: true` (the default).
+Contracts are smart contracts deployed to a network. All contracts defined here will become available as `ReadOnlyContract` objects in the event context. Ponder will fetch and process event logs emitted by all contracts with `isLogEventSource: true` (the default).
 
 | field                |                type                 |                                                                                                                                                                                                                                  |
 | :------------------- | :---------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -45,7 +45,7 @@ Contracts are smart contracts deployed to a network. All contracts defined here 
 | **startBlock**       |        `number \| undefined`        | **Default: `0`**. Block number to start handling events. Usually set to the contract deployment block number. **Default: `0`**                                                                                                   |
 | **endBlock**         |        `number \| undefined`        | **Default: `undefined`**. Block number to stop handling events. If this field is specified, Ponder will not listen to "live" events. This field can be used alongside `startBlock` to only process events for a range of blocks. |
 | **maxBlockRange**    |        `number \| undefined`        | The maximum block range that Ponder will use when calling `eth_getLogs`. If not provided, Ponder uses a sane default based on the network.                                                                                       |
-| **isLogEventSource** |       `boolean \| undefined`        | **Default: `true`**. Specifies if events should be handled for this contract. If `false`, this contrat will still be available on the event handler `context.contracts`.                                                         |
+| **isLogEventSource** |       `boolean \| undefined`        | **Default: `true`**. Specifies if events should be processed for this contract. If `false`, this contract will still be available on the indexing function `context.contracts`.                                                  |
 
 #### Factory
 
@@ -57,7 +57,7 @@ Contracts are smart contracts deployed to a network. All contracts defined here 
 
 ### Filters
 
-Filters are custom event log filters that are more flexible than `contracts`. Ponder will fetch and handle event logs that match the `filter` field.
+Filters are custom event log filters that are more flexible than `contracts`. Ponder will fetch and process event logs that match the `filter` field.
 | field | type | |
 | :------------- | :--------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **name** | `string` | A unique name for the custom filter. Must be unique across all contracts & filters. |
