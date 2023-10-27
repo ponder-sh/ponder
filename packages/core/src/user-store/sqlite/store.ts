@@ -419,8 +419,8 @@ export class SqliteUserStore implements UserStore {
     const instance = await this.db.transaction().execute(async (tx) => {
       // If the latest version is effective from the delete timestamp,
       // then delete the instance in place. It "never existed".
-      // This needs to be done first, because an update() earlier in the handler
-      // call would have created a new version with the delete timestamp.
+      // This needs to be done first, because an update() earlier in the
+      // indexing function would have created a new version with the delete timestamp.
       // Attempting to update first would result in a constraint violation.
       let deletedInstance = await tx
         .deleteFrom(tableName)

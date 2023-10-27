@@ -42,12 +42,6 @@ First, enter a project name. Then select the **Subgraph ID** template option and
 
 The newly generated Ponder app will copy the subgraph's `schema.graphql` as well as the addresses, ABIs, and start blocks for each event source defined in `subgraph.yaml`. Then, it will create a project directory, install dependencies, and initialize a git repository.
 
-<Callout type="warning">
-  Ponder requires `node-gyp` to be installed globally. If you encounter an
-  installation error, try `pnpm install -g node-gyp` and then run
-  `create-ponder` again.
-</Callout>
-
 ### Start the development server
 
 Just like Next.js and Vite, Ponder has a development server that automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
@@ -84,21 +78,21 @@ Open up `.env.local` and paste in RPC URLs for any networks that your project us
 PONDER_RPC_URL_1 = "https://eth-mainnet.g.alchemy.com/v2/..."
 ```
 
-### Write event handler functions
+### Write indexing functions
 
-Open an event handler file in the `src/` directory. Ponder event handler functions are very similar to subgraph mapping functions, with some key differences. You will need to refactor your code, but because the local dev server has hot reloading, you'll get instant feedback on your changes.
+Open any file in the `src/` directory. Ponder indexing functions are very similar to subgraph mapping functions, with some key differences. You will need to refactor your code, but because the local dev server has hot reloading, you'll get instant feedback on your changes.
 
 See [tips for migrating mapping functions](/getting-started/migrate-subgraph#tips-for-migrating-mapping-functions) for more details.
 
 ### Query the GraphQL API
 
-As you migrate your event handlers and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
+As you migrate your indexing functions and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
 
 </Steps>
 
 ## Tips for migrating mapping functions
 
-### Handlers run in Node.js, not WebAssembly
+### Functions run in Node.js, not WebAssembly
 
 You can import NPM packages, debug with `console.log`, and use normal JavaScript types like `string` and `number`.
 

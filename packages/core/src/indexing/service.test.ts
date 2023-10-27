@@ -3,12 +3,12 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore, setupUserStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
-import type { HandlerFunctions } from "@/build/handlers";
-import type { LogEventMetadata } from "@/config/abi";
+import type { IndexingFunctions } from "@/build/functions";
+import { LogEventMetadata } from "@/config/abi";
 import { EventAggregatorService } from "@/event-aggregator/service";
 import { createSchema, createTable, p } from "@/schema";
 
-import { EventHandlerService } from "./service";
+import { IndexingService } from "./service";
 
 beforeEach((context) => setupEventStore(context));
 beforeEach((context) => setupUserStore(context));
@@ -35,14 +35,14 @@ const logFilters = [
 
 const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
 
-const s = createSchema({
+const schema = createSchema({
   TransferEvent: createTable({
     id: p.string(),
     timestamp: p.int(),
   }),
 });
 
-const transferHandler = vi.fn(async ({ event, context }) => {
+const transferIndexingFunction = vi.fn(async ({ event, context }) => {
   await context.entities.TransferEvent.create({
     id: event.log.id,
     data: {
@@ -55,7 +55,7 @@ const transferEventMetadata = usdcContractConfig.events[
   "Transfer"
 ] as LogEventMetadata;
 
-const handlers: HandlerFunctions = {
+const indexingFunctions: IndexingFunctions = {
   _meta_: {},
   eventSources: {
     USDC: {
@@ -65,7 +65,7 @@ const handlers: HandlerFunctions = {
       bySafeName: {
         ["Transfer"]: {
           ...transferEventMetadata,
-          fn: transferHandler,
+          fn: transferIndexingFunction,
         },
       },
     },
@@ -114,7 +114,7 @@ beforeEach(() => {
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
   const { common, eventStore, userStore } = context;
 
-  const service = new EventHandlerService({
+  const service = new IndexingService({
     common,
     eventStore,
     userStore,
@@ -123,7 +123,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     logFilters,
   });
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   expect(getEvents).not.toHaveBeenCalled();
 
@@ -150,10 +150,10 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
   service.kill();
 });
 
-test("processEvents() calls event handler functions with correct arguments", async (context) => {
+test("processEvents() calls indexing functions with correct arguments", async (context) => {
   const { common, eventStore, userStore } = context;
 
-  const service = new EventHandlerService({
+  const service = new IndexingService({
     common,
     eventStore,
     userStore,
@@ -162,12 +162,12 @@ test("processEvents() calls event handler functions with correct arguments", asy
     logFilters,
   });
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
-  expect(transferHandler).toHaveBeenCalledWith(
+  expect(transferIndexingFunction).toHaveBeenCalledWith(
     expect.objectContaining({
       event: {
         eventSourceName: "USDC",
@@ -191,7 +191,7 @@ test("processEvents() calls event handler functions with correct arguments", asy
 test("processEvents() model methods insert data into the user store", async (context) => {
   const { common, eventStore, userStore } = context;
 
-  const service = new EventHandlerService({
+  const service = new IndexingService({
     common,
     eventStore,
     userStore,
@@ -200,7 +200,7 @@ test("processEvents() model methods insert data into the user store", async (con
     logFilters,
   });
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -216,7 +216,7 @@ test("processEvents() model methods insert data into the user store", async (con
 test("processEvents() updates event count metrics", async (context) => {
   const { common, eventStore, userStore } = context;
 
-  const service = new EventHandlerService({
+  const service = new IndexingService({
     common,
     eventStore,
     userStore,
@@ -225,13 +225,13 @@ test("processEvents() updates event count metrics", async (context) => {
     logFilters,
   });
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
   const matchedEventsMetric = (
-    await common.metrics.ponder_handlers_matched_events.get()
+    await common.metrics.ponder_indexing_matched_events.get()
   ).values;
   expect(matchedEventsMetric).toMatchObject([
     { labels: { eventName: "setup" }, value: 1 },
@@ -239,14 +239,14 @@ test("processEvents() updates event count metrics", async (context) => {
   ]);
 
   const handledEventsMetric = (
-    await common.metrics.ponder_handlers_handled_events.get()
+    await common.metrics.ponder_indexing_handled_events.get()
   ).values;
   expect(handledEventsMetric).toMatchObject([
     { labels: { eventName: "USDC:Transfer" }, value: 5 },
   ]);
 
   const processedEventsMetric = (
-    await common.metrics.ponder_handlers_processed_events.get()
+    await common.metrics.ponder_indexing_processed_events.get()
   ).values;
   expect(processedEventsMetric).toMatchObject([
     { labels: { eventName: "USDC:Transfer" }, value: 1 },
@@ -258,7 +258,7 @@ test("processEvents() updates event count metrics", async (context) => {
 test("reset() reloads the user store", async (context) => {
   const { common, eventStore, userStore } = context;
 
-  const service = new EventHandlerService({
+  const service = new IndexingService({
     common,
     eventStore,
     userStore,
@@ -267,7 +267,7 @@ test("reset() reloads the user store", async (context) => {
     logFilters,
   });
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -279,7 +279,7 @@ test("reset() reloads the user store", async (context) => {
 
   const versionIdBeforeReset = userStore.versionId;
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   expect(userStore.versionId).not.toBe(versionIdBeforeReset);
 
@@ -294,7 +294,7 @@ test("reset() reloads the user store", async (context) => {
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
   const { common, eventStore, userStore } = context;
 
-  const service = new EventHandlerService({
+  const service = new IndexingService({
     common,
     eventStore,
     userStore,
@@ -303,20 +303,20 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     logFilters,
   });
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
   const latestProcessedTimestampMetric = (
-    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
+    await common.metrics.ponder_indexing_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetric).toBe(10);
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   const latestProcessedTimestampMetricAfterReset = (
-    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
+    await common.metrics.ponder_indexing_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReset).toBe(0);
 
@@ -326,7 +326,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 test("handleReorg() reverts the user store", async (context) => {
   const { common, eventStore, userStore } = context;
 
-  const service = new EventHandlerService({
+  const service = new IndexingService({
     common,
     eventStore,
     userStore,
@@ -337,7 +337,7 @@ test("handleReorg() reverts the user store", async (context) => {
 
   const userStoreRevertSpy = vi.spyOn(userStore, "revert");
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -352,7 +352,7 @@ test("handleReorg() reverts the user store", async (context) => {
 test("handleReorg() does nothing if there is a user error", async (context) => {
   const { common, eventStore, userStore } = context;
 
-  const service = new EventHandlerService({
+  const service = new IndexingService({
     common,
     eventStore,
     userStore,
@@ -363,9 +363,9 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
   const userStoreRevertSpy = vi.spyOn(userStore, "revert");
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
-  transferHandler.mockImplementationOnce(() => {
+  transferIndexingFunction.mockImplementationOnce(() => {
     throw new Error("User error!");
   });
 
@@ -382,7 +382,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
   const { common, eventStore, userStore } = context;
 
-  const service = new EventHandlerService({
+  const service = new IndexingService({
     common,
     eventStore,
     userStore,
@@ -391,7 +391,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     logFilters,
   });
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
@@ -422,7 +422,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
   const { common, eventStore, userStore } = context;
 
-  const service = new EventHandlerService({
+  const service = new IndexingService({
     common,
     eventStore,
     userStore,
@@ -431,13 +431,13 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     logFilters,
   });
 
-  await service.reset({ schema: s, handlers });
+  await service.reset({ schema, indexingFunctions });
 
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
   const latestProcessedTimestampMetric = (
-    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
+    await common.metrics.ponder_indexing_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetric).toBe(10);
 
@@ -447,7 +447,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   await service.handleReorg({ commonAncestorTimestamp: 6 });
 
   const latestProcessedTimestampMetricAfterReorg = (
-    await common.metrics.ponder_handlers_latest_processed_timestamp.get()
+    await common.metrics.ponder_indexing_latest_processed_timestamp.get()
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReorg).toBe(6);
 

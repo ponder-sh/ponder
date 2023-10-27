@@ -58,7 +58,7 @@ export function buildReadOnlyContracts({
             }
 
             // If the user specified a block number, use it, otherwise use the
-            // block number of the current event being handled.
+            // block number of the current event being processed.
             const blockNumber = options?.blockNumber ?? getCurrentBlockNumber();
 
             const calldata = encodeFunctionData({ abi, args, functionName });

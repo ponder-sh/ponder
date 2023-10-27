@@ -92,7 +92,7 @@ ponder.on("AaveToken:Mint", async ({ event, context }) => {
 
 ## Caching
 
-To avoid unnecessary RPC requests and speed up indexing, Ponder caches all contract read results. When an event handler that reads a contract runs for the first time, it will make an RPC request. But on subsequent hot reloads or redeployments, this data will be served from the cache.
+To avoid unnecessary RPC requests and speed up indexing, Ponder caches all contract read results. When an indexing function that reads a contract runs for the first time, it will make an RPC request. But on subsequent hot reloads or redeployments, this data will be served from the cache.
 
 To take advantage of caching, you _must_ use `context.contracts`. _Do not manually set up a viem Client._
 
@@ -134,7 +134,7 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 
 ## Specify a block number
 
-By default, contract reads use the `eth_call` RPC method with `blockNumber` set to the block number of the event being handled (`event.block.number`). You can read the contract at a different block number (e.g. the contract deployment block number or `"latest"`) by passing the `blockNumber` or `blockTag` option, but this will disable caching.
+By default, contract reads use the `eth_call` RPC method with `blockNumber` set to the block number of the event being processed (`event.block.number`). You can read the contract at a different block number (e.g. the contract deployment block number or `"latest"`) by passing the `blockNumber` or `blockTag` option, but this will disable caching.
 
 ```ts filename="src/index.ts"
 ponder.on("Blitmap:Mint", async ({ event, context }) => {

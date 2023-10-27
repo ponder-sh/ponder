@@ -18,7 +18,8 @@ const config: DocsThemeConfig = {
   sidebar: {
     defaultMenuCollapseLevel: 2,
   },
-  primaryHue: 188,
+  primaryHue: 186,
+  primarySaturation: 86,
   editLink: {
     text: "Edit this page on GitHub →",
   },

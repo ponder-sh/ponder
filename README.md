@@ -26,14 +26,15 @@ Join [Ponder's telegram chat](https://t.me/ponder_sh) for support, feedback, and
 ✅ &nbsp;Supports all Ethereum-based blockchains, including test nodes like [Anvil](https://book.getfoundry.sh/anvil)<br/>
 ✅ &nbsp;Index events from multiple chains in the same app<br/>
 ✅ &nbsp;Reconciles chain reorganization<br/>
-🏗️ &nbsp;Transaction call event handlers<br/>
-🏗️ &nbsp;Support for factory contracts like Uniswap V2/V3<br/>
+✅ &nbsp;Factory contracts<br/>
+🏗️ &nbsp;Process transactions calls (in addition to logs)<br/>
+🏗️ &nbsp;Run effects (e.g. send an API request) in indexing code<br/>
 
 ## Quickstart
 
 ### 1. Run `create-ponder`
 
-You will be asked for a project name, and if you are using an Etherscan or Graph Protocol [template](https://ponder.sh/api-reference/create-ponder) (recommended).
+You will be asked for a project name, and if you are using a [template](https://ponder.sh/api-reference/create-ponder#templates) (recommended). Then, the CLI will create a project directory, install dependencies, and initialize a git repository.
 
 ```bash
 npm init ponder@latest
@@ -45,7 +46,7 @@ yarn create ponder
 
 ### 2. Start the development server
 
-The development server automatically reloads your app when you save changes in any project file, and prints `console.log` statements and errors in your code.
+Just like Next.js and Vite, Ponder has a development server that automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code. First, `cd` into your project directory, then start the server.
 
 ```bash
 npm run dev
@@ -57,7 +58,7 @@ yarn dev
 
 ### 3. Add contracts & networks
 
-Ponder fetches event logs for the contracts added to `ponder.config.ts`, and passes those events to the handler functions you write.
+Ponder fetches event logs for the contracts added to `ponder.config.ts`, and passes those events to the indexing functions you write.
 
 ```ts
 // ponder.config.ts
@@ -85,7 +86,7 @@ export const config = {
 
 ### 4. Define your schema
 
-The `schema.graphql` file specifies the shape of your application's data.
+The `schema.graphql` file contains a model of your application data. The entity types defined here correspond to database tables.
 
 ```ts
 // schema.graphql
@@ -98,9 +99,9 @@ type EnsName @entity {
 }
 ```
 
-### 5. Write event handlers
+### 5. Write indexing functions
 
-Use event handler functions to convert raw blockchain events into application data.
+Files in the `src/` directory contain **indexing functions**, which are TypeScript functions that process a contract event. The purpose of these functions is to insert data into the entity store.
 
 ```ts
 // src/BaseRegistrar.ts
@@ -122,9 +123,11 @@ ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
 });
 ```
 
+See the [create & update entities](https://ponder.sh/guides/create-update-entities) docs for a detailed guide on writing indexing functions.
+
 ### 6. Query the GraphQL API
 
-Ponder automatically generates a frontend-ready GraphQL API based on your project's `schema.graphql`. The API will serve the data that you inserted in your event handler functions.
+Ponder automatically generates a frontend-ready GraphQL API based on your project's `schema.graphql`. The API serves the data that you inserted in your indexing functions.
 
 ```ts
 {

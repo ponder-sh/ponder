@@ -13,7 +13,7 @@ export const fromBasic = ({ rootDir }: { rootDir: string }) => {
 
   const schemaGraphqlFileContents = `
     # The entity types defined below map to database tables.
-    # The functions you write as event handlers inside the \`src/\` directory are responsible for creating and updating records in those tables.
+    # The functions you write in the \`src/\` directory are responsible for creating and updating records in these tables.
     # Your schema will be more flexible and powerful if it accurately models the logical relationships in your application's domain.
     # Visit the [documentation](https://ponder.sh/guides/design-your-schema) or the [\`examples/\`](https://github.com/0xOlias/ponder/tree/main/examples) directory for further guidance on designing your schema.
 

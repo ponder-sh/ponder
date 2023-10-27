@@ -85,7 +85,7 @@ type SafeEventName = string;
 
 export type LogEventMetadata = {
   // Event name (if no overloads) or full event signature (if name is overloaded).
-  // This is the event name used when registering event handlers using `ponder.on("ContractName:EventName", ...)`
+  // This is the event name used when registering indexing functions using `ponder.on("ContractName:EventName", ...)`
   safeName: string;
   // Full event signature, e.g. `event Deposit(address indexed from,bytes32 indexed id,uint value);`
   signature: string;

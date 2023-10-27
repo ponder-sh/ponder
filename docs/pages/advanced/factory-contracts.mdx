@@ -44,11 +44,11 @@ export const config: Config = {
 };
 ```
 
-### Register event handlers
+### Register indexing functions
 
-When you register a handler function for a child contract event, that function will process events for **every** instance of that child contract. The `event.log.address` field contains the address of the specific child contract that emitted the event.
+When you register an indexing function for a child contract event, that function will process events for **every** instance of that child contract. The `event.log.address` field contains the address of the specific child contract that emitted the event.
 
-This event handler function will run for every `SudoswapPool` contract created by the factory.
+This indexing function will run for every `SudoswapPool` contract created by the factory.
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
