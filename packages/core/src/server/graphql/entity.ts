@@ -15,7 +15,6 @@ import {
   isReferenceColumn,
   isVirtualColumn,
   referencedEntityName,
-  stripId,
 } from "@/schema/utils";
 
 import type { Context, Source } from "./schema";
@@ -121,7 +120,7 @@ export const buildEntityTypes = ({
               });
             };
 
-            fieldConfigMap[stripId(columnName as `${string}Id`)] = {
+            fieldConfigMap[columnName.slice(0, -2)] = {
               type: entityGqlTypes[referencedEntityName(column.references)],
               resolve: resolver,
             };

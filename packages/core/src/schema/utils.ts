@@ -6,12 +6,6 @@ import { Column, EnumColumn, ReferenceColumn, VirtualColumn } from "./types";
 export const referencedEntityName = (references: unknown) =>
   (references as string).split(".")[0];
 
-/**
- * Removed the ending from a reference column name
- */
-export const stripId = <T extends string>(columnName: `${T}Id`): T =>
-  columnName.slice(0, -2) as T;
-
 export const isVirtualColumn = (column: Column): column is VirtualColumn =>
   "_type" in column && column._type === "v";
 

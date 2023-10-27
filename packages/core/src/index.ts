@@ -1,6 +1,12 @@
 export { PonderApp } from "@/build/handlers";
 export type { Config, ResolvedConfig } from "@/config/types";
-export { createEnum, createSchema, createTable, p } from "@/schema";
+export {
+  type RecoverSchemaType,
+  createEnum,
+  createSchema,
+  createTable,
+  p,
+} from "@/schema";
 export type { Block } from "@/types/block";
 export type { ReadOnlyContract } from "@/types/contract";
 export type { Log } from "@/types/log";

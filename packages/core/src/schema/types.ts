@@ -94,47 +94,31 @@ export type Schema = {
 };
 
 /**
- * Intermediate Type
- *
- * Type returned from createEnum()
+ * Keeps only the enums from a schema
  */
-export type ITEnum<TValues extends string[] | unknown = unknown> = {
-  /** @internal */
-  isEnum: true;
-  /** @internal */
-  table: Record<string, Column>;
-  values: TValues;
-};
+export type FilterEnums<TSchema extends Record<string, Enum | Table>> = Pick<
+  TSchema,
+  {
+    [key in keyof TSchema]: TSchema[key] extends Enum<string[]> ? key : never;
+  }[keyof TSchema]
+>;
 
 /**
- * Intermediate Type
- *
- * Type returned from createTable()
+ * Keeps only the tables from a schema
  */
-export type ITTable<TTable extends Table | unknown = unknown> = {
-  /** @internal */
-  isEnum: false;
-  /** @internal */
-  table: TTable;
-};
-
-export type FilterEnums<TSchema extends Record<string, ITTable | ITEnum>> =
-  Pick<
-    TSchema,
-    {
-      [key in keyof TSchema]: TSchema[key]["isEnum"] extends true ? key : never;
-    }[keyof TSchema]
-  >;
-
-export type FilterNonEnums<TSchema extends Record<string, ITTable | ITEnum>> =
-  Pick<
-    TSchema,
-    {
-      [key in keyof TSchema]: TSchema[key]["isEnum"] extends false
-        ? key
-        : never;
-    }[keyof TSchema]
-  >;
+export type FilterTables<TSchema extends Record<string, Enum | Table>> = Pick<
+  TSchema,
+  {
+    [key in keyof TSchema]: TSchema[key] extends Table<
+      {
+        id: IDColumn;
+      } & Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
+        Record<`${string}Id`, ReferenceColumn>
+    >
+      ? key
+      : never;
+  }[keyof TSchema]
+>;
 
 /**
  * Recover raw typescript types from the intermediate representation
@@ -199,3 +183,12 @@ export type RecoverTableType<TTable extends Table> =
         }
       >
     : never;
+
+export type RecoverSchemaType<
+  TSchema extends {
+    tables: Record<string, Table<Record<string, DefaultColumn>>>;
+    enums: Record<string, Enum<string[]>>;
+  }
+> = {
+  [key in keyof TSchema["tables"]]: RecoverTableType<TSchema["tables"][key]>;
+};

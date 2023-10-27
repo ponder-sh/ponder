@@ -3,10 +3,8 @@ import {
   Enum,
   EnumColumn,
   FilterEnums,
-  FilterNonEnums,
+  FilterTables,
   IDColumn,
-  ITEnum,
-  ITTable,
   NonReferenceColumn,
   ReferenceColumn,
   Table,
@@ -19,18 +17,9 @@ import {
   referencedEntityName,
 } from "./utils";
 
-export const createTable = <TTable extends Table>(
-  table: TTable
-): ITTable<TTable> => ({
-  isEnum: false,
-  table,
-});
+export const createTable = <TTable extends Table>(table: TTable) => table;
 
-export const createEnum = <TEnum extends Enum>(arg: TEnum): ITEnum<TEnum> => ({
-  isEnum: true,
-  table: {},
-  values: arg,
-});
+export const createEnum = <TEnum extends Enum>(_enum: TEnum) => _enum;
 
 /**
  * Type inference and runtime validation
@@ -38,44 +27,44 @@ export const createEnum = <TEnum extends Enum>(arg: TEnum): ITEnum<TEnum> => ({
 export const createSchema = <
   TSchema extends Record<
     string,
-    | ITTable<
-        Table<
-          Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
-            Record<`${string}Id`, ReferenceColumn>
-        >
+    | Table<
+        {
+          id: IDColumn;
+        } & Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
+          Record<`${string}Id`, ReferenceColumn>
       >
-    | ITEnum<string[]>
+    | Enum<string[]>
   >
 >(schema: {
-  [key in keyof TSchema]: TSchema[key]["table"] extends Table<{
-    [columnName in keyof TSchema[key]["table"]]: TSchema[key]["table"][columnName] extends VirtualColumn
+  [key in keyof TSchema]: TSchema[key] extends Table<{
+    [columnName in keyof TSchema[key]]: TSchema[key][columnName] extends VirtualColumn
       ? VirtualColumn
-      : TSchema[key]["table"][columnName] extends EnumColumn
+      : TSchema[key][columnName] extends EnumColumn
       ? EnumColumn
-      : TSchema[key]["table"][columnName] extends ReferenceColumn
+      : TSchema[key][columnName] extends ReferenceColumn
       ? ReferenceColumn
-      : TSchema[key]["table"][columnName] extends NonReferenceColumn
+      : TSchema[key][columnName] extends NonReferenceColumn
       ? NonReferenceColumn
       : never;
   }>
     ? TSchema[key]
-    : TSchema[key]["isEnum"] extends true
+    : TSchema[key] extends Enum
     ? TSchema[key]
     : never;
 }): {
-  tables: { [key in keyof FilterNonEnums<TSchema>]: TSchema[key]["table"] };
+  tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
   enums: {
-    [key in keyof FilterEnums<TSchema>]: (TSchema[key] & ITEnum)["values"];
+    [key in keyof FilterEnums<TSchema>]: TSchema[key];
   };
 } => {
-  Object.entries(schema as TSchema).forEach(([name, tableOrEnum]) => {
+  Object.entries(schema).forEach(([name, tableOrEnum]) => {
     validateTableOrColumnName(name);
 
-    if (tableOrEnum.isEnum) {
+    if (Array.isArray(tableOrEnum)) {
       // Make sure values aren't the same
-      const set = new Set<(typeof tableOrEnum.values)[number]>();
+      const set = new Set<(typeof tableOrEnum)[number]>();
 
-      for (const val of tableOrEnum.values) {
+      for (const val of tableOrEnum) {
         if (val in set) throw Error("ITEnum contains duplicate values");
         set.add(val);
       }
@@ -84,35 +73,30 @@ export const createSchema = <
 
       // Check the id property
 
-      if (tableOrEnum.table.id === undefined)
+      if (tableOrEnum.id === undefined)
         throw Error('Table doesn\'t contain an "id" field');
       if (
-        isVirtualColumn(tableOrEnum.table.id) ||
-        isEnumColumn(tableOrEnum.table.id) ||
-        isReferenceColumn(tableOrEnum.table.id) ||
-        (tableOrEnum.table.id.type !== "bigint" &&
-          tableOrEnum.table.id.type !== "string" &&
-          tableOrEnum.table.id.type !== "bytes" &&
-          tableOrEnum.table.id.type !== "int")
+        tableOrEnum.id.type !== "bigint" &&
+        tableOrEnum.id.type !== "string" &&
+        tableOrEnum.id.type !== "bytes" &&
+        tableOrEnum.id.type !== "int"
       )
         throw Error('"id" is not of the correct type');
       // NOTE: This is a to make sure the user didn't override the optional type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (tableOrEnum.table.id.optional === true)
+      if (tableOrEnum.id.optional === true)
         throw Error('"id" cannot be optional');
       // NOTE: This is a to make sure the user didn't override the list type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (tableOrEnum.table.id.list === true)
-        throw Error('"id" cannot be a list');
+      if (tableOrEnum.id.list === true) throw Error('"id" cannot be a list');
       // NOTE: This is a to make sure the user didn't override the reference type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (tableOrEnum.table.id.references)
-        throw Error('"id" cannot be a reference');
+      if (tableOrEnum.id.references) throw Error('"id" cannot be a reference');
 
-      Object.entries(tableOrEnum.table).forEach(
+      Object.entries(tableOrEnum).forEach(
         ([columnName, column]: [string, Column]) => {
           if (columnName === "id") return;
 
@@ -127,16 +111,16 @@ export const createSchema = <
               throw Error("Virtual column doesn't reference a valid table");
 
             if (
-              Object.entries(schema).find(
-                ([tableName]) => tableName === column.referenceTable
-              )![1].table[column.referenceColumn as string] === undefined
+              (
+                Object.entries(schema).find(
+                  ([tableName]) => tableName === column.referenceTable
+                )![1] as Record<string, unknown>
+              )[column.referenceColumn as string] === undefined
             )
               throw Error("Virtual column doesn't reference a valid column");
           } else if (isEnumColumn(column)) {
             if (
-              Object.entries(schema)
-                .filter(([, table]) => table.isEnum)
-                .every(([_name]) => _name !== column.type)
+              Object.entries(schema).every(([_name]) => _name !== column.type)
             )
               throw Error("Column doesn't reference a valid enum");
           } else if (isReferenceColumn(column)) {
@@ -151,14 +135,14 @@ export const createSchema = <
             )
               throw Error("Column doesn't reference a valid table");
 
-            const referencingTables = Object.entries(schema as TSchema).filter(
+            const referencingTables = Object.entries(schema).filter(
               ([name]) => name === referencedEntityName(column.references)
             );
 
             for (const [, referencingTable] of referencingTables) {
               if (
-                (referencingTable.table as { id: IDColumn }).id.type !==
-                column.type
+                Array.isArray(referencingTable) ||
+                referencingTable.id.type !== column.type
               )
                 throw Error(
                   "Column type doesn't match the referenced table id type"
@@ -184,25 +168,25 @@ export const createSchema = <
     }
   });
 
-  return Object.entries(schema as TSchema).reduce(
+  return Object.entries(schema).reduce(
     (
       acc: {
-        enums: Record<string, ITEnum["values"]>;
+        enums: Record<string, Enum>;
         tables: Record<string, Table>;
       },
-      [tableName, table]
+      [name, tableOrEnum]
     ) =>
-      table.isEnum
-        ? { ...acc, enums: { ...acc.enums, [tableName]: table.values } }
+      Array.isArray(tableOrEnum)
+        ? { ...acc, enums: { ...acc.enums, [name]: tableOrEnum } }
         : {
             ...acc,
-            tables: { ...acc.tables, [tableName]: table.table },
+            tables: { ...acc.tables, [name]: tableOrEnum },
           },
     { tables: {}, enums: {} }
   ) as {
-    tables: { [key in keyof FilterNonEnums<TSchema>]: TSchema[key]["table"] };
+    tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
     enums: {
-      [key in keyof FilterEnums<TSchema>]: (TSchema[key] & ITEnum)["values"];
+      [key in keyof FilterEnums<TSchema>]: TSchema[key];
     };
   };
 };

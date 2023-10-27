@@ -1,25 +1,34 @@
 import { expect, test } from "vitest";
 
 import { p } from "./p";
-import { createTable } from "./schema";
+import { createEnum, createSchema, createTable } from "./schema";
 
 test("table", () => {
   const t = createTable({
     id: p.string(),
   });
 
-  expect(t.isEnum).toBe(false);
-  expect(t.table.id).toBeTruthy();
+  expect(t.id).toBeTruthy();
 });
 
-// test("create schema", () => {
-//   createSchema({
-//     t: createTable({
-//       id: column("string"),
-//       age: column("int", { optional: true }),
-//     }),
-//   });
-// });
+test("enum", () => {
+  const e = createEnum(["ONE", "TWO"]);
+
+  expect(e).toStrictEqual(["ONE", "TWO"]);
+});
+
+test("create schema", () => {
+  const s = createSchema({
+    t: createTable({
+      id: p.string(),
+      age: p.int({ optional: true }),
+    }),
+  });
+  console.log(s);
+  expect(s.enums).toStrictEqual({});
+  expect(s.tables.t.age).toBeTruthy();
+  expect(s.tables.t.id).toBeTruthy();
+});
 
 // test("create enum", () => {
 //   createSchema({
