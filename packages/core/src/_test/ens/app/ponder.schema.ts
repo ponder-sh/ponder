@@ -6,7 +6,7 @@ export const schema = createSchema({
     labelHash: p.string(),
     ownerId: p.string({ references: "Account.id" }),
     transferredAt: p.int(),
-    stringArray: p.stirng({ list: true }),
+    stringArray: p.string({ list: true }),
     intArray: p.int({ list: true }),
   }),
   Account: createTable({
