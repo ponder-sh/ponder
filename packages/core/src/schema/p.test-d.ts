@@ -6,6 +6,7 @@ import {
   type BaseColumn,
   type RecoverColumnType,
   EnumColumn,
+  NonReferenceColumn,
   VirtualColumn,
 } from "./types";
 
@@ -111,7 +112,7 @@ test("list", () => {
   const c = p.string({ list: true });
   //    ^?
 
-  assertType<BaseColumn<"string", never, false, true>>(c);
+  assertType<NonReferenceColumn<"string", false, true>>(c);
 
   type t = RecoverColumnType<typeof c>;
   //   ^?

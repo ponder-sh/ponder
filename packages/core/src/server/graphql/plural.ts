@@ -11,7 +11,7 @@ import {
 } from "graphql";
 
 import type { Scalar, Schema } from "@/schema/types";
-import { isEnumType, isVirtualColumn } from "@/schema/utils";
+import { isEnumColumn, isVirtualColumn } from "@/schema/utils";
 
 import type { Context, Source } from "./schema";
 import { tsTypeToGqlScalar } from "./schema";
@@ -55,7 +55,7 @@ export const buildPluralField = ({
   Object.entries(table).forEach(([columnName, column]) => {
     // Note: Only include non-virtual columns in plural fields
     if (isVirtualColumn(column)) return;
-    else if (isEnumType(column.type)) {
+    else if (isEnumColumn(column)) {
       const enumType = entityGqlType.getFields()[columnName].type;
 
       operators.universal.forEach((suffix) => {

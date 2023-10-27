@@ -2,8 +2,12 @@ import type Sqlite from "better-sqlite3";
 import { randomBytes } from "crypto";
 import { Kysely, sql, SqliteDialect } from "kysely";
 
-import type { Schema } from "@/schema/types";
-import { isEnumType, isVirtualColumn } from "@/schema/utils";
+import type { Scalar, Schema } from "@/schema/types";
+import {
+  isEnumColumn,
+  isReferenceColumn,
+  isVirtualColumn,
+} from "@/schema/utils";
 import { decodeToBigInt } from "@/utils/encoding";
 
 import type {
@@ -75,17 +79,7 @@ export class SqliteUserStore implements UserStore {
           let tableBuilder = tx.schema.createTable(tableName);
           Object.entries(model).forEach(([columnName, column]) => {
             if (isVirtualColumn(column)) return;
-            if (column.list) {
-              // Handle scalar list columns
-              tableBuilder = tableBuilder.addColumn(
-                columnName,
-                "text",
-                (col) => {
-                  if (!column.optional) col = col.notNull();
-                  return col;
-                }
-              );
-            } else if (isEnumType(column.type)) {
+            else if (isEnumColumn(column)) {
               // Handle enum types
               tableBuilder = tableBuilder.addColumn(
                 columnName,
@@ -100,8 +94,18 @@ export class SqliteUserStore implements UserStore {
                   return col;
                 }
               );
+            } else if (column.list) {
+              // Handle scalar list columns
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                "text",
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  return col;
+                }
+              );
             } else {
-              // Handle all other column types
+              // Non-list base columns
               tableBuilder = tableBuilder.addColumn(
                 columnName,
                 scalarToSqlType[column.type],
@@ -677,6 +681,8 @@ export class SqliteUserStore implements UserStore {
       }
 
       if (isVirtualColumn(column)) return;
+      else if (isEnumColumn(column)) return;
+      else if (isReferenceColumn(column)) return;
       if (column.list) {
         let parsedValue = JSON.parse(value as string);
         if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
@@ -684,7 +690,7 @@ export class SqliteUserStore implements UserStore {
         return;
       }
 
-      if (column.type === "boolean") {
+      if ((column.type as Scalar) === "boolean") {
         deserializedInstance[columnName] = value === 1 ? true : false;
         return;
       }

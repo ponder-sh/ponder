@@ -1,29 +1,29 @@
 import { type GraphQLType } from "graphql";
 import { expect, test } from "vitest";
 
-import { column, createEnum, createSchema, createTable } from "@/schema/schema";
+import { createEnum, createSchema, createTable, p } from "@/schema";
 
 import { buildGqlSchema } from "./schema";
 
 test("filter type has correct suffixes and types", () => {
   const s = createSchema({
     SimpleEnum: createEnum(["VALUE", "ANOTHER_VALUE"]),
-    RelatedEntityStringId: createTable({ id: column("string") }),
-    RelatedEntityBigIntId: createTable({ id: column("bigint") }),
+    RelatedEntityStringId: createTable({ id: p.string() }),
+    RelatedEntityBigIntId: createTable({ id: p.bigint() }),
     Entity: createTable({
-      id: column("string"),
-      int: column("int"),
-      float: column("float"),
-      bool: column("boolean"),
-      bytes: column("bytes"),
-      bigint: column("bigint"),
-      enum: column("enum:SimpleEnum"),
-      listString: column("string", { list: true }),
-      listBigInt: column("bigint", { list: true }),
-      relatedEntityStringId: column("string", {
+      id: p.string(),
+      int: p.int(),
+      float: p.float(),
+      bool: p.boolean(),
+      bytes: p.bytes(),
+      bigint: p.bigint(),
+      enum: p.enum("SimpleEnum"),
+      listString: p.string({ list: true }),
+      listBigInt: p.bigint({ list: true }),
+      relatedEntityStringId: p.string({
         references: "RelatedEntityStringId.id",
       }),
-      relatedEntityBigIntId: column("bigint", {
+      relatedEntityBigIntId: p.bigint({
         references: "RelatedEntityBigIntId.id",
       }),
     }),

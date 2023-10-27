@@ -2,8 +2,12 @@ import { randomBytes } from "crypto";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
-import type { Schema } from "@/schema/types";
-import { isEnumType, isVirtualColumn } from "@/schema/utils";
+import type { Scalar, Schema } from "@/schema/types";
+import {
+  isEnumColumn,
+  isReferenceColumn,
+  isVirtualColumn,
+} from "@/schema/utils";
 
 import type {
   ModelInstance,
@@ -95,16 +99,7 @@ export class PostgresUserStore implements UserStore {
           Object.entries(table).forEach(([columnName, column]) => {
             // Handle scalar list columns
             if (isVirtualColumn(column)) return;
-            if (column.list) {
-              tableBuilder = tableBuilder.addColumn(
-                columnName,
-                "text",
-                (col) => {
-                  if (!column.optional) col = col.notNull();
-                  return col;
-                }
-              );
-            } else if (isEnumType(column.type)) {
+            else if (isEnumColumn(column)) {
               // Handle enum types
               tableBuilder = tableBuilder.addColumn(
                 columnName,
@@ -119,8 +114,17 @@ export class PostgresUserStore implements UserStore {
                   return col;
                 }
               );
+            } else if (column.list) {
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                "text",
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  return col;
+                }
+              );
             } else {
-              // Handle all other column types
+              // Non-list base column
               tableBuilder = tableBuilder.addColumn(
                 columnName,
                 scalarToSqlType[column.type],
@@ -704,14 +708,16 @@ export class PostgresUserStore implements UserStore {
       }
 
       if (isVirtualColumn(column)) return;
-      if (column.list) {
+      else if (isEnumColumn(column)) return;
+      else if (isReferenceColumn(column)) return;
+      else if (column.list) {
         let parsedValue = JSON.parse(value as string);
         if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
         deserializedInstance[columnName] = parsedValue;
         return;
       }
 
-      if (column.type === "boolean") {
+      if ((column.type as Scalar) === "boolean") {
         deserializedInstance[columnName] = value === 1 ? true : false;
         return;
       }

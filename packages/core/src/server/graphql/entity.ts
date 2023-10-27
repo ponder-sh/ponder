@@ -11,7 +11,8 @@ import {
 
 import { Schema } from "@/schema/types";
 import {
-  isEnumType,
+  isEnumColumn,
+  isReferenceColumn,
   isVirtualColumn,
   referencedEntityName,
   stripId,
@@ -82,8 +83,23 @@ export const buildEntityTypes = ({
               },
               resolve: resolver,
             };
-          } else if (column.references) {
+          } else if (isEnumColumn(column)) {
+            // Note: this relies on the fact that there are no list enums
+            const enumName = column.type.slice(5);
+            const enumType = new GraphQLEnumType({
+              name: enumName,
+              values: schema.enums[enumName].reduce(
+                (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
+                {}
+              ),
+            });
+
+            fieldConfigMap[columnName] = {
+              type: column.optional ? new GraphQLNonNull(enumType) : enumType,
+            };
+          } else if (isReferenceColumn(column)) {
             // Column is a reference to another table
+            // Note: this relies on the fact that reference columns can't be lists
 
             const resolver: GraphQLFieldResolver<Source, Context> = async (
               parent,
@@ -108,19 +124,6 @@ export const buildEntityTypes = ({
             fieldConfigMap[stripId(columnName as `${string}Id`)] = {
               type: entityGqlTypes[referencedEntityName(column.references)],
               resolve: resolver,
-            };
-          } else if (isEnumType(column.type)) {
-            const enumName = column.type.slice(5);
-            const enumType = new GraphQLEnumType({
-              name: enumName,
-              values: schema.enums[enumName].reduce(
-                (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
-                {}
-              ),
-            });
-
-            fieldConfigMap[columnName] = {
-              type: column.optional ? new GraphQLNonNull(enumType) : enumType,
             };
           } else if (column.list) {
             const listType = new GraphQLList(

@@ -21,19 +21,21 @@ export const buildEntityTypes = (schema: Schema) => {
             // Build enum type as union
 
             if (isVirtualColumn(column)) return;
-            if (isEnumColumn(column)) {
+            else if (isEnumColumn(column)) {
               return `${columnName}${
                 column.optional ? "?" : ""
               }: ${schema.enums[column.type.slice(5)]
                 .map((val) => `"${val}"`)
                 .join(" | ")};`;
+            } else {
+              // base column (reference or non reference)
+
+              const scalar = scalarToTsType[column.type];
+
+              return `${columnName}${column.optional ? "?" : ""}: ${scalar}${
+                column.list ? "[]" : ""
+              };`;
             }
-
-            const scalar = scalarToTsType[column.type];
-
-            return `${columnName}${column.optional ? "?" : ""}: ${scalar}${
-              column.list ? "[]" : ""
-            };`;
           })
           .join("")}
         };`;

@@ -1,16 +1,23 @@
 import {
-  BaseColumn,
   Column,
   Enum,
+  EnumColumn,
   FilterEnums,
   FilterNonEnums,
+  IDColumn,
   ITEnum,
   ITTable,
-  Scalar,
+  NonReferenceColumn,
+  ReferenceColumn,
   Table,
   VirtualColumn,
 } from "./types";
-import { isEnumType, isVirtualColumn, referencedEntityName } from "./utils";
+import {
+  isEnumColumn,
+  isReferenceColumn,
+  isVirtualColumn,
+  referencedEntityName,
+} from "./utils";
 
 export const createTable = <TTable extends Table>(
   table: TTable
@@ -27,30 +34,28 @@ export const createEnum = <TEnum extends Enum>(arg: TEnum): ITEnum<TEnum> => ({
 
 /**
  * Type inference and runtime validation
- *
- * No idea why the "any" works
- * : `${keyof TSchema & string}.id`
  */
 export const createSchema = <
-  TSchema extends Record<string, ITTable<any> | ITEnum>
+  TSchema extends Record<
+    string,
+    | ITTable<
+        Table<
+          Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
+            Record<`${string}Id`, ReferenceColumn>
+        >
+      >
+    | ITEnum<string[]>
+  >
 >(schema: {
   [key in keyof TSchema]: TSchema[key]["table"] extends Table<{
-    [columnName in keyof TSchema[key]["table"]]: TSchema[key]["table"][columnName]["references"] extends never
-      ? BaseColumn<
-          Scalar,
-          never,
-          TSchema[key]["table"][columnName]["optional"],
-          TSchema[key]["table"][columnName]["list"]
-        >
-      : columnName extends `${string}Id`
-      ? BaseColumn<
-          Scalar,
-          `${keyof TSchema & string}.id`,
-          TSchema[key]["table"][columnName]["optional"],
-          TSchema[key]["table"][columnName]["list"]
-        >
-      : TSchema[key]["table"][columnName] extends VirtualColumn
+    [columnName in keyof TSchema[key]["table"]]: TSchema[key]["table"][columnName] extends VirtualColumn
       ? VirtualColumn
+      : TSchema[key]["table"][columnName] extends EnumColumn
+      ? EnumColumn
+      : TSchema[key]["table"][columnName] extends ReferenceColumn
+      ? ReferenceColumn
+      : TSchema[key]["table"][columnName] extends NonReferenceColumn
+      ? NonReferenceColumn
       : never;
   }>
     ? TSchema[key]
@@ -63,25 +68,32 @@ export const createSchema = <
     [key in keyof FilterEnums<TSchema>]: (TSchema[key] & ITEnum)["values"];
   };
 } => {
-  Object.entries(schema as TSchema).forEach(([tableName, table]) => {
-    validateTableOrColumnName(tableName);
+  Object.entries(schema as TSchema).forEach(([name, tableOrEnum]) => {
+    validateTableOrColumnName(name);
 
-    if (table.isEnum) {
+    if (tableOrEnum.isEnum) {
       // Make sure values aren't the same
-      const set = new Set<(typeof table.values)[number]>();
+      const set = new Set<(typeof tableOrEnum.values)[number]>();
 
-      for (const val of table.values) {
+      for (const val of tableOrEnum.values) {
         if (val in set) throw Error("ITEnum contains duplicate values");
         set.add(val);
       }
     } else {
-      if (table.table.id === undefined)
+      // Table
+
+      // Check the id property
+
+      if (tableOrEnum.table.id === undefined)
         throw Error('Table doesn\'t contain an "id" field');
       if (
-        table.table.id.type !== "bigint" &&
-        table.table.id.type !== "string" &&
-        table.table.id.type !== "bytes" &&
-        table.table.id.type !== "int"
+        isVirtualColumn(tableOrEnum.table.id) ||
+        isEnumColumn(tableOrEnum.table.id) ||
+        isReferenceColumn(tableOrEnum.table.id) ||
+        (tableOrEnum.table.id.type !== "bigint" &&
+          tableOrEnum.table.id.type !== "string" &&
+          tableOrEnum.table.id.type !== "bytes" &&
+          tableOrEnum.table.id.type !== "int")
       )
         throw Error('"id" is not of the correct type');
       // NOTE: This is a to make sure the user didn't override the optional type
@@ -98,69 +110,75 @@ export const createSchema = <
       // @ts-ignore
       if (table.table.id.references) throw Error('"id" cannot be a reference');
 
-      Object.entries(table.table).forEach(([columnName, _column]) => {
-        if (columnName === "id") return;
+      Object.entries(tableOrEnum.table).forEach(
+        ([columnName, column]: [string, Column]) => {
+          if (columnName === "id") return;
 
-        validateTableOrColumnName(columnName);
+          validateTableOrColumnName(columnName);
 
-        const column = _column as Column | Virtual;
+          if (isVirtualColumn(column)) {
+            if (
+              Object.keys(schema)
+                .filter((_name) => _name !== name)
+                .every((_name) => _name !== column.referenceTable)
+            )
+              throw Error("Virtual column doesn't reference a valid table");
 
-        if (isVirtualColumn(column)) {
-          if (
-            Object.keys(schema)
-              .filter((name) => name !== tableName)
-              .every((name) => name !== column.referenceTable)
-          )
-            throw Error("Virtual column doesn't reference a valid table");
+            if (
+              Object.entries(schema).find(
+                ([tableName]) => tableName === column.referenceTable
+              )![1].table[column.referenceColumn as string] === undefined
+            )
+              throw Error("Virtual column doesn't reference a valid column");
+          } else if (isEnumColumn(column)) {
+            if (
+              Object.entries(schema)
+                .filter(([, table]) => table.isEnum)
+                .every(([name]) => name !== (column.type as string).slice(5))
+            )
+              throw Error("Column doesn't reference a valid enum");
+          } else if (isReferenceColumn(column)) {
+            if (!columnName.endsWith("Id")) {
+              throw Error('Reference column name must end with "Id"');
+            }
 
-          if (
-            Object.entries(schema).find(
-              ([tableName]) => tableName === column.referenceTable
-            )![1].table[column.referenceColumn] === undefined
-          )
-            throw Error("Virtual column doesn't reference a valid column");
-        } else if (column.references) {
-          if (!columnName.endsWith("Id")) {
-            throw Error('Reference column name must end with "Id"');
+            if (
+              Object.keys(schema)
+                .filter((_name) => _name !== name)
+                .every((_name) => `${_name}.id` !== column.references)
+            )
+              throw Error("Column doesn't reference a valid table");
+
+            const referencingTables = Object.entries(schema as TSchema).filter(
+              ([name]) => name === referencedEntityName(column.references)
+            );
+
+            for (const [, referencingTable] of referencingTables) {
+              if (
+                (referencingTable.table as { id: IDColumn }).id.type !==
+                column.type
+              )
+                throw Error(
+                  "Column type doesn't match the referenced table id type"
+                );
+            }
+
+            if (column.list)
+              throw Error("Columns can't be both refernce and list types");
+          } else {
+            // Non reference column
+            if (
+              column.type !== "bigint" &&
+              column.type !== "string" &&
+              column.type !== "boolean" &&
+              column.type !== "int" &&
+              column.type !== "float" &&
+              column.type !== "bytes"
+            )
+              throw Error("Column is not a valid type");
           }
-
-          if (
-            Object.keys(schema)
-              .filter((name) => name !== tableName)
-              .every((name) => `${name}.id` !== column.references)
-          )
-            throw Error("Column doesn't reference a valid table");
-
-          const referencingTables = Object.entries(schema as TSchema).filter(
-            ([name]) => name === referencedEntityName(column.references)
-          );
-
-          for (const [, referencingTable] of referencingTables) {
-            if (referencingTable.table.id.type !== column.type)
-              throw Error(
-                "Column type doesn't match the referenced table id type"
-              );
-          }
-
-          if (column.list)
-            throw Error("Columns can't be both refernce and list types");
-        } else if (isEnumType(column.type as string)) {
-          if (
-            Object.entries(schema)
-              .filter(([, table]) => table.isEnum)
-              .every(([name]) => name !== (column.type as string).slice(5))
-          )
-            throw Error("Column doesn't reference a valid enum");
-        } else if (
-          column.type !== "bigint" &&
-          column.type !== "string" &&
-          column.type !== "boolean" &&
-          column.type !== "int" &&
-          column.type !== "float" &&
-          column.type !== "bytes"
-        )
-          throw Error("Column is not a valid type");
-      });
+        }
+      );
     }
   });
 

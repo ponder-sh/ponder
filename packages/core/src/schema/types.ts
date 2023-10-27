@@ -32,13 +32,13 @@ export type IDColumn<TType extends ID = ID> = BaseColumn<
 >;
 
 export type ReferenceColumn<
-  TType extends ID = ID,
+  TType extends Scalar = Scalar,
   TReferences extends `${string}.id` | unknown = unknown,
   TOptional extends boolean | unknown = unknown
 > = BaseColumn<TType, TReferences, TOptional, false>;
 
 export type NonReferenceColumn<
-  TType extends ID = ID,
+  TType extends Scalar = Scalar,
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown
 > = BaseColumn<TType, never, TOptional, TList>;
@@ -48,6 +48,7 @@ export type EnumColumn<
   TType extends string | unknown = unknown,
   TOptional extends boolean | unknown = unknown
 > = {
+  _type: "e";
   type: TType;
   optional: TOptional;
 };
@@ -56,15 +57,12 @@ export type VirtualColumn<
   TTableName extends string | unknown = unknown,
   TColumnName extends string | unknown = unknown
 > = {
+  _type: "v";
   referenceTable: TTableName;
   referenceColumn: TColumnName;
 };
 
-export type Column =
-  | ReferenceColumn
-  | NonReferenceColumn
-  | EnumColumn
-  | VirtualColumn;
+export type Column = BaseColumn | EnumColumn | VirtualColumn;
 
 export type DefaultColumn =
   | ReferenceColumn<ID, `${string}.id`, boolean>
@@ -72,13 +70,20 @@ export type DefaultColumn =
   | EnumColumn<string, boolean>
   | VirtualColumn<string, string>;
 
+// Note: This is kinda unfortunate because table.id is no longer strongly typed, should however be better for users
 export type Table<
-  TColumns extends Record<string, Column> | unknown =
-    | Record<string, Column>
+  TColumns extends
+    | ({
+        id: IDColumn;
+      } & Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
+        Record<`${string}Id`, ReferenceColumn>)
+    | unknown =
+    | ({
+        id: IDColumn;
+      } & Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
+        Record<`${string}Id`, ReferenceColumn>)
     | unknown
-> = {
-  id: IDColumn;
-} & TColumns;
+> = TColumns;
 
 export type Enum<TValues extends string[] | unknown = string[] | unknown> =
   TValues;

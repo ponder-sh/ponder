@@ -1,4 +1,4 @@
-import { BaseColumn, Column, EnumColumn, Scalar, VirtualColumn } from "./types";
+import { BaseColumn, EnumColumn, Scalar, VirtualColumn } from "./types";
 
 // Helper function for scalar ponder columns
 const _p =
@@ -34,23 +34,15 @@ export const p = {
     modifiers?: { optional?: TOptional }
   ): EnumColumn<TType, TOptional> =>
     ({
+      _type: "e",
       type,
       optional: modifiers?.optional ?? false,
     } as EnumColumn<TType, TOptional>),
   virtual: <TTableName extends string, TColumnName extends string>(
     derived: `${TTableName}.${TColumnName}`
   ): VirtualColumn<TTableName, TColumnName> => ({
+    _type: "v",
     referenceTable: derived.split(".")[0] as TTableName,
     referenceColumn: derived.split(".")[1] as TColumnName,
   }),
-} as const satisfies Record<
-  | "string"
-  | "int"
-  | "float"
-  | "boolean"
-  | "bytes"
-  | "bigint"
-  | "enum"
-  | "virtual",
-  (...a: any) => Column
->;
+} as const;
