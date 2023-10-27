@@ -12,14 +12,11 @@ export type Scalar =
 
 export type ID = "string" | "int" | "bytes" | "bigint";
 
-/**
- * SQL Schema types
- */
-export type Column<
-  TType extends Scalar | `enum:${string}` = Scalar | `enum:${string}`,
-  TReferences extends `${string}.id` | never = `${string}.id` | never,
-  TOptional extends boolean = boolean,
-  TList extends boolean = boolean
+export type BaseColumn<
+  TType extends Scalar = Scalar,
+  TReferences extends `${string}.id` | never | unknown = unknown,
+  TOptional extends boolean | unknown = unknown,
+  TList extends boolean | unknown = unknown
 > = {
   type: TType;
   references: TReferences;
@@ -27,34 +24,77 @@ export type Column<
   list: TList;
 };
 
-export type Virtual<
-  TTableName extends string = string,
-  TColumnName extends string = string
+export type IDColumn<TType extends ID = ID> = BaseColumn<
+  TType,
+  never,
+  false,
+  false
+>;
+
+export type ReferenceColumn<
+  TType extends ID = ID,
+  TReferences extends `${string}.id` | unknown = unknown,
+  TOptional extends boolean | unknown = unknown
+> = BaseColumn<TType, TReferences, TOptional, false>;
+
+export type NonReferenceColumn<
+  TType extends ID = ID,
+  TOptional extends boolean | unknown = unknown,
+  TList extends boolean | unknown = unknown
+> = BaseColumn<TType, never, TOptional, TList>;
+
+// Note: should a list of enums be allowed?
+export type EnumColumn<
+  TType extends string | unknown = unknown,
+  TOptional extends boolean | unknown = unknown
+> = {
+  type: TType;
+  optional: TOptional;
+};
+
+export type VirtualColumn<
+  TTableName extends string | unknown = unknown,
+  TColumnName extends string | unknown = unknown
 > = {
   referenceTable: TTableName;
   referenceColumn: TColumnName;
 };
 
+export type Column =
+  | ReferenceColumn
+  | NonReferenceColumn
+  | EnumColumn
+  | VirtualColumn;
+
+export type DefaultColumn =
+  | ReferenceColumn<ID, `${string}.id`, boolean>
+  | NonReferenceColumn<ID, boolean, boolean>
+  | EnumColumn<string, boolean>
+  | VirtualColumn<string, string>;
+
 export type Table<
-  TColumns extends Record<string, Column | Virtual> = Record<
-    string,
-    Column | Virtual
-  >
+  TColumns extends Record<string, Column> | unknown =
+    | Record<string, Column>
+    | unknown
 > = {
-  id: Column<ID, never, false, false>;
+  id: IDColumn;
 } & TColumns;
 
+export type Enum<TValues extends string[] | unknown = string[] | unknown> =
+  TValues;
+
 export type Schema = {
-  tables: Record<string, Table>;
-  enums: Record<string, ITEnum["values"]>;
+  tables: Record<string, Table<Record<string, DefaultColumn>>>;
+  enums: Record<string, Enum<string[]>>;
 };
 
 /**
  * Intermediate Type
  *
- * Type returned from enumerable()
+ * Type returned from createEnum()
  */
-export type ITEnum<TValues extends string[] = string[]> = {
+export type ITEnum<TValues extends string[] | unknown = unknown> = {
+  /** @internal */
   isEnum: true;
   /** @internal */
   table: Record<string, Column>;
@@ -64,9 +104,9 @@ export type ITEnum<TValues extends string[] = string[]> = {
 /**
  * Intermediate Type
  *
- * Type returned from table()
+ * Type returned from createTable()
  */
-export type ITTable<TTable extends Table = Table> = {
+export type ITTable<TTable extends Table | unknown = unknown> = {
   /** @internal */
   isEnum: false;
   /** @internal */
@@ -108,7 +148,7 @@ export type RecoverScalarType<TScalar extends Scalar> = TScalar extends "string"
   ? bigint
   : never;
 
-export type RecoverColumnType<TColumn extends Column> = TColumn extends {
+export type RecoverColumnType<TColumn extends BaseColumn> = TColumn extends {
   type: infer _type extends Scalar;
 }
   ? TColumn["list"] extends false
@@ -116,30 +156,32 @@ export type RecoverColumnType<TColumn extends Column> = TColumn extends {
     : RecoverScalarType<_type>[]
   : never;
 
-export type RecoverOptionalColumns<TColumns extends Record<string, Column>> =
-  Pick<
-    TColumns,
-    {
-      [key in keyof TColumns]: TColumns[key]["optional"] extends true
-        ? key
-        : never;
-    }[keyof TColumns]
-  >;
+export type RecoverOptionalColumns<
+  TColumns extends Record<string, BaseColumn>
+> = Pick<
+  TColumns,
+  {
+    [key in keyof TColumns]: TColumns[key]["optional"] extends true
+      ? key
+      : never;
+  }[keyof TColumns]
+>;
 
-export type RecoverRequiredColumns<TColumns extends Record<string, Column>> =
-  Pick<
-    TColumns,
-    {
-      [key in keyof TColumns]: TColumns[key]["optional"] extends false
-        ? key
-        : never;
-    }[keyof TColumns]
-  >;
+export type RecoverRequiredColumns<
+  TColumns extends Record<string, BaseColumn>
+> = Pick<
+  TColumns,
+  {
+    [key in keyof TColumns]: TColumns[key]["optional"] extends false
+      ? key
+      : never;
+  }[keyof TColumns]
+>;
 
 export type RecoverTableType<TTable extends Table> =
   TTable extends infer _columns extends {
-    id: Column<ID, never, false, false>;
-  } & Record<string, Column>
+    id: IDColumn;
+  } & Record<string, BaseColumn>
     ? Prettify<
         Record<"id", RecoverScalarType<_columns["id"]["type"]>> & {
           [key in keyof RecoverRequiredColumns<_columns>]: RecoverColumnType<

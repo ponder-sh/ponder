@@ -1,5 +1,5 @@
 import { Scalar, Schema } from "@/schema/types";
-import { isEnumType, isVirtual } from "@/schema/utils";
+import { isEnumColumn, isVirtualColumn } from "@/schema/utils";
 
 const scalarToTsType: Record<Scalar, string> = {
   string: "string",
@@ -20,8 +20,8 @@ export const buildEntityTypes = (schema: Schema) => {
           .map(([columnName, column]) => {
             // Build enum type as union
 
-            if (isVirtual(column)) return;
-            if (isEnumType(column.type)) {
+            if (isVirtualColumn(column)) return;
+            if (isEnumColumn(column)) {
               return `${columnName}${
                 column.optional ? "?" : ""
               }: ${schema.enums[column.type.slice(5)]

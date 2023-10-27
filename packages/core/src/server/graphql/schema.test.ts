@@ -1,16 +1,16 @@
 import { type GraphQLType } from "graphql";
 import { expect, test } from "vitest";
 
-import { column, createSchema, enumerable, table } from "@/schema/schema";
+import { column, createEnum, createSchema, createTable } from "@/schema/schema";
 
 import { buildGqlSchema } from "./schema";
 
 test("filter type has correct suffixes and types", () => {
   const s = createSchema({
-    SimpleEnum: enumerable(["VALUE", "ANOTHER_VALUE"]),
-    RelatedEntityStringId: table({ id: column("string") }),
-    RelatedEntityBigIntId: table({ id: column("bigint") }),
-    Entity: table({
+    SimpleEnum: createEnum(["VALUE", "ANOTHER_VALUE"]),
+    RelatedEntityStringId: createTable({ id: column("string") }),
+    RelatedEntityBigIntId: createTable({ id: column("bigint") }),
+    Entity: createTable({
       id: column("string"),
       int: column("int"),
       float: column("float"),

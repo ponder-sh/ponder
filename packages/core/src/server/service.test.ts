@@ -3,13 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
 import type { Common } from "@/Ponder";
-import {
-  column,
-  createSchema,
-  enumerable,
-  table,
-  virtual,
-} from "@/schema/schema";
+import { createEnum, createSchema, createTable, p } from "@/schema";
 import type { UserStore } from "@/user-store/store";
 import { range } from "@/utils/range";
 
@@ -19,28 +13,28 @@ import { ServerService } from "./service";
 beforeEach((context) => setupUserStore(context));
 
 const s = createSchema({
-  TestEnum: enumerable(["ZERO", "ONE", "TWO"]),
-  TestEntity: table({
-    id: column("string"),
-    string: column("string"),
-    int: column("int"),
-    float: column("float"),
-    boolean: column("boolean"),
-    bytes: column("bytes"),
-    bigInt: column("bigint"),
-    stringList: column("string", { list: true }),
-    intList: column("int", { list: true }),
-    floatList: column("float", { list: true }),
-    booleanList: column("boolean", { list: true }),
-    bytesList: column("bytes", { list: true }),
-    enum: column("enum:TestEnum"),
-    derived: virtual("EntityWithBigIntId.testEntityId"),
+  TestEnum: createEnum(["ZERO", "ONE", "TWO"]),
+  TestEntity: createTable({
+    id: p.string(),
+    string: p.string(),
+    int: p.int(),
+    float: p.float(),
+    boolean: p.boolean(),
+    bytes: p.bytes(),
+    bigInt: p.bigint(),
+    stringList: p.string({ list: true }),
+    intList: p.int({ list: true }),
+    floatList: p.float({ list: true }),
+    booleanList: p.boolean({ list: true }),
+    bytesList: p.bytes({ list: true }),
+    enum: p.enum("TestEnum"),
+    derived: p.virtual("EntityWithBigIntId.testEntityId"),
   }),
-  EntityWithIntId: table({ id: column("int") }),
+  EntityWithIntId: createTable({ id: p.int() }),
 
-  EntityWithBigIntId: table({
-    id: column("bigint"),
-    testEntityId: column("string", { references: "TestEntity.id" }),
+  EntityWithBigIntId: createTable({
+    id: p.bigint(),
+    testEntityId: p.string({ references: "TestEntity.id" }),
   }),
 });
 

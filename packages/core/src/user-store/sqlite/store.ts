@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { Kysely, sql, SqliteDialect } from "kysely";
 
 import type { Schema } from "@/schema/types";
-import { isEnumType, isVirtual } from "@/schema/utils";
+import { isEnumType, isVirtualColumn } from "@/schema/utils";
 import { decodeToBigInt } from "@/utils/encoding";
 
 import type {
@@ -74,7 +74,7 @@ export class SqliteUserStore implements UserStore {
           const tableName = `${modelName}_${this.versionId}`;
           let tableBuilder = tx.schema.createTable(tableName);
           Object.entries(model).forEach(([columnName, column]) => {
-            if (isVirtual(column)) return;
+            if (isVirtualColumn(column)) return;
             if (column.list) {
               // Handle scalar list columns
               tableBuilder = tableBuilder.addColumn(
@@ -676,7 +676,7 @@ export class SqliteUserStore implements UserStore {
         return;
       }
 
-      if (isVirtual(column)) return;
+      if (isVirtualColumn(column)) return;
       if (column.list) {
         let parsedValue = JSON.parse(value as string);
         if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);

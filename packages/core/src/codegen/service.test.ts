@@ -1,14 +1,14 @@
 import { expect, test } from "vitest";
 
 import { buildEntityTypes } from "@/codegen/entity";
-import { column, createSchema, enumerable, table } from "@/schema/schema";
+import { createEnum, createSchema, createTable, p } from "@/schema";
 
 test("entity type codegen succeeds", () => {
   const output = buildEntityTypes(
     createSchema({
-      name: table({
-        id: column("bigint"),
-        age: column("int"),
+      name: createTable({
+        id: p.bigint(),
+        age: p.int(),
       }),
     })
   );
@@ -20,10 +20,10 @@ test("entity type codegen succeeds", () => {
 test("enum type codegen succeeds", () => {
   const output = buildEntityTypes(
     createSchema({
-      e: enumerable(["ONE", "TWO"]),
-      name: table({
-        id: column("bigint"),
-        age: column("enum:e"),
+      e: createEnum(["ONE", "TWO"]),
+      name: createTable({
+        id: p.bigint(),
+        age: p.enum("e"),
       }),
     })
   );

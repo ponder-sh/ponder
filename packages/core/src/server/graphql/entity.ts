@@ -12,7 +12,7 @@ import {
 import { Schema } from "@/schema/types";
 import {
   isEnumType,
-  isVirtual,
+  isVirtualColumn,
   referencedEntityName,
   stripId,
 } from "@/schema/utils";
@@ -34,7 +34,7 @@ export const buildEntityTypes = ({
         const fieldConfigMap: GraphQLFieldConfigMap<Source, Context> = {};
 
         Object.entries(table).forEach(([columnName, column]) => {
-          if (isVirtual(column)) {
+          if (isVirtualColumn(column)) {
             // Column is virtual meant to tell graphQL to make a field
 
             const resolver: GraphQLFieldResolver<Source, Context> = async (

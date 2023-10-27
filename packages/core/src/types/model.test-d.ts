@@ -1,14 +1,14 @@
 import { test } from "vitest";
 
-import { column, createSchema, table } from "@/schema/schema";
+import { createSchema, createTable, p } from "@/schema";
 import { RecoverTableType } from "@/schema/types";
 
 import { Model } from "..";
 
 test("model", () => {
   const schema = createSchema({
-    name: table({
-      id: column("bigint"),
+    name: createTable({
+      id: p.bigint(),
     }),
   });
 

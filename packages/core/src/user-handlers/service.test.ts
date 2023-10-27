@@ -6,7 +6,7 @@ import { publicClient } from "@/_test/utils";
 import type { HandlerFunctions } from "@/build/handlers";
 import type { LogEventMetadata } from "@/config/abi";
 import { EventAggregatorService } from "@/event-aggregator/service";
-import { column, createSchema, table } from "@/schema/schema";
+import { createSchema, createTable, p } from "@/schema";
 
 import { EventHandlerService } from "./service";
 
@@ -36,9 +36,9 @@ const logFilters = [
 const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
 
 const s = createSchema({
-  TransferEvent: table({
-    id: column("string"),
-    timestamp: column("int"),
+  TransferEvent: createTable({
+    id: p.string(),
+    timestamp: p.int(),
   }),
 });
 

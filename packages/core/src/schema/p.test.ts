@@ -56,6 +56,20 @@ test("bigint", () => {
   expect(c.list).toBe(false);
 });
 
+test("enum", () => {
+  const c = p.enum("ENUM");
+
+  expect(c.type).toBe("ENUM");
+  expect(c.optional).toBe(false);
+});
+
+test("virtual", () => {
+  const c = p.virtual("TABLE.COLUMN");
+
+  expect(c.referenceTable).toBe("TABLE");
+  expect(c.referenceColumn).toBe("COLUMN");
+});
+
 test("optional", () => {
   const c = p.string({ optional: true });
 

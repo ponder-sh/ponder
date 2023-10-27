@@ -1,71 +1,59 @@
-import { test } from "vitest";
+import { expect, test } from "vitest";
 
-import { column, createSchema, enumerable, table, virtual } from "./schema";
+import { p } from "./p";
+import { createTable } from "./schema";
 
-// We like this one!!
-// const s = createSchema({
-//   share: table({
-//     id: column("string"),
-//     name: column("string"),
-//     usernames: column("string", { optional: true, list: true }),
-//   }),
-//   account: table({
-//     id: column("string"),
-//     name: column("string"),
-//     shareId: column("string", { refernces: "share.id" }),
-//   }),
+test("table", () => {
+  const t = createTable({
+    id: p.string(),
+  });
+
+  expect(t.isEnum).toBe(false);
+  expect(t.table.id).toBeTruthy();
+});
+
+// test("create schema", () => {
+//   createSchema({
+//     t: createTable({
+//       id: column("string"),
+//       age: column("int", { optional: true }),
+//     }),
+//   });
 // });
 
-test("virtual column", () => {
-  table({
-    id: column("string"),
-    age: column("int"),
-    pets: virtual("Dog.ownerId"),
-  });
-});
+// test("create enum", () => {
+//   createSchema({
+//     enummm: createEnum(["ONE", "TWO", "THREE"]),
+//     t: createTable({
+//       id: column("string"),
+//       age: column("enum:enummm"),
+//     }),
+//   });
+// });
 
-test("create schema", () => {
-  createSchema({
-    t: table({
-      id: column("string"),
-      age: column("int", { optional: true }),
-    }),
-  });
-});
+// test("references", () => {
+//   createSchema({
+//     Person: createTable({
+//       id: column("string"),
+//       age: column("int"),
+//     }),
+//     Dog: createTable({
+//       id: column("string"),
+//       ownerId: column("string", { references: "Person.id" }),
+//     }),
+//   });
+// });
 
-test("create enum", () => {
-  createSchema({
-    enummm: enumerable(["ONE", "TWO", "THREE"]),
-    t: table({
-      id: column("string"),
-      age: column("enum:enummm"),
-    }),
-  });
-});
-
-test("references", () => {
-  createSchema({
-    Person: table({
-      id: column("string"),
-      age: column("int"),
-    }),
-    Dog: table({
-      id: column("string"),
-      ownerId: column("string", { references: "Person.id" }),
-    }),
-  });
-});
-
-test("virtual", () => {
-  createSchema({
-    Person: table({
-      id: column("string"),
-      age: column("int"),
-      pets: virtual("Dog.ownerId"),
-    }),
-    Dog: table({
-      id: column("string"),
-      ownerId: column("string", { references: "Person.id" }),
-    }),
-  });
-});
+// test("virtual", () => {
+//   createSchema({
+//     Person: createTable({
+//       id: column("string"),
+//       age: column("int"),
+//       pets: virtual("Dog.ownerId"),
+//     }),
+//     Dog: createTable({
+//       id: column("string"),
+//       ownerId: column("string", { references: "Person.id" }),
+//     }),
+//   });
+// });

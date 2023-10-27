@@ -1,51 +1,28 @@
 import {
+  BaseColumn,
   Column,
+  Enum,
   FilterEnums,
   FilterNonEnums,
   ITEnum,
   ITTable,
   Scalar,
   Table,
-  Virtual,
+  VirtualColumn,
 } from "./types";
-import { isEnumType, isVirtual, referencedEntityName } from "./utils";
+import { isEnumType, isVirtualColumn, referencedEntityName } from "./utils";
 
-export const column = <
-  TType extends Scalar | `enum:${string}`,
-  TReferences extends `${string}.id` | never = never,
-  TOptional extends boolean = false,
-  TList extends boolean = false
->(
-  type: TType,
-  modifiers?: {
-    references?: TReferences;
-    optional?: TOptional;
-    list?: TList;
-  }
-) =>
-  ({
-    type,
-    references: modifiers?.references ?? undefined,
-    optional: modifiers?.optional ?? false,
-    list: modifiers?.list ?? false,
-  } as Column<TType, TReferences, TOptional, TList>);
-
-export const table = <TTable extends Table>(
+export const createTable = <TTable extends Table>(
   table: TTable
 ): ITTable<TTable> => ({
   isEnum: false,
   table,
 });
 
-export const enumerable = <TValues extends string[]>(
-  arg: TValues
-): ITEnum<TValues> => ({ isEnum: true, table: {}, values: arg });
-
-export const virtual = <TTableName extends string, TColumnName extends string>(
-  derived: `${TTableName}.${TColumnName}`
-): Virtual<TTableName, TColumnName> => ({
-  referenceTable: derived.split(".")[0] as TTableName,
-  referenceColumn: derived.split(".")[1] as TColumnName,
+export const createEnum = <TEnum extends Enum>(arg: TEnum): ITEnum<TEnum> => ({
+  isEnum: true,
+  table: {},
+  values: arg,
 });
 
 /**
@@ -59,21 +36,21 @@ export const createSchema = <
 >(schema: {
   [key in keyof TSchema]: TSchema[key]["table"] extends Table<{
     [columnName in keyof TSchema[key]["table"]]: TSchema[key]["table"][columnName]["references"] extends never
-      ? Column<
-          Scalar | `enum:${keyof FilterEnums<TSchema> & string}`,
+      ? BaseColumn<
+          Scalar,
           never,
           TSchema[key]["table"][columnName]["optional"],
           TSchema[key]["table"][columnName]["list"]
         >
       : columnName extends `${string}Id`
-      ? Column<
-          Scalar | `enum:${keyof FilterEnums<TSchema> & string}`,
+      ? BaseColumn<
+          Scalar,
           `${keyof TSchema & string}.id`,
           TSchema[key]["table"][columnName]["optional"],
           TSchema[key]["table"][columnName]["list"]
         >
-      : TSchema[key]["table"][columnName] extends Virtual
-      ? Virtual
+      : TSchema[key]["table"][columnName] extends VirtualColumn
+      ? VirtualColumn
       : never;
   }>
     ? TSchema[key]
@@ -128,7 +105,7 @@ export const createSchema = <
 
         const column = _column as Column | Virtual;
 
-        if (isVirtual(column)) {
+        if (isVirtualColumn(column)) {
           if (
             Object.keys(schema)
               .filter((name) => name !== tableName)

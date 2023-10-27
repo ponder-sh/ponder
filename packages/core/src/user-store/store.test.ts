@@ -1,22 +1,22 @@
 import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
-import { column, createSchema, enumerable, table } from "@/schema/schema";
+import { createEnum, createSchema, createTable, p } from "@/schema";
 
 beforeEach((context) => setupUserStore(context));
 
 const schema = createSchema({
-  PetKind: enumerable(["CAT", "DOG"]),
-  Pet: table({
-    id: column("string"),
-    name: column("string"),
-    age: column("int", { optional: true }),
-    bigAge: column("bigint", { optional: true }),
-    kind: column("enum:PetKind", { optional: true }),
+  PetKind: createEnum(["CAT", "DOG"]),
+  Pet: createTable({
+    id: p.string(),
+    name: p.string(),
+    age: p.int({ optional: true }),
+    bigAge: p.bigint({ optional: true }),
+    kind: p.enum("PetKind", { optional: true }),
   }),
-  Person: table({
-    id: column("string"),
-    name: column("string"),
+  Person: createTable({
+    id: p.string(),
+    name: p.string(),
   }),
 });
 

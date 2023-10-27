@@ -3,7 +3,7 @@ import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
 import type { Schema } from "@/schema/types";
-import { isEnumType, isVirtual } from "@/schema/utils";
+import { isEnumType, isVirtualColumn } from "@/schema/utils";
 
 import type {
   ModelInstance,
@@ -94,7 +94,7 @@ export class PostgresUserStore implements UserStore {
           let tableBuilder = tx.schema.createTable(dbTableName);
           Object.entries(table).forEach(([columnName, column]) => {
             // Handle scalar list columns
-            if (isVirtual(column)) return;
+            if (isVirtualColumn(column)) return;
             if (column.list) {
               tableBuilder = tableBuilder.addColumn(
                 columnName,
@@ -703,7 +703,7 @@ export class PostgresUserStore implements UserStore {
         return;
       }
 
-      if (isVirtual(column)) return;
+      if (isVirtualColumn(column)) return;
       if (column.list) {
         let parsedValue = JSON.parse(value as string);
         if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
