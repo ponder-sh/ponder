@@ -29,39 +29,46 @@ test("schema table", () => {
   expect(s.tables.t.id).toBeTruthy();
 });
 
-// test("create enum", () => {
-//   createSchema({
-//     enummm: createEnum(["ONE", "TWO", "THREE"]),
-//     t: createTable({
-//       id: column("string"),
-//       age: column("enum:enummm"),
-//     }),
-//   });
-// });
+test("schema enum", () => {
+  const s = createSchema({
+    e: createEnum(["ONE", "TWO"]),
+    t: createTable({
+      id: p.string(),
+      age: p.enum("e"),
+    }),
+  });
+  expect(s.enums).toStrictEqual({ e: ["ONE", "TWO"] });
+  expect(s.tables.t.age).toBeTruthy();
+  expect(s.tables.t.id).toBeTruthy();
+});
 
-// test("references", () => {
-//   createSchema({
-//     Person: createTable({
-//       id: column("string"),
-//       age: column("int"),
-//     }),
-//     Dog: createTable({
-//       id: column("string"),
-//       ownerId: column("string", { references: "Person.id" }),
-//     }),
-//   });
-// });
+test("schema references", () => {
+  const s = createSchema({
+    a: createTable({
+      id: p.int(),
+    }),
+    t: createTable({
+      id: p.string(),
+      age: p.int({ references: "a.id" }),
+    }),
+  });
+  expect(s.enums).toStrictEqual({});
+  expect(s.tables.t).toBeTruthy();
+  expect(s.tables.a).toBeTruthy();
+});
 
-// test("virtual", () => {
-//   createSchema({
-//     Person: createTable({
-//       id: column("string"),
-//       age: column("int"),
-//       pets: virtual("Dog.ownerId"),
-//     }),
-//     Dog: createTable({
-//       id: column("string"),
-//       ownerId: column("string", { references: "Person.id" }),
-//     }),
-//   });
-// });
+test("schema virtual", () => {
+  const s = createSchema({
+    a: createTable({
+      id: p.int(),
+      b: p.virtual("t.age"),
+    }),
+    t: createTable({
+      id: p.string(),
+      age: p.int({ references: "a.id" }),
+    }),
+  });
+  expect(s.enums).toStrictEqual({});
+  expect(s.tables.t).toBeTruthy();
+  expect(s.tables.a).toBeTruthy();
+});
