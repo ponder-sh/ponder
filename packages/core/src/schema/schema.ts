@@ -17,9 +17,22 @@ import {
   referencedEntityName,
 } from "./utils";
 
+/**
+ * Fix issue with Array.isArray not checking readonly arrays
+ * {@link https://github.com/microsoft/TypeScript/issues/17002}
+ */
+declare global {
+  interface ArrayConstructor {
+    isArray(arg: ReadonlyArray<any> | any): arg is ReadonlyArray<any>;
+  }
+}
+
 export const createTable = <TTable extends Table>(table: TTable) => table;
 
-export const createEnum = <TEnum extends Enum>(_enum: TEnum) => _enum;
+/**
+ * @todo const type assertions is needed
+ */
+export const createEnum = <const TEnum extends Enum>(_enum: TEnum) => _enum;
 
 /**
  * Type inference and runtime validation
@@ -33,7 +46,7 @@ export const createSchema = <
         } & Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
           Record<`${string}Id`, ReferenceColumn>
       >
-    | Enum<string[]>
+    | Enum<readonly string[]>
   >
 >(schema: {
   [key in keyof TSchema]: TSchema[key] extends Table<{

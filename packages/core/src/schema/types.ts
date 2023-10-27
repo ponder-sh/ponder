@@ -85,12 +85,13 @@ export type Table<
     | unknown
 > = TColumns;
 
-export type Enum<TValues extends string[] | unknown = string[] | unknown> =
-  TValues;
+export type Enum<
+  TValues extends readonly string[] | unknown = readonly string[] | unknown
+> = TValues;
 
 export type Schema = {
   tables: Record<string, Table<Record<string, DefaultColumn>>>;
-  enums: Record<string, Enum<string[]>>;
+  enums: Record<string, Enum<readonly string[]>>;
 };
 
 /**
@@ -99,7 +100,9 @@ export type Schema = {
 export type FilterEnums<TSchema extends Record<string, Enum | Table>> = Pick<
   TSchema,
   {
-    [key in keyof TSchema]: TSchema[key] extends Enum<string[]> ? key : never;
+    [key in keyof TSchema]: TSchema[key] extends Enum<readonly string[]>
+      ? key
+      : never;
   }[keyof TSchema]
 >;
 
@@ -187,7 +190,7 @@ export type RecoverTableType<TTable extends Table> =
 export type RecoverSchemaType<
   TSchema extends {
     tables: Record<string, Table<Record<string, DefaultColumn>>>;
-    enums: Record<string, Enum<string[]>>;
+    enums: Record<string, Enum<readonly string[]>>;
   }
 > = {
   [key in keyof TSchema["tables"]]: RecoverTableType<TSchema["tables"][key]>;

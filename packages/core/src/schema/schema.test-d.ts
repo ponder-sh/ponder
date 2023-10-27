@@ -6,6 +6,7 @@ import {
   BaseColumn,
   FilterEnums,
   FilterTables,
+  RecoverSchemaType,
   RecoverTableType,
   Schema,
 } from "./types";
@@ -73,4 +74,9 @@ test("schema", () => {
   });
 
   assertType<Schema>(s);
+
+  type t = RecoverSchemaType<typeof s>;
+  //   ^?
+
+  assertType<t>({} as { t: { id: string } });
 });

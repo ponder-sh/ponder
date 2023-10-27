@@ -17,14 +17,13 @@ test("enum", () => {
   expect(e).toStrictEqual(["ONE", "TWO"]);
 });
 
-test("create schema", () => {
+test("schema table", () => {
   const s = createSchema({
     t: createTable({
       id: p.string(),
       age: p.int({ optional: true }),
     }),
   });
-  console.log(s);
   expect(s.enums).toStrictEqual({});
   expect(s.tables.t.age).toBeTruthy();
   expect(s.tables.t.id).toBeTruthy();
