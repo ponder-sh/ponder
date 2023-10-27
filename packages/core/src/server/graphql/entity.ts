@@ -85,7 +85,7 @@ export const buildEntityTypes = ({
             };
           } else if (isEnumColumn(column)) {
             // Note: this relies on the fact that there are no list enums
-            const enumName = column.type.slice(5);
+            const enumName = column.type;
             const enumType = new GraphQLEnumType({
               name: enumName,
               values: schema.enums[enumName].reduce(

@@ -24,7 +24,7 @@ export const buildEntityTypes = (schema: Schema) => {
             else if (isEnumColumn(column)) {
               return `${columnName}${
                 column.optional ? "?" : ""
-              }: ${schema.enums[column.type.slice(5)]
+              }: ${schema.enums[column.type]
                 .map((val) => `"${val}"`)
                 .join(" | ")};`;
             } else {

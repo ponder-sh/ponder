@@ -99,16 +99,18 @@ export const createSchema = <
       // NOTE: This is a to make sure the user didn't override the optional type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (table.table.id.optional === true)
+      if (tableOrEnum.table.id.optional === true)
         throw Error('"id" cannot be optional');
       // NOTE: This is a to make sure the user didn't override the list type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (table.table.id.list === true) throw Error('"id" cannot be a list');
+      if (tableOrEnum.table.id.list === true)
+        throw Error('"id" cannot be a list');
       // NOTE: This is a to make sure the user didn't override the reference type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (table.table.id.references) throw Error('"id" cannot be a reference');
+      if (tableOrEnum.table.id.references)
+        throw Error('"id" cannot be a reference');
 
       Object.entries(tableOrEnum.table).forEach(
         ([columnName, column]: [string, Column]) => {
@@ -134,7 +136,7 @@ export const createSchema = <
             if (
               Object.entries(schema)
                 .filter(([, table]) => table.isEnum)
-                .every(([name]) => name !== (column.type as string).slice(5))
+                .every(([_name]) => _name !== column.type)
             )
               throw Error("Column doesn't reference a valid enum");
           } else if (isReferenceColumn(column)) {

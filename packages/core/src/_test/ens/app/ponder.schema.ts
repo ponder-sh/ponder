@@ -1,17 +1,17 @@
-import { column, createSchema, table, virtual } from "@ponder/core";
+import { createSchema, createTable, p } from "@ponder/core";
 
 export const schema = createSchema({
-  EnsNft: table({
-    id: column("string"),
-    labelHash: column("string"),
-    ownerId: column("string", { references: "Account.id" }),
-    transferredAt: column("int"),
-    stringArray: column("string", { list: true }),
-    intArray: column("int", { list: true }),
+  EnsNft: createTable({
+    id: p.string(),
+    labelHash: p.string(),
+    ownerId: p.string({ references: "Account.id" }),
+    transferredAt: p.int(),
+    stringArray: p.stirng({ list: true }),
+    intArray: p.int({ list: true }),
   }),
-  Account: table({
-    id: column("string"),
-    lastActive: column("int"),
-    tokens: virtual("EnsNft.ownerId"),
+  Account: createTable({
+    id: p.string(),
+    lastActive: p.int(),
+    tokens: p.virtual("EnsNft.ownerId"),
   }),
 });

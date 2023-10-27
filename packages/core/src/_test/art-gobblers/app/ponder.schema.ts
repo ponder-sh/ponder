@@ -1,20 +1,20 @@
-import { column, createSchema, table, virtual } from "@ponder/core";
+import { createSchema, createTable, p } from "@ponder/core";
 
 export const schema = createSchema({
-  SetupEntity: table({
-    id: column("string"),
+  SetupEntity: createTable({
+    id: p.string(),
   }),
-  Account: table({
-    id: column("string"),
-    tokens: virtual("Token.ownerId"),
+  Account: createTable({
+    id: p.string(),
+    tokens: p.virtual("Token.ownerId"),
   }),
 
-  Token: table({
-    id: column("bigint"),
-    claimedById: column("string", {
+  Token: createTable({
+    id: p.bigint(),
+    claimedById: p.string({
       references: "Account.id",
       optional: true,
     }),
-    ownerId: column("string", { references: "Account.id" }),
+    ownerId: p.string({ references: "Account.id" }),
   }),
 });

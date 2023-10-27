@@ -88,7 +88,7 @@ export class SqliteUserStore implements UserStore {
                   if (!column.optional) col = col.notNull();
                   col = col.check(
                     sql`${sql.ref(columnName)} in (${sql.join(
-                      schema!.enums[column.type.slice(5)].map((v) => sql.lit(v))
+                      schema!.enums[column.type].map((v) => sql.lit(v))
                     )})`
                   );
                   return col;
@@ -681,9 +681,7 @@ export class SqliteUserStore implements UserStore {
       }
 
       if (isVirtualColumn(column)) return;
-      else if (isEnumColumn(column)) return;
-      else if (isReferenceColumn(column)) return;
-      if (column.list) {
+      if (!isEnumColumn(column) && !isReferenceColumn(column) && column.list) {
         let parsedValue = JSON.parse(value as string);
         if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
         deserializedInstance[columnName] = parsedValue;
