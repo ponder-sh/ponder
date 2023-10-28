@@ -24,6 +24,21 @@ export type BaseColumn<
   list: TList;
 };
 
+export type InternalColumn<
+  TType extends Scalar = Scalar,
+  TReferences extends `${string}.id` | never | unknown = unknown,
+  TOptional extends boolean | unknown = unknown,
+  TList extends boolean | unknown = unknown
+> = {
+  /** @internal */
+  column: {
+    type: TType;
+    references: TReferences;
+    optional: TOptional;
+    list: TList;
+  };
+};
+
 export type IDColumn<TType extends ID = ID> = BaseColumn<
   TType,
   never,
