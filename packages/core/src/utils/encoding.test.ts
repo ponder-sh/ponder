@@ -72,3 +72,29 @@ test("encodeAsText handles zero", () => {
   );
   expect(decodeToBigInt(encoded)).toBe(value);
 });
+
+test("lexicographic sort works as expected", () => {
+  const values = [
+    EVM_MAX_UINT,
+    0n,
+    EVM_MIN_INT,
+    EVM_MAX_UINT - 1n,
+    1_000n,
+    -500n,
+    EVM_MIN_INT + 1n,
+  ];
+
+  const encoded = values.map(encodeAsText);
+  const sorted = encoded.slice().sort();
+  const decoded = sorted.map(decodeToBigInt);
+
+  expect(decoded).toMatchObject([
+    EVM_MIN_INT,
+    EVM_MIN_INT + 1n,
+    -500n,
+    0n,
+    1_000n,
+    EVM_MAX_UINT - 1n,
+    EVM_MAX_UINT,
+  ]);
+});

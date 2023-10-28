@@ -40,7 +40,7 @@ export type ResolvedConfig = {
     /** Maximum concurrency of RPC requests during the historical sync. Default: `10`. */
     maxRpcRequestConcurrency?: number;
   }[];
-  /** List of contracts to fetch & handle events from. Contracts defined here will be present in `context.contracts`. */
+  /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
   contracts?: ({
     /** Contract name. Must be unique across `contracts` and `filters`. */
     name: string;
@@ -76,7 +76,7 @@ export type ResolvedConfig = {
       /** Whether to fetch & process event logs for this contract. If `false`, this contract will still be present in `context.contracts`. Default: `true`. */
       isLogEventSource?: boolean;
     })[];
-  /** List of log filters from which to fetch & handle event logs. */
+  /** List of log filters from which to sync & index event logs. */
   filters?: {
     /** Filter name. Must be unique across `contracts` and `filters`. */
     name: string;

@@ -16,13 +16,13 @@ import { PostgresEventStore } from "@/event-store/postgres/store";
 import { SqliteEventStore } from "@/event-store/sqlite/store";
 import { type EventStore } from "@/event-store/store";
 import { HistoricalSyncService } from "@/historical-sync/service";
+import { IndexingService } from "@/indexing/service";
 import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { RealtimeSyncService } from "@/realtime-sync/service";
 import { ServerService } from "@/server/service";
 import { TelemetryService } from "@/telemetry/service";
 import { UiService } from "@/ui/service";
-import { EventHandlerService } from "@/user-handlers/service";
 import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { type UserStore } from "@/user-store/store";
@@ -52,7 +52,7 @@ export class Ponder {
   }[] = [];
 
   eventAggregatorService: EventAggregatorService;
-  eventHandlerService: EventHandlerService;
+  indexingService: IndexingService;
 
   serverService: ServerService;
   buildService: BuildService;
@@ -162,7 +162,7 @@ export class Ponder {
       factories,
     });
 
-    this.eventHandlerService = new EventHandlerService({
+    this.indexingService = new IndexingService({
       common,
       eventStore: this.eventStore,
       userStore: this.userStore,
@@ -197,16 +197,16 @@ export class Ponder {
     await this.serverService.start();
 
     // These files depend only on ponder.config.ts, so can generate once on setup.
-    // Note that loadHandlers depends on the index.ts file being present.
+    // Note that buildIndexingFunctions depends on the index.ts file being present.
     this.codegenService.generateAppFile();
 
-    // Note that this must occur before loadSchema and loadHandlers.
+    // Note that this must occur before buildSchema and buildIndexingFunctions.
     await this.eventStore.migrateUp();
 
-    // Manually trigger loading schema and handlers. Subsequent loads
+    // Manually trigger loading schema and indexing functions. Subsequent loads
     // are triggered by changes to project files (handled in BuildService).
     await this.buildService.buildSchema();
-    await this.buildService.buildHandlers();
+    await this.buildService.buildIndexingFunctions();
   }
 
   async dev() {
@@ -295,7 +295,7 @@ export class Ponder {
 
     await this.buildService.kill?.();
     this.uiService.kill();
-    this.eventHandlerService.kill();
+    this.indexingService.kill();
     await this.serverService.kill();
     await this.userStore.teardown();
     await this.common.telemetry.kill();
@@ -323,14 +323,17 @@ export class Ponder {
 
       this.serverService.reload({ graphqlSchema });
 
-      await this.eventHandlerService.reset({ schema });
-      await this.eventHandlerService.processEvents();
+      await this.indexingService.reset({ schema });
+      await this.indexingService.processEvents();
     });
 
-    this.buildService.on("newHandlers", async ({ handlers }) => {
-      await this.eventHandlerService.reset({ handlers });
-      await this.eventHandlerService.processEvents();
-    });
+    this.buildService.on(
+      "newIndexingFunctions",
+      async ({ indexingFunctions }) => {
+        await this.indexingService.reset({ indexingFunctions });
+        await this.indexingService.processEvents();
+      }
+    );
 
     this.networkSyncServices.forEach((networkSyncService) => {
       const { chainId } = networkSyncService.network;
@@ -374,18 +377,18 @@ export class Ponder {
     });
 
     this.eventAggregatorService.on("newCheckpoint", async () => {
-      await this.eventHandlerService.processEvents();
+      await this.indexingService.processEvents();
     });
 
     this.eventAggregatorService.on(
       "reorg",
       async ({ commonAncestorTimestamp }) => {
-        await this.eventHandlerService.handleReorg({ commonAncestorTimestamp });
-        await this.eventHandlerService.processEvents();
+        await this.indexingService.handleReorg({ commonAncestorTimestamp });
+        await this.indexingService.processEvents();
       }
     );
 
-    this.eventHandlerService.on("eventsProcessed", ({ toTimestamp }) => {
+    this.indexingService.on("eventsProcessed", ({ toTimestamp }) => {
       if (this.serverService.isHistoricalIndexingComplete) return;
 
       // If a batch of events are processed AND the historical sync is complete AND

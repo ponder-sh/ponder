@@ -72,7 +72,7 @@ export class CodegenService extends Emittery {
       }
 
   
-      /* HANDLER TYPES */
+      /* INDEXING FUNCTION TYPES */
     
       ${buildEventTypes({
         logFilters: this.logFilters,

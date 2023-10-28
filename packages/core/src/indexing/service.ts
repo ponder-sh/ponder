@@ -1,7 +1,7 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
 
-import type { HandlerFunctions } from "@/build/handlers";
+import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
 import type { Contract } from "@/config/contracts";
 import { Factory } from "@/config/factories";
@@ -26,16 +26,16 @@ import { buildReadOnlyContracts } from "./contract";
 import { buildModels } from "./model";
 import { getStackTrace } from "./trace";
 
-type EventHandlerEvents = {
+type IndexingEvents = {
   eventsProcessed: { toTimestamp: number };
 };
 
 type SetupTask = { kind: "SETUP" };
 type LogEventTask = { kind: "LOG"; event: LogEvent };
-type EventHandlerTask = SetupTask | LogEventTask;
-type EventHandlerQueue = Queue<EventHandlerTask>;
+type IndexingFunctionTask = SetupTask | LogEventTask;
+type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
 
-export class EventHandlerService extends Emittery<EventHandlerEvents> {
+export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
@@ -47,11 +47,11 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
   private schema?: Schema;
   private models: Record<string, Model<ModelInstance>> = {};
 
-  private handlers?: HandlerFunctions;
-  private handledEventMetadata: HandlerFunctions["eventSources"] = {};
+  private indexingFunctions?: IndexingFunctions;
+  private indexingMetadata: IndexingFunctions["eventSources"] = {};
 
   private eventProcessingMutex: Mutex;
-  private queue?: EventHandlerQueue;
+  private queue?: IndexingFunctionQueue;
 
   private eventsProcessedToTimestamp = 0;
   private hasError = false;
@@ -99,23 +99,23 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     this.eventProcessingMutex.cancel();
 
     this.common.logger.debug({
-      service: "handlers",
-      msg: `Killed user handler service`,
+      service: "indexing",
+      msg: `Killed indexing service`,
     });
   };
 
   /**
-   * Registers a new set of handler functions and/or a new schema, cancels
+   * Registers a new set of indexing functions and/or a new schema, cancels
    * the current event processing mutex & event queue, drops and re-creates
    * all tables from the user store, and resets eventsProcessedToTimestamp to zero.
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
   reset = async ({
-    handlers: newHandlers,
+    indexingFunctions: newIndexingFunctions,
     schema: newSchema,
   }: {
-    handlers?: HandlerFunctions;
+    indexingFunctions?: IndexingFunctions;
     schema?: Schema;
   } = {}) => {
     if (newSchema) {
@@ -128,47 +128,49 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
       });
     }
 
-    if (newHandlers) {
-      this.handlers = newHandlers;
-      this.handledEventMetadata = this.handlers.eventSources;
+    if (newIndexingFunctions) {
+      this.indexingFunctions = newIndexingFunctions;
+      this.indexingMetadata = this.indexingFunctions.eventSources;
     }
 
-    // If either the schema or handlers have not been provided yet,
+    // If either the schema or indexing functions have not been provided yet,
     // we're not ready to process events. Just return early.
-    if (!this.schema || !this.handlers) return;
+    if (!this.schema || !this.indexingFunctions) return;
 
     // Cancel all pending calls to processEvents and reset the mutex.
     this.eventProcessingMutex.cancel();
     this.eventProcessingMutex = new Mutex();
 
-    // Pause the old queue, (maybe) wait for the current event handler to finish,
-    // then create a new queue using the new handlers.
+    // Pause the old queue, (maybe) wait for the current indexing function to finish,
+    // then create a new queue using the new indexing functions.
     this.queue?.clear();
     this.queue?.pause();
     await this.queue?.onIdle();
-    this.queue = this.createEventQueue({ handlers: this.handlers });
+    this.queue = this.createEventQueue({
+      indexingFunctions: this.indexingFunctions,
+    });
     this.common.logger.debug({
-      service: "handlers",
+      service: "indexing",
       msg: `Paused event queue (versionId=${this.userStore.versionId})`,
     });
 
     this.hasError = false;
-    this.common.metrics.ponder_handlers_has_error.set(0);
+    this.common.metrics.ponder_indexing_has_error.set(0);
 
-    this.common.metrics.ponder_handlers_matched_events.reset();
-    this.common.metrics.ponder_handlers_handled_events.reset();
-    this.common.metrics.ponder_handlers_processed_events.reset();
+    this.common.metrics.ponder_indexing_matched_events.reset();
+    this.common.metrics.ponder_indexing_handled_events.reset();
+    this.common.metrics.ponder_indexing_processed_events.reset();
 
     await this.userStore.reload({ schema: this.schema });
     this.common.logger.debug({
-      service: "handlers",
+      service: "indexing",
       msg: `Reset user store (versionId=${this.userStore.versionId})`,
     });
 
     // When we call userStore.reload() above, the user store is dropped.
     // Set the latest processed timestamp to zero accordingly.
     this.eventsProcessedToTimestamp = 0;
-    this.common.metrics.ponder_handlers_latest_processed_timestamp.set(0);
+    this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
   };
 
   /**
@@ -201,7 +203,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         if (this.eventsProcessedToTimestamp <= commonAncestorTimestamp) {
           // No unsafe events have been processed, so no need to revert (case 1 & case 2).
           this.common.logger.debug({
-            service: "handlers",
+            service: "indexing",
             msg: `No unsafe events were detected while reconciling a reorg, no-op`,
           });
         } else {
@@ -212,16 +214,16 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
           });
 
           this.eventsProcessedToTimestamp = commonAncestorTimestamp;
-          this.common.metrics.ponder_handlers_latest_processed_timestamp.set(
+          this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
             commonAncestorTimestamp
           );
 
           // Note: There's currently no way to know how many events are "thrown out"
           // during the reorg reconciliation, so the event count metrics
-          // (e.g. ponder_handlers_processed_events) will be slightly inflated.
+          // (e.g. ponder_indexing_processed_events) will be slightly inflated.
 
           this.common.logger.debug({
-            service: "handlers",
+            service: "indexing",
             msg: `Reverted user store to safe timestamp ${commonAncestorTimestamp}`,
           });
         }
@@ -266,12 +268,12 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
         // If no events have been added yet, add the setup event & associated metrics.
         if (this.eventsProcessedToTimestamp === 0) {
-          this.common.metrics.ponder_handlers_matched_events.inc({
+          this.common.metrics.ponder_indexing_matched_events.inc({
             eventName: "setup",
           });
-          if (this.handlers?._meta_.setup) {
+          if (this.indexingFunctions?._meta_.setup) {
             this.queue.addTask({ kind: "SETUP" });
-            this.common.metrics.ponder_handlers_handled_events.inc({
+            this.common.metrics.ponder_indexing_handled_events.inc({
               eventName: "setup",
             });
           }
@@ -280,7 +282,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         const iterator = this.eventAggregatorService.getEvents({
           fromTimestamp,
           toTimestamp,
-          handledEventMetadata: this.handledEventMetadata,
+          indexingMetadata: this.indexingMetadata,
         });
 
         let pageIndex = 0;
@@ -288,7 +290,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         for await (const page of iterator) {
           const { events, metadata } = page;
 
-          // Increment the metrics for the total number of matching & handled events in this timestamp range.
+          // Increment the metrics for the total number of matching & indexed events in this timestamp range.
           if (pageIndex === 0) {
             metadata.counts.forEach(({ eventSourceName, selector, count }) => {
               const safeName = Object.values({
@@ -303,16 +305,15 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
               if (!safeName) return;
 
               const isHandled =
-                !!this.handlers?.eventSources[eventSourceName]?.bySelector?.[
-                  selector
-                ];
+                !!this.indexingFunctions?.eventSources[eventSourceName]
+                  ?.bySelector?.[selector];
 
-              this.common.metrics.ponder_handlers_matched_events.inc(
+              this.common.metrics.ponder_indexing_matched_events.inc(
                 { eventName: `${eventSourceName}:${safeName}` },
                 count
               );
               if (isHandled) {
-                this.common.metrics.ponder_handlers_handled_events.inc(
+                this.common.metrics.ponder_indexing_handled_events.inc(
                   { eventName: `${eventSourceName}:${safeName}` },
                   count
                 );
@@ -340,7 +341,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
 
           if (events.length > 0) {
             this.common.logger.info({
-              service: "handlers",
+              service: "indexing",
               msg: `Processed ${
                 events.length === 1 ? "1 event" : `${events.length} events`
               } (up to ${formatShortDate(metadata.pageEndsAtTimestamp)})`,
@@ -353,9 +354,9 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         this.emit("eventsProcessed", { toTimestamp });
         this.eventsProcessedToTimestamp = toTimestamp;
 
-        // Note that this happens both here and in the log event handler function.
+        // Note that this happens both here and in the log event indexing function.
         // They must also happen here to handle the case where no events were processed.
-        this.common.metrics.ponder_handlers_latest_processed_timestamp.set(
+        this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
           toTimestamp
         );
       });
@@ -366,41 +367,45 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     }
   };
 
-  private createEventQueue = ({ handlers }: { handlers: HandlerFunctions }) => {
+  private createEventQueue = ({
+    indexingFunctions,
+  }: {
+    indexingFunctions: IndexingFunctions;
+  }) => {
     const context = {
       contracts: this.readOnlyContracts,
       entities: this.models,
     };
 
-    const eventHandlerWorker: Worker<EventHandlerTask> = async ({
+    const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
       task,
       queue,
     }) => {
-      // This is a hack to ensure that the eventsProcessed handler is called and updates
+      // This is a hack to ensure that the eventsProcessed method is called and updates
       // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
       // It does, however, slow down event processing a bit.
       await wait(0);
 
       switch (task.kind) {
         case "SETUP": {
-          const setupHandler = handlers._meta_.setup?.fn;
-          if (!setupHandler) return;
+          const setupFunction = indexingFunctions._meta_.setup?.fn;
+          if (!setupFunction) return;
 
           try {
             this.common.logger.trace({
-              service: "handlers",
-              msg: `Started handler (event="setup")`,
+              service: "indexing",
+              msg: `Started indexing function (event="setup")`,
             });
 
             // Running user code here!
-            await setupHandler({ context });
+            await setupFunction({ context });
 
             this.common.logger.trace({
-              service: "handlers",
-              msg: `Completed handler (event="setup")`,
+              service: "indexing",
+              msg: `Completed indexing function (event="setup")`,
             });
 
-            this.common.metrics.ponder_handlers_processed_events.inc({
+            this.common.metrics.ponder_indexing_processed_events.inc({
               eventName: "setup",
             });
           } catch (error_) {
@@ -408,17 +413,17 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             queue.clear();
 
             this.hasError = true;
-            this.common.metrics.ponder_handlers_has_error.set(1);
+            this.common.metrics.ponder_indexing_has_error.set(1);
 
             this.common.logger.trace({
-              service: "handlers",
-              msg: `Failed while running handler (event="setup")`,
+              service: "indexing",
+              msg: `Failed while running indexing function (event="setup")`,
             });
 
             const error = error_ as Error;
             const trace = getStackTrace(error, this.common.options);
 
-            const message = `Error while handling "setup" event: ${error.message}`;
+            const message = `Error while processing "setup" event: ${error.message}`;
 
             const userError = new UserError(message, {
               stack: trace,
@@ -426,7 +431,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             });
 
             this.common.logger.error({
-              service: "handlers",
+              service: "indexing",
               error: userError,
             });
             this.common.errors.submitUserError({ error: userError });
@@ -437,28 +442,27 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
         case "LOG": {
           const event = task.event;
 
-          const handlerData =
-            this.handlers?.eventSources[event.eventSourceName].bySafeName[
-              event.eventName
-            ];
-          if (!handlerData)
+          const indexingMetadata =
+            this.indexingFunctions?.eventSources[event.eventSourceName]
+              .bySafeName[event.eventName];
+          if (!indexingMetadata)
             throw new Error(
-              `Internal: Handler not found for event source ${event.eventSourceName}`
+              `Internal: Indexing function not found for event source ${event.eventSourceName}`
             );
 
           // This enables contract calls occurring within the
-          // handler code to use the event block number by default.
+          // user code to use the event block number by default.
           this.currentEventBlockNumber = event.block.number;
           this.currentEventTimestamp = Number(event.block.timestamp);
 
           try {
             this.common.logger.trace({
-              service: "handlers",
-              msg: `Started handler (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
+              service: "indexing",
+              msg: `Started indexing function (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
             });
 
             // Running user code here!
-            await handlerData.fn({
+            await indexingMetadata.fn({
               event: {
                 ...event,
                 name: event.eventName,
@@ -467,25 +471,25 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             });
 
             this.common.logger.trace({
-              service: "handlers",
-              msg: `Completed handler (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
+              service: "indexing",
+              msg: `Completed indexing function (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
             });
           } catch (error_) {
             // Remove all remaining tasks from the queue.
             queue.clear();
 
             this.hasError = true;
-            this.common.metrics.ponder_handlers_has_error.set(1);
+            this.common.metrics.ponder_indexing_has_error.set(1);
 
             this.common.logger.trace({
-              service: "handlers",
-              msg: `Failed while running handler (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
+              service: "indexing",
+              msg: `Failed while running indexing function (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
             });
 
             const error = error_ as Error;
             const trace = getStackTrace(error, this.common.options);
 
-            const message = `Error while handling "${event.eventSourceName}:${
+            const message = `Error while processing "${event.eventSourceName}:${
               event.eventName
             }" event at block ${Number(event.block.number)}: ${error.message}`;
 
@@ -498,16 +502,16 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
             });
 
             this.common.logger.error({
-              service: "handlers",
+              service: "indexing",
               error: userError,
             });
             this.common.errors.submitUserError({ error: userError });
           }
 
-          this.common.metrics.ponder_handlers_processed_events.inc({
+          this.common.metrics.ponder_indexing_processed_events.inc({
             eventName: `${event.eventSourceName}:${event.eventName}`,
           });
-          this.common.metrics.ponder_handlers_latest_processed_timestamp.set(
+          this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
             this.currentEventTimestamp
           );
 
@@ -517,7 +521,7 @@ export class EventHandlerService extends Emittery<EventHandlerEvents> {
     };
 
     const queue = createQueue({
-      worker: eventHandlerWorker,
+      worker: indexingFunctionWorker,
       context: undefined,
       options: {
         concurrency: 1,

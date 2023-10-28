@@ -1,4 +1,4 @@
-export { PonderApp } from "@/build/handlers";
+export { PonderApp } from "@/build/functions";
 export type { Config, ResolvedConfig } from "@/config/types";
 export {
   type RecoverSchemaType,

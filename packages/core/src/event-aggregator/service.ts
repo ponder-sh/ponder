@@ -114,11 +114,11 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   async *getEvents({
     fromTimestamp,
     toTimestamp,
-    handledEventMetadata,
+    indexingMetadata,
   }: {
     fromTimestamp: number;
     toTimestamp: number;
-    handledEventMetadata: {
+    indexingMetadata: {
       [eventSourceName: string]:
         | {
             bySelector: { [selector: Hex]: LogEventMetadata };
@@ -136,7 +136,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         fromBlock: logFilter.startBlock,
         toBlock: logFilter.endBlock,
         includeEventSelectors: Object.keys(
-          handledEventMetadata[logFilter.name]?.bySelector ?? {}
+          indexingMetadata[logFilter.name]?.bySelector ?? {}
         ) as Hex[],
       })),
       factories: this.factories.map((factory) => ({
@@ -146,7 +146,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         fromBlock: factory.startBlock,
         toBlock: factory.endBlock,
         includeEventSelectors: Object.keys(
-          handledEventMetadata[factory.name]?.bySelector ?? {}
+          indexingMetadata[factory.name]?.bySelector ?? {}
         ) as Hex[],
       })),
     });
@@ -163,7 +163,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         }
 
         const logEventMetadata =
-          handledEventMetadata[event.eventSourceName]?.bySelector[selector];
+          indexingMetadata[event.eventSourceName]?.bySelector[selector];
         if (!logEventMetadata) {
           throw new Error(
             `Metadata for event ${event.eventSourceName}:${selector} not found in includeEvents`
