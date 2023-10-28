@@ -9,6 +9,7 @@ type Optional<
     ? InternalColumn<TScalar, TReferences, true, TList>
     : InternalColumn<TScalar, TReferences, true, TList> & {
         list: List<TScalar, true>;
+        references: References<TScalar, true>;
       }
   : InternalColumn<TScalar, TReferences, true, TList>;
 
@@ -32,6 +33,9 @@ const optional = <
       : {
           column: newColumn,
           list: list(
+            newColumn as unknown as BaseColumn<TScalar, never, true, false>
+          ),
+          references: references(
             newColumn as unknown as BaseColumn<TScalar, never, true, false>
           ),
         };
@@ -72,20 +76,32 @@ type References<TScalar extends Scalar, TOptional extends boolean> = <
   TReferences extends `${string}.id`
 >(
   references: TReferences
-) => InternalColumn<TScalar, TReferences, TOptional, false>;
+) => TOptional extends true
+  ? InternalColumn<TScalar, TReferences, TOptional, false>
+  : InternalColumn<TScalar, TReferences, TOptional, false> & {
+      optional: Optional<TScalar, TReferences, false>;
+    };
 
 /**
  * Helper function for reference modifier
  *
  * Reference columns can't be lists
  */
-const references =
-  <TScalar extends Scalar, TOptional extends boolean>(
-    column: BaseColumn<TScalar, never, TOptional, false>
-  ): References<TScalar, TOptional> =>
-  <TReferences extends `${string}.id`>(references: TReferences) => ({
-    column: { ...column, references },
-  });
+const references = <TScalar extends Scalar, TOptional extends boolean>(
+  column: BaseColumn<TScalar, never, TOptional, false>
+): References<TScalar, TOptional> =>
+  (<TReferences extends `${string}.id`>(references: TReferences) => {
+    const newColumn = { ...column, references };
+
+    return column.optional
+      ? { column: newColumn }
+      : {
+          column: newColumn,
+          optional: optional(
+            newColumn as BaseColumn<TScalar, TReferences, false, false>
+          ),
+        };
+  }) as References<TScalar, TOptional>;
 
 const emptyColumn =
   <TScalar extends Scalar>(scalar: TScalar) =>

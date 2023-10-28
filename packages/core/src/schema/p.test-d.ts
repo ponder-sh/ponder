@@ -104,6 +104,17 @@ test("list", () => {
   assertType<t>({} as string[]);
 });
 
+test("references", () => {
+  const c = p.string().references("OtherTable.id");
+
+  assertType<BaseColumn<"string", "OtherTable.id", false, false>>(c.column);
+
+  type t = RecoverColumnType<typeof c.column>;
+  //   ^?
+
+  assertType<t>({} as string);
+});
+
 test("chaining modifiers 1", () => {
   const c = p.string().list().optional();
   //    ^?
@@ -126,4 +137,28 @@ test("chaining modifiers 2", () => {
   //   ^?
 
   assertType<t>({} as string[]);
+});
+
+test("chaining modifiers 3", () => {
+  const c = p.string().optional().references("OtherTable.id");
+  //    ^?
+
+  assertType<BaseColumn<"string", "OtherTable.id", true, false>>(c.column);
+
+  type t = RecoverColumnType<typeof c.column>;
+  //   ^?
+
+  assertType<t>({} as string);
+});
+
+test("chaining modifiers 4", () => {
+  const c = p.string().references("OtherTable.id").optional();
+  //    ^?
+
+  assertType<BaseColumn<"string", "OtherTable.id", true, false>>(c.column);
+
+  type t = RecoverColumnType<typeof c.column>;
+  //   ^?
+
+  assertType<t>({} as string);
 });

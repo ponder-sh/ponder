@@ -78,6 +78,15 @@ test("list", () => {
   expect(c.column.list).toBe(true);
 });
 
+test("referenes", () => {
+  const c = p.string().references("OtherTable.id");
+
+  expect(c.column.type).toBe("string");
+  expect(c.column.references).toBe("OtherTable.id");
+  expect(c.column.optional).toBe(false);
+  expect(c.column.list).toBe(false);
+});
+
 test("chaining modifiers 1", () => {
   const c = p.string().list().optional();
 
@@ -94,4 +103,22 @@ test("chaining modifiers 2", () => {
   expect(c.column.references).toBe(undefined);
   expect(c.column.optional).toBe(true);
   expect(c.column.list).toBe(true);
+});
+
+test("chaining modifiers 3", () => {
+  const c = p.string().optional().references("OtherTable.id");
+
+  expect(c.column.type).toBe("string");
+  expect(c.column.references).toBe("OtherTable.id");
+  expect(c.column.optional).toBe(true);
+  expect(c.column.list).toBe(false);
+});
+
+test("chaining modifiers 4", () => {
+  const c = p.string().references("OtherTable.id").optional();
+
+  expect(c.column.type).toBe("string");
+  expect(c.column.references).toBe("OtherTable.id");
+  expect(c.column.optional).toBe(true);
+  expect(c.column.list).toBe(false);
 });
