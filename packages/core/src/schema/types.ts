@@ -43,7 +43,6 @@ export type NonReferenceColumn<
   TList extends boolean | unknown = unknown
 > = BaseColumn<TType, never, TOptional, TList>;
 
-// Note: should a list of enums be allowed?
 export type EnumColumn<
   TType extends string | unknown = unknown,
   TOptional extends boolean | unknown = unknown
