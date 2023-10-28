@@ -103,3 +103,27 @@ test("list", () => {
 
   assertType<t>({} as string[]);
 });
+
+test("chaining modifiers 1", () => {
+  const c = p.string().list().optional();
+  //    ^?
+
+  assertType<BaseColumn<"string", never, true, true>>(c.column);
+
+  type t = RecoverColumnType<typeof c.column>;
+  //   ^?
+
+  assertType<t>({} as string[]);
+});
+
+test("chaining modifiers 2", () => {
+  const c = p.string().optional().list();
+  //    ^?
+
+  assertType<BaseColumn<"string", never, true, true>>(c.column);
+
+  type t = RecoverColumnType<typeof c.column>;
+  //   ^?
+
+  assertType<t>({} as string[]);
+});

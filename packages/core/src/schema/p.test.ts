@@ -77,3 +77,21 @@ test("list", () => {
   expect(c.column.optional).toBe(false);
   expect(c.column.list).toBe(true);
 });
+
+test("chaining modifiers 1", () => {
+  const c = p.string().list().optional();
+
+  expect(c.column.type).toBe("string");
+  expect(c.column.references).toBe(undefined);
+  expect(c.column.optional).toBe(true);
+  expect(c.column.list).toBe(true);
+});
+
+test("chaining modifiers 2", () => {
+  const c = p.string().optional().list();
+
+  expect(c.column.type).toBe("string");
+  expect(c.column.references).toBe(undefined);
+  expect(c.column.optional).toBe(true);
+  expect(c.column.list).toBe(true);
+});
