@@ -2,7 +2,7 @@ import { Hex } from "viem";
 import { assertType, test } from "vitest";
 
 import { p } from "./p";
-import { type BaseColumn, type RecoverColumnType } from "./types";
+import { type BaseColumn, type RecoverColumnType, EnumColumn } from "./types";
 
 test("string", () => {
   const c = p.string();
@@ -76,7 +76,12 @@ test("bigint", () => {
   assertType<t>({} as bigint);
 });
 
-test.todo("enum", () => {});
+test("enum", () => {
+  const c = p.enum("ENUM");
+  //    ^?
+
+  assertType<EnumColumn<"ENUM", false>>(c.enum);
+});
 
 test.todo("virtual", () => {});
 

@@ -1,4 +1,4 @@
-import { BaseColumn, InternalColumn, Scalar } from "./types";
+import { BaseColumn, InternalColumn, InternalEnum, Scalar } from "./types";
 
 type Optional<
   TScalar extends Scalar,
@@ -125,6 +125,30 @@ const emptyColumn =
     };
   };
 
+type Enum<
+  TType extends string,
+  TOptional extends boolean
+> = TOptional extends true
+  ? InternalEnum<TType, TOptional>
+  : InternalEnum<TType, TOptional> & {
+      optional: () => Enum<TType, true>;
+    };
+
+const _enum = <TType extends string>(type: TType): Enum<TType, false> => ({
+  enum: {
+    _type: "e",
+    type,
+    optional: false,
+  },
+  optional: () => ({
+    enum: {
+      _type: "e",
+      type,
+      optional: true,
+    },
+  }),
+});
+
 /**
  * Column values in a Ponder schema
  */
@@ -135,15 +159,7 @@ export const p = {
   boolean: emptyColumn("boolean"),
   bytes: emptyColumn("bytes"),
   bigint: emptyColumn("bigint"),
-  // enum: <TType extends string = string, TOptional extends boolean = false>(
-  //   type: TType,
-  //   modifiers?: { optional?: TOptional }
-  // ): EnumColumn<TType, TOptional> =>
-  //   ({
-  //     _type: "e",
-  //     type,
-  //     optional: modifiers?.optional ?? false,
-  //   } as EnumColumn<TType, TOptional>),
+  enum: _enum,
   // virtual: <TTableName extends string, TColumnName extends string>(
   //   derived: `${TTableName}.${TColumnName}`
   // ): VirtualColumn<TTableName, TColumnName> => ({

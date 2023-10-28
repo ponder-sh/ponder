@@ -24,6 +24,7 @@ export type BaseColumn<
   list: TList;
 };
 
+// TODO: make sure that .column is not available when compiled
 export type InternalColumn<
   TType extends Scalar = Scalar,
   TReferences extends `${string}.id` | never | unknown = unknown,
@@ -31,12 +32,7 @@ export type InternalColumn<
   TList extends boolean | unknown = unknown
 > = {
   /** @internal */
-  column: {
-    type: TType;
-    references: TReferences;
-    optional: TOptional;
-    list: TList;
-  };
+  column: BaseColumn<TType, TReferences, TOptional, TList>;
 };
 
 export type IDColumn<TType extends ID = ID> = BaseColumn<
@@ -57,6 +53,14 @@ export type NonReferenceColumn<
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown
 > = BaseColumn<TType, never, TOptional, TList>;
+
+export type InternalEnum<
+  TType extends string | unknown = unknown,
+  TOptional extends boolean | unknown = unknown
+> = {
+  /** @internal */
+  enum: EnumColumn<TType, TOptional>;
+};
 
 export type EnumColumn<
   TType extends string | unknown = unknown,

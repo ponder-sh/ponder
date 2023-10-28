@@ -56,7 +56,12 @@ test("bigint", () => {
   expect(c.column.list).toBe(false);
 });
 
-test.todo("enum", () => {});
+test("enum", () => {
+  const c = p.enum("ENUM");
+
+  expect(c.enum.type).toBe("ENUM");
+  expect(c.enum.optional).toBe(false);
+});
 
 test.todo("virtual", () => {});
 
@@ -115,6 +120,7 @@ test("chaining modifiers 3", () => {
 });
 
 test("chaining modifiers 4", () => {
+  // TODO: this is not working, should be no more function properties available off of optional
   const c = p.string().references("OtherTable.id").optional();
 
   expect(c.column.type).toBe("string");
