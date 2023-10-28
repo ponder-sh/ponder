@@ -1,4 +1,10 @@
-import { BaseColumn, InternalColumn, InternalEnum, Scalar } from "./types";
+import {
+  BaseColumn,
+  InternalColumn,
+  InternalEnum,
+  Scalar,
+  VirtualColumn,
+} from "./types";
 
 type Optional<
   TScalar extends Scalar,
@@ -160,11 +166,11 @@ export const p = {
   bytes: emptyColumn("bytes"),
   bigint: emptyColumn("bigint"),
   enum: _enum,
-  // virtual: <TTableName extends string, TColumnName extends string>(
-  //   derived: `${TTableName}.${TColumnName}`
-  // ): VirtualColumn<TTableName, TColumnName> => ({
-  //   _type: "v",
-  //   referenceTable: derived.split(".")[0] as TTableName,
-  //   referenceColumn: derived.split(".")[1] as TColumnName,
-  // }),
+  virtual: <TTableName extends string, TColumnName extends string>(
+    derived: `${TTableName}.${TColumnName}`
+  ): VirtualColumn<TTableName, TColumnName> => ({
+    _type: "v",
+    referenceTable: derived.split(".")[0] as TTableName,
+    referenceColumn: derived.split(".")[1] as TColumnName,
+  }),
 } as const;

@@ -63,7 +63,12 @@ test("enum", () => {
   expect(c.enum.optional).toBe(false);
 });
 
-test.todo("virtual", () => {});
+test("virtual", () => {
+  const c = p.virtual("OtherTable.OtherColumn");
+
+  expect(c.referenceTable).toBe("OtherTable");
+  expect(c.referenceColumn).toBe("OtherColumn");
+});
 
 test("optional", () => {
   const c = p.string().optional();

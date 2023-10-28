@@ -2,7 +2,12 @@ import { Hex } from "viem";
 import { assertType, test } from "vitest";
 
 import { p } from "./p";
-import { type BaseColumn, type RecoverColumnType, EnumColumn } from "./types";
+import {
+  type BaseColumn,
+  type RecoverColumnType,
+  EnumColumn,
+  VirtualColumn,
+} from "./types";
 
 test("string", () => {
   const c = p.string();
@@ -83,7 +88,12 @@ test("enum", () => {
   assertType<EnumColumn<"ENUM", false>>(c.enum);
 });
 
-test.todo("virtual", () => {});
+test("virtual", () => {
+  const c = p.virtual("OtherTable.OtherColumn");
+  //    ^?
+
+  assertType<VirtualColumn<"OtherTable", "OtherColumn">>(c);
+});
 
 test("optional", () => {
   const c = p.string().optional();
