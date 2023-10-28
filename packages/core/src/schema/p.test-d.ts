@@ -92,4 +92,14 @@ test("optional", () => {
   assertType<t>({} as string);
 });
 
-test.todo("list", () => {});
+test("list", () => {
+  const c = p.string().list();
+  //    ^?
+
+  assertType<BaseColumn<"string", never, false, true>>(c.column);
+
+  type t = RecoverColumnType<typeof c.column>;
+  //   ^?
+
+  assertType<t>({} as string[]);
+});

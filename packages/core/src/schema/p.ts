@@ -1,5 +1,11 @@
 import { BaseColumn, InternalColumn, Scalar } from "./types";
 
+type Optional<
+  TScalar extends Scalar,
+  TReferences extends `${string}.id` | never,
+  TList extends boolean
+> = () => InternalColumn<TScalar, TReferences, true, TList>;
+
 /**
  * Helper function for optional modifier
  */
@@ -10,10 +16,15 @@ const optional =
     TList extends boolean
   >(
     column: BaseColumn<TScalar, TReferences, false, TList>
-  ) =>
-  (): InternalColumn<TScalar, TReferences, true, TList> => ({
+  ): Optional<TScalar, TReferences, TList> =>
+  () => ({
     column: { ...column, optional: true },
   });
+
+type List<
+  TScalar extends Scalar,
+  TOptional extends boolean
+> = () => InternalColumn<TScalar, never, TOptional, true>;
 
 /**
  * Helper function for list modifier
@@ -23,10 +34,16 @@ const optional =
 const list =
   <TScalar extends Scalar, TOptional extends boolean>(
     column: BaseColumn<TScalar, never, TOptional, false>
-  ) =>
-  (): InternalColumn<TScalar, never, TOptional, true> => ({
+  ): List<TScalar, TOptional> =>
+  () => ({
     column: { ...column, list: true },
   });
+
+type References<TScalar extends Scalar, TOptional extends boolean> = <
+  TReferences extends `${string}.id`
+>(
+  references: TReferences
+) => InternalColumn<TScalar, TReferences, TOptional, false>;
 
 /**
  * Helper function for reference modifier
@@ -36,16 +53,18 @@ const list =
 const references =
   <TScalar extends Scalar, TOptional extends boolean>(
     column: BaseColumn<TScalar, never, TOptional, false>
-  ) =>
-  <TReferences extends `${string}.id`>(
-    references: TReferences
-  ): InternalColumn<TScalar, TReferences, TOptional, false> => ({
+  ): References<TScalar, TOptional> =>
+  <TReferences extends `${string}.id`>(references: TReferences) => ({
     column: { ...column, references },
   });
 
 const emptyColumn =
   <TScalar extends Scalar>(scalar: TScalar) =>
-  () => {
+  (): InternalColumn<TScalar, never, false, false> & {
+    optional: Optional<TScalar, never, false>;
+    list: List<TScalar, false>;
+    references: References<TScalar, false>;
+  } => {
     const column = {
       type: scalar,
       references: undefined,

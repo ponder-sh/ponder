@@ -69,4 +69,11 @@ test("optional", () => {
   expect(c.column.list).toBe(false);
 });
 
-test.todo("list", () => {});
+test("list", () => {
+  const c = p.string().list();
+
+  expect(c.column.type).toBe("string");
+  expect(c.column.references).toBe(undefined);
+  expect(c.column.optional).toBe(false);
+  expect(c.column.list).toBe(true);
+});
