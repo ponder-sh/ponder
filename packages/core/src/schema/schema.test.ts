@@ -8,7 +8,7 @@ test("table", () => {
     id: p.string(),
   });
 
-  expect(t.id.column).toBeTruthy();
+  expect(t.id).toBeTruthy();
 });
 
 test("enum", () => {

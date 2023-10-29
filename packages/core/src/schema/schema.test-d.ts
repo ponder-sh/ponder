@@ -62,9 +62,7 @@ test("filter tables", () => {
   type t = FilterTables<typeof a>;
   //   ^?
 
-  assertType<t["t"]["id"]["column"]>(
-    {} as BaseColumn<"string", never, false, false>
-  );
+  assertType<t["t"]["id"]>({} as BaseColumn<"string", never, false, false>);
 });
 
 test("schema", () => {

@@ -119,7 +119,10 @@ export type FilterTables<TSchema extends Record<string, Enum | Table>> = Pick<
   TSchema,
   {
     [key in keyof TSchema]: TSchema[key] extends Table<
-      Record<string, InternalEnum | InternalColumn | VirtualColumn>
+      Record<
+        string,
+        NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+      >
     >
       ? key
       : never;
@@ -152,22 +155,22 @@ export type RecoverColumnType<TColumn extends BaseColumn> = TColumn extends {
   : never;
 
 export type RecoverOptionalColumns<
-  TColumns extends Record<string, { column: BaseColumn }>
+  TColumns extends Record<string, NonReferenceColumn | ReferenceColumn>
 > = Pick<
   TColumns,
   {
-    [key in keyof TColumns]: TColumns[key]["column"]["optional"] extends true
+    [key in keyof TColumns]: TColumns[key]["optional"] extends true
       ? key
       : never;
   }[keyof TColumns]
 >;
 
 export type RecoverRequiredColumns<
-  TColumns extends Record<string, { column: BaseColumn }>
+  TColumns extends Record<string, NonReferenceColumn | ReferenceColumn>
 > = Pick<
   TColumns,
   {
-    [key in keyof TColumns]: TColumns[key]["column"]["optional"] extends false
+    [key in keyof TColumns]: TColumns[key]["optional"] extends false
       ? key
       : never;
   }[keyof TColumns]
@@ -175,16 +178,16 @@ export type RecoverRequiredColumns<
 
 export type RecoverTableType<TTable extends Table> =
   TTable extends infer _columns extends {
-    id: IDColumn;
-  } & Record<string, { column: BaseColumn }>
+    id: BaseColumn<ID, never, false, false>;
+  } & Record<string, ReferenceColumn | NonReferenceColumn>
     ? Prettify<
-        Record<"id", RecoverScalarType<_columns["id"]["column"]["type"]>> & {
+        Record<"id", RecoverScalarType<_columns["id"]["type"]>> & {
           [key in keyof RecoverRequiredColumns<_columns>]: RecoverColumnType<
-            _columns[key]["column"]
+            _columns[key]
           >;
         } & {
           [key in keyof RecoverOptionalColumns<_columns>]?: RecoverColumnType<
-            _columns[key]["column"]
+            _columns[key]
           >;
         }
       >

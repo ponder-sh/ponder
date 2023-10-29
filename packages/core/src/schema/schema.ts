@@ -1,5 +1,6 @@
 import {
   Enum,
+  EnumColumn,
   FilterEnums,
   FilterTables,
   IDColumn,
@@ -27,7 +28,56 @@ declare global {
   }
 }
 
-export const createTable = <TTable extends Table>(table: TTable) => table;
+/**
+ * Extract the data from column types, removing the modifier functions
+ */
+export const createTable = <
+  TColumns extends
+    | ({
+        id: { column: IDColumn };
+      } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
+    | unknown =
+    | ({
+        id: { column: IDColumn };
+      } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
+    | unknown
+>(
+  columns: TColumns
+): {
+  [key in keyof TColumns]: TColumns[key] extends InternalColumn
+    ? TColumns[key]["column"]
+    : TColumns[key] extends InternalEnum
+    ? TColumns[key]["enum"]
+    : TColumns[key];
+} =>
+  Object.entries(
+    columns as {
+      id: { column: IDColumn };
+    } & Record<string, InternalEnum | InternalColumn | VirtualColumn>
+  ).reduce(
+    (
+      acc: Record<
+        string,
+        NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+      >,
+      cur
+    ) => ({
+      ...acc,
+      [cur[0]]:
+        "column" in cur[1]
+          ? (cur[1].column as NonReferenceColumn | ReferenceColumn)
+          : "enum" in cur[1]
+          ? cur[1].enum
+          : cur[1],
+    }),
+    {}
+  ) as {
+    [key in keyof TColumns]: TColumns[key] extends InternalColumn
+      ? TColumns[key]["column"]
+      : TColumns[key] extends InternalEnum
+      ? TColumns[key]["enum"]
+      : TColumns[key];
+  };
 
 /**
  * @todo const type assertions is needed, might have to update vitest
@@ -41,9 +91,9 @@ export const createSchema = <
   TSchema extends Record<
     string,
     | Table<
-        { id: IDColumn } & Record<
+        Record<
           string,
-          InternalEnum | InternalColumn | VirtualColumn
+          NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
         >
       >
     | Enum<readonly string[]>
@@ -75,39 +125,33 @@ export const createSchema = <
       if (tableOrEnum.id === undefined)
         throw Error('Table doesn\'t contain an "id" field');
       if (
-        tableOrEnum.id.column.type !== "bigint" &&
-        tableOrEnum.id.column.type !== "string" &&
-        tableOrEnum.id.column.type !== "bytes" &&
-        tableOrEnum.id.column.type !== "int"
+        isEnumColumn(tableOrEnum.id) ||
+        isVirtualColumn(tableOrEnum.id) ||
+        isReferenceColumn(tableOrEnum.id) ||
+        (tableOrEnum.id.type !== "bigint" &&
+          tableOrEnum.id.type !== "string" &&
+          tableOrEnum.id.type !== "bytes" &&
+          tableOrEnum.id.type !== "int")
       )
         throw Error('"id" is not of the correct type');
       // NOTE: This is a to make sure the user didn't override the optional type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (tableOrEnum.id.column.optional === true)
+      if (tableOrEnum.id.optional === true)
         throw Error('"id" cannot be optional');
       // NOTE: This is a to make sure the user didn't override the list type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (tableOrEnum.id.column.list === true)
-        throw Error('"id" cannot be a list');
+      if (tableOrEnum.id.list === true) throw Error('"id" cannot be a list');
       // NOTE: This is a to make sure the user didn't override the reference type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (tableOrEnum.id.column.references)
-        throw Error('"id" cannot be a reference');
+      if (tableOrEnum.id.references) throw Error('"id" cannot be a reference');
 
-      Object.entries(tableOrEnum).forEach(([columnName, _column]) => {
+      Object.entries(tableOrEnum).forEach(([columnName, column]) => {
         if (columnName === "id") return;
 
         validateTableOrColumnName(columnName);
-
-        const column =
-          "column" in _column
-            ? (_column.column as NonReferenceColumn | ReferenceColumn)
-            : "enum" in _column
-            ? _column.enum
-            : _column;
 
         if (isVirtualColumn(column)) {
           if (
@@ -147,7 +191,8 @@ export const createSchema = <
           for (const [, referencingTable] of referencingTables) {
             if (
               Array.isArray(referencingTable) ||
-              referencingTable.id.column.type !== column.type
+              (referencingTable as { id: NonReferenceColumn }).id.type !==
+                column.type
             )
               throw Error(
                 "Column type doesn't match the referenced table id type"
