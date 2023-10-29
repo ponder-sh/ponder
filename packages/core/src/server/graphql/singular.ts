@@ -6,7 +6,7 @@ import {
   GraphQLObjectType,
 } from "graphql";
 
-import type { IDColumn, Schema } from "@/schema/types";
+import type { BaseColumn, ID, Schema } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
 import { tsTypeToGqlScalar } from "./schema";
@@ -46,7 +46,9 @@ const buildSingularField = ({
     args: {
       id: {
         type: new GraphQLNonNull(
-          tsTypeToGqlScalar[(table as { id: IDColumn }).id.type]
+          tsTypeToGqlScalar[
+            (table as { id: BaseColumn<ID, never, false, false> }).id.type
+          ]
         ),
       },
       timestamp: { type: GraphQLInt },

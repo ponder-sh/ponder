@@ -18,14 +18,10 @@ test("filter type has correct suffixes and types", () => {
       bytes: p.bytes(),
       bigint: p.bigint(),
       enum: p.enum("SimpleEnum"),
-      listString: p.string({ list: true }),
-      listBigInt: p.bigint({ list: true }),
-      relatedEntityStringId: p.string({
-        references: "RelatedEntityStringId.id",
-      }),
-      relatedEntityBigIntId: p.bigint({
-        references: "RelatedEntityBigIntId.id",
-      }),
+      listString: p.string().list(),
+      listBigInt: p.bigint().list(),
+      relatedEntityStringId: p.string().references("RelatedEntityStringId.id"),
+      relatedEntityBigIntId: p.bigint().references("RelatedEntityBigIntId.id"),
     }),
   });
 

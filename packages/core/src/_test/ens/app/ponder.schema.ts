@@ -4,10 +4,10 @@ export const schema = createSchema({
   EnsNft: createTable({
     id: p.string(),
     labelHash: p.string(),
-    ownerId: p.string({ references: "Account.id" }),
+    ownerId: p.string().references("Account.id"),
     transferredAt: p.int(),
-    stringArray: p.string({ list: true }),
-    intArray: p.int({ list: true }),
+    stringArray: p.string().list(),
+    intArray: p.int().list(),
   }),
   Account: createTable({
     id: p.string(),

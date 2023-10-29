@@ -10,9 +10,9 @@ const schema = createSchema({
   Pet: createTable({
     id: p.string(),
     name: p.string(),
-    age: p.int({ optional: true }),
-    bigAge: p.bigint({ optional: true }),
-    kind: p.enum("PetKind", { optional: true }),
+    age: p.int().optional(),
+    bigAge: p.bigint().optional(),
+    kind: p.enum("PetKind").optional(),
   }),
   Person: createTable({
     id: p.string(),

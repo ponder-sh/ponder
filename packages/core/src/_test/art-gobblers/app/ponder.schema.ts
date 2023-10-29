@@ -11,10 +11,7 @@ export const schema = createSchema({
 
   Token: createTable({
     id: p.bigint(),
-    claimedById: p.string({
-      references: "Account.id",
-      optional: true,
-    }),
-    ownerId: p.string({ references: "Account.id" }),
+    claimedById: p.string().references("Account.id").optional(),
+    ownerId: p.string().references("Account.id"),
   }),
 });

@@ -96,7 +96,18 @@ export type Enum<
 > = TValues;
 
 export type Schema = {
-  tables: Record<string, Table<Record<string, DefaultColumn>>>;
+  tables: Record<
+    string,
+    Table<
+      Record<
+        string,
+        | NonReferenceColumn<Scalar, boolean, boolean>
+        | ReferenceColumn<Scalar, `${string}.id`, boolean>
+        | EnumColumn<string, boolean>
+        | VirtualColumn<string, string>
+      >
+    >
+  >;
   enums: Record<string, Enum<readonly string[]>>;
 };
 
@@ -193,11 +204,6 @@ export type RecoverTableType<TTable extends Table> =
       >
     : never;
 
-export type RecoverSchemaType<
-  TSchema extends {
-    tables: Record<string, Table<Record<string, DefaultColumn>>>;
-    enums: Record<string, Enum<readonly string[]>>;
-  }
-> = {
+export type RecoverSchemaType<TSchema extends Schema> = {
   [key in keyof TSchema["tables"]]: RecoverTableType<TSchema["tables"][key]>;
 };

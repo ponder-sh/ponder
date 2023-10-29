@@ -22,11 +22,11 @@ const s = createSchema({
     boolean: p.boolean(),
     bytes: p.bytes(),
     bigInt: p.bigint(),
-    stringList: p.string({ list: true }),
-    intList: p.int({ list: true }),
-    floatList: p.float({ list: true }),
-    booleanList: p.boolean({ list: true }),
-    bytesList: p.bytes({ list: true }),
+    stringList: p.string().list(),
+    intList: p.int().list(),
+    floatList: p.float().list(),
+    booleanList: p.boolean().list(),
+    bytesList: p.bytes().list(),
     enum: p.enum("TestEnum"),
     derived: p.virtual("EntityWithBigIntId.testEntityId"),
   }),
@@ -34,7 +34,7 @@ const s = createSchema({
 
   EntityWithBigIntId: createTable({
     id: p.bigint(),
-    testEntityId: p.string({ references: "TestEntity.id" }),
+    testEntityId: p.string().references("TestEntity.id"),
   }),
 });
 
