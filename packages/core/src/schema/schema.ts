@@ -4,9 +4,6 @@ import {
   EnumColumn,
   FilterEnums,
   FilterTables,
-  IDColumn,
-  NonReferenceColumn,
-  ReferenceColumn,
   Table,
   VirtualColumn,
 } from "./types";
@@ -40,13 +37,7 @@ export const createEnum = <TEnum extends Enum>(_enum: TEnum) => _enum;
 export const createSchema = <
   TSchema extends Record<
     string,
-    | Table<
-        {
-          id: IDColumn;
-        } & Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
-          Record<`${string}Id`, ReferenceColumn>
-      >
-    | Enum<readonly string[]>
+    Table<Record<string, Column>> | Enum<readonly string[]>
   >
 >(schema: {
   [key in keyof TSchema]: TSchema[key] extends Table<{
@@ -155,7 +146,7 @@ export const createSchema = <
             for (const [, referencingTable] of referencingTables) {
               if (
                 Array.isArray(referencingTable) ||
-                referencingTable.id.type !== column.type
+                referencingTable.id.column.type !== column.type
               )
                 throw Error(
                   "Column type doesn't match the referenced table id type"

@@ -26,7 +26,7 @@ test("table", () => {
 test("table optional", () => {
   const t = createTable({
     id: p.string(),
-    age: p.int({ optional: true }),
+    age: p.int().optional(),
   });
 
   type t = RecoverTableType<typeof t>;
@@ -56,13 +56,15 @@ test("filter tables", () => {
     t: createTable({
       id: p.string(),
     }),
-    e: createEnum(["ONE", "TWO"] as const),
+    e: createEnum(["ONE", "TWO"]),
   };
 
   type t = FilterTables<typeof a>;
   //   ^?
 
-  assertType<t>({} as { t: { id: BaseColumn<"string", never, false, false> } });
+  assertType<t["t"]["id"]["column"]>(
+    {} as BaseColumn<"string", never, false, false>
+  );
 });
 
 test("schema", () => {

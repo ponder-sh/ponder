@@ -35,24 +35,9 @@ export type InternalColumn<
   column: BaseColumn<TType, TReferences, TOptional, TList>;
 };
 
-export type IDColumn<TType extends ID = ID> = BaseColumn<
-  TType,
-  never,
-  false,
-  false
->;
-
-export type ReferenceColumn<
-  TType extends Scalar = Scalar,
-  TReferences extends `${string}.id` | unknown = unknown,
-  TOptional extends boolean | unknown = unknown
-> = BaseColumn<TType, TReferences, TOptional, false>;
-
-export type NonReferenceColumn<
-  TType extends Scalar = Scalar,
-  TOptional extends boolean | unknown = unknown,
-  TList extends boolean | unknown = unknown
-> = BaseColumn<TType, never, TOptional, TList>;
+export type IDColumn<TType extends ID = ID> = {
+  column: BaseColumn<TType, never, false, false>;
+};
 
 export type InternalEnum<
   TType extends string | unknown = unknown,
@@ -80,26 +65,18 @@ export type VirtualColumn<
   referenceColumn: TColumnName;
 };
 
-export type Column = BaseColumn | EnumColumn | VirtualColumn;
-
-export type DefaultColumn =
-  | ReferenceColumn<ID, `${string}.id`, boolean>
-  | NonReferenceColumn<ID, boolean, boolean>
-  | EnumColumn<string, boolean>
-  | VirtualColumn<string, string>;
+export type Column = InternalEnum | InternalColumn | VirtualColumn;
 
 // Note: This is kinda unfortunate because table.id is no longer strongly typed, should however be better for users
 export type Table<
   TColumns extends
     | ({
-        id: IDColumn;
-      } & Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
-        Record<`${string}Id`, ReferenceColumn>)
+        id: { column: IDColumn };
+      } & Record<string, Column>)
     | unknown =
     | ({
-        id: IDColumn;
-      } & Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
-        Record<`${string}Id`, ReferenceColumn>)
+        id: { column: IDColumn };
+      } & Record<string, Column>)
     | unknown
 > = TColumns;
 
@@ -130,12 +107,7 @@ export type FilterEnums<TSchema extends Record<string, Enum | Table>> = Pick<
 export type FilterTables<TSchema extends Record<string, Enum | Table>> = Pick<
   TSchema,
   {
-    [key in keyof TSchema]: TSchema[key] extends Table<
-      {
-        id: IDColumn;
-      } & Record<string, NonReferenceColumn | EnumColumn | VirtualColumn> &
-        Record<`${string}Id`, ReferenceColumn>
-    >
+    [key in keyof TSchema]: TSchema[key] extends Table<Record<string, Column>>
       ? key
       : never;
   }[keyof TSchema]
@@ -167,22 +139,22 @@ export type RecoverColumnType<TColumn extends BaseColumn> = TColumn extends {
   : never;
 
 export type RecoverOptionalColumns<
-  TColumns extends Record<string, BaseColumn>
+  TColumns extends Record<string, { column: BaseColumn }>
 > = Pick<
   TColumns,
   {
-    [key in keyof TColumns]: TColumns[key]["optional"] extends true
+    [key in keyof TColumns]: TColumns[key]["column"]["optional"] extends true
       ? key
       : never;
   }[keyof TColumns]
 >;
 
 export type RecoverRequiredColumns<
-  TColumns extends Record<string, BaseColumn>
+  TColumns extends Record<string, { column: BaseColumn }>
 > = Pick<
   TColumns,
   {
-    [key in keyof TColumns]: TColumns[key]["optional"] extends false
+    [key in keyof TColumns]: TColumns[key]["column"]["optional"] extends false
       ? key
       : never;
   }[keyof TColumns]
@@ -191,15 +163,15 @@ export type RecoverRequiredColumns<
 export type RecoverTableType<TTable extends Table> =
   TTable extends infer _columns extends {
     id: IDColumn;
-  } & Record<string, BaseColumn>
+  } & Record<string, { column: BaseColumn }>
     ? Prettify<
-        Record<"id", RecoverScalarType<_columns["id"]["type"]>> & {
+        Record<"id", RecoverScalarType<_columns["id"]["column"]["type"]>> & {
           [key in keyof RecoverRequiredColumns<_columns>]: RecoverColumnType<
-            _columns[key]
+            _columns[key]["column"]
           >;
         } & {
           [key in keyof RecoverOptionalColumns<_columns>]?: RecoverColumnType<
-            _columns[key]
+            _columns[key]["column"]
           >;
         }
       >

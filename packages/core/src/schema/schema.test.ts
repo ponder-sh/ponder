@@ -8,7 +8,7 @@ test("table", () => {
     id: p.string(),
   });
 
-  expect(t.id).toBeTruthy();
+  expect(t.id.column).toBeTruthy();
 });
 
 test("enum", () => {
@@ -21,7 +21,7 @@ test("schema table", () => {
   const s = createSchema({
     t: createTable({
       id: p.string(),
-      age: p.int({ optional: true }),
+      age: p.int().optional(),
     }),
   });
   expect(s.enums).toStrictEqual({});
@@ -49,7 +49,7 @@ test("schema references", () => {
     }),
     t: createTable({
       id: p.string(),
-      age: p.int({ references: "a.id" }),
+      age: p.int().references("a.id"),
     }),
   });
   expect(s.enums).toStrictEqual({});
@@ -65,7 +65,7 @@ test("schema virtual", () => {
     }),
     t: createTable({
       id: p.string(),
-      age: p.int({ references: "a.id" }),
+      age: p.int().references("a.id"),
     }),
   });
   expect(s.enums).toStrictEqual({});
