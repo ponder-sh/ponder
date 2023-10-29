@@ -24,6 +24,18 @@ export type BaseColumn<
   list: TList;
 };
 
+export type ReferenceColumn<
+  TType extends Scalar = Scalar,
+  TReferences extends `${string}.id` = `${string}.id`,
+  TOptional extends boolean = boolean
+> = BaseColumn<TType, TReferences, TOptional, false>;
+
+export type NonReferenceColumn<
+  TType extends Scalar = Scalar,
+  TOptional extends boolean = boolean,
+  TList extends boolean = boolean
+> = BaseColumn<TType, never, TOptional, TList>;
+
 // TODO: make sure that .column is not available when compiled
 export type InternalColumn<
   TType extends Scalar = Scalar,
@@ -65,18 +77,16 @@ export type VirtualColumn<
   referenceColumn: TColumnName;
 };
 
-export type Column = InternalEnum | InternalColumn | VirtualColumn;
-
 // Note: This is kinda unfortunate because table.id is no longer strongly typed, should however be better for users
 export type Table<
   TColumns extends
     | ({
         id: { column: IDColumn };
-      } & Record<string, Column>)
+      } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
     | unknown =
     | ({
         id: { column: IDColumn };
-      } & Record<string, Column>)
+      } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
     | unknown
 > = TColumns;
 
@@ -107,7 +117,9 @@ export type FilterEnums<TSchema extends Record<string, Enum | Table>> = Pick<
 export type FilterTables<TSchema extends Record<string, Enum | Table>> = Pick<
   TSchema,
   {
-    [key in keyof TSchema]: TSchema[key] extends Table<Record<string, Column>>
+    [key in keyof TSchema]: TSchema[key] extends Table<
+      Record<string, InternalEnum | InternalColumn | VirtualColumn>
+    >
       ? key
       : never;
   }[keyof TSchema]

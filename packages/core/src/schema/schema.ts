@@ -1,9 +1,10 @@
 import {
-  Column,
   Enum,
   EnumColumn,
   FilterEnums,
   FilterTables,
+  InternalColumn,
+  InternalEnum,
   Table,
   VirtualColumn,
 } from "./types";
@@ -37,7 +38,8 @@ export const createEnum = <TEnum extends Enum>(_enum: TEnum) => _enum;
 export const createSchema = <
   TSchema extends Record<
     string,
-    Table<Record<string, Column>> | Enum<readonly string[]>
+    | Table<Record<string, InternalEnum | InternalColumn | VirtualColumn>>
+    | Enum<readonly string[]>
   >
 >(schema: {
   [key in keyof TSchema]: TSchema[key] extends Table<{
