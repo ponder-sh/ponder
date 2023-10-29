@@ -117,6 +117,7 @@ const emptyColumn =
     references: References<TScalar, false>;
   } => {
     const column = {
+      _type: "b",
       type: scalar,
       references: undefined,
       optional: false,

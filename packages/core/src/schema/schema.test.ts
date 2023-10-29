@@ -49,7 +49,7 @@ test("schema references", () => {
     }),
     t: createTable({
       id: p.string(),
-      age: p.int().references("a.id"),
+      ageId: p.int().references("a.id"),
     }),
   });
   expect(s.enums).toStrictEqual({});
@@ -61,11 +61,11 @@ test("schema virtual", () => {
   const s = createSchema({
     a: createTable({
       id: p.int(),
-      b: p.virtual("t.age"),
+      b: p.virtual("t.ageId"),
     }),
     t: createTable({
       id: p.string(),
-      age: p.int().references("a.id"),
+      ageId: p.int().references("a.id"),
     }),
   });
   expect(s.enums).toStrictEqual({});

@@ -13,13 +13,13 @@ export const referencedEntityName = (references: unknown) =>
 
 export const isVirtualColumn = (
   column: EnumColumn | NonReferenceColumn | ReferenceColumn | VirtualColumn
-): column is VirtualColumn => "_type" in column && column._type === "v";
+): column is VirtualColumn => column._type === "v";
 
 export const isEnumColumn = (
   column: EnumColumn | NonReferenceColumn | ReferenceColumn | VirtualColumn
-): column is EnumColumn => "_type" in column && column._type === "e";
+): column is EnumColumn => column._type === "e";
 
 export const isReferenceColumn = (
   column: EnumColumn | NonReferenceColumn | ReferenceColumn | VirtualColumn
 ): column is ReferenceColumn =>
-  "references" in column && column.references !== undefined;
+  column._type === "b" && column.references !== undefined;

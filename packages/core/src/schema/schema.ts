@@ -1,10 +1,12 @@
 import {
   Enum,
-  EnumColumn,
   FilterEnums,
   FilterTables,
+  IDColumn,
   InternalColumn,
   InternalEnum,
+  NonReferenceColumn,
+  ReferenceColumn,
   Table,
   VirtualColumn,
 } from "./types";
@@ -38,26 +40,17 @@ export const createEnum = <TEnum extends Enum>(_enum: TEnum) => _enum;
 export const createSchema = <
   TSchema extends Record<
     string,
-    | Table<Record<string, InternalEnum | InternalColumn | VirtualColumn>>
+    | Table<
+        { id: IDColumn } & Record<
+          string,
+          InternalEnum | InternalColumn | VirtualColumn
+        >
+      >
     | Enum<readonly string[]>
   >
->(schema: {
-  [key in keyof TSchema]: TSchema[key] extends Table<{
-    [columnName in keyof TSchema[key]]: TSchema[key][columnName] extends VirtualColumn
-      ? VirtualColumn
-      : TSchema[key][columnName] extends EnumColumn
-      ? EnumColumn
-      : TSchema[key][columnName] extends ReferenceColumn
-      ? ReferenceColumn
-      : TSchema[key][columnName] extends NonReferenceColumn
-      ? NonReferenceColumn
-      : never;
-  }>
-    ? TSchema[key]
-    : TSchema[key] extends Enum
-    ? TSchema[key]
-    : never;
-}): {
+>(
+  schema: TSchema
+): {
   tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
   enums: {
     [key in keyof FilterEnums<TSchema>]: TSchema[key];
@@ -82,95 +75,100 @@ export const createSchema = <
       if (tableOrEnum.id === undefined)
         throw Error('Table doesn\'t contain an "id" field');
       if (
-        tableOrEnum.id.type !== "bigint" &&
-        tableOrEnum.id.type !== "string" &&
-        tableOrEnum.id.type !== "bytes" &&
-        tableOrEnum.id.type !== "int"
+        tableOrEnum.id.column.type !== "bigint" &&
+        tableOrEnum.id.column.type !== "string" &&
+        tableOrEnum.id.column.type !== "bytes" &&
+        tableOrEnum.id.column.type !== "int"
       )
         throw Error('"id" is not of the correct type');
       // NOTE: This is a to make sure the user didn't override the optional type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (tableOrEnum.id.optional === true)
+      if (tableOrEnum.id.column.optional === true)
         throw Error('"id" cannot be optional');
       // NOTE: This is a to make sure the user didn't override the list type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (tableOrEnum.id.list === true) throw Error('"id" cannot be a list');
+      if (tableOrEnum.id.column.list === true)
+        throw Error('"id" cannot be a list');
       // NOTE: This is a to make sure the user didn't override the reference type
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
-      if (tableOrEnum.id.references) throw Error('"id" cannot be a reference');
+      if (tableOrEnum.id.column.references)
+        throw Error('"id" cannot be a reference');
 
-      Object.entries(tableOrEnum).forEach(
-        ([columnName, column]: [string, Column]) => {
-          if (columnName === "id") return;
+      Object.entries(tableOrEnum).forEach(([columnName, _column]) => {
+        if (columnName === "id") return;
 
-          validateTableOrColumnName(columnName);
+        validateTableOrColumnName(columnName);
 
-          if (isVirtualColumn(column)) {
-            if (
-              Object.keys(schema)
-                .filter((_name) => _name !== name)
-                .every((_name) => _name !== column.referenceTable)
-            )
-              throw Error("Virtual column doesn't reference a valid table");
+        const column =
+          "column" in _column
+            ? (_column.column as NonReferenceColumn | ReferenceColumn)
+            : "enum" in _column
+            ? _column.enum
+            : _column;
 
-            if (
-              (
-                Object.entries(schema).find(
-                  ([tableName]) => tableName === column.referenceTable
-                )![1] as Record<string, unknown>
-              )[column.referenceColumn as string] === undefined
-            )
-              throw Error("Virtual column doesn't reference a valid column");
-          } else if (isEnumColumn(column)) {
-            if (
-              Object.entries(schema).every(([_name]) => _name !== column.type)
-            )
-              throw Error("Column doesn't reference a valid enum");
-          } else if (isReferenceColumn(column)) {
-            if (!columnName.endsWith("Id")) {
-              throw Error('Reference column name must end with "Id"');
-            }
+        if (isVirtualColumn(column)) {
+          if (
+            Object.keys(schema)
+              .filter((_name) => _name !== name)
+              .every((_name) => _name !== column.referenceTable)
+          )
+            throw Error("Virtual column doesn't reference a valid table");
 
-            if (
-              Object.keys(schema)
-                .filter((_name) => _name !== name)
-                .every((_name) => `${_name}.id` !== column.references)
-            )
-              throw Error("Column doesn't reference a valid table");
-
-            const referencingTables = Object.entries(schema).filter(
-              ([name]) => name === referencedEntityName(column.references)
-            );
-
-            for (const [, referencingTable] of referencingTables) {
-              if (
-                Array.isArray(referencingTable) ||
-                referencingTable.id.column.type !== column.type
-              )
-                throw Error(
-                  "Column type doesn't match the referenced table id type"
-                );
-            }
-
-            if (column.list)
-              throw Error("Columns can't be both refernce and list types");
-          } else {
-            // Non reference column
-            if (
-              column.type !== "bigint" &&
-              column.type !== "string" &&
-              column.type !== "boolean" &&
-              column.type !== "int" &&
-              column.type !== "float" &&
-              column.type !== "bytes"
-            )
-              throw Error("Column is not a valid type");
+          if (
+            (
+              Object.entries(schema).find(
+                ([tableName]) => tableName === column.referenceTable
+              )![1] as Record<string, unknown>
+            )[column.referenceColumn as string] === undefined
+          )
+            throw Error("Virtual column doesn't reference a valid column");
+        } else if (isEnumColumn(column)) {
+          if (Object.entries(schema).every(([_name]) => _name !== column.type))
+            throw Error("Column doesn't reference a valid enum");
+        } else if (isReferenceColumn(column)) {
+          if (!columnName.endsWith("Id")) {
+            throw Error('Reference column name must end with "Id"');
           }
+
+          if (
+            Object.keys(schema)
+              .filter((_name) => _name !== name)
+              .every((_name) => `${_name}.id` !== column.references)
+          )
+            throw Error("Column doesn't reference a valid table");
+
+          const referencingTables = Object.entries(schema).filter(
+            ([name]) => name === referencedEntityName(column.references)
+          );
+
+          for (const [, referencingTable] of referencingTables) {
+            if (
+              Array.isArray(referencingTable) ||
+              referencingTable.id.column.type !== column.type
+            )
+              throw Error(
+                "Column type doesn't match the referenced table id type"
+              );
+          }
+
+          if (column.list)
+            throw Error("Columns can't be both refernce and list types");
+        } else {
+          // Non reference column
+          if (
+            column.type !== "bigint" &&
+            column.type !== "string" &&
+            column.type !== "boolean" &&
+            column.type !== "int" &&
+            column.type !== "float" &&
+            column.type !== "bytes"
+          )
+            throw Error("Column is not a valid type");
         }
-      );
+      });
     }
   });
 

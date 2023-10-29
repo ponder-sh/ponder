@@ -18,6 +18,7 @@ export type BaseColumn<
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown
 > = {
+  _type: "b";
   type: TType;
   references: TReferences;
   optional: TOptional;
