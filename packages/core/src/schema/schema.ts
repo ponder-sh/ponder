@@ -92,18 +92,22 @@ export const createEnum = <TEnum extends Enum>(_enum: TEnum) => _enum;
  */
 export const createSchema = <
   const TSchema extends {
-    [schemaKey in keyof TSchema]:
+    [tableName in keyof TSchema]:
       | Table<
-          { id: NonReferenceColumn<ID, false, false> } & Record<
-            string,
-            | NonReferenceColumn
-            | ReferenceColumn<
-                Scalar,
-                `${keyof FilterTables<TSchema> & string}.id`
-              >
-            | EnumColumn<keyof FilterEnums<TSchema>, boolean>
-            | VirtualColumn<keyof FilterTables<TSchema>, string>
-          >
+          { id: NonReferenceColumn<ID, false, false> } & {
+            [columnName in keyof TSchema[tableName]]:
+              | NonReferenceColumn
+              | ReferenceColumn<
+                  Scalar,
+                  `${Exclude<keyof FilterTables<TSchema>, tableName> &
+                    string}.id`
+                >
+              | EnumColumn<keyof FilterEnums<TSchema>, boolean>
+              | VirtualColumn<
+                  Exclude<keyof FilterTables<TSchema>, tableName>,
+                  string
+                >;
+          }
         >
       | Enum<readonly string[]>;
   }
