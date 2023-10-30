@@ -78,7 +78,6 @@ export type VirtualColumn<
   referenceColumn: TColumnName;
 };
 
-// Note: This is kinda unfortunate because table.id is no longer strongly typed, should however be better for users
 export type Table<
   TColumns extends
     | ({
