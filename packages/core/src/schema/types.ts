@@ -99,7 +99,7 @@ export type Schema = {
   tables: Record<
     string,
     Table<
-      Record<
+      { id: NonReferenceColumn<ID, false, false> } & Record<
         string,
         | NonReferenceColumn<Scalar, boolean, boolean>
         | ReferenceColumn<Scalar, `${string}.id`, boolean>

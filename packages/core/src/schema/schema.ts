@@ -3,12 +3,14 @@ import {
   EnumColumn,
   FilterEnums,
   FilterTables,
+  ID,
   IDColumn,
   InternalColumn,
   InternalEnum,
   NonReferenceColumn,
   ReferenceColumn,
   Scalar,
+  Schema,
   Table,
   VirtualColumn,
 } from "./types";
@@ -89,30 +91,37 @@ export const createEnum = <TEnum extends Enum>(_enum: TEnum) => _enum;
  * Type inference and runtime validation
  */
 export const createSchema = <
-  TSchema extends Record<
-    string,
-    | Table<
-        Record<
-          string,
-          | NonReferenceColumn
-          | ReferenceColumn<
-              Scalar,
-              `${keyof FilterTables<TSchema> & string}.id`
-            >
-          | EnumColumn<keyof FilterEnums<TSchema>, boolean>
-          | VirtualColumn<keyof FilterTables<TSchema>, string>
+  const TSchema extends {
+    [schemaKey in keyof TSchema]:
+      | Table<
+          { id: NonReferenceColumn<ID, false, false> } & Record<
+            string,
+            | NonReferenceColumn
+            | ReferenceColumn<
+                Scalar,
+                `${keyof FilterTables<TSchema> & string}.id`
+              >
+            | EnumColumn<keyof FilterEnums<TSchema>, boolean>
+            | VirtualColumn<keyof FilterTables<TSchema>, string>
+          >
         >
-      >
-    | Enum<readonly string[]>
-  >
+      | Enum<readonly string[]>;
+  }
 >(
-  schema: TSchema
+  _schema: TSchema
 ): {
   tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
   enums: {
     [key in keyof FilterEnums<TSchema>]: TSchema[key];
   };
 } => {
+  // Convert to an easier type to work with
+  const schema = _schema as Record<
+    string,
+    | Schema["tables"][keyof Schema["tables"]]
+    | Schema["enums"][keyof Schema["enums"]]
+  >;
+
   Object.entries(schema).forEach(([name, tableOrEnum]) => {
     validateTableOrColumnName(name);
 
@@ -131,14 +140,19 @@ export const createSchema = <
 
       if (tableOrEnum.id === undefined)
         throw Error('Table doesn\'t contain an "id" field');
+
+      // NOTE: This is a to make sure the user didn't override the ID type
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      const type = tableOrEnum.id.type;
       if (
         isEnumColumn(tableOrEnum.id) ||
         isVirtualColumn(tableOrEnum.id) ||
         isReferenceColumn(tableOrEnum.id) ||
-        (tableOrEnum.id.type !== "bigint" &&
-          tableOrEnum.id.type !== "string" &&
-          tableOrEnum.id.type !== "bytes" &&
-          tableOrEnum.id.type !== "int")
+        (type !== "bigint" &&
+          type !== "string" &&
+          type !== "bytes" &&
+          type !== "int")
       )
         throw Error('"id" is not of the correct type');
       // NOTE: This is a to make sure the user didn't override the optional type
