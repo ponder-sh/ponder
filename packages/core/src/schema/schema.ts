@@ -8,6 +8,7 @@ import {
   InternalEnum,
   NonReferenceColumn,
   ReferenceColumn,
+  Scalar,
   Table,
   VirtualColumn,
 } from "./types";
@@ -94,9 +95,12 @@ export const createSchema = <
         Record<
           string,
           | NonReferenceColumn
-          | ReferenceColumn
-          | EnumColumn<keyof FilterEnums<TSchema>>
-          | VirtualColumn
+          | ReferenceColumn<
+              Scalar,
+              `${keyof FilterTables<TSchema> & string}.id`
+            >
+          | EnumColumn<keyof FilterEnums<TSchema>, boolean>
+          | VirtualColumn<keyof FilterTables<TSchema>, string>
         >
       >
     | Enum<readonly string[]>
