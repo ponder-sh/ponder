@@ -93,7 +93,10 @@ export const createSchema = <
     | Table<
         Record<
           string,
-          NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+          | NonReferenceColumn
+          | ReferenceColumn
+          | EnumColumn<keyof FilterEnums<TSchema>>
+          | VirtualColumn
         >
       >
     | Enum<readonly string[]>
