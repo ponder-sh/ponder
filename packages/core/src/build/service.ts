@@ -63,6 +63,57 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const { ViteNodeServer } = await import("vite-node/server");
     const { installSourcemapsSupport } = await import("vite-node/source-map");
     const { ViteNodeRunner } = await import("vite-node/client");
+    const { viteNodeHmrPlugin, createHotContext, handleMessage } = await import(
+      "vite-node/hmr"
+    );
+
+    const projectFiles = [
+      this.common.options.configFile,
+      ...glob.sync(
+        path.join(this.common.options.srcDir, "**/*.{js,cjs,mjs,ts,mts}")
+      ),
+    ];
+
+    const rootRegex = new RegExp(
+      "^" + this.common.options.rootDir + ".*\\.(js|ts)$"
+    );
+    const srcRegex = new RegExp(
+      "^" + this.common.options.srcDir + ".*\\.(js|ts)$"
+    );
+
+    const viteLogger = {
+      warnedMessages: new Set<string>(),
+      loggedErrors: new WeakSet<Error>(),
+      hasWarned: false,
+      clearScreen() {},
+      hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
+      info: (msg: string) => {
+        if (msg.includes("page reload")) {
+          const filePath = msg.substring(
+            msg.indexOf("\\x1B[2m") + 1,
+            msg.lastIndexOf("\\x1B[22m")
+          );
+          this.common.logger.info({
+            service: "build/vite",
+            msg: `Hot reload '${filePath}'`,
+          });
+        }
+      },
+      warn: (msg: string) => {
+        viteLogger.hasWarned = true;
+        this.common.logger.debug({ service: "build(vite)", msg });
+      },
+      warnOnce: (msg: string) => {
+        if (viteLogger.warnedMessages.has(msg)) return;
+        viteLogger.hasWarned = true;
+        this.common.logger.debug({ service: "build(vite)", msg });
+        viteLogger.warnedMessages.add(msg);
+      },
+      error: (msg: string) => {
+        viteLogger.hasWarned = true;
+        this.common.logger.debug({ service: "build(vite)", msg });
+      },
+    };
 
     this.viteDevServer = await createServer({
       root: this.common.options.rootDir,
@@ -76,9 +127,32 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       },
       cacheDir: path.join(this.common.options.ponderDir, "vite"),
       publicDir: false,
-      optimizeDeps: { disabled: true },
-      ssr: { noExternal: true },
-      clearScreen: false,
+      customLogger: viteLogger,
+      // TODO: Not sure about these.
+      // optimizeDeps: { disabled: true },
+      // ssr: { noExternal: true },
+      server: { hmr: true },
+      plugins: [
+        {
+          name: "ponder:hmr",
+          transform: (code, id) => {
+            if (!rootRegex.test(id)) return;
+            // Mark every module as self-accepting, but immediately invalidate. This
+            // means modules will use the HMR pipeline, but will always be fully reloaded
+            // by Vite. In the future, we can implement actual HMR logic.
+            const metaHotFooter = `
+              if (import.meta.hot) {
+                import.meta.hot.accept((newModule) => {
+                  import.meta.hot.invalidate();
+                })
+              }
+            `.replace(/(\n|\s\s)+/gm, "");
+
+            return `${code}\n${metaHotFooter}`;
+          },
+        },
+        viteNodeHmrPlugin(),
+      ],
     });
     await this.viteDevServer.pluginContainer.buildStart({});
 
@@ -91,36 +165,102 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       root: this.viteDevServer.config.root,
       fetchModule: (id) => this.viteNodeServer.fetchModule(id),
       resolveId: (id, importer) => this.viteNodeServer.resolveId(id, importer),
+      // Required for HMR support when using `vite-node`.
+      createHotContext: (runner, url) =>
+        createHotContext(runner, this.viteDevServer.emitter, projectFiles, url),
     });
 
-    this.viteDevServer.watcher.on("all", async (event, filePath) => {
-      const relativePath = path.relative(this.common.options.rootDir, filePath);
+    this.viteDevServer.emitter.on("message", async (payload) => {
+      // const filesToExecute =
+      //   payload.type === "full-reload"
+      //     ? projectFiles
+      //     : payload.type === "update"
+      //     ? payload.updates.map((u) => u.path)
+      //     : [];
 
-      // TODO: Should we handle events differently ("change", "add", "unlink", etc)?
+      let filesToExecute: string[] = [];
+      let shouldUpdateConfig = false;
+      let shouldUpdateSchema = false;
+      let shouldUpdateIndexingFunctions = false;
 
-      if (filePath === this.common.options.configFile) {
-        this.emit("newConfig");
-        return;
+      switch (payload.type) {
+        case "full-reload": {
+          // This event (annoyingly) does not include the file path
+          // responsible for the full reload. However, the vite dev
+          // server does log the path. So, we're extracting it from
+          // `viteLogger` and emitting it from the Ponder logger above.
+          filesToExecute = projectFiles;
+          shouldUpdateConfig = true;
+          shouldUpdateSchema = true;
+          shouldUpdateIndexingFunctions = true;
+          break;
+        }
+        case "update": {
+          for (const update of payload.updates) {
+            if (update.type === "css-update") {
+              this.common.logger.warn({
+                service: "build",
+                msg: `Unexpected CSS HMR event at '${update.path}'`,
+              });
+              return;
+            }
+
+            const shortPath = path.relative(
+              this.common.options.rootDir,
+              update.path
+            );
+
+            this.common.logger.info({
+              service: "build",
+              msg: `Hot reload '${shortPath}'`,
+            });
+
+            filesToExecute.push(update.path);
+            if (update.path === this.common.options.configFile)
+              shouldUpdateConfig = true;
+            if (update.path === this.common.options.schemaFile)
+              shouldUpdateSchema = true;
+            if (srcRegex.test(update.path))
+              shouldUpdateIndexingFunctions = true;
+          }
+          break;
+        }
+        default: {
+          this.common.logger.warn({
+            service: "build",
+            msg: `Unhandled Vite HMR event '${payload.type}'`,
+          });
+        }
       }
 
-      if (filePath === this.common.options.schemaFile) {
-        this.buildSchema();
-        return;
-      }
-
-      const srcRegex = new RegExp(
-        "^" + this.common.options.srcDir + ".*\\.(js|cjs|mjs|ts|mts|tsx)$"
+      // This function invalidates the runner cache, then executes
+      // `filesToExecute`. We could implement that logic ourselves,
+      // but this function also seems to do some additional HMR stuff.
+      await handleMessage(
+        this.viteNodeRunner,
+        this.viteDevServer.emitter,
+        filesToExecute,
+        payload
       );
 
-      if (srcRegex.test(filePath)) {
-        this.buildHandlers();
-        return;
+      console.log({
+        filesToExecute,
+        shouldUpdateConfig,
+        shouldUpdateSchema,
+        shouldUpdateIndexingFunctions,
+      });
+
+      if (shouldUpdateConfig) {
+        await this.buildConfig();
       }
 
-      this.common.logger.debug({
-        service: "build",
-        msg: `Detected ${event} in ${relativePath} (no-op)`,
-      });
+      if (shouldUpdateSchema) {
+        this.buildSchema();
+      }
+
+      if (shouldUpdateIndexingFunctions) {
+        await this.buildIndexingFunctions();
+      }
     });
   }
 
@@ -132,40 +272,37 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     });
   }
 
-  async buildHandlers() {
+  async buildConfig() {
+    const module = await this.viteNodeRunner.executeFile(
+      this.common.options.configFile
+    );
+    const config = module.config;
+    console.log({ config });
+    // await this.emit("newConfig");
+  }
+
+  async buildIndexingFunctions() {
     try {
       const generatedFilePath = path.join(
         this.common.options.generatedDir,
         "index.ts"
       );
 
-      // console.log("invalidating all");
-      // this.viteDevServer.moduleGraph.invalidateAll();
-
-      console.log("invalidating dep tree");
-      const res = this.viteNodeRunner.moduleCache.invalidateDepTree([
-        generatedFilePath,
-      ]);
-      console.log(res);
-
       const sourceFiles = glob.sync(
         path.join(this.common.options.srcDir, "*.{js,cjs,mjs,ts,mts,tsx}")
       );
-
-      console.log("direct requesting ", sourceFiles);
-
+      console.log("in buildIndexingFunctions", { sourceFiles });
       for (const sourceFile of sourceFiles) {
-        await this.viteNodeRunner.directRequest(sourceFile, sourceFile, []);
+        console.log("running ", sourceFile);
+        await this.viteNodeRunner.executeFile(sourceFile);
       }
 
-      const generatedModule = await this.viteNodeRunner.cachedRequest(
-        generatedFilePath,
-        generatedFilePath,
-        []
+      console.log("running ", generatedFilePath);
+      const generatedModule = await this.viteNodeRunner.executeFile(
+        generatedFilePath
       );
-      const app = generatedModule.ponder;
 
-      console.log("cached request for generated", app);
+      const app = generatedModule.ponder;
 
       if (!app) throw new Error(`ponder not exported from generated/index.ts`);
       if (!(app.constructor.name === "PonderApp"))
