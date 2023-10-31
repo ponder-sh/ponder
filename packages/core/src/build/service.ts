@@ -58,7 +58,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async setup() {
-    // const __filename = url.fileURLToPath(import.meta.url);
     const { createServer } = await import("vite");
     const { ViteNodeServer } = await import("vite-node/server");
     const { installSourcemapsSupport } = await import("vite-node/source-map");
@@ -115,15 +114,15 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       },
     };
 
+    const generatedFile = path.join(
+      this.common.options.generatedDir,
+      "index.ts"
+    );
+
     this.viteDevServer = await createServer({
       root: this.common.options.rootDir,
       resolve: {
-        alias: [
-          {
-            find: "@/generated",
-            replacement: this.common.options.generatedDir,
-          },
-        ],
+        alias: [{ find: "@/generated", replacement: generatedFile }],
       },
       cacheDir: path.join(this.common.options.ponderDir, "vite"),
       publicDir: false,
@@ -171,13 +170,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     });
 
     this.viteDevServer.emitter.on("message", async (payload) => {
-      // const filesToExecute =
-      //   payload.type === "full-reload"
-      //     ? projectFiles
-      //     : payload.type === "update"
-      //     ? payload.updates.map((u) => u.path)
-      //     : [];
-
       let filesToExecute: string[] = [];
       let shouldUpdateConfig = false;
       let shouldUpdateSchema = false;
@@ -205,14 +197,19 @@ export class BuildService extends Emittery<BuildServiceEvents> {
               return;
             }
 
-            const shortPath = path.relative(
-              this.common.options.rootDir,
-              update.path
-            );
+            // The update path seems to take one of two forms:
+            // 1) Absolute full path (/Users/myname/.../src/SomeFile.ts)
+            // 2) Absolute path from project root (/abis/SomeFile.abi.ts)
+            // This attempts to find a pretty path that's relative
+            // to the project root in both cases (src/File.ts)
+            const rootDirPrefix = this.common.options.rootDir.slice(0, 7);
+            const prettyPath = update.path.startsWith(rootDirPrefix)
+              ? path.relative(this.common.options.rootDir, update.path)
+              : update.path.slice(1);
 
             this.common.logger.info({
               service: "build",
-              msg: `Hot reload '${shortPath}'`,
+              msg: `Reloaded ${prettyPath}`,
             });
 
             filesToExecute.push(update.path);
@@ -243,13 +240,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         payload
       );
 
-      console.log({
-        filesToExecute,
-        shouldUpdateConfig,
-        shouldUpdateSchema,
-        shouldUpdateIndexingFunctions,
-      });
-
       if (shouldUpdateConfig) {
         await this.buildConfig();
       }
@@ -276,33 +266,35 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const module = await this.viteNodeRunner.executeFile(
       this.common.options.configFile
     );
-    const config = module.config;
-    console.log({ config });
-    // await this.emit("newConfig");
+    const rawConfig = module.config;
+
+    const config =
+      typeof rawConfig === "function" ? await rawConfig() : await rawConfig;
+
+    console.log("got new ", { config });
+    // this.emit("newConfig", { config });
   }
 
   async buildIndexingFunctions() {
     try {
-      const generatedFilePath = path.join(
-        this.common.options.generatedDir,
-        "index.ts"
-      );
-
       const sourceFiles = glob.sync(
         path.join(this.common.options.srcDir, "*.{js,cjs,mjs,ts,mts,tsx}")
       );
-      console.log("in buildIndexingFunctions", { sourceFiles });
       for (const sourceFile of sourceFiles) {
-        console.log("running ", sourceFile);
         await this.viteNodeRunner.executeFile(sourceFile);
       }
 
-      console.log("running ", generatedFilePath);
+      const generatedFile = path.join(
+        this.common.options.generatedDir,
+        "index.ts"
+      );
       const generatedModule = await this.viteNodeRunner.executeFile(
-        generatedFilePath
+        generatedFile
       );
 
       const app = generatedModule.ponder;
+
+      console.log("got new ", { ponder: generatedModule.ponder });
 
       if (!app) throw new Error(`ponder not exported from generated/index.ts`);
       if (!(app.constructor.name === "PonderApp"))
