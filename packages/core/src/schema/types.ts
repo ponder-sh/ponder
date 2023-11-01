@@ -37,19 +37,17 @@ export type NonReferenceColumn<
   TList extends boolean = boolean
 > = BaseColumn<TType, undefined, TOptional, TList>;
 
-// TODO: make sure that .column is not available when compiled
 export type InternalColumn<
   TType extends Scalar = Scalar,
   TReferences extends `${string}.id` | undefined | unknown = unknown,
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown
 > = {
-  /** @internal */
-  column: BaseColumn<TType, TReferences, TOptional, TList>;
+  [" column"]: BaseColumn<TType, TReferences, TOptional, TList>;
 };
 
 export type IDColumn<TType extends ID = ID> = {
-  column: BaseColumn<TType, undefined, false, false>;
+  [" column"]: BaseColumn<TType, undefined, false, false>;
 };
 
 export type InternalEnum<
@@ -81,11 +79,11 @@ export type VirtualColumn<
 export type Table<
   TColumns extends
     | ({
-        id: { column: IDColumn };
+        id: { [" column"]: IDColumn };
       } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
     | unknown =
     | ({
-        id: { column: IDColumn };
+        id: { [" column"]: IDColumn };
       } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
     | unknown
 > = TColumns;

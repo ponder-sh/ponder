@@ -34,10 +34,10 @@ const optional = <
 
     return column.list || column.references !== undefined
       ? {
-          column: newColumn,
+          [" column"]: newColumn,
         }
       : {
-          column: newColumn,
+          [" column"]: newColumn,
           list: list(
             newColumn as unknown as BaseColumn<TScalar, undefined, true, false>
           ),
@@ -68,10 +68,10 @@ const list = <TScalar extends Scalar, TOptional extends boolean>(
     const newColumn = { ...column, list: true };
     return column.optional
       ? {
-          column: newColumn,
+          [" column"]: newColumn,
         }
       : {
-          column: newColumn,
+          [" column"]: newColumn,
           optional: optional(
             newColumn as BaseColumn<TScalar, undefined, false, true>
           ),
@@ -100,9 +100,9 @@ const references = <TScalar extends Scalar, TOptional extends boolean>(
     const newColumn = { ...column, references };
 
     return column.optional
-      ? { column: newColumn }
+      ? { [" column"]: newColumn }
       : {
-          column: newColumn,
+          [" column"]: newColumn,
           optional: optional(
             newColumn as BaseColumn<TScalar, TReferences, false, false>
           ),
@@ -125,7 +125,7 @@ const emptyColumn =
     } as BaseColumn<TScalar, undefined, false, false>;
 
     return {
-      column,
+      [" column"]: column,
       optional: optional(column),
       list: list(column),
       references: references(column),

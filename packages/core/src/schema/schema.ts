@@ -37,25 +37,25 @@ declare global {
 export const createTable = <
   TColumns extends
     | ({
-        id: { column: IDColumn };
+        id: { [" column"]: IDColumn };
       } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
     | unknown =
     | ({
-        id: { column: IDColumn };
+        id: { [" column"]: IDColumn };
       } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
     | unknown
 >(
   columns: TColumns
 ): {
   [key in keyof TColumns]: TColumns[key] extends InternalColumn
-    ? TColumns[key]["column"]
+    ? TColumns[key][" column"]
     : TColumns[key] extends InternalEnum
     ? TColumns[key]["enum"]
     : TColumns[key];
 } =>
   Object.entries(
     columns as {
-      id: { column: IDColumn };
+      id: { [" column"]: IDColumn };
     } & Record<string, InternalEnum | InternalColumn | VirtualColumn>
   ).reduce(
     (
@@ -67,8 +67,8 @@ export const createTable = <
     ) => ({
       ...acc,
       [cur[0]]:
-        "column" in cur[1]
-          ? (cur[1].column as NonReferenceColumn | ReferenceColumn)
+        " column" in cur[1]
+          ? (cur[1][" column"] as NonReferenceColumn | ReferenceColumn)
           : "enum" in cur[1]
           ? cur[1].enum
           : cur[1],
