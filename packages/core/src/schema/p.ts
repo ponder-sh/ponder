@@ -165,11 +165,10 @@ export const p = {
   bytes: emptyColumn("bytes"),
   bigint: emptyColumn("bigint"),
   enum: _enum,
-  virtual: <TTableName extends string, TColumnName extends string>(
-    derived: `${TTableName}.${TColumnName}`
-  ): VirtualColumn<TTableName, TColumnName> => ({
-    _type: "v",
-    referenceTable: derived.split(".")[0] as TTableName,
-    referenceColumn: derived.split(".")[1] as TColumnName,
-  }),
+  virtual: <T extends `${string}.${string}`>(derived: T): VirtualColumn<T> =>
+    ({
+      _type: "v",
+      referenceTable: derived.split(".")[0],
+      referenceColumn: derived.split(".")[1],
+    } as VirtualColumn<T>),
 } as const;

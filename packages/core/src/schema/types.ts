@@ -66,14 +66,14 @@ export type EnumColumn<
   optional: TOptional;
 };
 
-export type VirtualColumn<
-  TTableName extends string | unknown = unknown,
-  TColumnName extends string | unknown = unknown
-> = {
-  _type: "v";
-  referenceTable: TTableName;
-  referenceColumn: TColumnName;
-};
+export type VirtualColumn<T extends `${string}.${string}` | unknown = unknown> =
+  T extends `${infer TTableName extends string}.${infer TColumnName extends string}`
+    ? {
+        _type: "v";
+        referenceTable: TTableName;
+        referenceColumn: TColumnName;
+      }
+    : { _type: "v" };
 
 export type Table<
   TColumns extends
@@ -100,7 +100,7 @@ export type Schema = {
         | NonReferenceColumn<Scalar, boolean, boolean>
         | ReferenceColumn<Scalar, `${string}.id`, boolean>
         | EnumColumn<string, boolean>
-        | VirtualColumn<string, string>
+        | VirtualColumn<`${string}.${string}`>
       >
     >
   >;

@@ -103,10 +103,7 @@ export const createSchema = <
                     string}.id`
                 >
               | EnumColumn<keyof FilterEnums<TSchema>, boolean>
-              | VirtualColumn<
-                  Exclude<keyof FilterTables<TSchema>, tableName>,
-                  string
-                >;
+              | VirtualColumn;
           }
         >
       | Enum<readonly string[]>;

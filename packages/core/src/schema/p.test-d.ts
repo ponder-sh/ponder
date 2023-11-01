@@ -92,7 +92,7 @@ test("virtual", () => {
   const c = p.virtual("OtherTable.OtherColumn");
   //    ^?
 
-  assertType<VirtualColumn<"OtherTable", "OtherColumn">>(c);
+  assertType<VirtualColumn<"OtherTable.OtherColumn">>(c);
 });
 
 test("optional", () => {
