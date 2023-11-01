@@ -7,7 +7,7 @@ import {
   int,
   string,
   virtual,
-} from "./p";
+} from "./columns";
 import { createEnum, createSchema, createTable } from "./schema";
 import type { Infer } from "./types";
 
