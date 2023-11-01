@@ -99,8 +99,7 @@ export const createSchema = <
               | NonReferenceColumn
               | ReferenceColumn<
                   Scalar,
-                  `${Exclude<keyof FilterTables<TSchema>, tableName> &
-                    string}.id`
+                  `${keyof FilterTables<TSchema> & string}.id`
                 >
               | EnumColumn<keyof FilterEnums<TSchema>, boolean>
               | VirtualColumn;
