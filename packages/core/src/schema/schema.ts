@@ -102,7 +102,7 @@ export const createSchema = <
                 `${keyof FilterTables<TSchema> & string}.id`
               >
             | EnumColumn<keyof FilterEnums<TSchema>, boolean>
-            | VirtualColumn<ExtractAllNames<TSchema>>;
+            | VirtualColumn<ExtractAllNames<tableName & string, TSchema>>;
         })
       | Enum<readonly string[]>;
   }
@@ -125,6 +125,8 @@ export const createSchema = <
     validateTableOrColumnName(name);
 
     if (Array.isArray(tableOrEnum)) {
+      // Enum
+
       // Make sure values aren't the same
       const set = new Set<(typeof tableOrEnum)[number]>();
 

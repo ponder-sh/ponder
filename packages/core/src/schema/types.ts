@@ -140,6 +140,7 @@ export type FilterTables<TSchema extends Record<string, Enum | Table>> = Pick<
  * Keeps only the reference columns from a schema
  */
 export type FilterReferenceColumns<
+  TTableName extends string,
   TColumns extends
     | Record<
         string,
@@ -149,13 +150,17 @@ export type FilterReferenceColumns<
 > = Pick<
   TColumns,
   {
-    [key in keyof TColumns]: TColumns[key] extends ReferenceColumn
+    [key in keyof TColumns]: TColumns[key] extends ReferenceColumn<
+      Scalar,
+      `${TTableName}.id`
+    >
       ? key
       : never;
   }[keyof TColumns]
 >;
 
 export type ExtractAllNames<
+  TTableName extends string,
   TSchema extends Record<
     string,
     | Record<
@@ -166,7 +171,8 @@ export type ExtractAllNames<
   >
 > = {
   [tableName in keyof FilterTables<TSchema>]: `${tableName &
-    string}.${keyof FilterReferenceColumns<TSchema[tableName]> & string}`;
+    string}.${keyof FilterReferenceColumns<TTableName, TSchema[tableName]> &
+    string}`;
 }[keyof FilterTables<TSchema>];
 
 /**

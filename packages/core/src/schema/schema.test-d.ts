@@ -77,10 +77,10 @@ test("extract all names", () => {
     e: createEnum(["ONE", "TWO"]),
   };
 
-  type t = ExtractAllNames<typeof a>;
+  type t = ExtractAllNames<"OtherTable", typeof a>;
   //   ^?
 
-  assertType<t>("" as "t.ref");
+  assertType<t>("" as "t.ref" | "t.ref2");
 });
 
 test("schema", () => {
