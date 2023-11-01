@@ -83,10 +83,7 @@ export const createTable = <
       : TColumns[key];
   };
 
-/**
- * @todo const type assertions is needed, might have to update vitest
- */
-export const createEnum = <TEnum extends Enum>(_enum: TEnum) => _enum;
+export const createEnum = <const TEnum extends Enum>(_enum: TEnum) => _enum;
 
 /**
  * Type inference and runtime validation

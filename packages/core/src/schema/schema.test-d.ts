@@ -42,7 +42,7 @@ test("filter enums", () => {
     t: createTable({
       id: p.string(),
     }),
-    e: createEnum(["ONE", "TWO"] as const),
+    e: createEnum(["ONE", "TWO"]),
   };
 
   type t = FilterEnums<typeof a>;
@@ -86,7 +86,7 @@ test("extract all names", () => {
 test("schema", () => {
   const s = createSchema({
     //  ^?
-    e: createEnum(["ONE", "TWO"] as const),
+    e: createEnum(["ONE", "TWO"]),
     t: createTable({
       id: p.string(),
       e: p.enum("e"),
