@@ -4,6 +4,7 @@ import { p } from "./p";
 import { createEnum, createSchema, createTable } from "./schema";
 import {
   BaseColumn,
+  ExtractAllNames,
   FilterEnums,
   FilterTables,
   RecoverSchemaType,
@@ -63,6 +64,23 @@ test("filter tables", () => {
   //   ^?
 
   assertType<t["t"]["id"]>({} as BaseColumn<"string", never, false, false>);
+});
+
+test("extract all names", () => {
+  const a = {
+    //  ^?
+    t: createTable({
+      id: p.string(),
+      ref: p.string().references("OtherTable.id"),
+      ref2: p.string().references("OtherTable.id"),
+    }),
+    e: createEnum(["ONE", "TWO"]),
+  };
+
+  type t = ExtractAllNames<typeof a>;
+  //   ^?
+
+  assertType<t>("" as "t.ref");
 });
 
 test("schema", () => {

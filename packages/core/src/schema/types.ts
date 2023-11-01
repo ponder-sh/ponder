@@ -137,6 +137,39 @@ export type FilterTables<TSchema extends Record<string, Enum | Table>> = Pick<
 >;
 
 /**
+ * Keeps only the reference columns from a schema
+ */
+export type FilterReferenceColumns<
+  TColumns extends
+    | Record<
+        string,
+        NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+      >
+    | Enum
+> = Pick<
+  TColumns,
+  {
+    [key in keyof TColumns]: TColumns[key] extends ReferenceColumn
+      ? key
+      : never;
+  }[keyof TColumns]
+>;
+
+export type ExtractAllNames<
+  TSchema extends Record<
+    string,
+    | Record<
+        string,
+        NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+      >
+    | Enum
+  >
+> = {
+  [tableName in keyof FilterTables<TSchema>]: `${tableName &
+    string}.${keyof FilterReferenceColumns<TSchema[tableName]> & string}`;
+}[keyof FilterTables<TSchema>];
+
+/**
  * Recover raw typescript types from the intermediate representation
  */
 export type RecoverScalarType<TScalar extends Scalar> = TScalar extends "string"
