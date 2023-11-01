@@ -7,7 +7,7 @@ import {
   ExtractAllNames,
   FilterEnums,
   FilterTables,
-  RecoverSchemaType,
+  Infer,
   RecoverTableType,
   Schema,
 } from "./types";
@@ -18,7 +18,7 @@ test("table", () => {
     age: p.int(),
   });
 
-  type t = RecoverTableType<typeof a>;
+  type t = RecoverTableType<{}, typeof a>;
   //   ^?
 
   assertType<t>({} as { id: string; age: number });
@@ -30,7 +30,7 @@ test("table optional", () => {
     age: p.int().optional(),
   });
 
-  type t = RecoverTableType<typeof t>;
+  type t = RecoverTableType<{}, typeof t>;
   //   ^?
 
   assertType<t>({} as { id: string; age?: number });
@@ -86,15 +86,17 @@ test("extract all names", () => {
 test("schema", () => {
   const s = createSchema({
     //  ^?
+    e: createEnum(["ONE", "TWO"] as const),
     t: createTable({
       id: p.string(),
+      e: p.enum("e"),
     }),
   });
 
   assertType<Schema>(s);
 
-  type t = RecoverSchemaType<typeof s>;
+  type t = Infer<typeof s>;
   //   ^?
 
-  assertType<t>({} as { t: { id: string } });
+  assertType<t>({} as { t: { id: string; e: ["ONE", "TWO"] } });
 });

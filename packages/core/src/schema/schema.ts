@@ -200,9 +200,9 @@ export const createSchema = <
           }
 
           if (
-            Object.keys(schema)
-              .filter((_name) => _name !== name)
-              .every((_name) => `${_name}.id` !== column.references)
+            Object.keys(schema).every(
+              (_name) => `${_name}.id` !== column.references
+            )
           )
             throw Error("Column doesn't reference a valid table");
 

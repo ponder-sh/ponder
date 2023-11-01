@@ -65,8 +65,8 @@ test("schema virtual", () => {
     }),
     t: createTable({
       id: p.string(),
-      ageId: p.string().references("a.id"),
-      self: p.string().references("t.id"),
+      ageId: p.int().references("a.id"),
+      selfId: p.string().references("t.id"),
     }),
   });
   expect(s.enums).toStrictEqual({});

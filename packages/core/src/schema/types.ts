@@ -192,53 +192,106 @@ export type RecoverScalarType<TScalar extends Scalar> = TScalar extends "string"
   ? bigint
   : never;
 
-export type RecoverColumnType<TColumn extends BaseColumn> = TColumn extends {
+export type RecoverColumnType<
+  TColumn extends
+    | NonReferenceColumn
+    | ReferenceColumn
+    | EnumColumn
+    | VirtualColumn
+> = TColumn extends {
   type: infer _type extends Scalar;
+  list: infer _list extends boolean;
 }
-  ? TColumn["list"] extends false
+  ? _list extends false
     ? RecoverScalarType<_type>
     : RecoverScalarType<_type>[]
   : never;
 
 export type RecoverOptionalColumns<
-  TColumns extends Record<string, NonReferenceColumn | ReferenceColumn>
+  TColumns extends Record<
+    string,
+    NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+  >
 > = Pick<
   TColumns,
   {
-    [key in keyof TColumns]: TColumns[key]["optional"] extends true
-      ? key
+    [key in keyof TColumns]: TColumns[key] extends
+      | NonReferenceColumn
+      | ReferenceColumn
+      ? TColumns[key]["optional"] extends true
+        ? key
+        : never
       : never;
   }[keyof TColumns]
 >;
 
 export type RecoverRequiredColumns<
-  TColumns extends Record<string, NonReferenceColumn | ReferenceColumn>
+  TColumns extends Record<
+    string,
+    NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+  >
 > = Pick<
   TColumns,
   {
-    [key in keyof TColumns]: TColumns[key]["optional"] extends false
-      ? key
+    [key in keyof TColumns]: TColumns[key] extends
+      | NonReferenceColumn
+      | ReferenceColumn
+      ? TColumns[key]["optional"] extends false
+        ? key
+        : never
       : never;
   }[keyof TColumns]
 >;
 
-export type RecoverTableType<TTable extends Table> =
-  TTable extends infer _columns extends {
-    id: BaseColumn<ID, undefined, false, false>;
-  } & Record<string, ReferenceColumn | NonReferenceColumn>
-    ? Prettify<
-        Record<"id", RecoverScalarType<_columns["id"]["type"]>> & {
-          [key in keyof RecoverRequiredColumns<_columns>]: RecoverColumnType<
-            _columns[key]
-          >;
-        } & {
-          [key in keyof RecoverOptionalColumns<_columns>]?: RecoverColumnType<
-            _columns[key]
-          >;
-        }
-      >
-    : never;
+export type RecoverEnumColumns<
+  TColumns extends Record<
+    string,
+    NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+  >
+> = Pick<
+  TColumns,
+  {
+    [key in keyof TColumns]: TColumns[key] extends EnumColumn ? key : never;
+  }[keyof TColumns]
+>;
 
-export type RecoverSchemaType<TSchema extends Schema> = {
-  [key in keyof TSchema["tables"]]: RecoverTableType<TSchema["tables"][key]>;
+export type RecoverEnumType<
+  TEnums extends Record<string, Enum>,
+  TColumn extends
+    | NonReferenceColumn
+    | ReferenceColumn
+    | EnumColumn
+    | VirtualColumn
+> = TColumn extends EnumColumn ? TEnums[TColumn["type"] & keyof TEnums] : never;
+
+export type RecoverTableType<
+  TEnums extends Record<string, Enum>,
+  TTable extends Table
+> = TTable extends infer _columns extends Record<
+  string,
+  ReferenceColumn | NonReferenceColumn | EnumColumn | VirtualColumn
+>
+  ? Prettify<
+      {
+        [key in keyof RecoverRequiredColumns<_columns>]: RecoverColumnType<
+          _columns[key]
+        >;
+      } & {
+        [key in keyof RecoverOptionalColumns<_columns>]?: RecoverColumnType<
+          _columns[key]
+        >;
+      } & {
+        [key in keyof RecoverEnumColumns<_columns>]: RecoverEnumType<
+          TEnums,
+          _columns[key]
+        >;
+      }
+    >
+  : never;
+
+export type Infer<TSchema extends Schema> = {
+  [key in keyof TSchema["tables"]]: RecoverTableType<
+    TSchema["enums"],
+    TSchema["tables"][key]
+  >;
 };
