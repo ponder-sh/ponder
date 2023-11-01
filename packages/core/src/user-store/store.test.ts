@@ -1,20 +1,20 @@
 import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
-import { createEnum, createSchema, createTable, p } from "@/schema";
+import * as p from "@/schema";
 
 beforeEach((context) => setupUserStore(context));
 
-const schema = createSchema({
-  PetKind: createEnum(["CAT", "DOG"]),
-  Pet: createTable({
+const schema = p.createSchema({
+  PetKind: p.createEnum(["CAT", "DOG"]),
+  Pet: p.createTable({
     id: p.string(),
     name: p.string(),
     age: p.int().optional(),
     bigAge: p.bigint().optional(),
     kind: p.enum("PetKind").optional(),
   }),
-  Person: createTable({
+  Person: p.createTable({
     id: p.string(),
     name: p.string(),
   }),

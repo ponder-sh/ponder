@@ -157,18 +157,20 @@ const _enum = <TType extends string>(type: TType): Enum<TType, false> => ({
 /**
  * Column values in a Ponder schema
  */
-export const p = {
-  string: emptyColumn("string"),
-  int: emptyColumn("int"),
-  float: emptyColumn("float"),
-  boolean: emptyColumn("boolean"),
-  bytes: emptyColumn("bytes"),
-  bigint: emptyColumn("bigint"),
-  enum: _enum,
-  virtual: <T extends `${string}.${string}`>(derived: T): VirtualColumn<T> =>
-    ({
-      _type: "v",
-      referenceTable: derived.split(".")[0],
-      referenceColumn: derived.split(".")[1],
-    } as VirtualColumn<T>),
-} as const;
+const string = emptyColumn("string");
+const int = emptyColumn("int");
+const float = emptyColumn("float");
+const boolean = emptyColumn("boolean");
+const bytes = emptyColumn("bytes");
+const bigint = emptyColumn("bigint");
+
+const virtual = <T extends `${string}.${string}`>(
+  derived: T
+): VirtualColumn<T> =>
+  ({
+    _type: "v",
+    referenceTable: derived.split(".")[0],
+    referenceColumn: derived.split(".")[1],
+  } as VirtualColumn<T>);
+
+export { _enum, bigint, boolean, bytes, float, int, string, virtual };

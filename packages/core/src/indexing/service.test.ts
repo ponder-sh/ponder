@@ -6,7 +6,7 @@ import { publicClient } from "@/_test/utils";
 import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
 import { EventAggregatorService } from "@/event-aggregator/service";
-import { createSchema, createTable, p } from "@/schema";
+import * as p from "@/schema";
 
 import { IndexingService } from "./service";
 
@@ -35,8 +35,8 @@ const logFilters = [
 
 const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
 
-const schema = createSchema({
-  TransferEvent: createTable({
+const schema = p.createSchema({
+  TransferEvent: p.createTable({
     id: p.string(),
     timestamp: p.int(),
   }),

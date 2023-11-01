@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { p } from "./p";
+import * as p from "./index";
 
 test("string", () => {
   const c = p.string();

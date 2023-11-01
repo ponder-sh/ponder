@@ -1,7 +1,7 @@
 import { Hex } from "viem";
 import { assertType, test } from "vitest";
 
-import { p } from "./p";
+import * as p from "./index";
 import {
   type BaseColumn,
   type RecoverColumnType,

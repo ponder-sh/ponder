@@ -3,7 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
 import type { Common } from "@/Ponder";
-import { createEnum, createSchema, createTable, p } from "@/schema";
+import * as p from "@/schema";
 import type { UserStore } from "@/user-store/store";
 import { range } from "@/utils/range";
 
@@ -12,9 +12,9 @@ import { ServerService } from "./service";
 
 beforeEach((context) => setupUserStore(context));
 
-const s = createSchema({
-  TestEnum: createEnum(["ZERO", "ONE", "TWO"]),
-  TestEntity: createTable({
+const s = p.createSchema({
+  TestEnum: p.createEnum(["ZERO", "ONE", "TWO"]),
+  TestEntity: p.createTable({
     id: p.string(),
     string: p.string(),
     int: p.int(),
@@ -30,9 +30,9 @@ const s = createSchema({
     enum: p.enum("TestEnum"),
     derived: p.virtual("EntityWithBigIntId.testEntityId"),
   }),
-  EntityWithIntId: createTable({ id: p.int() }),
+  EntityWithIntId: p.createTable({ id: p.int() }),
 
-  EntityWithBigIntId: createTable({
+  EntityWithBigIntId: p.createTable({
     id: p.bigint(),
     testEntityId: p.string().references("TestEntity.id"),
   }),

@@ -1,15 +1,15 @@
-import { createSchema, createTable, p } from "../../../../dist";
+import { p } from "../../../../dist";
 
-export const schema = createSchema({
-  SetupEntity: createTable({
+export const schema = p.createSchema({
+  SetupEntity: p.createTable({
     id: p.string(),
   }),
-  Account: createTable({
+  Account: p.createTable({
     id: p.string(),
     tokens: p.virtual("Token.ownerId"),
   }),
 
-  Token: createTable({
+  Token: p.createTable({
     id: p.bigint(),
     claimedById: p.string().references("Account.id").optional(),
     ownerId: p.string().references("Account.id"),

@@ -1,19 +1,17 @@
 import { assertType, test } from "vitest";
 
-import { p } from "./p";
-import { createEnum, createSchema, createTable } from "./schema";
+import * as p from "./index";
 import {
   BaseColumn,
   ExtractAllNames,
   FilterEnums,
   FilterTables,
-  Infer,
   RecoverTableType,
   Schema,
 } from "./types";
 
 test("table", () => {
-  const a = createTable({
+  const a = p.createTable({
     id: p.string(),
     age: p.int(),
   });
@@ -25,7 +23,7 @@ test("table", () => {
 });
 
 test("table optional", () => {
-  const t = createTable({
+  const t = p.createTable({
     id: p.string(),
     age: p.int().optional(),
   });
@@ -39,10 +37,10 @@ test("table optional", () => {
 test("filter enums", () => {
   const a = {
     //  ^?
-    t: createTable({
+    t: p.createTable({
       id: p.string(),
     }),
-    e: createEnum(["ONE", "TWO"]),
+    e: p.createEnum(["ONE", "TWO"]),
   };
 
   type t = FilterEnums<typeof a>;
@@ -54,10 +52,10 @@ test("filter enums", () => {
 test("filter tables", () => {
   const a = {
     //  ^?
-    t: createTable({
+    t: p.createTable({
       id: p.string(),
     }),
-    e: createEnum(["ONE", "TWO"]),
+    e: p.createEnum(["ONE", "TWO"]),
   };
 
   type t = FilterTables<typeof a>;
@@ -69,12 +67,12 @@ test("filter tables", () => {
 test("extract all names", () => {
   const a = {
     //  ^?
-    t: createTable({
+    t: p.createTable({
       id: p.string(),
       ref: p.string().references("OtherTable.id"),
       ref2: p.string().references("OtherTable.id"),
     }),
-    e: createEnum(["ONE", "TWO"]),
+    e: p.createEnum(["ONE", "TWO"]),
   };
 
   type t = ExtractAllNames<"OtherTable", typeof a>;
@@ -84,10 +82,10 @@ test("extract all names", () => {
 });
 
 test("schema", () => {
-  const s = createSchema({
+  const s = p.createSchema({
     //  ^?
-    e: createEnum(["ONE", "TWO"]),
-    t: createTable({
+    e: p.createEnum(["ONE", "TWO"]),
+    t: p.createTable({
       id: p.string(),
       e: p.enum("e"),
     }),
@@ -95,7 +93,7 @@ test("schema", () => {
 
   assertType<Schema>(s);
 
-  type t = Infer<typeof s>;
+  type t = p.Infer<typeof s>;
   //   ^?
 
   assertType<t>({} as { t: { id: string; e: ["ONE", "TWO"] } });

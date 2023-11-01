@@ -1,7 +1,7 @@
-import { createSchema, createTable, p } from "../../../../dist";
+import { p } from "../../../../dist";
 
-export const schema = createSchema({
-  EnsNft: createTable({
+export const schema = p.createSchema({
+  EnsNft: p.createTable({
     id: p.string(),
     labelHash: p.string(),
     ownerId: p.string().references("Account.id"),
@@ -9,7 +9,7 @@ export const schema = createSchema({
     stringArray: p.string().list(),
     intArray: p.int().list(),
   }),
-  Account: createTable({
+  Account: p.createTable({
     id: p.string(),
     lastActive: p.int(),
     tokens: p.virtual("EnsNft.ownerId"),

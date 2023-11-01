@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { p } from "./p";
+import * as p from "./index";
 import { isEnumColumn, isReferenceColumn, isVirtualColumn } from "./utils";
 
 test("virtual column", () => {

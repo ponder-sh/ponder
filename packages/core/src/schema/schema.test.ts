@@ -1,10 +1,9 @@
 import { expect, test } from "vitest";
 
-import { p } from "./p";
-import { createEnum, createSchema, createTable } from "./schema";
+import * as p from "./index";
 
 test("table", () => {
-  const t = createTable({
+  const t = p.createTable({
     id: p.string(),
   });
 
@@ -12,14 +11,14 @@ test("table", () => {
 });
 
 test("enum", () => {
-  const e = createEnum(["ONE", "TWO"]);
+  const e = p.createEnum(["ONE", "TWO"]);
 
   expect(e).toStrictEqual(["ONE", "TWO"]);
 });
 
 test("schema table", () => {
-  const s = createSchema({
-    t: createTable({
+  const s = p.createSchema({
+    t: p.createTable({
       id: p.string(),
       age: p.int().optional(),
     }),
@@ -30,9 +29,9 @@ test("schema table", () => {
 });
 
 test("schema enum", () => {
-  const s = createSchema({
-    e: createEnum(["ONE", "TWO"]),
-    t: createTable({
+  const s = p.createSchema({
+    e: p.createEnum(["ONE", "TWO"]),
+    t: p.createTable({
       id: p.string(),
       age: p.enum("e"),
     }),
@@ -43,11 +42,11 @@ test("schema enum", () => {
 });
 
 test("schema references", () => {
-  const s = createSchema({
-    a: createTable({
+  const s = p.createSchema({
+    a: p.createTable({
       id: p.int(),
     }),
-    t: createTable({
+    t: p.createTable({
       id: p.string(),
       ageId: p.int().references("a.id"),
     }),
@@ -58,12 +57,12 @@ test("schema references", () => {
 });
 
 test("schema virtual", () => {
-  const s = createSchema({
-    a: createTable({
+  const s = p.createSchema({
+    a: p.createTable({
       id: p.int(),
       b: p.virtual("t.ageId"),
     }),
-    t: createTable({
+    t: p.createTable({
       id: p.string(),
       ageId: p.int().references("a.id"),
       selfId: p.string().references("t.id"),
