@@ -54,8 +54,7 @@ export type InternalEnum<
   TType extends string | unknown = unknown,
   TOptional extends boolean | unknown = unknown
 > = {
-  /** @internal */
-  enum: EnumColumn<TType, TOptional>;
+  [" enum"]: EnumColumn<TType, TOptional>;
 };
 
 export type EnumColumn<

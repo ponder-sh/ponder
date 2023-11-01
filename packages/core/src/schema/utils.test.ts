@@ -12,7 +12,7 @@ test("virtual column", () => {
 test("enum column", () => {
   expect(isEnumColumn(p.string()[" column"])).toBe(false);
 
-  expect(isEnumColumn(p.enum("ENUM").enum)).toBe(true);
+  expect(isEnumColumn(p.enum("ENUM")[" enum"])).toBe(true);
 });
 
 test("reference column", () => {

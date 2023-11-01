@@ -142,13 +142,13 @@ type Enum<
     };
 
 const _enum = <TType extends string>(type: TType): Enum<TType, false> => ({
-  enum: {
+  [" enum"]: {
     _type: "e",
     type,
     optional: false,
   },
   optional: () => ({
-    enum: {
+    [" enum"]: {
       _type: "e",
       type,
       optional: true,

@@ -59,8 +59,8 @@ test("bigint", () => {
 test("enum", () => {
   const c = p.enum("ENUM");
 
-  expect(c.enum.type).toBe("ENUM");
-  expect(c.enum.optional).toBe(false);
+  expect(c[" enum"].type).toBe("ENUM");
+  expect(c[" enum"].optional).toBe(false);
 });
 
 test("virtual", () => {

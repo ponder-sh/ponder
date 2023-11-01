@@ -85,7 +85,7 @@ test("enum", () => {
   const c = p.enum("ENUM");
   //    ^?
 
-  assertType<EnumColumn<"ENUM", false>>(c.enum);
+  assertType<EnumColumn<"ENUM", false>>(c[" enum"]);
 });
 
 test("virtual", () => {
