@@ -1,4 +1,4 @@
-import { createSchema, createTable, p } from "@ponder/core";
+import { createSchema, createTable, p } from "../../../../dist";
 
 export const schema = createSchema({
   SetupEntity: createTable({
