@@ -30,7 +30,7 @@ const optional = <
   column: BaseColumn<TScalar, TReferences, false, TList>
 ): Optional<TScalar, TReferences, TList> =>
   (() => {
-    const newColumn = { ...column, optional: true };
+    const newColumn = { ...column, optional: true } as const;
 
     return column.list || column.references !== undefined
       ? {
@@ -38,11 +38,9 @@ const optional = <
         }
       : {
           [" column"]: newColumn,
-          list: list(
-            newColumn as unknown as BaseColumn<TScalar, undefined, true, false>
-          ),
+          list: list(newColumn as BaseColumn<TScalar, undefined, true, false>),
           references: references(
-            newColumn as unknown as BaseColumn<TScalar, undefined, true, false>
+            newColumn as BaseColumn<TScalar, undefined, true, false>
           ),
         };
   }) as Optional<TScalar, TReferences, TList>;
@@ -65,7 +63,7 @@ const list = <TScalar extends Scalar, TOptional extends boolean>(
   column: BaseColumn<TScalar, undefined, TOptional, false>
 ): List<TScalar, TOptional> =>
   (() => {
-    const newColumn = { ...column, list: true };
+    const newColumn = { ...column, list: true } as const;
     return column.optional
       ? {
           [" column"]: newColumn,
@@ -97,7 +95,7 @@ const references = <TScalar extends Scalar, TOptional extends boolean>(
   column: BaseColumn<TScalar, undefined, TOptional, false>
 ): References<TScalar, TOptional> =>
   (<TReferences extends `${string}.id`>(references: TReferences) => {
-    const newColumn = { ...column, references };
+    const newColumn = { ...column, references } as const;
 
     return column.optional
       ? { [" column"]: newColumn }
@@ -122,7 +120,7 @@ const emptyColumn =
       references: undefined,
       optional: false,
       list: false,
-    } as BaseColumn<TScalar, undefined, false, false>;
+    } as const;
 
     return {
       [" column"]: column,
