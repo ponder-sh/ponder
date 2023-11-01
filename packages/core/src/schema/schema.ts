@@ -91,7 +91,7 @@ export const createEnum = <TEnum extends Enum>(_enum: TEnum) => _enum;
  * Type inference and runtime validation
  */
 export const createSchema = <
-  const TSchema extends {
+  TSchema extends {
     [tableName in keyof TSchema]:
       | Table<
           { id: NonReferenceColumn<ID, false, false> } & {

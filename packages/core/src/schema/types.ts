@@ -14,7 +14,7 @@ export type ID = "string" | "int" | "bytes" | "bigint";
 
 export type BaseColumn<
   TType extends Scalar = Scalar,
-  TReferences extends `${string}.id` | never | unknown = unknown,
+  TReferences extends `${string}.id` | undefined | unknown = unknown,
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown
 > = {
@@ -35,12 +35,12 @@ export type NonReferenceColumn<
   TType extends Scalar = Scalar,
   TOptional extends boolean = boolean,
   TList extends boolean = boolean
-> = BaseColumn<TType, never, TOptional, TList>;
+> = BaseColumn<TType, undefined, TOptional, TList>;
 
 // TODO: make sure that .column is not available when compiled
 export type InternalColumn<
   TType extends Scalar = Scalar,
-  TReferences extends `${string}.id` | never | unknown = unknown,
+  TReferences extends `${string}.id` | undefined | unknown = unknown,
   TOptional extends boolean | unknown = unknown,
   TList extends boolean | unknown = unknown
 > = {
@@ -49,7 +49,7 @@ export type InternalColumn<
 };
 
 export type IDColumn<TType extends ID = ID> = {
-  column: BaseColumn<TType, never, false, false>;
+  column: BaseColumn<TType, undefined, false, false>;
 };
 
 export type InternalEnum<
@@ -188,7 +188,7 @@ export type RecoverRequiredColumns<
 
 export type RecoverTableType<TTable extends Table> =
   TTable extends infer _columns extends {
-    id: BaseColumn<ID, never, false, false>;
+    id: BaseColumn<ID, undefined, false, false>;
   } & Record<string, ReferenceColumn | NonReferenceColumn>
     ? Prettify<
         Record<"id", RecoverScalarType<_columns["id"]["type"]>> & {

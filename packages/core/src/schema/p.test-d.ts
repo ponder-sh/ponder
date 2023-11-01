@@ -13,7 +13,7 @@ test("string", () => {
   const c = p.string();
   //    ^?
 
-  assertType<BaseColumn<"string", never, false, false>>(c.column);
+  assertType<BaseColumn<"string", undefined, false, false>>(c.column);
 
   type t = RecoverColumnType<typeof c.column>;
   //   ^?
@@ -25,7 +25,7 @@ test("int", () => {
   const c = p.int();
   //    ^?
 
-  assertType<BaseColumn<"int", never, false, false>>(c.column);
+  assertType<BaseColumn<"int", undefined, false, false>>(c.column);
 
   type t = RecoverColumnType<typeof c.column>;
   //   ^?
@@ -37,7 +37,7 @@ test("float", () => {
   const c = p.float();
   //    ^?
 
-  assertType<BaseColumn<"float", never, false, false>>(c.column);
+  assertType<BaseColumn<"float", undefined, false, false>>(c.column);
 
   type t = RecoverColumnType<typeof c.column>;
   //   ^?
@@ -49,7 +49,7 @@ test("boolean", () => {
   const c = p.boolean();
   //    ^?
 
-  assertType<BaseColumn<"boolean", never, false, false>>(c.column);
+  assertType<BaseColumn<"boolean", undefined, false, false>>(c.column);
 
   type t = RecoverColumnType<typeof c.column>;
   //   ^?
@@ -61,7 +61,7 @@ test("bytes", () => {
   const c = p.bytes();
   //    ^?
 
-  assertType<BaseColumn<"bytes", never, false, false>>(c.column);
+  assertType<BaseColumn<"bytes", undefined, false, false>>(c.column);
 
   type t = RecoverColumnType<typeof c.column>;
   //   ^?
@@ -73,7 +73,7 @@ test("bigint", () => {
   const c = p.bigint();
   //    ^?
 
-  assertType<BaseColumn<"bigint", never, false, false>>(c.column);
+  assertType<BaseColumn<"bigint", undefined, false, false>>(c.column);
 
   type t = RecoverColumnType<typeof c.column>;
   //   ^?
@@ -99,7 +99,7 @@ test("optional", () => {
   const c = p.string().optional();
   //    ^?
 
-  assertType<BaseColumn<"string", never, true, false>>(c.column);
+  assertType<BaseColumn<"string", undefined, true, false>>(c.column);
 
   type t = RecoverColumnType<typeof c.column>;
   //   ^?
@@ -111,7 +111,7 @@ test("list", () => {
   const c = p.string().list();
   //    ^?
 
-  assertType<BaseColumn<"string", never, false, true>>(c.column);
+  assertType<BaseColumn<"string", undefined, false, true>>(c.column);
 
   type t = RecoverColumnType<typeof c.column>;
   //   ^?
@@ -134,7 +134,7 @@ test("chaining modifiers 1", () => {
   const c = p.string().list().optional();
   //    ^?
 
-  assertType<BaseColumn<"string", never, true, true>>(c.column);
+  assertType<BaseColumn<"string", undefined, true, true>>(c.column);
 
   type t = RecoverColumnType<typeof c.column>;
   //   ^?
@@ -146,7 +146,7 @@ test("chaining modifiers 2", () => {
   const c = p.string().optional().list();
   //    ^?
 
-  assertType<BaseColumn<"string", never, true, true>>(c.column);
+  assertType<BaseColumn<"string", undefined, true, true>>(c.column);
 
   type t = RecoverColumnType<typeof c.column>;
   //   ^?

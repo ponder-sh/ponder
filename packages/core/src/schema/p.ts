@@ -8,9 +8,9 @@ import {
 
 type Optional<
   TScalar extends Scalar,
-  TReferences extends `${string}.id` | never,
+  TReferences extends `${string}.id` | undefined,
   TList extends boolean
-> = () => never extends TReferences
+> = () => TReferences extends undefined
   ? TList extends true
     ? InternalColumn<TScalar, TReferences, true, TList>
     : InternalColumn<TScalar, TReferences, true, TList> & {
@@ -24,7 +24,7 @@ type Optional<
  */
 const optional = <
   TScalar extends Scalar,
-  TReferences extends `${string}.id` | never,
+  TReferences extends `${string}.id` | undefined,
   TList extends boolean
 >(
   column: BaseColumn<TScalar, TReferences, false, TList>
@@ -39,10 +39,10 @@ const optional = <
       : {
           column: newColumn,
           list: list(
-            newColumn as unknown as BaseColumn<TScalar, never, true, false>
+            newColumn as unknown as BaseColumn<TScalar, undefined, true, false>
           ),
           references: references(
-            newColumn as unknown as BaseColumn<TScalar, never, true, false>
+            newColumn as unknown as BaseColumn<TScalar, undefined, true, false>
           ),
         };
   }) as Optional<TScalar, TReferences, TList>;
@@ -51,9 +51,9 @@ type List<
   TScalar extends Scalar,
   TOptional extends boolean
 > = () => TOptional extends true
-  ? InternalColumn<TScalar, never, TOptional, true>
-  : InternalColumn<TScalar, never, TOptional, true> & {
-      optional: Optional<TScalar, never, true>;
+  ? InternalColumn<TScalar, undefined, TOptional, true>
+  : InternalColumn<TScalar, undefined, TOptional, true> & {
+      optional: Optional<TScalar, undefined, true>;
     };
 
 /**
@@ -62,7 +62,7 @@ type List<
  * List columns can't be references
  */
 const list = <TScalar extends Scalar, TOptional extends boolean>(
-  column: BaseColumn<TScalar, never, TOptional, false>
+  column: BaseColumn<TScalar, undefined, TOptional, false>
 ): List<TScalar, TOptional> =>
   (() => {
     const newColumn = { ...column, list: true };
@@ -73,7 +73,7 @@ const list = <TScalar extends Scalar, TOptional extends boolean>(
       : {
           column: newColumn,
           optional: optional(
-            newColumn as BaseColumn<TScalar, never, false, true>
+            newColumn as BaseColumn<TScalar, undefined, false, true>
           ),
         };
   }) as List<TScalar, TOptional>;
@@ -94,7 +94,7 @@ type References<TScalar extends Scalar, TOptional extends boolean> = <
  * Reference columns can't be lists
  */
 const references = <TScalar extends Scalar, TOptional extends boolean>(
-  column: BaseColumn<TScalar, never, TOptional, false>
+  column: BaseColumn<TScalar, undefined, TOptional, false>
 ): References<TScalar, TOptional> =>
   (<TReferences extends `${string}.id`>(references: TReferences) => {
     const newColumn = { ...column, references };
@@ -111,8 +111,8 @@ const references = <TScalar extends Scalar, TOptional extends boolean>(
 
 const emptyColumn =
   <TScalar extends Scalar>(scalar: TScalar) =>
-  (): InternalColumn<TScalar, never, false, false> & {
-    optional: Optional<TScalar, never, false>;
+  (): InternalColumn<TScalar, undefined, false, false> & {
+    optional: Optional<TScalar, undefined, false>;
     list: List<TScalar, false>;
     references: References<TScalar, false>;
   } => {
@@ -122,7 +122,7 @@ const emptyColumn =
       references: undefined,
       optional: false,
       list: false,
-    } as BaseColumn<TScalar, never, false, false>;
+    } as BaseColumn<TScalar, undefined, false, false>;
 
     return {
       column,
