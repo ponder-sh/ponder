@@ -207,8 +207,8 @@ export class Ponder {
     // Manually trigger loading schema and handlers. Subsequent loads
     // are triggered by changes to project files (handled in BuildService).
     this.buildService.buildSchema();
-    await this.buildService.buildIndexingFunctions();
-    await this.buildService.buildConfig();
+    // await this.buildService.buildIndexingFunctions();
+    // await this.buildService.buildConfig();
   }
 
   async dev() {
