@@ -11,7 +11,6 @@ import { tryGitInit } from "@/helpers/git";
 import { fromBasic } from "@/templates/basic";
 import { fromEtherscan } from "@/templates/etherscan";
 import { fromSubgraphId } from "@/templates/subgraphId";
-import { fromSubgraphRepo } from "@/templates/subgraphRepo";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -70,15 +69,6 @@ export const run = async (
       config = await fromSubgraphId({
         rootDir,
         subgraphId: options.template.id,
-      });
-      break;
-    }
-    case TemplateKind.SUBGRAPH_REPO: {
-      console.log(`\nUsing ${pico.cyan("Subgraph repository")} template.`);
-
-      config = fromSubgraphRepo({
-        rootDir,
-        subgraphPath: options.template.path,
       });
       break;
     }

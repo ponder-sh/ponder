@@ -2,7 +2,6 @@ export enum TemplateKind {
   NONE,
   ETHERSCAN,
   SUBGRAPH_ID,
-  SUBGRAPH_REPO,
 }
 
 export type Template =
@@ -13,10 +12,6 @@ export type Template =
   | {
       kind: TemplateKind.SUBGRAPH_ID;
       id: string;
-    }
-  | {
-      kind: TemplateKind.SUBGRAPH_REPO;
-      path: string;
     };
 
 export interface CreatePonderOptions {
