@@ -30,7 +30,7 @@ export function isLogMatchedByFilter({
   address?: Address | Address[];
   topics?: (Hex | Hex[] | null)[];
 }) {
-  if (address) {
+  if (address !== undefined && address.length > 0) {
     if (Array.isArray(address)) {
       if (!address.includes(log.address)) return false;
     } else {
