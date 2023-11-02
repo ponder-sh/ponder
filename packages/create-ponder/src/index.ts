@@ -154,7 +154,7 @@ export const run = async (
   export const schema = p.createSchema({
     ExampleTable: p.createTable({
       id: p.string(),
-      name: p.string.optional(),
+      name: p.string().optional(),
     }),
   });
 `;
