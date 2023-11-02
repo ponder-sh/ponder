@@ -648,7 +648,10 @@ test("insertFactoryLogFilterInterval handles topics", async (context) => {
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
     topics: [
-      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+      [
+        "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        "0x000000000000000000000000child20000000000000000000000000000000000",
+      ],
     ],
   } satisfies FactoryCriteria;
 
@@ -661,9 +664,19 @@ test("insertFactoryLogFilterInterval handles topics", async (context) => {
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
-  const intervals = await eventStore.getFactoryLogFilterIntervals({
+  let intervals = await eventStore.getFactoryLogFilterIntervals({
     chainId: 1,
     factory: factoryCriteria,
+  });
+
+  expect(intervals).toMatchObject([[0, 500]]);
+
+  intervals = await eventStore.getFactoryLogFilterIntervals({
+    chainId: 1,
+    factory: {
+      ...factoryCriteria,
+      topics: [factoryCriteria.topics[0][0]],
+    } as FactoryCriteria,
   });
 
   expect(intervals).toMatchObject([[0, 500]]);
