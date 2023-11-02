@@ -86,6 +86,15 @@ test("filterLogs handles one logFilter, two addresses", () => {
   );
 });
 
+test("filterLogs handles empty array of addresses", () => {
+  const filteredLogs = filterLogs({
+    logs,
+    logFilters: [{ address: [] }],
+  });
+
+  expect(filteredLogs).toStrictEqual(logs);
+});
+
 test("filterLogs handles two logFilters, one address each", () => {
   const filteredLogs = filterLogs({
     logs,

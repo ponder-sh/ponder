@@ -328,6 +328,10 @@ const migrations: Record<string, Migration> = {
         .addColumn("address", "varchar(42)", (col) => col.notNull())
         .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
         .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
         .execute();
       await db.schema
         .createTable("factoryLogFilterIntervals")

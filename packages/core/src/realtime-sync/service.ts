@@ -343,30 +343,29 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // NOTE: It might make sense to just insert all logs rather than introduce
         // a potentially slow DB operation here. It's a tradeoff between sync
         // latency and database growth.
-        const allChildContractAddresses = (
-          await Promise.all(
-            this.factories.map(async (factory) => {
-              const iterator = this.eventStore.getFactoryChildAddresses({
-                chainId: this.network.chainId,
-                factory: factory.criteria,
-                upToBlockNumber: hexToBigInt(block.number!),
-              });
-              const childContractAddresses: Hex[] = [];
-              for await (const batch of iterator) {
-                childContractAddresses.push(...batch);
-              }
-              return childContractAddresses;
-            })
-          )
-        ).flat();
+        const factoryLogFilters = await Promise.all(
+          this.factories.map(async (factory) => {
+            const iterator = this.eventStore.getFactoryChildAddresses({
+              chainId: this.network.chainId,
+              factory: factory.criteria,
+              upToBlockNumber: hexToBigInt(block.number!),
+            });
+            const childContractAddresses: Hex[] = [];
+            for await (const batch of iterator) {
+              childContractAddresses.push(...batch);
+            }
+            return {
+              address: childContractAddresses,
+              topics: factory.criteria.topics,
+            };
+          })
+        );
 
         matchedLogs = filterLogs({
           logs,
           logFilters: [
             ...this.logFilters.map((l) => l.criteria),
-            ...(allChildContractAddresses.length > 0
-              ? [{ address: allChildContractAddresses }]
-              : []),
+            ...factoryLogFilters,
           ],
         });
       }

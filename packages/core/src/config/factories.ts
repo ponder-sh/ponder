@@ -12,6 +12,7 @@ export type FactoryCriteria = {
   address: Address;
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
+  topics?: (Hex | Hex[] | null)[];
 };
 
 export type Factory = {
@@ -170,10 +171,4 @@ export function getAddressFromFactoryEventLog({
   throw new Error(
     `Invalid child address location identifier: ${childAddressLocation}`
   );
-}
-
-export function buildFactoryId(
-  criteria: FactoryCriteria & { chainId: number }
-) {
-  return `${criteria.chainId}_${criteria.address}_${criteria.eventSelector}_${criteria.childAddressLocation}` as const;
 }
