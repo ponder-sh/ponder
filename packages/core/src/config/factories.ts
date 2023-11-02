@@ -12,6 +12,7 @@ export type FactoryCriteria = {
   address: Address;
   eventSelector: Hex;
   childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
+  topics?: (Hex | Hex[] | null)[];
 };
 
 export type Factory = {

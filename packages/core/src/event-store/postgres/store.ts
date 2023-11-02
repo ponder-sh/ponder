@@ -16,8 +16,8 @@ import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
 import type { NonNull } from "@/types/utils";
+import { buildLogFilterFragments } from "@/utils/fragments";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval";
-import { buildLogFilterFragments } from "@/utils/logFilter";
 import { range } from "@/utils/range";
 
 import type { EventStore } from "../store";

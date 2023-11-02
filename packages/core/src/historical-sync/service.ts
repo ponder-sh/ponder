@@ -697,6 +697,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     for await (const childContractAddressBatch of iterator) {
       const batchLogs = await this._eth_getLogs({
         address: childContractAddressBatch,
+        topics: factory.criteria.topics,
         fromBlock: toHex(fromBlock),
         toBlock: toHex(toBlock),
       });

@@ -191,6 +191,10 @@ type FactoriesTable = {
   address: Hex;
   eventSelector: Hex;
   childAddressLocation: `topic${1 | 2 | 3}` | `offset${number}`;
+  topic0: Hex | null;
+  topic1: Hex | null;
+  topic2: Hex | null;
+  topic3: Hex | null;
 };
 
 type FactoryLogFilterIntervalsTable = {

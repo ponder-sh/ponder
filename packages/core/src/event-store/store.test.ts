@@ -639,6 +639,36 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
   expect(intervals).toMatchObject([[0, 1000]]);
 });
 
+test("insertFactoryLogFilterInterval handles topics", async (context) => {
+  const { eventStore } = context;
+
+  const factoryCriteria = {
+    address: "0xfactory",
+    eventSelector:
+      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    childAddressLocation: "topic1",
+    topics: [
+      "0x0000000000000000000000000000000000000000000factoryeventsignature",
+    ],
+  } satisfies FactoryCriteria;
+
+  await eventStore.insertFactoryLogFilterInterval({
+    chainId: 1,
+    factory: factoryCriteria,
+    block: blockOne,
+    transactions: blockOneTransactions,
+    logs: blockOneLogs,
+    interval: { startBlock: 0n, endBlock: 500n },
+  });
+
+  const intervals = await eventStore.getFactoryLogFilterIntervals({
+    chainId: 1,
+    factory: factoryCriteria,
+  });
+
+  expect(intervals).toMatchObject([[0, 500]]);
+});
+
 test("insertRealtimeBlock inserts data", async (context) => {
   const { eventStore } = context;
 
