@@ -365,7 +365,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           logs,
           logFilters: [
             ...this.logFilters.map((l) => l.criteria),
-            ...factoryLogFilters.flat(),
+            ...factoryLogFilters,
           ],
         });
       }
