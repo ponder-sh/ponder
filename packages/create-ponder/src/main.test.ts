@@ -44,7 +44,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
-        expect(root).toContain("schema.graphql");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("tsconfig.json");
       });
 
@@ -60,7 +60,7 @@ describe("create-ponder", () => {
 
       test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
-        expect(generated.sort()).toEqual(["index.ts", "schema.graphql"].sort());
+        expect(generated).toEqual(["index.ts"].sort());
       });
 
       test("creates src files", async () => {
@@ -99,7 +99,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
-        expect(root).toContain("schema.graphql");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("tsconfig.json");
       });
 
@@ -115,7 +115,7 @@ describe("create-ponder", () => {
 
       test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
-        expect(generated.sort()).toEqual(["index.ts", "schema.graphql"].sort());
+        expect(generated).toEqual(["index.ts"].sort());
       });
 
       test("creates src files", async () => {
@@ -154,7 +154,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
-        expect(root).toContain("schema.graphql");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("tsconfig.json");
       });
 
@@ -174,7 +174,7 @@ describe("create-ponder", () => {
 
       test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
-        expect(generated.sort()).toEqual(["index.ts", "schema.graphql"].sort());
+        expect(generated).toEqual(["index.ts"].sort());
       });
 
       test("creates src files", async () => {
@@ -248,7 +248,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
-        expect(root).toContain("schema.graphql");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("tsconfig.json");
       });
 
@@ -268,7 +268,7 @@ describe("create-ponder", () => {
 
       test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
-        expect(generated.sort()).toEqual(["index.ts", "schema.graphql"].sort());
+        expect(generated).toEqual(["index.ts"].sort());
       });
 
       test("creates src files", async () => {
@@ -307,7 +307,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
-        expect(root).toContain("schema.graphql");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("tsconfig.json");
       });
 
@@ -321,7 +321,7 @@ describe("create-ponder", () => {
 
       test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
-        expect(generated.sort()).toEqual(["index.ts", "schema.graphql"].sort());
+        expect(generated).toEqual(["index.ts"].sort());
       });
 
       test("creates src files", async () => {
@@ -362,6 +362,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("schema.graphql");
         expect(root).toContain("tsconfig.json");
       });
@@ -378,7 +379,7 @@ describe("create-ponder", () => {
 
       test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
-        expect(generated.sort()).toEqual(["index.ts", "schema.graphql"].sort());
+        expect(generated).toEqual(["index.ts"].sort());
       });
 
       test("creates src files", async () => {
@@ -419,6 +420,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("schema.graphql");
         expect(root).toContain("tsconfig.json");
       });
@@ -435,7 +437,7 @@ describe("create-ponder", () => {
 
       test("creates codegen files", async () => {
         const generated = fs.readdirSync(path.join(rootDir, "generated"));
-        expect(generated.sort()).toEqual(["index.ts", "schema.graphql"].sort());
+        expect(generated).toEqual(["index.ts"].sort());
       });
 
       test("creates src files", async () => {

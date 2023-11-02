@@ -124,20 +124,6 @@ export const fromEtherscan = async ({
     }
   });
 
-  const schemaGraphqlFileContents = `
-    type ExampleEntity @entity {
-      id: String!
-      name: String!
-    }
-  `;
-
-  // Generate the schema.graphql file.
-  const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
-  writeFileSync(
-    ponderSchemaFilePath,
-    prettier.format(schemaGraphqlFileContents, { parser: "graphql" })
-  );
-
   // Build and return the partial ponder config.
   const config: SerializableConfig = {
     networks: [

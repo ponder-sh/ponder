@@ -35,9 +35,11 @@ export const fromSubgraphId = async ({
   // Fetch and write the schema.graphql file.
   const schemaCid = manifest.schema.file["/"].slice(6);
   const schemaRaw = await fetchIpfsFile(schemaCid);
-  const schemaCleaned = schemaRaw
-    .replaceAll(": ID!", ": String!")
-    .replaceAll("BigDecimal", "Float");
+  const schemaCleaned =
+    '# This is a copy of the subgraph schema for reference, but is not being used by Ponder. Please complete the schema in "ponder.schema.ts". \n' +
+    schemaRaw
+      .replaceAll(": ID!", ": String!")
+      .replaceAll("BigDecimal", "Float");
   const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
   writeFileSync(
     ponderSchemaFilePath,
