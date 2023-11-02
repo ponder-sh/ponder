@@ -411,21 +411,10 @@ export class SqliteEventStore implements EventStore {
       .selectFrom("factoryLogFilterIntervals")
       .leftJoin("factories", "factoryId", "factories.id")
       .innerJoin("factoryFilterFragments", (join) => {
-        let baseJoin = join.on(({ or, cmpr }) =>
-          or([
-            cmpr("address", "is", null),
+        let baseJoin = join.on(({ and, cmpr }) =>
+          and([
             cmpr("fragmentAddress", "=", sql.ref("address")),
-          ])
-        );
-        baseJoin = join.on(({ or, cmpr }) =>
-          or([
-            cmpr("eventSelector", "is", null),
             cmpr("fragmentEventSelector", "=", sql.ref("eventSelector")),
-          ])
-        );
-        baseJoin = join.on(({ or, cmpr }) =>
-          or([
-            cmpr("childAddressLocation", "is", null),
             cmpr(
               "fragmentChildAddressLocation",
               "=",
