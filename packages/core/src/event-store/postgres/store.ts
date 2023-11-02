@@ -10,13 +10,16 @@ import {
 import type { Pool } from "pg";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import { type FactoryCriteria, buildFactoryId } from "@/config/factories";
+import { type FactoryCriteria } from "@/config/factories";
 import type { LogFilterCriteria } from "@/config/logFilters";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
 import type { NonNull } from "@/types/utils";
-import { buildLogFilterFragments } from "@/utils/fragments";
+import {
+  buildFactoryFragments,
+  buildLogFilterFragments,
+} from "@/utils/fragments";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval";
 import { range } from "@/utils/range";
 
@@ -373,46 +376,132 @@ export class PostgresEventStore implements EventStore {
     chainId: number;
     factory: FactoryCriteria;
   }) => {
-    return await this.db.transaction().execute(async (tx) => {
-      const factory_ = {
-        ...factory,
-        id: buildFactoryId({ ...factory, chainId }),
-        chainId,
-      };
-      const { id: factoryId } = await tx
-        .insertInto("factories")
-        .values(factory_)
-        .onConflict((oc) => oc.column("id").doUpdateSet(factory_))
-        .returningAll()
-        .executeTakeFirstOrThrow();
-
-      const existingIntervals = await tx
-        .deleteFrom("factoryLogFilterIntervals")
-        .where("factoryId", "=", factoryId)
-        .returningAll()
-        .execute();
-
-      const mergedIntervals = intervalUnion(
-        existingIntervals.map((i) => [Number(i.startBlock), Number(i.endBlock)])
-      );
-
-      const mergedIntervalRows = mergedIntervals.map(
-        ([startBlock, endBlock]) => ({
-          factoryId,
-          startBlock: BigInt(startBlock),
-          endBlock: BigInt(endBlock),
-        })
-      );
-
-      if (mergedIntervalRows.length > 0) {
-        await tx
-          .insertInto("factoryLogFilterIntervals")
-          .values(mergedIntervalRows)
-          .execute();
-      }
-
-      return mergedIntervals;
+    const fragments = buildFactoryFragments({
+      ...factory,
+      chainId,
     });
+
+    await Promise.all(
+      fragments.map(async (fragment) => {
+        await this.db.transaction().execute(async (tx) => {
+          const { id: factoryId } = await tx
+            .insertInto("factories")
+            .values(fragment)
+            .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
+            .returningAll()
+            .executeTakeFirstOrThrow();
+
+          const existingIntervals = await tx
+            .deleteFrom("factoryLogFilterIntervals")
+            .where("factoryId", "=", factoryId)
+            .returningAll()
+            .execute();
+
+          const mergedIntervals = intervalUnion(
+            existingIntervals.map((i) => [
+              Number(i.startBlock),
+              Number(i.endBlock),
+            ])
+          );
+
+          const mergedIntervalRows = mergedIntervals.map(
+            ([startBlock, endBlock]) => ({
+              factoryId,
+              startBlock: BigInt(startBlock),
+              endBlock: BigInt(endBlock),
+            })
+          );
+
+          if (mergedIntervalRows.length > 0) {
+            await tx
+              .insertInto("factoryLogFilterIntervals")
+              .values(mergedIntervalRows)
+              .execute();
+          }
+
+          return mergedIntervals;
+        });
+      })
+    );
+
+    const fragmentsWithIdx = fragments.map((f, idx) => ({ idx, ...f }));
+
+    const intervals = await this.db
+      .with(
+        "factoryFilterFragments(fragmentIndex, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
+        () =>
+          sql`( values ${sql.join(
+            fragmentsWithIdx.map(
+              (f) =>
+                sql`( ${sql.val(f.idx)}, ${sql.val(f.address)}, ${sql.val(
+                  f.eventSelector
+                )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
+                  f.topic0
+                )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
+                  f.topic3
+                )} )`
+            )
+          )} )`
+      )
+      .selectFrom("factoryLogFilterIntervals")
+      .leftJoin("factories", "factoryId", "factories.id")
+      .innerJoin("factoryFilterFragments", (join) => {
+        let baseJoin = join.on(({ or, cmpr }) =>
+          or([
+            cmpr("address", "is", null),
+            cmpr("fragmentAddress", "=", sql.ref("address")),
+          ])
+        );
+        baseJoin = join.on(({ or, cmpr }) =>
+          or([
+            cmpr("eventSelector", "is", null),
+            cmpr("fragmentEventSelector", "=", sql.ref("eventSelector")),
+          ])
+        );
+        baseJoin = join.on(({ or, cmpr }) =>
+          or([
+            cmpr("childAddressLocation", "is", null),
+            cmpr(
+              "fragmentChildAddressLocation",
+              "=",
+              sql.ref("childAddressLocation")
+            ),
+          ])
+        );
+        for (const idx_ of range(0, 4)) {
+          baseJoin = baseJoin.on(({ or, cmpr }) => {
+            const idx = idx_ as 0 | 1 | 2 | 3;
+            return or([
+              cmpr(`topic${idx}`, "is", null),
+              cmpr(`fragmentTopic${idx}`, "=", sql.ref(`topic${idx}`)),
+            ]);
+          });
+        }
+
+        return baseJoin;
+      })
+      .select(["fragmentIndex", "startBlock", "endBlock"])
+      .where("chainId", "=", chainId)
+      .execute();
+
+    const intervalsByFragment = intervals.reduce((acc, cur) => {
+      const { fragmentIndex, ...rest } = cur;
+      acc[fragmentIndex] ||= [];
+      acc[fragmentIndex].push({
+        startBlock: rest.startBlock,
+        endBlock: rest.endBlock,
+      });
+      return acc;
+    }, {} as Record<number, { startBlock: bigint; endBlock: bigint }[]>);
+
+    const fragmentIntervals = fragmentsWithIdx.map((f) => {
+      return (intervalsByFragment[f.idx] ?? []).map(
+        (r) =>
+          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
+      );
+    });
+
+    return intervalIntersectionMany(fragmentIntervals);
   };
 
   insertRealtimeBlock = async ({
@@ -632,17 +721,16 @@ export class PostgresEventStore implements EventStore {
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
+    const factoryFragments = factories
+      .map((factory) => buildFactoryFragments({ ...factory, chainId }))
+      .flat();
+
     await Promise.all(
-      factories.map(async (factory) => {
-        const factory_ = {
-          id: buildFactoryId({ chainId, ...factory }),
-          chainId,
-          ...factory,
-        };
+      factoryFragments.map(async (fragment) => {
         const { id: factoryId } = await tx
           .insertInto("factories")
-          .values(factory_)
-          .onConflict((oc) => oc.column("id").doUpdateSet(factory_))
+          .values(fragment)
+          .onConflict((oc) => oc.column("id").doUpdateSet(fragment))
           .returningAll()
           .executeTakeFirstOrThrow();
 

@@ -172,9 +172,3 @@ export function getAddressFromFactoryEventLog({
     `Invalid child address location identifier: ${childAddressLocation}`
   );
 }
-
-export function buildFactoryId(
-  criteria: FactoryCriteria & { chainId: number }
-) {
-  return `${criteria.chainId}_${criteria.address}_${criteria.eventSelector}_${criteria.childAddressLocation}` as const;
-}
