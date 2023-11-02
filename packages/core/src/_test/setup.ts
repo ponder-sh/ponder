@@ -72,6 +72,7 @@ export async function setupEventStore(
   options = { skipMigrateUp: false }
 ) {
   if (process.env.DATABASE_URL) {
+    console.log("in setup, creating pool");
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
     context.eventStore = new PostgresEventStore({ pool, databaseSchema });
@@ -87,6 +88,13 @@ export async function setupEventStore(
         // It's fine to ignore the error.
       }
       await context.eventStore.kill();
+      // await pool.end()
+      console.log("in cleanup, killed eventStore");
+      console.log({
+        idleCount: pool.idleCount,
+        totalCount: pool.totalCount,
+        waitingCount: pool.waitingCount,
+      });
     };
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
@@ -121,7 +129,7 @@ export async function setupUserStore(context: TestContext) {
   }
 
   return async () => {
-    await context.userStore.teardown();
+    await context.userStore.kill();
   };
 }
 
