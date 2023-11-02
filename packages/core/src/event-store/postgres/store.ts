@@ -188,19 +188,14 @@ export class PostgresEventStore implements EventStore {
       })
     );
 
-    const fragmentsWithIdx = fragments.map((f, idx) => ({
-      idx,
-      ...f,
-    }));
-
     const intervals = await this.db
       .with(
-        "logFilterFragments(fragmentIndex, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
+        "logFilterFragments(fragmentId, fragmentAddress, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
         () =>
           sql`( values ${sql.join(
-            fragmentsWithIdx.map(
+            fragments.map(
               (f) =>
-                sql`( ${sql.val(f.idx)}, ${sql.val(f.address)}, ${sql.val(
+                sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
                   f.topic0
                 )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
                   f.topic3
@@ -229,19 +224,19 @@ export class PostgresEventStore implements EventStore {
 
         return baseJoin;
       })
-      .select(["fragmentIndex", "startBlock", "endBlock"])
+      .select(["fragmentId", "startBlock", "endBlock"])
       .where("chainId", "=", chainId)
       .execute();
 
     const intervalsByFragment = intervals.reduce((acc, cur) => {
-      const { fragmentIndex, ...rest } = cur;
-      acc[fragmentIndex] ||= [];
-      acc[fragmentIndex].push(rest);
+      const { fragmentId, ...rest } = cur;
+      acc[fragmentId] ||= [];
+      acc[fragmentId].push(rest);
       return acc;
-    }, {} as Record<number, { startBlock: bigint; endBlock: bigint }[]>);
+    }, {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>);
 
-    const fragmentIntervals = fragmentsWithIdx.map((f) => {
-      return (intervalsByFragment[f.idx] ?? []).map(
+    const fragmentIntervals = fragments.map((f) => {
+      return (intervalsByFragment[f.id] ?? []).map(
         (r) =>
           [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
       );
@@ -424,16 +419,14 @@ export class PostgresEventStore implements EventStore {
       })
     );
 
-    const fragmentsWithIdx = fragments.map((f, idx) => ({ idx, ...f }));
-
     const intervals = await this.db
       .with(
-        "factoryFilterFragments(fragmentIndex, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
+        "factoryFilterFragments(fragmentId, fragmentAddress, fragmentEventSelector, fragmentChildAddressLocation, fragmentTopic0, fragmentTopic1, fragmentTopic2, fragmentTopic3)",
         () =>
           sql`( values ${sql.join(
-            fragmentsWithIdx.map(
+            fragments.map(
               (f) =>
-                sql`( ${sql.val(f.idx)}, ${sql.val(f.address)}, ${sql.val(
+                sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
                   f.eventSelector
                 )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
                   f.topic0
@@ -469,22 +462,22 @@ export class PostgresEventStore implements EventStore {
 
         return baseJoin;
       })
-      .select(["fragmentIndex", "startBlock", "endBlock"])
+      .select(["fragmentId", "startBlock", "endBlock"])
       .where("chainId", "=", chainId)
       .execute();
 
     const intervalsByFragment = intervals.reduce((acc, cur) => {
-      const { fragmentIndex, ...rest } = cur;
-      acc[fragmentIndex] ||= [];
-      acc[fragmentIndex].push({
+      const { fragmentId, ...rest } = cur;
+      acc[fragmentId] ||= [];
+      acc[fragmentId].push({
         startBlock: rest.startBlock,
         endBlock: rest.endBlock,
       });
       return acc;
-    }, {} as Record<number, { startBlock: bigint; endBlock: bigint }[]>);
+    }, {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>);
 
-    const fragmentIntervals = fragmentsWithIdx.map((f) => {
-      return (intervalsByFragment[f.idx] ?? []).map(
+    const fragmentIntervals = fragments.map((f) => {
+      return (intervalsByFragment[f.id] ?? []).map(
         (r) =>
           [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
       );
