@@ -309,13 +309,13 @@ export class Ponder {
   }
 
   private registerServiceDependencies() {
-    this.buildService.on("newConfig", async () => {
-      this.common.logger.fatal({
-        service: "build",
-        msg: "Detected change in ponder.config.ts",
-      });
-      await this.kill();
-    });
+    // this.buildService.on("newConfig", async () => {
+    //   this.common.logger.fatal({
+    //     service: "build",
+    //     msg: "Detected change in ponder.config.ts",
+    //   });
+    //   await this.kill();
+    // });
 
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
       this.common.errors.hasUserError = false;
