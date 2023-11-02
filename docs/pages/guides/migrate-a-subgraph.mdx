@@ -1,0 +1,276 @@
+---
+description: "A guide for migrating a Graph Protocol subgraph to Ponder"
+---
+
+# Migrate a subgraph
+
+## Tips for migrating mapping functions
+
+### Functions run in Node.js, not WebAssembly
+
+You can import NPM packages, debug with `console.log`, and use normal JavaScript types like `string` and `number`.
+
+### Entities & contracts are injected, not imported
+
+<div className="code-columns">
+
+```ts filename="mapping.ts (Graph Protocol)"
+import { Token, Wallet } from "../generated/schema";
+import { MyNftContract } from "../generated/MyNftContract/MyNftContract";
+
+export function handleTransfer(event) {
+  // Get an entity object
+  const token = Token.load(event.params.id);
+
+  // ...
+}
+```
+
+```ts filename="src/MyNftContract.ts"
+import { ponder } from "@/generated";
+
+ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
+  const { Token } = context.entities;
+
+  // Get an entity object
+  const token = await Token.findUnique({ id: event.params.id });
+
+  // ...
+});
+```
+
+</div>
+
+## Tips for migrating schema
+
+Ponder uses TypeScript to define the schema of the underlying database.
+
+### Start
+
+The `createSchema()` function allows for static schema validation, as well as type hints.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+# No initial infrastructure is needed
+```
+
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  // schema definition here
+});
+```
+
+</div>
+
+### Tables
+
+Ponder aims to have a schema format more similiar to the underlying database format.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+type ExampleTable @entity {
+  # table definition here
+}
+```
+
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  ExampleTable: p.createTable({
+    // table definition here
+  }),
+});
+```
+
+</div>
+
+### Enums
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+enum Color {
+  ORANGE
+  BLACK
+}
+
+type Cat @entity {
+  color: Color!
+}
+```
+
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Color: p.createEnum(["ORANGE", "BLACK"]),
+  Cat: p.createTable({
+    color: p.enum("Color"),
+  }),
+});
+```
+
+</div>
+
+### Scalar Columns
+
+Columns are non-optional by default in the TypeScript schema
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+type Account @entity {
+  id: Bytes!
+  daiBalance: BigInt!
+  totalUsdValue: Float!
+  lastActiveAt: Int!
+  isAdmin: Boolean!
+  graffiti: String!
+}
+```
+
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Account: p.createTable({
+    id: p.bytes(),
+    daiBalance: p.bigint(),
+    totalUsdValue: p.float(),
+    lastActiveAt: p.int(),
+    isAdmin: p.boolean(),
+    graffiti: p.string(),
+  }),
+});
+```
+
+</div>
+
+### Optional
+
+Columns can be made options with the `.optional()` modifier.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+type User @entity {
+  id: String!
+  highScore: Int
+  middleName: String
+}
+```
+
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  User: p.createTable({
+    id: p.string(),
+    highScore: p.int().optional(),
+    middleName: p.string().optional(),
+  }),
+});
+```
+
+</div>
+
+### List
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+type FancyCat @entity {
+  id: String!
+  favoriteNumbers: [Int!]!
+}
+```
+
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  FancyCat: p.createTable({
+    id: p.string(),
+    favoriteNumbers: p.int().list(),
+  }),
+});
+```
+
+</div>
+
+### Reference Columns
+
+Reference column names must end with "Id" in the TypeScript schema. Query fields on the GraphQL endpoint remove this suffix to more closely represent the return type of the query.
+
+TypeScript schema is much closer to the actual database layout, where the owner column is a secondary key that holds the primary key of the "Person" table.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+type Person @entity {
+  id: String!
+  age: Int!
+}
+
+type Dog @entity {
+  id: String!
+  owner: Person!
+}
+```
+
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Person: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+  Dog: p.createTable({
+    id: p.string(),
+    ownerId: p.string().references("Person.id"),
+  }),
+});
+```
+
+</div>
+
+### Virutal/Derived Columns
+
+Virtual columns do not exist in the database, they are entirely used for the GraphQL endpoint.
+
+<div className="code-columns">
+
+```graphql filename="schema.graphql"
+type Person @entity {
+  id: String!
+  dogs: [Dog!]! @derivedFrom(field: "owner")
+}
+
+type Dog @entity {
+  id: String!
+  owner: Person!
+}
+```
+
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Person: p.createTable({
+    id: p.string(),
+    dogs: p.virtual("Dog.ownerId"),
+  }),
+  Dog: p.createTable({
+    id: p.string(),
+    ownerId: p.string().references("Person.id"),
+  }),
+});
+```
+
+</div>
