@@ -1,5 +1,48 @@
-import type { Abi, AbiEvent } from "abitype";
+import type { Abi, AbiEvent, FormatAbiItem } from "abitype";
 import type { Transport } from "viem";
+
+/**
+ * Keep only AbiEvents from an Abi
+ */
+export type FilterEvents<T extends Abi> = T extends readonly [
+  infer First,
+  ...infer Rest extends Abi
+]
+  ? First extends AbiEvent
+    ? readonly [First, ...FilterEvents<Rest>]
+    : FilterEvents<Rest>
+  : [];
+
+/**
+ * Remove TElement from TArr
+ */
+export type FilterElement<
+  TElement,
+  TArr extends readonly unknown[]
+> = TArr extends readonly [infer First, ...infer Rest]
+  ? TElement extends First
+    ? FilterElement<TElement, Rest>
+    : readonly [First, ...FilterElement<TElement, Rest>]
+  : [];
+
+/**
+ * Return an array of safe event names that handle multiple events with the same name
+ */
+export type SafeEventNames<
+  TAbi extends readonly AbiEvent[],
+  TArr extends readonly AbiEvent[]
+> = TAbi extends readonly [
+  infer First extends AbiEvent,
+  ...infer Rest extends readonly AbiEvent[]
+]
+  ? First["name"] extends FilterElement<First, TArr>[number]["name"]
+    ? // Name collisions exist, format long name
+      FormatAbiItem<First> extends `event ${infer LongEvent extends string}`
+      ? readonly [LongEvent, ...SafeEventNames<Rest, TArr>]
+      : never
+    : // Short name
+      readonly [First["name"], ...SafeEventNames<Rest, TArr>]
+  : [];
 
 type ContractRequired<
   TNetworkName extends string | unknown = string | unknown
