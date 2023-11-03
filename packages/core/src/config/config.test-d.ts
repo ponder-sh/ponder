@@ -1,8 +1,13 @@
 import { assertType, test } from "vitest";
 
-import { FilterElement, FilterEvents, SafeEventNames } from "./config";
+import {
+  ContractFilter,
+  FilterElement,
+  FilterEvents,
+  SafeEventNames,
+} from "./config";
 
-const abiSimple = [
+export const abiSimple = [
   {
     inputs: [],
     stateMutability: "nonpayable",
@@ -46,7 +51,7 @@ const abiSimple = [
   },
 ] as const;
 
-const abiWithSameEvent = [
+export const abiWithSameEvent = [
   ...abiSimple,
   {
     inputs: [],
@@ -108,4 +113,11 @@ test("safe event names", () => {
     "Transfer",
     "Approve(address indexed, bytes32 indexed, uint256)",
   ]);
+});
+
+test("infer event names from abi", () => {
+  type a = ContractFilter<typeof abiSimple>["event"];
+  //   ^?
+
+  assertType<a>([] as readonly ("Approve" | "Transfer")[] | undefined);
 });
