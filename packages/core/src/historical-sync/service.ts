@@ -15,6 +15,7 @@ import {
 import type { Factory } from "@/config/factories";
 import type { LogFilter, LogFilterCriteria } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
+import { Source } from "@/config/sources";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import { formatEta, formatPercentage } from "@/utils/format";
@@ -87,8 +88,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
    * Service configuration. Will eventually be reloadable.
    */
   private finalizedBlockNumber: number = null!;
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
   /**
    * Block progress trackers for each task type.
@@ -126,22 +126,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     common,
     eventStore,
     network,
-    logFilters = [],
-    factories = [],
+    sources = [],
   }: {
     common: Common;
     eventStore: EventStore;
     network: Network;
-    logFilters?: LogFilter[];
-    factories?: Factory[];
+    sources?: Source[];
   }) {
     super();
 
     this.common = common;
     this.eventStore = eventStore;
     this.network = network;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
 
     this.queue = this.buildQueue();
 
@@ -966,10 +963,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       await this.common.metrics.ponder_historical_completed_blocks.get()
     ).values;
 
-    const eventSourceNames = [
-      ...this.logFilters.map((l) => l.name),
-      ...this.factories.map((f) => f.name),
-    ];
+    const eventSourceNames = this.sources.map((s) => s.name);
 
     return eventSourceNames.map((name) => {
       const totalBlocks = totalBlocksMetric.find(

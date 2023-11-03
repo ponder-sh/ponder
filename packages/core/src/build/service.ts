@@ -5,8 +5,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import type { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
+import { Source } from "@/config/sources";
 import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
@@ -28,25 +27,15 @@ type BuildServiceEvents = {
 
 export class BuildService extends Emittery<BuildServiceEvents> {
   private common: Common;
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
   private closeWatcher?: () => Promise<void>;
   private latestFileHashes: Record<string, string | undefined> = {};
 
-  constructor({
-    common,
-    logFilters,
-    factories,
-  }: {
-    common: Common;
-    logFilters: LogFilter[];
-    factories: Factory[];
-  }) {
+  constructor({ common, sources }: { common: Common; sources: Source[] }) {
     super();
     this.common = common;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
   }
 
   async kill() {
@@ -102,8 +91,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
       const indexingFunctions = hydrateIndexingFunctions({
         rawIndexingFunctions,
-        logFilters: this.logFilters,
-        factories: this.factories,
+        sources: this.sources,
       });
 
       if (Object.values(indexingFunctions.eventSources).length === 0) {

@@ -6,9 +6,8 @@ import { replaceTscAliasPaths } from "tsc-alias";
 import type { Hex } from "viem";
 
 import { LogEventMetadata } from "@/config/abi";
-import { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
 import type { Options } from "@/config/options";
+import { Source } from "@/config/sources";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
@@ -207,12 +206,10 @@ export type IndexingFunctions = {
 
 export const hydrateIndexingFunctions = ({
   rawIndexingFunctions,
-  logFilters,
-  factories,
+  sources,
 }: {
   rawIndexingFunctions: RawIndexingFunctions;
-  logFilters: LogFilter[];
-  factories: Factory[];
+  sources: Source[];
 }) => {
   const indexingFunctions: IndexingFunctions = {
     _meta_: {},

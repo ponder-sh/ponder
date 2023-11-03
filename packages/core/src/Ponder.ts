@@ -3,10 +3,7 @@ import process from "node:process";
 
 import { BuildService } from "@/build/service";
 import { CodegenService } from "@/codegen/service";
-import { buildContracts } from "@/config/contracts";
 import { buildDatabase } from "@/config/database";
-import { type Factory, buildFactories } from "@/config/factories";
-import { type LogFilter, buildLogFilters } from "@/config/logFilters";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
 import { type ResolvedConfig } from "@/config/types";
@@ -27,6 +24,8 @@ import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { type UserStore } from "@/user-store/store";
 
+import { buildSources, Source } from "./config/sources";
+
 export type Common = {
   options: Options;
   logger: LoggerService;
@@ -37,7 +36,7 @@ export type Common = {
 
 export class Ponder {
   common: Common;
-  logFilters: LogFilter[];
+  sources: Source[];
 
   eventStore: EventStore;
   userStore: UserStore;
@@ -45,8 +44,7 @@ export class Ponder {
   // List of indexing-related services. One per configured network.
   networkSyncServices: {
     network: Network;
-    logFilters: LogFilter[];
-    factories: Factory[];
+    sources: Source[];
     historicalSyncService: HistoricalSyncService;
     realtimeSyncService: RealtimeSyncService;
   }[] = [];
@@ -106,15 +104,14 @@ export class Ponder {
     const networks = config.networks.map((network) =>
       buildNetwork({ network, common })
     );
-    const logFilters = buildLogFilters({ options, config });
-    this.logFilters = logFilters;
-    const contracts = buildContracts({ options, config, networks });
-    const factories = buildFactories({ options, config });
+
+    const sources = buildSources({ options, config });
+    this.sources = sources;
 
     const networksToSync = config.networks
       .map((network) => buildNetwork({ network, common }))
       .filter((network) => {
-        const hasEventSources = [...logFilters, ...factories].some(
+        const hasEventSources = this.sources.some(
           (eventSource) => eventSource.network === network.name
         );
         if (!hasEventSources) {
@@ -127,29 +124,25 @@ export class Ponder {
       });
 
     networksToSync.forEach((network) => {
-      const logFiltersForNetwork = logFilters.filter(
-        (logFilter) => logFilter.network === network.name
+      const sourcesForNetwork = sources.filter(
+        (logSource) => logSource.network === network.name
       );
-      const factoriesForNetwork = factories.filter(
-        (logFilter) => logFilter.network === network.name
-      );
+
       this.networkSyncServices.push({
         network,
-        logFilters: logFiltersForNetwork,
-        factories: factoriesForNetwork,
+
+        sources: sourcesForNetwork,
         historicalSyncService: new HistoricalSyncService({
           common,
           eventStore: this.eventStore,
           network,
-          logFilters: logFiltersForNetwork,
-          factories: factoriesForNetwork,
+          sources: sourcesForNetwork,
         }),
         realtimeSyncService: new RealtimeSyncService({
           common,
           eventStore: this.eventStore,
           network,
-          logFilters: logFiltersForNetwork,
-          factories,
+          sources: sourcesForNetwork,
         }),
       });
     });
@@ -158,8 +151,7 @@ export class Ponder {
       common,
       eventStore: this.eventStore,
       networks,
-      logFilters,
-      factories,
+      sources,
     });
 
     this.indexingService = new IndexingService({
@@ -167,9 +159,7 @@ export class Ponder {
       eventStore: this.eventStore,
       userStore: this.userStore,
       eventAggregatorService: this.eventAggregatorService,
-      contracts,
-      logFilters,
-      factories,
+      sources,
     });
 
     this.serverService = new ServerService({
@@ -178,16 +168,13 @@ export class Ponder {
     });
     this.buildService = new BuildService({
       common,
-      logFilters,
-      factories,
+      sources,
     });
     this.codegenService = new CodegenService({
       common,
-      contracts,
-      logFilters,
-      factories,
+      sources,
     });
-    this.uiService = new UiService({ common, logFilters, factories });
+    this.uiService = new UiService({ common, sources });
   }
 
   async setup() {
@@ -216,7 +203,7 @@ export class Ponder {
       event: "App Started",
       properties: {
         command: "ponder dev",
-        logFilterCount: this.logFilters.length,
+        logFilterCount: this.sources.length,
         databaseKind: this.eventStore.kind,
       },
     });
@@ -243,7 +230,7 @@ export class Ponder {
       event: "App Started",
       properties: {
         command: "ponder start",
-        logFilterCount: this.logFilters.length,
+        logFilterCount: this.sources.length,
         databaseKind: this.eventStore.kind,
       },
     });

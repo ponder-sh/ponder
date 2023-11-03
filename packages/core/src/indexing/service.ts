@@ -3,7 +3,6 @@ import Emittery from "emittery";
 
 import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
-import type { Contract } from "@/config/contracts";
 import { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
 import { UserError } from "@/errors/user";
@@ -22,7 +21,6 @@ import { prettyPrint } from "@/utils/print";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
 import { wait } from "@/utils/wait";
 
-import { buildReadOnlyContracts } from "./contract";
 import { buildModels } from "./model";
 import { getStackTrace } from "./trace";
 
@@ -56,15 +54,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private eventsProcessedToTimestamp = 0;
   private hasError = false;
 
-  private currentEventBlockNumber = 0n;
+  // private currentEventBlockNumber = 0n;
   private currentEventTimestamp = 0;
 
   constructor({
     common,
-    eventStore,
+    // eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters = [],
     factories = [],
   }: {
@@ -72,7 +70,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     eventStore: EventStore;
     userStore: UserStore;
     eventAggregatorService: EventAggregatorService;
-    contracts: Contract[];
     logFilters?: LogFilter[];
     factories?: Factory[];
   }) {
@@ -85,11 +82,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     // The read-only contract objects only depend on config, so they can
     // be built in the constructor (they can't be hot-reloaded).
-    this.readOnlyContracts = buildReadOnlyContracts({
-      contracts,
-      getCurrentBlockNumber: () => this.currentEventBlockNumber,
-      eventStore,
-    });
+    // this.readOnlyContracts = buildReadOnlyContracts({
+    //   contracts,
+    //   getCurrentBlockNumber: () => this.currentEventBlockNumber,
+    //   eventStore,
+    // });
 
     this.eventProcessingMutex = new Mutex();
   }
@@ -452,7 +449,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           // This enables contract calls occurring within the
           // user code to use the event block number by default.
-          this.currentEventBlockNumber = event.block.number;
+          // this.currentEventBlockNumber = event.block.number;
           this.currentEventTimestamp = Number(event.block.timestamp);
 
           try {

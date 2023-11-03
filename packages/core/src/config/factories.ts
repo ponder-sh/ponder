@@ -1,81 +1,10 @@
-import type { Abi, AbiEvent, Address } from "abitype";
-import { getEventSelector, Hex, RpcLog } from "viem";
+import type { AbiEvent } from "abitype";
+import { getEventSelector, RpcLog } from "viem";
 
-import type { Options } from "@/config/options";
-import type { ResolvedConfig } from "@/config/types";
 import { toLowerCase } from "@/utils/lowercase";
 import { getBytesConsumedByParam } from "@/utils/offset";
 
-import { AbiEvents, buildAbi, getEvents } from "./abi";
-
-export type FactoryCriteria = {
-  address: Address;
-  eventSelector: Hex;
-  childAddressLocation: "topic1" | "topic2" | "topic3" | `offset${number}`;
-  topics?: (Hex | Hex[] | null)[];
-};
-
-export type Factory = {
-  name: string;
-  network: string;
-  chainId: number;
-  criteria: FactoryCriteria;
-  abi: Abi;
-  events: AbiEvents;
-  startBlock: number;
-  endBlock?: number;
-  maxBlockRange?: number;
-};
-
-export function buildFactories({
-  config,
-  options,
-}: {
-  config: ResolvedConfig;
-  options: Options;
-}) {
-  const contracts = config.contracts ?? [];
-
-  const factories = contracts
-    .filter(
-      (
-        contract
-      ): contract is (typeof contracts)[number] & {
-        factory: NonNullable<(typeof contracts)[number]["factory"]>;
-      } => !!contract.factory
-    )
-    .map((contract) => {
-      const criteria = buildFactoryCriteria(contract.factory);
-
-      const { abi } = buildAbi({
-        abiConfig: contract.abi,
-        configFilePath: options.configFile,
-      });
-
-      const childEvents = getEvents({ abi });
-
-      const network = config.networks.find((n) => n.name === contract.network);
-      if (!network) {
-        throw new Error(
-          `Network [${contract.network}] not found for factory contract: ${contract.name}`
-        );
-      }
-
-      return {
-        name: contract.name,
-        network: network.name,
-        chainId: network.chainId,
-        criteria,
-        abi,
-        events: childEvents,
-        startBlock: contract.startBlock ?? 0,
-        endBlock: contract.endBlock,
-        maxBlockRange: contract.maxBlockRange,
-      } satisfies Factory;
-    });
-
-  return factories;
-}
+import { FactoryCriteria } from "./sources";
 
 export function buildFactoryCriteria({
   address: _address,

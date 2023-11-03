@@ -8,9 +8,8 @@ import {
   numberToHex,
 } from "viem";
 
-import type { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
+import type { Source } from "@/config/sources";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import { poll } from "@/utils/poll";
@@ -40,8 +39,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private common: Common;
   private eventStore: EventStore;
   private network: Network;
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
   // Queue of unprocessed blocks.
   private queue: RealtimeSyncQueue;
@@ -56,22 +54,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     common,
     eventStore,
     network,
-    logFilters = [],
-    factories = [],
+    sources = [],
   }: {
     common: Common;
     eventStore: EventStore;
     network: Network;
-    logFilters?: LogFilter[];
-    factories?: Factory[];
+    sources?: Source[];
   }) {
     super();
 
     this.common = common;
     this.eventStore = eventStore;
     this.network = network;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
 
     this.queue = this.buildQueue();
   }
@@ -111,9 +106,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // If an endBlock is specified for every event source on this network, and the
     // latest end blcock is less than the finalized block number, we can stop here.
     // The service won't poll for new blocks and won't emit any events.
-    const endBlocks = [...this.logFilters, ...this.factories].map(
-      (f) => f.endBlock
-    );
+    const endBlocks = this.sources.map((f) => f.endBlock);
     if (
       endBlocks.every(
         (endBlock) =>

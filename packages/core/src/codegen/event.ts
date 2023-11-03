@@ -1,14 +1,7 @@
 import type { LogEventMetadata } from "@/config/abi";
-import type { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
+import { Source } from "@/config/sources";
 
-export const buildEventTypes = ({
-  logFilters,
-  factories,
-}: {
-  logFilters: LogFilter[];
-  factories: Factory[];
-}) => {
+export const buildEventTypes = ({ sources }: { sources: Source[] }) => {
   const allIndexingFunctions = [
     ...logFilters.map((logFilter) => {
       return Object.values(logFilter.events)

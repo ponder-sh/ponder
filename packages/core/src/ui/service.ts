@@ -1,35 +1,23 @@
-import type { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
+import { Source } from "@/config/sources";
 import type { Common } from "@/Ponder";
 
 import { type UiState, buildUiState, setupInkApp } from "./app";
 
 export class UiService {
   private common: Common;
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
   ui: UiState;
   renderInterval: NodeJS.Timer;
   render: () => void;
   unmount: () => void;
 
-  constructor({
-    common,
-    logFilters,
-    factories,
-  }: {
-    common: Common;
-    logFilters: LogFilter[];
-    factories: Factory[];
-  }) {
+  constructor({ common, sources }: { common: Common; sources: Source[] }) {
     this.common = common;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
 
     this.ui = buildUiState({
-      logFilters: this.logFilters,
-      factories: this.factories,
+      sources: this.sources,
     });
 
     if (this.common.options.uiEnabled) {

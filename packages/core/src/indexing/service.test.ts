@@ -35,7 +35,7 @@ const logFilters = [
   },
 ];
 
-const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
+// const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
 
 const schema = buildSchema(
   buildGraphqlSchema(`${schemaHeader}
@@ -123,7 +123,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters,
   });
 
@@ -162,7 +162,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters,
   });
 
@@ -200,7 +200,7 @@ test("processEvents() model methods insert data into the user store", async (con
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters,
   });
 
@@ -225,7 +225,7 @@ test("processEvents() updates event count metrics", async (context) => {
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters,
   });
 
@@ -267,7 +267,7 @@ test("reset() reloads the user store", async (context) => {
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters,
   });
 
@@ -303,7 +303,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters,
   });
 
@@ -335,7 +335,7 @@ test("handleReorg() reverts the user store", async (context) => {
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters,
   });
 
@@ -361,7 +361,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters,
   });
 
@@ -391,7 +391,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters,
   });
 
@@ -431,7 +431,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
+    // contracts,
     logFilters,
   });
 

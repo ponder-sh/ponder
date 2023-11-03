@@ -1,5 +1,48 @@
-import type { AbiEvent } from "abitype";
+import type { Abi, AbiEvent } from "abitype";
 import type { Transport } from "viem";
+
+type ContractRequired = {
+  /** Contract name. Must be unique across `contracts` and `filters`. */
+  name: string;
+  /**
+   * Network that this contract is deployed to. Must match a network name in `networks`.
+   * Any filter information overrides the values in the higher level "contracts" property. Factories cannot override an address and vice versa.
+   */
+  network: ({ name: string } & Partial<ContractFilter>)[];
+  abi: Abi;
+};
+
+type ContractFilter = (
+  | {
+      /** Contract address. */
+      address?: `0x${string}`;
+    }
+  | {
+      /** Factory contract configuration. */
+      factory: {
+        /** Address of the factory contract that creates this contract. */
+        address: `0x${string}`;
+        /** ABI event that announces the creation of a new instance of this contract. */
+        event: AbiEvent;
+        /** Name of the factory event parameter that contains the new child contract address. */
+        parameter: string; // TODO: Narrow type to known parameter names from `event`.
+      };
+    }
+) & {
+  /** Block number at which to start indexing events (inclusive). Default: `0`. */
+  startBlock?: number;
+  /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
+  endBlock?: number;
+  /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
+  maxBlockRange?: number;
+
+  event?:
+    | {
+        signature: AbiEvent;
+        args: any[];
+      }
+    | AbiEvent[];
+};
 
 export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
@@ -41,72 +84,7 @@ export type ResolvedConfig = {
     maxRpcRequestConcurrency?: number;
   }[];
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
-  contracts?: ({
-    /** Contract name. Must be unique across `contracts` and `filters`. */
-    name: string;
-    /** Network that this contract is deployed to. Must match a network name in `networks`. */
-    network: string; // TODO: narrow this type to TNetworks[number]['name']
-    /** Contract ABI as a file path or an Array object. Accepts a single ABI or a list of ABIs to be merged. */
-    abi: string | any[] | readonly any[] | (string | any[] | readonly any[])[];
-  } & (
-    | {
-        /** Contract address. */
-        address: `0x${string}`;
-        factory?: never;
-      }
-    | {
-        address?: never;
-        /** Factory contract configuration. */
-        factory: {
-          /** Address of the factory contract that creates this contract. */
-          address: `0x${string}`;
-          /** ABI event that announces the creation of a new instance of this contract. */
-          event: AbiEvent;
-          /** Name of the factory event parameter that contains the new child contract address. */
-          parameter: string; // TODO: Narrow type to known parameter names from `event`.
-        };
-      }
-  ) & {
-      /** Block number at which to start indexing events (inclusive). Default: `0`. */
-      startBlock?: number;
-      /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
-      endBlock?: number;
-      /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
-      maxBlockRange?: number;
-      /** Whether to fetch & process event logs for this contract. If `false`, this contract will still be present in `context.contracts`. Default: `true`. */
-      isLogEventSource?: boolean;
-    })[];
-  /** List of log filters from which to sync & index event logs. */
-  filters?: {
-    /** Filter name. Must be unique across `contracts` and `filters`. */
-    name: string;
-    /** Network that this filter is deployed to. Must match a network name in `networks`. */
-    network: string; // TODO: narrow this type to TNetworks[number]['name']
-    /** Log filter ABI as a file path or an Array object. Accepts a single ABI or a list of ABIs to be merged. */
-    abi: string | any[] | readonly any[] | (string | any[] | readonly any[])[];
-    /** Log filter options. */
-    filter: {
-      /** Contract addresses to include. If `undefined`, no filter will be applied. Default: `undefined`. */
-      address?: `0x${string}` | `0x${string}`[];
-    } & (
-      | {
-          /** Event signature to include. If `undefined`, no filter will be applied. Default: `undefined`. */
-          event?: AbiEvent;
-          /** Event arguments to include. If `undefined`, no filter will be applied. Default: `undefined`. */
-          args?: any[];
-        }
-      | {
-          event?: never;
-          args?: never;
-        }
-    );
-    /** Block number at which to start indexing events (inclusive). Default: `0`. */
-    startBlock?: number;
-    /** Block number at which to stop indexing events (inclusive). If `undefined`, events will be processed in real-time. Default: `undefined`. */
-    endBlock?: number;
-    /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
-    maxBlockRange?: number;
-  }[];
+  contracts?: (ContractRequired & ContractFilter)[];
   /** Configuration for Ponder internals. */
   options?: {
     /** Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
