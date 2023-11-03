@@ -15,7 +15,7 @@ import {
   rpcToPostgresTransaction,
 } from "./format";
 
-beforeEach((context) => setupEventStore(context, { skipMigrateUp: true }));
+beforeEach((context) => setupEventStore(context, { migrateUp: false }));
 
 const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
   console.log("before inserting any data", {
@@ -72,6 +72,12 @@ test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", asy
   const { eventStore } = context;
 
   if (eventStore.kind !== "postgres") return;
+
+  console.log("before migrating up", {
+    tableNames: (await context.eventStore.db.introspection.getTables()).map(
+      (t) => t.name
+    ),
+  });
 
   const migrations = await eventStore.migrator.getMigrations();
   console.log({ migrations });

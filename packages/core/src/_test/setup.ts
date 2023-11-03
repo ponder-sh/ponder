@@ -69,14 +69,14 @@ beforeEach((context) => {
  */
 export async function setupEventStore(
   context: TestContext,
-  options = { skipMigrateUp: false }
+  options = { migrateUp: true }
 ) {
   if (process.env.DATABASE_URL) {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
     context.eventStore = new PostgresEventStore({ pool, databaseSchema });
 
-    if (!options.skipMigrateUp) await context.eventStore.migrateUp();
+    if (options.migrateUp) await context.eventStore.migrateUp();
 
     return async () => {
       try {
@@ -93,7 +93,7 @@ export async function setupEventStore(
     const db = patchSqliteDatabase({ db: rawSqliteDb });
     context.eventStore = new SqliteEventStore({ db });
 
-    if (!options.skipMigrateUp) await context.eventStore.migrateUp();
+    if (options.migrateUp) await context.eventStore.migrateUp();
 
     return async () => {
       await context.eventStore.kill();
