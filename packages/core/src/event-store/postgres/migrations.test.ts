@@ -48,6 +48,10 @@ const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
     .values(contractReadResultOne)
     .execute();
 
+  const tables = await db.introspection.getTables();
+  const tableNames = tables.map((t) => t.name);
+  console.log("before inserting logFilterCachedRanges", { tableNames });
+
   await db
     .insertInto("logFilterCachedRanges")
     .values({
@@ -65,9 +69,14 @@ test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", asy
 
   if (eventStore.kind !== "postgres") return;
 
+  const migrations = await eventStore.migrator.getMigrations();
+  console.log({ migrations });
+
   const { error } = await eventStore.migrator.migrateTo(
     "2023_07_24_0_drop_finalized"
   );
+  console.log({ error });
+
   expect(error).toBeFalsy();
 
   await seed_2023_07_24_0_drop_finalized(eventStore.db);
@@ -75,5 +84,6 @@ test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", asy
   const { error: latestError } = await eventStore.migrator.migrateTo(
     "2023_09_19_0_new_sync_design"
   );
+  console.log({ latestError });
   expect(latestError).toBeFalsy();
-});
+}, 15_000);
