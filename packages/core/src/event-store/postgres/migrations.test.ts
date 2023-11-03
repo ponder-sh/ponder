@@ -18,46 +18,48 @@ import {
 beforeEach((context) => setupEventStore(context, { migrateUp: false }));
 
 const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
-  await db
-    .insertInto("blocks")
-    .values({ ...rpcToPostgresBlock(blockOne), chainId: 1 })
-    .execute();
+  await db.transaction().execute(async (tx) => {
+    await tx
+      .insertInto("blocks")
+      .values({ ...rpcToPostgresBlock(blockOne), chainId: 1 })
+      .execute();
 
-  for (const transaction of blockOneTransactions) {
-    await db
-      .insertInto("transactions")
+    for (const transaction of blockOneTransactions) {
+      await tx
+        .insertInto("transactions")
+        .values({
+          ...rpcToPostgresTransaction(transaction),
+          chainId: 1,
+        })
+        .execute();
+    }
+
+    for (const log of blockOneLogs) {
+      await tx
+        .insertInto("logs")
+        .values({
+          ...rpcToPostgresLog(log),
+          chainId: 1,
+        })
+        .execute();
+    }
+
+    await tx
+      .insertInto("contractReadResults")
+      .values(contractReadResultOne)
+      .execute();
+
+    await tx
+      .insertInto("logFilterCachedRanges")
       .values({
-        ...rpcToPostgresTransaction(transaction),
-        chainId: 1,
+        filterKey:
+          '1-0x93d4c048f83bd7e37d49ea4c83a07267ec4203da-["0x1",null,"0x3"]',
+        startBlock: 16000010,
+        endBlock: 16000090,
+        endBlockTimestamp: 16000010,
       })
       .execute();
-  }
-
-  for (const log of blockOneLogs) {
-    await db
-      .insertInto("logs")
-      .values({
-        ...rpcToPostgresLog(log),
-        chainId: 1,
-      })
-      .execute();
-  }
-
-  await db
-    .insertInto("contractReadResults")
-    .values(contractReadResultOne)
-    .execute();
-
-  await db
-    .insertInto("logFilterCachedRanges")
-    .values({
-      filterKey:
-        '1-0x93d4c048f83bd7e37d49ea4c83a07267ec4203da-["0x1",null,"0x3"]',
-      startBlock: 16000010,
-      endBlock: 16000090,
-      endBlockTimestamp: 16000010,
-    })
-    .execute();
+  });
 };
 
 test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", async (context) => {
