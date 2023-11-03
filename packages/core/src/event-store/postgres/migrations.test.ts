@@ -18,13 +18,6 @@ import {
 beforeEach((context) => setupEventStore(context, { migrateUp: false }));
 
 const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
-  console.log("before inserting any data", {
-    tables: (await db.introspection.getTables()).map((t) => ({
-      name: t.name,
-      schema: t.schema,
-    })),
-  });
-
   await db
     .insertInto("blocks")
     .values({ ...rpcToPostgresBlock(blockOne), chainId: 1 })
@@ -55,13 +48,6 @@ const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
     .values(contractReadResultOne)
     .execute();
 
-  console.log("before inserting logFilterCachedRanges", {
-    tables: (await db.introspection.getTables()).map((t) => ({
-      name: t.name,
-      schema: t.schema,
-    })),
-  });
-
   await db
     .insertInto("logFilterCachedRanges")
     .values({
@@ -79,19 +65,9 @@ test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", asy
 
   if (eventStore.kind !== "postgres") return;
 
-  console.log("before migrating up", {
-    tables: (await context.eventStore.db.introspection.getTables()).map(
-      (t) => ({ name: t.name, schema: t.schema })
-    ),
-  });
-
-  const migrations = await eventStore.migrator.getMigrations();
-  console.log({ migrations });
-
   const { error } = await eventStore.migrator.migrateTo(
     "2023_07_24_0_drop_finalized"
   );
-  console.log({ error });
 
   expect(error).toBeFalsy();
 
@@ -100,6 +76,5 @@ test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", asy
   const { error: latestError } = await eventStore.migrator.migrateTo(
     "2023_09_19_0_new_sync_design"
   );
-  console.log({ latestError });
   expect(latestError).toBeFalsy();
 }, 15_000);
