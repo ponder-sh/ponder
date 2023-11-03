@@ -10,7 +10,7 @@ type ContractRequired<
    * Network that this contract is deployed to. Must match a network name in `networks`.
    * Any filter information overrides the values in the higher level "contracts" property. Factories cannot override an address and vice versa.
    */
-  network: ({ name: TNetworkName } & Partial<ContractFilter>)[];
+  network: readonly ({ name: TNetworkName } & Partial<ContractFilter>)[];
   abi: Abi;
 };
 
@@ -62,7 +62,7 @@ export type ResolvedConfig<
         connectionString?: string;
       };
   /** List of blockchain networks. */
-  networks: {
+  networks: readonly {
     /** Network name. Must be unique across all networks. */
     name: string;
     /** Chain ID of the network. */
@@ -88,7 +88,7 @@ export type ResolvedConfig<
     maxRpcRequestConcurrency?: number;
   }[];
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
-  contracts?: (ContractRequired<TNetworkName> & ContractFilter)[];
+  contracts?: readonly (ContractRequired<TNetworkName> & ContractFilter)[];
   /** Configuration for Ponder internals. */
   options?: {
     /** Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
@@ -102,5 +102,9 @@ export type ResolvedConfig<
 export const createConfig = <
   const TConfig extends ResolvedConfig<TConfig["networks"][number]["name"]>
 >(
-  config: TConfig
+  config:
+    | TConfig
+    | Promise<TConfig>
+    | (() => TConfig)
+    | (() => Promise<TConfig>)
 ) => config;
