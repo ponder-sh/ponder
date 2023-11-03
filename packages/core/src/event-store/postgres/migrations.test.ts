@@ -19,7 +19,10 @@ beforeEach((context) => setupEventStore(context, { migrateUp: false }));
 
 const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
   console.log("before inserting any data", {
-    tableNames: (await db.introspection.getTables()).map((t) => t.name),
+    tables: (await db.introspection.getTables()).map((t) => ({
+      name: t.name,
+      schema: t.schema,
+    })),
   });
 
   await db
@@ -53,7 +56,10 @@ const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
     .execute();
 
   console.log("before inserting logFilterCachedRanges", {
-    tableNames: (await db.introspection.getTables()).map((t) => t.name),
+    tables: (await db.introspection.getTables()).map((t) => ({
+      name: t.name,
+      schema: t.schema,
+    })),
   });
 
   await db
@@ -74,8 +80,8 @@ test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", asy
   if (eventStore.kind !== "postgres") return;
 
   console.log("before migrating up", {
-    tableNames: (await context.eventStore.db.introspection.getTables()).map(
-      (t) => t.name
+    tables: (await context.eventStore.db.introspection.getTables()).map(
+      (t) => ({ name: t.name, schema: t.schema })
     ),
   });
 
