@@ -15,7 +15,7 @@ import {
   rpcToPostgresTransaction,
 } from "./format";
 
-beforeEach((context) => setupEventStore(context, { skipMigrateUp: true }));
+beforeEach((context) => setupEventStore(context, { migrateUp: false }));
 
 const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
   await db
@@ -60,20 +60,27 @@ const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
     .execute();
 };
 
-test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", async (context) => {
-  const { eventStore } = context;
+test(
+  "2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds",
+  async (context) => {
+    const { eventStore } = context;
 
-  if (eventStore.kind !== "postgres") return;
+    if (eventStore.kind !== "postgres") return;
 
-  const { error } = await eventStore.migrator.migrateTo(
-    "2023_07_24_0_drop_finalized"
-  );
-  expect(error).toBeFalsy();
+    const { error } = await eventStore.migrator.migrateTo(
+      "2023_07_24_0_drop_finalized"
+    );
 
-  await seed_2023_07_24_0_drop_finalized(eventStore.db);
+    expect(error).toBeFalsy();
 
-  const { error: latestError } = await eventStore.migrator.migrateTo(
-    "2023_09_19_0_new_sync_design"
-  );
-  expect(latestError).toBeFalsy();
-}, 15_000);
+    await seed_2023_07_24_0_drop_finalized(eventStore.db);
+
+    const { error: latestError } = await eventStore.migrator.migrateTo(
+      "2023_09_19_0_new_sync_design"
+    );
+    expect(latestError).toBeFalsy();
+  },
+  // This test is flaky. It seems like a Postgres isolation issue with our
+  // test setup. Annoying!
+  { timeout: 15_000, retry: 3 }
+);

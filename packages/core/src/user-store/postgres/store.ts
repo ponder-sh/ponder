@@ -169,22 +169,21 @@ export class PostgresUserStore implements UserStore {
     });
   };
 
-  /**
-   * Tears down the store by dropping all tables for the current schema.
-   */
-  teardown = async () => {
-    if (!this.schema) return;
+  async kill() {
+    const entities = this.schema?.entities ?? [];
+    if (entities.length > 0) {
+      await this.db.transaction().execute(async (tx) => {
+        await Promise.all(
+          entities.map(async (model) => {
+            const tableName = `${model.name}_${this.versionId}`;
+            await tx.schema.dropTable(tableName).execute();
+          })
+        );
+      });
+    }
 
-    // Drop tables from existing schema.
-    await this.db.transaction().execute(async (tx) => {
-      await Promise.all(
-        this.schema!.entities.map((model) => {
-          const tableName = `${model.name}_${this.versionId}`;
-          tx.schema.dropTable(tableName);
-        })
-      );
-    });
-  };
+    await this.db.destroy();
+  }
 
   findUnique = async ({
     modelName,
