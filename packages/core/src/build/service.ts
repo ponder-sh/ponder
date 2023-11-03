@@ -1,10 +1,14 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import Emittery from "emittery";
 import glob from "glob";
 import { GraphQLSchema } from "graphql";
 import path from "node:path";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import type { ViteDevServer } from "vite";
+// @ts-ignore
+import type { ViteNodeRunner } from "vite-node/client";
+// @ts-ignore
+import type { ViteNodeServer } from "vite-node/server";
 
 import type { Factory } from "@/config/factories";
 import type { LogFilter } from "@/config/logFilters";
@@ -20,8 +24,6 @@ import {
   hydrateHandlerFunctions,
   RawHandlerFunctions,
 } from "./handlers";
-import { ponderHmrEventWrapperPlugin } from "./hmr-event-wrapper";
-import { ponderHmrRuntimePlugin } from "./hmr-runtime";
 import { readGraphqlSchema } from "./schema";
 
 type BuildServiceEvents = {
@@ -35,7 +37,11 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   private logFilters: LogFilter[];
   private factories: Factory[];
 
+  private srcRegex: RegExp;
+
   private viteDevServer: ViteDevServer = undefined!;
+  private viteNodeServer: ViteNodeServer = undefined!;
+  private viteNodeRunner: ViteNodeRunner = undefined!;
 
   private indexingFunctions: Record<string, Record<string, any>> = {};
 
@@ -52,93 +58,183 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     this.common = common;
     this.logFilters = logFilters;
     this.factories = factories;
+
+    this.srcRegex = new RegExp(
+      "^" + this.common.options.srcDir + ".*\\.(js|ts)$"
+    );
   }
 
   async setup() {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
     const { createServer } = await import("vite");
-
-    const srcRegex = new RegExp(
-      "^" + this.common.options.srcDir + ".*\\.(js|ts)$"
+    const { ViteNodeServer } = await import("vite-node/server");
+    const { installSourcemapsSupport } = await import("vite-node/source-map");
+    const { ViteNodeRunner } = await import("vite-node/client");
+    const { viteNodeHmrPlugin, createHotContext, handleMessage } = await import(
+      "vite-node/hmr"
     );
 
-    const viteLogger = {
-      warnedMessages: new Set<string>(),
-      loggedErrors: new WeakSet<Error>(),
-      hasWarned: false,
-      clearScreen() {},
-      hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
-      info: (msg: string) => {
-        if (msg.includes("page reload")) {
-          const filePath = msg.substring(
-            msg.indexOf("\\x1B[2m") + 1,
-            msg.lastIndexOf("\\x1B[22m")
-          );
-          this.common.logger.info({
-            service: "build/vite",
-            msg: `Hot reload '${filePath}'`,
-          });
-        }
-      },
-      warn: (msg: string) => {
-        viteLogger.hasWarned = true;
-        this.common.logger.debug({ service: "build(vite)", msg });
-      },
-      warnOnce: (msg: string) => {
-        if (viteLogger.warnedMessages.has(msg)) return;
-        viteLogger.hasWarned = true;
-        this.common.logger.debug({ service: "build(vite)", msg });
-        viteLogger.warnedMessages.add(msg);
-      },
-      error: (msg: string) => {
-        viteLogger.hasWarned = true;
-        this.common.logger.debug({ service: "build(vite)", msg });
-      },
-    };
+    // const viteLogger = {
+    //   warnedMessages: new Set<string>(),
+    //   loggedErrors: new WeakSet<Error>(),
+    //   hasWarned: false,
+    //   clearScreen() {},
+    //   hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
+    //   info: (msg: string) => {
+    //     console.log(msg);
+    //     // if (msg.includes("page reload")) {
+    //     //   const filePath = msg.substring(
+    //     //     msg.indexOf("\\x1B[2m") + 1,
+    //     //     msg.lastIndexOf("\\x1B[22m")
+    //     //   );
+    //     //   this.common.logger.info({
+    //     //     service: "build/vite",
+    //     //     msg: `Hot reload '${filePath}'`,
+    //     //   });
+    //     // }
+    //   },
+    //   warn: (msg: string) => {
+    //     viteLogger.hasWarned = true;
+    //     this.common.logger.debug({ service: "build(vite)", msg });
+    //   },
+    //   warnOnce: (msg: string) => {
+    //     if (viteLogger.warnedMessages.has(msg)) return;
+    //     viteLogger.hasWarned = true;
+    //     this.common.logger.debug({ service: "build(vite)", msg });
+    //     viteLogger.warnedMessages.add(msg);
+    //   },
+    //   error: (msg: string) => {
+    //     viteLogger.hasWarned = true;
+    //     this.common.logger.debug({ service: "build(vite)", msg });
+    //   },
+    // };
 
     this.viteDevServer = await createServer({
       root: this.common.options.rootDir,
       cacheDir: path.join(this.common.options.ponderDir, "vite"),
       publicDir: false,
-      customLogger: viteLogger,
+      // customLogger: viteLogger,
+      clearScreen: false,
       server: { hmr: true },
       plugins: [
-        ponderHmrEventWrapperPlugin(),
-        ponderHmrRuntimePlugin({
-          onUpdate: async ({ updates }) => {
-            for (const file of updates.map((u) => u.path)) {
-              const relative = path.relative(this.common.options.rootDir, file);
-              this.common.logger.info({
-                service: "build",
-                msg: `Hot reload ${relative}`,
-              });
+        viteNodeHmrPlugin(),
+        {
+          name: "ponder:hmr",
+          transform: (code_) => {
+            let code = code_;
 
-              if (file === this.common.options.configFile) {
-                await this.loadConfig();
-              }
-
-              if (file === this.common.options.schemaFile) {
-                await this.loadSchema();
-              }
-
-              if (srcRegex.test(file)) {
-                await this.loadIndexingFunctions({ files: [file] });
-              }
+            // Matches `import { ponder } from "@/generated";` with whitespaces and newlines.
+            const regex =
+              /import\s+\{\s*ponder\s*\}\s+from\s+(['"])@\/generated\1\s*;?/g;
+            if (regex.test(code)) {
+              // Add shim object to collect user functions.
+              const shimHeader = `
+                export let ponder = {
+                  fns: [],
+                  on(name, fn) {
+                    this.fns.push({ name, fn });
+                  },
+                };
+              `;
+              code = `${shimHeader}\n${code.replace(regex, "")}`;
             }
+
+            // Mark every module as self-accepting, but immediately invalidate. This
+            // means modules will use the HMR pipeline, but will always be fully reloaded
+            // by Vite. In the future, we can implement actual HMR logic.
+            const metaHotFooter = `
+              if (import.meta.hot) {
+                import.meta.hot.accept((newModule) => {
+                  import.meta.hot.invalidate();
+                })
+              }
+            `;
+            code = `${code}${metaHotFooter}`;
+
+            return code;
           },
-          onFullReload: async () => {
-            this.common.logger.warn({
-              service: "build/vite",
-              msg: `Unexpected full reload`,
-            });
-          },
-        }),
+        },
       ],
     });
 
     // This is Vite boilerplate (initializes the Rollup container).
     await this.viteDevServer.pluginContainer.buildStart({});
+
+    this.viteNodeServer = new ViteNodeServer(this.viteDevServer);
+    installSourcemapsSupport({
+      getSourceMap: (source) => this.viteNodeServer.getSourceMap(source),
+    });
+
+    // The vite-node HMR implementation assumes you have a static list
+    // of files that should ALL be reloaded on every update.
+    // Instead, we pass an empty list, and handle the updates manually.
+    const files: string[] = [];
+
+    this.viteNodeRunner = new ViteNodeRunner({
+      root: this.viteDevServer.config.root,
+      fetchModule: (id) => this.viteNodeServer.fetchModule(id),
+      resolveId: (id, importer) => this.viteNodeServer.resolveId(id, importer),
+      // Boilerplate for vite-node HMR.
+      createHotContext: (runner, url) =>
+        createHotContext(runner, this.viteDevServer.emitter, files, url),
+    });
+
+    this.viteDevServer.emitter.on("message", async (payload) => {
+      // Boilerplate for vite-node HMR.
+      await handleMessage(
+        this.viteNodeRunner,
+        this.viteDevServer.emitter,
+        files,
+        payload
+      );
+
+      switch (payload.type) {
+        case "full-reload": {
+          console.log("TODO");
+          break;
+        }
+        case "update": {
+          const files = payload.updates.map((u) => u.path);
+
+          console.log(files);
+
+          const includesConfig = files.includes(this.common.options.configFile);
+          const includesSchema = files.includes(this.common.options.schemaFile);
+          const srcFiles = files.filter((f) => this.srcRegex.test(f));
+
+          const opts = this.common.options;
+          const filesToLog = [];
+          if (includesConfig)
+            filesToLog.push(path.relative(opts.rootDir, opts.configFile));
+          if (includesSchema)
+            filesToLog.push(path.relative(opts.rootDir, opts.schemaFile));
+          srcFiles.forEach((file) => {
+            filesToLog.push(path.relative(opts.rootDir, file));
+          });
+
+          this.common.logger.info({
+            service: "build",
+            msg: `Hot reload ${filesToLog.join(", ")}`,
+          });
+
+          if (includesConfig) {
+            await this.loadConfig();
+          }
+
+          if (includesSchema) {
+            await this.loadConfig();
+          }
+
+          if (srcFiles.length > 0) {
+            await this.loadIndexingFunctions({ files: srcFiles });
+          }
+
+          break;
+        }
+        default: {
+          console.log(`Unhandled Vite HMR event: "${payload.type}"`);
+        }
+      }
+    });
 
     // Load all the project files once during setup.
     await Promise.all([
@@ -158,14 +254,16 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   async loadConfig() {
     try {
-      const module = await this.viteDevServer.ssrLoadModule(
+      // CONFIG
+      const module = await this.viteNodeRunner.executeFile(
         this.common.options.configFile
       );
-      const config = module.config;
+      const rawConfig = module.config;
       const resolvedConfig =
-        typeof config === "function" ? await config() : await config;
+        typeof rawConfig === "function" ? await rawConfig() : await rawConfig;
 
       // TODO: Validate config lol
+      console.log({ resolvedConfig });
 
       this.emit("newConfig", { config: resolvedConfig });
     } catch (err) {
@@ -179,16 +277,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   async loadIndexingFunctions({ files: files_ }: { files?: string[] } = {}) {
     // If no `files` argument is provided, load all indexing function files.
-    const files =
-      files_ ??
-      glob.sync(
-        path.join(this.common.options.srcDir, "**/*.{js,cjs,mjs,ts,mts}")
-      );
+    const files = files_ ?? this.getIndexingFunctionFiles();
 
     // TODO: Consider handling errors here.
     const results = await Promise.all(
       files.map(async (file) => {
-        return { file, exports: await this.viteDevServer.ssrLoadModule(file) };
+        const exports = await this.viteNodeRunner.executeFile(file);
+        return { file, exports };
       })
     );
     // } catch (error_) {
@@ -303,5 +398,11 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.common.errors.submitUserError({ error: userError });
       return undefined;
     }
+  }
+
+  private getIndexingFunctionFiles() {
+    return glob.sync(
+      path.join(this.common.options.srcDir, "**/*.{js,cjs,mjs,ts,mts}")
+    );
   }
 }

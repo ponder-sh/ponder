@@ -8,9 +8,6 @@ patchedDependencies:
   graphql@15.8.0:
     hash: qb2u6q36ugvr6swjr2i3rg76ty
     path: patches/graphql@15.8.0.patch
-  vite-node@0.34.6:
-    hash: 7kkysxjeinu7u4e6z6dxwljzae
-    path: patches/vite-node@0.34.6.patch
 
 importers:
 
@@ -414,7 +411,7 @@ importers:
         version: 4.5.0(@types/node@18.16.18)
       vite-node:
         specifier: ^0.34.6
-        version: 0.34.6(patch_hash=7kkysxjeinu7u4e6z6dxwljzae)(@types/node@18.16.18)
+        version: 0.34.6(@types/node@18.16.18)
     devDependencies:
       '@types/babel__code-frame':
         specifier: ^7.0.3
@@ -13090,7 +13087,7 @@ packages:
       - utf-8-validate
       - zod
 
-  /vite-node@0.34.6(patch_hash=7kkysxjeinu7u4e6z6dxwljzae)(@types/node@18.16.18):
+  /vite-node@0.34.6(@types/node@18.16.18):
     resolution: {integrity: sha512-nlBMJ9x6n7/Amaz6F3zJ97EBwR2FkzhBRxF5e+jE6LA3yi6Wtc2lyTij1OnDMIr34v5g/tVQtsVAzhT0jc5ygA==}
     engines: {node: '>=v14.18.0'}
     hasBin: true
@@ -13110,7 +13107,6 @@ packages:
       - sugarss
       - supports-color
       - terser
-    patched: true
 
   /vite@4.5.0(@types/node@18.16.18):
     resolution: {integrity: sha512-ulr8rNLA6rkyFAlVWw2q5YJ91v098AFQ2R0PRFwPzREXOUJQPtFUG0t+/ZikhaOCDqFoDhN6/v8Sq0o4araFAw==}
@@ -13200,7 +13196,7 @@ packages:
       tinybench: 2.5.1
       tinypool: 0.7.0
       vite: 4.5.0(@types/node@18.16.18)
-      vite-node: 0.34.6(patch_hash=7kkysxjeinu7u4e6z6dxwljzae)(@types/node@18.16.18)
+      vite-node: 0.34.6(@types/node@18.16.18)
       why-is-node-running: 2.2.2
     transitivePeerDependencies:
       - less

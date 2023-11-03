@@ -47,8 +47,7 @@
   "packageManager": "pnpm@8.6.10",
   "pnpm": {
     "patchedDependencies": {
-      "graphql@15.8.0": "patches/graphql@15.8.0.patch",
-      "vite-node@0.34.6": "patches/vite-node@0.34.6.patch"
+      "graphql@15.8.0": "patches/graphql@15.8.0.patch"
     }
   }
 }
