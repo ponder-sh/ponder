@@ -1,7 +1,7 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-import { ArtGobblersAbi } from "./ArtGobblers.abi";
+import { ArtGobblersAbi } from "./abis/ArtGobblers.abi";
 
 export const config = createConfig({
   networks: [
