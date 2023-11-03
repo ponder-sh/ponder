@@ -1,14 +1,16 @@
 import type { Abi, AbiEvent } from "abitype";
 import type { Transport } from "viem";
 
-type ContractRequired = {
+type ContractRequired<
+  TNetworkName extends string | unknown = string | unknown
+> = {
   /** Contract name. Must be unique across `contracts` and `filters`. */
   name: string;
   /**
    * Network that this contract is deployed to. Must match a network name in `networks`.
    * Any filter information overrides the values in the higher level "contracts" property. Factories cannot override an address and vice versa.
    */
-  network: ({ name: string } & Partial<ContractFilter>)[];
+  network: ({ name: TNetworkName } & Partial<ContractFilter>)[];
   abi: Abi;
 };
 
@@ -44,7 +46,9 @@ type ContractFilter = (
     | AbiEvent[];
 };
 
-export type ResolvedConfig = {
+export type ResolvedConfig<
+  TNetworkName extends string | unknown = string | unknown
+> = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
   database?:
     | {
@@ -84,7 +88,7 @@ export type ResolvedConfig = {
     maxRpcRequestConcurrency?: number;
   }[];
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
-  contracts?: (ContractRequired & ContractFilter)[];
+  contracts?: (ContractRequired<TNetworkName> & ContractFilter)[];
   /** Configuration for Ponder internals. */
   options?: {
     /** Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
@@ -92,8 +96,11 @@ export type ResolvedConfig = {
   };
 };
 
-export type Config =
-  | ResolvedConfig
-  | Promise<ResolvedConfig>
-  | (() => ResolvedConfig)
-  | (() => Promise<ResolvedConfig>);
+/**
+ * Identity function for type-level validation of config
+ */
+export const createConfig = <
+  const TConfig extends ResolvedConfig<TConfig["networks"][number]["name"]>
+>(
+  config: TConfig
+) => config;

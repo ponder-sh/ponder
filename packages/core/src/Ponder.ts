@@ -3,10 +3,10 @@ import process from "node:process";
 
 import { BuildService } from "@/build/service";
 import { CodegenService } from "@/codegen/service";
+import { type ResolvedConfig } from "@/config/config";
 import { buildDatabase } from "@/config/database";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
-import { type ResolvedConfig } from "@/config/types";
 import { UserErrorService } from "@/errors/service";
 import { EventAggregatorService } from "@/event-aggregator/service";
 import { PostgresEventStore } from "@/event-store/postgres/store";

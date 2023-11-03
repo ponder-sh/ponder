@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import type { ResolvedConfig } from "@/config/types";
+import type { ResolvedConfig } from "@/config/config";
 import { ensureDirExists } from "@/utils/exists";
 
 export const buildConfig = async ({ configFile }: { configFile: string }) => {

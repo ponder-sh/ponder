@@ -1,9 +1,9 @@
 import { http } from "viem";
 
-import type { Config } from "../../../../dist";
+import { createConfig } from "../../../../dist";
 import { ArtGobblersAbi } from "./ArtGobblers.abi";
 
-export const config: Config = {
+export const config = createConfig({
   networks: [
     { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
   ],
@@ -17,4 +17,4 @@ export const config: Config = {
       endBlock: 15870405, // 5 blocks
     },
   ],
-};
+});

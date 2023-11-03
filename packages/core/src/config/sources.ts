@@ -3,9 +3,9 @@ import { Abi, Address, encodeEventTopics, Hex } from "viem";
 import { toLowerCase } from "@/utils/lowercase";
 
 import { AbiEvents, getEvents } from "./abi";
+import { ResolvedConfig } from "./config";
 import { buildFactoryCriteria } from "./factories";
 import { Options } from "./options";
-import { ResolvedConfig } from "./types";
 
 /**
  * There are up to 4 topics in an EVM event
