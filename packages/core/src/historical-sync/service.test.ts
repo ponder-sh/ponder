@@ -11,9 +11,8 @@ import {
 } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
-import { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
+import type { Source } from "@/config/sources";
 
 import { HistoricalSyncService } from "./service";
 
@@ -46,13 +45,15 @@ const usdcLogFilter = {
   criteria: { address: usdcContractConfig.address },
   startBlock: 16369995, // 5 blocks
   maxBlockRange: 3,
-} satisfies LogFilter;
+  type: "logFilter",
+} satisfies Source;
 
 const uniswapV3Factory = {
   ...uniswapV3PoolFactoryConfig,
   network: network.name,
   startBlock: 16369500, // 500 blocks
-} satisfies Factory;
+  type: "factory",
+} satisfies Source;
 
 test("start() with log filter inserts log filter interval records", async (context) => {
   const { common, eventStore } = context;
@@ -61,7 +62,7 @@ test("start() with log filter inserts log filter interval records", async (conte
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -84,7 +85,7 @@ test("start() with factory contract inserts log filter and factory log filter in
     common,
     eventStore,
     network,
-    factories: [uniswapV3Factory],
+    sources: [uniswapV3Factory],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -95,7 +96,7 @@ test("start() with factory contract inserts log filter and factory log filter in
       chainId: network.chainId,
       logFilter: {
         address: uniswapV3Factory.criteria.address,
-        topics: [uniswapV3Factory.criteria.eventSelector],
+        topics: [uniswapV3Factory.criteria.eventSelector, null, null, null],
       },
     }
   );
@@ -118,7 +119,7 @@ test("start() with factory contract inserts child contract addresses", async (co
     common,
     eventStore,
     network,
-    factories: [uniswapV3Factory],
+    sources: [uniswapV3Factory],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -152,8 +153,7 @@ test("setup() with log filter and factory contract updates block metrics", async
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
-    factories: [uniswapV3Factory],
+    sources: [usdcLogFilter, uniswapV3Factory],
   });
   await service.setup(blockNumbers);
 
@@ -194,8 +194,7 @@ test("start() with log filter and factory contract updates completed blocks metr
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
-    factories: [uniswapV3Factory],
+    sources: [usdcLogFilter, uniswapV3Factory],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -226,7 +225,7 @@ test("start() with log filter and factory contract updates rpc request duration 
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -264,7 +263,7 @@ test("start() adds log filter events to event store", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -318,8 +317,7 @@ test("start() adds log filter and factory contract events to event store", async
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
-    factories: [uniswapV3Factory],
+    sources: [usdcLogFilter, uniswapV3Factory],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -363,7 +361,7 @@ test("start() retries unexpected error in log filter task", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -389,7 +387,7 @@ test("start() retries unexpected error in block task", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -421,7 +419,7 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -451,7 +449,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
   await service.setup(blockNumbers);
   service.start();
@@ -473,7 +471,7 @@ test("start() emits sync completed event", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
   const emitSpy = vi.spyOn(service, "emit");
 
@@ -492,7 +490,7 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   let service = new HistoricalSyncService({
     common,
     eventStore,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
     network,
   });
 
@@ -504,7 +502,7 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   service = new HistoricalSyncService({
     common,
     eventStore,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
     network,
   });
 
@@ -531,7 +529,7 @@ test("start() emits historicalCheckpoint event", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
   const emitSpy = vi.spyOn(service, "emit");
 
