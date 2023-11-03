@@ -33,7 +33,7 @@ test("createConfig() has strict events inferred from abi", () => {
         name: "BaseRegistrarImplementation",
         network: [{ name: "mainnet" }],
         abi: abiSimple,
-        event: ["Transfer", "Approve"],
+        event: ["Approve"],
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
         startBlock: 16370000,
         endBlock: 16370020,

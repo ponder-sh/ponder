@@ -129,7 +129,19 @@ type Network = {
 type Contract<
   TNetworkNames extends string | unknown = string | unknown,
   TAbi extends Abi | unknown = Abi | unknown
-> = ContractRequired<TAbi, TNetworkNames> & ContractFilter<TAbi>;
+> = ContractRequired<TNetworkNames, TAbi> & ContractFilter<TAbi>;
+
+export type Kevin<
+  TContracts extends readonly Omit<Contract, "event">[],
+  TNetworkNames extends string | unknown = string | unknown
+> = TContracts extends readonly [
+  infer First,
+  ...infer Rest extends readonly Contract[]
+]
+  ? First extends { abi: infer _abi }
+    ? readonly [Contract<TNetworkNames, _abi>, ...Kevin<Rest, TNetworkNames>]
+    : Kevin<Rest, TNetworkNames>
+  : [];
 
 type Option = {
   /** Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
@@ -158,7 +170,7 @@ export const createConfig = <
     database?: Database;
     networks: readonly Network[];
     contracts: {
-      [key in keyof TConfig["contracts"]]: Contract<
+      [key in keyof TConfig["contracts"] & number]: Contract<
         TConfig["networks"][number]["name"],
         TConfig["contracts"][key]["abi"]
       >;
@@ -172,10 +184,3 @@ export const createConfig = <
     | (() => TConfig)
     | (() => Promise<TConfig>)
 ) => config;
-
-// contracts: {
-//   [key in keyof TConfig["contracts"] & number]: Contract<
-//     TConfig["networks"][number]["name"],
-//     TConfig["contracts"][key]["abi"]
-//   >;
-// };
