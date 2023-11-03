@@ -10,8 +10,11 @@ import {
 import type { Pool } from "pg";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import { type FactoryCriteria } from "@/config/factories";
-import type { LogFilterCriteria } from "@/config/logFilters";
+import type {
+  FactoryCriteria,
+  LogFilterCriteria,
+  Topics,
+} from "@/config/sources";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
@@ -541,7 +544,7 @@ export class PostgresEventStore implements EventStore {
           ...logFilters,
           ...factories.map((f) => ({
             address: f.address,
-            topics: [f.eventSelector],
+            topics: [f.eventSelector, null, null, null] as Topics,
           })),
         ],
         interval,

@@ -8,9 +8,9 @@ import { ResolvedConfig } from "./types";
 /**
  * There are up to 4 topics in an EVM event
  *
- * Technically, only the element could be an array
+ * Technically, only the first element could be an array
  */
-type Topics = [
+export type Topics = [
   Hex | Hex[] | null,
   Hex | Hex[] | null,
   Hex | Hex[] | null,

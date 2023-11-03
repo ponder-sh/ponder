@@ -222,17 +222,17 @@ export const hydrateIndexingFunctions = ({
 
   Object.entries(rawIndexingFunctions.eventSources).forEach(
     ([eventSourceName, eventSourceFunctions]) => {
-      const logFilter = logFilters.find((l) => l.name === eventSourceName);
-      const factory = factories.find((f) => f.name === eventSourceName);
+      // const logFilter = logFilters.find((l) => l.name === eventSourceName);
+      // const factory = factories.find((f) => f.name === eventSourceName);
 
-      if (!logFilter && !factory) {
+      const source = sources.find((source) => source.name === eventSourceName);
+
+      if (!source) {
         throw new Error(`Event source not found in config: ${eventSourceName}`);
       }
 
       Object.entries(eventSourceFunctions).forEach(([eventName, fn]) => {
-        const eventData = logFilter
-          ? logFilter.events[eventName]
-          : factory?.events[eventName];
+        const eventData = source.events[eventName];
 
         if (!eventData) {
           throw new Error(`Log event not found in ABI: ${eventName}`);

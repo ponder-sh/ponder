@@ -2,9 +2,8 @@ import Emittery from "emittery";
 import { type Hex, decodeEventLog } from "viem";
 
 import { LogEventMetadata } from "@/config/abi";
-import { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
+import { Source, sourceIsFactory, sourceIsLogFilter } from "@/config/sources";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import type { Block } from "@/types/block";
@@ -44,8 +43,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   private common: Common;
   private eventStore: EventStore;
   private networks: Network[];
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
   // Minimum timestamp at which events are available (across all networks).
   checkpoint: number;
@@ -72,22 +70,19 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     common,
     eventStore,
     networks,
-    logFilters = [],
-    factories = [],
+    sources = [],
   }: {
     common: Common;
     eventStore: EventStore;
     networks: Network[];
-    logFilters?: LogFilter[];
-    factories?: Factory[];
+    sources?: Source[];
   }) {
     super();
 
     this.common = common;
     this.eventStore = eventStore;
     this.networks = networks;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
     this.metrics = {};
 
     this.checkpoint = 0;
@@ -129,7 +124,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     const iterator = this.eventStore.getLogEvents({
       fromTimestamp,
       toTimestamp,
-      logFilters: this.logFilters.map((logFilter) => ({
+      logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
         name: logFilter.name,
         chainId: logFilter.chainId,
         criteria: logFilter.criteria,
@@ -139,7 +134,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
           indexingMetadata[logFilter.name]?.bySelector ?? {}
         ) as Hex[],
       })),
-      factories: this.factories.map((factory) => ({
+      factories: this.sources.filter(sourceIsFactory).map((factory) => ({
         name: factory.name,
         chainId: factory.chainId,
         criteria: factory.criteria,

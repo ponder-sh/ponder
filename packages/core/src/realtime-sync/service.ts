@@ -9,7 +9,11 @@ import {
 } from "viem";
 
 import type { Network } from "@/config/networks";
-import type { Source } from "@/config/sources";
+import {
+  type Source,
+  sourceIsFactory,
+  sourceIsLogFilter,
+} from "@/config/sources";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import { poll } from "@/utils/poll";
@@ -267,12 +271,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       let logs: RpcLog[];
       let matchedLogs: RpcLog[];
 
-      if (this.factories.length === 0) {
+      if (!this.sources.some(sourceIsFactory)) {
         // If there are no factory contracts, we can attempt to skip calling eth_getLogs by
         // checking if the block logsBloom matches any of the log filters.
         const doesBlockHaveLogFilterLogs = isMatchedLogInBloomFilter({
           bloom: newBlockWithTransactions.logsBloom!,
-          logFilters: this.logFilters.map((l) => l.criteria),
+          logFilters: this.sources.map((s) => s.criteria),
         });
 
         if (!doesBlockHaveLogFilterLogs) {
@@ -296,7 +300,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
           matchedLogs = filterLogs({
             logs,
-            logFilters: this.logFilters.map((l) => l.criteria),
+            logFilters: this.sources.map((s) => s.criteria),
           });
         }
       } else {
@@ -314,7 +318,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         // Find and insert any new child contracts.
         await Promise.all(
-          this.factories.map(async (factory) => {
+          this.sources.filter(sourceIsFactory).map(async (factory) => {
             const matchedFactoryLogs = filterLogs({
               logs,
               logFilters: [
@@ -337,7 +341,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // a potentially slow DB operation here. It's a tradeoff between sync
         // latency and database growth.
         const factoryLogFilters = await Promise.all(
-          this.factories.map(async (factory) => {
+          this.sources.filter(sourceIsFactory).map(async (factory) => {
             const iterator = this.eventStore.getFactoryChildAddresses({
               chainId: this.network.chainId,
               factory: factory.criteria,
@@ -357,7 +361,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         matchedLogs = filterLogs({
           logs,
           logFilters: [
-            ...this.logFilters.map((l) => l.criteria),
+            ...this.sources.filter(sourceIsLogFilter).map((l) => l.criteria),
             ...factoryLogFilters,
           ],
         });
@@ -439,8 +443,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // 3) Child filter intervals
         await this.eventStore.insertRealtimeInterval({
           chainId: this.network.chainId,
-          logFilters: this.logFilters.map((l) => l.criteria),
-          factories: this.factories.map((f) => f.criteria),
+          logFilters: this.sources
+            .filter(sourceIsLogFilter)
+            .map((l) => l.criteria),
+          factories: this.sources
+            .filter(sourceIsFactory)
+            .map((f) => f.criteria),
           interval: {
             startBlock: BigInt(this.finalizedBlockNumber + 1),
             endBlock: BigInt(newFinalizedBlock.number),

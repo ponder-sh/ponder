@@ -3,8 +3,7 @@ import Emittery from "emittery";
 
 import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
-import { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
+import type { Source } from "@/config/sources";
 import { UserError } from "@/errors/user";
 import type {
   EventAggregatorService,
@@ -37,8 +36,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
   private readOnlyContracts: Record<string, ReadOnlyContract> = {};
 
@@ -62,23 +60,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
     // eventStore,
     userStore,
     eventAggregatorService,
-    // contracts,
-    logFilters = [],
-    factories = [],
+    sources = [],
   }: {
     common: Common;
     eventStore: EventStore;
     userStore: UserStore;
     eventAggregatorService: EventAggregatorService;
-    logFilters?: LogFilter[];
-    factories?: Factory[];
+
+    sources?: Source[];
   }) {
     super();
     this.common = common;
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
 
     // The read-only contract objects only depend on config, so they can
     // be built in the constructor (they can't be hot-reloaded).
@@ -290,12 +285,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
           // Increment the metrics for the total number of matching & indexed events in this timestamp range.
           if (pageIndex === 0) {
             metadata.counts.forEach(({ eventSourceName, selector, count }) => {
-              const safeName = Object.values({
-                ...(this.logFilters.find((f) => f.name === eventSourceName)
-                  ?.events || {}),
-                ...(this.factories.find((f) => f.name === eventSourceName)
-                  ?.events || {}),
-              })
+              const safeName = Object.values(
+                this.sources.find((s) => s.name === eventSourceName)?.events ||
+                  {}
+              )
                 .filter((m): m is LogEventMetadata => !!m)
                 .find((m) => m.selector === selector)?.safeName;
 

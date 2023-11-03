@@ -12,8 +12,7 @@ import {
   usdcContractConfig,
 } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
-import type { FactoryCriteria } from "@/config/factories";
-import type { LogFilterCriteria } from "@/config/logFilters";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources";
 
 beforeEach((context) => setupEventStore(context));
 
@@ -246,7 +245,7 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
 
   await eventStore.insertLogFilterInterval({
     chainId: 1,
-    logFilter: { topics: [null, ["0xc", "0xd"]] },
+    logFilter: { topics: [null, ["0xc", "0xd"], null, null] },
     block: blockOne,
     transactions: [],
     logs: [],
@@ -263,7 +262,7 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
   // Narrower criteria includes both broad and specific intervals.
   logFilterIntervals = await eventStore.getLogFilterIntervals({
     chainId: 1,
-    logFilter: { topics: [null, "0xc"] },
+    logFilter: { topics: [null, "0xc", null, null] },
   });
   expect(logFilterIntervals).toMatchObject([
     [0, 100],
@@ -671,6 +670,9 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
       ...factoryCriteria,
       topics: [
         "0x0000000000000000000000000000000000000000000factoryeventsignature",
+        null,
+        null,
+        null,
       ],
     } as FactoryCriteria,
   });
@@ -740,7 +742,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
       chainId: 1,
       logFilter: {
         address: factoryCriteriaOne.address,
-        topics: [factoryCriteriaOne.eventSelector],
+        topics: [factoryCriteriaOne.eventSelector, null, null, null],
       },
     })
   ).toMatchObject([[500, 550]]);
@@ -749,7 +751,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
       chainId: 1,
       logFilter: {
         address: factoryCriteriaOne.address,
-        topics: [factoryCriteriaOne.eventSelector],
+        topics: [factoryCriteriaOne.eventSelector, null, null, null],
       },
     })
   ).toMatchObject([[500, 550]]);
@@ -1263,7 +1265,14 @@ test("getLogEvents filters on log filter with single topic", async (context) => 
       {
         name: "singleTopic",
         chainId: 1,
-        criteria: { topics: [blockOneLogs[0].topics[0] as `0x${string}`] },
+        criteria: {
+          topics: [
+            blockOneLogs[0].topics[0] as `0x${string}`,
+            null,
+            null,
+            null,
+          ],
+        },
       },
     ],
   });
@@ -1313,6 +1322,8 @@ test("getLogEvents filters on log filter with multiple topics", async (context) 
           topics: [
             blockOneLogs[0].topics[0] as `0x${string}`,
             blockOneLogs[0].topics[1] as `0x${string}`,
+            null,
+            null,
           ],
         },
       },
@@ -1454,7 +1465,14 @@ test("getLogEvents filters on multiple filters", async (context) => {
       {
         name: "singleTopic", // This should match blockOneLogs[0] AND blockTwoLogs[0]
         chainId: 1,
-        criteria: { topics: [blockOneLogs[0].topics[0] as `0x${string}`] },
+        criteria: {
+          topics: [
+            blockOneLogs[0].topics[0] as `0x${string}`,
+            null,
+            null,
+            null,
+          ],
+        },
       },
     ],
   });
