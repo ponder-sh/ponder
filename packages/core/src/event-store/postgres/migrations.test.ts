@@ -18,6 +18,10 @@ import {
 beforeEach((context) => setupEventStore(context, { skipMigrateUp: true }));
 
 const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
+  console.log("before inserting any data", {
+    tableNames: (await db.introspection.getTables()).map((t) => t.name),
+  });
+
   await db
     .insertInto("blocks")
     .values({ ...rpcToPostgresBlock(blockOne), chainId: 1 })
@@ -48,9 +52,9 @@ const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
     .values(contractReadResultOne)
     .execute();
 
-  const tables = await db.introspection.getTables();
-  const tableNames = tables.map((t) => t.name);
-  console.log("before inserting logFilterCachedRanges", { tableNames });
+  console.log("before inserting logFilterCachedRanges", {
+    tableNames: (await db.introspection.getTables()).map((t) => t.name),
+  });
 
   await db
     .insertInto("logFilterCachedRanges")
