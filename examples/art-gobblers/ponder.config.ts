@@ -1,9 +1,9 @@
-import type { Config } from "@ponder/core";
+import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-import ArtGobblersAbi from "./abis/ArtGobblers.json";
+import { ArtGobblersAbi } from "./ArtGobblers.abi";
 
-export const config: Config = {
+export const config = createConfig({
   networks: [
     {
       name: "mainnet",
@@ -14,10 +14,10 @@ export const config: Config = {
   contracts: [
     {
       name: "ArtGobblers",
-      network: "mainnet",
+      network: [{ name: "mainnet" }],
       abi: ArtGobblersAbi,
       address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
       startBlock: 15863321,
     },
   ],
-};
+});

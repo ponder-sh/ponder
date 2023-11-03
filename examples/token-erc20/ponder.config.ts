@@ -1,7 +1,9 @@
-import type { Config } from "@ponder/core";
+import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-export const config: Config = {
+import { AdventureGoldAbi } from "./abis/AdventureGold.abi";
+
+export const config = createConfig({
   networks: [
     {
       name: "mainnet",
@@ -12,11 +14,11 @@ export const config: Config = {
   contracts: [
     {
       name: "AdventureGold",
-      network: "mainnet",
-      abi: "./abis/AdventureGold.json",
+      network: [{ name: "mainnet" }],
+      abi: AdventureGoldAbi,
       address: "0x32353A6C91143bfd6C7d363B546e62a9A2489A20",
       startBlock: 13142655,
       endBlock: 13150000,
     },
   ],
-};
+});
