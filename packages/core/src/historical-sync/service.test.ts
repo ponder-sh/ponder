@@ -96,7 +96,7 @@ test("start() with factory contract inserts log filter and factory log filter in
       chainId: network.chainId,
       logFilter: {
         address: uniswapV3Factory.criteria.address,
-        topics: [uniswapV3Factory.criteria.eventSelector, null, null, null],
+        topics: [uniswapV3Factory.criteria.eventSelector],
       },
     }
   );

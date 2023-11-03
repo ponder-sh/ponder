@@ -6,6 +6,6 @@
       "@/generated": ["./generated/index.ts"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "BaseRegistrarImplementation.abi.ts"],
   "exclude": []
 }

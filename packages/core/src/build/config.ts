@@ -22,7 +22,8 @@ export const buildConfig = async ({ configFile }: { configFile: string }) => {
       outfile: buildFile,
       platform: "node",
       format: "cjs",
-      bundle: false,
+      // Note: Flipped to true in order to be able to import external files into ponder.config.ts
+      bundle: true,
       logLevel: "silent",
     });
 

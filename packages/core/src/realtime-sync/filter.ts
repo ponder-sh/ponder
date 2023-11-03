@@ -1,5 +1,7 @@
 import type { Address, Hex, RpcLog } from "viem";
 
+import { Topics } from "@/config/sources";
+
 export function filterLogs({
   logs,
   logFilters,
@@ -7,7 +9,7 @@ export function filterLogs({
   logs: RpcLog[];
   logFilters: {
     address?: Address | Address[];
-    topics?: (Hex | Hex[] | null)[];
+    topics?: Topics;
   }[];
 }) {
   return logs.filter((log) => {
@@ -28,7 +30,7 @@ export function isLogMatchedByFilter({
     topics: Hex[];
   };
   address?: Address | Address[];
-  topics?: (Hex | Hex[] | null)[];
+  topics?: Topics;
 }) {
   if (address !== undefined && address.length > 0) {
     if (Array.isArray(address)) {

@@ -1,5 +1,7 @@
 import { Abi, Address, encodeEventTopics, Hex } from "viem";
 
+import { toLowerCase } from "@/utils/lowercase";
+
 import { AbiEvents, getEvents } from "./abi";
 import { buildFactoryCriteria } from "./factories";
 import { Options } from "./options";
@@ -10,12 +12,7 @@ import { ResolvedConfig } from "./types";
  *
  * Technically, only the first element could be an array
  */
-export type Topics = [
-  Hex | Hex[] | null,
-  Hex | Hex[] | null,
-  Hex | Hex[] | null,
-  Hex | Hex[] | null
-];
+export type Topics = (Hex | Hex[] | null)[];
 
 export type LogFilterCriteria = {
   address?: Address | Address[];
@@ -117,7 +114,9 @@ export const buildSources = ({
               ...sharedSource,
               type: "logFilter",
               criteria: {
-                address: contract.address,
+                address: contract.address
+                  ? toLowerCase(contract.address)
+                  : undefined,
                 topics,
               },
             } as const satisfies LogFilter;
@@ -142,23 +141,13 @@ const buildTopics = (
           })
         )
         .flat(),
-      null,
-      null,
-      null,
     ];
   } else {
     // Single event with args
-    const singleTopics = encodeEventTopics({
+    return encodeEventTopics({
       abi: [events.signature],
       eventName: events.signature.name,
       args: events.args,
     });
-
-    return [
-      singleTopics[0] ?? null,
-      singleTopics[1] ?? null,
-      singleTopics[2] ?? null,
-      singleTopics[3] ?? null,
-    ];
   }
 };
