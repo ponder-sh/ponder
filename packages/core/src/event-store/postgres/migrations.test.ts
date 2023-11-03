@@ -76,4 +76,4 @@ test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", asy
     "2023_09_19_0_new_sync_design"
   );
   expect(latestError).toBeFalsy();
-}, 15_000);
+});

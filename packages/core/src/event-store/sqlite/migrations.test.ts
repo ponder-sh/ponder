@@ -60,24 +60,20 @@ const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
     .execute();
 };
 
-test(
-  "2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds",
-  async (context) => {
-    const { eventStore } = context;
+test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", async (context) => {
+  const { eventStore } = context;
 
-    if (eventStore.kind !== "sqlite") return;
+  if (eventStore.kind !== "sqlite") return;
 
-    const { error } = await eventStore.migrator.migrateTo(
-      "2023_07_24_0_drop_finalized"
-    );
-    expect(error).toBeFalsy();
+  const { error } = await eventStore.migrator.migrateTo(
+    "2023_07_24_0_drop_finalized"
+  );
+  expect(error).toBeFalsy();
 
-    await seed_2023_07_24_0_drop_finalized(eventStore.db);
+  await seed_2023_07_24_0_drop_finalized(eventStore.db);
 
-    const { error: latestError } = await eventStore.migrator.migrateTo(
-      "2023_09_19_0_new_sync_design"
-    );
-    expect(latestError).toBeFalsy();
-  },
-  {}
-);
+  const { error: latestError } = await eventStore.migrator.migrateTo(
+    "2023_09_19_0_new_sync_design"
+  );
+  expect(latestError).toBeFalsy();
+});
