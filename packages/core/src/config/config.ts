@@ -82,9 +82,19 @@ export type ContractFilter<TAbi extends Abi | unknown> = (
   /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
   maxBlockRange?: number;
 
-  event?: Abi extends TAbi
-    ? string[]
-    : readonly SafeEventNames<FilterEvents<TAbi>, FilterEvents<TAbi>>[number][];
+  filter?: Abi extends TAbi
+    ? string[] | { event: string }
+    :
+        | readonly SafeEventNames<
+            FilterEvents<TAbi>,
+            FilterEvents<TAbi>
+          >[number][]
+        | {
+            event: SafeEventNames<
+              FilterEvents<TAbi>,
+              FilterEvents<TAbi>
+            >[number];
+          };
 };
 
 type Database =
