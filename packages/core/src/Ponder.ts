@@ -105,7 +105,7 @@ export class Ponder {
       buildNetwork({ network, common })
     );
 
-    const sources = buildSources({ options, config });
+    const sources = buildSources({ config });
     this.sources = sources;
 
     const networksToSync = config.networks

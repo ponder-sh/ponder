@@ -107,7 +107,7 @@ type ContractFilter<
   maxBlockRange?: number;
 
   filter?: readonly AbiEvent[] extends TAbi
-    ? string[] | { event: string; args?: unknown }
+    ? string[] | { event: string; args?: GetEventArgs<Abi, string> }
     :
         | readonly SafeEventNames<
             FilterEvents<TAbi>,

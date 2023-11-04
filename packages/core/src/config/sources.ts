@@ -1,16 +1,16 @@
-import { Abi, Address, encodeEventTopics, Hex } from "viem";
+import { AbiEvent, parseAbiItem } from "abitype";
+import { Abi, Address, encodeEventTopics, getAbiItem, Hex } from "viem";
 
 import { toLowerCase } from "@/utils/lowercase";
 
 import { AbiEvents, getEvents } from "./abi";
 import { ResolvedConfig } from "./config";
 import { buildFactoryCriteria } from "./factories";
-import { Options } from "./options";
 
 /**
  * There are up to 4 topics in an EVM event
  *
- * Technically, only the first element could be an array
+ * @todo Change this to a more strict type
  */
 export type Topics = (Hex | Hex[] | null)[];
 
@@ -59,7 +59,6 @@ export const buildSources = ({
   config,
 }: {
   config: ResolvedConfig;
-  options: Options;
 }): Source[] => {
   const contracts = config.contracts ?? [];
 
@@ -76,10 +75,10 @@ export const buildSources = ({
             (n) => n.name === networkContract.name
           )!;
 
-          const resolvedEvents = networkContract.filter ?? contract.filter;
+          const resolvedFilter = networkContract.filter ?? contract.filter;
 
-          const topics = resolvedEvents
-            ? buildTopics(resolvedEvents)
+          const topics = resolvedFilter
+            ? buildTopics(contract.abi, resolvedFilter)
             : undefined;
 
           const sharedSource = {
@@ -99,23 +98,31 @@ export const buildSources = ({
           if ("factory" in contract) {
             // factory
 
+            const resolvedFactory =
+              ("factory" in networkContract && networkContract.factory) ||
+              contract.factory;
+
             return {
               ...sharedSource,
               type: "factory",
               criteria: {
-                ...buildFactoryCriteria(contract.factory),
+                ...buildFactoryCriteria(resolvedFactory),
                 topics,
               },
             } as const satisfies Factory;
           } else {
             // log filter
 
+            const resolvedAddress =
+              ("address" in networkContract && networkContract.address) ||
+              contract.address;
+
             return {
               ...sharedSource,
               type: "logFilter",
               criteria: {
-                address: contract.address
-                  ? toLowerCase(contract.address)
+                address: resolvedAddress
+                  ? toLowerCase(resolvedAddress)
                   : undefined,
                 topics,
               },
@@ -128,6 +135,7 @@ export const buildSources = ({
 };
 
 const buildTopics = (
+  abi: Abi,
   events: NonNullable<
     NonNullable<ResolvedConfig["contracts"]>[number]["filter"]
   >
@@ -138,20 +146,30 @@ const buildTopics = (
       events
         .map((event) =>
           encodeEventTopics({
-            abi: [event],
-            eventName: event,
+            abi: [findAbiEvent(abi, event)],
           })
         )
         .flat(),
     ];
   } else {
-    // TODO:KYLE handle this once events get more complex
-    return [];
     // Single event with args
-    // return encodeEventTopics({
-    //   abi: [events.signature],
-    //   eventName: events.signature.name,
-    //   args: events.args,
-    // });
+    return encodeEventTopics({
+      abi: [findAbiEvent(abi, events.event)],
+      args: events.args,
+    });
+  }
+};
+
+/**
+ * Finds the abi event for the event string
+ *
+ * @param eventName Event name or event signature if there are collisions
+ */
+const findAbiEvent = (abi: Abi, eventName: string): AbiEvent => {
+  if (eventName.includes("(")) {
+    // Collision
+    return parseAbiItem(`event ${eventName}`) as AbiEvent;
+  } else {
+    return getAbiItem({ abi, name: eventName }) as AbiEvent;
   }
 };
