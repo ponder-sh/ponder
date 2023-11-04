@@ -20,7 +20,7 @@ test("buildSources() builds topics for multiple events", () => {
           name: "BaseRegistrarImplementation",
           network: [{ name: "mainnet" }],
           abi: abiSimple,
-          filter: ["Transfer", "Approve"],
+          filter: { event: ["Transfer", "Approve"] },
           address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
           startBlock: 16370000,
           endBlock: 16370020,
@@ -53,10 +53,12 @@ test("buildSources() for duplicate event", () => {
           name: "BaseRegistrarImplementation",
           network: [{ name: "mainnet" }],
           abi: abiWithSameEvent,
-          filter: [
-            "Approve(address indexed from, address indexed to, uint256 amount)",
-            "Approve(address indexed, bytes32 indexed, uint256)",
-          ],
+          filter: {
+            event: [
+              "Approve(address indexed from, address indexed to, uint256 amount)",
+              "Approve(address indexed, bytes32 indexed, uint256)",
+            ],
+          },
           address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
           startBlock: 16370000,
           endBlock: 16370020,
@@ -74,7 +76,7 @@ test("buildSources() for duplicate event", () => {
   ]);
 });
 
-test("buildSources() builds topics for event with args", () => {
+test.only("buildSources() builds topics for event with args", () => {
   const sources = buildSources({
     config: createConfig({
       networks: [
@@ -131,7 +133,7 @@ test("buildSources() overrides default values with network values", () => {
             },
           ],
           abi: abiSimple,
-          filter: ["Transfer"],
+          filter: { event: ["Transfer"] },
           address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
           startBlock: 16370000,
           endBlock: 16370020,

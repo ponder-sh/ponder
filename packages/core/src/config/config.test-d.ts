@@ -115,7 +115,7 @@ test("safe event names", () => {
 test("ResolvedConfig default values", () => {
   type a = NonNullable<ResolvedConfig["contracts"]>[number]["filter"];
   //   ^?
-  assertType<a>({} as string[] | { event: string } | undefined);
+  assertType<a>({} as { event: string[] } | { event: string } | undefined);
 });
 
 test("RecoverAbiEvent", () => {

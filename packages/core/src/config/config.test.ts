@@ -33,10 +33,12 @@ test("createConfig() has strict events inferred from abi", () => {
         name: "BaseRegistrarImplementation",
         network: [{ name: "mainnet" }],
         abi: abiWithSameEvent,
-        filter: [
-          "Transfer",
-          "Approve(address indexed from, address indexed to, uint256 amount)",
-        ],
+        filter: {
+          event: [
+            "Transfer",
+            "Approve(address indexed from, address indexed to, uint256 amount)",
+          ],
+        },
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
         startBlock: 16370000,
         endBlock: 16370020,
@@ -58,7 +60,7 @@ test("createConfig() has strict arg types for event", () => {
           {
             name: "mainnet",
             address: "0x",
-            filter: { event: "Approve", args: { from: "0x" } },
+            filter: { event: "Approve", args: { from: "0x", to: "0x" } },
           },
         ],
         abi: abiSimple,

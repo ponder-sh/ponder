@@ -8,6 +8,16 @@ import { ResolvedConfig } from "./config";
 import { buildFactoryCriteria } from "./factories";
 
 /**
+ * Fix issue with Array.isArray not checking readonly arrays
+ * {@link https://github.com/microsoft/TypeScript/issues/17002}
+ */
+declare global {
+  interface ArrayConstructor {
+    isArray(arg: ReadonlyArray<any> | any): arg is ReadonlyArray<any>;
+  }
+}
+
+/**
  * There are up to 4 topics in an EVM event
  *
  * @todo Change this to a more strict type
@@ -136,14 +146,14 @@ export const buildSources = ({
 
 const buildTopics = (
   abi: Abi,
-  events: NonNullable<
+  filter: NonNullable<
     NonNullable<ResolvedConfig["contracts"]>[number]["filter"]
   >
 ): Topics => {
-  if (Array.isArray(events)) {
+  if (Array.isArray(filter.event)) {
     // List of event signatures
     return [
-      events
+      filter.event
         .map((event) =>
           encodeEventTopics({
             abi: [findAbiEvent(abi, event)],
@@ -154,8 +164,8 @@ const buildTopics = (
   } else {
     // Single event with args
     return encodeEventTopics({
-      abi: [findAbiEvent(abi, events.event)],
-      args: events.args,
+      abi: [findAbiEvent(abi, filter.event)],
+      args: filter.args,
     });
   }
 };
