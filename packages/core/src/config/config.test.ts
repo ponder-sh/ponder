@@ -35,7 +35,7 @@ test("createConfig() has strict events inferred from abi", () => {
         abi: abiWithSameEvent,
         filter: [
           "Transfer",
-          "Approve(address indexed, bytes32 indexed, uint256)",
+          "Approve(address indexed from, address indexed to, uint256 amount)",
         ],
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
         startBlock: 16370000,
@@ -58,7 +58,9 @@ test("createConfig() has strict arg types for event", () => {
         abi: abiSimple,
         filter: {
           event: "Approve",
-          args: {},
+          args: {
+            to: ["0x"],
+          },
         },
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
         startBlock: 16370000,

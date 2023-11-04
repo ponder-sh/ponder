@@ -4,7 +4,7 @@ import type { GetEventArgs, Transport } from "viem";
 /**
  * Keep only AbiEvents from an Abi
  */
-export type FilterEvents<T extends Abi | unknown> = T extends readonly [
+export type FilterEvents<T extends Abi> = T extends readonly [
   infer First,
   ...infer Rest extends Abi
 ]
@@ -18,7 +18,7 @@ export type FilterEvents<T extends Abi | unknown> = T extends readonly [
  */
 type FilterElement<
   TElement,
-  TArr extends readonly unknown[] | unknown
+  TArr extends readonly unknown[]
 > = TArr extends readonly [infer First, ...infer Rest]
   ? TElement extends First
     ? FilterElement<TElement, Rest>
@@ -29,8 +29,8 @@ type FilterElement<
  * Return an array of safe event names that handle multiple events with the same name
  */
 export type SafeEventNames<
-  TAbi extends readonly AbiEvent[] | unknown,
-  TArr extends readonly AbiEvent[] | unknown
+  TAbi extends readonly AbiEvent[],
+  TArr extends readonly AbiEvent[]
 > = TAbi extends readonly [
   infer First extends AbiEvent,
   ...infer Rest extends readonly AbiEvent[]
@@ -45,7 +45,7 @@ export type SafeEventNames<
   : [];
 
 export type RecoverAbiEvent<
-  TAbi extends readonly AbiEvent[] | unknown,
+  TAbi extends readonly AbiEvent[],
   TSafeNames extends readonly string[],
   TSafeName extends string
 > = TAbi extends readonly [
@@ -63,9 +63,9 @@ export type RecoverAbiEvent<
   : [];
 
 type ContractRequired<
-  TNetworkNames extends string | unknown = string | unknown,
-  TAbi extends Abi | unknown = Abi | unknown,
-  TEventName extends string = string
+  TNetworkNames extends string,
+  TAbi extends readonly AbiEvent[],
+  TEventName extends string
 > = {
   /** Contract name. Must be unique across `contracts` and `filters`. */
   name: string;
@@ -79,7 +79,10 @@ type ContractRequired<
   abi: Abi;
 };
 
-type ContractFilter<TAbi extends Abi | unknown, TEventName extends string> = (
+type ContractFilter<
+  TAbi extends readonly AbiEvent[],
+  TEventName extends string
+> = (
   | {
       /** Contract address. */
       address?: `0x${string}`;
@@ -103,8 +106,8 @@ type ContractFilter<TAbi extends Abi | unknown, TEventName extends string> = (
   /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
   maxBlockRange?: number;
 
-  filter?: Abi extends TAbi
-    ? string[] | { event: string }
+  filter?: readonly AbiEvent[] extends TAbi
+    ? string[] | { event: string; args?: unknown }
     :
         | readonly SafeEventNames<
             FilterEvents<TAbi>,
@@ -115,7 +118,7 @@ type ContractFilter<TAbi extends Abi | unknown, TEventName extends string> = (
               FilterEvents<TAbi>,
               FilterEvents<TAbi>
             >[number];
-            args: GetEventArgs<
+            args?: GetEventArgs<
               Abi,
               string,
               {
@@ -173,10 +176,11 @@ type Network = {
 };
 
 type Contract<
-  TNetworkNames extends string | unknown = string | unknown,
-  TAbi extends Abi | unknown = Abi | unknown,
-  TEventName extends string = string
-> = ContractRequired<TNetworkNames, TAbi> & ContractFilter<TAbi, TEventName>;
+  TNetworkNames extends string,
+  TAbi extends readonly AbiEvent[],
+  TEventName extends string
+> = ContractRequired<TNetworkNames, TAbi, TEventName> &
+  ContractFilter<TAbi, TEventName>;
 
 type Option = {
   /** Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
@@ -189,7 +193,7 @@ export type ResolvedConfig = {
   /** List of blockchain networks. */
   networks: readonly Network[];
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
-  contracts?: readonly Contract<string, Abi, string>[];
+  contracts?: readonly Contract<string, readonly AbiEvent[], string>[];
   /** Configuration for Ponder internals. */
   options?: Option;
 };
@@ -204,7 +208,7 @@ export const createConfig = <
     contracts: {
       [key in keyof TConfig["contracts"] & number]: Contract<
         TConfig["networks"][number]["name"],
-        TConfig["contracts"][key]["abi"],
+        FilterEvents<TConfig["contracts"][key]["abi"]>,
         TConfig["contracts"][key]["filter"] extends {
           event: infer _event extends string;
         }
