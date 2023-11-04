@@ -137,17 +137,19 @@ const buildTopics = (
         .map((event) =>
           encodeEventTopics({
             abi: [event],
-            eventName: event.name,
+            eventName: event,
           })
         )
         .flat(),
     ];
   } else {
+    // TODO:KYLE handle this once events get more complex
+    return [];
     // Single event with args
-    return encodeEventTopics({
-      abi: [events.signature],
-      eventName: events.signature.name,
-      args: events.args,
-    });
+    // return encodeEventTopics({
+    //   abi: [events.signature],
+    //   eventName: events.signature.name,
+    //   args: events.args,
+    // });
   }
 };

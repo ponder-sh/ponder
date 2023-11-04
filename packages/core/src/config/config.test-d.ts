@@ -4,7 +4,6 @@ import {
   ContractFilter,
   FilterElement,
   FilterEvents,
-  Kevin,
   SafeEventNames,
 } from "./config";
 
@@ -121,21 +120,4 @@ test("infer event names from abi", () => {
   //   ^?
 
   assertType<a>([] as readonly ("Approve" | "Transfer")[] | undefined);
-});
-
-test("kevin", () => {
-  const a = [
-    {
-      name: "BaseRegistrarImplementation",
-      network: [{ name: "mainnet" }],
-      abi: abiSimple,
-      event: ["Approve"],
-      address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-      startBlock: 16370000,
-      endBlock: 16370020,
-      maxBlockRange: 10,
-    },
-  ] as const;
-  type t = Kevin<typeof a, "mainnet">[0]["event"];
-  //   ^?
 });

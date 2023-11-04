@@ -2,7 +2,7 @@ import { http } from "viem";
 import { test } from "vitest";
 
 import { createConfig } from "./config";
-import { abiSimple } from "./config.test-d";
+import { abiWithSameEvent } from "./config.test-d";
 
 test("createConfig enforces matching network names", () => {
   createConfig({
@@ -32,8 +32,11 @@ test("createConfig() has strict events inferred from abi", () => {
       {
         name: "BaseRegistrarImplementation",
         network: [{ name: "mainnet" }],
-        abi: abiSimple,
-        event: ["Approve"],
+        abi: abiWithSameEvent,
+        event: [
+          "Transfer",
+          "Approve(address indexed, bytes32 indexed, uint256)",
+        ],
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
         startBlock: 16370000,
         endBlock: 16370020,

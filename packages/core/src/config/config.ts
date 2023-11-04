@@ -82,10 +82,9 @@ export type ContractFilter<TAbi extends Abi | unknown> = (
   /** Maximum block range to use when calling `eth_getLogs`. Default: `10_000`. */
   maxBlockRange?: number;
 
-  event?: readonly SafeEventNames<
-    FilterEvents<TAbi>,
-    FilterEvents<TAbi>
-  >[number][];
+  event?: Abi extends TAbi
+    ? string[]
+    : readonly SafeEventNames<FilterEvents<TAbi>, FilterEvents<TAbi>>[number][];
 };
 
 type Database =
@@ -131,18 +130,6 @@ type Contract<
   TAbi extends Abi | unknown = Abi | unknown
 > = ContractRequired<TNetworkNames, TAbi> & ContractFilter<TAbi>;
 
-export type Kevin<
-  TContracts extends readonly Omit<Contract, "event">[],
-  TNetworkNames extends string | unknown = string | unknown
-> = TContracts extends readonly [
-  infer First,
-  ...infer Rest extends readonly Contract[]
-]
-  ? First extends { abi: infer _abi }
-    ? readonly [Contract<TNetworkNames, _abi>, ...Kevin<Rest, TNetworkNames>]
-    : Kevin<Rest, TNetworkNames>
-  : [];
-
 type Option = {
   /** Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
   maxHealthcheckDuration?: number;
@@ -150,7 +137,7 @@ type Option = {
 
 export type ResolvedConfig<
   TNetworkNames extends string | unknown = string | unknown,
-  TAbi extends Abi = Abi
+  TAbi extends Abi | unknown = Abi | unknown
 > = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
   database?: Database;
