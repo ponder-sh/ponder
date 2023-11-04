@@ -76,7 +76,7 @@ export const buildSources = ({
             (n) => n.name === networkContract.name
           )!;
 
-          const resolvedEvents = networkContract.event ?? contract.event;
+          const resolvedEvents = networkContract.filter ?? contract.filter;
 
           const topics = resolvedEvents
             ? buildTopics(resolvedEvents)
@@ -128,7 +128,9 @@ export const buildSources = ({
 };
 
 const buildTopics = (
-  events: NonNullable<NonNullable<ResolvedConfig["contracts"]>[number]["event"]>
+  events: NonNullable<
+    NonNullable<ResolvedConfig["contracts"]>[number]["filter"]
+  >
 ): Topics => {
   if (Array.isArray(events)) {
     // List of event signatures

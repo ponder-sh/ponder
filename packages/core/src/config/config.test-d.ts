@@ -1,9 +1,9 @@
 import { assertType, test } from "vitest";
 
 import {
-  ContractFilter,
-  FilterElement,
   FilterEvents,
+  RecoverAbiEvent,
+  ResolvedConfig,
   SafeEventNames,
 } from "./config";
 
@@ -18,14 +18,17 @@ export const abiSimple = [
       {
         indexed: true,
         type: "address",
+        name: "from",
       },
       {
         indexed: true,
         type: "address",
+        name: "to",
       },
       {
         indexed: false,
         type: "uint256",
+        name: "amount",
       },
     ],
     name: "Approve",
@@ -89,12 +92,6 @@ test("filter events", () => {
   ] as const);
 });
 
-test("filter elements", () => {
-  type a = FilterElement<"a", readonly ["a", "b", "c"]>;
-  //   ^?
-  assertType<a>(["b", "c"] as const);
-});
-
 test("safe event names", () => {
   type a = SafeEventNames<
     // ^?
@@ -109,15 +106,28 @@ test("safe event names", () => {
     FilterEvents<typeof abiWithSameEvent>
   >;
   assertType<b>([
-    "Approve(address indexed, address indexed, uint256)",
+    "Approve(address indexed from, address indexed to, uint256 amount)",
     "Transfer",
     "Approve(address indexed, bytes32 indexed, uint256)",
   ]);
 });
 
-test("infer event names from abi", () => {
-  type a = ContractFilter<typeof abiSimple>["event"];
+test("ResolvedConfig default values", () => {
+  type a = NonNullable<ResolvedConfig["contracts"]>[number]["filter"];
   //   ^?
+  assertType<a>({} as string[] | { event: string } | undefined);
+});
 
-  assertType<a>([] as readonly ("Approve" | "Transfer")[] | undefined);
+test("RecoverAbiEvent", () => {
+  type a = RecoverAbiEvent<
+    // ^?
+    FilterEvents<typeof abiSimple>,
+    SafeEventNames<
+      FilterEvents<typeof abiSimple>,
+      FilterEvents<typeof abiSimple>
+    >,
+    "Approve"
+  >;
+
+  assertType<a>(abiSimple[1]);
 });

@@ -1,5 +1,5 @@
 import type { Abi, AbiEvent, FormatAbiItem } from "abitype";
-import type { Transport } from "viem";
+import type { GetEventArgs, Transport } from "viem";
 
 /**
  * Keep only AbiEvents from an Abi
@@ -16,7 +16,7 @@ export type FilterEvents<T extends Abi | unknown> = T extends readonly [
 /**
  * Remove TElement from TArr
  */
-export type FilterElement<
+type FilterElement<
   TElement,
   TArr extends readonly unknown[] | unknown
 > = TArr extends readonly [infer First, ...infer Rest]
@@ -44,9 +44,28 @@ export type SafeEventNames<
       readonly [First["name"], ...SafeEventNames<Rest, TArr>]
   : [];
 
+export type RecoverAbiEvent<
+  TAbi extends readonly AbiEvent[] | unknown,
+  TSafeNames extends readonly string[],
+  TSafeName extends string
+> = TAbi extends readonly [
+  infer FirstAbi,
+  ...infer RestAbi extends readonly AbiEvent[]
+]
+  ? TSafeNames extends readonly [
+      infer FirstName,
+      ...infer RestName extends readonly string[]
+    ]
+    ? FirstName extends TSafeName
+      ? FirstAbi
+      : RecoverAbiEvent<RestAbi, RestName, TSafeName>
+    : []
+  : [];
+
 type ContractRequired<
   TNetworkNames extends string | unknown = string | unknown,
-  TAbi extends Abi | unknown = Abi | unknown
+  TAbi extends Abi | unknown = Abi | unknown,
+  TEventName extends string = string
 > = {
   /** Contract name. Must be unique across `contracts` and `filters`. */
   name: string;
@@ -54,11 +73,13 @@ type ContractRequired<
    * Network that this contract is deployed to. Must match a network name in `networks`.
    * Any filter information overrides the values in the higher level "contracts" property. Factories cannot override an address and vice versa.
    */
-  network: readonly ({ name: TNetworkNames } & Partial<ContractFilter<TAbi>>)[];
+  network: readonly ({ name: TNetworkNames } & Partial<
+    ContractFilter<TAbi, TEventName>
+  >)[];
   abi: Abi;
 };
 
-export type ContractFilter<TAbi extends Abi | unknown> = (
+type ContractFilter<TAbi extends Abi | unknown, TEventName extends string> = (
   | {
       /** Contract address. */
       address?: `0x${string}`;
@@ -94,6 +115,22 @@ export type ContractFilter<TAbi extends Abi | unknown> = (
               FilterEvents<TAbi>,
               FilterEvents<TAbi>
             >[number];
+            args: GetEventArgs<
+              Abi,
+              string,
+              {
+                EnableUnion: true;
+                IndexedOnly: true;
+                Required: false;
+              },
+              RecoverAbiEvent<
+                TAbi,
+                SafeEventNames<FilterEvents<TAbi>, FilterEvents<TAbi>>,
+                TEventName
+              > extends infer _abiEvent extends AbiEvent
+                ? _abiEvent
+                : AbiEvent
+            >;
           };
 };
 
@@ -137,24 +174,22 @@ type Network = {
 
 type Contract<
   TNetworkNames extends string | unknown = string | unknown,
-  TAbi extends Abi | unknown = Abi | unknown
-> = ContractRequired<TNetworkNames, TAbi> & ContractFilter<TAbi>;
+  TAbi extends Abi | unknown = Abi | unknown,
+  TEventName extends string = string
+> = ContractRequired<TNetworkNames, TAbi> & ContractFilter<TAbi, TEventName>;
 
 type Option = {
   /** Maximum number of seconds to wait for event processing to be complete before responding as healthy. If event processing exceeds this duration, the API may serve incomplete data. Default: `240` (4 minutes). */
   maxHealthcheckDuration?: number;
 };
 
-export type ResolvedConfig<
-  TNetworkNames extends string | unknown = string | unknown,
-  TAbi extends Abi | unknown = Abi | unknown
-> = {
+export type ResolvedConfig = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
   database?: Database;
   /** List of blockchain networks. */
   networks: readonly Network[];
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
-  contracts?: readonly Contract<TNetworkNames, TAbi>[];
+  contracts?: readonly Contract<string, Abi, string>[];
   /** Configuration for Ponder internals. */
   options?: Option;
 };
@@ -169,7 +204,12 @@ export const createConfig = <
     contracts: {
       [key in keyof TConfig["contracts"] & number]: Contract<
         TConfig["networks"][number]["name"],
-        TConfig["contracts"][key]["abi"]
+        TConfig["contracts"][key]["abi"],
+        TConfig["contracts"][key]["filter"] extends {
+          event: infer _event extends string;
+        }
+          ? _event
+          : string
       >;
     };
     options?: Option;
