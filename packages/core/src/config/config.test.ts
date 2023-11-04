@@ -54,12 +54,18 @@ test("createConfig() has strict arg types for event", () => {
     contracts: [
       {
         name: "BaseRegistrarImplementation",
-        network: [{ name: "mainnet" }],
+        network: [
+          {
+            name: "mainnet",
+            address: "0x",
+            filter: { event: "Approve", args: { from: "0x" } },
+          },
+        ],
         abi: abiSimple,
         filter: {
           event: "Approve",
           args: {
-            to: ["0x"],
+            to: ["0x1", "0x2"],
           },
         },
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
