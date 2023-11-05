@@ -203,20 +203,20 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async loadConfig() {
-    try {
-      const module = await this.viteNodeRunner.executeFile(
-        this.common.options.configFile
-      );
-      const rawConfig = module.config;
-      const resolvedConfig =
-        typeof rawConfig === "function" ? await rawConfig() : await rawConfig;
+    const result = await this.executeFile(this.common.options.configFile);
 
-      // TODO: Validate config lol
-
-      this.emit("newConfig", { config: resolvedConfig });
-    } catch (err) {
-      console.log("error while loading config", err);
+    if (result.error) {
+      this.handleViteNodeError(result);
+      return;
     }
+
+    const rawConfig = result.exports.config;
+    const resolvedConfig =
+      typeof rawConfig === "function" ? await rawConfig() : await rawConfig;
+
+    // TODO: Validate config lol
+
+    this.emit("newConfig", { config: resolvedConfig });
   }
 
   async loadSchema() {
@@ -224,49 +224,23 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async loadIndexingFunctions({ files }: { files: string[] }) {
-    const results = await Promise.all(
-      files.map(async (file) => {
-        try {
-          const exports = await this.viteNodeRunner.executeFile(file);
-          return { file, exports };
-        } catch (error_) {
-          const error = parseViteNodeError(error_ as Error);
-          return { file, error };
-        }
-      })
-    );
+    const results = await Promise.all(files.map(this.executeFile));
 
-    const failures = results.filter(
+    const errorResults = results.filter(
       (r): r is { file: string; error: ViteNodeError } => r.error !== undefined
     );
-    const successes = results.filter(
+    if (errorResults.length > 0) {
+      this.handleViteNodeError(errorResults[0]);
+      return;
+    }
+
+    const successResults = results.filter(
       (r): r is { file: string; exports: any } => r.exports !== undefined
     );
 
-    if (failures.length > 0) {
-      failures.forEach(({ file, error }) => {
-        const verb =
-          error.name === "ESBuildTransformError"
-            ? "transforming"
-            : error.name === "ESBuildBuildError" ||
-              error.name === "ESBuildContextError"
-            ? "building"
-            : "executing";
+    for (const result of successResults) {
+      const { file, exports } = result;
 
-        this.common.logger.error({
-          service: "build",
-          msg: `Error while ${verb} ${path.relative(
-            this.common.options.rootDir,
-            file
-          )}`,
-          error,
-        });
-      });
-
-      this.common.errors.submitUserError({ error: failures[0].error });
-    }
-
-    for (const { file, exports } of successes) {
       const fns = (exports?.ponder?.fns ?? []) as { name: string; fn: any }[];
 
       const fnsForFile: Record<string, any> = {};
@@ -328,6 +302,44 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     });
 
     this.emit("newHandlers", { handlers });
+  }
+
+  private async executeFile(file: string) {
+    try {
+      const exports = await this.viteNodeRunner.executeFile(file);
+      return { file, exports };
+    } catch (error_) {
+      const error = parseViteNodeError(error_ as Error);
+      return { file, error };
+    }
+  }
+
+  private handleViteNodeError({
+    file,
+    error,
+  }: {
+    file: string;
+    error: ViteNodeError;
+  }) {
+    const verb =
+      error.name === "ESBuildTransformError"
+        ? "transforming"
+        : error.name === "ESBuildBuildError" ||
+          error.name === "ESBuildContextError"
+        ? "building"
+        : "executing";
+
+    this.common.logger.error({
+      service: "build",
+      msg: `Error while ${verb} ${path.relative(
+        this.common.options.rootDir,
+        file
+      )}`,
+      error: error,
+    });
+
+    // TODO: Fix this error handling approach.
+    this.common.errors.submitUserError({ error });
   }
 
   buildSchema() {
