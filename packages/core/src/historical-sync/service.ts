@@ -917,11 +917,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       retryRanges.push(
         ...chunks.map(([f, t]) => [toHex(f), toHex(t)] as const)
       );
-      console.log("split into", {
-        from,
-        to,
-        chunks,
-      });
     } else if (
       // Infura block range limit error.
       error instanceof LimitExceededRpcError &&
