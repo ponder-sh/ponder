@@ -25,7 +25,7 @@ import {
   RawHandlerFunctions,
 } from "./handlers";
 import { readGraphqlSchema } from "./schema";
-import { getPrettyStackTrace } from "./stacktrace";
+import { parseViteNodeError, ViteNodeError } from "./stacktrace";
 
 type BuildServiceEvents = {
   newConfig: { config: ResolvedConfig };
@@ -114,16 +114,14 @@ export class BuildService extends Emittery<BuildServiceEvents> {
               /import\s+\{\s*ponder\s*\}\s+from\s+(['"])@\/generated\1\s*;?/g;
             if (regex.test(code)) {
               // Add shim object to collect user functions.
-              // const shimHeader = `
-              //   export let ponder = {
-              //     fns: [],
-              //     on(name, fn) {
-              //       this.fns.push({ name, fn });
-              //     },
-              //   };
-              // `;
-              const shimHeader = `export let ponder = {fns: [], on(name, fn) { this.fns.push({ name, fn }); } };
-            `;
+              const shimHeader = `
+                export let ponder = {
+                  fns: [],
+                  on(name, fn) {
+                    this.fns.push({ name, fn });
+                  },
+                };
+              `;
               code = `${shimHeader}\n${code.replace(regex, "")}`;
             }
 
@@ -143,8 +141,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
     this.viteNodeRunner = new ViteNodeRunner({
       root: this.viteDevServer.config.root,
-      fetchModule: (id) => this.viteNodeServer.fetchModule(id),
-      resolveId: (id, importer) => this.viteNodeServer.resolveId(id, importer),
+      fetchModule: (id) => this.viteNodeServer.fetchModule(id, "ssr"),
+      resolveId: (id, importer) =>
+        this.viteNodeServer.resolveId(id, importer, "ssr"),
     });
 
     const handleFileChange = async (files_: string[]) => {
@@ -225,37 +224,49 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async loadIndexingFunctions({ files }: { files: string[] }) {
-    const executionResults = await Promise.allSettled(
+    const results = await Promise.all(
       files.map(async (file) => {
-        const exports = await this.viteNodeRunner.executeFile(file);
-        return { file, exports };
+        try {
+          const exports = await this.viteNodeRunner.executeFile(file);
+          return { file, exports };
+        } catch (error_) {
+          const error = parseViteNodeError(error_ as Error);
+          return { file, error };
+        }
       })
     );
 
-    const errors = executionResults
-      .filter((r): r is PromiseRejectedResult => r.status === "rejected")
-      .map((r) => r.reason as Error);
+    const failures = results.filter(
+      (r): r is { file: string; error: ViteNodeError } => r.error !== undefined
+    );
+    const successes = results.filter(
+      (r): r is { file: string; exports: any } => r.exports !== undefined
+    );
 
-    if (errors.length > 0) {
-      errors.forEach((error) => {
-        error.stack = getPrettyStackTrace(error);
+    if (failures.length > 0) {
+      failures.forEach(({ file, error }) => {
+        const verb =
+          error.name === "ESBuildTransformError"
+            ? "transforming"
+            : error.name === "ESBuildBuildError" ||
+              error.name === "ESBuildContextError"
+            ? "building"
+            : "executing";
 
-        console.log(error);
-
-        // this.common.logger.error({
-        //   service: "build",
-        //   error,
-        // });
-        // console.log(error);
+        this.common.logger.error({
+          service: "build",
+          msg: `Error while ${verb} ${path.relative(
+            this.common.options.rootDir,
+            file
+          )}`,
+          error,
+        });
       });
-      this.common.errors.submitUserError({ error: errors[0] });
+
+      this.common.errors.submitUserError({ error: failures[0].error });
     }
 
-    const results = executionResults
-      .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
-      .map((r) => r.value);
-
-    for (const { file, exports } of results) {
+    for (const { file, exports } of successes) {
       const fns = (exports?.ponder?.fns ?? []) as { name: string; fn: any }[];
 
       const fnsForFile: Record<string, any> = {};
