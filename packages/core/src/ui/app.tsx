@@ -18,7 +18,7 @@ export type UiState = {
 
   indexingError: boolean;
   processedEventCount: number;
-  totalEventCount: number;
+  handledEventCount: number;
   totalMatchedEventCount: number;
   eventsProcessedToTimestamp: number;
 
@@ -41,7 +41,7 @@ export const buildUiState = ({
 
     indexingError: false,
     processedEventCount: 0,
-    totalEventCount: 0,
+    handledEventCount: 0,
     totalMatchedEventCount: 0,
     eventsProcessedToTimestamp: 0,
 
