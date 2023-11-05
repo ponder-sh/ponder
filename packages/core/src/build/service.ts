@@ -25,12 +25,27 @@ import {
   RawHandlerFunctions,
 } from "./handlers";
 import { readGraphqlSchema } from "./schema";
+import { createHotContext, handleMessage } from "./vite-node-hmr";
 
 type BuildServiceEvents = {
   newConfig: { config: ResolvedConfig };
   newHandlers: { handlers: HandlerFunctions };
   newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
+
+// const consoleLog = globalThis.console.log;
+// globalThis.console = {
+//   ...globalThis.console,
+//   log(...args: any[]) {
+//     if (
+//       typeof args[0] === "string" &&
+//       args[0].startsWith("\x1b[36m[vite-node]\x1b[39m hot updated:")
+//     )
+//       return;
+//     consoleLog("in wrapper with", args);
+//     consoleLog(...args);
+//   },
+// };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
   private common: Common;
@@ -65,55 +80,54 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async setup() {
+    // Monkeypath to suppress `vite-node` update logs.
+    const consoleLog = global.console.log;
+    global.console.log = (...args) => {
+      if (
+        typeof args[0] === "string" &&
+        args[0].startsWith("\x1B[36m[vite-node]\x1B[39m hot updated:")
+      )
+        return;
+      consoleLog(...args);
+    };
+
     const { createServer } = await import("vite");
     const { ViteNodeServer } = await import("vite-node/server");
     const { installSourcemapsSupport } = await import("vite-node/source-map");
     const { ViteNodeRunner } = await import("vite-node/client");
-    const { viteNodeHmrPlugin, createHotContext, handleMessage } = await import(
-      "vite-node/hmr"
-    );
+    const { viteNodeHmrPlugin } = await import("vite-node/hmr");
+    const { toFilePath, normalizeModuleId } = await import("vite-node/utils");
 
-    // const viteLogger = {
-    //   warnedMessages: new Set<string>(),
-    //   loggedErrors: new WeakSet<Error>(),
-    //   hasWarned: false,
-    //   clearScreen() {},
-    //   hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
-    //   info: (msg: string) => {
-    //     console.log(msg);
-    //     // if (msg.includes("page reload")) {
-    //     //   const filePath = msg.substring(
-    //     //     msg.indexOf("\\x1B[2m") + 1,
-    //     //     msg.lastIndexOf("\\x1B[22m")
-    //     //   );
-    //     //   this.common.logger.info({
-    //     //     service: "build/vite",
-    //     //     msg: `Hot reload '${filePath}'`,
-    //     //   });
-    //     // }
-    //   },
-    //   warn: (msg: string) => {
-    //     viteLogger.hasWarned = true;
-    //     this.common.logger.debug({ service: "build(vite)", msg });
-    //   },
-    //   warnOnce: (msg: string) => {
-    //     if (viteLogger.warnedMessages.has(msg)) return;
-    //     viteLogger.hasWarned = true;
-    //     this.common.logger.debug({ service: "build(vite)", msg });
-    //     viteLogger.warnedMessages.add(msg);
-    //   },
-    //   error: (msg: string) => {
-    //     viteLogger.hasWarned = true;
-    //     this.common.logger.debug({ service: "build(vite)", msg });
-    //   },
-    // };
+    const viteLogger = {
+      warnedMessages: new Set<string>(),
+      loggedErrors: new WeakSet<Error>(),
+      hasWarned: false,
+      clearScreen() {},
+      hasErrorLogged: (error: Error) => viteLogger.loggedErrors.has(error),
+      info: (msg: string) => {
+        this.common.logger.trace({ service: "build(vite)", msg });
+      },
+      warn: (msg: string) => {
+        viteLogger.hasWarned = true;
+        this.common.logger.trace({ service: "build(vite)", msg });
+      },
+      warnOnce: (msg: string) => {
+        if (viteLogger.warnedMessages.has(msg)) return;
+        viteLogger.hasWarned = true;
+        this.common.logger.trace({ service: "build(vite)", msg });
+        viteLogger.warnedMessages.add(msg);
+      },
+      error: (msg: string) => {
+        viteLogger.hasWarned = true;
+        this.common.logger.trace({ service: "build(vite)", msg });
+      },
+    };
 
     this.viteDevServer = await createServer({
       root: this.common.options.rootDir,
       cacheDir: path.join(this.common.options.ponderDir, "vite"),
       publicDir: false,
-      // customLogger: viteLogger,
-      clearScreen: false,
+      customLogger: viteLogger,
       server: { hmr: true },
       plugins: [
         viteNodeHmrPlugin(),
@@ -164,66 +178,120 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       getSourceMap: (source) => this.viteNodeServer.getSourceMap(source),
     });
 
-    // The vite-node HMR implementation assumes you have a static list
-    // of files that should ALL be reloaded on every update.
-    // Instead, we pass an empty list, and handle the updates manually.
-    const files: string[] = [];
-
     this.viteNodeRunner = new ViteNodeRunner({
       root: this.viteDevServer.config.root,
       fetchModule: (id) => this.viteNodeServer.fetchModule(id),
       resolveId: (id, importer) => this.viteNodeServer.resolveId(id, importer),
       // Boilerplate for vite-node HMR.
       createHotContext: (runner, url) =>
-        createHotContext(runner, this.viteDevServer.emitter, files, url),
+        createHotContext(runner, this.viteDevServer.emitter, [], url),
     });
 
-    this.viteDevServer.emitter.on("message", async (payload) => {
-      // Boilerplate for vite-node HMR.
+    this.viteDevServer.watcher.on("change", (file) => {
+      console.log("change ", file);
+    });
+    this.viteDevServer.watcher.on("add", (file) => {
+      console.log("add ", file);
+    });
+    this.viteDevServer.watcher.on("unlink", (file) => {
+      console.log("unlink ", file);
+    });
+
+    const handleFileChange = async (files_: string[]) => {
+      const opts = this.common.options;
+
+      const files = files_.map(
+        (file) => toFilePath(normalizeModuleId(file), opts.rootDir).path
+      );
+
+      // Invalidate all modules that depend on the updated files.
+      // Note that this fully removes those modules from the moduleCache,
+      // this is not idempotent. So, we need to be sure to re-execute all
+      // of these invalidated modules immediately.
+      const invalidated = [
+        ...this.viteNodeRunner.moduleCache.invalidateDepTree(files),
+      ];
+
+      this.common.logger.info({
+        service: "build",
+        msg: `Hot reload ${invalidated
+          .map((f) => path.relative(opts.rootDir, f))
+          .join(", ")}`,
+      });
+
+      // The default vite-node HMR message handler.
+      // 1) Removes all user modules from the module cache.
+      // 2) Executes the files present in `payload.updates`.
+      // 3) For some reason, executed modules are not added back into the cache,
+      // which is annoying and means we need to re-execute no matter what.
       await handleMessage(
         this.viteNodeRunner,
         this.viteDevServer.emitter,
-        files,
+        [],
         payload
       );
 
+      // Note that the order execution here is intentional.
+      if (invalidated.includes(opts.configFile)) {
+        await this.loadConfig();
+      }
+      if (invalidated.includes(opts.schemaFile)) {
+        await this.loadSchema();
+      }
+
+      const srcFiles = invalidated.filter((file) => this.srcRegex.test(file));
+      if (srcFiles.length > 0) {
+        await this.loadIndexingFunctions({ files: srcFiles });
+      }
+    };
+
+    this.viteDevServer.emitter.on("message", async (payload) => {
       switch (payload.type) {
-        case "full-reload": {
-          console.log("TODO");
-          break;
-        }
         case "update": {
-          const files = payload.updates.map((u) => u.path);
-
-          console.log(files);
-
-          const includesConfig = files.includes(this.common.options.configFile);
-          const includesSchema = files.includes(this.common.options.schemaFile);
-          const srcFiles = files.filter((f) => this.srcRegex.test(f));
-
           const opts = this.common.options;
-          const filesToLog = [];
-          if (includesConfig)
-            filesToLog.push(path.relative(opts.rootDir, opts.configFile));
-          if (includesSchema)
-            filesToLog.push(path.relative(opts.rootDir, opts.schemaFile));
-          srcFiles.forEach((file) => {
-            filesToLog.push(path.relative(opts.rootDir, file));
-          });
+
+          const files = payload.updates.map(
+            (u) => toFilePath(normalizeModuleId(u.path), opts.rootDir).path
+          );
+
+          // Invalidate all modules that depend on the updated files.
+          // Note that this fully removes those modules from the moduleCache,
+          // this is not idempotent. So, we need to be sure to re-execute all
+          // of these invalidated modules immediately.
+          const invalidated = [
+            ...this.viteNodeRunner.moduleCache.invalidateDepTree(files),
+          ];
 
           this.common.logger.info({
             service: "build",
-            msg: `Hot reload ${filesToLog.join(", ")}`,
+            msg: `Hot reload ${invalidated
+              .map((f) => path.relative(opts.rootDir, f))
+              .join(", ")}`,
           });
 
-          if (includesConfig) {
+          // The default vite-node HMR message handler.
+          // 1) Removes all user modules from the module cache.
+          // 2) Executes the files present in `payload.updates`.
+          // 3) For some reason, executed modules are not added back into the cache,
+          // which is annoying and means we need to re-execute no matter what.
+          await handleMessage(
+            this.viteNodeRunner,
+            this.viteDevServer.emitter,
+            [],
+            payload
+          );
+
+          // Note that the order execution here is intentional.
+          if (invalidated.includes(opts.configFile)) {
             await this.loadConfig();
           }
-
-          if (includesSchema) {
-            await this.loadConfig();
+          if (invalidated.includes(opts.schemaFile)) {
+            await this.loadSchema();
           }
 
+          const srcFiles = invalidated.filter((file) =>
+            this.srcRegex.test(file)
+          );
           if (srcFiles.length > 0) {
             await this.loadIndexingFunctions({ files: srcFiles });
           }
@@ -231,16 +299,30 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           break;
         }
         default: {
-          console.log(`Unhandled Vite HMR event: "${payload.type}"`);
+          // For events other than "update", just use the provided
+          // message handler with no adjustments. Like in the
+          // TODO: Consider handling the "full-reload" event manually.
+          await handleMessage(
+            this.viteNodeRunner,
+            this.viteDevServer.emitter,
+            [],
+            payload
+          );
+
+          console.log(`Unhandled Vite HMR event: "${payload.type}"`, payload);
         }
       }
     });
 
     // Load all the project files once during setup.
+    const initialSrcFiles = glob.sync(
+      path.join(this.common.options.srcDir, "**/*.{js,cjs,mjs,ts,mts}")
+    );
+
     await Promise.all([
       this.loadConfig(),
       this.loadSchema(),
-      this.loadIndexingFunctions(),
+      this.loadIndexingFunctions({ files: initialSrcFiles }),
     ]);
   }
 
@@ -254,7 +336,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   async loadConfig() {
     try {
-      // CONFIG
       const module = await this.viteNodeRunner.executeFile(
         this.common.options.configFile
       );
@@ -263,7 +344,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
         typeof rawConfig === "function" ? await rawConfig() : await rawConfig;
 
       // TODO: Validate config lol
-      console.log({ resolvedConfig });
 
       this.emit("newConfig", { config: resolvedConfig });
     } catch (err) {
@@ -272,13 +352,10 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async loadSchema() {
-    console.log("loaded schema hehe");
+    console.log("loaded schema ");
   }
 
-  async loadIndexingFunctions({ files: files_ }: { files?: string[] } = {}) {
-    // If no `files` argument is provided, load all indexing function files.
-    const files = files_ ?? this.getIndexingFunctionFiles();
-
+  async loadIndexingFunctions({ files }: { files: string[] }) {
     // TODO: Consider handling errors here.
     const results = await Promise.all(
       files.map(async (file) => {
@@ -398,11 +475,5 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.common.errors.submitUserError({ error: userError });
       return undefined;
     }
-  }
-
-  private getIndexingFunctionFiles() {
-    return glob.sync(
-      path.join(this.common.options.srcDir, "**/*.{js,cjs,mjs,ts,mts}")
-    );
   }
 }
