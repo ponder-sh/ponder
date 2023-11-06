@@ -353,12 +353,24 @@ const migrations: Record<string, Migration> = {
     async up(db: Kysely<any>) {
       await db.schema.dropTable("contractReadResults").execute();
 
+      /**
+       * request format
+       * eth_call: eth_call_{to}_{data}
+       * eth_getBalance: eth_getBalance_{address}
+       * eth_getCode: eth_getCode_{address}
+       * eth_getStorageAt: eth_getStorageAt_{address}_{slot}
+       */
       await db.schema
         .createTable("rpcRequestResults")
-        .addColumn("request", "text", (col) => col.notNull().primaryKey())
+        .addColumn("request", "text", (col) => col.notNull())
         .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("rpcRequestResultPrimaryKey", [
+          "request",
+          "chainId",
+          "blockNumber",
+        ])
         .execute();
     },
   },

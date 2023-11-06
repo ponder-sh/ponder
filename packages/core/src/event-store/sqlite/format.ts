@@ -160,7 +160,7 @@ export function rpcToSqliteLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   };
 }
 
-type RpcRequestResults = {
+type RpcRequestResultsTable = {
   blockNumber: BigIntText;
   chainId: number;
   result: string;
@@ -207,7 +207,7 @@ export type EventStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
   logs: LogsTable;
-  rpcRequestResults: RpcRequestResults;
+  rpcRequestResults: RpcRequestResultsTable;
 
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;

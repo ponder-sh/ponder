@@ -155,12 +155,11 @@ export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   };
 }
 
-type ContractReadResultsTable = {
-  address: Address;
+type RpcRequestResultsTable = {
   blockNumber: bigint;
   chainId: number;
-  data: Hex;
-  result: Hex;
+  request: string;
+  result: string;
 };
 
 type LogFiltersTable = {
@@ -203,7 +202,7 @@ export type EventStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
   logs: LogsTable;
-  contractReadResults: ContractReadResultsTable;
+  rpcRequestResults: RpcRequestResultsTable;
 
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;

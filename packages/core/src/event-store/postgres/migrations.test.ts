@@ -17,7 +17,7 @@ import {
 
 beforeEach((context) => setupEventStore(context, { skipMigrateUp: true }));
 
-const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
+const seed_2023_09_19_0_new_sync_design = async (db: Kysely<any>) => {
   await db
     .insertInto("blocks")
     .values({ ...rpcToPostgresBlock(blockOne), chainId: 1 })
@@ -47,33 +47,22 @@ const seed_2023_07_24_0_drop_finalized = async (db: Kysely<any>) => {
     .insertInto("contractReadResults")
     .values(contractReadResultOne)
     .execute();
-
-  await db
-    .insertInto("logFilterCachedRanges")
-    .values({
-      filterKey:
-        '1-0x93d4c048f83bd7e37d49ea4c83a07267ec4203da-["0x1",null,"0x3"]',
-      startBlock: 16000010,
-      endBlock: 16000090,
-      endBlockTimestamp: 16000010,
-    })
-    .execute();
 };
 
-test("2023_07_24_0_drop_finalized -> 2023_09_19_0_new_sync_design succeeds", async (context) => {
+test("2023_09_19_0_new_sync_design -> 2023_11_06_0_new_rpc_cache_design succeeds", async (context) => {
   const { eventStore } = context;
 
   if (eventStore.kind !== "postgres") return;
 
   const { error } = await eventStore.migrator.migrateTo(
-    "2023_07_24_0_drop_finalized"
+    "2023_09_19_0_new_sync_design"
   );
   expect(error).toBeFalsy();
 
-  await seed_2023_07_24_0_drop_finalized(eventStore.db);
+  await seed_2023_09_19_0_new_sync_design(eventStore.db);
 
   const { error: latestError } = await eventStore.migrator.migrateTo(
-    "2023_09_19_0_new_sync_design"
+    "2023_11_06_0_new_rpc_cache_design"
   );
   expect(latestError).toBeFalsy();
 }, 15_000);
