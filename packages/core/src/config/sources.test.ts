@@ -76,7 +76,7 @@ test("buildSources() for duplicate event", () => {
   ]);
 });
 
-test.only("buildSources() builds topics for event with args", () => {
+test("buildSources() builds topics for event with args", () => {
   const sources = buildSources({
     config: createConfig({
       networks: [
