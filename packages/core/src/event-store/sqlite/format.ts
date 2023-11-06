@@ -160,12 +160,11 @@ export function rpcToSqliteLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   };
 }
 
-type ContractReadResultsTable = {
-  address: Address;
+type RpcRequestResults = {
   blockNumber: BigIntText;
   chainId: number;
-  data: Hex;
-  result: Hex;
+  result: string;
+  request: string;
 };
 
 type LogFiltersTable = {
@@ -208,7 +207,7 @@ export type EventStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
   logs: LogsTable;
-  contractReadResults: ContractReadResultsTable;
+  rpcRequestResults: RpcRequestResults;
 
   logFilters: LogFiltersTable;
   logFilterIntervals: LogFilterIntervalsTable;

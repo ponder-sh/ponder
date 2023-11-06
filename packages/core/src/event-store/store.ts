@@ -126,27 +126,24 @@ export interface EventStore {
     fromBlock: bigint;
   }): Promise<void>;
 
-  /** CONTRACT READ METHODS */
+  /** RPC REQUEST METHODS */
 
-  insertContractReadResult(options: {
-    address: Address;
+  insertRpcRequestResult(options: {
+    request: string;
     blockNumber: bigint;
     chainId: number;
-    data: Hex;
-    result: Hex;
+    result: string;
   }): Promise<void>;
 
-  getContractReadResult(options: {
-    address: Address;
+  getRpcRequestResult(options: {
+    request: string;
     blockNumber: bigint;
     chainId: number;
-    data: Hex;
   }): Promise<{
-    address: Address;
+    request: string;
     blockNumber: bigint;
     chainId: number;
-    data: Hex;
-    result: Hex;
+    result: string;
   } | null>;
 
   /** EVENTS METHOD */

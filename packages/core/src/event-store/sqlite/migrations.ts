@@ -349,6 +349,19 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  ["2023_11_06_0_new_rpc_cache_design"]: {
+    async up(db: Kysely<any>) {
+      await db.schema.dropTable("contractReadResults").execute();
+
+      await db.schema
+        .createTable("rpcRequestResults")
+        .addColumn("request", "text", (col) => col.notNull().primaryKey())
+        .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("result", "text", (col) => col.notNull())
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {

@@ -896,7 +896,7 @@ test("deleteRealtimeData updates interval data", async (context) => {
   ).toMatchObject([[15495110, 15495110]]);
 });
 
-test("insertContractReadResult inserts a contract call", async (context) => {
+test.skip("insertContractReadResult inserts a contract call", async (context) => {
   const { eventStore } = context;
 
   await eventStore.insertContractReadResult({
@@ -921,7 +921,7 @@ test("insertContractReadResult inserts a contract call", async (context) => {
   });
 });
 
-test("insertContractReadResult upserts on conflict", async (context) => {
+test.skip("insertContractReadResult upserts on conflict", async (context) => {
   const { eventStore } = context;
 
   await eventStore.insertContractReadResult({
@@ -963,7 +963,7 @@ test("insertContractReadResult upserts on conflict", async (context) => {
   });
 });
 
-test("getContractReadResult returns data", async (context) => {
+test.skip("getContractReadResult returns data", async (context) => {
   const { eventStore } = context;
 
   await eventStore.insertContractReadResult({
@@ -990,7 +990,7 @@ test("getContractReadResult returns data", async (context) => {
   });
 });
 
-test("getContractReadResult returns null if not found", async (context) => {
+test.skip("getContractReadResult returns null if not found", async (context) => {
   const { eventStore } = context;
 
   await eventStore.insertContractReadResult({

@@ -7,7 +7,7 @@ import {
   sql,
   SqliteDialect,
 } from "kysely";
-import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources";
 import type { Block } from "@/types/block";
@@ -549,7 +549,7 @@ export class SqliteEventStore implements EventStore {
         .where("blockNumber", ">", fromBlock)
         .execute();
       await tx
-        .deleteFrom("contractReadResults")
+        .deleteFrom("rpcRequestResults")
         .where("chainId", "=", chainId)
         .where("blockNumber", ">", fromBlock)
         .execute();
@@ -703,56 +703,50 @@ export class SqliteEventStore implements EventStore {
 
   /** CONTRACT READS */
 
-  insertContractReadResult = async ({
-    address,
+  insertRpcRequestResult = async ({
     blockNumber,
     chainId,
-    data,
+    request,
     result,
   }: {
-    address: Address;
     blockNumber: bigint;
     chainId: number;
-    data: Hex;
-    result: Hex;
+    request: string;
+    result: string;
   }) => {
     await this.db
-      .insertInto("contractReadResults")
+      .insertInto("rpcRequestResults")
       .values({
-        address,
+        request,
         blockNumber: encodeAsText(blockNumber),
         chainId,
-        data,
         result,
       })
       .onConflict((oc) => oc.doUpdateSet({ result }))
       .execute();
   };
 
-  getContractReadResult = async ({
-    address,
+  getRpcRequestResult = async ({
     blockNumber,
     chainId,
-    data,
+    request,
   }: {
-    address: Address;
     blockNumber: bigint;
     chainId: number;
-    data: Hex;
+    request: string;
   }) => {
-    const contractReadResult = await this.db
-      .selectFrom("contractReadResults")
+    const rpcRequestResult = await this.db
+      .selectFrom("rpcRequestResults")
       .selectAll()
-      .where("address", "=", address)
       .where("blockNumber", "=", encodeAsText(blockNumber))
       .where("chainId", "=", chainId)
-      .where("data", "=", data)
+      .where("request", "=", request)
       .executeTakeFirst();
 
-    return contractReadResult
+    return rpcRequestResult
       ? {
-          ...contractReadResult,
-          blockNumber: decodeToBigInt(contractReadResult.blockNumber),
+          ...rpcRequestResult,
+          blockNumber: decodeToBigInt(rpcRequestResult.blockNumber),
         }
       : null;
   };
