@@ -222,9 +222,6 @@ export const hydrateIndexingFunctions = ({
 
   Object.entries(rawIndexingFunctions.eventSources).forEach(
     ([eventSourceName, eventSourceFunctions]) => {
-      // const logFilter = logFilters.find((l) => l.name === eventSourceName);
-      // const factory = factories.find((f) => f.name === eventSourceName);
-
       const source = sources.find((source) => source.name === eventSourceName);
 
       if (!source) {
