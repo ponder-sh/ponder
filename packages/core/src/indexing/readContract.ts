@@ -15,15 +15,20 @@ import {
 } from "viem";
 import { call } from "viem/actions";
 
+import { EventStore } from "@/event-store/store";
+
 /**
  * Build a function with the same api as viem's {@link https://viem.sh/docs/contract/readContract.html readContract} function,
  * but caches the results in the event store.
+ *
+ * @todo How to determine chainID
  */
 export const buildReadContract =
   ({
+    eventStore,
     getCurrentBlockNumber,
   }: {
-    // eventStore: EventStore;
+    eventStore: EventStore;
     getCurrentBlockNumber: () => bigint;
   }) =>
   async <
@@ -48,34 +53,73 @@ export const buildReadContract =
       args,
       functionName,
     } as unknown as EncodeFunctionDataParameters<TAbi, TFunctionName>);
+    const blockNumber = getCurrentBlockNumber();
+    const chainId = client.chain!.id;
 
-    // If cache hit
-    // If no cache hit
-    try {
-      const { data } = await call(client, {
-        to: address,
-        data: calldata,
-        blockNumber: getCurrentBlockNumber(),
-        ...callRequest,
-      } as unknown as CallParameters);
+    // Check cache
+    const cachedContractReadResult = await eventStore.getContractReadResult({
+      address,
+      blockNumber,
+      chainId,
+      data: calldata,
+    });
 
-      return decodeFunctionResult({
-        abi,
-        args,
-        functionName,
-        data: data || "0x",
-      } as unknown as DecodeFunctionResultParameters<TAbi, TFunctionName>) as ReadContractReturnType<
-        TAbi,
-        TFunctionName
-      >;
-      // TODO: add `data` to cache
-    } catch (err) {
-      throw getContractError(err as BaseError, {
-        abi: abi as Abi,
-        address,
-        args,
-        docsPath: "/docs/contract/readContract",
-        functionName,
-      });
+    if (cachedContractReadResult) {
+      // Cache hit
+      try {
+        return decodeFunctionResult({
+          abi,
+          args,
+          functionName,
+          data: cachedContractReadResult.result,
+        } as unknown as DecodeFunctionResultParameters<TAbi, TFunctionName>) as ReadContractReturnType<
+          TAbi,
+          TFunctionName
+        >;
+      } catch (err) {
+        throw getContractError(err as BaseError, {
+          abi: abi as Abi,
+          address,
+          args,
+          docsPath: "/docs/contract/readContract",
+          functionName,
+        });
+      }
+    } else {
+      // No cache hit
+      try {
+        const { data: rawResult } = await call(client, {
+          to: address,
+          data: calldata,
+          blockNumber,
+          ...callRequest,
+        } as unknown as CallParameters);
+
+        await eventStore.insertContractReadResult({
+          address,
+          blockNumber,
+          chainId,
+          data: calldata,
+          result: rawResult || "0x",
+        });
+
+        return decodeFunctionResult({
+          abi,
+          args,
+          functionName,
+          data: rawResult || "0x",
+        } as unknown as DecodeFunctionResultParameters<TAbi, TFunctionName>) as ReadContractReturnType<
+          TAbi,
+          TFunctionName
+        >;
+      } catch (err) {
+        throw getContractError(err as BaseError, {
+          abi: abi as Abi,
+          address,
+          args,
+          docsPath: "/docs/contract/readContract",
+          functionName,
+        });
+      }
     }
   };
