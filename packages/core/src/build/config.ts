@@ -2,7 +2,6 @@ import { build, Plugin } from "esbuild";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import type { ResolvedConfig } from "@/config/config";
 import { ensureDirExists } from "@/utils/exists";
 
 /**
@@ -69,10 +68,10 @@ export const buildConfig = async ({ configFile }: { configFile: string }) => {
       logLevel: "silent",
     });
 
-    const { default: rawDefault, config: rawConfig } = require(buildFile);
+    const { default: rawDefault, config } = require(buildFile);
     rmSync(buildFile, { force: true });
 
-    if (!rawConfig) {
+    if (!config) {
       if (rawDefault) {
         throw new Error(
           `Ponder config not found. ${path.basename(
@@ -87,15 +86,7 @@ export const buildConfig = async ({ configFile }: { configFile: string }) => {
       );
     }
 
-    let resolvedConfig: ResolvedConfig;
-
-    if (typeof rawConfig === "function") {
-      resolvedConfig = await rawConfig();
-    } else {
-      resolvedConfig = await rawConfig;
-    }
-
-    return resolvedConfig;
+    return config;
   } catch (err) {
     rmSync(buildFile, { force: true });
     throw err;

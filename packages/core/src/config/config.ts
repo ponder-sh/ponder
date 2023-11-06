@@ -224,9 +224,5 @@ export const createConfig = <
     options?: Option;
   }
 >(
-  config:
-    | TConfig
-    | Promise<TConfig>
-    | (() => TConfig)
-    | (() => Promise<TConfig>)
+  config: TConfig
 ) => config;

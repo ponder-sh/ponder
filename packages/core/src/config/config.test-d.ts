@@ -1,6 +1,8 @@
+import { http } from "viem";
 import { assertType, test } from "vitest";
 
 import {
+  createConfig,
   FilterEvents,
   RecoverAbiEvent,
   ResolvedConfig,
@@ -130,4 +132,92 @@ test("RecoverAbiEvent", () => {
   >;
 
   assertType<a>(abiSimple[1]);
+});
+
+test("createConfig() strict config names", () => {
+  const config = createConfig({
+    networks: [
+      { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
+    ],
+    contracts: [
+      {
+        name: "BaseRegistrarImplementation",
+        network: [{ name: "mainnet" }],
+        abi: [],
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
+      },
+    ],
+  });
+
+  assertType<readonly [{ name: "mainnet" }]>(config.contracts[0].network);
+  assertType<readonly [{ name: "mainnet" }]>(config.networks);
+});
+
+test("createConfig() has strict events inferred from abi", () => {
+  const config = createConfig({
+    networks: [
+      { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
+    ],
+    contracts: [
+      {
+        name: "BaseRegistrarImplementation",
+        network: [{ name: "mainnet" }],
+        abi: abiWithSameEvent,
+        filter: {
+          event: [
+            "Transfer",
+            "Approve(address indexed from, address indexed to, uint256 amount)",
+          ],
+        },
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
+      },
+    ],
+  });
+  assertType<
+    readonly [
+      "Transfer",
+      "Approve(address indexed from, address indexed to, uint256 amount)"
+    ]
+  >(config.contracts[0].filter.event);
+});
+
+test("createConfig() has strict arg types for event", () => {
+  const config = createConfig({
+    networks: [
+      { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
+    ],
+    contracts: [
+      {
+        name: "BaseRegistrarImplementation",
+        network: [
+          {
+            name: "mainnet",
+            address: "0x",
+            filter: { event: "Approve", args: { from: "0x", to: "0x" } },
+          },
+        ],
+        abi: abiSimple,
+        filter: {
+          event: "Approve",
+          args: {
+            to: ["0x1", "0x2"],
+          },
+        },
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
+      },
+    ],
+  });
+
+  assertType<
+    { to?: `0x${string}` | `0x${string}`[] | null | undefined } | undefined
+  >(config.contracts[0].filter?.args);
 });
