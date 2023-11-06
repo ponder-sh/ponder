@@ -1,37 +1,36 @@
-import { createClient, http } from "viem";
+import { createClient, http, keccak256 } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
 import { anvil } from "@/_test/utils";
 
-import { buildReadContract } from "./readContract";
+import { buildGetBytecode } from "./getBytecode";
 import { ponderTransport } from "./transport";
 
 beforeEach((context) => setupEventStore(context));
 
-const usdcTotalSupply16375000 = 40921687992499550n;
-
-test("readContract() no cache", async ({ eventStore }) => {
+test("getBytecode() no cache", async ({ eventStore }) => {
   const client = createClient({
     chain: anvil,
     transport: ponderTransport({ transport: http(), eventStore }),
   });
 
-  const readContract = buildReadContract({
+  const getBytecode = buildGetBytecode({
     getCurrentBlockNumber: () => 16375000n,
   });
 
-  const totalSupply = await readContract(client, {
-    abi: usdcContractConfig.abi,
-    functionName: "totalSupply",
+  const bytecode = await getBytecode(client, {
     address: usdcContractConfig.address,
   });
 
-  expect(totalSupply).toBe(usdcTotalSupply16375000);
+  expect(bytecode).toBeTruthy();
+  expect(keccak256(bytecode!)).toBe(
+    "0xd80d4b7c890cb9d6a4893e6b52bc34b56b25335cb13716e0d1d31383e6b41505"
+  );
 });
 
-test("readContract() with cache", async ({ eventStore }) => {
+test("getBytecode() with cache", async ({ eventStore }) => {
   const client = createClient({
     chain: anvil,
     transport: ponderTransport({ transport: http(), eventStore }),
@@ -39,24 +38,25 @@ test("readContract() with cache", async ({ eventStore }) => {
 
   const callSpy = vi.spyOn(eventStore, "insertRpcRequestResult");
 
-  const readContract = buildReadContract({
+  const getBytecode = buildGetBytecode({
     getCurrentBlockNumber: () => 16375000n,
   });
 
-  let totalSupply = await readContract(client, {
-    abi: usdcContractConfig.abi,
-    functionName: "totalSupply",
+  let bytecode = await getBytecode(client, {
     address: usdcContractConfig.address,
   });
 
-  expect(totalSupply).toBe(usdcTotalSupply16375000);
-
-  totalSupply = await readContract(client, {
-    abi: usdcContractConfig.abi,
-    functionName: "totalSupply",
+  expect(bytecode).toBeTruthy();
+  expect(keccak256(bytecode!)).toBe(
+    "0xd80d4b7c890cb9d6a4893e6b52bc34b56b25335cb13716e0d1d31383e6b41505"
+  );
+  bytecode = await getBytecode(client, {
     address: usdcContractConfig.address,
   });
 
-  expect(totalSupply).toBe(usdcTotalSupply16375000);
+  expect(bytecode).toBeTruthy();
+  expect(keccak256(bytecode!)).toBe(
+    "0xd80d4b7c890cb9d6a4893e6b52bc34b56b25335cb13716e0d1d31383e6b41505"
+  );
   expect(callSpy).toHaveBeenCalledTimes(1);
 });

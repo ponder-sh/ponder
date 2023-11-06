@@ -30,7 +30,7 @@ test("setup creates tables", async (context) => {
   expect(tableNames).toContain("factories");
   expect(tableNames).toContain("factoryLogFilterIntervals");
 
-  expect(tableNames).toContain("contractReadResults");
+  expect(tableNames).toContain("rpcRequestResults");
 });
 
 test("insertLogFilterInterval inserts block, transactions, and logs", async (context) => {
@@ -896,119 +896,110 @@ test("deleteRealtimeData updates interval data", async (context) => {
   ).toMatchObject([[15495110, 15495110]]);
 });
 
-test.skip("insertContractReadResult inserts a contract call", async (context) => {
+test("insertRpcRequestResult inserts a request result", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertContractReadResult({
-    address: usdcContractConfig.address,
+  await eventStore.insertRpcRequestResult({
     chainId: 1,
-    data: "0x123",
+    request: "0x123",
     blockNumber: 100n,
     result: "0x789",
   });
 
-  const contractReadResults = await eventStore.db
-    .selectFrom("contractReadResults")
+  const rpcRequestResults = await eventStore.db
+    .selectFrom("rpcRequestResults")
     .selectAll()
     .execute();
 
-  expect(contractReadResults).toHaveLength(1);
-  expect(contractReadResults[0]).toMatchObject({
-    address: usdcContractConfig.address,
+  expect(rpcRequestResults).toHaveLength(1);
+  expect(rpcRequestResults[0]).toMatchObject({
     chainId: 1,
-    data: "0x123",
+    request: "0x123",
     result: "0x789",
   });
 });
 
-test.skip("insertContractReadResult upserts on conflict", async (context) => {
+test("insertRpcRequestResult upserts on conflict", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertContractReadResult({
-    address: usdcContractConfig.address,
+  await eventStore.insertRpcRequestResult({
     chainId: 1,
-    data: "0x123",
+    request: "0x123",
     blockNumber: 100n,
     result: "0x789",
   });
 
-  const contractReadResults = await eventStore.db
-    .selectFrom("contractReadResults")
-    .select(["address", "result"])
+  const rpcRequestResult = await eventStore.db
+    .selectFrom("rpcRequestResults")
+    .selectAll()
     .execute();
 
-  expect(contractReadResults).toHaveLength(1);
-  expect(contractReadResults[0]).toMatchObject({
-    address: usdcContractConfig.address,
+  expect(rpcRequestResult).toHaveLength(1);
+  expect(rpcRequestResult[0]).toMatchObject({
+    request: "0x123",
     result: "0x789",
   });
 
-  await eventStore.insertContractReadResult({
-    address: usdcContractConfig.address,
+  await eventStore.insertRpcRequestResult({
     chainId: 1,
-    data: "0x123",
+    request: "0x123",
     blockNumber: 100n,
     result: "0x789123",
   });
 
-  const contractReadResultsUpdated = await eventStore.db
-    .selectFrom("contractReadResults")
-    .select(["address", "result"])
+  const rpcRequestResultsUpdated = await eventStore.db
+    .selectFrom("rpcRequestResults")
+    .selectAll()
     .execute();
 
-  expect(contractReadResultsUpdated).toHaveLength(1);
-  expect(contractReadResultsUpdated[0]).toMatchObject({
-    address: usdcContractConfig.address,
+  expect(rpcRequestResultsUpdated).toHaveLength(1);
+  expect(rpcRequestResultsUpdated[0]).toMatchObject({
+    request: "0x123",
     result: "0x789123",
   });
 });
 
-test.skip("getContractReadResult returns data", async (context) => {
+test("getRpcRequestResult returns data", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertContractReadResult({
-    address: usdcContractConfig.address,
+  await eventStore.insertRpcRequestResult({
     chainId: 1,
-    data: "0x123",
+    request: "0x123",
     blockNumber: 100n,
     result: "0x789",
   });
 
-  const contractReadResult = await eventStore.getContractReadResult({
-    address: usdcContractConfig.address,
+  const rpcRequestResult = await eventStore.getRpcRequestResult({
     chainId: 1,
-    data: "0x123",
+    request: "0x123",
     blockNumber: 100n,
   });
 
-  expect(contractReadResult).toMatchObject({
-    address: usdcContractConfig.address,
+  expect(rpcRequestResult).toMatchObject({
     chainId: 1,
-    data: "0x123",
+    request: "0x123",
     blockNumber: 100n,
     result: "0x789",
   });
 });
 
-test.skip("getContractReadResult returns null if not found", async (context) => {
+test("getRpcRequestResult returns null if not found", async (context) => {
   const { eventStore } = context;
 
-  await eventStore.insertContractReadResult({
-    address: usdcContractConfig.address,
+  await eventStore.insertRpcRequestResult({
     chainId: 1,
-    data: "0x123",
+    request: "0x123",
     blockNumber: 100n,
     result: "0x789",
   });
 
-  const contractReadResult = await eventStore.getContractReadResult({
-    address: usdcContractConfig.address,
+  const rpcRequestResult = await eventStore.getRpcRequestResult({
+    request: "0x125",
     chainId: 1,
-    data: "0x125",
     blockNumber: 100n,
   });
 
-  expect(contractReadResult).toBe(null);
+  expect(rpcRequestResult).toBe(null);
 });
 
 test("getLogEvents returns log events", async (context) => {

@@ -1,5 +1,5 @@
 import { createClient, http } from "viem";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
@@ -33,7 +33,7 @@ test("multicall() no cache", async ({ eventStore }) => {
     ],
   });
 
-  expect(totalSupply).toBe(usdcTotalSupply16375000);
+  expect(totalSupply).toMatchObject([usdcTotalSupply16375000]);
 });
 
 test("multicall() with cache", async ({ eventStore }) => {
@@ -41,6 +41,8 @@ test("multicall() with cache", async ({ eventStore }) => {
     chain: anvil,
     transport: ponderTransport({ transport: http(), eventStore }),
   });
+
+  const callSpy = vi.spyOn(eventStore, "insertRpcRequestResult");
 
   const multicall = buildMulticall({
     getCurrentBlockNumber: () => 16375000n,
@@ -71,4 +73,5 @@ test("multicall() with cache", async ({ eventStore }) => {
   });
 
   expect(totalSupply).toMatchObject([usdcTotalSupply16375000]);
+  expect(callSpy).toHaveBeenCalledTimes(1);
 });

@@ -1,5 +1,5 @@
 import { createClient, http } from "viem";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { setupEventStore } from "@/_test/setup";
 import { anvil } from "@/_test/utils";
@@ -32,6 +32,8 @@ test("getBalance() with cache", async ({ eventStore }) => {
     transport: ponderTransport({ transport: http(), eventStore }),
   });
 
+  const callSpy = vi.spyOn(eventStore, "insertRpcRequestResult");
+
   const getBalance = buildGetBalance({
     getCurrentBlockNumber: () => 16375000n,
   });
@@ -47,4 +49,6 @@ test("getBalance() with cache", async ({ eventStore }) => {
   });
 
   expect(balance).toBe(398806329552690329n);
+
+  expect(callSpy).toHaveBeenCalledTimes(1);
 });
