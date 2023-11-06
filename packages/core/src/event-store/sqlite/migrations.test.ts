@@ -15,7 +15,7 @@ import {
   rpcToSqliteTransaction,
 } from "./format";
 
-beforeEach((context) => setupEventStore(context, { skipMigrateUp: true }));
+beforeEach((context) => setupEventStore(context, { migrateUp: false }));
 
 const seed_2023_09_19_0_new_sync_design = async (db: Kysely<any>) => {
   await db

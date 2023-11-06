@@ -9,6 +9,7 @@ import {
   HttpRequestError,
   InvalidParamsRpcError,
   LimitExceededRpcError,
+  RpcError,
   toHex,
 } from "viem";
 
@@ -883,7 +884,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   ) => {
     const logs: RpcLog[] = [];
 
-    let error: Error | null = null;
+    let error: RpcError | null = null;
 
     const stopClock = startClock();
     try {
@@ -893,7 +894,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
       logs.push(...logs_);
     } catch (err) {
-      error = err as Error;
+      error = err as RpcError;
     } finally {
       this.common.metrics.ponder_historical_rpc_request_duration.observe(
         { method: "eth_getLogs", network: this.network.name },
@@ -903,7 +904,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     if (!error) return logs;
 
-    const retryRanges: [Hex, Hex][] = [];
+    const retryRanges: ([Hex, Hex] | readonly [Hex, Hex])[] = [];
     if (
       // Alchemy response size error.
       error instanceof InvalidParamsRpcError &&
@@ -915,6 +916,20 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       retryRanges.push([toHex(safeStart), toHex(safeEnd)]);
       retryRanges.push([toHex(safeEnd + 1), options.toBlock]);
+    } else if (
+      // Another Alchemy response size error.
+      error.details.includes("Response size is larger than 150MB limit")
+    ) {
+      // No hint available, split into 10 equal ranges.
+      const from = hexToNumber(options.fromBlock);
+      const to = hexToNumber(options.toBlock);
+      const chunks = getChunks({
+        intervals: [[from, to]],
+        maxChunkSize: Math.round((to - from) / 10),
+      });
+      retryRanges.push(
+        ...chunks.map(([f, t]) => [toHex(f), toHex(t)] as const)
+      );
     } else if (
       // Infura block range limit error.
       error instanceof LimitExceededRpcError &&

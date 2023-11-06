@@ -78,7 +78,7 @@ export class UiService {
       const matchedEventCount = (
         await this.common.metrics.ponder_indexing_matched_events.get()
       ).values.reduce((a, v) => a + v.value, 0);
-      const totalEventCount = (
+      const handledEventCount = (
         await this.common.metrics.ponder_indexing_handled_events.get()
       ).values.reduce((a, v) => a + v.value, 0);
       const processedEventCount = (
@@ -89,7 +89,7 @@ export class UiService {
           await this.common.metrics.ponder_indexing_latest_processed_timestamp.get()
         ).values[0].value ?? 0;
       this.ui.totalMatchedEventCount = matchedEventCount;
-      this.ui.totalEventCount = totalEventCount;
+      this.ui.handledEventCount = handledEventCount;
       this.ui.processedEventCount = processedEventCount;
       this.ui.eventsProcessedToTimestamp = latestProcessedTimestamp;
 

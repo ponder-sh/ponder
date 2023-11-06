@@ -8,16 +8,16 @@ import { ProgressBar } from "./ProgressBar";
 
 export const IndexingBar = ({ ui }: { ui: UiState }) => {
   const completionRate =
-    ui.processedEventCount / Math.max(ui.totalMatchedEventCount, 1);
+    ui.processedEventCount / Math.max(ui.handledEventCount, 1);
   const completionDecimal = Math.round(completionRate * 1000) / 10;
   const completionText =
     Number.isInteger(completionDecimal) && completionDecimal < 100
       ? `${completionDecimal}.0%`
       : `${completionDecimal}%`;
 
-  const isStarted = ui.totalEventCount > 0;
+  const isStarted = ui.handledEventCount > 0;
   const isHistoricalSyncComplete = ui.isHistoricalSyncComplete;
-  const isUpToDate = ui.processedEventCount === ui.totalMatchedEventCount;
+  const isUpToDate = ui.processedEventCount === ui.handledEventCount;
 
   const titleText = () => {
     if (!isStarted) return <Text>(not started)</Text>;
@@ -39,15 +39,15 @@ export const IndexingBar = ({ ui }: { ui: UiState }) => {
           {" "}
           | {ui.processedEventCount}/
           {"?".repeat(ui.processedEventCount.toString().length)} events (
-          {ui.totalEventCount} total)
+          {ui.totalMatchedEventCount} total)
         </Text>
       );
     }
     return (
       <Text>
         {" "}
-        | {ui.processedEventCount}/{ui.totalMatchedEventCount} events (
-        {ui.totalEventCount} total)
+        | {ui.processedEventCount}/{ui.handledEventCount} events (
+        {ui.totalMatchedEventCount} total)
       </Text>
     );
   };
@@ -61,7 +61,7 @@ export const IndexingBar = ({ ui }: { ui: UiState }) => {
       <Box flexDirection="row">
         <ProgressBar
           current={ui.processedEventCount}
-          end={Math.max(ui.totalMatchedEventCount, 1)}
+          end={Math.max(ui.handledEventCount, 1)}
         />
         <Text>
           {" "}

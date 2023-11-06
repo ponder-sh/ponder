@@ -185,7 +185,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
           // TODO: emit a warning here that a log was not decoded.
           this.common.logger.error({
             service: "app",
-            msg: `Unable to decode log (skipping it): ${event.log}`,
+            msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
             error: err as Error,
           });
         }

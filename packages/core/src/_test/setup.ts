@@ -69,31 +69,31 @@ beforeEach((context) => {
  */
 export async function setupEventStore(
   context: TestContext,
-  options = { skipMigrateUp: false }
+  options = { migrateUp: true }
 ) {
   if (process.env.DATABASE_URL) {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
     context.eventStore = new PostgresEventStore({ pool, databaseSchema });
 
-    if (!options.skipMigrateUp) await context.eventStore.migrateUp();
+    if (options.migrateUp) await context.eventStore.migrateUp();
 
     return async () => {
       try {
         await pool.query(`DROP SCHEMA IF EXISTS "${databaseSchema}" CASCADE`);
+        await context.eventStore.kill();
       } catch (e) {
-        // This query fails in end-to-end tests where the pool has
+        // This fails in end-to-end tests where the pool has
         // already been shut down during the Ponder instance kill() method.
         // It's fine to ignore the error.
       }
-      await context.eventStore.kill();
     };
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
     const db = patchSqliteDatabase({ db: rawSqliteDb });
     context.eventStore = new SqliteEventStore({ db });
 
-    if (!options.skipMigrateUp) await context.eventStore.migrateUp();
+    if (options.migrateUp) await context.eventStore.migrateUp();
 
     return async () => {
       await context.eventStore.kill();
@@ -121,7 +121,13 @@ export async function setupUserStore(context: TestContext) {
   }
 
   return async () => {
-    await context.userStore.teardown();
+    try {
+      await context.userStore.kill();
+    } catch (e) {
+      // This fails in end-to-end tests where the pool has
+      // already been shut down during the Ponder instance kill() method.
+      // It's fine to ignore the error.
+    }
   };
 }
 

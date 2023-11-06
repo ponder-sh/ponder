@@ -280,13 +280,13 @@ export class Ponder {
       )
     );
 
-    await this.buildService.kill?.();
+    await this.buildService.kill();
     this.uiService.kill();
     this.indexingService.kill();
     await this.serverService.kill();
-    await this.userStore.teardown();
     await this.common.telemetry.kill();
 
+    await this.userStore.kill();
     await this.eventStore.kill();
 
     this.common.logger.debug({
