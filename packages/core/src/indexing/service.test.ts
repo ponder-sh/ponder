@@ -37,8 +37,6 @@ const sources: Source[] = [
   },
 ];
 
-// const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
-
 const schema = buildSchema(
   buildGraphqlSchema(`${schemaHeader}
     type TransferEvent @entity {
@@ -183,7 +181,6 @@ test("processEvents() calls indexing functions with correct arguments", async (c
         name: "Transfer",
       },
       context: {
-        contracts: {},
         entities: { TransferEvent: expect.anything() },
       },
     })

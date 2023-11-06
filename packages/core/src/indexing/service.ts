@@ -12,7 +12,6 @@ import type {
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
-import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";
 import type { ModelInstance, UserStore } from "@/user-store/store";
 import { formatShortDate } from "@/utils/date";
@@ -37,8 +36,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
   private sources: Source[];
-
-  private readOnlyContracts: Record<string, ReadOnlyContract> = {};
 
   private schema?: Schema;
   private models: Record<string, Model<ModelInstance>> = {};
@@ -74,14 +71,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
     this.sources = sources;
-
-    // The read-only contract objects only depend on config, so they can
-    // be built in the constructor (they can't be hot-reloaded).
-    // this.readOnlyContracts = buildReadOnlyContracts({
-    //   contracts,
-    //   getCurrentBlockNumber: () => this.currentEventBlockNumber,
-    //   eventStore,
-    // });
 
     this.eventProcessingMutex = new Mutex();
   }
@@ -363,7 +352,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingFunctions: IndexingFunctions;
   }) => {
     const context = {
-      contracts: this.readOnlyContracts,
       entities: this.models,
     };
 
