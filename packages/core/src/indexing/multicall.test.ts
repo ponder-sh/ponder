@@ -6,7 +6,6 @@ import { setupEventStore } from "@/_test/setup";
 import { anvil } from "@/_test/utils";
 
 import { buildMulticall } from "./multicall";
-import { buildReadContract } from "./readContract";
 import { ponderTransport } from "./transport";
 
 beforeEach((context) => setupEventStore(context));
@@ -19,14 +18,19 @@ test("multicall() no cache", async ({ eventStore }) => {
     transport: ponderTransport({ transport: http(), eventStore }),
   });
 
-  const multicall = buildReadContract({
+  const multicall = buildMulticall({
     getCurrentBlockNumber: () => 16375000n,
   });
 
   const totalSupply = await multicall(client, {
-    abi: usdcContractConfig.abi,
-    functionName: "totalSupply",
-    address: usdcContractConfig.address,
+    allowFailure: false,
+    contracts: [
+      {
+        abi: usdcContractConfig.abi,
+        functionName: "totalSupply",
+        address: usdcContractConfig.address,
+      },
+    ],
   });
 
   expect(totalSupply).toBe(usdcTotalSupply16375000);

@@ -10,9 +10,7 @@ import { multicall } from "viem/actions";
 
 /**
  * Build a function with the same api as viem's {@link https://viem.sh/docs/contract/multicall.html multicall} function,
- * but caches the results in the event store.
- *
- * @todo How to determine chainID
+ * but removes `blockTag` and `blockNumber`, overriding `blockNumber`.
  */
 export const buildMulticall =
   ({ getCurrentBlockNumber }: { getCurrentBlockNumber: () => bigint }) =>
