@@ -18,9 +18,7 @@ declare global {
 }
 
 /**
- * There are up to 4 topics in an EVM event
- *
- * @todo Change this to a more strict type
+ * There are up to 4 topics in an EVM log, so given that this could be more strict.
  */
 export type Topics = (Hex | Hex[] | null)[];
 
@@ -105,12 +103,18 @@ export const buildSources = ({
               networkContract.maxBlockRange ?? contract.maxBlockRange,
           } as const;
 
-          if ("factory" in contract) {
-            // factory
+          // Check that factory and address are not both defined
+          const resolvedFactory =
+            ("factory" in networkContract && networkContract.factory) ||
+            ("factory" in contract && contract.factory);
+          const resolvedAddress =
+            ("address" in networkContract && networkContract.address) ||
+            ("address" in contract && contract.address);
+          if (resolvedFactory && resolvedAddress)
+            throw Error("Factory and address cannot both be defined");
 
-            const resolvedFactory =
-              ("factory" in networkContract && networkContract.factory) ||
-              contract.factory;
+          if (resolvedFactory) {
+            // factory
 
             return {
               ...sharedSource,
@@ -123,15 +127,13 @@ export const buildSources = ({
           } else {
             // log filter
 
-            const resolvedAddress =
-              ("address" in networkContract && networkContract.address) ||
-              contract.address;
-
             return {
               ...sharedSource,
               type: "logFilter",
               criteria: {
-                address: resolvedAddress
+                address: Array.isArray(resolvedAddress)
+                  ? resolvedAddress.map((r) => toLowerCase(r))
+                  : resolvedAddress
                   ? toLowerCase(resolvedAddress)
                   : undefined,
                 topics,
@@ -171,7 +173,7 @@ const buildTopics = (
 };
 
 /**
- * Finds the abi event for the event string
+ * Finds the event ABI item for the safe event name.
  *
  * @param eventName Event name or event signature if there are collisions
  */

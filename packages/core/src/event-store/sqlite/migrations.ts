@@ -354,7 +354,8 @@ const migrations: Record<string, Migration> = {
       await db.schema.dropTable("contractReadResults").execute();
 
       /**
-       * request format
+       * Formatting for "request" field values:
+       *
        * eth_call: eth_call_{to}_{data}
        * eth_getBalance: eth_getBalance_{address}
        * eth_getCode: eth_getCode_{address}

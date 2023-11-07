@@ -85,7 +85,7 @@ type ContractFilter<
 > = (
   | {
       /** Contract address. */
-      address?: `0x${string}`;
+      address?: `0x${string}` | readonly `0x${string}`[];
     }
   | {
       /** Factory contract configuration. */
