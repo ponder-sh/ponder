@@ -46,8 +46,8 @@ export type SafeEventNames<
 
 export type RecoverAbiEvent<
   TAbi extends readonly AbiEvent[],
-  TSafeNames extends readonly string[],
-  TSafeName extends string
+  TSafeName extends string,
+  TSafeNames extends readonly string[] = SafeEventNames<TAbi, TAbi>
 > = TAbi extends readonly [
   infer FirstAbi,
   ...infer RestAbi extends readonly AbiEvent[]
@@ -58,9 +58,9 @@ export type RecoverAbiEvent<
     ]
     ? FirstName extends TSafeName
       ? FirstAbi
-      : RecoverAbiEvent<RestAbi, RestName, TSafeName>
-    : []
-  : [];
+      : RecoverAbiEvent<RestAbi, TSafeName, RestName>
+    : never
+  : never;
 
 type ContractRequired<
   TNetworkNames extends string,
@@ -133,8 +133,8 @@ type ContractFilter<
               },
               RecoverAbiEvent<
                 TAbi,
-                SafeEventNames<FilterEvents<TAbi>, FilterEvents<TAbi>>,
-                TEventName
+                TEventName,
+                SafeEventNames<FilterEvents<TAbi>, FilterEvents<TAbi>>
               > extends infer _abiEvent extends AbiEvent
                 ? _abiEvent
                 : AbiEvent
@@ -198,7 +198,7 @@ export type ResolvedConfig = {
   /** List of blockchain networks. */
   networks: readonly Network[];
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
-  contracts?: readonly Contract<string, readonly AbiEvent[], string>[];
+  contracts: readonly Contract<string, readonly AbiEvent[], string>[];
   /** Configuration for Ponder internals. */
   options?: Option;
 };

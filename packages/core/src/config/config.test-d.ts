@@ -124,11 +124,11 @@ test("RecoverAbiEvent", () => {
   type a = RecoverAbiEvent<
     // ^?
     FilterEvents<typeof abiSimple>,
+    "Approve",
     SafeEventNames<
       FilterEvents<typeof abiSimple>,
       FilterEvents<typeof abiSimple>
-    >,
-    "Approve"
+    >
   >;
 
   assertType<a>(abiSimple[1]);
