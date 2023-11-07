@@ -1,12 +1,39 @@
-import { ParseAbi } from "abitype";
+import { AbiEvent, ParseAbi } from "abitype";
 import { assertType, test } from "vitest";
 
-import { PonderApp } from "./ponderApp";
+import { ExtractAddress, ExtractAllAddresses, PonderApp } from "./ponderApp";
 
 type OneAbi = ParseAbi<
   ["event Event0(bytes32 indexed arg3)", "event Event1(bytes32 indexed)"]
 >;
 type TwoAbi = ParseAbi<["event Event(bytes32 indexed)", "event Event()"]>;
+
+test("ExtractAddress", () => {
+  type a = ExtractAddress<{ address: "0x2" }>;
+  //   ^?
+  assertType<a>("" as "0x2");
+
+  type b = ExtractAddress<{
+    // ^?
+    factory: { address: "0x2"; event: AbiEvent; parameter: string };
+  }>;
+  assertType<b>("" as never);
+});
+
+test("ExtractAllAddress", () => {
+  type a = ExtractAllAddresses<
+    // ^?
+    [
+      { name: "optimism"; address: "0x2" },
+      {
+        name: "optimism";
+        factory: { address: "0x2"; event: AbiEvent; parameter: string };
+      }
+    ]
+  >[never];
+  //   ^?
+  assertType<a>("" as "0x2");
+});
 
 test("PonderApp non intersecting event names", () => {
   type p = PonderApp<{
@@ -73,3 +100,66 @@ test("PonderApp event type"),
     (({}) as p).on("One:Event1", ({ event }) => {});
     //                              ^?
   };
+
+test("PonderApp context network type", () => {
+  type p = PonderApp<{
+    // ^?
+    networks: any;
+    contracts: readonly [
+      {
+        name: "One";
+        network: [{ name: "mainnet" }, { name: "optimism" }];
+        abi: OneAbi;
+      }
+    ];
+  }>;
+
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  (({}) as p).on("One:Event1", ({ context }) => {});
+  //                              ^?
+});
+
+test("PonderApp context client type", () => {
+  type p = PonderApp<{
+    // ^?
+    networks: any;
+    contracts: readonly [
+      {
+        name: "One";
+        network: [{ name: "mainnet" }, { name: "optimism" }];
+        abi: OneAbi;
+      }
+    ];
+  }>;
+
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  (({}) as p).on("One:Event1", ({ context: { client } }) => {});
+  //                                         ^?
+});
+
+test("PonderApp context contracts type", () => {
+  type p = PonderApp<{
+    // ^?
+    networks: any;
+    contracts: readonly [
+      {
+        name: "One";
+        network: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
+        abi: OneAbi;
+        address: "0x2";
+        startBlock: 1;
+        endBlock: 2;
+      }
+    ];
+  }>;
+
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  (({}) as p).on("One:Event1", ({ context: { contracts } }) => {});
+  //                                         ^?
+});

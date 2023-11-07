@@ -2,7 +2,7 @@ import Sqlite from "better-sqlite3";
 import path from "node:path";
 import pg, { Client, DatabaseError, Pool } from "pg";
 
-import type { ResolvedConfig } from "@/config/config";
+import type { Config } from "@/config/config";
 import type { Options } from "@/config/options";
 import { PostgresError } from "@/errors/postgres";
 import { SqliteError } from "@/errors/sqlite";
@@ -91,9 +91,9 @@ export const buildDatabase = ({
   config,
 }: {
   options: Options;
-  config: ResolvedConfig;
+  config: Config;
 }): Database => {
-  let resolvedDatabaseConfig: NonNullable<ResolvedConfig["database"]>;
+  let resolvedDatabaseConfig: NonNullable<Config["database"]>;
 
   const defaultSqliteFilename = path.join(options.ponderDir, "cache.db");
 

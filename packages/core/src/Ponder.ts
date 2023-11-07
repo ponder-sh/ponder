@@ -3,7 +3,7 @@ import process from "node:process";
 
 import { BuildService } from "@/build/service";
 import { CodegenService } from "@/codegen/service";
-import { type ResolvedConfig } from "@/config/config";
+import { type Config } from "@/config/config";
 import { buildDatabase } from "@/config/database";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
@@ -64,7 +64,7 @@ export class Ponder {
     userStore,
   }: {
     options: Options;
-    config: ResolvedConfig;
+    config: Config;
     // These options are only used for testing.
     eventStore?: EventStore;
     userStore?: UserStore;

@@ -1,7 +1,7 @@
 import { http } from "viem";
 import { expect, test } from "vitest";
 
-import { createConfig, ResolvedConfig } from "./config";
+import { Config, createConfig } from "./config";
 import { abiSimple, abiWithSameEvent } from "./config.test-d";
 import { buildSources } from "./sources";
 
@@ -27,7 +27,7 @@ test("buildSources() builds topics for multiple events", () => {
           maxBlockRange: 10,
         },
       ],
-    }) as unknown as ResolvedConfig,
+    }) as unknown as Config,
   });
 
   expect(sources[0].criteria.topics).toMatchObject([
@@ -65,7 +65,7 @@ test("buildSources() for duplicate event", () => {
           maxBlockRange: 10,
         },
       ],
-    }) as unknown as ResolvedConfig,
+    }) as unknown as Config,
   });
 
   expect(sources[0].criteria.topics).toMatchObject([
@@ -103,7 +103,7 @@ test("buildSources() builds topics for event with args", () => {
           maxBlockRange: 10,
         },
       ],
-    }) as unknown as ResolvedConfig,
+    }) as unknown as Config,
   });
 
   expect(sources[0].criteria.topics).toMatchObject([
@@ -140,7 +140,7 @@ test("buildSources() overrides default values with network values", () => {
           maxBlockRange: 10,
         },
       ],
-    }) as unknown as ResolvedConfig,
+    }) as unknown as Config,
   });
 
   expect(sources[0].criteria.address).toBe(

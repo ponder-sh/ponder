@@ -11,7 +11,7 @@ import {
 import { toLowerCase } from "@/utils/lowercase";
 
 import { AbiEvents, getEvents } from "./abi";
-import { ResolvedConfig } from "./config";
+import { Config } from "./config";
 import { buildFactoryCriteria } from "./factories";
 
 /**
@@ -70,11 +70,7 @@ export const sourceIsLogFilter = (source: Source): source is LogFilter =>
 export const sourceIsFactory = (source: Source): source is Factory =>
   source.type === "factory";
 
-export const buildSources = ({
-  config,
-}: {
-  config: ResolvedConfig;
-}): Source[] => {
+export const buildSources = ({ config }: { config: Config }): Source[] => {
   const contracts = config.contracts ?? [];
 
   return contracts
@@ -155,9 +151,7 @@ export const buildSources = ({
 
 const buildTopics = (
   abi: Abi,
-  filter: NonNullable<
-    NonNullable<ResolvedConfig["contracts"]>[number]["filter"]
-  >
+  filter: NonNullable<NonNullable<Config["contracts"]>[number]["filter"]>
 ): Topics => {
   if (Array.isArray(filter.event)) {
     // List of event signatures

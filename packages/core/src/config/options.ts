@@ -3,7 +3,7 @@ import type { LevelWithSilent } from "pino";
 
 import type { CliOptions } from "@/bin/ponder";
 
-import type { ResolvedConfig } from "./config";
+import type { Config } from "./config";
 
 export type Options = {
   configFile: string;
@@ -29,7 +29,7 @@ export const buildOptions = ({
   configOptions = {},
 }: {
   cliOptions: CliOptions;
-  configOptions?: ResolvedConfig["options"];
+  configOptions?: Config["options"];
 }): Options => {
   const railwayHealthcheckTimeout = process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC
     ? Math.max(Number(process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC) - 5, 0) // Add 5 seconds of buffer.
