@@ -1,5 +1,12 @@
 import { AbiEvent, parseAbiItem } from "abitype";
-import { Abi, Address, encodeEventTopics, getAbiItem, Hex } from "viem";
+import {
+  Abi,
+  Address,
+  encodeEventTopics,
+  getAbiItem,
+  getEventSelector,
+  Hex,
+} from "viem";
 
 import { toLowerCase } from "@/utils/lowercase";
 
@@ -155,13 +162,7 @@ const buildTopics = (
   if (Array.isArray(filter.event)) {
     // List of event signatures
     return [
-      filter.event
-        .map((event) =>
-          encodeEventTopics({
-            abi: [findAbiEvent(abi, event)],
-          })
-        )
-        .flat(),
+      filter.event.map((event) => getEventSelector(findAbiEvent(abi, event))),
     ];
   } else {
     // Single event with args
