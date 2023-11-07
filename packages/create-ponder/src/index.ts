@@ -88,7 +88,7 @@ export const run = async (
     }
   }
 
-  // Write the handler ts files.
+  // Write the indexing function files.
   config.contracts.forEach((contract) => {
     let abi: Abi;
     if (Array.isArray(contract.abi)) {
@@ -110,7 +110,7 @@ export const run = async (
 
     const eventNamesToWrite = abiEvents.map((event) => event.name).slice(0, 2);
 
-    const handlerFileContents = `
+    const indexingFunctionFileContents = `
       import { ponder } from '@/generated'
 
       ${eventNamesToWrite
@@ -125,7 +125,7 @@ export const run = async (
 
     writeFileSync(
       path.join(rootDir, `./src/${contract.name}.ts`),
-      prettier.format(handlerFileContents, { parser: "typescript" })
+      prettier.format(indexingFunctionFileContents, { parser: "typescript" })
     );
   });
 

@@ -6,25 +6,25 @@ import { formatShortDate } from "@/utils/date";
 import type { UiState } from "./app";
 import { ProgressBar } from "./ProgressBar";
 
-export const HandlersBar = ({ ui }: { ui: UiState }) => {
+export const IndexingBar = ({ ui }: { ui: UiState }) => {
   const completionRate =
-    ui.handlersCurrent / Math.max(ui.handlersHandledTotal, 1);
+    ui.processedEventCount / Math.max(ui.handledEventCount, 1);
   const completionDecimal = Math.round(completionRate * 1000) / 10;
   const completionText =
     Number.isInteger(completionDecimal) && completionDecimal < 100
       ? `${completionDecimal}.0%`
       : `${completionDecimal}%`;
 
-  const isStarted = ui.handlersTotal > 0;
+  const isStarted = ui.handledEventCount > 0;
   const isHistoricalSyncComplete = ui.isHistoricalSyncComplete;
-  const isUpToDate = ui.handlersCurrent === ui.handlersHandledTotal;
+  const isUpToDate = ui.processedEventCount === ui.handledEventCount;
 
   const titleText = () => {
     if (!isStarted) return <Text>(not started)</Text>;
     if (!isHistoricalSyncComplete || !isUpToDate) {
       return (
         <Text color="yellow">
-          (up to {formatShortDate(ui.handlersToTimestamp)})
+          (up to {formatShortDate(ui.eventsProcessedToTimestamp)})
         </Text>
       );
     }
@@ -37,17 +37,17 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
       return (
         <Text>
           {" "}
-          | {ui.handlersCurrent}/
-          {"?".repeat(ui.handlersCurrent.toString().length)} events (
-          {ui.handlersTotal} total)
+          | {ui.processedEventCount}/
+          {"?".repeat(ui.processedEventCount.toString().length)} events (
+          {ui.totalMatchedEventCount} total)
         </Text>
       );
     }
     return (
       <Text>
         {" "}
-        | {ui.handlersCurrent}/{ui.handlersHandledTotal} events (
-        {ui.handlersTotal} total)
+        | {ui.processedEventCount}/{ui.handledEventCount} events (
+        {ui.totalMatchedEventCount} total)
       </Text>
     );
   };
@@ -55,13 +55,13 @@ export const HandlersBar = ({ ui }: { ui: UiState }) => {
   return (
     <Box flexDirection="column">
       <Box flexDirection="row">
-        <Text bold={true}>Event handlers </Text>
+        <Text bold={true}>Indexing </Text>
         <Text>{titleText()}</Text>
       </Box>
       <Box flexDirection="row">
         <ProgressBar
-          current={ui.handlersCurrent}
-          end={Math.max(ui.handlersHandledTotal, 1)}
+          current={ui.processedEventCount}
+          end={Math.max(ui.handledEventCount, 1)}
         />
         <Text>
           {" "}

@@ -10,9 +10,8 @@ import type { ViteNodeRunner } from "vite-node/client";
 // @ts-ignore
 import type { ViteNodeServer } from "vite-node/server";
 
-import type { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
-import type { ResolvedConfig } from "@/config/types";
+import type { ResolvedConfig } from "@/config/config";
+import type { Source } from "@/config/sources";
 import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
@@ -20,23 +19,22 @@ import type { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/schema";
 
 import {
-  type HandlerFunctions,
-  hydrateHandlerFunctions,
-  RawHandlerFunctions,
-} from "./handlers";
+  type IndexingFunctions,
+  type RawIndexingFunctions,
+  hydrateIndexingFunctions,
+} from "./functions";
 import { readGraphqlSchema } from "./schema";
 import { parseViteNodeError, ViteNodeError } from "./stacktrace";
 
 type BuildServiceEvents = {
-  newConfig: { config: ResolvedConfig };
-  newHandlers: { handlers: HandlerFunctions };
+  newConfig: undefined;
+  newIndexingFunctions: { indexingFunctions: IndexingFunctions };
   newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
   private common: Common;
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
   private srcRegex: RegExp;
 
@@ -46,19 +44,10 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   private indexingFunctions: Record<string, Record<string, any>> = {};
 
-  constructor({
-    common,
-    logFilters,
-    factories,
-  }: {
-    common: Common;
-    logFilters: LogFilter[];
-    factories: Factory[];
-  }) {
+  constructor({ common, sources }: { common: Common; sources: Source[] }) {
     super();
     this.common = common;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
 
     this.srcRegex = new RegExp(
       "^" + this.common.options.srcDir + ".*\\.(js|ts)$"
@@ -273,35 +262,34 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     // TODO: Update this to be less awful.
-    const rawHandlerFunctions: RawHandlerFunctions = { eventSources: {} };
+    const rawIndexingFunctions: RawIndexingFunctions = { eventSources: {} };
     for (const file of Object.keys(this.indexingFunctions)) {
       for (const [fullName, fn] of Object.entries(
         this.indexingFunctions[file]
       )) {
         if (fullName === "setup") {
-          rawHandlerFunctions._meta_ ||= {};
-          rawHandlerFunctions._meta_.setup = fn;
+          rawIndexingFunctions._meta_ ||= {};
+          rawIndexingFunctions._meta_.setup = fn;
         } else {
           const [eventSourceName, eventName] = fullName.split(":");
           if (!eventSourceName || !eventName)
             throw new Error(`Invalid event name: ${fullName}`);
-          rawHandlerFunctions.eventSources[eventSourceName] ||= {};
-          if (rawHandlerFunctions.eventSources[eventSourceName][eventName])
+          rawIndexingFunctions.eventSources[eventSourceName] ||= {};
+          if (rawIndexingFunctions.eventSources[eventSourceName][eventName])
             throw new Error(
               `Cannot add multiple handler functions for event: ${name}`
             );
-          rawHandlerFunctions.eventSources[eventSourceName][eventName] = fn;
+          rawIndexingFunctions.eventSources[eventSourceName][eventName] = fn;
         }
       }
     }
 
-    const handlers = hydrateHandlerFunctions({
-      rawHandlerFunctions,
-      logFilters: this.logFilters,
-      factories: this.factories,
+    const indexingFunctions = hydrateIndexingFunctions({
+      rawIndexingFunctions,
+      sources: this.sources,
     });
 
-    this.emit("newHandlers", { handlers });
+    this.emit("newIndexingFunctions", { indexingFunctions });
   }
 
   private async executeFile(file: string) {
@@ -357,7 +345,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       // TODO: Parse GraphQLError instances better here.
       // We can use the `.locations` property to build a pretty codeframe.
 
-      // TODO: Build the UserError object within readHandlers, check instanceof,
+      // TODO: Build the UserError object within readIndexingFunctions, check instanceof,
       // then log/submit as-is if it's already a UserError.
       const message = `Error while building schema.graphql: ${error.message}`;
       const userError = new UserError(message, {

@@ -4,6 +4,8 @@ import {
 } from "ethereum-bloom-filters";
 import type { Address, Hex } from "viem";
 
+import { Topics } from "@/config/sources";
+
 export function isMatchedLogInBloomFilter({
   bloom,
   logFilters,
@@ -11,7 +13,7 @@ export function isMatchedLogInBloomFilter({
   bloom: Hex;
   logFilters: {
     address?: Address | Address[];
-    topics?: (Hex | Hex[] | null)[];
+    topics?: Topics;
   }[];
 }) {
   const allAddresses: Address[] = [];

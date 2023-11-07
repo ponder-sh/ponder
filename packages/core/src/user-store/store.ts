@@ -78,7 +78,7 @@ export interface UserStore {
   versionId?: string;
 
   reload(options?: { schema?: Schema }): Promise<void>;
-  teardown(): Promise<void>;
+  kill(): Promise<void>;
 
   revert(options: { safeTimestamp: number }): Promise<void>;
 

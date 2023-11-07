@@ -1,35 +1,23 @@
-import type { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
+import { Source } from "@/config/sources";
 import type { Common } from "@/Ponder";
 
 import { type UiState, buildUiState, setupInkApp } from "./app";
 
 export class UiService {
   private common: Common;
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
   ui: UiState;
   renderInterval: NodeJS.Timer;
   render: () => void;
   unmount: () => void;
 
-  constructor({
-    common,
-    logFilters,
-    factories,
-  }: {
-    common: Common;
-    logFilters: LogFilter[];
-    factories: Factory[];
-  }) {
+  constructor({ common, sources }: { common: Common; sources: Source[] }) {
     this.common = common;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
 
     this.ui = buildUiState({
-      logFilters: this.logFilters,
-      factories: this.factories,
+      sources: this.sources,
     });
 
     if (this.common.options.uiEnabled) {
@@ -86,27 +74,27 @@ export class UiService {
 
       this.ui.networks = connectedNetworks;
 
-      // Handlers
-      const matchedEvents = (
-        await this.common.metrics.ponder_handlers_matched_events.get()
+      // Indexing
+      const matchedEventCount = (
+        await this.common.metrics.ponder_indexing_matched_events.get()
       ).values.reduce((a, v) => a + v.value, 0);
-      const handledEvents = (
-        await this.common.metrics.ponder_handlers_handled_events.get()
+      const handledEventCount = (
+        await this.common.metrics.ponder_indexing_handled_events.get()
       ).values.reduce((a, v) => a + v.value, 0);
-      const processedEvents = (
-        await this.common.metrics.ponder_handlers_processed_events.get()
+      const processedEventCount = (
+        await this.common.metrics.ponder_indexing_processed_events.get()
       ).values.reduce((a, v) => a + v.value, 0);
       const latestProcessedTimestamp =
         (
-          await this.common.metrics.ponder_handlers_latest_processed_timestamp.get()
+          await this.common.metrics.ponder_indexing_latest_processed_timestamp.get()
         ).values[0].value ?? 0;
-      this.ui.handlersTotal = matchedEvents;
-      this.ui.handlersHandledTotal = handledEvents;
-      this.ui.handlersCurrent = processedEvents;
-      this.ui.handlersToTimestamp = latestProcessedTimestamp;
+      this.ui.totalMatchedEventCount = matchedEventCount;
+      this.ui.handledEventCount = handledEventCount;
+      this.ui.processedEventCount = processedEventCount;
+      this.ui.eventsProcessedToTimestamp = latestProcessedTimestamp;
 
       // Errors
-      this.ui.handlerError = this.common.errors.hasUserError;
+      this.ui.indexingError = this.common.errors.hasUserError;
 
       // Server
       const port = (await this.common.metrics.ponder_server_port.get())

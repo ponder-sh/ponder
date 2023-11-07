@@ -1,7 +1,9 @@
-import type { Config } from "@ponder/core";
+import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-export const config: Config = {
+import { FriendtechSharesV1Abi } from "./abis/FriendtechSharesV1.abi";
+
+export const config = createConfig({
   networks: [
     {
       name: "base",
@@ -12,11 +14,11 @@ export const config: Config = {
   contracts: [
     {
       name: "FriendtechSharesV1",
-      network: "base",
-      abi: "./abis/FriendtechSharesV1.json",
+      network: [{ name: "base" }],
+      abi: FriendtechSharesV1Abi,
       address: "0xcf205808ed36593aa40a44f10c7f7c2f67d4a4d4",
       startBlock: 2430440,
       maxBlockRange: 100,
     },
   ],
-};
+});

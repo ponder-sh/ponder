@@ -150,22 +150,21 @@ export class SqliteUserStore implements UserStore {
     });
   };
 
-  /**
-   * Tears down the store by dropping all tables for the current schema.
-   */
-  teardown = async () => {
-    if (!this.schema) return;
+  async kill() {
+    const entities = this.schema?.entities ?? [];
+    if (entities.length > 0) {
+      await this.db.transaction().execute(async (tx) => {
+        await Promise.all(
+          entities.map(async (model) => {
+            const tableName = `${model.name}_${this.versionId}`;
+            await tx.schema.dropTable(tableName).execute();
+          })
+        );
+      });
+    }
 
-    // Drop tables from existing schema.
-    await this.db.transaction().execute(async (tx) => {
-      await Promise.all(
-        this.schema!.entities.map((model) => {
-          const tableName = `${model.name}_${this.versionId}`;
-          tx.schema.dropTable(tableName);
-        })
-      );
-    });
-  };
+    await this.db.destroy();
+  }
 
   findUnique = async ({
     modelName,
@@ -428,8 +427,8 @@ export class SqliteUserStore implements UserStore {
     const instance = await this.db.transaction().execute(async (tx) => {
       // If the latest version is effective from the delete timestamp,
       // then delete the instance in place. It "never existed".
-      // This needs to be done first, because an update() earlier in the handler
-      // call would have created a new version with the delete timestamp.
+      // This needs to be done first, because an update() earlier in the
+      // indexing function would have created a new version with the delete timestamp.
       // Attempting to update first would result in a constraint violation.
       let deletedInstance = await tx
         .deleteFrom(tableName)

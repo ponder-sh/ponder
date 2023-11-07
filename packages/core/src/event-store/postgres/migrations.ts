@@ -328,6 +328,10 @@ const migrations: Record<string, Migration> = {
         .addColumn("address", "varchar(42)", (col) => col.notNull())
         .addColumn("eventSelector", "varchar(66)", (col) => col.notNull())
         .addColumn("childAddressLocation", "text", (col) => col.notNull()) // `topic${number}` or `offset${number}`
+        .addColumn("topic0", "varchar(66)")
+        .addColumn("topic1", "varchar(66)")
+        .addColumn("topic2", "varchar(66)")
+        .addColumn("topic3", "varchar(66)")
         .execute();
       await db.schema
         .createTable("factoryLogFilterIntervals")
@@ -342,6 +346,32 @@ const migrations: Record<string, Migration> = {
         .createIndex("factoryLogFilterIntervalsFactoryId")
         .on("factoryLogFilterIntervals")
         .column("factoryId")
+        .execute();
+    },
+  },
+  ["2023_11_06_0_new_rpc_cache_design"]: {
+    async up(db: Kysely<any>) {
+      await db.schema.dropTable("contractReadResults").execute();
+
+      /**
+       * Formatting for "request" field values:
+       *
+       * eth_call: eth_call_{to}_{data}
+       * eth_getBalance: eth_getBalance_{address}
+       * eth_getCode: eth_getCode_{address}
+       * eth_getStorageAt: eth_getStorageAt_{address}_{slot}
+       */
+      await db.schema
+        .createTable("rpcRequestResults")
+        .addColumn("request", "text", (col) => col.notNull())
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("rpcRequestResultPrimaryKey", [
+          "request",
+          "chainId",
+          "blockNumber",
+        ])
         .execute();
     },
   },

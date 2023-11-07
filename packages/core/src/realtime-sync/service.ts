@@ -8,9 +8,12 @@ import {
   numberToHex,
 } from "viem";
 
-import type { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
+import {
+  type Source,
+  sourceIsFactory,
+  sourceIsLogFilter,
+} from "@/config/sources";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import { poll } from "@/utils/poll";
@@ -40,8 +43,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private common: Common;
   private eventStore: EventStore;
   private network: Network;
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
   // Queue of unprocessed blocks.
   private queue: RealtimeSyncQueue;
@@ -56,22 +58,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     common,
     eventStore,
     network,
-    logFilters = [],
-    factories = [],
+    sources = [],
   }: {
     common: Common;
     eventStore: EventStore;
     network: Network;
-    logFilters?: LogFilter[];
-    factories?: Factory[];
+    sources?: Source[];
   }) {
     super();
 
     this.common = common;
     this.eventStore = eventStore;
     this.network = network;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
 
     this.queue = this.buildQueue();
   }
@@ -111,9 +110,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // If an endBlock is specified for every event source on this network, and the
     // latest end blcock is less than the finalized block number, we can stop here.
     // The service won't poll for new blocks and won't emit any events.
-    const endBlocks = [...this.logFilters, ...this.factories].map(
-      (f) => f.endBlock
-    );
+    const endBlocks = this.sources.map((f) => f.endBlock);
     if (
       endBlocks.every(
         (endBlock) =>
@@ -274,12 +271,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       let logs: RpcLog[];
       let matchedLogs: RpcLog[];
 
-      if (this.factories.length === 0) {
+      if (!this.sources.some(sourceIsFactory)) {
         // If there are no factory contracts, we can attempt to skip calling eth_getLogs by
         // checking if the block logsBloom matches any of the log filters.
         const doesBlockHaveLogFilterLogs = isMatchedLogInBloomFilter({
           bloom: newBlockWithTransactions.logsBloom!,
-          logFilters: this.logFilters.map((l) => l.criteria),
+          logFilters: this.sources.map((s) => s.criteria),
         });
 
         if (!doesBlockHaveLogFilterLogs) {
@@ -303,7 +300,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
           matchedLogs = filterLogs({
             logs,
-            logFilters: this.logFilters.map((l) => l.criteria),
+            logFilters: this.sources.map((s) => s.criteria),
           });
         }
       } else {
@@ -321,7 +318,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         // Find and insert any new child contracts.
         await Promise.all(
-          this.factories.map(async (factory) => {
+          this.sources.filter(sourceIsFactory).map(async (factory) => {
             const matchedFactoryLogs = filterLogs({
               logs,
               logFilters: [
@@ -343,30 +340,29 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // NOTE: It might make sense to just insert all logs rather than introduce
         // a potentially slow DB operation here. It's a tradeoff between sync
         // latency and database growth.
-        const allChildContractAddresses = (
-          await Promise.all(
-            this.factories.map(async (factory) => {
-              const iterator = this.eventStore.getFactoryChildAddresses({
-                chainId: this.network.chainId,
-                factory: factory.criteria,
-                upToBlockNumber: hexToBigInt(block.number!),
-              });
-              const childContractAddresses: Hex[] = [];
-              for await (const batch of iterator) {
-                childContractAddresses.push(...batch);
-              }
-              return childContractAddresses;
-            })
-          )
-        ).flat();
+        const factoryLogFilters = await Promise.all(
+          this.sources.filter(sourceIsFactory).map(async (factory) => {
+            const iterator = this.eventStore.getFactoryChildAddresses({
+              chainId: this.network.chainId,
+              factory: factory.criteria,
+              upToBlockNumber: hexToBigInt(block.number!),
+            });
+            const childContractAddresses: Hex[] = [];
+            for await (const batch of iterator) {
+              childContractAddresses.push(...batch);
+            }
+            return {
+              address: childContractAddresses,
+              topics: factory.criteria.topics,
+            };
+          })
+        );
 
         matchedLogs = filterLogs({
           logs,
           logFilters: [
-            ...this.logFilters.map((l) => l.criteria),
-            ...(allChildContractAddresses.length > 0
-              ? [{ address: allChildContractAddresses }]
-              : []),
+            ...this.sources.filter(sourceIsLogFilter).map((l) => l.criteria),
+            ...factoryLogFilters,
           ],
         });
       }
@@ -447,8 +443,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // 3) Child filter intervals
         await this.eventStore.insertRealtimeInterval({
           chainId: this.network.chainId,
-          logFilters: this.logFilters.map((l) => l.criteria),
-          factories: this.factories.map((f) => f.criteria),
+          logFilters: this.sources
+            .filter(sourceIsLogFilter)
+            .map((l) => l.criteria),
+          factories: this.sources
+            .filter(sourceIsFactory)
+            .map((f) => f.criteria),
           interval: {
             startBlock: BigInt(this.finalizedBlockNumber + 1),
             endBlock: BigInt(newFinalizedBlock.number),

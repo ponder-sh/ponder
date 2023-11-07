@@ -2,9 +2,8 @@ import Emittery from "emittery";
 import { type Hex, decodeEventLog } from "viem";
 
 import { LogEventMetadata } from "@/config/abi";
-import { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
+import { Source, sourceIsFactory, sourceIsLogFilter } from "@/config/sources";
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import type { Block } from "@/types/block";
@@ -44,8 +43,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   private common: Common;
   private eventStore: EventStore;
   private networks: Network[];
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
   // Minimum timestamp at which events are available (across all networks).
   checkpoint: number;
@@ -72,22 +70,19 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     common,
     eventStore,
     networks,
-    logFilters = [],
-    factories = [],
+    sources = [],
   }: {
     common: Common;
     eventStore: EventStore;
     networks: Network[];
-    logFilters?: LogFilter[];
-    factories?: Factory[];
+    sources?: Source[];
   }) {
     super();
 
     this.common = common;
     this.eventStore = eventStore;
     this.networks = networks;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
     this.metrics = {};
 
     this.checkpoint = 0;
@@ -114,11 +109,11 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
   async *getEvents({
     fromTimestamp,
     toTimestamp,
-    handledEventMetadata,
+    indexingMetadata,
   }: {
     fromTimestamp: number;
     toTimestamp: number;
-    handledEventMetadata: {
+    indexingMetadata: {
       [eventSourceName: string]:
         | {
             bySelector: { [selector: Hex]: LogEventMetadata };
@@ -129,24 +124,24 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     const iterator = this.eventStore.getLogEvents({
       fromTimestamp,
       toTimestamp,
-      logFilters: this.logFilters.map((logFilter) => ({
+      logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
         name: logFilter.name,
         chainId: logFilter.chainId,
         criteria: logFilter.criteria,
         fromBlock: logFilter.startBlock,
         toBlock: logFilter.endBlock,
         includeEventSelectors: Object.keys(
-          handledEventMetadata[logFilter.name]?.bySelector ?? {}
+          indexingMetadata[logFilter.name]?.bySelector ?? {}
         ) as Hex[],
       })),
-      factories: this.factories.map((factory) => ({
+      factories: this.sources.filter(sourceIsFactory).map((factory) => ({
         name: factory.name,
         chainId: factory.chainId,
         criteria: factory.criteria,
         fromBlock: factory.startBlock,
         toBlock: factory.endBlock,
         includeEventSelectors: Object.keys(
-          handledEventMetadata[factory.name]?.bySelector ?? {}
+          indexingMetadata[factory.name]?.bySelector ?? {}
         ) as Hex[],
       })),
     });
@@ -163,7 +158,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         }
 
         const logEventMetadata =
-          handledEventMetadata[event.eventSourceName]?.bySelector[selector];
+          indexingMetadata[event.eventSourceName]?.bySelector[selector];
         if (!logEventMetadata) {
           throw new Error(
             `Metadata for event ${event.eventSourceName}:${selector} not found in includeEvents`
@@ -190,7 +185,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
           // TODO: emit a warning here that a log was not decoded.
           this.common.logger.error({
             service: "app",
-            msg: `Unable to decode log (skipping it): ${event.log}`,
+            msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
             error: err as Error,
           });
         }

@@ -1,5 +1,5 @@
 {
-  "name": "ponder-examples-token-erc20-with-docker",
+  "name": "ponder-examples-with-docker",
   "private": true,
   "scripts": {
     "dev:up": "docker-compose -f docker-compose-local.yml up",

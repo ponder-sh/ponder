@@ -3,8 +3,8 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
-import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
+import type { Source } from "@/config/sources";
 
 import { EventAggregatorService } from "./service";
 
@@ -35,9 +35,10 @@ const usdcLogFilter = {
   chainId: mainnet.chainId,
   criteria: { address: usdcContractConfig.address },
   startBlock: 16369950,
-};
+  type: "logFilter",
+} as const;
 
-const logFilters: LogFilter[] = [
+const sources: Source[] = [
   usdcLogFilter,
   {
     ...usdcLogFilter,
@@ -54,7 +55,7 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
     common,
     eventStore,
     networks,
-    logFilters,
+    sources,
   });
   const emitSpy = vi.spyOn(service, "emit");
 
@@ -76,7 +77,7 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
   const service = new EventAggregatorService({
     common,
     eventStore,
-    logFilters,
+    sources,
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -106,7 +107,7 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
   const service = new EventAggregatorService({
     common,
     eventStore,
-    logFilters,
+    sources,
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -134,7 +135,7 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
   const service = new EventAggregatorService({
     common,
     eventStore,
-    logFilters,
+    sources,
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -163,7 +164,7 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
   const service = new EventAggregatorService({
     common,
     eventStore,
-    logFilters,
+    sources,
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -201,7 +202,7 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) 
   const service = new EventAggregatorService({
     common,
     eventStore,
-    logFilters,
+    sources,
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -227,7 +228,7 @@ test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequ
   const service = new EventAggregatorService({
     common,
     eventStore,
-    logFilters,
+    sources,
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");
@@ -257,7 +258,7 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent even
   const service = new EventAggregatorService({
     common,
     eventStore,
-    logFilters,
+    sources,
     networks,
   });
   const emitSpy = vi.spyOn(service, "emit");

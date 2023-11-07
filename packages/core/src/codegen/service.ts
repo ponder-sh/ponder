@@ -3,40 +3,23 @@ import { GraphQLSchema, printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { Contract } from "@/config/contracts";
-import { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
+import { Source } from "@/config/sources";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
 import { ensureDirExists } from "@/utils/exists";
 
-import { buildContractTypes } from "./contract";
 import { buildEntityTypes } from "./entity";
 import { buildEventTypes } from "./event";
 import { formatPrettier } from "./prettier";
 
 export class CodegenService extends Emittery {
   private common: Common;
-  private contracts: Contract[];
-  private logFilters: LogFilter[];
-  private factories: Factory[];
+  private sources: Source[];
 
-  constructor({
-    common,
-    contracts,
-    logFilters,
-    factories,
-  }: {
-    common: Common;
-    contracts: Contract[];
-    logFilters: LogFilter[];
-    factories: Factory[];
-  }) {
+  constructor({ common, sources }: { common: Common; sources: Source[] }) {
     super();
     this.common = common;
-    this.contracts = contracts;
-    this.logFilters = logFilters;
-    this.factories = factories;
+    this.sources = sources;
   }
 
   generateAppFile({ schema }: { schema?: Schema } = {}) {
@@ -56,16 +39,10 @@ export class CodegenService extends Emittery {
   
       /* CONTRACT TYPES */
 
-      ${buildContractTypes(this.contracts)}
-
       /* CONTEXT TYPES */
 
       export type Context = {
-        contracts: {
-          ${this.contracts
-            .map((contract) => `${contract.name}: ${contract.name};`)
-            .join("")}
-        },
+    
         entities: {
           ${entities
             .map((entity) => `${entity.name}: Model<${entity.name}>;`)
@@ -74,11 +51,10 @@ export class CodegenService extends Emittery {
       }
 
   
-      /* HANDLER TYPES */
+      /* INDEXING FUNCTION TYPES */
     
       ${buildEventTypes({
-        logFilters: this.logFilters,
-        factories: this.factories,
+        sources: this.sources,
       })}
 
       export const ponder = new PonderApp<AppType>();
