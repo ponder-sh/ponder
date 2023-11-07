@@ -10,9 +10,8 @@ import {
 } from "@/_test/constants";
 import { resetTestClient, setupEventStore } from "@/_test/setup";
 import { publicClient, testClient, walletClient } from "@/_test/utils";
-import { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
 import type { Network } from "@/config/networks";
+import type { Source } from "@/config/sources";
 import { decodeToBigInt } from "@/utils/encoding";
 import { range } from "@/utils/range";
 
@@ -43,7 +42,8 @@ const usdcLogFilter = {
   criteria: { address: usdcContractConfig.address },
   startBlock: 16369995, // 5 blocks
   maxBlockRange: 3,
-} satisfies LogFilter;
+  type: "logFilter",
+} satisfies Source;
 
 const sendUsdcTransferTransaction = async () => {
   await walletClient.writeContract({
@@ -59,7 +59,8 @@ const uniswapV3Factory = {
   ...uniswapV3PoolFactoryConfig,
   network: network.name,
   startBlock: 16369500, // 500 blocks
-} satisfies Factory;
+  type: "factory",
+} satisfies Source;
 
 const createAndInitializeUniswapV3Pool = async () => {
   await walletClient.writeContract({
@@ -105,7 +106,7 @@ test("setup() returns block numbers", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   const { latestBlockNumber, finalizedBlockNumber } = await service.setup();
@@ -123,7 +124,7 @@ test("start() adds blocks to the store from finalized to latest", async (context
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   await service.setup();
@@ -150,7 +151,7 @@ test("start() adds all required transactions to the store", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   await service.setup();
@@ -180,7 +181,7 @@ test("start() adds all matched logs to the store", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   await service.setup();
@@ -203,7 +204,7 @@ test("start() handles new blocks", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   await service.setup();
@@ -250,7 +251,7 @@ test("start() handles error while fetching new latest block gracefully", async (
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   await service.setup();
@@ -291,7 +292,7 @@ test("start() emits realtimeCheckpoint events", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -332,7 +333,7 @@ test("start() inserts log filter interval records for finalized blocks", async (
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -370,7 +371,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   await service.setup();
@@ -440,7 +441,7 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -482,7 +483,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
     common,
     eventStore,
     network,
-    logFilters: [usdcLogFilter],
+    sources: [usdcLogFilter],
   });
 
   const emitSpy = vi.spyOn(service, "emit");
@@ -535,7 +536,7 @@ test("start() with factory contract inserts new child contracts records and chil
     common,
     eventStore,
     network,
-    factories: [uniswapV3Factory],
+    sources: [uniswapV3Factory],
   });
 
   await service.setup();

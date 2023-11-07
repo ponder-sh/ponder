@@ -7,6 +7,7 @@ import { publicClient } from "@/_test/utils";
 import type { IndexingFunctions } from "@/build/functions";
 import { schemaHeader } from "@/build/schema";
 import { LogEventMetadata } from "@/config/abi";
+import { Source } from "@/config/sources";
 import { EventAggregatorService } from "@/event-aggregator/service";
 import { buildSchema } from "@/schema/schema";
 
@@ -25,17 +26,16 @@ const network = {
   maxRpcRequestConcurrency: 10,
 };
 
-const logFilters = [
+const sources: Source[] = [
   {
     name: "USDC",
     ...usdcContractConfig,
     network: network.name,
     criteria: { address: usdcContractConfig.address },
     startBlock: 16369950,
+    type: "logFilter",
   },
 ];
-
-const contracts = [{ name: "USDC", ...usdcContractConfig, network }];
 
 const schema = buildSchema(
   buildGraphqlSchema(`${schemaHeader}
@@ -123,8 +123,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters,
+    sources,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -162,8 +161,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters,
+    sources,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -183,7 +181,6 @@ test("processEvents() calls indexing functions with correct arguments", async (c
         name: "Transfer",
       },
       context: {
-        contracts: { USDC: expect.anything() },
         entities: { TransferEvent: expect.anything() },
       },
     })
@@ -200,8 +197,7 @@ test("processEvents() model methods insert data into the user store", async (con
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters,
+    sources,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -225,8 +221,7 @@ test("processEvents() updates event count metrics", async (context) => {
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters,
+    sources,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -267,8 +262,7 @@ test("reset() reloads the user store", async (context) => {
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters,
+    sources,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -303,8 +297,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters,
+    sources,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -335,8 +328,7 @@ test("handleReorg() reverts the user store", async (context) => {
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters,
+    sources,
   });
 
   const userStoreRevertSpy = vi.spyOn(userStore, "revert");
@@ -361,8 +353,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters,
+    sources,
   });
 
   const userStoreRevertSpy = vi.spyOn(userStore, "revert");
@@ -391,8 +382,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters,
+    sources,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -431,8 +421,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters,
+    sources,
   });
 
   await service.reset({ schema, indexingFunctions });

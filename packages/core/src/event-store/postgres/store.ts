@@ -8,10 +8,9 @@ import {
   sql,
 } from "kysely";
 import type { Pool } from "pg";
-import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import { type FactoryCriteria } from "@/config/factories";
-import type { LogFilterCriteria } from "@/config/logFilters";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
@@ -580,7 +579,7 @@ export class PostgresEventStore implements EventStore {
         .where("blockNumber", ">", fromBlock)
         .execute();
       await tx
-        .deleteFrom("contractReadResults")
+        .deleteFrom("rpcRequestResults")
         .where("chainId", "=", chainId)
         .where("blockNumber", ">", fromBlock)
         .execute();
@@ -724,46 +723,41 @@ export class PostgresEventStore implements EventStore {
     );
   };
 
-  insertContractReadResult = async ({
-    address,
+  insertRpcRequestResult = async ({
+    request,
     blockNumber,
     chainId,
-    data,
     result,
   }: {
-    address: Address;
+    request: string;
     blockNumber: bigint;
     chainId: number;
-    data: Hex;
-    result: Hex;
+    result: string;
   }) => {
     await this.db
-      .insertInto("contractReadResults")
-      .values({ address, blockNumber, chainId, data, result })
+      .insertInto("rpcRequestResults")
+      .values({ request, blockNumber, chainId, result })
       .onConflict((oc) =>
-        oc.constraint("contractReadResultPrimaryKey").doUpdateSet({ result })
+        oc.constraint("rpcRequestResultPrimaryKey").doUpdateSet({ result })
       )
       .execute();
   };
 
-  getContractReadResult = async ({
-    address,
+  getRpcRequestResult = async ({
+    request,
     blockNumber,
     chainId,
-    data,
   }: {
-    address: Address;
+    request: string;
     blockNumber: bigint;
     chainId: number;
-    data: Hex;
   }) => {
     const contractReadResult = await this.db
-      .selectFrom("contractReadResults")
+      .selectFrom("rpcRequestResults")
       .selectAll()
-      .where("address", "=", address)
+      .where("request", "=", request)
       .where("blockNumber", "=", blockNumber)
       .where("chainId", "=", chainId)
-      .where("data", "=", data)
       .executeTakeFirst();
 
     return contractReadResult ?? null;

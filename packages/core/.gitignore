@@ -2,3 +2,4 @@ dist/
 .ponder/
 generated/
 .env.local
+**/*.node

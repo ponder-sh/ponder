@@ -6,9 +6,8 @@ import { replaceTscAliasPaths } from "tsc-alias";
 import type { Hex } from "viem";
 
 import { LogEventMetadata } from "@/config/abi";
-import { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
 import type { Options } from "@/config/options";
+import { Source } from "@/config/sources";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
@@ -207,12 +206,10 @@ export type IndexingFunctions = {
 
 export const hydrateIndexingFunctions = ({
   rawIndexingFunctions,
-  logFilters,
-  factories,
+  sources,
 }: {
   rawIndexingFunctions: RawIndexingFunctions;
-  logFilters: LogFilter[];
-  factories: Factory[];
+  sources: Source[];
 }) => {
   const indexingFunctions: IndexingFunctions = {
     _meta_: {},
@@ -225,17 +222,14 @@ export const hydrateIndexingFunctions = ({
 
   Object.entries(rawIndexingFunctions.eventSources).forEach(
     ([eventSourceName, eventSourceFunctions]) => {
-      const logFilter = logFilters.find((l) => l.name === eventSourceName);
-      const factory = factories.find((f) => f.name === eventSourceName);
+      const source = sources.find((source) => source.name === eventSourceName);
 
-      if (!logFilter && !factory) {
+      if (!source) {
         throw new Error(`Event source not found in config: ${eventSourceName}`);
       }
 
       Object.entries(eventSourceFunctions).forEach(([eventName, fn]) => {
-        const eventData = logFilter
-          ? logFilter.events[eventName]
-          : factory?.events[eventName];
+        const eventData = source.events[eventName];
 
         if (!eventData) {
           throw new Error(`Log event not found in ABI: ${eventName}`);

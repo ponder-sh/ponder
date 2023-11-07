@@ -3,9 +3,7 @@ import Emittery from "emittery";
 
 import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
-import type { Contract } from "@/config/contracts";
-import { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
+import type { Source } from "@/config/sources";
 import { UserError } from "@/errors/user";
 import type {
   EventAggregatorService,
@@ -14,7 +12,6 @@ import type {
 import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
-import type { ReadOnlyContract } from "@/types/contract";
 import type { Model } from "@/types/model";
 import type { ModelInstance, UserStore } from "@/user-store/store";
 import { formatShortDate } from "@/utils/date";
@@ -22,7 +19,6 @@ import { prettyPrint } from "@/utils/print";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
 import { wait } from "@/utils/wait";
 
-import { buildReadOnlyContracts } from "./contract";
 import { buildModels } from "./model";
 import { getStackTrace } from "./trace";
 
@@ -39,10 +35,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
   private userStore: UserStore;
   private eventAggregatorService: EventAggregatorService;
-  private logFilters: LogFilter[];
-  private factories: Factory[];
-
-  private readOnlyContracts: Record<string, ReadOnlyContract> = {};
+  private sources: Source[];
 
   private schema?: Schema;
   private models: Record<string, Model<ModelInstance>> = {};
@@ -56,40 +49,28 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private eventsProcessedToTimestamp = 0;
   private hasError = false;
 
-  private currentEventBlockNumber = 0n;
+  // private currentEventBlockNumber = 0n;
   private currentEventTimestamp = 0;
 
   constructor({
     common,
-    eventStore,
+    // eventStore,
     userStore,
     eventAggregatorService,
-    contracts,
-    logFilters = [],
-    factories = [],
+    sources = [],
   }: {
     common: Common;
     eventStore: EventStore;
     userStore: UserStore;
     eventAggregatorService: EventAggregatorService;
-    contracts: Contract[];
-    logFilters?: LogFilter[];
-    factories?: Factory[];
+
+    sources?: Source[];
   }) {
     super();
     this.common = common;
     this.userStore = userStore;
     this.eventAggregatorService = eventAggregatorService;
-    this.logFilters = logFilters;
-    this.factories = factories;
-
-    // The read-only contract objects only depend on config, so they can
-    // be built in the constructor (they can't be hot-reloaded).
-    this.readOnlyContracts = buildReadOnlyContracts({
-      contracts,
-      getCurrentBlockNumber: () => this.currentEventBlockNumber,
-      eventStore,
-    });
+    this.sources = sources;
 
     this.eventProcessingMutex = new Mutex();
   }
@@ -293,12 +274,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
           // Increment the metrics for the total number of matching & indexed events in this timestamp range.
           if (pageIndex === 0) {
             metadata.counts.forEach(({ eventSourceName, selector, count }) => {
-              const safeName = Object.values({
-                ...(this.logFilters.find((f) => f.name === eventSourceName)
-                  ?.events || {}),
-                ...(this.factories.find((f) => f.name === eventSourceName)
-                  ?.events || {}),
-              })
+              const safeName = Object.values(
+                this.sources.find((s) => s.name === eventSourceName)?.events ||
+                  {}
+              )
                 .filter((m): m is LogEventMetadata => !!m)
                 .find((m) => m.selector === selector)?.safeName;
 
@@ -373,7 +352,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingFunctions: IndexingFunctions;
   }) => {
     const context = {
-      contracts: this.readOnlyContracts,
       entities: this.models,
     };
 
@@ -452,7 +430,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           // This enables contract calls occurring within the
           // user code to use the event block number by default.
-          this.currentEventBlockNumber = event.block.number;
+          // this.currentEventBlockNumber = event.block.number;
           this.currentEventTimestamp = Number(event.block.timestamp);
 
           try {

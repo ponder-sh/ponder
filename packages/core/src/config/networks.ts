@@ -1,7 +1,7 @@
 import { type Client, type PublicClient, createPublicClient } from "viem";
 import * as chains from "viem/chains";
 
-import type { ResolvedConfig } from "@/config/types";
+import type { ResolvedConfig } from "@/config/config";
 import type { Common } from "@/Ponder";
 
 export type Network = {

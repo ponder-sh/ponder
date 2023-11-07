@@ -349,6 +349,32 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  ["2023_11_06_0_new_rpc_cache_design"]: {
+    async up(db: Kysely<any>) {
+      await db.schema.dropTable("contractReadResults").execute();
+
+      /**
+       * Formatting for "request" field values:
+       *
+       * eth_call: eth_call_{to}_{data}
+       * eth_getBalance: eth_getBalance_{address}
+       * eth_getCode: eth_getCode_{address}
+       * eth_getStorageAt: eth_getStorageAt_{address}_{slot}
+       */
+      await db.schema
+        .createTable("rpcRequestResults")
+        .addColumn("request", "text", (col) => col.notNull())
+        .addColumn("blockNumber", "varchar(79)", (col) => col.notNull())
+        .addColumn("chainId", "integer", (col) => col.notNull())
+        .addColumn("result", "text", (col) => col.notNull())
+        .addPrimaryKeyConstraint("rpcRequestResultPrimaryKey", [
+          "request",
+          "chainId",
+          "blockNumber",
+        ])
+        .execute();
+    },
+  },
 };
 
 class StaticMigrationProvider implements MigrationProvider {
