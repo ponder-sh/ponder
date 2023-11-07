@@ -3,7 +3,6 @@ import process from "node:process";
 
 import { BuildService } from "@/build/service";
 import { CodegenService } from "@/codegen/service";
-import { type ResolvedConfig } from "@/config/config";
 import { buildDatabase } from "@/config/database";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
@@ -24,6 +23,7 @@ import { PostgresUserStore } from "@/user-store/postgres/store";
 import { SqliteUserStore } from "@/user-store/sqlite/store";
 import { type UserStore } from "@/user-store/store";
 
+import { hydrateIndexingFunctions } from "./build/functions";
 import { buildSources, Source } from "./config/sources";
 
 export type Common = {
@@ -36,39 +36,31 @@ export type Common = {
 
 export class Ponder {
   common: Common;
-  sources: Source[];
+  buildService: BuildService;
 
-  eventStore: EventStore;
-  userStore: UserStore;
+  // Derived config
+  sources: Source[] = undefined!;
 
-  // List of indexing-related services. One per configured network.
-  networkSyncServices: {
+  // Sync services
+  eventStore: EventStore = undefined!;
+  syncServices: {
     network: Network;
     sources: Source[];
-    historicalSyncService: HistoricalSyncService;
-    realtimeSyncService: RealtimeSyncService;
-  }[] = [];
+    historical: HistoricalSyncService;
+    realtime: RealtimeSyncService;
+  }[] = undefined!;
+  eventAggregatorService: EventAggregatorService = undefined!;
 
-  eventAggregatorService: EventAggregatorService;
-  indexingService: IndexingService;
+  // Indexing services
+  userStore: UserStore = undefined!;
+  indexingService: IndexingService = undefined!;
 
-  serverService: ServerService;
-  buildService: BuildService;
-  codegenService: CodegenService;
-  uiService: UiService;
+  // Misc services
+  serverService: ServerService = undefined!;
+  codegenService: CodegenService = undefined!;
+  uiService: UiService = undefined!;
 
-  constructor({
-    options,
-    config,
-    eventStore,
-    userStore,
-  }: {
-    options: Options;
-    config: ResolvedConfig;
-    // These options are only used for testing.
-    eventStore?: EventStore;
-    userStore?: UserStore;
-  }) {
+  constructor({ options }: { options: Options }) {
     const logger = new LoggerService({
       level: options.logLevel,
       dir: options.logDir,
@@ -77,9 +69,19 @@ export class Ponder {
     const metrics = new MetricsService();
     const telemetry = new TelemetryService({ options });
 
-    const common = { options, logger, errors, metrics, telemetry };
-    this.common = common;
+    this.common = { options, logger, errors, metrics, telemetry };
 
+    this.buildService = new BuildService({ common: this.common });
+  }
+
+  async setup({
+    eventStore,
+    userStore,
+  }: {
+    // These options are only used for testing.
+    eventStore?: EventStore;
+    userStore?: UserStore;
+  } = {}) {
     this.common.logger.debug({
       service: "app",
       msg: `Started using config file: ${path.relative(
@@ -88,7 +90,19 @@ export class Ponder {
       )}`,
     });
 
-    const database = buildDatabase({ options, config });
+    // Initialize the Vite server and Vite Node runner.
+    await this.buildService.setup();
+
+    // Load the config file so that we can create initial versions of all services.
+    // If `config` is undefined, there was an error loading the config. For now,
+    // we can just exit. No need to call `this.kill()` because no services are set up.
+    const config = await this.buildService.loadConfig();
+    if (!config) {
+      await this.buildService.kill();
+      return;
+    }
+
+    const database = buildDatabase({ common: this.common, config });
     this.eventStore =
       eventStore ??
       (database.kind === "sqlite"
@@ -101,15 +115,10 @@ export class Ponder {
         ? new SqliteUserStore({ db: database.db })
         : new PostgresUserStore({ pool: database.pool }));
 
-    const networks = config.networks.map((network) =>
-      buildNetwork({ network, common })
-    );
-
-    const sources = buildSources({ config });
-    this.sources = sources;
+    this.sources = buildSources({ config });
 
     const networksToSync = config.networks
-      .map((network) => buildNetwork({ network, common }))
+      .map((network) => buildNetwork({ network, common: this.common }))
       .filter((network) => {
         const hasEventSources = this.sources.some(
           (eventSource) => eventSource.network === network.name
@@ -117,134 +126,118 @@ export class Ponder {
         if (!hasEventSources) {
           this.common.logger.warn({
             service: "app",
-            msg: `No event sources found (network=${network.name})`,
+            msg: `No contracts found (network=${network.name})`,
           });
         }
         return hasEventSources;
       });
 
+    this.syncServices = [];
     networksToSync.forEach((network) => {
-      const sourcesForNetwork = sources.filter(
+      const sourcesForNetwork = this.sources.filter(
         (logSource) => logSource.network === network.name
       );
-
-      this.networkSyncServices.push({
+      this.syncServices.push({
         network,
-
         sources: sourcesForNetwork,
-        historicalSyncService: new HistoricalSyncService({
-          common,
+        historical: new HistoricalSyncService({
+          common: this.common,
           eventStore: this.eventStore,
           network,
           sources: sourcesForNetwork,
         }),
-        realtimeSyncService: new RealtimeSyncService({
-          common,
+        realtime: new RealtimeSyncService({
+          common: this.common,
           eventStore: this.eventStore,
           network,
           sources: sourcesForNetwork,
         }),
       });
     });
-
     this.eventAggregatorService = new EventAggregatorService({
-      common,
+      common: this.common,
       eventStore: this.eventStore,
-      networks,
-      sources,
+      networks: networksToSync,
+      sources: this.sources,
     });
 
     this.indexingService = new IndexingService({
-      common,
+      common: this.common,
       eventStore: this.eventStore,
       userStore: this.userStore,
       eventAggregatorService: this.eventAggregatorService,
-      sources,
+      sources: this.sources,
     });
 
     this.serverService = new ServerService({
-      common,
+      common: this.common,
       userStore: this.userStore,
     });
-    this.buildService = new BuildService({
-      common,
-      sources,
-    });
     this.codegenService = new CodegenService({
-      common,
-      sources,
+      common: this.common,
+      sources: this.sources,
     });
-    this.uiService = new UiService({ common, sources });
-  }
+    this.uiService = new UiService({
+      common: this.common,
+      sources: this.sources,
+    });
 
-  async setup() {
+    // Once all services have been successfully created & started
+    // using the initial config, register service dependencies.
     this.registerServiceDependencies();
 
-    // Start the HTTP server.
-    await this.serverService.start();
-
-    // These files depend only on ponder.config.ts, so can generate once on setup.
-    // Note that buildIndexingFunctions depends on the index.ts file being present.
+    // TODO: Remove once we have the new PonderApp magic.
     this.codegenService.generateAppFile();
 
-    // Note that this must occur before buildSchema and buildIndexingFunctions.
+    // One-time setup for some services.
     await this.eventStore.migrateUp();
+    await this.serverService.start();
 
-    // Manually trigger loading schema and indexing functions. Subsequent loads
-    // are triggered by changes to project files (handled in BuildService).
+    // Finally, load the schema + indexing functions which will trigger
+    // the indexing service to reload (for the first time).
+    await this.buildService.loadIndexingFunctions();
     this.buildService.buildSchema();
-    await this.buildService.buildIndexingFunctions();
   }
 
   async dev() {
-    await this.setup();
-
     this.common.telemetry.record({
       event: "App Started",
       properties: {
         command: "ponder dev",
-        logFilterCount: this.sources.length,
+        contractCount: this.sources.length,
         databaseKind: this.eventStore.kind,
       },
     });
 
     await Promise.all(
-      this.networkSyncServices.map(
-        async ({ historicalSyncService, realtimeSyncService }) => {
-          const blockNumbers = await realtimeSyncService.setup();
-          await historicalSyncService.setup(blockNumbers);
+      this.syncServices.map(async ({ historical, realtime }) => {
+        const blockNumbers = await realtime.setup();
+        await historical.setup(blockNumbers);
 
-          historicalSyncService.start();
-          realtimeSyncService.start();
-        }
-      )
+        historical.start();
+        await realtime.start();
+      })
     );
-
-    this.buildService.watch();
   }
 
   async start() {
-    await this.setup();
-
     this.common.telemetry.record({
       event: "App Started",
       properties: {
         command: "ponder start",
-        logFilterCount: this.sources.length,
+        contractCount: this.sources.length,
         databaseKind: this.eventStore.kind,
       },
     });
 
     await Promise.all(
-      this.networkSyncServices.map(
-        async ({ historicalSyncService, realtimeSyncService }) => {
-          const blockNumbers = await realtimeSyncService.setup();
-          await historicalSyncService.setup(blockNumbers);
+      this.syncServices.map(async ({ historical, realtime }) => {
+        const blockNumbers = await realtime.setup();
+        await historical.setup(blockNumbers);
 
-          historicalSyncService.start();
-          realtimeSyncService.start();
-        }
-      )
+        historical.start();
+        await realtime.start();
+      })
     );
   }
 
@@ -272,12 +265,10 @@ export class Ponder {
     });
 
     await Promise.all(
-      this.networkSyncServices.map(
-        async ({ realtimeSyncService, historicalSyncService }) => {
-          await realtimeSyncService.kill();
-          await historicalSyncService.kill();
-        }
-      )
+      this.syncServices.map(async ({ realtime, historical }) => {
+        await realtime.kill();
+        await historical.kill();
+      })
     );
 
     await this.buildService.kill();
@@ -305,6 +296,8 @@ export class Ponder {
     });
 
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
+      this.common.errors.hasUserError = false;
+
       this.codegenService.generateAppFile({ schema });
       this.codegenService.generateSchemaFile({ graphqlSchema });
 
@@ -317,50 +310,54 @@ export class Ponder {
     this.buildService.on(
       "newIndexingFunctions",
       async ({ indexingFunctions }) => {
-        await this.indexingService.reset({ indexingFunctions });
+        this.common.errors.hasUserError = false;
+
+        // This is jank. Not quite sure where this should go.
+        const hydrated = hydrateIndexingFunctions({
+          rawIndexingFunctions: indexingFunctions,
+          sources: this.sources,
+        });
+        await this.indexingService.reset({ indexingFunctions: hydrated });
+
         await this.indexingService.processEvents();
       }
     );
 
-    this.networkSyncServices.forEach((networkSyncService) => {
-      const { chainId } = networkSyncService.network;
-      const { historicalSyncService, realtimeSyncService } = networkSyncService;
+    this.syncServices.forEach(({ network, historical, realtime }) => {
+      const { chainId } = network;
 
-      historicalSyncService.on("historicalCheckpoint", ({ blockTimestamp }) => {
+      historical.on("historicalCheckpoint", ({ blockTimestamp }) => {
         this.eventAggregatorService.handleNewHistoricalCheckpoint({
           chainId,
           timestamp: blockTimestamp,
         });
       });
 
-      historicalSyncService.on("syncComplete", () => {
+      historical.on("syncComplete", () => {
         this.eventAggregatorService.handleHistoricalSyncComplete({
           chainId,
         });
       });
 
-      realtimeSyncService.on("realtimeCheckpoint", ({ blockTimestamp }) => {
+      realtime.on("realtimeCheckpoint", ({ blockTimestamp }) => {
         this.eventAggregatorService.handleNewRealtimeCheckpoint({
           chainId,
           timestamp: blockTimestamp,
         });
       });
 
-      realtimeSyncService.on("finalityCheckpoint", ({ blockTimestamp }) => {
+      realtime.on("finalityCheckpoint", ({ blockTimestamp }) => {
         this.eventAggregatorService.handleNewFinalityCheckpoint({
           chainId,
           timestamp: blockTimestamp,
         });
       });
 
-      realtimeSyncService.on(
-        "shallowReorg",
-        ({ commonAncestorBlockTimestamp }) => {
-          this.eventAggregatorService.handleReorg({
-            commonAncestorTimestamp: commonAncestorBlockTimestamp,
-          });
-        }
-      );
+      realtime.on("shallowReorg", ({ commonAncestorBlockTimestamp }) => {
+        this.eventAggregatorService.handleReorg({
+          commonAncestorTimestamp: commonAncestorBlockTimestamp,
+        });
+      });
     });
 
     this.eventAggregatorService.on("newCheckpoint", async () => {
