@@ -1,6 +1,7 @@
 import type { Hex } from "viem";
 
-import { LogEventMetadata } from "@/config/abi";
+import type { LogEventMetadata } from "@/config/abi";
+import { Source } from "@/config/sources";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
