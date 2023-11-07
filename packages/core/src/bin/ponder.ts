@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 import { cac } from "cac";
 import dotenv from "dotenv";
-import path from "node:path";
 
-import { buildConfig } from "@/build/config";
 import { buildOptions } from "@/config/options";
 import { Ponder } from "@/Ponder";
 
@@ -36,14 +34,13 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    const configFile = path.resolve(cliOptions.rootDir, cliOptions.configFile);
-    const config = await buildConfig({ configFile });
-    const options = buildOptions({ cliOptions, configOptions: config.options });
-
+    const options = buildOptions({ cliOptions });
     const devOptions = { ...options, uiEnabled: true };
 
-    const ponder = new Ponder({ config, options: devOptions });
+    const ponder = new Ponder({ options: devOptions });
     registerKilledProcessListener(() => ponder.kill());
+
+    await ponder.setup();
     await ponder.dev();
   });
 
@@ -52,14 +49,13 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    const configFile = path.resolve(cliOptions.rootDir, cliOptions.configFile);
-    const config = await buildConfig({ configFile });
-    const options = buildOptions({ cliOptions, configOptions: config.options });
-
+    const options = buildOptions({ cliOptions });
     const startOptions = { ...options, uiEnabled: false };
 
-    const ponder = new Ponder({ config, options: startOptions });
+    const ponder = new Ponder({ options: startOptions });
     registerKilledProcessListener(() => ponder.kill());
+
+    await ponder.setup();
     await ponder.start();
   });
 
@@ -68,18 +64,17 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
-    const configFile = path.resolve(cliOptions.rootDir, cliOptions.configFile);
-    const config = await buildConfig({ configFile });
-    const options = buildOptions({ cliOptions, configOptions: config.options });
-
+    const options = buildOptions({ cliOptions });
     const codegenOptions = {
       ...options,
       uiEnabled: false,
-      logLevel: "silent",
-    } as const;
+      logLevel: "silent" as const,
+    };
 
-    const ponder = new Ponder({ config, options: codegenOptions });
+    const ponder = new Ponder({ options: codegenOptions });
     registerKilledProcessListener(() => ponder.kill());
+
+    await ponder.setup();
     await ponder.codegen();
   });
 

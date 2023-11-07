@@ -11,32 +11,24 @@ import type { ViteNodeRunner } from "vite-node/client";
 import type { ViteNodeServer } from "vite-node/server";
 
 import type { ResolvedConfig } from "@/config/config";
-import type { Source } from "@/config/sources";
 import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
 import type { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/schema";
 
-import {
-  type IndexingFunctions,
-  type RawIndexingFunctions,
-  hydrateIndexingFunctions,
-} from "./functions";
+import type { RawIndexingFunctions } from "./functions";
 import { readGraphqlSchema } from "./schema";
 import { parseViteNodeError, ViteNodeError } from "./stacktrace";
 
 type BuildServiceEvents = {
   newConfig: { config: ResolvedConfig };
-  newIndexingFunctions: { indexingFunctions: IndexingFunctions };
+  newIndexingFunctions: { indexingFunctions: RawIndexingFunctions };
   newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
   private common: Common;
-  private sources: Source[];
-
-  private srcRegex: RegExp;
 
   private viteDevServer: ViteDevServer = undefined!;
   private viteNodeServer: ViteNodeServer = undefined!;
@@ -44,14 +36,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   private indexingFunctions: Record<string, Record<string, any>> = {};
 
-  constructor({ common, sources }: { common: Common; sources: Source[] }) {
+  constructor({ common }: { common: Common }) {
     super();
     this.common = common;
-    this.sources = sources;
-
-    this.srcRegex = new RegExp(
-      "^" + this.common.options.srcDir + ".*\\.(js|ts)$"
-    );
   }
 
   async setup() {
@@ -160,27 +147,34 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       if (invalidated.includes(this.common.options.schemaFile)) {
         await this.loadSchema();
       }
-      const srcFiles = invalidated.filter((file) => this.srcRegex.test(file));
+
+      const srcRegex = new RegExp(
+        `^${this.common.options.srcDir.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        )}/.*\\.(js|ts)$`
+      );
+      const srcFiles = invalidated.filter((file) => srcRegex.test(file));
+
       if (srcFiles.length > 0) {
         await this.loadIndexingFunctions({ files: srcFiles });
       }
     };
 
     // TODO: Consider handling "add" and "unlink" events too.
+    // TODO: Debounce, de-duplicate, and batch updates.
+
     this.viteDevServer.watcher.on("change", async (file) => {
+      const ignoreRegex = new RegExp(
+        `^${this.common.options.ponderDir.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&"
+        )}/.*[^/]$`
+      );
+      if (ignoreRegex.test(file)) return;
+
       await handleFileChange([file]);
     });
-
-    // Load all the project files once during setup.
-    const initialSrcFiles = glob.sync(
-      path.join(this.common.options.srcDir, "**/*.{js,cjs,mjs,ts,mts}")
-    );
-
-    await Promise.all([
-      this.loadConfig(),
-      this.loadSchema(),
-      this.loadIndexingFunctions({ files: initialSrcFiles }),
-    ]);
   }
 
   async kill() {
@@ -207,14 +201,24 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     // TODO: Validate config lol
 
     this.emit("newConfig", { config: resolvedConfig });
+
+    return resolvedConfig;
   }
 
   async loadSchema() {
     console.log("loaded schema ");
   }
 
-  async loadIndexingFunctions({ files }: { files: string[] }) {
-    const results = await Promise.all(files.map(this.executeFile));
+  async loadIndexingFunctions({ files: files_ }: { files?: string[] } = {}) {
+    const files =
+      files_ ??
+      glob.sync(
+        path.join(this.common.options.srcDir, "**/*.{js,cjs,mjs,ts,mts}")
+      );
+
+    const results = await Promise.all(
+      files.map((file) => this.executeFile(file))
+    );
 
     const errorResults = results.filter(
       (r): r is { file: string; error: ViteNodeError } => r.error !== undefined
@@ -285,12 +289,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       }
     }
 
-    const indexingFunctions = hydrateIndexingFunctions({
-      rawIndexingFunctions,
-      sources: this.sources,
+    this.emit("newIndexingFunctions", {
+      indexingFunctions: rawIndexingFunctions,
     });
-
-    this.emit("newIndexingFunctions", { indexingFunctions });
   }
 
   private async executeFile(file: string) {
