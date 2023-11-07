@@ -27,7 +27,7 @@ import { readGraphqlSchema } from "./schema";
 import { parseViteNodeError, ViteNodeError } from "./stacktrace";
 
 type BuildServiceEvents = {
-  newConfig: undefined;
+  newConfig: { config: ResolvedConfig };
   newIndexingFunctions: { indexingFunctions: IndexingFunctions };
   newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
@@ -200,8 +200,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     const rawConfig = result.exports.config;
-    const resolvedConfig =
-      typeof rawConfig === "function" ? await rawConfig() : await rawConfig;
+    const resolvedConfig = (
+      typeof rawConfig === "function" ? await rawConfig() : await rawConfig
+    ) as ResolvedConfig;
 
     // TODO: Validate config lol
 
