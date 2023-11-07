@@ -18,7 +18,7 @@ import { Steps } from "nextra/components";
 Add the **child contract** to the `contracts` list in `ponder.config.ts`. Be sure to use the child contract name and ABI. Then, rather than setting an explicit `address` as you would for a normal contract, use the [`factory`](/api-reference/ponder-config#factory) option.
 
 ```ts filename="ponder.config.ts"
-import type { Config } from "@ponder/core";
+import type { Config, createFactory } from "@ponder/core";
 import { parseAbiItem } from "viem";
 
 export const config: Config = {

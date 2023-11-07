@@ -1,0 +1,282 @@
+---
+description: "A guide to defining a Ponder schema"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Add contracts
+
+To add a new contract to your app, use the `contracts` field in `ponder.config.ts`. When you add a new contract, Ponder fetches raw blockchain data (event logs) from the network and passes that data to the indexing functions you write.
+
+## Recipes
+
+- A simple contract (static address)
+- A set of contracts created by a factory (dynamic address)
+- A set of contracts that all emit the same event (dynamic address)
+
+## Contract name and ABI
+
+Every contract must have a unique name and an ABI.
+
+{/* prettier-ignore */}
+```ts filename="ponder.config.ts" {12-13}
+import { createConfig } from "@ponder/core";
+import { http } from "viem";
+
+import { BlitmapAbi } from "./abis/Blitmap";
+
+export default createConfig({
+  networks: [
+    { name: "mainnet", chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) }
+  ],
+  contracts: [
+    {
+      name: "Blitmap",
+      abi: BlitmapAbi,
+      network: "mainnet",
+      address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
+      startBlock: 12439123,
+    },
+  ],
+});
+```
+
+<Callout type="info">
+  For the remainder of this guide, all import statements are omitted from code
+  snippets for brevity.
+</Callout>
+
+### ABI types
+
+To take advantage of static type-level validation, Ponder requires ABI objects to be asserted as constants. Due to a TypeScript limitation, this means that you must save your ABIs in `.ts` files.
+
+## Network
+
+Every contract must specify at least one network.
+
+### Single network
+
+To index a contract on one network, simply pass the network name as a string to the `network` field.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts" {18}
+export default createConfig({
+  networks: [
+    {
+      name: "mainnet",
+      chainId: 1,
+      transport: http(process.env.PONDER_RPC_URL_1),
+    },
+  ],
+  contracts: [
+    {
+      name: "Blitmap",
+      abi: BlitmapAbi,
+      network: "mainnet",
+      address: "0x8d04...D3Ff63",
+      startBlock: 12439123,
+    },
+  ],
+});
+```
+
+```ts filename="src/index.ts"
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const { Blitmap } = context.contracts;
+
+  // ...
+});
+```
+
+</div>
+
+### Multiple networks, different address
+
+The Uniswap V3 Factory contract is deployed at a different address on certain networks.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts"
+import { createConfig } from "@ponder/core";
+import { http } from "viem";
+
+import { UniswapV3FactoryAbi } from "./abis/UniswapV3Factory";
+
+export default createConfig({
+  networks: [
+    {
+      name: "mainnet",
+      chainId: 1,
+      transport: http(process.env.PONDER_RPC_URL_1),
+    },
+    {
+      name: "base",
+      chainId: 8453,
+      transport: http(process.env.PONDER_RPC_URL_8453),
+    },
+  ],
+  contracts: [
+    {
+      name: "UniswapV3Factory",
+      abi: UniswapV3FactoryAbi,
+      network: [
+        {
+          name: "mainnet",
+          address: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          startBlock: 12369621,
+        },
+        {
+          name: "base",
+          address: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+          startBlock: 1371680,
+        },
+      ],
+    },
+  ],
+});
+```
+
+```ts filename="src/index.ts"
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const { Blitmap } = context.contracts;
+
+  const tokenUri = await Blitmap.read.tokenURI(event.params.tokenId);
+
+  const token = await context.entities.Token.create({
+    id: event.params.tokenId,
+    data: { uri: tokenUri },
+  });
+  // { id: 7777, uri: "https://api.blitmap.com/v1/metadata/7777" }
+});
+```
+
+</div>
+
+### Multiple networks, same address
+
+The ERC-4337 EntryPoint contract is deployed to the same address on all networks. In this case, include the `address` field at the top level. The configuration for each network will inherit the `address` defined at the top level.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts"
+import { createConfig } from "@ponder/core";
+import { http } from "viem";
+
+import { EntryPointAbi } from "./abis/EntryPoint";
+
+export default createConfig({
+  networks: [
+    {
+      name: "mainnet",
+      chainId: 1,
+      transport: http(process.env.PONDER_RPC_URL_1),
+    },
+    {
+      name: "optimism",
+      chainId: 10,
+      transport: http(process.env.PONDER_RPC_URL_10),
+    },
+  ],
+  contracts: [
+    {
+      name: "EntryPoint",
+      abi: EntryPointAbi,
+      address: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+      network: [
+        {
+          name: "mainnet",
+          address: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789",
+        },
+        { name: "optimism", startBlock: 88234528 },
+      ],
+    },
+  ],
+});
+```
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("EntryPoint:UserOperationEvent", async ({ event, context }) => {
+  const totalSupply = await context.client.readContract({
+    address: context.contracts.EntryPoint.address,
+    abi: context.contracts.EntryPoint.abi,
+    functionName: "totalSupply",
+  });
+
+  // factory or event filter
+  const totalSupply = await context.client.readContract({
+    address: event.log.address,
+    abi: context.contracts.EntryPoint.abi,
+    functionName: "totalSupply",
+  });
+
+  const tokenUri = await Blitmap.read.tokenURI(event.params.tokenId);
+
+  const token = await context.entities.Token.create({
+    id: event.params.tokenId,
+    data: { uri: tokenUri },
+  });
+});
+```
+
+</div>
+
+## Address
+
+Each contract has either a single static address (most common), a list of static addresses, or a factory configuration.
+
+### Single address
+
+```ts filename="ponder.config.ts" {14}
+export default createConfig({
+  networks: [
+    {
+      name: "mainnet",
+      chainId: 1,
+      transport: http(process.env.PONDER_RPC_URL_1),
+    },
+  ],
+  contracts: [
+    {
+      name: "Blitmap",
+      abi: BlitmapAbi,
+      network: "mainnet",
+      address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
+      startBlock: 12439123,
+    },
+  ],
+});
+```
+
+### Many addresses
+
+### Factory contracts
+
+Ponder supports factory contracts via
+
+## Filter
+
+Here's a config that specifies a single
+
+```ts filename="ponder.config.ts"
+export default createConfig({
+  networks: [
+    {
+      name: "mainnet",
+      chainId: 1,
+      transport: http(process.env.PONDER_RPC_URL_1),
+    },
+  ],
+  contracts: [
+    {
+      name: "ArtGobblers",
+      network: "mainnet",
+      abi: "./abis/ArtGobblers.json",
+      address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
+      startBlock: 15863321,
+    },
+  ],
+});
+```
