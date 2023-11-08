@@ -1,7 +1,7 @@
 import { type Client, type PublicClient, createPublicClient } from "viem";
 import * as chains from "viem/chains";
 
-import type { ResolvedConfig } from "@/config/config";
+import type { Config } from "@/config/config";
 import type { Common } from "@/Ponder";
 
 export type Network = {
@@ -18,7 +18,7 @@ export function buildNetwork({
   network,
   common,
 }: {
-  network: ResolvedConfig["networks"][0];
+  network: Config["networks"][0];
   common: Common;
 }) {
   const { name, chainId, transport } = network;

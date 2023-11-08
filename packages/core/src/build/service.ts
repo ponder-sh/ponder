@@ -10,7 +10,7 @@ import type { ViteNodeRunner } from "vite-node/client";
 // @ts-ignore
 import type { ViteNodeServer } from "vite-node/server";
 
-import type { ResolvedConfig } from "@/config/config";
+import type { Config } from "@/config/config";
 import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
 import { buildSchema } from "@/schema/schema";
@@ -22,7 +22,7 @@ import { readGraphqlSchema } from "./schema";
 import { parseViteNodeError, ViteNodeError } from "./stacktrace";
 
 type BuildServiceEvents = {
-  newConfig: { config: ResolvedConfig };
+  newConfig: { config: Config };
   newIndexingFunctions: { indexingFunctions: RawIndexingFunctions };
   newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
@@ -196,7 +196,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const rawConfig = result.exports.config;
     const resolvedConfig = (
       typeof rawConfig === "function" ? await rawConfig() : await rawConfig
-    ) as ResolvedConfig;
+    ) as Config;
 
     // TODO: Validate config lol
 
