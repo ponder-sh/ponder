@@ -69,7 +69,7 @@ const waitForGraphNode = async () => {
     timeout = setTimeout(() => {
       clearInterval(interval);
       reject(new Error("Timed out waiting for Graph Node to start"));
-    }, 15_000);
+    }, 30_000);
   });
 };
 
@@ -105,7 +105,6 @@ const waitForSyncComplete = async () => {
 export const subgraph = async () => {
   console.log(`Waiting for Graph Node to be ready...`);
   const setupDuration = await waitForGraphNode();
-  console.log(`Graph Node ready (waited for ${setupDuration}ms)`);
 
   console.log("Registering subgraph...");
   await execa(
@@ -136,16 +135,6 @@ export const subgraph = async () => {
   );
 
   const duration = await waitForSyncComplete();
-  console.log(`Subgraph synced in: ${duration}`);
 
-  const finalMetrics = await fetchSubgraphMetrics();
-  for (const metric of finalMetrics) {
-    console.log(metric.name);
-    for (const sub of metric.metrics) {
-      console.log(sub);
-    }
-    console.log(JSON.stringify(metric.metrics));
-  }
-
-  console.log(finalMetrics);
+  return { setupDuration, duration };
 };

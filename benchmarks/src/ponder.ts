@@ -17,7 +17,7 @@ const fetchPonderMetrics = async () => {
   }
 };
 
-const waitForStartUpComplete = async () => {
+const waitForSetupComplete = async () => {
   const endClock = startClock();
   let duration: number;
   await new Promise((resolve, reject) => {
@@ -78,10 +78,10 @@ export const ponder = async () => {
     detached: true,
   });
 
-  const startUpDuration = await waitForStartUpComplete();
+  const setupDuration = await waitForSetupComplete();
   const duration = await waitForSyncComplete();
 
   subprocess.kill();
 
-  return { startUpDuration, duration };
+  return { setupDuration, duration };
 };

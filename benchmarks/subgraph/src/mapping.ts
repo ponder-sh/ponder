@@ -11,6 +11,8 @@ import {
   TransferEvent,
 } from "../generated/schema";
 
+const delim = "kevin:+";
+
 export function handleTransfer(event: TTransferEvent): void {
   // Create an Account for the sender, or update the balance if it already exists.
   let sender = Account.load(event.params.from.toHexString());
@@ -35,7 +37,7 @@ export function handleTransfer(event: TTransferEvent): void {
   recipient.save();
 
   const transferEventId =
-    event.block.number.toString() + "+" + event.logIndex.toString();
+    event.block.number.toString() + delim + event.logIndex.toString();
 
   // Create a TransferEvent.
   const transferEvent = new TransferEvent(transferEventId);
@@ -48,7 +50,9 @@ export function handleTransfer(event: TTransferEvent): void {
 
 export function handleApproval(event: TApprovalEvent): void {
   const approvalId =
-    event.params.owner.toHexString() + "-" + event.params.spender.toHexString();
+    event.params.owner.toHexString() +
+    delim +
+    event.params.spender.toHexString();
 
   // Create or update the Approval.
   const approval = new Approval(approvalId);
@@ -58,7 +62,7 @@ export function handleApproval(event: TApprovalEvent): void {
   approval.save();
 
   const approvalEventId =
-    event.block.number.toString() + "-" + event.logIndex.toString();
+    event.block.number.toString() + delim + event.logIndex.toString();
 
   // Create an ApprovalEvent.
   const approvalEvent = new ApprovalEvent(approvalEventId);
