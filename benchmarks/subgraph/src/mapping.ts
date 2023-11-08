@@ -1,6 +1,6 @@
 import { BigInt } from "@graphprotocol/graph-ts";
 
-import type {
+import {
   Approval as TApprovalEvent,
   Transfer as TTransferEvent,
 } from "../generated/RocketTokenRETH/RocketTokenRETH";
@@ -12,27 +12,25 @@ import {
 } from "../generated/schema";
 
 export function handleTransfer(event: TTransferEvent): void {
-  const { params } = event;
-
   // Create an Account for the sender, or update the balance if it already exists.
-  let sender = Account.load(params.from.toHexString());
+  let sender = Account.load(event.params.from.toHexString());
   if (!sender) {
-    sender = new Account(params.from.toHexString());
+    sender = new Account(event.params.from.toHexString());
     sender.balance = BigInt.fromI32(0);
     sender.isOwner = false;
   } else {
-    sender.balance = sender.balance.minus(params.value);
+    sender.balance = sender.balance.minus(event.params.value);
   }
   sender.save();
 
   // Create an Account for the recipient, or update the balance if it already exists.
-  let recipient = Account.load(params.to.toHexString());
+  let recipient = Account.load(event.params.to.toHexString());
   if (!recipient) {
-    recipient = new Account(params.to.toHexString());
-    recipient.balance = params.value;
+    recipient = new Account(event.params.to.toHexString());
+    recipient.balance = event.params.value;
     recipient.isOwner = false;
   } else {
-    recipient.balance = recipient.balance.plus(params.value);
+    recipient.balance = recipient.balance.plus(event.params.value);
   }
   recipient.save();
 
@@ -41,23 +39,22 @@ export function handleTransfer(event: TTransferEvent): void {
 
   // Create a TransferEvent.
   const transferEvent = new TransferEvent(transferEventId);
-  transferEvent.from = params.from.toHexString();
-  transferEvent.to = params.to.toHexString();
-  transferEvent.amount = params.value;
+  transferEvent.from = event.params.from.toHexString();
+  transferEvent.to = event.params.to.toHexString();
+  transferEvent.amount = event.params.value;
   transferEvent.timestamp = event.block.timestamp.toI32();
   transferEvent.save();
 }
 
 export function handleApproval(event: TApprovalEvent): void {
-  const { params } = event;
   const approvalId =
-    params.owner.toHexString() + "-" + params.spender.toHexString();
+    event.params.owner.toHexString() + "-" + event.params.spender.toHexString();
 
   // Create or update the Approval.
   const approval = new Approval(approvalId);
-  approval.owner = params.owner.toHexString();
-  approval.spender = params.spender.toHexString();
-  approval.amount = params.value;
+  approval.owner = event.params.owner.toHexString();
+  approval.spender = event.params.spender.toHexString();
+  approval.amount = event.params.value;
   approval.save();
 
   const approvalEventId =
@@ -65,9 +62,9 @@ export function handleApproval(event: TApprovalEvent): void {
 
   // Create an ApprovalEvent.
   const approvalEvent = new ApprovalEvent(approvalEventId);
-  approvalEvent.owner = params.owner.toHexString();
-  approvalEvent.spender = params.spender.toHexString();
-  approvalEvent.amount = params.value;
+  approvalEvent.owner = event.params.owner.toHexString();
+  approvalEvent.spender = event.params.spender.toHexString();
+  approvalEvent.amount = event.params.value;
   approvalEvent.timestamp = event.block.timestamp.toI32();
   approvalEvent.save();
 }
