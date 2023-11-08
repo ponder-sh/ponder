@@ -42,42 +42,6 @@ export type RawIndexingFunctions = {
   };
 };
 
-// @ponder/core creates an instance of this class called `ponder`
-export class PonderApp<
-  IndexingFunctions = Record<string, LogEventIndexingFunction>
-> {
-  private indexingFunctions: RawIndexingFunctions = { eventSources: {} };
-  private errors: Error[] = [];
-
-  on<EventName extends Extract<keyof IndexingFunctions, string>>(
-    name: EventName,
-    indexingFunction: IndexingFunctions[EventName]
-  ) {
-    if (name === "setup") {
-      this.indexingFunctions._meta_ ||= {};
-      this.indexingFunctions._meta_.setup =
-        indexingFunction as SetupEventIndexingFunction;
-      return;
-    }
-
-    const [eventSourceName, eventName] = name.split(":");
-    if (!eventSourceName || !eventName) {
-      this.errors.push(new Error(`Invalid event name: ${name}`));
-      return;
-    }
-
-    this.indexingFunctions.eventSources[eventSourceName] ||= {};
-    if (this.indexingFunctions.eventSources[eventSourceName][eventName]) {
-      this.errors.push(
-        new Error(`Cannot add multiple indexing functions for event: ${name}`)
-      );
-      return;
-    }
-    this.indexingFunctions.eventSources[eventSourceName][eventName] =
-      indexingFunction as LogEventIndexingFunction;
-  }
-}
-
 export type IndexingFunctions = {
   _meta_: {
     setup?: {

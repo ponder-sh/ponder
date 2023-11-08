@@ -1,7 +1,9 @@
 import { AbiEvent, ParseAbi } from "abitype";
 import { assertType, test } from "vitest";
 
-import { ExtractAddress, ExtractAllAddresses, PonderApp } from "./ponderApp";
+import { bigint, bytes, createSchema, createTable, string } from "@/schema";
+
+import { ExtractAddress, ExtractAllAddresses, PonderApp } from "./ponder";
 
 type OneAbi = ParseAbi<
   ["event Event0(bytes32 indexed arg3)", "event Event1(bytes32 indexed)"]
@@ -36,11 +38,14 @@ test("ExtractAllAddress", () => {
 });
 
 test("PonderApp non intersecting event names", () => {
-  type p = PonderApp<{
-    // ^?
-    networks: any;
-    contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
-  }>;
+  type p = PonderApp<
+    {
+      // ^?
+      networks: any;
+      contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
+    },
+    any
+  >;
 
   type name = Parameters<p["on"]>[0];
   //   ^?
@@ -49,11 +54,14 @@ test("PonderApp non intersecting event names", () => {
 });
 
 test("PonderApp intersecting event names", () => {
-  type p = PonderApp<{
-    // ^?
-    networks: any;
-    contracts: readonly [{ name: "Two"; network: any; abi: TwoAbi }];
-  }>;
+  type p = PonderApp<
+    {
+      // ^?
+      networks: any;
+      contracts: readonly [{ name: "Two"; network: any; abi: TwoAbi }];
+    },
+    any
+  >;
 
   type name = Parameters<p["on"]>[0];
   //   ^?
@@ -62,14 +70,17 @@ test("PonderApp intersecting event names", () => {
 });
 
 test("PonderApp multiple contracts", () => {
-  type p = PonderApp<{
-    // ^?
-    networks: any;
-    contracts: readonly [
-      { name: "One"; network: any; abi: OneAbi },
-      { name: "Two"; network: any; abi: TwoAbi }
-    ];
-  }>;
+  type p = PonderApp<
+    {
+      // ^?
+      networks: any;
+      contracts: readonly [
+        { name: "One"; network: any; abi: OneAbi },
+        { name: "Two"; network: any; abi: TwoAbi }
+      ];
+    },
+    any
+  >;
 
   // Events should only correspond to their contract
   type name = Exclude<
@@ -83,11 +94,14 @@ test("PonderApp multiple contracts", () => {
 
 test("PonderApp event type"),
   () => {
-    type p = PonderApp<{
-      // ^?
-      networks: any;
-      contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
-    }>;
+    type p = PonderApp<
+      {
+        // ^?
+        networks: any;
+        contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
+      },
+      any
+    >;
 
     type name = Parameters<Parameters<p["on"]>[1]>[0]["event"]["name"];
     //   ^?
@@ -102,17 +116,20 @@ test("PonderApp event type"),
   };
 
 test("PonderApp context network type", () => {
-  type p = PonderApp<{
-    // ^?
-    networks: any;
-    contracts: readonly [
-      {
-        name: "One";
-        network: [{ name: "mainnet" }, { name: "optimism" }];
-        abi: OneAbi;
-      }
-    ];
-  }>;
+  type p = PonderApp<
+    {
+      // ^?
+      networks: any;
+      contracts: readonly [
+        {
+          name: "One";
+          network: [{ name: "mainnet" }, { name: "optimism" }];
+          abi: OneAbi;
+        }
+      ];
+    },
+    any
+  >;
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
@@ -122,17 +139,20 @@ test("PonderApp context network type", () => {
 });
 
 test("PonderApp context client type", () => {
-  type p = PonderApp<{
-    // ^?
-    networks: any;
-    contracts: readonly [
-      {
-        name: "One";
-        network: [{ name: "mainnet" }, { name: "optimism" }];
-        abi: OneAbi;
-      }
-    ];
-  }>;
+  type p = PonderApp<
+    {
+      // ^?
+      networks: any;
+      contracts: readonly [
+        {
+          name: "One";
+          network: [{ name: "mainnet" }, { name: "optimism" }];
+          abi: OneAbi;
+        }
+      ];
+    },
+    any
+  >;
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
@@ -142,24 +162,61 @@ test("PonderApp context client type", () => {
 });
 
 test("PonderApp context contracts type", () => {
-  type p = PonderApp<{
-    // ^?
-    networks: any;
-    contracts: readonly [
-      {
-        name: "One";
-        network: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
-        abi: OneAbi;
-        address: "0x2";
-        startBlock: 1;
-        endBlock: 2;
-      }
-    ];
-  }>;
+  type p = PonderApp<
+    {
+      // ^?
+      networks: any;
+      contracts: readonly [
+        {
+          name: "One";
+          network: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
+          abi: OneAbi;
+          address: "0x2";
+          startBlock: 1;
+          endBlock: 2;
+        }
+      ];
+    },
+    any
+  >;
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   (({}) as p).on("One:Event1", ({ context: { contracts } }) => {});
+  //                                         ^?
+});
+
+test("PonderApp context entity type", () => {
+  const schema = createSchema({
+    ExampleTable: createTable({
+      id: string(),
+      kevin: bytes(),
+      kyle: bigint(),
+    }),
+  });
+
+  type p = PonderApp<
+    {
+      // ^?
+      networks: any;
+      contracts: readonly [
+        {
+          name: "One";
+          network: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
+          abi: OneAbi;
+          address: "0x2";
+          startBlock: 1;
+          endBlock: 2;
+        }
+      ];
+    },
+    typeof schema
+  >;
+
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  (({}) as p).on("One:Event1", ({ context: { models } }) => {});
   //                                         ^?
 });
