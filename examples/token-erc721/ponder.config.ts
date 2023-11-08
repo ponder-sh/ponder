@@ -1,7 +1,9 @@
-import type { Config } from "@ponder/core";
+import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-export const config: Config = {
+import { SmolBrainAbi } from "./abis/SmolBrain.abi";
+
+export const config = createConfig({
   networks: [
     {
       name: "arbitrum",
@@ -12,10 +14,10 @@ export const config: Config = {
   contracts: [
     {
       name: "SmolBrain",
-      network: "arbitrum",
-      abi: "./abis/SmolBrain.json",
+      network: [{ name: "arbitrum" }],
+      abi: SmolBrainAbi,
       address: "0x6325439389E0797Ab35752B4F43a14C004f22A9c",
       startBlock: 3163146,
     },
   ],
-};
+});

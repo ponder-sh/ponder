@@ -57,7 +57,7 @@ export class LoggerService {
   fatal = (options: LogOptions & { error?: Error }) => {
     this.logger.fatal(options);
   };
-  error = (options: LogOptions & { error: Error }) => {
+  error = (options: LogOptions & { error: Error; msg?: string }) => {
     this.logger.error(options);
   };
   warn = (options: LogOptions & { msg: string }) => {

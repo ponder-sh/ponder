@@ -25,8 +25,6 @@ test("reload() binds the schema", async (context) => {
   await userStore.reload({ schema });
 
   expect(userStore.schema).toBe(schema);
-
-  await userStore.teardown();
 });
 
 test("create() inserts a record that is effective after timestamp", async (context) => {
@@ -46,8 +44,6 @@ test("create() inserts a record that is effective after timestamp", async (conte
     id: "id1",
   });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
-
-  await userStore.teardown();
 });
 
 test("create() inserts a record that is effective at timestamp", async (context) => {
@@ -67,8 +63,6 @@ test("create() inserts a record that is effective at timestamp", async (context)
     id: "id1",
   });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
-
-  await userStore.teardown();
 });
 
 test("create() inserts a record that is not effective before timestamp", async (context) => {
@@ -88,8 +82,6 @@ test("create() inserts a record that is not effective before timestamp", async (
     id: "id1",
   });
   expect(instance).toBeNull();
-
-  await userStore.teardown();
 });
 
 test("create() throws on unique constraint violation", async (context) => {
@@ -111,8 +103,6 @@ test("create() throws on unique constraint violation", async (context) => {
       data: { name: "Skip", age: 13 },
     })
   ).rejects.toThrow();
-
-  await userStore.teardown();
 });
 
 test("create() respects optional fields", async (context) => {
@@ -133,8 +123,6 @@ test("create() respects optional fields", async (context) => {
   });
 
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: null });
-
-  await userStore.teardown();
 });
 
 test("create() accepts enums", async (context) => {
@@ -155,8 +143,6 @@ test("create() accepts enums", async (context) => {
   });
 
   expect(instance).toMatchObject({ id: "id1", name: "Skip", kind: "CAT" });
-
-  await userStore.teardown();
 });
 
 test("create() throws on invalid enum value", async (context) => {
@@ -171,8 +157,6 @@ test("create() throws on invalid enum value", async (context) => {
       data: { name: "Skip", kind: "NOTACAT" },
     })
   ).rejects.toThrow();
-
-  await userStore.teardown();
 });
 
 test("create() accepts BigInt fields as bigint and returns as bigint", async (context) => {
@@ -193,8 +177,6 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
   });
 
   expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
-
-  await userStore.teardown();
 });
 
 test("update() updates a record", async (context) => {
@@ -226,8 +208,6 @@ test("update() updates a record", async (context) => {
     id: "id1",
   });
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
-
-  await userStore.teardown();
 });
 
 test("update() updates a record using an update function", async (context) => {
@@ -264,8 +244,6 @@ test("update() updates a record using an update function", async (context) => {
     id: "id1",
     name: "Skip and Skipper",
   });
-
-  await userStore.teardown();
 });
 
 test("update() updates a record and maintains older version", async (context) => {
@@ -296,8 +274,6 @@ test("update() updates a record and maintains older version", async (context) =>
     name: "Skip",
     bigAge: 100n,
   });
-
-  await userStore.teardown();
 });
 
 test("update() throws if trying to update an instance in the past", async (context) => {
@@ -319,8 +295,6 @@ test("update() throws if trying to update an instance in the past", async (conte
       data: { name: "Peanut Butter" },
     })
   ).rejects.toThrow();
-
-  await userStore.teardown();
 });
 
 test("update() updates a record in-place within the same timestamp", async (context) => {
@@ -346,8 +320,6 @@ test("update() updates a record in-place within the same timestamp", async (cont
     id: "id1",
   });
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
-
-  await userStore.teardown();
 });
 
 test("upsert() inserts a new record", async (context) => {
@@ -363,8 +335,6 @@ test("upsert() inserts a new record", async (context) => {
 
   const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
-
-  await userStore.teardown();
 });
 
 test("upsert() updates a record", async (context) => {
@@ -393,8 +363,6 @@ test("upsert() updates a record", async (context) => {
     id: "id1",
   });
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Jelly", age: 12 });
-
-  await userStore.teardown();
 });
 
 test("upsert() updates a record using an update function", async (context) => {
@@ -425,8 +393,6 @@ test("upsert() updates a record using an update function", async (context) => {
     id: "id1",
   });
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Skip", age: 7 });
-
-  await userStore.teardown();
 });
 
 test("upsert() throws if trying to update an instance in the past", async (context) => {
@@ -449,8 +415,6 @@ test("upsert() throws if trying to update an instance in the past", async (conte
       update: { name: "Peanut Butter" },
     })
   ).rejects.toThrow();
-
-  await userStore.teardown();
 });
 
 test("upsert() updates a record in-place within the same timestamp", async (context) => {
@@ -477,8 +441,6 @@ test("upsert() updates a record in-place within the same timestamp", async (cont
     id: "id1",
   });
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
-
-  await userStore.teardown();
 });
 
 test("delete() removes a record", async (context) => {
@@ -501,8 +463,6 @@ test("delete() removes a record", async (context) => {
     id: "id1",
   });
   expect(deletedInstance).toBe(null);
-
-  await userStore.teardown();
 });
 
 test("delete() retains older version of record", async (context) => {
@@ -524,8 +484,6 @@ test("delete() retains older version of record", async (context) => {
     id: "id1",
   });
   expect(deletedInstance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
-
-  await userStore.teardown();
 });
 
 test("delete() removes a record entirely if only present for one timestamp", async (context) => {
@@ -549,8 +507,6 @@ test("delete() removes a record entirely if only present for one timestamp", asy
     id: "id1",
   });
   expect(deletedInstance).toBe(null);
-
-  await userStore.teardown();
 });
 
 test("delete() removes a record entirely if only present for one timestamp after update()", async (context) => {
@@ -590,8 +546,6 @@ test("delete() removes a record entirely if only present for one timestamp after
     id: "id1",
   });
   expect(deletedInstance).toBe(null);
-
-  await userStore.teardown();
 });
 
 test("delete() deletes versions effective in the delete timestamp", async (context) => {
@@ -620,8 +574,6 @@ test("delete() deletes versions effective in the delete timestamp", async (conte
     id: "id1",
   });
   expect(instancePriorToDelete!.name).toBe("Skip");
-
-  await userStore.teardown();
 });
 
 test("findMany() returns current versions of all records", async (context) => {
@@ -660,8 +612,6 @@ test("findMany() returns current versions of all records", async (context) => {
     "Foo",
     "Bar",
   ]);
-
-  await userStore.teardown();
 });
 
 test("findMany() sorts on bigint field", async (context) => {
@@ -698,8 +648,6 @@ test("findMany() sorts on bigint field", async (context) => {
     orderBy: { bigAge: "asc" },
   });
   expect(instances.map((i) => i.bigAge)).toMatchObject([null, 10n, 105n, 190n]);
-
-  await userStore.teardown();
 });
 
 test("findMany() filters on bigint gt", async (context) => {
@@ -737,8 +685,6 @@ test("findMany() filters on bigint gt", async (context) => {
   });
 
   expect(instances.map((i) => i.bigAge)).toMatchObject([105n, 190n]);
-
-  await userStore.teardown();
 });
 
 test("findMany() sorts and filters together", async (context) => {
@@ -777,8 +723,6 @@ test("findMany() sorts and filters together", async (context) => {
   });
 
   expect(instances.map((i) => i.name)).toMatchObject(["Bar", "Zarbar"]);
-
-  await userStore.teardown();
 });
 
 test("findMany() errors on invalid filter condition", async (context) => {
@@ -791,8 +735,6 @@ test("findMany() errors on invalid filter condition", async (context) => {
       where: { name: { invalidWhereCondition: "ar" } },
     })
   ).rejects.toThrow("Invalid filter condition name: invalidWhereCondition");
-
-  await userStore.teardown();
 });
 
 test("findMany() errors on orderBy object with multiple keys", async (context) => {
@@ -805,8 +747,6 @@ test("findMany() errors on orderBy object with multiple keys", async (context) =
       orderBy: { name: "asc", bigAge: "desc" },
     })
   ).rejects.toThrow("Invalid sort condition: Must have exactly one property");
-
-  await userStore.teardown();
 });
 
 test("createMany() inserts multiple entities", async (context) => {
@@ -826,8 +766,6 @@ test("createMany() inserts multiple entities", async (context) => {
 
   const instances = await userStore.findMany({ modelName: "Pet" });
   expect(instances.length).toBe(3);
-
-  await userStore.teardown();
 });
 
 test("createMany() inserts a large number of entities", async (context) => {
@@ -849,8 +787,6 @@ test("createMany() inserts a large number of entities", async (context) => {
 
   const instances = await userStore.findMany({ modelName: "Pet" });
   expect(instances.length).toBe(ENTITY_COUNT);
-
-  await userStore.teardown();
 });
 
 test("updateMany() updates multiple entities", async (context) => {
@@ -879,8 +815,6 @@ test("updateMany() updates multiple entities", async (context) => {
   const instances = await userStore.findMany({ modelName: "Pet" });
 
   expect(instances.map((i) => i.bigAge)).toMatchObject([10n, 300n, 300n]);
-
-  await userStore.teardown();
 });
 
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
@@ -927,8 +861,6 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
   const persons = await userStore.findMany({ modelName: "Person" });
   expect(persons.length).toBe(1);
   expect(persons[0].name).toBe("Bobby");
-
-  await userStore.teardown();
 });
 
 test("revert() updates versions that only existed during the safe timestamp to latest", async (context) => {
@@ -952,6 +884,4 @@ test("revert() updates versions that only existed during the safe timestamp to l
   const pets = await userStore.findMany({ modelName: "Pet" });
   expect(pets.length).toBe(1);
   expect(pets[0].name).toBe("Skip");
-
-  await userStore.teardown();
 });

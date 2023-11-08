@@ -1,8 +1,7 @@
 import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
-import { Factory } from "@/config/factories";
-import type { LogFilter } from "@/config/logFilters";
+import { Source } from "@/config/sources";
 
 import { HistoricalBar } from "./HistoricalBar";
 import { IndexingBar } from "./IndexingBar";
@@ -18,20 +17,14 @@ export type UiState = {
 
   indexingError: boolean;
   processedEventCount: number;
-  totalEventCount: number;
+  handledEventCount: number;
   totalMatchedEventCount: number;
   eventsProcessedToTimestamp: number;
 
   networks: string[];
 };
 
-export const buildUiState = ({
-  logFilters,
-  factories,
-}: {
-  logFilters: LogFilter[];
-  factories: Factory[];
-}) => {
+export const buildUiState = ({ sources }: { sources: Source[] }) => {
   const ui: UiState = {
     port: 0,
 
@@ -41,17 +34,14 @@ export const buildUiState = ({
 
     indexingError: false,
     processedEventCount: 0,
-    totalEventCount: 0,
+    handledEventCount: 0,
     totalMatchedEventCount: 0,
     eventsProcessedToTimestamp: 0,
 
     networks: [],
   };
 
-  const eventSourceNames = [
-    ...logFilters.map((l) => l.name),
-    ...factories.map((f) => f.name),
-  ];
+  const eventSourceNames = sources.map((s) => s.name);
 
   eventSourceNames.forEach((name) => {
     ui.historicalSyncEventSourceStats[name] = {

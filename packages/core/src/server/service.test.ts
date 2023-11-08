@@ -1379,7 +1379,6 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   expect(testEntity.string).toBe("updated");
 
   await service.kill();
-  await userStore.teardown();
 });
 
 test("serves plural entities versioned at specified timestamp", async (context) => {
@@ -1438,7 +1437,6 @@ test("serves plural entities versioned at specified timestamp", async (context) 
   ]);
 
   await service.kill();
-  await userStore.teardown();
 });
 
 test("derived field respects skip argument", async (context) => {
@@ -1471,7 +1469,6 @@ test("derived field respects skip argument", async (context) => {
   });
 
   await service.kill();
-  await userStore.teardown();
 });
 
 test("responds with appropriate status code pre and post historical sync", async (context) => {
@@ -1516,7 +1513,6 @@ test("responds with appropriate status code pre and post historical sync", async
   });
 
   await service.kill();
-  await userStore.teardown();
 });
 
 // This is a known limitation for now, which is that the timestamp version of entities
@@ -1578,5 +1574,4 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   });
 
   await service.kill();
-  await userStore.teardown();
 });

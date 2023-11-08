@@ -3,7 +3,6 @@ import { expect, test } from "vitest";
 
 import {
   buildFactoryCriteria,
-  buildFactoryId,
   getAddressFromFactoryEventLog,
 } from "./factories";
 
@@ -170,28 +169,4 @@ test("getAddressFromFactoryEventLog gets address from nonindexed parameter 3", (
   });
 
   expect(address).toBe("0x5a6480483462533564634b8c81aea01cf87c6ddb");
-});
-
-test("buildFactoryId builds id containing topic", () => {
-  const criteria = buildFactoryCriteria({
-    address: "0xa",
-    event: llamaFactoryEventAbiItem,
-    parameter: "deployer",
-  });
-
-  expect(buildFactoryId({ chainId: 1, ...criteria })).toBe(
-    "1_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_topic1"
-  );
-});
-
-test("buildFactoryId builds id containing offset", () => {
-  const criteria = buildFactoryCriteria({
-    address: "0xa",
-    event: llamaFactoryEventAbiItem,
-    parameter: "llamaPolicy",
-  });
-
-  expect(buildFactoryId({ chainId: 115511, ...criteria })).toBe(
-    "115511_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64"
-  );
 });

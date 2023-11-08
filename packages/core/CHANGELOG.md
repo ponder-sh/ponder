@@ -1,5 +1,23 @@
 # @ponder/core
 
+## 0.0.95
+
+### Patch Changes
+
+- [#409](https://github.com/0xOlias/ponder/pull/409) [`840f124`](https://github.com/0xOlias/ponder/commit/840f1240a844d6d7756be30ec757a763a251fffb) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where the indexing progress bar had incorrect values.
+
+- [#409](https://github.com/0xOlias/ponder/pull/409) [`840f124`](https://github.com/0xOlias/ponder/commit/840f1240a844d6d7756be30ec757a763a251fffb) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where Alchemy "Response size is larger than 150MB limit" errors wer enot handled properly.
+
+## 0.0.94
+
+### Patch Changes
+
+- [#361](https://github.com/0xOlias/ponder/pull/361) [`54bbd92`](https://github.com/0xOlias/ponder/commit/54bbd92ddfde8a17c45c244f1e0e6cf0000e4e9b) Thanks [@0xOlias](https://github.com/0xOlias)! - BREAKING: This release includes a major update to Ponder's sync engine. Upgrading to this version will delete all cached sync progress and you will need to re-sync your app from scratch. If you're running a large Ponder app in production, please test this version on a branch + separate environment before upgrading on main.
+
+  Added support for factory contracts. Please see the [documentation](https://ponder.sh/docs/contracts#factory-contracts) for a complete guide & API reference.
+
+- [#405](https://github.com/0xOlias/ponder/pull/405) [`fb3a2a8`](https://github.com/0xOlias/ponder/commit/fb3a2a85225f8f1a03f90b6a66865c351530e6de) Thanks [@0xOlias](https://github.com/0xOlias)! - Fixed a bug where stale tables were left in the database after the service was stopped.
+
 ## 0.0.93
 
 ### Patch Changes
