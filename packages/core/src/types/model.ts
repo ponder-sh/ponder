@@ -1,4 +1,4 @@
-import type { OrderByInput, WhereInput } from "@/user-store/store";
+import type { OrderByInput, WhereInput } from "@/indexing-store/store";
 
 import type {
   HasOnlyIdProperty,

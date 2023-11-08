@@ -1,9 +1,9 @@
 import { beforeEach, expect, test } from "vitest";
 
-import { setupUserStore } from "@/_test/setup";
+import { setupIndexingStore } from "@/_test/setup";
 import * as p from "@/schema";
 
-beforeEach((context) => setupUserStore(context));
+beforeEach((context) => setupIndexingStore(context));
 
 const schema = p.createSchema({
   PetKind: p.createEnum(["CAT", "DOG"]),
@@ -21,24 +21,24 @@ const schema = p.createSchema({
 });
 
 test("reload() binds the schema", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  expect(userStore.schema).toBe(schema);
+  expect(indexingStore.schema).toBe(schema);
 });
 
 test("create() inserts a record that is effective after timestamp", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
-  const instance = await userStore.findUnique({
+  const instance = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 25,
     id: "id1",
@@ -47,17 +47,17 @@ test("create() inserts a record that is effective after timestamp", async (conte
 });
 
 test("create() inserts a record that is effective at timestamp", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
-  const instance = await userStore.findUnique({
+  const instance = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
@@ -66,17 +66,17 @@ test("create() inserts a record that is effective at timestamp", async (context)
 });
 
 test("create() inserts a record that is not effective before timestamp", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
-  const instance = await userStore.findUnique({
+  const instance = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 8,
     id: "id1",
@@ -85,10 +85,10 @@ test("create() inserts a record that is not effective before timestamp", async (
 });
 
 test("create() throws on unique constraint violation", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
@@ -96,7 +96,7 @@ test("create() throws on unique constraint violation", async (context) => {
   });
 
   await expect(() =>
-    userStore.create({
+    indexingStore.create({
       modelName: "Pet",
       timestamp: 15,
       id: "id1",
@@ -106,17 +106,17 @@ test("create() throws on unique constraint violation", async (context) => {
 });
 
 test("create() respects optional fields", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip" },
   });
 
-  const instance = await userStore.findUnique({
+  const instance = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 11,
     id: "id1",
@@ -126,17 +126,17 @@ test("create() respects optional fields", async (context) => {
 });
 
 test("create() accepts enums", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", kind: "CAT" },
   });
 
-  const instance = await userStore.findUnique({
+  const instance = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 11,
     id: "id1",
@@ -146,11 +146,11 @@ test("create() accepts enums", async (context) => {
 });
 
 test("create() throws on invalid enum value", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
   await expect(() =>
-    userStore.create({
+    indexingStore.create({
       modelName: "Pet",
       timestamp: 10,
       id: "id1",
@@ -160,17 +160,17 @@ test("create() throws on invalid enum value", async (context) => {
 });
 
 test("create() accepts BigInt fields as bigint and returns as bigint", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
 
-  const instance = await userStore.findUnique({
+  const instance = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
@@ -180,30 +180,30 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
 });
 
 test("update() updates a record", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
 
-  const instance = await userStore.findUnique({
+  const instance = await indexingStore.findUnique({
     modelName: "Pet",
     id: "id1",
   });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
 
-  await userStore.update({
+  await indexingStore.update({
     modelName: "Pet",
     timestamp: 11,
     id: "id1",
     data: { name: "Peanut Butter" },
   });
 
-  const updatedInstance = await userStore.findUnique({
+  const updatedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     id: "id1",
   });
@@ -211,23 +211,23 @@ test("update() updates a record", async (context) => {
 });
 
 test("update() updates a record using an update function", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
 
-  const instance = await userStore.findUnique({
+  const instance = await indexingStore.findUnique({
     modelName: "Pet",
     id: "id1",
   });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
 
-  await userStore.update({
+  await indexingStore.update({
     modelName: "Pet",
     timestamp: 11,
     id: "id1",
@@ -236,7 +236,7 @@ test("update() updates a record using an update function", async (context) => {
     }),
   });
 
-  const updatedInstance = await userStore.findUnique({
+  const updatedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     id: "id1",
   });
@@ -247,24 +247,24 @@ test("update() updates a record using an update function", async (context) => {
 });
 
 test("update() updates a record and maintains older version", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
 
-  await userStore.update({
+  await indexingStore.update({
     modelName: "Pet",
     timestamp: 11,
     id: "id1",
     data: { name: "Peanut Butter" },
   });
 
-  const originalInstance = await userStore.findUnique({
+  const originalInstance = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
@@ -277,10 +277,10 @@ test("update() updates a record and maintains older version", async (context) =>
 });
 
 test("update() throws if trying to update an instance in the past", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
@@ -288,7 +288,7 @@ test("update() throws if trying to update an instance in the past", async (conte
   });
 
   await expect(() =>
-    userStore.update({
+    indexingStore.update({
       modelName: "Pet",
       timestamp: 8,
       id: "id1",
@@ -298,24 +298,24 @@ test("update() throws if trying to update an instance in the past", async (conte
 });
 
 test("update() updates a record in-place within the same timestamp", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip" },
   });
 
-  await userStore.update({
+  await indexingStore.update({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Peanut Butter" },
   });
 
-  const updatedInstance = await userStore.findUnique({
+  const updatedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     id: "id1",
   });
@@ -323,34 +323,40 @@ test("update() updates a record in-place within the same timestamp", async (cont
 });
 
 test("upsert() inserts a new record", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.upsert({
+  await indexingStore.upsert({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     create: { name: "Skip", age: 12 },
   });
 
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await indexingStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 });
 
 test("upsert() updates a record", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await indexingStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
-  await userStore.upsert({
+  await indexingStore.upsert({
     modelName: "Pet",
     timestamp: 12,
     id: "id1",
@@ -358,7 +364,7 @@ test("upsert() updates a record", async (context) => {
     update: { name: "Jelly" },
   });
 
-  const updatedInstance = await userStore.findUnique({
+  const updatedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     id: "id1",
   });
@@ -366,19 +372,22 @@ test("upsert() updates a record", async (context) => {
 });
 
 test("upsert() updates a record using an update function", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await indexingStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
-  await userStore.upsert({
+  await indexingStore.upsert({
     modelName: "Pet",
     timestamp: 12,
     id: "id1",
@@ -388,7 +397,7 @@ test("upsert() updates a record using an update function", async (context) => {
     }),
   });
 
-  const updatedInstance = await userStore.findUnique({
+  const updatedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     id: "id1",
   });
@@ -396,10 +405,10 @@ test("upsert() updates a record using an update function", async (context) => {
 });
 
 test("upsert() throws if trying to update an instance in the past", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
@@ -407,7 +416,7 @@ test("upsert() throws if trying to update an instance in the past", async (conte
   });
 
   await expect(() =>
-    userStore.upsert({
+    indexingStore.upsert({
       modelName: "Pet",
       timestamp: 8,
       id: "id1",
@@ -418,17 +427,17 @@ test("upsert() throws if trying to update an instance in the past", async (conte
 });
 
 test("upsert() updates a record in-place within the same timestamp", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip" },
   });
 
-  await userStore.upsert({
+  await indexingStore.upsert({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
@@ -436,7 +445,7 @@ test("upsert() updates a record in-place within the same timestamp", async (cont
     update: { name: "Peanut Butter" },
   });
 
-  const updatedInstance = await userStore.findUnique({
+  const updatedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     id: "id1",
   });
@@ -444,21 +453,24 @@ test("upsert() updates a record in-place within the same timestamp", async (cont
 });
 
 test("delete() removes a record", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await indexingStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
-  await userStore.delete({ modelName: "Pet", timestamp: 15, id: "id1" });
+  await indexingStore.delete({ modelName: "Pet", timestamp: 15, id: "id1" });
 
-  const deletedInstance = await userStore.findUnique({
+  const deletedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     id: "id1",
   });
@@ -466,19 +478,19 @@ test("delete() removes a record", async (context) => {
 });
 
 test("delete() retains older version of record", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
-  await userStore.delete({ modelName: "Pet", timestamp: 15, id: "id1" });
+  await indexingStore.delete({ modelName: "Pet", timestamp: 15, id: "id1" });
 
-  const deletedInstance = await userStore.findUnique({
+  const deletedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 12,
     id: "id1",
@@ -487,21 +499,24 @@ test("delete() retains older version of record", async (context) => {
 });
 
 test("delete() removes a record entirely if only present for one timestamp", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await indexingStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
-  await userStore.delete({ modelName: "Pet", timestamp: 10, id: "id1" });
+  await indexingStore.delete({ modelName: "Pet", timestamp: 10, id: "id1" });
 
-  const deletedInstance = await userStore.findUnique({
+  const deletedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
@@ -510,25 +525,28 @@ test("delete() removes a record entirely if only present for one timestamp", asy
 });
 
 test("delete() removes a record entirely if only present for one timestamp after update()", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
-  const instance = await userStore.findUnique({ modelName: "Pet", id: "id1" });
+  const instance = await indexingStore.findUnique({
+    modelName: "Pet",
+    id: "id1",
+  });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
-  await userStore.update({
+  await indexingStore.update({
     modelName: "Pet",
     timestamp: 12,
     id: "id1",
     data: { name: "Skipper", age: 12 },
   });
-  const updatedInstance = await userStore.findUnique({
+  const updatedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     id: "id1",
   });
@@ -538,9 +556,9 @@ test("delete() removes a record entirely if only present for one timestamp after
     age: 12,
   });
 
-  await userStore.delete({ modelName: "Pet", timestamp: 12, id: "id1" });
+  await indexingStore.delete({ modelName: "Pet", timestamp: 12, id: "id1" });
 
-  const deletedInstance = await userStore.findUnique({
+  const deletedInstance = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 12,
     id: "id1",
@@ -549,26 +567,26 @@ test("delete() removes a record entirely if only present for one timestamp after
 });
 
 test("delete() deletes versions effective in the delete timestamp", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
-  await userStore.delete({ modelName: "Pet", timestamp: 15, id: "id1" });
+  await indexingStore.delete({ modelName: "Pet", timestamp: 15, id: "id1" });
 
-  const instanceDuringDeleteTimestamp = await userStore.findUnique({
+  const instanceDuringDeleteTimestamp = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 15,
     id: "id1",
   });
   expect(instanceDuringDeleteTimestamp).toBe(null);
 
-  const instancePriorToDelete = await userStore.findUnique({
+  const instancePriorToDelete = await indexingStore.findUnique({
     modelName: "Pet",
     timestamp: 14,
     id: "id1",
@@ -577,35 +595,35 @@ test("delete() deletes versions effective in the delete timestamp", async (conte
 });
 
 test("findMany() returns current versions of all records", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 8,
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
-  await userStore.update({
+  await indexingStore.update({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "SkipUpdated" },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id2",
     data: { name: "Foo" },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id3",
     data: { name: "Bar", bigAge: 100n },
   });
 
-  const instances = await userStore.findMany({ modelName: "Pet" });
+  const instances = await indexingStore.findMany({ modelName: "Pet" });
   expect(instances).toHaveLength(3);
   expect(instances.map((i) => i.name)).toMatchObject([
     "SkipUpdated",
@@ -615,35 +633,35 @@ test("findMany() returns current versions of all records", async (context) => {
 });
 
 test("findMany() sorts on bigint field", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", bigAge: 105n },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id2",
     data: { name: "Foo", bigAge: 10n },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id3",
     data: { name: "Bar", bigAge: 190n },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id4",
     data: { name: "Patch" },
   });
 
-  const instances = await userStore.findMany({
+  const instances = await indexingStore.findMany({
     modelName: "Pet",
     orderBy: { bigAge: "asc" },
   });
@@ -651,35 +669,35 @@ test("findMany() sorts on bigint field", async (context) => {
 });
 
 test("findMany() filters on bigint gt", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", bigAge: 105n },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id2",
     data: { name: "Foo", bigAge: 10n },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id3",
     data: { name: "Bar", bigAge: 190n },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id4",
     data: { name: "Patch" },
   });
 
-  const instances = await userStore.findMany({
+  const instances = await indexingStore.findMany({
     modelName: "Pet",
     where: { bigAge: { gt: 50n } },
   });
@@ -688,35 +706,35 @@ test("findMany() filters on bigint gt", async (context) => {
 });
 
 test("findMany() sorts and filters together", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip", bigAge: 105n },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id2",
     data: { name: "Foo", bigAge: 10n },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id3",
     data: { name: "Bar", bigAge: 190n },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id4",
     data: { name: "Zarbar" },
   });
 
-  const instances = await userStore.findMany({
+  const instances = await indexingStore.findMany({
     modelName: "Pet",
     where: { name: { endsWith: "ar" } },
     orderBy: { name: "asc" },
@@ -726,11 +744,11 @@ test("findMany() sorts and filters together", async (context) => {
 });
 
 test("findMany() errors on invalid filter condition", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
   expect(() =>
-    userStore.findMany({
+    indexingStore.findMany({
       modelName: "Pet",
       where: { name: { invalidWhereCondition: "ar" } },
     })
@@ -738,11 +756,11 @@ test("findMany() errors on invalid filter condition", async (context) => {
 });
 
 test("findMany() errors on orderBy object with multiple keys", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
   expect(() =>
-    userStore.findMany({
+    indexingStore.findMany({
       modelName: "Pet",
       orderBy: { name: "asc", bigAge: "desc" },
     })
@@ -750,10 +768,10 @@ test("findMany() errors on orderBy object with multiple keys", async (context) =
 });
 
 test("createMany() inserts multiple entities", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  const createdInstances = await userStore.createMany({
+  const createdInstances = await indexingStore.createMany({
     modelName: "Pet",
     timestamp: 10,
     data: [
@@ -764,17 +782,17 @@ test("createMany() inserts multiple entities", async (context) => {
   });
   expect(createdInstances.length).toBe(3);
 
-  const instances = await userStore.findMany({ modelName: "Pet" });
+  const instances = await indexingStore.findMany({ modelName: "Pet" });
   expect(instances.length).toBe(3);
 });
 
 test("createMany() inserts a large number of entities", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
   const ENTITY_COUNT = 100_000;
 
-  const createdInstances = await userStore.createMany({
+  const createdInstances = await indexingStore.createMany({
     modelName: "Pet",
     timestamp: 10,
     data: [...Array(ENTITY_COUNT).keys()].map((i) => ({
@@ -785,15 +803,15 @@ test("createMany() inserts a large number of entities", async (context) => {
   });
   expect(createdInstances.length).toBe(ENTITY_COUNT);
 
-  const instances = await userStore.findMany({ modelName: "Pet" });
+  const instances = await indexingStore.findMany({ modelName: "Pet" });
   expect(instances.length).toBe(ENTITY_COUNT);
 });
 
 test("updateMany() updates multiple entities", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.createMany({
+  await indexingStore.createMany({
     modelName: "Pet",
     timestamp: 10,
     data: [
@@ -803,7 +821,7 @@ test("updateMany() updates multiple entities", async (context) => {
     ],
   });
 
-  const updatedInstances = await userStore.updateMany({
+  const updatedInstances = await indexingStore.updateMany({
     modelName: "Pet",
     timestamp: 11,
     where: { bigAge: { gt: 50n } },
@@ -812,76 +830,76 @@ test("updateMany() updates multiple entities", async (context) => {
 
   expect(updatedInstances.length).toBe(2);
 
-  const instances = await userStore.findMany({ modelName: "Pet" });
+  const instances = await indexingStore.findMany({ modelName: "Pet" });
 
   expect(instances.map((i) => i.bigAge)).toMatchObject([10n, 300n, 300n]);
 });
 
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip" },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 13,
     id: "id2",
     data: { name: "Foo" },
   });
-  await userStore.update({
+  await indexingStore.update({
     modelName: "Pet",
     timestamp: 15,
     id: "id1",
     data: { name: "SkipUpdated" },
   });
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Person",
     timestamp: 10,
     id: "id1",
     data: { name: "Bob" },
   });
-  await userStore.update({
+  await indexingStore.update({
     modelName: "Person",
     timestamp: 11,
     id: "id1",
     data: { name: "Bobby" },
   });
 
-  await userStore.revert({ safeTimestamp: 12 });
+  await indexingStore.revert({ safeTimestamp: 12 });
 
-  const pets = await userStore.findMany({ modelName: "Pet" });
+  const pets = await indexingStore.findMany({ modelName: "Pet" });
   expect(pets.length).toBe(1);
   expect(pets[0].name).toBe("Skip");
 
-  const persons = await userStore.findMany({ modelName: "Person" });
+  const persons = await indexingStore.findMany({ modelName: "Person" });
   expect(persons.length).toBe(1);
   expect(persons[0].name).toBe("Bobby");
 });
 
 test("revert() updates versions that only existed during the safe timestamp to latest", async (context) => {
-  const { userStore } = context;
-  await userStore.reload({ schema });
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
 
-  await userStore.create({
+  await indexingStore.create({
     modelName: "Pet",
     timestamp: 10,
     id: "id1",
     data: { name: "Skip" },
   });
-  await userStore.delete({
+  await indexingStore.delete({
     modelName: "Pet",
     timestamp: 11,
     id: "id1",
   });
 
-  await userStore.revert({ safeTimestamp: 10 });
+  await indexingStore.revert({ safeTimestamp: 10 });
 
-  const pets = await userStore.findMany({ modelName: "Pet" });
+  const pets = await indexingStore.findMany({ modelName: "Pet" });
   expect(pets.length).toBe(1);
   expect(pets[0].name).toBe("Skip");
 });

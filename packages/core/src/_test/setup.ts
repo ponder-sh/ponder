@@ -7,6 +7,9 @@ import { type TestContext, beforeEach } from "vitest";
 import { patchSqliteDatabase } from "@/config/database";
 import { buildOptions } from "@/config/options";
 import { UserErrorService } from "@/errors/service";
+import { PostgresIndexingStore } from "@/indexing-store/postgres/store";
+import { SqliteIndexingStore } from "@/indexing-store/sqlite/store";
+import type { IndexingStore } from "@/indexing-store/store";
 import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import type { Common } from "@/Ponder";
@@ -14,9 +17,6 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store";
 import type { SyncStore } from "@/sync-store/store";
 import { TelemetryService } from "@/telemetry/service";
-import { PostgresUserStore } from "@/user-store/postgres/store";
-import { SqliteUserStore } from "@/user-store/sqlite/store";
-import type { UserStore } from "@/user-store/store";
 
 import { FORK_BLOCK_NUMBER, vitalik } from "./constants";
 import { poolId, testClient } from "./utils";
@@ -39,7 +39,7 @@ declare module "vitest" {
   export interface TestContext {
     common: Common;
     syncStore: SyncStore;
-    userStore: UserStore;
+    indexingStore: IndexingStore;
   }
 }
 
@@ -102,27 +102,27 @@ export async function setupSyncStore(
 }
 
 /**
- * Sets up an isolated UserStore on the test context.
+ * Sets up an isolated IndexingStore on the test context.
  *
  * ```ts
  * // Add this to any test suite that uses the test client.
- * beforeEach((context) => setupUserStore(context))
+ * beforeEach((context) => setupIndexingStore(context))
  * ```
  */
-export async function setupUserStore(context: TestContext) {
+export async function setupIndexingStore(context: TestContext) {
   if (process.env.DATABASE_URL) {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
-    context.userStore = new PostgresUserStore({ pool, databaseSchema });
+    context.indexingStore = new PostgresIndexingStore({ pool, databaseSchema });
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
     const db = patchSqliteDatabase({ db: rawSqliteDb });
-    context.userStore = new SqliteUserStore({ db });
+    context.indexingStore = new SqliteIndexingStore({ db });
   }
 
   return async () => {
     try {
-      await context.userStore.kill();
+      await context.indexingStore.kill();
     } catch (e) {
       // This fails in end-to-end tests where the pool has
       // already been shut down during the Ponder instance kill() method.

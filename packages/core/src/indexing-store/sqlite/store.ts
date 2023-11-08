@@ -11,9 +11,9 @@ import {
 import { decodeToBigInt } from "@/utils/encoding";
 
 import type {
+  IndexingStore,
   ModelInstance,
   OrderByInput,
-  UserStore,
   WhereInput,
 } from "../store";
 import { formatModelFieldValue, formatModelInstance } from "../utils/format";
@@ -35,7 +35,7 @@ const scalarToSqlType = {
   bytes: "text",
 } as const;
 
-export class SqliteUserStore implements UserStore {
+export class SqliteIndexingStore implements IndexingStore {
   db: Kysely<any>;
 
   schema?: Schema;

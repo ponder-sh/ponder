@@ -73,7 +73,7 @@ export type OrderByInput<TModel extends ModelDefinition> =
       [FieldName in keyof TModel]?: "asc" | "desc";
     }[];
 
-export interface UserStore {
+export interface IndexingStore {
   schema?: Schema;
   versionId?: string;
 

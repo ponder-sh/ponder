@@ -1,16 +1,16 @@
+import type { IndexingStore, ModelInstance } from "@/indexing-store/store";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
 import type { Model } from "@/types/model";
-import type { ModelInstance, UserStore } from "@/user-store/store";
 
 export function buildModels({
   common,
-  userStore,
+  indexingStore,
   schema,
   getCurrentEventTimestamp,
 }: {
   common: Common;
-  userStore: UserStore;
+  indexingStore: IndexingStore;
   schema: Schema;
   getCurrentEventTimestamp: () => number;
 }) {
@@ -23,7 +23,7 @@ export function buildModels({
           service: "store",
           msg: `findUnique (model=${modelName}, id=${id})`,
         });
-        return userStore.findUnique({
+        return indexingStore.findUnique({
           modelName,
           timestamp: getCurrentEventTimestamp(),
           id,
@@ -34,7 +34,7 @@ export function buildModels({
           service: "store",
           msg: `findMany (model=${modelName})`,
         });
-        return userStore.findMany({
+        return indexingStore.findMany({
           modelName,
           timestamp: getCurrentEventTimestamp(),
           where,
@@ -48,7 +48,7 @@ export function buildModels({
           service: "store",
           msg: `create (model=${modelName}, id=${id})`,
         });
-        return userStore.create({
+        return indexingStore.create({
           modelName,
           timestamp: getCurrentEventTimestamp(),
           id,
@@ -60,7 +60,7 @@ export function buildModels({
           service: "store",
           msg: `createMany (model=${modelName}, count=${data.length})`,
         });
-        return userStore.createMany({
+        return indexingStore.createMany({
           modelName,
           timestamp: getCurrentEventTimestamp(),
           data,
@@ -71,7 +71,7 @@ export function buildModels({
           service: "store",
           msg: `update (model=${modelName}, id=${id})`,
         });
-        return userStore.update({
+        return indexingStore.update({
           modelName,
           timestamp: getCurrentEventTimestamp(),
           id,
@@ -83,7 +83,7 @@ export function buildModels({
           service: "store",
           msg: `updateMany (model=${modelName})`,
         });
-        return userStore.updateMany({
+        return indexingStore.updateMany({
           modelName,
           timestamp: getCurrentEventTimestamp(),
           where,
@@ -95,7 +95,7 @@ export function buildModels({
           service: "store",
           msg: `upsert (model=${modelName}, id=${id})`,
         });
-        return userStore.upsert({
+        return indexingStore.upsert({
           modelName,
           timestamp: getCurrentEventTimestamp(),
           id,
@@ -108,7 +108,7 @@ export function buildModels({
           service: "store",
           msg: `delete (model=${modelName}, id=${id})`,
         });
-        return userStore.delete({
+        return indexingStore.delete({
           modelName,
           timestamp: getCurrentEventTimestamp(),
           id,

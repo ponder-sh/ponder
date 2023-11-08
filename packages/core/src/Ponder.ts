@@ -9,6 +9,9 @@ import { type Options } from "@/config/options";
 import { UserErrorService } from "@/errors/service";
 import { EventAggregatorService } from "@/event-aggregator/service";
 import { IndexingService } from "@/indexing/service";
+import { PostgresIndexingStore } from "@/indexing-store/postgres/store";
+import { SqliteIndexingStore } from "@/indexing-store/sqlite/store";
+import { type IndexingStore } from "@/indexing-store/store";
 import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { ServerService } from "@/server/service";
@@ -19,9 +22,6 @@ import { SqliteSyncStore } from "@/sync-store/sqlite/store";
 import { type SyncStore } from "@/sync-store/store";
 import { TelemetryService } from "@/telemetry/service";
 import { UiService } from "@/ui/service";
-import { PostgresUserStore } from "@/user-store/postgres/store";
-import { SqliteUserStore } from "@/user-store/sqlite/store";
-import { type UserStore } from "@/user-store/store";
 
 import { hydrateIndexingFunctions } from "./build/functions";
 import { buildSources, Source } from "./config/sources";
@@ -52,7 +52,7 @@ export class Ponder {
   eventAggregatorService: EventAggregatorService = undefined!;
 
   // Indexing services
-  userStore: UserStore = undefined!;
+  indexingStore: IndexingStore = undefined!;
   indexingService: IndexingService = undefined!;
 
   // Misc services
@@ -76,11 +76,11 @@ export class Ponder {
 
   async setup({
     syncStore,
-    userStore,
+    indexingStore,
   }: {
     // These options are only used for testing.
     syncStore?: SyncStore;
-    userStore?: UserStore;
+    indexingStore?: IndexingStore;
   } = {}) {
     this.common.logger.debug({
       service: "app",
@@ -109,11 +109,11 @@ export class Ponder {
         ? new SqliteSyncStore({ db: database.db })
         : new PostgresSyncStore({ pool: database.pool }));
 
-    this.userStore =
-      userStore ??
+    this.indexingStore =
+      indexingStore ??
       (database.kind === "sqlite"
-        ? new SqliteUserStore({ db: database.db })
-        : new PostgresUserStore({ pool: database.pool }));
+        ? new SqliteIndexingStore({ db: database.db })
+        : new PostgresIndexingStore({ pool: database.pool }));
 
     this.sources = buildSources({ config });
 
@@ -164,14 +164,14 @@ export class Ponder {
     this.indexingService = new IndexingService({
       common: this.common,
       syncStore: this.syncStore,
-      userStore: this.userStore,
+      indexingStore: this.indexingStore,
       eventAggregatorService: this.eventAggregatorService,
       sources: this.sources,
     });
 
     this.serverService = new ServerService({
       common: this.common,
-      userStore: this.userStore,
+      indexingStore: this.indexingStore,
     });
     this.codegenService = new CodegenService({
       common: this.common,
@@ -276,7 +276,7 @@ export class Ponder {
     await this.serverService.kill();
     await this.common.telemetry.kill();
 
-    await this.userStore.kill();
+    await this.indexingStore.kill();
     await this.syncStore.kill();
 
     this.common.logger.debug({

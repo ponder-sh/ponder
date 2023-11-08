@@ -2,12 +2,12 @@ import { rmSync } from "node:fs";
 import request from "supertest";
 import { type TestContext, afterEach, beforeEach, expect, test } from "vitest";
 
-import { setupSyncStore, setupUserStore } from "@/_test/setup";
+import { setupIndexingStore, setupSyncStore } from "@/_test/setup";
 import { buildOptions } from "@/config/options";
 import { Ponder } from "@/Ponder";
 
 beforeEach((context) => setupSyncStore(context));
-beforeEach((context) => setupUserStore(context));
+beforeEach((context) => setupIndexingStore(context));
 
 const setup = async ({ context }: { context: TestContext }) => {
   const options = buildOptions({
@@ -27,7 +27,7 @@ const setup = async ({ context }: { context: TestContext }) => {
   const ponder = new Ponder({ options: testOptions });
   await ponder.setup({
     syncStore: context.syncStore,
-    userStore: context.userStore,
+    indexingStore: context.indexingStore,
   });
 
   await ponder.start();

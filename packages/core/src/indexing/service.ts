@@ -9,11 +9,11 @@ import type {
   EventAggregatorService,
   LogEvent,
 } from "@/event-aggregator/service";
+import type { IndexingStore, ModelInstance } from "@/indexing-store/store";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
 import type { SyncStore } from "@/sync-store/store";
 import type { Model } from "@/types/model";
-import type { ModelInstance, UserStore } from "@/user-store/store";
 import { formatShortDate } from "@/utils/date";
 import { prettyPrint } from "@/utils/print";
 import { type Queue, type Worker, createQueue } from "@/utils/queue";
@@ -33,7 +33,7 @@ type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
 
 export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
-  private userStore: UserStore;
+  private indexingStore: IndexingStore;
   private eventAggregatorService: EventAggregatorService;
   private sources: Source[];
 
@@ -55,20 +55,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
   constructor({
     common,
     // syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources = [],
   }: {
     common: Common;
     syncStore: SyncStore;
-    userStore: UserStore;
+    indexingStore: IndexingStore;
     eventAggregatorService: EventAggregatorService;
 
     sources?: Source[];
   }) {
     super();
     this.common = common;
-    this.userStore = userStore;
+    this.indexingStore = indexingStore;
     this.eventAggregatorService = eventAggregatorService;
     this.sources = sources;
 
@@ -88,7 +88,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   /**
    * Registers a new set of indexing functions and/or a new schema, cancels
    * the current event processing mutex & event queue, drops and re-creates
-   * all tables from the user store, and resets eventsProcessedToTimestamp to zero.
+   * all tables from the indexing store, and resets eventsProcessedToTimestamp to zero.
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
@@ -103,7 +103,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.schema = newSchema;
       this.models = buildModels({
         common: this.common,
-        userStore: this.userStore,
+        indexingStore: this.indexingStore,
         schema: this.schema,
         getCurrentEventTimestamp: () => this.currentEventTimestamp,
       });
@@ -132,7 +132,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     });
     this.common.logger.debug({
       service: "indexing",
-      msg: `Paused event queue (versionId=${this.userStore.versionId})`,
+      msg: `Paused event queue (versionId=${this.indexingStore.versionId})`,
     });
 
     this.hasError = false;
@@ -142,13 +142,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.common.metrics.ponder_indexing_handled_events.reset();
     this.common.metrics.ponder_indexing_processed_events.reset();
 
-    await this.userStore.reload({ schema: this.schema });
+    await this.indexingStore.reload({ schema: this.schema });
     this.common.logger.debug({
       service: "indexing",
-      msg: `Reset user store (versionId=${this.userStore.versionId})`,
+      msg: `Reset indexing store (versionId=${this.indexingStore.versionId})`,
     });
 
-    // When we call userStore.reload() above, the user store is dropped.
+    // When we call indexingStore.reload() above, the indexing store is dropped.
     // Set the latest processed timestamp to zero accordingly.
     this.eventsProcessedToTimestamp = 0;
     this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
@@ -156,7 +156,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   /**
    * This method is triggered by the realtime sync service detecting a reorg,
-   * which can happen at any time. The event queue and the user store can be
+   * which can happen at any time. The event queue and the indexing store can be
    * in one of several different states that we need to keep in mind:
    *
    * 1) No events have been added to the queue yet.
@@ -166,7 +166,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
    *
    * Note: It's crucial that we acquire a mutex lock while handling the reorg.
    * This will only ever run while the queue is idle, so we can be confident
-   * that eventsProcessedToTimestamp matches the current state of the user store,
+   * that eventsProcessedToTimestamp matches the current state of the indexing store,
    * and that no unsafe events will get processed after handling the reorg.
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
@@ -178,7 +178,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }) => {
     try {
       await this.eventProcessingMutex.runExclusive(async () => {
-        // If there is a user error, the queue & user store will be wiped on reload (case 4).
+        // If there is a user error, the queue & indexing store will be wiped on reload (case 4).
         if (this.hasError) return;
 
         if (this.eventsProcessedToTimestamp <= commonAncestorTimestamp) {
@@ -188,9 +188,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
             msg: `No unsafe events were detected while reconciling a reorg, no-op`,
           });
         } else {
-          // Unsafe events have been processed, must revert the user store and update
+          // Unsafe events have been processed, must revert the indexing store and update
           // eventsProcessedToTimestamp accordingly (case 3).
-          await this.userStore.revert({
+          await this.indexingStore.revert({
             safeTimestamp: commonAncestorTimestamp,
           });
 
@@ -205,7 +205,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           this.common.logger.debug({
             service: "indexing",
-            msg: `Reverted user store to safe timestamp ${commonAncestorTimestamp}`,
+            msg: `Reverted indexing store to safe timestamp ${commonAncestorTimestamp}`,
           });
         }
       });

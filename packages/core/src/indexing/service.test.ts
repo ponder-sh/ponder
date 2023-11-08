@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
-import { setupSyncStore, setupUserStore } from "@/_test/setup";
+import { setupIndexingStore, setupSyncStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
@@ -12,7 +12,7 @@ import * as p from "@/schema";
 import { IndexingService } from "./service";
 
 beforeEach((context) => setupSyncStore(context));
-beforeEach((context) => setupUserStore(context));
+beforeEach((context) => setupIndexingStore(context));
 
 const network = {
   name: "mainnet",
@@ -112,12 +112,12 @@ beforeEach(() => {
 });
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
-  const { common, syncStore, userStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
     syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources,
   });
@@ -150,12 +150,12 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 });
 
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
-  const { common, syncStore, userStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
     syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources,
   });
@@ -185,13 +185,13 @@ test("processEvents() calls indexing functions with correct arguments", async (c
   service.kill();
 });
 
-test("processEvents() model methods insert data into the user store", async (context) => {
-  const { common, syncStore, userStore } = context;
+test("processEvents() model methods insert data into the indexing store", async (context) => {
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
     syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources,
   });
@@ -201,7 +201,7 @@ test("processEvents() model methods insert data into the user store", async (con
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
-  const transferEvents = await userStore.findMany({
+  const transferEvents = await indexingStore.findMany({
     modelName: "TransferEvent",
   });
   expect(transferEvents.length).toBe(1);
@@ -210,12 +210,12 @@ test("processEvents() model methods insert data into the user store", async (con
 });
 
 test("processEvents() updates event count metrics", async (context) => {
-  const { common, syncStore, userStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
     syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources,
   });
@@ -250,13 +250,13 @@ test("processEvents() updates event count metrics", async (context) => {
   service.kill();
 });
 
-test("reset() reloads the user store", async (context) => {
-  const { common, syncStore, userStore } = context;
+test("reset() reloads the indexing store", async (context) => {
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
     syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources,
   });
@@ -266,18 +266,18 @@ test("reset() reloads the user store", async (context) => {
   eventAggregatorService.checkpoint = 10;
   await service.processEvents();
 
-  const transferEvents = await userStore.findMany({
+  const transferEvents = await indexingStore.findMany({
     modelName: "TransferEvent",
   });
   expect(transferEvents.length).toBe(1);
 
-  const versionIdBeforeReset = userStore.versionId;
+  const versionIdBeforeReset = indexingStore.versionId;
 
   await service.reset({ schema, indexingFunctions });
 
-  expect(userStore.versionId).not.toBe(versionIdBeforeReset);
+  expect(indexingStore.versionId).not.toBe(versionIdBeforeReset);
 
-  const transferEventsAfterReset = await userStore.findMany({
+  const transferEventsAfterReset = await indexingStore.findMany({
     modelName: "TransferEvent",
   });
   expect(transferEventsAfterReset.length).toBe(0);
@@ -286,12 +286,12 @@ test("reset() reloads the user store", async (context) => {
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { common, syncStore, userStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
     syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources,
   });
@@ -316,18 +316,18 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   service.kill();
 });
 
-test("handleReorg() reverts the user store", async (context) => {
-  const { common, syncStore, userStore } = context;
+test("handleReorg() reverts the indexing store", async (context) => {
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
     syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources,
   });
 
-  const userStoreRevertSpy = vi.spyOn(userStore, "revert");
+  const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
   await service.reset({ schema, indexingFunctions });
 
@@ -336,23 +336,23 @@ test("handleReorg() reverts the user store", async (context) => {
 
   await service.handleReorg({ commonAncestorTimestamp: 6 });
 
-  expect(userStoreRevertSpy).toHaveBeenLastCalledWith({ safeTimestamp: 6 });
+  expect(indexingStoreRevertSpy).toHaveBeenLastCalledWith({ safeTimestamp: 6 });
 
   service.kill();
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
-  const { common, syncStore, userStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
     syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources,
   });
 
-  const userStoreRevertSpy = vi.spyOn(userStore, "revert");
+  const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
 
   await service.reset({ schema, indexingFunctions });
 
@@ -365,18 +365,18 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
   await service.handleReorg({ commonAncestorTimestamp: 6 });
 
-  expect(userStoreRevertSpy).not.toHaveBeenCalled();
+  expect(indexingStoreRevertSpy).not.toHaveBeenCalled();
 
   service.kill();
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
-  const { common, syncStore, userStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
     syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources,
   });
@@ -410,12 +410,12 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { common, syncStore, userStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
     syncStore,
-    userStore,
+    indexingStore,
     eventAggregatorService,
     sources,
   });
