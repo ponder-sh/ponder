@@ -44,10 +44,5 @@
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
   },
-  "packageManager": "pnpm@8.6.10",
-  "pnpm": {
-    "patchedDependencies": {
-      "graphql@15.8.0": "patches/graphql@15.8.0.patch"
-    }
-  }
+  "packageManager": "pnpm@8.6.10"
 }
