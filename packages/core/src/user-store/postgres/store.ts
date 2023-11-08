@@ -2,7 +2,12 @@ import { randomBytes } from "crypto";
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 
-import type { Schema } from "@/schema/types";
+import type { Scalar, Schema } from "@/schema/types";
+import {
+  isEnumColumn,
+  isReferenceColumn,
+  isVirtualColumn,
+} from "@/schema/utils";
 
 import type {
   ModelInstance,
@@ -20,13 +25,13 @@ import {
 const MAX_INTEGER = 2_147_483_647 as const;
 const MAX_BATCH_SIZE = 1_000 as const;
 
-const gqlScalarToSqlType = {
-  Boolean: "integer",
-  Int: "integer",
-  String: "text",
-  BigInt: "numeric(78, 0)",
-  Bytes: "text",
-  Float: "text",
+const scalarToSqlType = {
+  boolean: "integer",
+  int: "integer",
+  float: "text",
+  string: "text",
+  bigint: "numeric(78, 0)",
+  bytes: "text",
 } as const;
 
 export class PostgresUserStore implements UserStore {
@@ -75,9 +80,9 @@ export class PostgresUserStore implements UserStore {
       // Drop tables from existing schema.
       if (this.schema) {
         await Promise.all(
-          this.schema.entities.map((model) => {
-            const tableName = `${model.name}_${this.versionId}`;
-            tx.schema.dropTable(tableName);
+          Object.keys(this.schema.tables).map((tableName) => {
+            const dbTableName = `${tableName}_${this.versionId}`;
+            tx.schema.dropTable(dbTableName);
           })
         );
       }
@@ -88,60 +93,46 @@ export class PostgresUserStore implements UserStore {
 
       // Create tables for new schema.
       await Promise.all(
-        this.schema!.entities.map(async (model) => {
-          const tableName = `${model.name}_${this.versionId}`;
-          let tableBuilder = tx.schema.createTable(tableName);
-          model.fields.forEach((field) => {
-            switch (field.kind) {
-              case "SCALAR": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  gqlScalarToSqlType[field.scalarTypeName],
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    return col;
-                  }
-                );
-                break;
-              }
-              case "ENUM": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  "text",
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    col = col.check(
-                      sql`${sql.ref(field.name)} in (${sql.join(
-                        field.enumValues.map((v) => sql.lit(v))
-                      )})`
-                    );
-                    return col;
-                  }
-                );
-                break;
-              }
-              case "LIST": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  "text",
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    return col;
-                  }
-                );
-                break;
-              }
-              case "RELATIONSHIP": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  gqlScalarToSqlType[field.relatedEntityIdType.name],
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    return col;
-                  }
-                );
-                break;
-              }
+        Object.entries(this.schema!.tables).map(async ([tableName, table]) => {
+          const dbTableName = `${tableName}_${this.versionId}`;
+          let tableBuilder = tx.schema.createTable(dbTableName);
+          Object.entries(table).forEach(([columnName, column]) => {
+            // Handle scalar list columns
+            if (isVirtualColumn(column)) return;
+            else if (isEnumColumn(column)) {
+              // Handle enum types
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                "text",
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  col = col.check(
+                    sql`${sql.ref(columnName)} in (${sql.join(
+                      schema!.enums[column.type].map((v) => sql.lit(v))
+                    )})`
+                  );
+                  return col;
+                }
+              );
+            } else if (column.list) {
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                "text",
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  return col;
+                }
+              );
+            } else {
+              // Non-list base column
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                scalarToSqlType[column.type],
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  return col;
+                }
+              );
             }
           });
 
@@ -157,7 +148,7 @@ export class PostgresUserStore implements UserStore {
             (col) => col.notNull()
           );
           tableBuilder = tableBuilder.addPrimaryKeyConstraint(
-            `${tableName}_id_effectiveTo_unique`,
+            `${dbTableName}_id_effectiveTo_unique`,
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore
             ["id", "effectiveTo"]
@@ -170,13 +161,14 @@ export class PostgresUserStore implements UserStore {
   };
 
   async kill() {
-    const entities = this.schema?.entities ?? [];
-    if (entities.length > 0) {
+    const tableNames = Object.keys(this.schema?.tables ?? {});
+    if (tableNames.length > 0) {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
-          entities.map(async (model) => {
-            const tableName = `${model.name}_${this.versionId}`;
-            await tx.schema.dropTable(tableName).execute();
+          tableNames.map(async (tableName) => {
+            await tx.schema
+              .dropTable(`${tableName}_${this.versionId}`)
+              .execute();
           })
         );
       });
@@ -670,20 +662,18 @@ export class PostgresUserStore implements UserStore {
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        (this.schema?.entities ?? []).map(async (entity) => {
-          const modelName = entity.name;
-          const tableName = `${modelName}_${this.versionId}`;
-
+        Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
+          const dbTableName = `${tableName}_${this.versionId}`;
           // Delete any versions that are newer than the safe timestamp.
           await tx
-            .deleteFrom(tableName)
+            .deleteFrom(dbTableName)
             .where("effectiveFrom", ">", safeTimestamp)
             .execute();
 
           // Now, any versions that have effectiveTo greater than or equal
           // to the safe timestamp are the new latest version.
           await tx
-            .updateTable(tableName)
+            .updateTable(dbTableName)
             .where("effectiveTo", ">=", safeTimestamp)
             .set({ effectiveTo: MAX_INTEGER })
             .execute();
@@ -699,12 +689,13 @@ export class PostgresUserStore implements UserStore {
     modelName: string;
     instance: Record<string, unknown>;
   }) => {
-    const entity = this.schema!.entities.find((e) => e.name === modelName)!;
-
+    const entity = Object.entries(this.schema!.tables).find(
+      ([name]) => name === modelName
+    )![1];
     const deserializedInstance = {} as ModelInstance;
 
-    entity.fields.forEach((field) => {
-      const value = instance[field.name] as
+    Object.entries(entity).forEach(([columnName, column]) => {
+      const value = instance[columnName] as
         | string
         | number
         | bigint
@@ -712,37 +703,33 @@ export class PostgresUserStore implements UserStore {
         | undefined;
 
       if (value === null || value === undefined) {
-        deserializedInstance[field.name] = null;
+        deserializedInstance[columnName] = null;
         return;
       }
 
-      if (field.kind === "SCALAR" && field.scalarTypeName === "Boolean") {
-        deserializedInstance[field.name] = value === 1 ? true : false;
-        return;
-      }
-
-      if (field.kind === "SCALAR" && field.scalarTypeName === "BigInt") {
-        deserializedInstance[field.name] = value;
-        return;
-      }
-
-      if (
-        field.kind === "RELATIONSHIP" &&
-        field.relatedEntityIdType.name === "BigInt"
+      if (isVirtualColumn(column)) return;
+      else if (
+        !isEnumColumn(column) &&
+        !isReferenceColumn(column) &&
+        column.list
       ) {
-        deserializedInstance[field.name] = value;
-        return;
-      }
-
-      if (field.kind === "LIST") {
         let parsedValue = JSON.parse(value as string);
-        if (field.baseGqlType.name === "BigInt")
-          parsedValue = parsedValue.map(BigInt);
-        deserializedInstance[field.name] = parsedValue;
+        if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
+        deserializedInstance[columnName] = parsedValue;
         return;
       }
 
-      deserializedInstance[field.name] = value;
+      if ((column.type as Scalar) === "boolean") {
+        deserializedInstance[columnName] = value === 1 ? true : false;
+        return;
+      }
+
+      if (column.type === "bigint") {
+        deserializedInstance[columnName] = value;
+        return;
+      }
+
+      deserializedInstance[columnName] = value;
     });
 
     return deserializedInstance;

@@ -6,9 +6,10 @@ import {
   GraphQLObjectType,
 } from "graphql";
 
-import type { Entity } from "@/schema/types";
+import type { BaseColumn, ID, Schema } from "@/schema/types";
 
 import type { Context, Source } from "./schema";
+import { tsTypeToGqlScalar } from "./schema";
 
 type SingularArgs = {
   id?: string;
@@ -17,10 +18,12 @@ type SingularArgs = {
 type SingularResolver = GraphQLFieldResolver<Source, Context, SingularArgs>;
 
 const buildSingularField = ({
-  entity,
+  tableName,
+  table,
   entityGqlType,
 }: {
-  entity: Entity;
+  tableName: string;
+  table: Schema["tables"][string];
   entityGqlType: GraphQLObjectType<Source, Context>;
 }): GraphQLFieldConfig<Source, Context> => {
   const resolver: SingularResolver = async (_, args, context) => {
@@ -30,7 +33,7 @@ const buildSingularField = ({
     if (id === undefined) return null;
 
     const entityInstance = await store.findUnique({
-      modelName: entity.name,
+      modelName: tableName,
       id,
       timestamp,
     });
@@ -41,7 +44,13 @@ const buildSingularField = ({
   return {
     type: entityGqlType,
     args: {
-      id: { type: new GraphQLNonNull(entity.fieldByName.id.scalarGqlType) },
+      id: {
+        type: new GraphQLNonNull(
+          tsTypeToGqlScalar[
+            (table as { id: BaseColumn<ID, never, false, false> }).id.type
+          ]
+        ),
+      },
       timestamp: { type: GraphQLInt },
     },
     resolve: resolver,

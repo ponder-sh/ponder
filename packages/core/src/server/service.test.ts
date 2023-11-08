@@ -1,11 +1,9 @@
-import { buildSchema as buildGraphqlSchema } from "graphql";
 import request from "supertest";
 import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
-import { schemaHeader } from "@/build/schema";
 import type { Common } from "@/Ponder";
-import { buildSchema } from "@/schema/schema";
+import * as p from "@/schema";
 import type { UserStore } from "@/user-store/store";
 import { range } from "@/utils/range";
 
@@ -14,45 +12,33 @@ import { ServerService } from "./service";
 
 beforeEach((context) => setupUserStore(context));
 
-const userSchema = buildGraphqlSchema(`
-  ${schemaHeader}
+const s = p.createSchema({
+  TestEnum: p.createEnum(["ZERO", "ONE", "TWO"]),
+  TestEntity: p.createTable({
+    id: p.string(),
+    string: p.string(),
+    int: p.int(),
+    float: p.float(),
+    boolean: p.boolean(),
+    bytes: p.bytes(),
+    bigInt: p.bigint(),
+    stringList: p.string().list(),
+    intList: p.int().list(),
+    floatList: p.float().list(),
+    booleanList: p.boolean().list(),
+    bytesList: p.bytes().list(),
+    enum: p.enum("TestEnum"),
+    derived: p.virtual("EntityWithBigIntId.testEntityId"),
+  }),
+  EntityWithIntId: p.createTable({ id: p.int() }),
 
-  type TestEntity @entity {
-    id: String!
-    string: String!
-    int: Int!
-    float: Float!
-    boolean: Boolean!
-    bytes: Bytes!
-    bigInt: BigInt!
-    stringList: [String!]!
-    intList: [Int!]!
-    floatList: [Float!]!
-    booleanList: [Boolean!]!
-    bytesList: [Bytes!]!
-    # Basic lists of bigints are not supported yet.
-    # bigIntList: [BigInt!]!
-    enum: TestEnum!
-    derived: [EntityWithBigIntId!]! @derivedFrom(field: "testEntity")
-  }
+  EntityWithBigIntId: p.createTable({
+    id: p.bigint(),
+    testEntityId: p.string().references("TestEntity.id"),
+  }),
+});
 
-  enum TestEnum {
-    ZERO
-    ONE
-    TWO
-  }
-
-  type EntityWithBigIntId @entity {
-    id: BigInt!
-    testEntity: TestEntity!
-  }
-
-  type EntityWithIntId @entity {
-    id: Int!
-  }
-`);
-const schema = buildSchema(userSchema);
-const graphqlSchema = buildGqlSchema(schema);
+const graphqlSchema = buildGqlSchema(s);
 
 const setup = async ({
   common,
@@ -67,7 +53,7 @@ const setup = async ({
     hasCompletedHistoricalIndexing?: boolean;
   };
 }) => {
-  await userStore.reload({ schema });
+  await userStore.reload({ schema: s });
 
   const service = new ServerService({ common, userStore });
   await service.start();
@@ -116,7 +102,7 @@ const setup = async ({
       timestamp: 0,
       id,
       data: {
-        testEntity: testEntityId,
+        testEntityId,
       },
     });
   };
@@ -1009,7 +995,7 @@ test("filters on relationship field equals", async (context) => {
   await createEntityWithBigIntId({ id: BigInt(1), testEntityId: "1" });
 
   const response = await gql(`
-    entityWithBigIntIds(where: { testEntity: "0" }) {
+    entityWithBigIntIds(where: { testEntityId: "0" }) {
       id
       testEntity {
         id
@@ -1043,7 +1029,7 @@ test("filters on relationship field in", async (context) => {
   await createEntityWithBigIntId({ id: BigInt(2), testEntityId: "2" });
 
   const response = await gql(`
-    entityWithBigIntIds(where: { testEntity_in: ["0", "1"] }) {
+    entityWithBigIntIds(where: { testEntityId_in: ["0", "1"] }) {
       id
     }
   `);
@@ -1070,7 +1056,7 @@ test("filters on relationship field in", async (context) => {
   await createEntityWithBigIntId({ id: BigInt(2), testEntityId: "2" });
 
   const response = await gql(`
-    entityWithBigIntIds(where: { testEntity_in: ["0", "1"] }) {
+    entityWithBigIntIds(where: { testEntityId_in: ["0", "1"] }) {
       id
     }
   `);
@@ -1556,7 +1542,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   const responseOld = await gql(`
     testEntitys(timestamp: 5) {
       id
-      derived {
+      derivedTestEntity {
         id
       }
     }
@@ -1567,13 +1553,13 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   expect(testEntitysOld).toHaveLength(1);
   expect(testEntitysOld[0]).toMatchObject({
     id: "0",
-    derived: [{ id: "0" }],
+    derivedTestEntity: [{ id: "0" }],
   });
 
   const response = await gql(`
     testEntitys {
       id
-      derived {
+      derivedTestEntity {
         id
       }
     }
@@ -1584,7 +1570,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   expect(testEntitys).toHaveLength(1);
   expect(testEntitys[0]).toMatchObject({
     id: "0",
-    derived: [],
+    derivedTestEntity: [],
   });
 
   await service.kill();

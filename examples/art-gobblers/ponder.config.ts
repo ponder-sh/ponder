@@ -18,6 +18,7 @@ export const config = createConfig({
       abi: ArtGobblersAbi,
       address: "0x60bb1e2aa1c9acafb4d34f71585d7e959f387769",
       startBlock: 15863321,
+      filter: { event: "ArtGobbled" },
     },
   ],
 });

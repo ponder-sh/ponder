@@ -1,30 +1,33 @@
-import { buildSchema as buildGraphqlSchema } from "graphql";
 import { expect, test } from "vitest";
 
-import { schemaHeader } from "@/build/schema";
 import { buildEntityTypes } from "@/codegen/entity";
-import { buildSchema } from "@/schema/schema";
-
-const graphqlSchema = buildGraphqlSchema(`
-  ${schemaHeader}
-
-  type Entity @entity {
-    id: String!
-    int: Int
-    float: Float
-    bool: Boolean
-    bytes: Bytes
-    bigInt: BigInt
-    nonNullInt: Int!
-    nonNullFloat: Float!
-    nonNullBool: Boolean!
-    nonNullBytes: Bytes!
-    nonNullBigInt: BigInt!
-  }
-`);
+import * as p from "@/schema";
 
 test("entity type codegen succeeds", () => {
-  const schema = buildSchema(graphqlSchema);
-  const output = buildEntityTypes(schema.entities);
-  expect(output).not.toBeNull();
+  const output = buildEntityTypes(
+    p.createSchema({
+      name: p.createTable({
+        id: p.bigint(),
+        age: p.int(),
+      }),
+    })
+  );
+  expect(output).toStrictEqual(`export type name = {
+        id: bigint;age: number;
+        };`);
+});
+
+test("enum type codegen succeeds", () => {
+  const output = buildEntityTypes(
+    p.createSchema({
+      e: p.createEnum(["ONE", "TWO"]),
+      name: p.createTable({
+        id: p.bigint(),
+        age: p.enum("e"),
+      }),
+    })
+  );
+  expect(output).toStrictEqual(`export type name = {
+        id: bigint;age: "ONE" | "TWO";
+        };`);
 });

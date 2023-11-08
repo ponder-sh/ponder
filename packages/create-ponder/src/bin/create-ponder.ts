@@ -18,7 +18,6 @@ const createPonder = async () => {
     .help()
     .option("--dir [path]", "Path to directory for generated project")
     .option("--from-subgraph-id [id]", "Subgraph deployment ID")
-    .option("--from-subgraph-repo [path]", "Path to subgraph repository")
     .option("--from-etherscan [url]", "Link to etherscan contract page")
     .option("--etherscan-api-key [key]", "Etherscan API key");
 
@@ -28,7 +27,6 @@ const createPonder = async () => {
     help?: boolean;
     dir?: string;
     fromSubgraphId?: string;
-    fromSubgraphRepo?: string;
     fromEtherscan?: string;
     etherscanApiKey?: string;
   };
@@ -37,16 +35,12 @@ const createPonder = async () => {
     process.exit(0);
   }
 
-  const { fromEtherscan, fromSubgraphId, fromSubgraphRepo } = options;
+  const { fromEtherscan, fromSubgraphId } = options;
 
   // Validate CLI options.
-  if (
-    (fromSubgraphId && fromSubgraphRepo) ||
-    (fromSubgraphId && fromEtherscan) ||
-    (fromSubgraphRepo && fromEtherscan)
-  ) {
+  if (fromSubgraphId && fromEtherscan) {
     throw new Error(
-      `Cannot specify more than one "--from" option:\n  --from-subgraph\n  --from-etherscan-id\n  --from-etherscan-repo`
+      `Cannot specify more than one "--from" option:\n  --from-subgraph\n  --from-etherscan-id\n`
     );
   }
 
@@ -65,12 +59,9 @@ const createPonder = async () => {
   if (fromSubgraphId) {
     template = { kind: TemplateKind.SUBGRAPH_ID, id: fromSubgraphId };
   }
-  if (fromSubgraphRepo) {
-    template = { kind: TemplateKind.SUBGRAPH_REPO, path: fromSubgraphRepo };
-  }
 
   // Get template from prompts if not provided.
-  if (!fromSubgraphId && !fromSubgraphRepo && !fromEtherscan) {
+  if (!fromSubgraphId && !fromEtherscan) {
     const { template: templateKind } = await prompts({
       type: "select",
       name: "template",
@@ -79,7 +70,6 @@ const createPonder = async () => {
         { title: "None" },
         { title: "Etherscan contract link" },
         { title: "Subgraph ID" },
-        { title: "Subgraph repository" },
       ],
     });
 
@@ -101,16 +91,6 @@ const createPonder = async () => {
         initial: "QmNus...",
       });
       template = { kind: TemplateKind.SUBGRAPH_ID, id };
-    }
-
-    if (templateKind === TemplateKind.SUBGRAPH_REPO) {
-      const { path } = await prompts({
-        type: "text",
-        name: "path",
-        message: "Enter a path to a subgraph repository",
-        initial: "../subgraph",
-      });
-      template = { kind: TemplateKind.SUBGRAPH_REPO, path };
     }
   }
 

@@ -11,7 +11,6 @@ import { tryGitInit } from "@/helpers/git";
 import { fromBasic } from "@/templates/basic";
 import { fromEtherscan } from "@/templates/etherscan";
 import { fromSubgraphId } from "@/templates/subgraphId";
-import { fromSubgraphRepo } from "@/templates/subgraphRepo";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -70,15 +69,6 @@ export const run = async (
       config = await fromSubgraphId({
         rootDir,
         subgraphId: options.template.id,
-      });
-      break;
-    }
-    case TemplateKind.SUBGRAPH_REPO: {
-      console.log(`\nUsing ${pico.cyan("Subgraph repository")} template.`);
-
-      config = fromSubgraphRepo({
-        rootDir,
-        subgraphPath: options.template.path,
       });
       break;
     }
@@ -148,6 +138,30 @@ export const run = async (
   writeFileSync(
     path.join(rootDir, "ponder.config.ts"),
     prettier.format(finalConfig, { parser: "babel" })
+  );
+
+  // Write the ponder.schema.ts file
+  const schemaGraphqlFileContents = `
+  import { p } from "@ponder/core";
+
+  /**
+   *  The entity types defined below map to database tables.
+   * The functions you write in the \`src/\` directory are responsible for creating and updating records in these tables.
+   * Your schema will be more flexible and powerful if it accurately models the logical relationships in your application's domain.
+   *  Visit the [documentation](https://ponder.sh/guides/design-your-schema) or the 
+   * [\`examples/\`](https://github.com/0xOlias/ponder/tree/main/examples) directory for further guidance on designing your schema.
+   */
+  export const schema = p.createSchema({
+    ExampleTable: p.createTable({
+      id: p.string(),
+      name: p.string().optional(),
+    }),
+  });
+`;
+
+  writeFileSync(
+    path.join(rootDir, "ponder.schema.ts"),
+    prettier.format(schemaGraphqlFileContents, { parser: "babel" })
   );
 
   // Write the .env.local file.

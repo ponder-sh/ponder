@@ -20,10 +20,10 @@ ponder.on("ArtGobblers:Transfer", async ({ event, context }) => {
   await Token.upsert({
     id: event.params.id,
     create: {
-      owner: event.params.to,
+      ownerId: event.params.to,
     },
     update: {
-      owner: event.params.to,
+      ownerId: event.params.to,
     },
   });
 });

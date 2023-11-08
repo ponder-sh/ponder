@@ -10,9 +10,11 @@ import {
   GraphQLString,
 } from "graphql";
 
-import type { Entity } from "@/schema/types";
+import type { Scalar, Schema } from "@/schema/types";
+import { isEnumColumn, isVirtualColumn } from "@/schema/utils";
 
 import type { Context, Source } from "./schema";
+import { tsTypeToGqlScalar } from "./schema";
 
 type PluralArgs = {
   timestamp?: number;
@@ -40,119 +42,81 @@ const operators = {
 };
 
 export const buildPluralField = ({
-  entity,
+  tableName,
+  table,
   entityGqlType,
 }: {
-  entity: Entity;
+  tableName: string;
+  table: Schema["tables"][string];
   entityGqlType: GraphQLObjectType<Source, Context>;
 }): GraphQLFieldConfig<Source, Context> => {
   const filterFields: Record<string, { type: GraphQLInputType }> = {};
 
-  entity.fields.forEach((field) => {
-    switch (field.kind) {
-      case "SCALAR": {
-        // Scalar fields => universal, singular, numeric OR string depending on base type
-        // Note: Booleans => universal and singular only.
-        operators.universal.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: field.scalarGqlType,
+  Object.entries(table).forEach(([columnName, column]) => {
+    // Note: Only include non-virtual columns in plural fields
+    if (isVirtualColumn(column)) return;
+    else if (isEnumColumn(column)) {
+      const enumType = entityGqlType.getFields()[columnName].type;
+
+      operators.universal.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = {
+          type: enumType as GraphQLInputType, // TODO:Kyle this is probably a bad idea
+        };
+      });
+
+      operators.singular.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = {
+          type: new GraphQLList(enumType),
+        };
+      });
+    } else if (column.list) {
+      // List fields => universal, plural
+      operators.universal.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = {
+          type: new GraphQLList(tsTypeToGqlScalar[column.type as Scalar]),
+        };
+      });
+
+      operators.plural.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = {
+          type: tsTypeToGqlScalar[column.type as Scalar],
+        };
+      });
+    } else {
+      // Scalar fields => universal, singular, numeric OR string depending on base type
+      // Note: Booleans => universal and singular only.
+      operators.universal.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = {
+          type: tsTypeToGqlScalar[column.type as Scalar],
+        };
+      });
+
+      operators.singular.forEach((suffix) => {
+        filterFields[`${columnName}${suffix}`] = {
+          type: new GraphQLList(tsTypeToGqlScalar[column.type as Scalar]),
+        };
+      });
+
+      if (["int", "bigint", "float"].includes(column.type)) {
+        operators.numeric.forEach((suffix) => {
+          filterFields[`${columnName}${suffix}`] = {
+            type: tsTypeToGqlScalar[column.type as Scalar],
           };
         });
-
-        operators.singular.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: new GraphQLList(field.scalarGqlType),
-          };
-        });
-
-        if (["Int", "BigInt", "Float"].includes(field.scalarTypeName)) {
-          operators.numeric.forEach((suffix) => {
-            filterFields[`${field.name}${suffix}`] = {
-              type: field.scalarGqlType,
-            };
-          });
-        }
-
-        if (["String", "Bytes"].includes(field.scalarTypeName)) {
-          operators.string.forEach((suffix) => {
-            filterFields[`${field.name}${suffix}`] = {
-              type: field.scalarGqlType,
-            };
-          });
-        }
-
-        break;
       }
-      case "ENUM": {
-        // Enum fields => universal, singular
-        operators.universal.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = { type: field.enumGqlType };
-        });
 
-        operators.singular.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: new GraphQLList(field.enumGqlType),
+      if (["string", "bytes"].includes(column.type)) {
+        operators.string.forEach((suffix) => {
+          filterFields[`${columnName}${suffix}`] = {
+            type: tsTypeToGqlScalar[column.type as Scalar],
           };
         });
-        break;
-      }
-      case "LIST": {
-        // List fields => universal, plural
-        operators.universal.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: new GraphQLList(field.baseGqlType),
-          };
-        });
-
-        operators.plural.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = { type: field.baseGqlType };
-        });
-        break;
-      }
-      case "RELATIONSHIP": {
-        // Relationship fields => universal, singular, numeric OR string depending on base type
-        operators.universal.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: field.relatedEntityIdType,
-          };
-        });
-
-        operators.singular.forEach((suffix) => {
-          filterFields[`${field.name}${suffix}`] = {
-            type: new GraphQLList(field.relatedEntityIdType),
-          };
-        });
-
-        if (
-          ["Int", "BigInt", "Float"].includes(field.relatedEntityIdType.name)
-        ) {
-          operators.numeric.forEach((suffix) => {
-            filterFields[`${field.name}${suffix}`] = {
-              type: field.relatedEntityIdType,
-            };
-          });
-        }
-
-        if (["String", "Bytes"].includes(field.relatedEntityIdType.name)) {
-          operators.string.forEach((suffix) => {
-            filterFields[`${field.name}${suffix}`] = {
-              type: field.relatedEntityIdType,
-            };
-          });
-        }
-
-        // TODO: Add complex "{fieldName}_" filter field.
-        break;
-      }
-      case "DERIVED": {
-        // TODO: Add derived filter fields.
-        break;
       }
     }
   });
 
   const filterType = new GraphQLInputObjectType({
-    name: `${entity.name}Filter`,
+    name: `${tableName}Filter`,
     fields: filterFields,
   });
 
@@ -162,7 +126,7 @@ export const buildPluralField = ({
     const { timestamp, where, skip, first, orderBy, orderDirection } = args;
 
     return await store.findMany({
-      modelName: entity.name,
+      modelName: tableName,
       timestamp: timestamp ? timestamp : undefined,
       where: where ? buildWhereObject({ where }) : undefined,
       skip: skip,

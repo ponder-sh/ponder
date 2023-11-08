@@ -196,7 +196,7 @@ export class Ponder {
     // Finally, load the schema + indexing functions which will trigger
     // the indexing service to reload (for the first time).
     await this.buildService.loadIndexingFunctions();
-    this.buildService.buildSchema();
+    await this.buildService.loadSchema();
   }
 
   async dev() {
@@ -244,11 +244,10 @@ export class Ponder {
   async codegen() {
     this.codegenService.generateAppFile();
 
-    const result = this.buildService.buildSchema();
+    const result = await this.buildService.loadSchema();
     if (result) {
-      const { schema, graphqlSchema } = result;
-      this.codegenService.generateAppFile({ schema });
-      this.codegenService.generateSchemaFile({ graphqlSchema });
+      const { graphqlSchema } = result;
+      this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
     }
 
     await this.kill();
@@ -299,7 +298,7 @@ export class Ponder {
       this.common.errors.hasUserError = false;
 
       this.codegenService.generateAppFile({ schema });
-      this.codegenService.generateSchemaFile({ graphqlSchema });
+      this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
 
       this.serverService.reload({ graphqlSchema });
 

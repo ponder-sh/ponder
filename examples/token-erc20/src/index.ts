@@ -31,8 +31,8 @@ ponder.on("AdventureGold:Transfer", async ({ event, context }) => {
   await TransferEvent.create({
     id: event.log.id,
     data: {
-      from: event.params.from,
-      to: event.params.to,
+      fromId: event.params.from,
+      toId: event.params.to,
       amount: event.params.value,
       timestamp: Number(event.block.timestamp),
     },
@@ -42,13 +42,14 @@ ponder.on("AdventureGold:Transfer", async ({ event, context }) => {
 ponder.on("AdventureGold:Approval", async ({ event, context }) => {
   const { Approval, ApprovalEvent } = context.entities;
 
-  const approvalId = `${event.params.owner}-${event.params.spender}`;
+  const approvalId =
+    `${event.params.owner}-${event.params.spender}` as `0x${string}`;
 
   // Create or update the Approval.
   await Approval.upsert({
     id: approvalId,
     create: {
-      owner: event.params.owner,
+      ownerId: event.params.owner,
       spender: event.params.spender,
       amount: event.params.value,
     },
@@ -61,8 +62,8 @@ ponder.on("AdventureGold:Approval", async ({ event, context }) => {
   await ApprovalEvent.create({
     id: event.log.id,
     data: {
-      owner: event.params.owner,
-      spender: event.params.spender,
+      ownerId: event.params.owner,
+      spenderId: event.params.spender,
       amount: event.params.value,
       timestamp: Number(event.block.timestamp),
     },

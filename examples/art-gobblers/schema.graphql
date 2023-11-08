@@ -1,4 +1,0 @@
-type GobbledArt @entity {
-  id: String! # gobblerId
-  user: String! # user
-}

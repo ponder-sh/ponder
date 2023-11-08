@@ -1,15 +1,13 @@
-import { buildSchema as buildGraphqlSchema } from "graphql";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
 import { setupEventStore, setupUserStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import type { IndexingFunctions } from "@/build/functions";
-import { schemaHeader } from "@/build/schema";
 import { LogEventMetadata } from "@/config/abi";
 import { Source } from "@/config/sources";
 import { EventAggregatorService } from "@/event-aggregator/service";
-import { buildSchema } from "@/schema/schema";
+import * as p from "@/schema";
 
 import { IndexingService } from "./service";
 
@@ -37,14 +35,12 @@ const sources: Source[] = [
   },
 ];
 
-const schema = buildSchema(
-  buildGraphqlSchema(`${schemaHeader}
-    type TransferEvent @entity {
-      id: String!
-      timestamp: Int!
-    }
-  `)
-);
+const schema = p.createSchema({
+  TransferEvent: p.createTable({
+    id: p.string(),
+    timestamp: p.int(),
+  }),
+});
 
 const transferIndexingFunction = vi.fn(async ({ event, context }) => {
   await context.entities.TransferEvent.create({

@@ -1,341 +1,267 @@
 import {
-  type FieldDefinitionNode,
-  type StringValueNode,
-  GraphQLBoolean,
-  GraphQLEnumType,
-  GraphQLFloat,
-  GraphQLID,
-  GraphQLInputObjectType,
-  GraphQLInt,
-  GraphQLObjectType,
-  GraphQLScalarType,
-  GraphQLSchema,
-  GraphQLString,
-  Kind,
-} from "graphql";
-
-import type {
-  DerivedField,
-  Entity,
-  EnumField,
-  Field,
-  ListField,
-  RelationshipField,
-  ScalarField,
+  Enum,
+  EnumColumn,
+  ExtractAllNames,
+  FilterEnums,
+  FilterTables,
+  ID,
+  IDColumn,
+  InternalColumn,
+  InternalEnum,
+  NonReferenceColumn,
+  ReferenceColumn,
+  Scalar,
   Schema,
+  Table,
+  VirtualColumn,
 } from "./types";
+import {
+  isEnumColumn,
+  isReferenceColumn,
+  isVirtualColumn,
+  referencedEntityName,
+} from "./utils";
 
-const GraphQLBigInt = new GraphQLScalarType({
-  name: "BigInt",
-  serialize: (value) => String(value),
-  parseValue: (value) => BigInt(value),
-  parseLiteral: (value) => {
-    if (value.kind === "StringValue") {
-      return BigInt(value.value);
-    } else {
-      throw new Error(
-        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`
-      );
-    }
-  },
-});
-
-const gqlScalarTypeByName: Record<string, GraphQLScalarType | undefined> = {
-  ID: GraphQLID,
-  Int: GraphQLInt,
-  Float: GraphQLFloat,
-  String: GraphQLString,
-  Boolean: GraphQLBoolean,
-  BigInt: GraphQLBigInt,
-  Bytes: GraphQLString,
-};
-
-export const buildSchema = (graphqlSchema: GraphQLSchema): Schema => {
-  const gqlEntityTypes = getEntityTypes(graphqlSchema);
-  const gqlEnumTypes = getEnumTypes(graphqlSchema);
-
-  const userDefinedScalars = getUserDefinedScalarTypes(graphqlSchema);
-  if (userDefinedScalars.length > 0) {
-    throw new Error(
-      `Custom scalars are not supported: ${userDefinedScalars[0]}`
-    );
+/**
+ * Fix issue with Array.isArray not checking readonly arrays
+ * {@link https://github.com/microsoft/TypeScript/issues/17002}
+ */
+declare global {
+  interface ArrayConstructor {
+    isArray(arg: ReadonlyArray<any> | any): arg is ReadonlyArray<any>;
   }
+}
 
-  const entities = gqlEntityTypes.map((entity) => {
-    const entityName = entity.name;
-    const entityIsImmutable = !!entity.astNode?.directives
-      ?.find((directive) => directive.name.value === "entity")
-      ?.arguments?.find(
-        (arg) =>
-          arg.name.value === "immutable" &&
-          arg.value.kind === "BooleanValue" &&
-          arg.value.value
-      );
+/**
+ * Extract the data from column types, removing the modifier functions
+ */
+export const createTable = <
+  TColumns extends
+    | ({
+        id: { [" column"]: IDColumn };
+      } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
+    | unknown =
+    | ({
+        id: { [" column"]: IDColumn };
+      } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
+    | unknown
+>(
+  columns: TColumns
+): {
+  [key in keyof TColumns]: TColumns[key] extends InternalColumn
+    ? TColumns[key][" column"]
+    : TColumns[key] extends InternalEnum
+    ? TColumns[key][" enum"]
+    : TColumns[key];
+} =>
+  Object.entries(
+    columns as {
+      id: { [" column"]: IDColumn };
+    } & Record<string, InternalEnum | InternalColumn | VirtualColumn>
+  ).reduce(
+    (
+      acc: Record<
+        string,
+        NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+      >,
+      cur
+    ) => ({
+      ...acc,
+      [cur[0]]:
+        " column" in cur[1]
+          ? (cur[1][" column"] as NonReferenceColumn | ReferenceColumn)
+          : " enum" in cur[1]
+          ? cur[1][" enum"]
+          : cur[1],
+    }),
+    {}
+  ) as {
+    [key in keyof TColumns]: TColumns[key] extends InternalColumn
+      ? TColumns[key][" column"]
+      : TColumns[key] extends InternalEnum
+      ? TColumns[key][" enum"]
+      : TColumns[key];
+  };
 
-    const gqlFields = entity.astNode?.fields || [];
+export const createEnum = <const TEnum extends Enum>(_enum: TEnum) => _enum;
 
-    const fields = gqlFields.map((field) => {
-      const originalFieldType = field.type;
+/**
+ * Type inference and runtime validation
+ */
+export const createSchema = <
+  TSchema extends {
+    [tableName in keyof TSchema]:
+      | ({ id: NonReferenceColumn<ID, false, false> } & {
+          [columnName in keyof TSchema[tableName]]:
+            | NonReferenceColumn
+            | ReferenceColumn<
+                Scalar,
+                `${keyof FilterTables<TSchema> & string}.id`
+              >
+            | EnumColumn<keyof FilterEnums<TSchema>, boolean>
+            | VirtualColumn<ExtractAllNames<tableName & string, TSchema>>;
+        })
+      | Enum<readonly string[]>;
+  }
+>(
+  _schema: TSchema
+): {
+  tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
+  enums: {
+    [key in keyof FilterEnums<TSchema>]: TSchema[key];
+  };
+} => {
+  // Convert to an easier type to work with
+  const schema = _schema as Record<
+    string,
+    | Schema["tables"][keyof Schema["tables"]]
+    | Schema["enums"][keyof Schema["enums"]]
+  >;
 
-      const {
-        fieldName,
-        fieldTypeName,
-        isNotNull,
-        isList,
-        isListElementNotNull,
-      } = unwrapFieldDefinition(field);
+  Object.entries(schema).forEach(([name, tableOrEnum]) => {
+    validateTableOrColumnName(name);
 
-      // Try to find a type that matches the base type of this field.
-      const scalarBaseType = gqlScalarTypeByName[fieldTypeName];
-      const enumBaseType = gqlEnumTypes.find((t) => t.name === fieldTypeName);
-      const entityBaseType = gqlEntityTypes.find(
-        (t) => t.name === fieldTypeName
-      );
+    if (Array.isArray(tableOrEnum)) {
+      // Enum
 
-      const derivedFromDirective = field.directives?.find(
-        (directive) => directive.name.value === "derivedFrom"
-      );
+      // Make sure values aren't the same
+      const set = new Set<(typeof tableOrEnum)[number]>();
 
-      // Handle derived fields.
-      if (derivedFromDirective) {
-        if (!entityBaseType || !isList) {
-          throw new Error(
-            `Resolved type of a @derivedFrom field must be a list of entities`
-          );
-        }
-
-        const derivedFromFieldArgument = derivedFromDirective.arguments?.find(
-          (arg) =>
-            arg.name.value === "field" && arg.value.kind === "StringValue"
-        );
-        if (!derivedFromFieldArgument) {
-          throw new Error(
-            `The @derivedFrom directive requires an argument: field`
-          );
-        }
-
-        const derivedFromFieldName = (
-          derivedFromFieldArgument.value as StringValueNode
-        ).value;
-
-        const baseTypeAsInputType =
-          entityBaseType as unknown as GraphQLInputObjectType;
-
-        return <DerivedField>{
-          name: fieldName,
-          kind: "DERIVED",
-          baseGqlType: baseTypeAsInputType,
-          originalFieldType,
-          notNull: isNotNull,
-          derivedFromEntityName: entityBaseType.name,
-          derivedFromFieldName: derivedFromFieldName,
-        };
+      for (const val of tableOrEnum) {
+        if (val in set) throw Error("ITEnum contains duplicate values");
+        set.add(val);
       }
+    } else {
+      // Table
 
-      // Handle relationship types.
-      if (entityBaseType) {
-        if (isList) {
-          throw new Error(
-            `Invalid field: ${entityName}.${fieldName}. Lists of entities must use the @derivedFrom directive.`
-          );
-        }
+      // Check the id property
 
-        const relatedEntityIdField = entityBaseType.getFields()["id"]?.astNode;
-        if (!relatedEntityIdField) {
-          throw new Error(
-            `Related entity is missing an id field: ${entityBaseType.name}`
-          );
-        }
+      if (tableOrEnum.id === undefined)
+        throw Error('Table doesn\'t contain an "id" field');
 
-        const { fieldTypeName } = unwrapFieldDefinition(relatedEntityIdField);
-        const relatedEntityIdType = gqlScalarTypeByName[fieldTypeName];
-        if (!relatedEntityIdType) {
-          throw new Error(
-            `Related entity id field is not a scalar: ${entityBaseType.name}`
-          );
-        }
+      // NOTE: This is a to make sure the user didn't override the ID type
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      const type = tableOrEnum.id.type;
+      if (
+        isEnumColumn(tableOrEnum.id) ||
+        isVirtualColumn(tableOrEnum.id) ||
+        isReferenceColumn(tableOrEnum.id) ||
+        (type !== "bigint" &&
+          type !== "string" &&
+          type !== "bytes" &&
+          type !== "int")
+      )
+        throw Error('"id" is not of the correct type');
+      // NOTE: This is a to make sure the user didn't override the optional type
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      if (tableOrEnum.id.optional === true)
+        throw Error('"id" cannot be optional');
+      // NOTE: This is a to make sure the user didn't override the list type
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      if (tableOrEnum.id.list === true) throw Error('"id" cannot be a list');
+      // NOTE: This is a to make sure the user didn't override the reference type
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      if (tableOrEnum.id.references) throw Error('"id" cannot be a reference');
 
-        // Everything downstream requires the base type as a GraphQLInputObject type, but idk how to safely convert it.
-        // AFAICT, the GraphQLObjectType is a strict superset of GraphQLInputObject, so this should be fine.
-        const entityBaseTypeAsInputType =
-          entityBaseType as unknown as GraphQLInputObjectType;
+      Object.entries(tableOrEnum).forEach(([columnName, column]) => {
+        if (columnName === "id") return;
 
-        return <RelationshipField>{
-          name: fieldName,
-          kind: "RELATIONSHIP",
-          baseGqlType: entityBaseTypeAsInputType,
-          originalFieldType,
-          notNull: isNotNull,
-          relatedEntityName: entityBaseType.name,
-          relatedEntityIdType: relatedEntityIdType,
-        };
-      }
+        validateTableOrColumnName(columnName);
 
-      // Handle list types.
-      if (isList) {
-        if (scalarBaseType) {
-          return <ListField>{
-            name: fieldName,
-            kind: "LIST",
-            baseGqlType: scalarBaseType,
-            originalFieldType,
-            notNull: isNotNull,
-            isListElementNotNull,
-          };
-        }
+        if (isVirtualColumn(column)) {
+          if (
+            Object.keys(schema)
+              .filter((_name) => _name !== name)
+              .every((_name) => _name !== column.referenceTable)
+          )
+            throw Error("Virtual column doesn't reference a valid table");
 
-        if (enumBaseType) {
-          return <ListField>{
-            name: fieldName,
-            kind: "LIST",
-            baseGqlType: enumBaseType,
-            originalFieldType,
-            notNull: isNotNull,
-            isListElementNotNull,
-          };
-        }
-      }
-
-      // Handle scalar types.
-      if (scalarBaseType) {
-        const baseType = scalarBaseType;
-
-        // Validate the id field.
-        if (fieldName === "id") {
-          if (!isNotNull) {
-            throw new Error(`${entityName}.id field must be non-null`);
+          if (
+            (
+              Object.entries(schema).find(
+                ([tableName]) => tableName === column.referenceTable
+              )![1] as Record<string, unknown>
+            )[column.referenceColumn as string] === undefined
+          )
+            throw Error("Virtual column doesn't reference a valid column");
+        } else if (isEnumColumn(column)) {
+          if (Object.entries(schema).every(([_name]) => _name !== column.type))
+            throw Error("Column doesn't reference a valid enum");
+        } else if (isReferenceColumn(column)) {
+          if (!columnName.endsWith("Id")) {
+            throw Error('Reference column name must end with "Id"');
           }
-          if (isList) {
-            throw new Error(`${entityName}.id field must not be a list`);
+
+          if (
+            Object.keys(schema).every(
+              (_name) => `${_name}.id` !== column.references
+            )
+          )
+            throw Error("Column doesn't reference a valid table");
+
+          const referencingTables = Object.entries(schema).filter(
+            ([name]) => name === referencedEntityName(column.references)
+          );
+
+          for (const [, referencingTable] of referencingTables) {
+            if (
+              Array.isArray(referencingTable) ||
+              (referencingTable as { id: NonReferenceColumn }).id.type !==
+                column.type
+            )
+              throw Error(
+                "Column type doesn't match the referenced table id type"
+              );
           }
-          if (!["BigInt", "String", "Int", "Bytes"].includes(baseType.name)) {
-            throw new Error(
-              `${entityName}.id field must be a String, BigInt, Int, or Bytes.`
-            );
-          }
+
+          if (column.list)
+            throw Error("Columns can't be both refernce and list types");
+        } else {
+          // Non reference column
+          if (
+            column.type !== "bigint" &&
+            column.type !== "string" &&
+            column.type !== "boolean" &&
+            column.type !== "int" &&
+            column.type !== "float" &&
+            column.type !== "bytes"
+          )
+            throw Error("Column is not a valid type");
         }
-
-        return <ScalarField>{
-          name: fieldName,
-          kind: "SCALAR",
-          notNull: isNotNull,
-          originalFieldType,
-          scalarTypeName: fieldTypeName,
-          scalarGqlType: baseType,
-        };
-      }
-
-      // Handle enum types.
-      if (enumBaseType) {
-        const enumValues = (enumBaseType.astNode?.values || []).map(
-          (v) => v.name.value
-        );
-        return <EnumField>{
-          name: fieldName,
-          kind: "ENUM",
-          enumGqlType: enumBaseType,
-          originalFieldType,
-          notNull: isNotNull,
-          enumValues,
-        };
-      }
-
-      throw new Error(`Unhandled field type: ${fieldTypeName}`);
-    });
-
-    const fieldByName: Record<string, Field> = {};
-    fields.forEach((field) => {
-      fieldByName[field.name] = field;
-    });
-
-    return <Entity>{
-      name: entityName,
-      gqlType: entity,
-      isImmutable: entityIsImmutable,
-      fields,
-      fieldByName,
-    };
+      });
+    }
   });
 
-  const schema: Schema = {
-    entities,
-  };
-
-  return schema;
-};
-
-// ------------------------------- UTILITIES -------------------------------- //
-
-// Find the name and base type of a field definition,
-// handling any wrapper types (NON_NULL_TYPE and LIST_TYPE).
-const unwrapFieldDefinition = (field: FieldDefinitionNode) => {
-  const fieldName = field.name.value;
-  let fieldType = field.type;
-  let isNotNull = false;
-  let isList = false;
-  let isListElementNotNull = false;
-
-  // First check if the field is non-null and unwrap it.
-  if (fieldType.kind === Kind.NON_NULL_TYPE) {
-    isNotNull = true;
-    fieldType = fieldType.type;
-  }
-
-  // Then check if the field is a list and unwrap it.
-  if (fieldType.kind === Kind.LIST_TYPE) {
-    isList = true;
-    fieldType = fieldType.type;
-
-    // Now check if the list element type is non-null
-    if (fieldType.kind === Kind.NON_NULL_TYPE) {
-      isListElementNotNull = true;
-      fieldType = fieldType.type;
-    }
-  }
-
-  if (fieldType.kind === Kind.LIST_TYPE) {
-    throw new Error(
-      `Invalid field "${fieldName}": nested lists are not supported`
-    );
-  }
-
-  return {
-    fieldName,
-    fieldTypeName: fieldType.name.value,
-    isNotNull,
-    isList,
-    isListElementNotNull,
+  return Object.entries(schema).reduce(
+    (
+      acc: {
+        enums: Record<string, Enum>;
+        tables: Record<string, Table>;
+      },
+      [name, tableOrEnum]
+    ) =>
+      Array.isArray(tableOrEnum)
+        ? { ...acc, enums: { ...acc.enums, [name]: tableOrEnum } }
+        : {
+            ...acc,
+            tables: { ...acc.tables, [name]: tableOrEnum },
+          },
+    { tables: {}, enums: {} }
+  ) as {
+    tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
+    enums: {
+      [key in keyof FilterEnums<TSchema>]: TSchema[key];
+    };
   };
 };
 
-// Find all types in the schema that are marked with the @entity directive.
-const getEntityTypes = (schema: GraphQLSchema) => {
-  const entities = Object.values(schema.getTypeMap())
-    .filter((type): type is GraphQLObjectType => {
-      return type.astNode?.kind === Kind.OBJECT_TYPE_DEFINITION;
-    })
-    .filter((type) => {
-      return !!type.astNode?.directives?.find(
-        (directive) => directive.name.value === "entity"
-      );
-    });
+const validateTableOrColumnName = (key: string) => {
+  if (key === "") throw Error("Table to column name can't be an empty string");
 
-  return entities;
-};
-
-// Find all scalar types in the schema that were created by the user.
-const getUserDefinedScalarTypes = (schema: GraphQLSchema) => {
-  return Object.values(schema.getTypeMap()).filter(
-    (type) =>
-      !!type.astNode &&
-      type.astNode.kind === Kind.SCALAR_TYPE_DEFINITION &&
-      !["BigInt", "Bytes"].includes(type.name)
-  ) as GraphQLScalarType[];
-};
-
-// Find all types in the schema that were created by the user.
-const getEnumTypes = (schema: GraphQLSchema) => {
-  return Object.values(schema.getTypeMap()).filter(
-    (type) => !!type.astNode && type.astNode.kind === Kind.ENUM_TYPE_DEFINITION
-  ) as GraphQLEnumType[];
+  if (!/^[a-z|A-Z|0-9]+$/.test(key))
+    throw Error("Table or column name contains an invalid character");
 };

@@ -44,7 +44,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
-        expect(root).toContain("schema.graphql");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("tsconfig.json");
       });
 
@@ -99,7 +99,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
-        expect(root).toContain("schema.graphql");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("tsconfig.json");
       });
 
@@ -154,7 +154,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
-        expect(root).toContain("schema.graphql");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("tsconfig.json");
       });
 
@@ -248,7 +248,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
-        expect(root).toContain("schema.graphql");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("tsconfig.json");
       });
 
@@ -307,7 +307,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
-        expect(root).toContain("schema.graphql");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("tsconfig.json");
       });
 
@@ -362,6 +362,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("schema.graphql");
         expect(root).toContain("tsconfig.json");
       });
@@ -419,6 +420,7 @@ describe("create-ponder", () => {
         expect(root).toContain("node_modules");
         expect(root).toContain("package.json");
         expect(root).toContain("ponder.config.ts");
+        expect(root).toContain("ponder.schema.ts");
         expect(root).toContain("schema.graphql");
         expect(root).toContain("tsconfig.json");
       });

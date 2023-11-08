@@ -1,34 +1,24 @@
-import { buildSchema as buildGraphqlSchema } from "graphql";
 import { beforeEach, expect, test } from "vitest";
 
 import { setupUserStore } from "@/_test/setup";
-import { schemaHeader } from "@/build/schema";
-import { buildSchema } from "@/schema/schema";
+import * as p from "@/schema";
 
 beforeEach((context) => setupUserStore(context));
 
-const graphqlSchema = buildGraphqlSchema(`
-  ${schemaHeader}
-
-  type Pet @entity {
-    id: String!
-    name: String!
-    age: Int
-    bigAge: BigInt
-    kind: PetKind
-  }
-
-  enum PetKind {
-    CAT
-    DOG
-  }
-
-  type Person @entity {
-    id: String!
-    name: String!
-  }
-`);
-const schema = buildSchema(graphqlSchema);
+const schema = p.createSchema({
+  PetKind: p.createEnum(["CAT", "DOG"]),
+  Pet: p.createTable({
+    id: p.string(),
+    name: p.string(),
+    age: p.int().optional(),
+    bigAge: p.bigint().optional(),
+    kind: p.enum("PetKind").optional(),
+  }),
+  Person: p.createTable({
+    id: p.string(),
+    name: p.string(),
+  }),
+});
 
 test("reload() binds the schema", async (context) => {
   const { userStore } = context;

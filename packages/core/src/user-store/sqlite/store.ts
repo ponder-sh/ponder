@@ -2,7 +2,12 @@ import type Sqlite from "better-sqlite3";
 import { randomBytes } from "crypto";
 import { Kysely, sql, SqliteDialect } from "kysely";
 
-import type { Schema } from "@/schema/types";
+import type { Scalar, Schema } from "@/schema/types";
+import {
+  isEnumColumn,
+  isReferenceColumn,
+  isVirtualColumn,
+} from "@/schema/utils";
 import { decodeToBigInt } from "@/utils/encoding";
 
 import type {
@@ -21,13 +26,13 @@ import {
 const MAX_INTEGER = 2_147_483_647 as const;
 const MAX_BATCH_SIZE = 1_000 as const;
 
-const gqlScalarToSqlType = {
-  Boolean: "integer",
-  Int: "integer",
-  String: "text",
-  BigInt: "varchar(79)",
-  Bytes: "text",
-  Float: "text",
+const scalarToSqlType = {
+  boolean: "integer",
+  int: "integer",
+  float: "text",
+  string: "text",
+  bigint: "varchar(79)",
+  bytes: "text",
 } as const;
 
 export class SqliteUserStore implements UserStore {
@@ -56,8 +61,8 @@ export class SqliteUserStore implements UserStore {
       // Drop tables from existing schema.
       if (this.schema) {
         await Promise.all(
-          this.schema.entities.map((model) => {
-            const tableName = `${model.name}_${this.versionId}`;
+          Object.keys(this.schema.tables).map((modelName) => {
+            const tableName = `${modelName}_${this.versionId}`;
             tx.schema.dropTable(tableName);
           })
         );
@@ -69,60 +74,46 @@ export class SqliteUserStore implements UserStore {
 
       // Create tables for new schema.
       await Promise.all(
-        this.schema!.entities.map(async (model) => {
-          const tableName = `${model.name}_${this.versionId}`;
+        Object.entries(this.schema!.tables).map(async ([modelName, model]) => {
+          const tableName = `${modelName}_${this.versionId}`;
           let tableBuilder = tx.schema.createTable(tableName);
-          model.fields.forEach((field) => {
-            switch (field.kind) {
-              case "SCALAR": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  gqlScalarToSqlType[field.scalarTypeName],
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    return col;
-                  }
-                );
-                break;
-              }
-              case "ENUM": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  "text",
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    col = col.check(
-                      sql`${sql.ref(field.name)} in (${sql.join(
-                        field.enumValues.map((v) => sql.lit(v))
-                      )})`
-                    );
-                    return col;
-                  }
-                );
-                break;
-              }
-              case "LIST": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  "text",
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    return col;
-                  }
-                );
-                break;
-              }
-              case "RELATIONSHIP": {
-                tableBuilder = tableBuilder.addColumn(
-                  field.name,
-                  gqlScalarToSqlType[field.relatedEntityIdType.name],
-                  (col) => {
-                    if (field.notNull) col = col.notNull();
-                    return col;
-                  }
-                );
-                break;
-              }
+          Object.entries(model).forEach(([columnName, column]) => {
+            if (isVirtualColumn(column)) return;
+            else if (isEnumColumn(column)) {
+              // Handle enum types
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                "text",
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  col = col.check(
+                    sql`${sql.ref(columnName)} in (${sql.join(
+                      schema!.enums[column.type].map((v) => sql.lit(v))
+                    )})`
+                  );
+                  return col;
+                }
+              );
+            } else if (column.list) {
+              // Handle scalar list columns
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                "text",
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  return col;
+                }
+              );
+            } else {
+              // Non-list base columns
+              tableBuilder = tableBuilder.addColumn(
+                columnName,
+                scalarToSqlType[column.type],
+                (col) => {
+                  if (!column.optional) col = col.notNull();
+                  return col;
+                }
+              );
             }
           });
 
@@ -151,13 +142,14 @@ export class SqliteUserStore implements UserStore {
   };
 
   async kill() {
-    const entities = this.schema?.entities ?? [];
-    if (entities.length > 0) {
+    const tableNames = Object.keys(this.schema?.tables ?? {});
+    if (tableNames.length > 0) {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
-          entities.map(async (model) => {
-            const tableName = `${model.name}_${this.versionId}`;
-            await tx.schema.dropTable(tableName).execute();
+          tableNames.map(async (tableName) => {
+            await tx.schema
+              .dropTable(`${tableName}_${this.versionId}`)
+              .execute();
           })
         );
       });
@@ -646,8 +638,7 @@ export class SqliteUserStore implements UserStore {
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        (this.schema?.entities ?? []).map(async (entity) => {
-          const modelName = entity.name;
+        Object.keys(this.schema?.tables ?? {}).map(async (modelName) => {
           const tableName = `${modelName}_${this.versionId}`;
 
           // Delete any versions that are newer than the safe timestamp.
@@ -675,49 +666,41 @@ export class SqliteUserStore implements UserStore {
     modelName: string;
     instance: Record<string, unknown>;
   }) => {
-    const entity = this.schema!.entities.find((e) => e.name === modelName)!;
+    const entity = Object.entries(this.schema!.tables).find(
+      ([name]) => name === modelName
+    )![1];
 
     const deserializedInstance = {} as ModelInstance;
 
-    entity.fields.forEach((field) => {
-      const value = instance[field.name] as string | number | null | undefined;
+    Object.entries(entity).forEach(([columnName, column]) => {
+      const value = instance[columnName] as string | number | null | undefined;
 
       if (value === null || value === undefined) {
-        deserializedInstance[field.name] = null;
+        deserializedInstance[columnName] = null;
         return;
       }
 
-      if (field.kind === "SCALAR" && field.scalarTypeName === "Boolean") {
-        deserializedInstance[field.name] = value === 1 ? true : false;
-        return;
-      }
-
-      if (field.kind === "SCALAR" && field.scalarTypeName === "BigInt") {
-        deserializedInstance[field.name] = decodeToBigInt(
-          value as unknown as string
-        );
-        return;
-      }
-
-      if (
-        field.kind === "RELATIONSHIP" &&
-        field.relatedEntityIdType.name === "BigInt"
-      ) {
-        deserializedInstance[field.name] = decodeToBigInt(
-          value as unknown as string
-        );
-        return;
-      }
-
-      if (field.kind === "LIST") {
+      if (isVirtualColumn(column)) return;
+      if (!isEnumColumn(column) && !isReferenceColumn(column) && column.list) {
         let parsedValue = JSON.parse(value as string);
-        if (field.baseGqlType.name === "BigInt")
-          parsedValue = parsedValue.map(BigInt);
-        deserializedInstance[field.name] = parsedValue;
+        if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
+        deserializedInstance[columnName] = parsedValue;
         return;
       }
 
-      deserializedInstance[field.name] = value;
+      if ((column.type as Scalar) === "boolean") {
+        deserializedInstance[columnName] = value === 1 ? true : false;
+        return;
+      }
+
+      if (column.type === "bigint") {
+        deserializedInstance[columnName] = decodeToBigInt(
+          value as unknown as string
+        );
+        return;
+      }
+
+      deserializedInstance[columnName] = value;
     });
 
     return deserializedInstance;
