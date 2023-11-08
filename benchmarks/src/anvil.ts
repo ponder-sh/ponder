@@ -18,9 +18,12 @@ export const FORK_URL = process.env.ANVIL_FORK_URL;
 if (!process.env.ANVIL_FORK_BLOCK_NUMBER) {
   throw new Error('Missing environment variable "ANVIL_FORK_BLOCK_NUMBER"');
 }
-export const FORK_BLOCK_NUMBER = BigInt(
-  Number(process.env.ANVIL_FORK_BLOCK_NUMBER)
-);
+export const FORK_BLOCK_NUMBER = Number(process.env.ANVIL_FORK_BLOCK_NUMBER);
+
+if (!process.env.BLOCK_COUNT) {
+  throw new Error('Missing environment variable "BLOCK_COUNT"');
+}
+export const BLOCK_COUNT = Number(process.env.BLOCK_COUNT);
 
 export const anvil = {
   ...mainnet, // We are using a mainnet fork for testing.

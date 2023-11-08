@@ -2,9 +2,7 @@ import execa from "execa";
 
 import { fetchWithTimeout, parsePrometheusText, startClock } from "./utils";
 
-const START_BLOCK_TIMESTAMP = 1687010591;
-const END_BLOCK_TIMESTAMP =
-  Number(process.env.BLOCK_COUNT) * 12 + START_BLOCK_TIMESTAMP;
+const END_BLOCK_TIMESTAMP = 1687010591; // unix timestamp at end block
 
 const fetchPonderMetrics = async () => {
   try {
