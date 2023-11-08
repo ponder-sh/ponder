@@ -35,7 +35,7 @@ export function handleTransfer(event: TTransferEvent): void {
   recipient.save();
 
   const transferEventId =
-    event.block.number.toString() + "-" + event.logIndex.toString();
+    event.block.number.toString() + "+" + event.logIndex.toString();
 
   // Create a TransferEvent.
   const transferEvent = new TransferEvent(transferEventId);

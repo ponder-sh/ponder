@@ -2,7 +2,9 @@ import execa from "execa";
 
 import { fetchWithTimeout, parsePrometheusText, startClock } from "./utils";
 
-const END_BLOCK_TIMESTAMP = 1687010711; // Mainnet block 17500010
+const START_BLOCK_TIMESTAMP = 1687010591;
+const END_BLOCK_TIMESTAMP =
+  Number(process.env.BLOCK_COUNT) * 12 + START_BLOCK_TIMESTAMP;
 
 const fetchPonderMetrics = async () => {
   try {
@@ -17,6 +19,31 @@ const fetchPonderMetrics = async () => {
   }
 };
 
+const waitForStartUpComplete = async () => {
+  const endClock = startClock();
+  let duration: number;
+  await new Promise((resolve, reject) => {
+    let timeout = undefined;
+    const interval = setInterval(async () => {
+      const metrics = await fetchPonderMetrics();
+
+      if (metrics.length !== 0) {
+        duration = endClock();
+        clearInterval(interval);
+        clearTimeout(timeout);
+        resolve(undefined);
+      }
+    }, 50);
+
+    timeout = setTimeout(() => {
+      clearInterval(interval);
+      reject(new Error("Timed out waiting for subgraph to sync"));
+    }, 60_000);
+  });
+
+  return duration;
+};
+
 const waitForSyncComplete = async () => {
   const endClock = startClock();
   let duration: number;
@@ -28,9 +55,6 @@ const waitForSyncComplete = async () => {
         metrics.find(
           (m) => m.name === "ponder_indexing_latest_processed_timestamp"
         )?.metrics[0].value ?? 0;
-      console.log(
-        `Latest processed timestamp: ${latestProcessedTimestamp}/${END_BLOCK_TIMESTAMP}`
-      );
 
       if (latestProcessedTimestamp >= END_BLOCK_TIMESTAMP) {
         duration = endClock();
@@ -56,8 +80,10 @@ export const ponder = async () => {
     detached: true,
   });
 
+  const startUpDuration = await waitForStartUpComplete();
   const duration = await waitForSyncComplete();
-  console.log(`Ponder synced in: ${duration}`);
 
   subprocess.kill();
+
+  return { startUpDuration, duration };
 };

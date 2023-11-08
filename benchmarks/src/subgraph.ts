@@ -4,9 +4,6 @@ import parsePrometheusTextFormat from "parse-prometheus-text-format";
 import { FORK_BLOCK_NUMBER } from "./anvil";
 import { fetchGraphql, fetchWithTimeout, startClock } from "./utils";
 
-const START_BLOCK = 17500000;
-const END_BLOCK = Number(FORK_BLOCK_NUMBER);
-
 const fetchSubgraphLatestBlockNumber = async () => {
   try {
     const response = await fetchGraphql(
@@ -137,4 +134,15 @@ export const subgraph = async () => {
 
   const duration = await waitForSyncComplete();
   console.log(`Subgraph synced in: ${duration}`);
+
+  const finalMetrics = await fetchSubgraphMetrics();
+  for (const metric of finalMetrics) {
+    console.log(metric.name);
+    for (const sub of metric.metrics) {
+      console.log(sub);
+    }
+    console.log(JSON.stringify(metric.metrics));
+  }
+
+  console.log(finalMetrics);
 };
