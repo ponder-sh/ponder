@@ -196,7 +196,7 @@ export class Ponder {
     // Finally, load the schema + indexing functions which will trigger
     // the indexing service to reload (for the first time).
     await this.buildService.loadIndexingFunctions();
-    await this.buildService.buildSchema();
+    await this.buildService.loadSchema();
   }
 
   async dev() {
@@ -244,10 +244,9 @@ export class Ponder {
   async codegen() {
     this.codegenService.generateAppFile();
 
-    const result = await this.buildService.buildSchema();
+    const result = await this.buildService.loadSchema();
     if (result) {
-      const { schema, graphqlSchema } = result;
-      this.codegenService.generateAppFile({ schema });
+      const { graphqlSchema } = result;
       this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
     }
 

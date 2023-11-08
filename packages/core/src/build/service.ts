@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import Emittery from "emittery";
 import glob from "glob";
-import { buildSchema, GraphQLSchema } from "graphql";
+import type { GraphQLSchema } from "graphql";
 import path from "node:path";
 // @ts-ignore
 import type { ViteDevServer } from "vite";
@@ -11,7 +11,6 @@ import type { ViteNodeRunner } from "vite-node/client";
 import type { ViteNodeServer } from "vite-node/server";
 
 import type { Config } from "@/config/config";
-import { UserError } from "@/errors/user";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
 import { buildGqlSchema } from "@/server/graphql/schema";
@@ -185,7 +184,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
   async loadConfig() {
     const result = await this.executeFile(this.common.options.configFile);
-
     if (result.error) {
       this.handleViteNodeError(result);
       return;
@@ -204,7 +202,20 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async loadSchema() {
-    console.log("loaded schema ");
+    const result = await this.executeFile(this.common.options.schemaFile);
+    if (result.error) {
+      this.handleViteNodeError(result);
+      return;
+    }
+
+    const schema = result.exports.schema as Schema;
+    const graphqlSchema = buildGqlSchema(schema);
+
+    // TODO: Validate schema lol
+
+    this.emit("newSchema", { schema, graphqlSchema });
+
+    return { schema, graphqlSchema };
   }
 
   async loadIndexingFunctions({ files: files_ }: { files?: string[] } = {}) {
@@ -328,35 +339,5 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
     // TODO: Fix this error handling approach.
     this.common.errors.submitUserError({ error });
-  }
-
-  async buildSchema() {
-    try {
-      const schema = await buildSchema({
-        schemaFile: this.common.options.schemaFile,
-      });
-      const graphqlSchema = buildGqlSchema(schema);
-      this.emit("newSchema", { schema, graphqlSchema });
-      return { schema, graphqlSchema };
-    } catch (error_) {
-      const error = error_ as Error;
-
-      // TODO: Parse GraphQLError instances better here.
-      // We can use the `.locations` property to build a pretty codeframe.
-
-      // TODO: Build the UserError object within readIndexingFunctions, check instanceof,
-      // then log/submit as-is if it's already a UserError.
-      const message = `Error while building ponder.schema.ts: ${error.message}`;
-      const userError = new UserError(message, {
-        stack: error.stack,
-      });
-
-      this.common.logger.error({
-        service: "build",
-        error: userError,
-      });
-      this.common.errors.submitUserError({ error: userError });
-      return undefined;
-    }
   }
 }
