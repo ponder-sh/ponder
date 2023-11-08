@@ -80,8 +80,8 @@ importers:
         specifier: ^5.1.3
         version: 5.1.3
       viem:
-        specifier: 0.3.50
-        version: 0.3.50(typescript@5.1.3)
+        specifier: 1.2.6
+        version: 1.2.6(typescript@5.1.3)
 
   docs:
     dependencies:
@@ -4142,17 +4142,6 @@ packages:
       pretty-format: 29.7.0
     dev: true
 
-  /@wagmi/chains@1.0.0(typescript@5.1.3):
-    resolution: {integrity: sha512-eNbqRWyHbivcMNq5tbXJks4NaOzVLHnNQauHPeE/EDT9AlpqzcrMc+v2T1/2Iw8zN4zgqB86NCsxeJHJs7+xng==}
-    peerDependencies:
-      typescript: '>=5.0.4'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-    dependencies:
-      typescript: 5.1.3
-    dev: true
-
   /@wagmi/chains@1.2.0(typescript@5.1.3):
     resolution: {integrity: sha512-dmDRipsE54JfyudOBkuhEexqQWcrZqxn/qiujG8SBzMh/az/AH5xlJSA+j1CPWTx9+QofSMF3B7A4gb6XRmSaQ==}
     peerDependencies:
@@ -4225,18 +4214,6 @@ packages:
         optional: true
     dependencies:
       typescript: 5.1.3
-
-  /abitype@0.8.7(typescript@5.1.3):
-    resolution: {integrity: sha512-wQ7hV8Yg/yKmGyFpqrNZufCxbszDe5es4AZGYPBitocfSqXtjrTG9JMWFcc4N30ukl2ve48aBTwt7NJxVQdU3w==}
-    peerDependencies:
-      typescript: '>=5.0.4'
-      zod: ^3 >=3.19.1
-    peerDependenciesMeta:
-      zod:
-        optional: true
-    dependencies:
-      typescript: 5.1.3
-    dev: true
 
   /abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
@@ -13189,25 +13166,6 @@ packages:
       unist-util-stringify-position: 4.0.0
       vfile-message: 4.0.2
     dev: false
-
-  /viem@0.3.50(typescript@5.1.3):
-    resolution: {integrity: sha512-s+LxCYZTR9F/qPk1/n1YDVAX9vSeVz7GraqBZWGrDuenCJxo9ArCoIceJ6ksI0WwSeNzcZ0VVbD/kWRzTxkipw==}
-    dependencies:
-      '@adraffy/ens-normalize': 1.9.0
-      '@noble/curves': 1.0.0
-      '@noble/hashes': 1.3.0
-      '@scure/bip32': 1.3.0
-      '@scure/bip39': 1.2.0
-      '@wagmi/chains': 1.0.0(typescript@5.1.3)
-      abitype: 0.8.7(typescript@5.1.3)
-      isomorphic-ws: 5.0.0(ws@8.12.0)
-      ws: 8.12.0
-    transitivePeerDependencies:
-      - bufferutil
-      - typescript
-      - utf-8-validate
-      - zod
-    dev: true
 
   /viem@1.2.6(typescript@5.1.3):
     resolution: {integrity: sha512-3tWiUb0D8dbFj66rUGLg6TKJjH98ZziomkyCyI0evqJFYdNfiEG0K2Ns07MlOXZZF4sGe+a5Mj15DaDOwm7sgw==}

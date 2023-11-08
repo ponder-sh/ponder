@@ -1,9 +1,9 @@
-import type { Config } from "@ponder/core";
+import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-import RocketTokenRETHAbi from "./abis/RocketTokenRETH.json";
+import { RocketTokenRETHAbi } from "./abis/RocketTokenRETH";
 
-export const config: Config = {
+export const config = createConfig({
   networks: [
     {
       name: "mainnet",
@@ -14,11 +14,11 @@ export const config: Config = {
   contracts: [
     {
       name: "RocketTokenRETH",
-      network: "mainnet",
+      network: [{ name: "mainnet" }],
       abi: RocketTokenRETHAbi,
       address: "0xae78736cd615f374d3085123a210448e74fc6393",
       startBlock: 17500000,
       endBlock: 17500010,
     },
   ],
-};
+});
