@@ -21,8 +21,8 @@ import {
   type Source,
   sourceIsLogFilter,
 } from "@/config/sources";
-import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
+import type { SyncStore } from "@/sync-store/store";
 import { formatEta, formatPercentage } from "@/utils/format";
 import {
   BlockProgressTracker,
@@ -43,7 +43,7 @@ type HistoricalSyncEvents = {
   syncComplete: undefined;
   /**
    * Emitted when the minimum cached timestamp among all registered event sources moves forward.
-   * This indicates to consumers that the connected event store now contains a complete history
+   * This indicates to consumers that the connected sync store now contains a complete history
    * of events for all registered event sources between their start block and this timestamp (inclusive).
    */
   historicalCheckpoint: { blockNumber: number; blockTimestamp: number };
@@ -86,7 +86,7 @@ type HistoricalSyncTask =
 
 export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private common: Common;
-  private eventStore: EventStore;
+  private syncStore: SyncStore;
   private network: Network;
 
   /**
@@ -109,7 +109,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   /**
    * Functions registered by log filter + child contract tasks. These functions accept
    * a raw block object, get required data from it, then insert data and cache metadata
-   * into the event store. The keys of this object are used to keep track of which blocks
+   * into the sync store. The keys of this object are used to keep track of which blocks
    * must be fetched.
    */
   private blockCallbacks: Record<
@@ -129,19 +129,19 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   constructor({
     common,
-    eventStore,
+    syncStore,
     network,
     sources = [],
   }: {
     common: Common;
-    eventStore: EventStore;
+    syncStore: SyncStore;
     network: Network;
     sources?: Source[];
   }) {
     super();
 
     this.common = common;
-    this.eventStore = eventStore;
+    this.syncStore = syncStore;
     this.network = network;
     this.sources = sources;
 
@@ -189,7 +189,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           }
 
           const completedLogFilterIntervals =
-            await this.eventStore.getLogFilterIntervals({
+            await this.syncStore.getLogFilterIntervals({
               chainId: source.chainId,
               logFilter: {
                 address: source.criteria.address,
@@ -274,7 +274,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           // Note that factory child address progress is stored using
           // log intervals for the factory log.
           const completedFactoryChildAddressIntervals =
-            await this.eventStore.getLogFilterIntervals({
+            await this.syncStore.getLogFilterIntervals({
               chainId: source.chainId,
               logFilter: {
                 address: source.criteria.address,
@@ -336,7 +336,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           );
 
           const completedFactoryLogFilterIntervals =
-            await this.eventStore.getFactoryLogFilterIntervals({
+            await this.syncStore.getFactoryLogFilterIntervals({
               chainId: source.chainId,
               factory: source.criteria,
             });
@@ -586,7 +586,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     for (const logInterval of logIntervals) {
       const { startBlock, endBlock, logs, transactionHashes } = logInterval;
       (this.blockCallbacks[endBlock] ||= []).push(async (block) => {
-        await this.eventStore.insertLogFilterInterval({
+        await this.syncStore.insertLogFilterInterval({
           chainId: logFilter.chainId,
           block,
           transactions: block.transactions.filter((tx) =>
@@ -634,7 +634,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
 
     // Insert the new child address logs into the store.
-    await this.eventStore.insertFactoryChildAddressLogs({
+    await this.syncStore.insertFactoryChildAddressLogs({
       chainId: factory.chainId,
       logs,
     });
@@ -646,7 +646,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     for (const logInterval of logIntervals) {
       const { startBlock, endBlock, logs, transactionHashes } = logInterval;
       (this.blockCallbacks[endBlock] ||= []).push(async (block) => {
-        await this.eventStore.insertLogFilterInterval({
+        await this.syncStore.insertLogFilterInterval({
           chainId: factory.chainId,
           logFilter: {
             address: factory.criteria.address,
@@ -700,7 +700,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }: {
     task: FactoryLogFilterTask;
   }) => {
-    const iterator = this.eventStore.getFactoryChildAddresses({
+    const iterator = this.syncStore.getFactoryChildAddresses({
       chainId: factory.chainId,
       factory: factory.criteria,
       upToBlockNumber: BigInt(toBlock),
@@ -724,7 +724,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       const { startBlock, endBlock, logs, transactionHashes } = logInterval;
 
       (this.blockCallbacks[endBlock] ||= []).push(async (block) => {
-        await this.eventStore.insertFactoryLogFilterInterval({
+        await this.syncStore.insertFactoryLogFilterInterval({
           chainId: factory.chainId,
           factory: factory.criteria,
           block,

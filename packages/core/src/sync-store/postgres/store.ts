@@ -22,18 +22,18 @@ import {
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval";
 import { range } from "@/utils/range";
 
-import type { EventStore } from "../store";
+import type { SyncStore } from "../store";
 import {
-  type EventStoreTables,
+  type SyncStoreTables,
   rpcToPostgresBlock,
   rpcToPostgresLog,
   rpcToPostgresTransaction,
 } from "./format";
 import { migrationProvider } from "./migrations";
 
-export class PostgresEventStore implements EventStore {
+export class PostgresSyncStore implements SyncStore {
   kind = "postgres" as const;
-  db: Kysely<EventStoreTables>;
+  db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
   constructor({
@@ -43,7 +43,7 @@ export class PostgresEventStore implements EventStore {
     pool: Pool;
     databaseSchema?: string;
   }) {
-    this.db = new Kysely<EventStoreTables>({
+    this.db = new Kysely<SyncStoreTables>({
       dialect: new PostgresDialect({
         pool,
         onCreateConnection: databaseSchema
@@ -665,7 +665,7 @@ export class PostgresEventStore implements EventStore {
     logFilters,
     interval: { startBlock, endBlock },
   }: {
-    tx: KyselyTransaction<EventStoreTables>;
+    tx: KyselyTransaction<SyncStoreTables>;
     chainId: number;
     logFilters: LogFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
@@ -697,7 +697,7 @@ export class PostgresEventStore implements EventStore {
     factories,
     interval: { startBlock, endBlock },
   }: {
-    tx: KyselyTransaction<EventStoreTables>;
+    tx: KyselyTransaction<SyncStoreTables>;
     chainId: number;
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };

@@ -6,7 +6,7 @@ This README aims to document Ponder's historical sync approach.
 
 Please refer to the architecture diagram to see where the historical sync service sits. During startup, the Ponder constructor creates one instance of the historical sync service for each network, passing the event sources (log filter + factories) and user-provided Transport for that network.
 
-The purpose of the historical sync service is to fetch raw blockchain data (blocks, transactions, and logs) from an RPC endpoint and insert that data into the event store. Most of the complexity comes from the decision to aggressively cache raw blockchain data, which avoids unnecessary RPC requests and enables ~instant sync times when restarting a Ponder app during development.
+The purpose of the historical sync service is to fetch raw blockchain data (blocks, transactions, and logs) from an RPC endpoint and insert that data into the sync store. Most of the complexity comes from the decision to aggressively cache raw blockchain data, which avoids unnecessary RPC requests and enables ~instant sync times when restarting a Ponder app during development.
 
 The historical sync service is responsible for handling blocks up to and including the finalized block for the network. The realtime sync service is responsible for the finalized block through latest.
 
@@ -19,7 +19,7 @@ The historical sync service has a small public API.
 - `start()` method: Starts processing tasks from the queue.
 - `onIdle()` method: Returns a promise that resolves when the historical sync is complete.
 - `kill()` method: Kills the service. Must clean up any resources that would block the process from exiting.
-- `"historicalCheckpoint"` event: Emitted when the minimum completed block among all registered event sources has progressed. This indicates to consumers that the event store now contains a complete history of events for all registered event sources between their start block and this block (inclusive).
+- `"historicalCheckpoint"` event: Emitted when the minimum completed block among all registered event sources has progressed. This indicates to consumers that the sync store now contains a complete history of events for all registered event sources between their start block and this block (inclusive).
 - `"syncComplete"` event: Emitted when the service has finished processing all historical sync tasks.
 
 ## Background
@@ -35,7 +35,7 @@ This hare-brained service design won't make sense if you don't first understand 
 
 Here are a few rough requirements for the service. These follow from our desired user/developer experience.
 
-1. The historical sync procedure should progress iteratively, starting from the first required block and progressing forward. This unlocks the "dev mode" - users can start writing & getting feedback on indexing function code before the entire sync is complete. Ideally, there will be at least a few events in the event store in the time it takes a user to move from the terminal where they ran `pnpm dev` to their editor.
+1. The historical sync procedure should progress iteratively, starting from the first required block and progressing forward. This unlocks the "dev mode" - users can start writing & getting feedback on indexing function code before the entire sync is complete. Ideally, there will be at least a few events in the sync store in the time it takes a user to move from the terminal where they ran `pnpm dev` to their editor.
 2. If a user kills the process and starts it again, the sync progress bar should pick up exactly where it left off.
 3. If a user has fully synced an app, then adds a new contract to `ponder.config.ts`, the service should only sync the new contract - the other contracts should be fully cached.
 4. The service should handle errors. This includes rate-limiting, `eth_getLogs` block range + response size limits, and random/incidental RPC errors.
@@ -49,7 +49,7 @@ The historical sync service is organized around a few components:
 3. A block callback registry
 4. A block progress tracker
 
-The progress trackers are basically an in-memory mirror of the event store cache metadata. Whenever the block progress tracker checkpoint moves forward, the service emits a `"historicalCheckpoint"` event.
+The progress trackers are basically an in-memory mirror of the sync store cache metadata. Whenever the block progress tracker checkpoint moves forward, the service emits a `"historicalCheckpoint"` event.
 
 ## Task types
 
@@ -60,7 +60,7 @@ There are currently 4 kinds of tasks that can be added to the queue.
 Parameters: `fromBlock`, `toBlock`, `LogFilterCriteria` (this includes `address` and `topics`)
 
 1. Call `eth_getLogs(fromBlock, toBlock, address, topics)` to get all logs matching this filter.
-2. For each unique block number among logs.map(log => log.blockNumber), register a block callback. Each block callback inserts raw logs + cache metadata into the event store.
+2. For each unique block number among logs.map(log => log.blockNumber), register a block callback. Each block callback inserts raw logs + cache metadata into the sync store.
 3. Update the progress tracker for this log filter. Then, if the overall checkpoint across all log filters & child contracts has moved forward, schedule any block tasks that are now ready to be processed.
 
 ### Factory contract task
@@ -68,16 +68,16 @@ Parameters: `fromBlock`, `toBlock`, `LogFilterCriteria` (this includes `address`
 Parameters: `fromBlock`, `toBlock`, `FactoryCriteria` (includes `factoryAddress`, `factoryEventSelector`, `childAddressLocation`)
 
 1. Call `eth_getLogs(fromBlock, toBlock, address: factoryAddress, topics: [factoryEventSelector])` to get all new child contracts in this block range.
-2. Add new child contracts to the event store and update the cache metadata.
+2. Add new child contracts to the sync store and update the cache metadata.
 3. Update the progress tracker for this factory contract. Then, if the checkpoint for this factory contract has moved forward, schedule new child contract tasks accordingly.
 
 ### Child contract task
 
 Parameters: `fromBlock`, `toBlock`, `FactoryCriteria`
 
-1. Query `childContractAddresses` from the event store up to and including `toBlock`.
+1. Query `childContractAddresses` from the sync store up to and including `toBlock`.
 2. Call `eth_getLogs(fromBlock, toBlock, address: [childContractAddresses])`.
-3. For each unique block number among logs.map(log => log.blockNumber), register a block callback. Each block callback inserts raw logs + cache metadata into the event store.
+3. For each unique block number among logs.map(log => log.blockNumber), register a block callback. Each block callback inserts raw logs + cache metadata into the sync store.
 4. Update the progress tracker for this child contract. Then, if the overall checkpoint across all log filters & child contracts has moved forward, schedule any block tasks that are now ready to be processed.
 
 ### Block task

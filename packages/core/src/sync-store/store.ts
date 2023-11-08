@@ -6,7 +6,7 @@ import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
 
-export interface EventStore {
+export interface SyncStore {
   kind: "sqlite" | "postgres";
   db: Kysely<any>;
   migrator: Migrator;

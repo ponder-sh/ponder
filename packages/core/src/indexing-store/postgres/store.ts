@@ -10,9 +10,9 @@ import {
 } from "@/schema/utils";
 
 import type {
+  IndexingStore,
   ModelInstance,
   OrderByInput,
-  UserStore,
   WhereInput,
 } from "../store";
 import { formatModelFieldValue, formatModelInstance } from "../utils/format";
@@ -34,7 +34,7 @@ const scalarToSqlType = {
   bytes: "text",
 } as const;
 
-export class PostgresUserStore implements UserStore {
+export class PostgresIndexingStore implements IndexingStore {
   db: Kysely<any>;
 
   schema?: Schema;

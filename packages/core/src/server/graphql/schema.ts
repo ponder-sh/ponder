@@ -9,8 +9,8 @@ import {
   GraphQLString,
 } from "graphql";
 
+import type { IndexingStore } from "@/indexing-store/store";
 import type { Scalar, Schema } from "@/schema/types";
-import type { UserStore } from "@/user-store/store";
 
 import { buildEntityTypes } from "./entity";
 import { buildPluralField } from "./plural";
@@ -41,7 +41,7 @@ export const tsTypeToGqlScalar: { [type in Scalar]: GraphQLScalarType } = {
 };
 
 export type Source = { request: unknown };
-export type Context = { store: UserStore };
+export type Context = { store: IndexingStore };
 
 export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Source, Context>> = {};

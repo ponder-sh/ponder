@@ -8,7 +8,7 @@ import {
   usdcContractConfig,
   vitalik,
 } from "@/_test/constants";
-import { resetTestClient, setupEventStore } from "@/_test/setup";
+import { resetTestClient, setupSyncStore } from "@/_test/setup";
 import { publicClient, testClient, walletClient } from "@/_test/utils";
 import type { Network } from "@/config/networks";
 import type { Source } from "@/config/sources";
@@ -17,7 +17,7 @@ import { range } from "@/utils/range";
 
 import { RealtimeSyncService } from "./service";
 
-beforeEach((context) => setupEventStore(context));
+beforeEach((context) => setupSyncStore(context));
 beforeEach(resetTestClient);
 
 const network: Network = {
@@ -100,11 +100,11 @@ const createAndInitializeUniswapV3Pool = async () => {
 };
 
 test("setup() returns block numbers", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -118,11 +118,11 @@ test("setup() returns block numbers", async (context) => {
 });
 
 test("start() adds blocks to the store from finalized to latest", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -131,7 +131,7 @@ test("start() adds blocks to the store from finalized to latest", async (context
   await service.start();
   await service.onIdle();
 
-  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(5);
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
     16379996n,
@@ -145,11 +145,11 @@ test("start() adds blocks to the store from finalized to latest", async (context
 });
 
 test("start() adds all required transactions to the store", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -158,10 +158,10 @@ test("start() adds all required transactions to the store", async (context) => {
   await service.start();
   await service.onIdle();
 
-  const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   const requiredTransactionHashes = new Set(logs.map((l) => l.transactionHash));
 
-  const transactions = await eventStore.db
+  const transactions = await syncStore.db
     .selectFrom("transactions")
     .selectAll()
     .execute();
@@ -175,11 +175,11 @@ test("start() adds all required transactions to the store", async (context) => {
 });
 
 test("start() adds all matched logs to the store", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -188,7 +188,7 @@ test("start() adds all matched logs to the store", async (context) => {
   await service.start();
   await service.onIdle();
 
-  const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(79);
   logs.forEach((log) => {
     expect(log.address).toEqual(usdcContractConfig.address);
@@ -198,11 +198,11 @@ test("start() adds all matched logs to the store", async (context) => {
 });
 
 test("start() handles new blocks", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -227,7 +227,7 @@ test("start() handles new blocks", async (context) => {
 
   await service.onIdle();
 
-  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(7);
 
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
@@ -245,11 +245,11 @@ test("start() handles new blocks", async (context) => {
 });
 
 test("start() handles error while fetching new latest block gracefully", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -271,7 +271,7 @@ test("start() handles error while fetching new latest block gracefully", async (
 
   await service.onIdle();
 
-  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(6);
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
     16379996n,
@@ -286,11 +286,11 @@ test("start() handles error while fetching new latest block gracefully", async (
 });
 
 test("start() emits realtimeCheckpoint events", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -327,11 +327,11 @@ test("start() emits realtimeCheckpoint events", async (context) => {
 });
 
 test("start() inserts log filter interval records for finalized blocks", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -350,7 +350,7 @@ test("start() inserts log filter interval records for finalized blocks", async (
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  const logFilterIntervals = await eventStore.getLogFilterIntervals({
+  const logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: network.chainId,
     logFilter: usdcLogFilter.criteria,
   });
@@ -365,11 +365,11 @@ test("start() inserts log filter interval records for finalized blocks", async (
 });
 
 test("start() deletes data from the store after 3 block shallow reorg", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -389,7 +389,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks.map((block) => decodeToBigInt(block.number))).toMatchObject([
     16379996n,
     16379997n,
@@ -415,7 +415,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  const blocksAfterReorg = await eventStore.db
+  const blocksAfterReorg = await syncStore.db
     .selectFrom("blocks")
     .selectAll()
     .execute();
@@ -435,11 +435,11 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
 });
 
 test("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -477,11 +477,11 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
 });
 
 test("emits deepReorg event after deep reorg", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [usdcLogFilter],
   });
@@ -530,11 +530,11 @@ test("emits deepReorg event after deep reorg", async (context) => {
 });
 
 test("start() with factory contract inserts new child contracts records and child contract events", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
     common,
-    eventStore,
+    syncStore,
     network,
     sources: [uniswapV3Factory],
   });
@@ -548,7 +548,7 @@ test("start() with factory contract inserts new child contracts records and chil
   await service.addNewLatestBlock();
   await service.onIdle();
 
-  const iterator = eventStore.getFactoryChildAddresses({
+  const iterator = syncStore.getFactoryChildAddresses({
     chainId: uniswapV3Factory.chainId,
     factory: uniswapV3Factory.criteria,
     upToBlockNumber: 16380010n,
@@ -561,7 +561,7 @@ test("start() with factory contract inserts new child contracts records and chil
     "0x25e0870d42b6cef90b6dc8216588fad55d5f55c4",
   ]);
 
-  const eventIterator = eventStore.getLogEvents({
+  const eventIterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     factories: [

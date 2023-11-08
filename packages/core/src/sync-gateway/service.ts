@@ -4,8 +4,8 @@ import { type Hex, decodeEventLog } from "viem";
 import { LogEventMetadata } from "@/config/abi";
 import type { Network } from "@/config/networks";
 import { Source, sourceIsFactory, sourceIsLogFilter } from "@/config/sources";
-import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
+import type { SyncStore } from "@/sync-store/store";
 import type { Block } from "@/types/block";
 import type { Log } from "@/types/log";
 import type { Transaction } from "@/types/transaction";
@@ -20,7 +20,7 @@ export type LogEvent = {
   transaction: Transaction;
 };
 
-type EventAggregatorEvents = {
+type SyncGatewayEvents = {
   /**
    * Emitted when a new event checkpoint is reached. This is the minimum timestamp
    * at which events are available across all registered networks.
@@ -37,11 +37,11 @@ type EventAggregatorEvents = {
   reorg: { commonAncestorTimestamp: number };
 };
 
-type EventAggregatorMetrics = {};
+type SyncGatewayMetrics = {};
 
-export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
+export class SyncGateway extends Emittery<SyncGatewayEvents> {
   private common: Common;
-  private eventStore: EventStore;
+  private syncStore: SyncStore;
   private networks: Network[];
   private sources: Source[];
 
@@ -64,23 +64,23 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     }
   >;
 
-  metrics: EventAggregatorMetrics;
+  metrics: SyncGatewayMetrics;
 
   constructor({
     common,
-    eventStore,
+    syncStore,
     networks,
     sources = [],
   }: {
     common: Common;
-    eventStore: EventStore;
+    syncStore: SyncStore;
     networks: Network[];
     sources?: Source[];
   }) {
     super();
 
     this.common = common;
-    this.eventStore = eventStore;
+    this.syncStore = syncStore;
     this.networks = networks;
     this.sources = sources;
     this.metrics = {};
@@ -121,7 +121,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
         | undefined;
     };
   }) {
-    const iterator = this.eventStore.getLogEvents({
+    const iterator = this.syncStore.getLogEvents({
       fromTimestamp,
       toTimestamp,
       logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
@@ -207,7 +207,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     this.networkCheckpoints[chainId].historicalCheckpoint = timestamp;
 
     this.common.logger.trace({
-      service: "aggregator",
+      service: "gateway",
       msg: `New historical checkpoint at ${timestamp} [${formatShortDate(
         timestamp
       )}] (chainId=${chainId})`,
@@ -229,7 +229,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       this.historicalSyncCompletedAt = maxHistoricalCheckpoint;
 
       this.common.logger.debug({
-        service: "aggregator",
+        service: "gateway",
         msg: `Completed historical sync across all networks`,
       });
     }
@@ -245,7 +245,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     this.networkCheckpoints[chainId].realtimeCheckpoint = timestamp;
 
     this.common.logger.trace({
-      service: "aggregator",
+      service: "gateway",
       msg: `New realtime checkpoint at ${timestamp} [${formatShortDate(
         timestamp
       )}] (chainId=${chainId})`,
@@ -285,7 +285,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       this.checkpoint = newCheckpoint;
 
       this.common.logger.trace({
-        service: "aggregator",
+        service: "gateway",
         msg: `New event checkpoint at ${this.checkpoint} [${formatShortDate(
           this.checkpoint
         )}]`,
@@ -304,7 +304,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       this.finalityCheckpoint = newFinalityCheckpoint;
 
       this.common.logger.trace({
-        service: "aggregator",
+        service: "gateway",
         msg: `New finality checkpoint at ${
           this.finalityCheckpoint
         } [${formatShortDate(this.finalityCheckpoint)}]`,
