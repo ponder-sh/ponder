@@ -86,7 +86,7 @@ export type IndexingFunctions = {
   };
   eventSources: {
     [key: EventSourceName]: {
-      // This mapping is passed from the IndexingService to the EventAggregatorService, which uses
+      // This mapping is passed from the IndexingService to the SyncGatewayService, which uses
       // it to fetch from the store _only_ the events that the user has indexed.
       bySelector: { [key: Hex]: LogEventMetadata };
       // This mapping is used by the IndexingService to fetch the user-provided `fn` before running it.

@@ -5,13 +5,10 @@ import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
 import type { Source } from "@/config/sources";
 import { UserError } from "@/errors/user";
-import type {
-  EventAggregatorService,
-  LogEvent,
-} from "@/event-aggregator/service";
 import type { IndexingStore, ModelInstance } from "@/indexing-store/store";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
+import type { LogEvent, SyncGateway } from "@/sync-gateway/service";
 import type { SyncStore } from "@/sync-store/store";
 import type { Model } from "@/types/model";
 import { formatShortDate } from "@/utils/date";
@@ -34,7 +31,7 @@ type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
 export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
   private indexingStore: IndexingStore;
-  private eventAggregatorService: EventAggregatorService;
+  private syncGatewayService: SyncGateway;
   private sources: Source[];
 
   private schema?: Schema;
@@ -56,20 +53,20 @@ export class IndexingService extends Emittery<IndexingEvents> {
     common,
     // syncStore,
     indexingStore,
-    eventAggregatorService,
+    syncGatewayService,
     sources = [],
   }: {
     common: Common;
     syncStore: SyncStore;
     indexingStore: IndexingStore;
-    eventAggregatorService: EventAggregatorService;
+    syncGatewayService: SyncGateway;
 
     sources?: Source[];
   }) {
     super();
     this.common = common;
     this.indexingStore = indexingStore;
-    this.eventAggregatorService = eventAggregatorService;
+    this.syncGatewayService = syncGatewayService;
     this.sources = sources;
 
     this.eventProcessingMutex = new Mutex();
@@ -220,7 +217,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * Processes all newly available events.
    *
    * Acquires a lock on the event processing mutex, then gets the latest checkpoint
-   * from the event aggregator service. Fetches events between previous checkpoint
+   * from the sync gateway service. Fetches events between previous checkpoint
    * and the new checkpoint, adds them to the queue, then processes them.
    */
   processEvents = async () => {
@@ -228,12 +225,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
       await this.eventProcessingMutex.runExclusive(async () => {
         if (this.hasError || !this.queue) return;
 
-        const eventsAvailableTo = this.eventAggregatorService.checkpoint;
+        const eventsAvailableTo = this.syncGatewayService.checkpoint;
 
         // If we have already added events to the queue for the current checkpoint,
         // do nothing and return. This can happen if a number of calls to processEvents
         // "stack up" while one is being processed, and then they all run sequentially
-        // but the event aggregator service checkpoint has not moved.
+        // but the sync gateway service checkpoint has not moved.
         if (this.eventsProcessedToTimestamp >= eventsAvailableTo) {
           return;
         }
@@ -260,7 +257,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           }
         }
 
-        const iterator = this.eventAggregatorService.getEvents({
+        const iterator = this.syncGatewayService.getEvents({
           fromTimestamp,
           toTimestamp,
           indexingMetadata: this.indexingMetadata,

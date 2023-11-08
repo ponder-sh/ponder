@@ -6,7 +6,7 @@ import { publicClient } from "@/_test/utils";
 import type { Network } from "@/config/networks";
 import type { Source } from "@/config/sources";
 
-import { EventAggregatorService } from "./service";
+import { SyncGateway } from "./service";
 
 beforeEach((context) => setupSyncStore(context));
 
@@ -51,7 +51,7 @@ const sources: Source[] = [
 test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
   const { common, syncStore } = context;
 
-  const service = new EventAggregatorService({
+  const service = new SyncGateway({
     common,
     syncStore,
     networks,
@@ -74,7 +74,7 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
 test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", async (context) => {
   const { common, syncStore } = context;
 
-  const service = new EventAggregatorService({
+  const service = new SyncGateway({
     common,
     syncStore,
     sources,
@@ -104,7 +104,7 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
 test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final historical sync is complete", async (context) => {
   const { common, syncStore } = context;
 
-  const service = new EventAggregatorService({
+  const service = new SyncGateway({
     common,
     syncStore,
     sources,
@@ -132,7 +132,7 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
   const { common, syncStore } = context;
 
-  const service = new EventAggregatorService({
+  const service = new SyncGateway({
     common,
     syncStore,
     sources,
@@ -161,7 +161,7 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
 test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is complete", async (context) => {
   const { common, syncStore } = context;
 
-  const service = new EventAggregatorService({
+  const service = new SyncGateway({
     common,
     syncStore,
     sources,
@@ -199,7 +199,7 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
   const { common, syncStore } = context;
 
-  const service = new EventAggregatorService({
+  const service = new SyncGateway({
     common,
     syncStore,
     sources,
@@ -225,7 +225,7 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) 
 test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequent event is earlier", async (context) => {
   const { common, syncStore } = context;
 
-  const service = new EventAggregatorService({
+  const service = new SyncGateway({
     common,
     syncStore,
     sources,
@@ -255,7 +255,7 @@ test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequ
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent event is later", async (context) => {
   const { common, syncStore } = context;
 
-  const service = new EventAggregatorService({
+  const service = new SyncGateway({
     common,
     syncStore,
     sources,

@@ -7,7 +7,6 @@ import { buildDatabase } from "@/config/database";
 import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
 import { UserErrorService } from "@/errors/service";
-import { EventAggregatorService } from "@/event-aggregator/service";
 import { IndexingService } from "@/indexing/service";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store";
@@ -15,6 +14,7 @@ import { type IndexingStore } from "@/indexing-store/store";
 import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { ServerService } from "@/server/service";
+import { SyncGateway } from "@/sync-gateway/service";
 import { HistoricalSyncService } from "@/sync-historical/service";
 import { RealtimeSyncService } from "@/sync-realtime/service";
 import { PostgresSyncStore } from "@/sync-store/postgres/store";
@@ -49,7 +49,7 @@ export class Ponder {
     historical: HistoricalSyncService;
     realtime: RealtimeSyncService;
   }[] = undefined!;
-  eventAggregatorService: EventAggregatorService = undefined!;
+  syncGatewayService: SyncGateway = undefined!;
 
   // Indexing services
   indexingStore: IndexingStore = undefined!;
@@ -154,7 +154,7 @@ export class Ponder {
         }),
       });
     });
-    this.eventAggregatorService = new EventAggregatorService({
+    this.syncGatewayService = new SyncGateway({
       common: this.common,
       syncStore: this.syncStore,
       networks: networksToSync,
@@ -165,7 +165,7 @@ export class Ponder {
       common: this.common,
       syncStore: this.syncStore,
       indexingStore: this.indexingStore,
-      eventAggregatorService: this.eventAggregatorService,
+      syncGatewayService: this.syncGatewayService,
       sources: this.sources,
     });
 
@@ -254,7 +254,7 @@ export class Ponder {
   }
 
   async kill() {
-    this.eventAggregatorService.clearListeners();
+    this.syncGatewayService.clearListeners();
 
     this.common.telemetry.record({
       event: "App Killed",
@@ -326,50 +326,47 @@ export class Ponder {
       const { chainId } = network;
 
       historical.on("historicalCheckpoint", ({ blockTimestamp }) => {
-        this.eventAggregatorService.handleNewHistoricalCheckpoint({
+        this.syncGatewayService.handleNewHistoricalCheckpoint({
           chainId,
           timestamp: blockTimestamp,
         });
       });
 
       historical.on("syncComplete", () => {
-        this.eventAggregatorService.handleHistoricalSyncComplete({
+        this.syncGatewayService.handleHistoricalSyncComplete({
           chainId,
         });
       });
 
       realtime.on("realtimeCheckpoint", ({ blockTimestamp }) => {
-        this.eventAggregatorService.handleNewRealtimeCheckpoint({
+        this.syncGatewayService.handleNewRealtimeCheckpoint({
           chainId,
           timestamp: blockTimestamp,
         });
       });
 
       realtime.on("finalityCheckpoint", ({ blockTimestamp }) => {
-        this.eventAggregatorService.handleNewFinalityCheckpoint({
+        this.syncGatewayService.handleNewFinalityCheckpoint({
           chainId,
           timestamp: blockTimestamp,
         });
       });
 
       realtime.on("shallowReorg", ({ commonAncestorBlockTimestamp }) => {
-        this.eventAggregatorService.handleReorg({
+        this.syncGatewayService.handleReorg({
           commonAncestorTimestamp: commonAncestorBlockTimestamp,
         });
       });
     });
 
-    this.eventAggregatorService.on("newCheckpoint", async () => {
+    this.syncGatewayService.on("newCheckpoint", async () => {
       await this.indexingService.processEvents();
     });
 
-    this.eventAggregatorService.on(
-      "reorg",
-      async ({ commonAncestorTimestamp }) => {
-        await this.indexingService.handleReorg({ commonAncestorTimestamp });
-        await this.indexingService.processEvents();
-      }
-    );
+    this.syncGatewayService.on("reorg", async ({ commonAncestorTimestamp }) => {
+      await this.indexingService.handleReorg({ commonAncestorTimestamp });
+      await this.indexingService.processEvents();
+    });
 
     this.indexingService.on("eventsProcessed", ({ toTimestamp }) => {
       if (this.serverService.isHistoricalIndexingComplete) return;
@@ -378,8 +375,8 @@ export class Ponder {
       // the new toTimestamp is greater than the historical sync completion timestamp,
       // historical event processing is complete, and the server should begin responding as healthy.
       if (
-        this.eventAggregatorService.historicalSyncCompletedAt &&
-        toTimestamp >= this.eventAggregatorService.historicalSyncCompletedAt
+        this.syncGatewayService.historicalSyncCompletedAt &&
+        toTimestamp >= this.syncGatewayService.historicalSyncCompletedAt
       ) {
         this.serverService.setIsHistoricalIndexingComplete();
       }

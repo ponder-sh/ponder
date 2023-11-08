@@ -20,7 +20,7 @@ export type LogEvent = {
   transaction: Transaction;
 };
 
-type EventAggregatorEvents = {
+type SyncGatewayEvents = {
   /**
    * Emitted when a new event checkpoint is reached. This is the minimum timestamp
    * at which events are available across all registered networks.
@@ -37,9 +37,9 @@ type EventAggregatorEvents = {
   reorg: { commonAncestorTimestamp: number };
 };
 
-type EventAggregatorMetrics = {};
+type SyncGatewayMetrics = {};
 
-export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
+export class SyncGateway extends Emittery<SyncGatewayEvents> {
   private common: Common;
   private syncStore: SyncStore;
   private networks: Network[];
@@ -64,7 +64,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     }
   >;
 
-  metrics: EventAggregatorMetrics;
+  metrics: SyncGatewayMetrics;
 
   constructor({
     common,
@@ -207,7 +207,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     this.networkCheckpoints[chainId].historicalCheckpoint = timestamp;
 
     this.common.logger.trace({
-      service: "aggregator",
+      service: "gateway",
       msg: `New historical checkpoint at ${timestamp} [${formatShortDate(
         timestamp
       )}] (chainId=${chainId})`,
@@ -229,7 +229,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       this.historicalSyncCompletedAt = maxHistoricalCheckpoint;
 
       this.common.logger.debug({
-        service: "aggregator",
+        service: "gateway",
         msg: `Completed historical sync across all networks`,
       });
     }
@@ -245,7 +245,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
     this.networkCheckpoints[chainId].realtimeCheckpoint = timestamp;
 
     this.common.logger.trace({
-      service: "aggregator",
+      service: "gateway",
       msg: `New realtime checkpoint at ${timestamp} [${formatShortDate(
         timestamp
       )}] (chainId=${chainId})`,
@@ -285,7 +285,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       this.checkpoint = newCheckpoint;
 
       this.common.logger.trace({
-        service: "aggregator",
+        service: "gateway",
         msg: `New event checkpoint at ${this.checkpoint} [${formatShortDate(
           this.checkpoint
         )}]`,
@@ -304,7 +304,7 @@ export class EventAggregatorService extends Emittery<EventAggregatorEvents> {
       this.finalityCheckpoint = newFinalityCheckpoint;
 
       this.common.logger.trace({
-        service: "aggregator",
+        service: "gateway",
         msg: `New finality checkpoint at ${
           this.finalityCheckpoint
         } [${formatShortDate(this.finalityCheckpoint)}]`,
