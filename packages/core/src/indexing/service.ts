@@ -9,9 +9,9 @@ import type {
   EventAggregatorService,
   LogEvent,
 } from "@/event-aggregator/service";
-import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
+import type { SyncStore } from "@/sync-store/store";
 import type { Model } from "@/types/model";
 import type { ModelInstance, UserStore } from "@/user-store/store";
 import { formatShortDate } from "@/utils/date";
@@ -54,13 +54,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   constructor({
     common,
-    // eventStore,
+    // syncStore,
     userStore,
     eventAggregatorService,
     sources = [],
   }: {
     common: Common;
-    eventStore: EventStore;
+    syncStore: SyncStore;
     userStore: UserStore;
     eventAggregatorService: EventAggregatorService;
 

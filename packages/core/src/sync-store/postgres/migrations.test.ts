@@ -7,7 +7,7 @@ import {
   blockOneTransactions,
   contractReadResultOne,
 } from "@/_test/constants";
-import { setupEventStore } from "@/_test/setup";
+import { setupSyncStore } from "@/_test/setup";
 
 import {
   rpcToPostgresBlock,
@@ -15,7 +15,7 @@ import {
   rpcToPostgresTransaction,
 } from "./format";
 
-beforeEach((context) => setupEventStore(context, { migrateUp: false }));
+beforeEach((context) => setupSyncStore(context, { migrateUp: false }));
 
 const seed_2023_09_19_0_new_sync_design = async (db: Kysely<any>) => {
   await db
@@ -50,18 +50,18 @@ const seed_2023_09_19_0_new_sync_design = async (db: Kysely<any>) => {
 };
 
 test("2023_09_19_0_new_sync_design -> 2023_11_06_0_new_rpc_cache_design succeeds", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  if (eventStore.kind !== "postgres") return;
+  if (syncStore.kind !== "postgres") return;
 
-  const { error } = await eventStore.migrator.migrateTo(
+  const { error } = await syncStore.migrator.migrateTo(
     "2023_09_19_0_new_sync_design"
   );
   expect(error).toBeFalsy();
 
-  await seed_2023_09_19_0_new_sync_design(eventStore.db);
+  await seed_2023_09_19_0_new_sync_design(syncStore.db);
 
-  const { error: latestError } = await eventStore.migrator.migrateTo(
+  const { error: latestError } = await syncStore.migrator.migrateTo(
     "2023_11_06_0_new_rpc_cache_design"
   );
   expect(latestError).toBeFalsy();

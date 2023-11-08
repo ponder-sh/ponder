@@ -1,14 +1,14 @@
 import { Address, custom, Hex, Transport } from "viem";
 
-import { EventStore } from "@/event-store/store";
+import { SyncStore } from "@/sync-store/store";
 import { toLowerCase } from "@/utils/lowercase";
 
 export const ponderTransport = ({
   transport,
-  eventStore,
+  syncStore,
 }: {
   transport: Transport;
-  eventStore: EventStore;
+  syncStore: SyncStore;
 }): Transport => {
   return ({ chain }) => {
     const underlyingTransport = transport({ chain });
@@ -49,7 +49,7 @@ export const ponderTransport = ({
         }
 
         if (request !== null && blockNumber !== null) {
-          const cachedResult = await eventStore.getRpcRequestResult({
+          const cachedResult = await syncStore.getRpcRequestResult({
             blockNumber,
             chainId: chain!.id,
             request,
@@ -58,7 +58,7 @@ export const ponderTransport = ({
           if (cachedResult?.result) return cachedResult.result;
           else {
             const response = await underlyingTransport.request(body);
-            await eventStore.insertRpcRequestResult({
+            await syncStore.insertRpcRequestResult({
               blockNumber: BigInt(blockNumber),
               chainId: chain!.id,
               request,

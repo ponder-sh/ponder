@@ -1,14 +1,14 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
-import { setupEventStore } from "@/_test/setup";
+import { setupSyncStore } from "@/_test/setup";
 import { publicClient } from "@/_test/utils";
 import type { Network } from "@/config/networks";
 import type { Source } from "@/config/sources";
 
 import { EventAggregatorService } from "./service";
 
-beforeEach((context) => setupEventStore(context));
+beforeEach((context) => setupSyncStore(context));
 
 const mainnet: Network = {
   name: "mainnet",
@@ -49,11 +49,11 @@ const sources: Source[] = [
 ];
 
 test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new EventAggregatorService({
     common,
-    eventStore,
+    syncStore,
     networks,
     sources,
   });
@@ -72,11 +72,11 @@ test("handleNewHistoricalCheckpoint emits new checkpoint", async (context) => {
 });
 
 test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new EventAggregatorService({
     common,
-    eventStore,
+    syncStore,
     sources,
     networks,
   });
@@ -102,11 +102,11 @@ test("handleNewHistoricalCheckpoint does not emit new checkpoint if not best", a
 });
 
 test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final historical sync is complete", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new EventAggregatorService({
     common,
-    eventStore,
+    syncStore,
     sources,
     networks,
   });
@@ -130,11 +130,11 @@ test("handleHistoricalSyncComplete sets historicalSyncCompletedAt if final histo
 });
 
 test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical sync is not complete", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new EventAggregatorService({
     common,
-    eventStore,
+    syncStore,
     sources,
     networks,
   });
@@ -159,11 +159,11 @@ test("handleNewRealtimeCheckpoint does not emit new checkpoint if historical syn
 });
 
 test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is complete", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new EventAggregatorService({
     common,
-    eventStore,
+    syncStore,
     sources,
     networks,
   });
@@ -197,11 +197,11 @@ test("handleNewRealtimeCheckpoint emits new checkpoint if historical sync is com
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new EventAggregatorService({
     common,
-    eventStore,
+    syncStore,
     sources,
     networks,
   });
@@ -223,11 +223,11 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint", async (context) 
 });
 
 test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequent event is earlier", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new EventAggregatorService({
     common,
-    eventStore,
+    syncStore,
     sources,
     networks,
   });
@@ -253,11 +253,11 @@ test("handleNewFinalityCheckpoint does not emit newFinalityCheckpoint if subsequ
 });
 
 test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent event is later", async (context) => {
-  const { common, eventStore } = context;
+  const { common, syncStore } = context;
 
   const service = new EventAggregatorService({
     common,
-    eventStore,
+    syncStore,
     sources,
     networks,
   });

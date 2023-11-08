@@ -2,17 +2,17 @@ import { getFunctionSelector, http, toHex, Transport } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
-import { setupEventStore } from "@/_test/setup";
+import { setupSyncStore } from "@/_test/setup";
 import { anvil } from "@/_test/utils";
 
 import { ponderTransport } from "./transport";
 
-beforeEach((context) => setupEventStore(context));
+beforeEach((context) => setupSyncStore(context));
 
-test("default", ({ eventStore }) => {
+test("default", ({ syncStore }) => {
   const transport = ponderTransport({
     transport: http("https://mockapi.com/rpc"),
-    eventStore,
+    syncStore,
   });
 
   assertType<Transport>(transport);
@@ -34,10 +34,10 @@ test("default", ({ eventStore }) => {
   `);
 });
 
-test("eth_call", async ({ eventStore }) => {
+test("eth_call", async ({ syncStore }) => {
   const transport = ponderTransport({
     transport: http(),
-    eventStore,
+    syncStore,
   })({
     chain: anvil,
   });
@@ -55,7 +55,7 @@ test("eth_call", async ({ eventStore }) => {
 
   expect(response1).toBeDefined();
 
-  const callSpy = vi.spyOn(eventStore, "insertRpcRequestResult");
+  const callSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
 
   const response2 = await transport.request({
     method: "eth_call",
@@ -73,10 +73,10 @@ test("eth_call", async ({ eventStore }) => {
   expect(callSpy).toHaveBeenCalledTimes(0);
 });
 
-test("eth_getBalance", async ({ eventStore }) => {
+test("eth_getBalance", async ({ syncStore }) => {
   const transport = ponderTransport({
     transport: http(),
-    eventStore,
+    syncStore,
   })({
     chain: anvil,
   });
@@ -88,7 +88,7 @@ test("eth_getBalance", async ({ eventStore }) => {
 
   expect(response1).toBeDefined();
 
-  const callSpy = vi.spyOn(eventStore, "insertRpcRequestResult");
+  const callSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
 
   const response2 = await transport.request({
     method: "eth_getBalance",
@@ -100,10 +100,10 @@ test("eth_getBalance", async ({ eventStore }) => {
   expect(callSpy).toHaveBeenCalledTimes(0);
 });
 
-test("eth_getStorageAt", async ({ eventStore }) => {
+test("eth_getStorageAt", async ({ syncStore }) => {
   const transport = ponderTransport({
     transport: http(),
-    eventStore,
+    syncStore,
   })({
     chain: anvil,
   });
@@ -115,7 +115,7 @@ test("eth_getStorageAt", async ({ eventStore }) => {
 
   expect(response1).toBeDefined();
 
-  const callSpy = vi.spyOn(eventStore, "insertRpcRequestResult");
+  const callSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
 
   const response2 = await transport.request({
     method: "eth_getStorageAt",
@@ -127,10 +127,10 @@ test("eth_getStorageAt", async ({ eventStore }) => {
   expect(callSpy).toHaveBeenCalledTimes(0);
 });
 
-test("eth_getCode", async ({ eventStore }) => {
+test("eth_getCode", async ({ syncStore }) => {
   const transport = ponderTransport({
     transport: http(),
-    eventStore,
+    syncStore,
   })({
     chain: anvil,
   });
@@ -142,7 +142,7 @@ test("eth_getCode", async ({ eventStore }) => {
 
   expect(response1).toBeDefined();
 
-  const callSpy = vi.spyOn(eventStore, "insertRpcRequestResult");
+  const callSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
 
   const response2 = await transport.request({
     method: "eth_getCode",
@@ -154,10 +154,10 @@ test("eth_getCode", async ({ eventStore }) => {
   expect(callSpy).toHaveBeenCalledTimes(0);
 });
 
-test("fallback method", async ({ eventStore }) => {
+test("fallback method", async ({ syncStore }) => {
   const transport = ponderTransport({
     transport: http(),
-    eventStore,
+    syncStore,
   })({
     chain: anvil,
   });

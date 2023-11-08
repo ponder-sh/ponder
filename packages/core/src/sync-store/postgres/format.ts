@@ -7,30 +7,27 @@ import {
   hexToNumber,
 } from "viem";
 
-import { encodeAsText } from "@/utils/encoding";
 import { toLowerCase } from "@/utils/lowercase";
 
-export type BigIntText = string;
-
 type BlocksTable = {
-  baseFeePerGas: BigIntText | null;
-  difficulty: BigIntText;
+  baseFeePerGas: bigint | null;
+  difficulty: bigint;
   extraData: Hex;
-  gasLimit: BigIntText;
-  gasUsed: BigIntText;
+  gasLimit: bigint;
+  gasUsed: bigint;
   hash: Hash;
   logsBloom: Hex;
   miner: Address;
   mixHash: Hash;
   nonce: Hex;
-  number: BigIntText;
+  number: bigint;
   parentHash: Hash;
   receiptsRoot: Hex;
   sha3Uncles: Hash;
-  size: BigIntText;
+  size: bigint;
   stateRoot: Hash;
-  timestamp: BigIntText;
-  totalDifficulty: BigIntText;
+  timestamp: bigint;
+  totalDifficulty: bigint;
   transactionsRoot: Hash;
 
   chainId: number;
@@ -38,39 +35,37 @@ type BlocksTable = {
 
 export type InsertableBlock = Insertable<BlocksTable>;
 
-export function rpcToSqliteBlock(
+export function rpcToPostgresBlock(
   block: RpcBlock
 ): Omit<InsertableBlock, "chainId"> {
   return {
-    baseFeePerGas: block.baseFeePerGas
-      ? encodeAsText(block.baseFeePerGas)
-      : null,
-    difficulty: encodeAsText(block.difficulty),
+    baseFeePerGas: block.baseFeePerGas ? BigInt(block.baseFeePerGas) : null,
+    difficulty: BigInt(block.difficulty),
     extraData: block.extraData,
-    gasLimit: encodeAsText(block.gasLimit),
-    gasUsed: encodeAsText(block.gasUsed),
+    gasLimit: BigInt(block.gasLimit),
+    gasUsed: BigInt(block.gasUsed),
     hash: block.hash!,
     logsBloom: block.logsBloom!,
     miner: toLowerCase(block.miner),
     mixHash: block.mixHash,
     nonce: block.nonce!,
-    number: encodeAsText(block.number!),
+    number: BigInt(block.number!),
     parentHash: block.parentHash,
     receiptsRoot: block.receiptsRoot,
     sha3Uncles: block.sha3Uncles,
-    size: encodeAsText(block.size),
+    size: BigInt(block.size),
     stateRoot: block.stateRoot,
-    timestamp: encodeAsText(block.timestamp),
-    totalDifficulty: encodeAsText(block.totalDifficulty!),
+    timestamp: BigInt(block.timestamp),
+    totalDifficulty: BigInt(block.totalDifficulty!),
     transactionsRoot: block.transactionsRoot,
   };
 }
 
 type TransactionsTable = {
   blockHash: Hash;
-  blockNumber: BigIntText;
+  blockNumber: bigint;
   from: Address;
-  gas: BigIntText;
+  gas: bigint;
   hash: Hash;
   input: Hex;
   nonce: number;
@@ -78,13 +73,13 @@ type TransactionsTable = {
   s: Hex;
   to: Address | null;
   transactionIndex: number;
-  v: BigIntText;
-  value: BigIntText;
+  v: bigint;
+  value: bigint;
 
   type: Hex;
-  gasPrice: BigIntText | null;
-  maxFeePerGas: BigIntText | null;
-  maxPriorityFeePerGas: BigIntText | null;
+  gasPrice: bigint | null;
+  maxFeePerGas: bigint | null;
+  maxPriorityFeePerGas: bigint | null;
   accessList: string | null;
 
   chainId: number;
@@ -92,7 +87,7 @@ type TransactionsTable = {
 
 export type InsertableTransaction = Insertable<TransactionsTable>;
 
-export function rpcToSqliteTransaction(
+export function rpcToPostgresTransaction(
   transaction: RpcTransaction
 ): Omit<InsertableTransaction, "chainId"> {
   return {
@@ -100,17 +95,17 @@ export function rpcToSqliteTransaction(
       ? JSON.stringify(transaction.accessList)
       : undefined,
     blockHash: transaction.blockHash!,
-    blockNumber: encodeAsText(transaction.blockNumber!),
+    blockNumber: BigInt(transaction.blockNumber!),
     from: toLowerCase(transaction.from),
-    gas: encodeAsText(transaction.gas),
-    gasPrice: transaction.gasPrice ? encodeAsText(transaction.gasPrice) : null,
+    gas: BigInt(transaction.gas),
+    gasPrice: transaction.gasPrice ? BigInt(transaction.gasPrice) : null,
     hash: transaction.hash,
     input: transaction.input,
     maxFeePerGas: transaction.maxFeePerGas
-      ? encodeAsText(transaction.maxFeePerGas)
+      ? BigInt(transaction.maxFeePerGas)
       : null,
     maxPriorityFeePerGas: transaction.maxPriorityFeePerGas
-      ? encodeAsText(transaction.maxPriorityFeePerGas)
+      ? BigInt(transaction.maxPriorityFeePerGas)
       : null,
     nonce: hexToNumber(transaction.nonce),
     r: transaction.r,
@@ -118,8 +113,8 @@ export function rpcToSqliteTransaction(
     to: transaction.to ? toLowerCase(transaction.to) : null,
     transactionIndex: Number(transaction.transactionIndex),
     type: transaction.type ?? "0x0",
-    value: encodeAsText(transaction.value),
-    v: encodeAsText(transaction.v),
+    value: BigInt(transaction.value),
+    v: BigInt(transaction.v),
   };
 }
 
@@ -127,7 +122,7 @@ type LogsTable = {
   id: string;
   address: Address;
   blockHash: Hash;
-  blockNumber: BigIntText;
+  blockNumber: bigint;
   data: Hex;
   logIndex: number;
   transactionHash: Hash;
@@ -143,11 +138,11 @@ type LogsTable = {
 
 export type InsertableLog = Insertable<LogsTable>;
 
-export function rpcToSqliteLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
+export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   return {
     address: toLowerCase(log.address),
     blockHash: log.blockHash!,
-    blockNumber: encodeAsText(log.blockNumber!),
+    blockNumber: BigInt(log.blockNumber!),
     data: log.data,
     id: `${log.blockHash}-${log.logIndex}`,
     logIndex: Number(log.logIndex!),
@@ -161,10 +156,10 @@ export function rpcToSqliteLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
 }
 
 type RpcRequestResultsTable = {
-  blockNumber: BigIntText;
+  blockNumber: bigint;
   chainId: number;
-  result: string;
   request: string;
+  result: string;
 };
 
 type LogFiltersTable = {
@@ -180,8 +175,8 @@ type LogFiltersTable = {
 type LogFilterIntervalsTable = {
   id: Generated<number>;
   logFilterId: string;
-  startBlock: BigIntText;
-  endBlock: BigIntText;
+  startBlock: bigint;
+  endBlock: bigint;
 };
 
 type FactoriesTable = {
@@ -199,11 +194,11 @@ type FactoriesTable = {
 type FactoryLogFilterIntervalsTable = {
   id: Generated<number>;
   factoryId: string;
-  startBlock: BigIntText;
-  endBlock: BigIntText;
+  startBlock: bigint;
+  endBlock: bigint;
 };
 
-export type EventStoreTables = {
+export type SyncStoreTables = {
   blocks: BlocksTable;
   transactions: TransactionsTable;
   logs: LogsTable;

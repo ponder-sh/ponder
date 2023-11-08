@@ -8,15 +8,15 @@ import { type Network, buildNetwork } from "@/config/networks";
 import { type Options } from "@/config/options";
 import { UserErrorService } from "@/errors/service";
 import { EventAggregatorService } from "@/event-aggregator/service";
-import { PostgresEventStore } from "@/event-store/postgres/store";
-import { SqliteEventStore } from "@/event-store/sqlite/store";
-import { type EventStore } from "@/event-store/store";
 import { HistoricalSyncService } from "@/historical-sync/service";
 import { IndexingService } from "@/indexing/service";
 import { LoggerService } from "@/logs/service";
 import { MetricsService } from "@/metrics/service";
 import { RealtimeSyncService } from "@/realtime-sync/service";
 import { ServerService } from "@/server/service";
+import { PostgresSyncStore } from "@/sync-store/postgres/store";
+import { SqliteSyncStore } from "@/sync-store/sqlite/store";
+import { type SyncStore } from "@/sync-store/store";
 import { TelemetryService } from "@/telemetry/service";
 import { UiService } from "@/ui/service";
 import { PostgresUserStore } from "@/user-store/postgres/store";
@@ -42,7 +42,7 @@ export class Ponder {
   sources: Source[] = undefined!;
 
   // Sync services
-  eventStore: EventStore = undefined!;
+  syncStore: SyncStore = undefined!;
   syncServices: {
     network: Network;
     sources: Source[];
@@ -75,11 +75,11 @@ export class Ponder {
   }
 
   async setup({
-    eventStore,
+    syncStore,
     userStore,
   }: {
     // These options are only used for testing.
-    eventStore?: EventStore;
+    syncStore?: SyncStore;
     userStore?: UserStore;
   } = {}) {
     this.common.logger.debug({
@@ -103,11 +103,11 @@ export class Ponder {
     }
 
     const database = buildDatabase({ common: this.common, config });
-    this.eventStore =
-      eventStore ??
+    this.syncStore =
+      syncStore ??
       (database.kind === "sqlite"
-        ? new SqliteEventStore({ db: database.db })
-        : new PostgresEventStore({ pool: database.pool }));
+        ? new SqliteSyncStore({ db: database.db })
+        : new PostgresSyncStore({ pool: database.pool }));
 
     this.userStore =
       userStore ??
@@ -142,13 +142,13 @@ export class Ponder {
         sources: sourcesForNetwork,
         historical: new HistoricalSyncService({
           common: this.common,
-          eventStore: this.eventStore,
+          syncStore: this.syncStore,
           network,
           sources: sourcesForNetwork,
         }),
         realtime: new RealtimeSyncService({
           common: this.common,
-          eventStore: this.eventStore,
+          syncStore: this.syncStore,
           network,
           sources: sourcesForNetwork,
         }),
@@ -156,14 +156,14 @@ export class Ponder {
     });
     this.eventAggregatorService = new EventAggregatorService({
       common: this.common,
-      eventStore: this.eventStore,
+      syncStore: this.syncStore,
       networks: networksToSync,
       sources: this.sources,
     });
 
     this.indexingService = new IndexingService({
       common: this.common,
-      eventStore: this.eventStore,
+      syncStore: this.syncStore,
       userStore: this.userStore,
       eventAggregatorService: this.eventAggregatorService,
       sources: this.sources,
@@ -190,7 +190,7 @@ export class Ponder {
     this.codegenService.generateAppFile();
 
     // One-time setup for some services.
-    await this.eventStore.migrateUp();
+    await this.syncStore.migrateUp();
     await this.serverService.start();
 
     // Finally, load the schema + indexing functions which will trigger
@@ -205,7 +205,7 @@ export class Ponder {
       properties: {
         command: "ponder dev",
         contractCount: this.sources.length,
-        databaseKind: this.eventStore.kind,
+        databaseKind: this.syncStore.kind,
       },
     });
 
@@ -226,7 +226,7 @@ export class Ponder {
       properties: {
         command: "ponder start",
         contractCount: this.sources.length,
-        databaseKind: this.eventStore.kind,
+        databaseKind: this.syncStore.kind,
       },
     });
 
@@ -277,7 +277,7 @@ export class Ponder {
     await this.common.telemetry.kill();
 
     await this.userStore.kill();
-    await this.eventStore.kill();
+    await this.syncStore.kill();
 
     this.common.logger.debug({
       service: "app",

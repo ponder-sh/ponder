@@ -11,15 +11,15 @@ import {
   blockTwoTransactions,
   usdcContractConfig,
 } from "@/_test/constants";
-import { setupEventStore } from "@/_test/setup";
+import { setupSyncStore } from "@/_test/setup";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources";
 
-beforeEach((context) => setupEventStore(context));
+beforeEach((context) => setupSyncStore(context));
 
 test("setup creates tables", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  const tables = await eventStore.db.introspection.getTables();
+  const tables = await syncStore.db.introspection.getTables();
   const tableNames = tables.map((t) => t.name);
   expect(tableNames).toContain("blocks");
   expect(tableNames).toContain("logs");
@@ -34,9 +34,9 @@ test("setup creates tables", async (context) => {
 });
 
 test("insertLogFilterInterval inserts block, transactions, and logs", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: usdcContractConfig.chainId,
     logFilter: { address: usdcContractConfig.address },
     block: blockOne,
@@ -48,23 +48,23 @@ test("insertLogFilterInterval inserts block, transactions, and logs", async (con
     },
   });
 
-  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(1);
 
-  const transactions = await eventStore.db
+  const transactions = await syncStore.db
     .selectFrom("transactions")
     .selectAll()
     .execute();
   expect(transactions).toHaveLength(2);
 
-  const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
 });
 
 test("insertLogFilterInterval inserts log filter intervals", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {
       address: ["0xa", "0xb"],
@@ -76,7 +76,7 @@ test("insertLogFilterInterval inserts log filter intervals", async (context) => 
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
-  const logFilterRanges = await eventStore.getLogFilterIntervals({
+  const logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: {
       address: ["0xa", "0xb"],
@@ -88,9 +88,9 @@ test("insertLogFilterInterval inserts log filter intervals", async (context) => 
 });
 
 test("insertLogFilterInterval merges ranges on insertion", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: usdcContractConfig.chainId,
     logFilter: { address: usdcContractConfig.address },
     block: blockOne,
@@ -102,7 +102,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
   });
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: usdcContractConfig.chainId,
     logFilter: { address: usdcContractConfig.address },
     block: blockThree,
@@ -114,7 +114,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
   });
 
-  let logFilterRanges = await eventStore.getLogFilterIntervals({
+  let logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: { address: usdcContractConfig.address },
   });
@@ -124,7 +124,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     [15495112, 15495112],
   ]);
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: usdcContractConfig.chainId,
     logFilter: { address: usdcContractConfig.address },
     block: blockTwo,
@@ -136,7 +136,7 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
     },
   });
 
-  logFilterRanges = await eventStore.getLogFilterIntervals({
+  logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: { address: usdcContractConfig.address },
   });
@@ -145,10 +145,10 @@ test("insertLogFilterInterval merges ranges on insertion", async (context) => {
 });
 
 test("insertLogFilterInterval merges log intervals inserted concurrently", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   await Promise.all([
-    eventStore.insertLogFilterInterval({
+    syncStore.insertLogFilterInterval({
       chainId: usdcContractConfig.chainId,
       logFilter: { address: usdcContractConfig.address },
       block: blockOne,
@@ -159,7 +159,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
         endBlock: hexToBigInt(blockOne.number!),
       },
     }),
-    eventStore.insertLogFilterInterval({
+    syncStore.insertLogFilterInterval({
       chainId: usdcContractConfig.chainId,
       logFilter: { address: usdcContractConfig.address },
       block: blockTwo,
@@ -170,7 +170,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
         endBlock: hexToBigInt(blockTwo.number!),
       },
     }),
-    eventStore.insertLogFilterInterval({
+    syncStore.insertLogFilterInterval({
       chainId: usdcContractConfig.chainId,
       logFilter: { address: usdcContractConfig.address },
       block: blockThree,
@@ -183,7 +183,7 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
     }),
   ]);
 
-  const logFilterRanges = await eventStore.getLogFilterIntervals({
+  const logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: { address: usdcContractConfig.address },
   });
@@ -192,9 +192,9 @@ test("insertLogFilterInterval merges log intervals inserted concurrently", async
 });
 
 test("getLogFilterIntervals respects log filter inclusivity rules", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {
       address: ["0xa", "0xb"],
@@ -207,7 +207,7 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
   });
 
   // This is a narrower inclusion criteria on `address` and `topic0`. Full range is available.
-  let logFilterRanges = await eventStore.getLogFilterIntervals({
+  let logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: { address: ["0xa"], topics: [["0xc"], null, "0xe", null] },
   });
@@ -215,7 +215,7 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
   expect(logFilterRanges).toMatchObject([[0, 100]]);
 
   // This is a broader inclusion criteria on `address`. No ranges available.
-  logFilterRanges = await eventStore.getLogFilterIntervals({
+  logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: { address: undefined, topics: [["0xc"], null, "0xe", null] },
   });
@@ -223,7 +223,7 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
   expect(logFilterRanges).toMatchObject([]);
 
   // This is a narrower inclusion criteria on `topic1`. Full range available.
-  logFilterRanges = await eventStore.getLogFilterIntervals({
+  logFilterRanges = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: { address: ["0xa"], topics: [["0xc"], "0xd", "0xe", null] },
   });
@@ -232,9 +232,9 @@ test("getLogFilterIntervals respects log filter inclusivity rules", async (conte
 });
 
 test("getLogFilterRanges handles complex log filter inclusivity rules", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: {},
     block: blockOne,
@@ -243,7 +243,7 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
     interval: { startBlock: 0n, endBlock: 100n },
   });
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: 1,
     logFilter: { topics: [null, ["0xc", "0xd"]] },
     block: blockOne,
@@ -253,14 +253,14 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
   });
 
   // Broad criteria only includes broad intervals.
-  let logFilterIntervals = await eventStore.getLogFilterIntervals({
+  let logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: {},
   });
   expect(logFilterIntervals).toMatchObject([[0, 100]]);
 
   // Narrower criteria includes both broad and specific intervals.
-  logFilterIntervals = await eventStore.getLogFilterIntervals({
+  logFilterIntervals = await syncStore.getLogFilterIntervals({
     chainId: 1,
     logFilter: { topics: [null, "0xc"] },
   });
@@ -271,19 +271,19 @@ test("getLogFilterRanges handles complex log filter inclusivity rules", async (c
 });
 
 test("insertFactoryChildAddressLogs inserts logs", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertFactoryChildAddressLogs({
+  await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
     logs: blockOneLogs,
   });
 
-  const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
 });
 
 test("getFactoryChildAddresses gets child addresses for topic location", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   const factoryCriteria = {
     address: "0xfactory",
@@ -292,7 +292,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
     childAddressLocation: "topic1",
   } satisfies FactoryCriteria;
 
-  await eventStore.insertFactoryChildAddressLogs({
+  await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
     logs: [
       {
@@ -318,7 +318,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
     ],
   });
 
-  let iterator = eventStore.getFactoryChildAddresses({
+  let iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
     upToBlockNumber: 150n,
@@ -332,7 +332,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
     "0xchild30000000000000000000000000000000000",
   ]);
 
-  iterator = eventStore.getFactoryChildAddresses({
+  iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: { ...factoryCriteria, childAddressLocation: "topic2" },
     upToBlockNumber: 150n,
@@ -348,7 +348,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
 });
 
 test("getFactoryChildAddresses gets child addresses for offset location", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   const factoryCriteria = {
     address: "0xfactory",
@@ -357,7 +357,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
     childAddressLocation: "offset32",
   } satisfies FactoryCriteria;
 
-  await eventStore.insertFactoryChildAddressLogs({
+  await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
     logs: [
       {
@@ -381,7 +381,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
     ],
   });
 
-  const iterator = eventStore.getFactoryChildAddresses({
+  const iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
     upToBlockNumber: 150n,
@@ -397,7 +397,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
 });
 
 test("getFactoryChildAddresses respects upToBlockNumber argument", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   const factoryCriteria = {
     address: "0xfactory",
@@ -406,7 +406,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
     childAddressLocation: "topic1",
   } satisfies FactoryCriteria;
 
-  await eventStore.insertFactoryChildAddressLogs({
+  await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
     logs: [
       {
@@ -430,7 +430,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
     ],
   });
 
-  let iterator = eventStore.getFactoryChildAddresses({
+  let iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
     upToBlockNumber: 150n,
@@ -441,7 +441,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
 
   expect(results).toMatchObject(["0xchild10000000000000000000000000000000000"]);
 
-  iterator = eventStore.getFactoryChildAddresses({
+  iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
     upToBlockNumber: 250n,
@@ -457,7 +457,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
 });
 
 test("getFactoryChildAddresses paginates correctly", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   const factoryCriteria = {
     address: "0xfactory",
@@ -466,7 +466,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
     childAddressLocation: "topic1",
   } satisfies FactoryCriteria;
 
-  await eventStore.insertFactoryChildAddressLogs({
+  await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
     logs: [
       {
@@ -499,7 +499,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
     ],
   });
 
-  const iterator = eventStore.getFactoryChildAddresses({
+  const iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
     upToBlockNumber: 1000n,
@@ -527,7 +527,7 @@ test("getFactoryChildAddresses paginates correctly", async (context) => {
 });
 
 test("getFactoryChildAddresses does not yield empty list", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   const factoryCriteria = {
     address: "0xfactory",
@@ -536,7 +536,7 @@ test("getFactoryChildAddresses does not yield empty list", async (context) => {
     childAddressLocation: "topic1",
   } satisfies FactoryCriteria;
 
-  const iterator = eventStore.getFactoryChildAddresses({
+  const iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
     factory: factoryCriteria,
     upToBlockNumber: 1000n,
@@ -552,7 +552,7 @@ test("getFactoryChildAddresses does not yield empty list", async (context) => {
 });
 
 test("insertFactoryLogFilterInterval inserts block, transactions, and logs", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   const factoryCriteria = {
     address: "0xfactory",
@@ -561,7 +561,7 @@ test("insertFactoryLogFilterInterval inserts block, transactions, and logs", asy
     childAddressLocation: "topic1",
   } satisfies FactoryCriteria;
 
-  await eventStore.insertFactoryLogFilterInterval({
+  await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
     block: blockOne,
@@ -570,21 +570,21 @@ test("insertFactoryLogFilterInterval inserts block, transactions, and logs", asy
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
-  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(1);
 
-  const transactions = await eventStore.db
+  const transactions = await syncStore.db
     .selectFrom("transactions")
     .selectAll()
     .execute();
   expect(transactions).toHaveLength(2);
 
-  const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
 });
 
 test("insertFactoryLogFilterInterval inserts and merges child contract intervals", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   const factoryCriteria = {
     address: "0xfactory",
@@ -593,7 +593,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
     childAddressLocation: "topic1",
   } satisfies FactoryCriteria;
 
-  await eventStore.insertFactoryLogFilterInterval({
+  await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
     block: blockOne,
@@ -602,7 +602,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
-  await eventStore.insertFactoryLogFilterInterval({
+  await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
     block: blockThree,
@@ -611,7 +611,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
     interval: { startBlock: 750n, endBlock: 1000n },
   });
 
-  let intervals = await eventStore.getFactoryLogFilterIntervals({
+  let intervals = await syncStore.getFactoryLogFilterIntervals({
     chainId: 1,
     factory: factoryCriteria,
   });
@@ -621,7 +621,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
     [750, 1000],
   ]);
 
-  await eventStore.insertFactoryLogFilterInterval({
+  await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
     block: blockTwo,
@@ -630,7 +630,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
     interval: { startBlock: 501n, endBlock: 800n },
   });
 
-  intervals = await eventStore.getFactoryLogFilterIntervals({
+  intervals = await syncStore.getFactoryLogFilterIntervals({
     chainId: 1,
     factory: factoryCriteria,
   });
@@ -639,7 +639,7 @@ test("insertFactoryLogFilterInterval inserts and merges child contract intervals
 });
 
 test("getFactoryLogFilterIntervals handles topic filtering rules", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   const factoryCriteria = {
     address: "0xfactory",
@@ -648,7 +648,7 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
     childAddressLocation: "topic1",
   } satisfies FactoryCriteria;
 
-  await eventStore.insertFactoryLogFilterInterval({
+  await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
     block: blockOne,
@@ -657,14 +657,14 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
     interval: { startBlock: 0n, endBlock: 500n },
   });
 
-  let intervals = await eventStore.getFactoryLogFilterIntervals({
+  let intervals = await syncStore.getFactoryLogFilterIntervals({
     chainId: 1,
     factory: factoryCriteria,
   });
 
   expect(intervals).toMatchObject([[0, 500]]);
 
-  intervals = await eventStore.getFactoryLogFilterIntervals({
+  intervals = await syncStore.getFactoryLogFilterIntervals({
     chainId: 1,
     factory: {
       ...factoryCriteria,
@@ -678,30 +678,30 @@ test("getFactoryLogFilterIntervals handles topic filtering rules", async (contex
 });
 
 test("insertRealtimeBlock inserts data", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  const blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  const blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(1);
 
-  const transactions = await eventStore.db
+  const transactions = await syncStore.db
     .selectFrom("transactions")
     .selectAll()
     .execute();
   expect(transactions).toHaveLength(2);
 
-  const logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  const logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
 });
 
 test("insertRealtimeInterval inserts log filter intervals", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   const logFilterCriteria = {
     address: usdcContractConfig.address,
@@ -719,7 +719,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
     childAddressLocation: "offset64",
   } satisfies FactoryCriteria;
 
-  await eventStore.insertRealtimeInterval({
+  await syncStore.insertRealtimeInterval({
     chainId: 1,
     logFilters: [logFilterCriteria],
     factories: [factoryCriteriaOne, factoryCriteriaTwo],
@@ -727,7 +727,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
   });
 
   expect(
-    await eventStore.getLogFilterIntervals({
+    await syncStore.getLogFilterIntervals({
       chainId: 1,
       logFilter: logFilterCriteria,
     })
@@ -735,7 +735,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
 
   // Confirm log filters have been inserted for factory child address logs.
   expect(
-    await eventStore.getLogFilterIntervals({
+    await syncStore.getLogFilterIntervals({
       chainId: 1,
       logFilter: {
         address: factoryCriteriaOne.address,
@@ -744,7 +744,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
     })
   ).toMatchObject([[500, 550]]);
   expect(
-    await eventStore.getLogFilterIntervals({
+    await syncStore.getLogFilterIntervals({
       chainId: 1,
       logFilter: {
         address: factoryCriteriaOne.address,
@@ -755,13 +755,13 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
 
   // Also confirm factory log filters have been inserted.
   expect(
-    await eventStore.getFactoryLogFilterIntervals({
+    await syncStore.getFactoryLogFilterIntervals({
       chainId: 1,
       factory: factoryCriteriaOne,
     })
   ).toMatchObject([[500, 550]]);
   expect(
-    await eventStore.getFactoryLogFilterIntervals({
+    await syncStore.getFactoryLogFilterIntervals({
       chainId: 1,
       factory: factoryCriteriaTwo,
     })
@@ -769,9 +769,9 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
 });
 
 test("deleteRealtimeData deletes blocks, transactions and logs", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: usdcContractConfig.chainId,
     logFilter: { address: usdcContractConfig.address },
     block: blockOne,
@@ -783,7 +783,7 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async (context)
     },
   });
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: usdcContractConfig.chainId,
     logFilter: { address: usdcContractConfig.address },
     block: blockTwo,
@@ -795,38 +795,38 @@ test("deleteRealtimeData deletes blocks, transactions and logs", async (context)
     },
   });
 
-  let blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  let blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(2);
 
-  let transactions = await eventStore.db
+  let transactions = await syncStore.db
     .selectFrom("transactions")
     .selectAll()
     .execute();
   expect(transactions).toHaveLength(3);
 
-  let logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  let logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(3);
 
-  await eventStore.deleteRealtimeData({
+  await syncStore.deleteRealtimeData({
     chainId: usdcContractConfig.chainId,
     fromBlock: hexToBigInt(blockOne.number!),
   });
 
-  blocks = await eventStore.db.selectFrom("blocks").selectAll().execute();
+  blocks = await syncStore.db.selectFrom("blocks").selectAll().execute();
   expect(blocks).toHaveLength(1);
 
-  transactions = await eventStore.db
+  transactions = await syncStore.db
     .selectFrom("transactions")
     .selectAll()
     .execute();
   expect(transactions).toHaveLength(2);
 
-  logs = await eventStore.db.selectFrom("logs").selectAll().execute();
+  logs = await syncStore.db.selectFrom("logs").selectAll().execute();
   expect(logs).toHaveLength(2);
 });
 
 test("deleteRealtimeData updates interval data", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
   const logFilterCriteria = {
     address: usdcContractConfig.address,
@@ -838,7 +838,7 @@ test("deleteRealtimeData updates interval data", async (context) => {
     childAddressLocation: "topic1",
   } satisfies FactoryCriteria;
 
-  await eventStore.insertLogFilterInterval({
+  await syncStore.insertLogFilterInterval({
     chainId: usdcContractConfig.chainId,
     logFilter: logFilterCriteria,
     block: blockTwo,
@@ -850,7 +850,7 @@ test("deleteRealtimeData updates interval data", async (context) => {
     },
   });
 
-  await eventStore.insertFactoryLogFilterInterval({
+  await syncStore.insertFactoryLogFilterInterval({
     chainId: 1,
     factory: factoryCriteria,
     block: blockTwo,
@@ -863,33 +863,33 @@ test("deleteRealtimeData updates interval data", async (context) => {
   });
 
   expect(
-    await eventStore.getLogFilterIntervals({
+    await syncStore.getLogFilterIntervals({
       chainId: 1,
       logFilter: logFilterCriteria,
     })
   ).toMatchObject([[15495110, 15495111]]);
 
   expect(
-    await eventStore.getFactoryLogFilterIntervals({
+    await syncStore.getFactoryLogFilterIntervals({
       chainId: 1,
       factory: factoryCriteria,
     })
   ).toMatchObject([[15495110, 15495111]]);
 
-  await eventStore.deleteRealtimeData({
+  await syncStore.deleteRealtimeData({
     chainId: usdcContractConfig.chainId,
     fromBlock: hexToBigInt(blockOne.number!),
   });
 
   expect(
-    await eventStore.getLogFilterIntervals({
+    await syncStore.getLogFilterIntervals({
       chainId: 1,
       logFilter: logFilterCriteria,
     })
   ).toMatchObject([[15495110, 15495110]]);
 
   expect(
-    await eventStore.getFactoryLogFilterIntervals({
+    await syncStore.getFactoryLogFilterIntervals({
       chainId: 1,
       factory: factoryCriteria,
     })
@@ -897,16 +897,16 @@ test("deleteRealtimeData updates interval data", async (context) => {
 });
 
 test("insertRpcRequestResult inserts a request result", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRpcRequestResult({
+  await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
     blockNumber: 100n,
     result: "0x789",
   });
 
-  const rpcRequestResults = await eventStore.db
+  const rpcRequestResults = await syncStore.db
     .selectFrom("rpcRequestResults")
     .selectAll()
     .execute();
@@ -920,16 +920,16 @@ test("insertRpcRequestResult inserts a request result", async (context) => {
 });
 
 test("insertRpcRequestResult upserts on conflict", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRpcRequestResult({
+  await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
     blockNumber: 100n,
     result: "0x789",
   });
 
-  const rpcRequestResult = await eventStore.db
+  const rpcRequestResult = await syncStore.db
     .selectFrom("rpcRequestResults")
     .selectAll()
     .execute();
@@ -940,14 +940,14 @@ test("insertRpcRequestResult upserts on conflict", async (context) => {
     result: "0x789",
   });
 
-  await eventStore.insertRpcRequestResult({
+  await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
     blockNumber: 100n,
     result: "0x789123",
   });
 
-  const rpcRequestResultsUpdated = await eventStore.db
+  const rpcRequestResultsUpdated = await syncStore.db
     .selectFrom("rpcRequestResults")
     .selectAll()
     .execute();
@@ -960,16 +960,16 @@ test("insertRpcRequestResult upserts on conflict", async (context) => {
 });
 
 test("getRpcRequestResult returns data", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRpcRequestResult({
+  await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
     blockNumber: 100n,
     result: "0x789",
   });
 
-  const rpcRequestResult = await eventStore.getRpcRequestResult({
+  const rpcRequestResult = await syncStore.getRpcRequestResult({
     chainId: 1,
     request: "0x123",
     blockNumber: 100n,
@@ -984,16 +984,16 @@ test("getRpcRequestResult returns data", async (context) => {
 });
 
 test("getRpcRequestResult returns null if not found", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRpcRequestResult({
+  await syncStore.insertRpcRequestResult({
     chainId: 1,
     request: "0x123",
     blockNumber: 100n,
     result: "0x789",
   });
 
-  const rpcRequestResult = await eventStore.getRpcRequestResult({
+  const rpcRequestResult = await syncStore.getRpcRequestResult({
     request: "0x125",
     chainId: 1,
     blockNumber: 100n,
@@ -1003,16 +1003,16 @@ test("getRpcRequestResult returns null if not found", async (context) => {
 });
 
 test("getLogEvents returns log events", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [{ name: "noFilter", chainId: 1, criteria: {} }],
@@ -1154,16 +1154,16 @@ test("getLogEvents returns log events", async (context) => {
 });
 
 test("getLogEvents filters on log filter with one address", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [
@@ -1182,23 +1182,23 @@ test("getLogEvents filters on log filter with one address", async (context) => {
 });
 
 test("getLogEvents filters on log filter with multiple addresses", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [
@@ -1230,23 +1230,23 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
 });
 
 test("getLogEvents filters on log filter with single topic", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [
@@ -1278,23 +1278,23 @@ test("getLogEvents filters on log filter with single topic", async (context) => 
 });
 
 test("getLogEvents filters on log filter with multiple topics", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [
@@ -1323,9 +1323,9 @@ test("getLogEvents filters on log filter with multiple topics", async (context) 
 });
 
 test("getLogEvents filters on simple factory", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertFactoryChildAddressLogs({
+  await syncStore.insertFactoryChildAddressLogs({
     chainId: 1,
     logs: [
       {
@@ -1340,7 +1340,7 @@ test("getLogEvents filters on simple factory", async (context) => {
     ],
   });
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
@@ -1350,7 +1350,7 @@ test("getLogEvents filters on simple factory", async (context) => {
     })),
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     factories: [
@@ -1377,23 +1377,23 @@ test("getLogEvents filters on simple factory", async (context) => {
 });
 
 test("getLogEvents filters on fromBlock", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [
@@ -1418,23 +1418,23 @@ test("getLogEvents filters on fromBlock", async (context) => {
 });
 
 test("getLogEvents filters on multiple filters", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [
@@ -1476,23 +1476,23 @@ test("getLogEvents filters on multiple filters", async (context) => {
 });
 
 test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: hexToNumber(blockTwo.timestamp!),
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [{ name: "noFilter", chainId: 1, criteria: {} }],
@@ -1505,23 +1505,23 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
 });
 
 test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: hexToNumber(blockOne.timestamp!),
     logFilters: [{ name: "noFilter", chainId: 1, criteria: {} }],
@@ -1537,23 +1537,23 @@ test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
 });
 
 test("getLogEvents returns no events if includeEventSelectors is an empty array", async (context) => {
-  const { eventStore } = context;
+  const { syncStore } = context;
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockOne,
     transactions: blockOneTransactions,
     logs: blockOneLogs,
   });
 
-  await eventStore.insertRealtimeBlock({
+  await syncStore.insertRealtimeBlock({
     chainId: 1,
     block: blockTwo,
     transactions: blockTwoTransactions,
     logs: blockTwoLogs,
   });
 
-  const iterator = eventStore.getLogEvents({
+  const iterator = syncStore.getLogEvents({
     fromTimestamp: 0,
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [

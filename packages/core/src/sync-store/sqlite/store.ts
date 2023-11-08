@@ -22,9 +22,9 @@ import {
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval";
 import { range } from "@/utils/range";
 
-import type { EventStore } from "../store";
+import type { SyncStore } from "../store";
 import {
-  type EventStoreTables,
+  type SyncStoreTables,
   BigIntText,
   rpcToSqliteBlock,
   rpcToSqliteLog,
@@ -32,13 +32,13 @@ import {
 } from "./format";
 import { migrationProvider } from "./migrations";
 
-export class SqliteEventStore implements EventStore {
+export class SqliteSyncStore implements SyncStore {
   kind = "sqlite" as const;
-  db: Kysely<EventStoreTables>;
+  db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
   constructor({ db }: { db: Sqlite.Database }) {
-    this.db = new Kysely<EventStoreTables>({
+    this.db = new Kysely<SyncStoreTables>({
       dialect: new SqliteDialect({ database: db }),
     });
 
@@ -635,7 +635,7 @@ export class SqliteEventStore implements EventStore {
     logFilters,
     interval: { startBlock, endBlock },
   }: {
-    tx: KyselyTransaction<EventStoreTables>;
+    tx: KyselyTransaction<SyncStoreTables>;
     chainId: number;
     logFilters: LogFilterCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
@@ -671,7 +671,7 @@ export class SqliteEventStore implements EventStore {
     factories,
     interval: { startBlock, endBlock },
   }: {
-    tx: KyselyTransaction<EventStoreTables>;
+    tx: KyselyTransaction<SyncStoreTables>;
     chainId: number;
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };

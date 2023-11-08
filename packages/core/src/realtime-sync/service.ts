@@ -14,8 +14,8 @@ import {
   sourceIsFactory,
   sourceIsLogFilter,
 } from "@/config/sources";
-import type { EventStore } from "@/event-store/store";
 import type { Common } from "@/Ponder";
+import type { SyncStore } from "@/sync-store/store";
 import { poll } from "@/utils/poll";
 import { type Queue, createQueue } from "@/utils/queue";
 import { range } from "@/utils/range";
@@ -41,7 +41,7 @@ type RealtimeSyncQueue = Queue<RealtimeBlockTask>;
 
 export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   private common: Common;
-  private eventStore: EventStore;
+  private syncStore: SyncStore;
   private network: Network;
   private sources: Source[];
 
@@ -56,19 +56,19 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
   constructor({
     common,
-    eventStore,
+    syncStore,
     network,
     sources = [],
   }: {
     common: Common;
-    eventStore: EventStore;
+    syncStore: SyncStore;
     network: Network;
     sources?: Source[];
   }) {
     super();
 
     this.common = common;
-    this.eventStore = eventStore;
+    this.syncStore = syncStore;
     this.network = network;
     this.sources = sources;
 
@@ -329,7 +329,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
               ],
             });
 
-            await this.eventStore.insertFactoryChildAddressLogs({
+            await this.syncStore.insertFactoryChildAddressLogs({
               chainId: this.network.chainId,
               logs: matchedFactoryLogs,
             });
@@ -342,7 +342,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // latency and database growth.
         const factoryLogFilters = await Promise.all(
           this.sources.filter(sourceIsFactory).map(async (factory) => {
-            const iterator = this.eventStore.getFactoryChildAddresses({
+            const iterator = this.syncStore.getFactoryChildAddresses({
               chainId: this.network.chainId,
               factory: factory.criteria,
               upToBlockNumber: hexToBigInt(block.number!),
@@ -390,7 +390,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           );
 
         // TODO: Maybe rename or at least document behavior
-        await this.eventStore.insertRealtimeBlock({
+        await this.syncStore.insertRealtimeBlock({
           chainId: this.network.chainId,
           block: newBlockWithTransactions,
           transactions: filteredTransactions,
@@ -441,7 +441,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // 1) Log filter intervals
         // 2) Factory contract intervals
         // 3) Child filter intervals
-        await this.eventStore.insertRealtimeInterval({
+        await this.syncStore.insertRealtimeInterval({
           chainId: this.network.chainId,
           logFilters: this.sources
             .filter(sourceIsLogFilter)
@@ -565,7 +565,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           (block) => block.number <= commonAncestorBlock.number
         );
 
-        await this.eventStore.deleteRealtimeData({
+        await this.syncStore.deleteRealtimeData({
           chainId: this.network.chainId,
           fromBlock: BigInt(commonAncestorBlock.number),
         });
