@@ -3,9 +3,9 @@ import path from "node:path";
 import pg, { Client, DatabaseError, Pool } from "pg";
 
 import type { Config } from "@/config/config";
-import type { Options } from "@/config/options";
 import { PostgresError } from "@/errors/postgres";
 import { SqliteError } from "@/errors/sqlite";
+import type { Common } from "@/Ponder";
 import { ensureDirExists } from "@/utils/exists";
 
 export interface SqliteDb {
@@ -87,15 +87,15 @@ export const patchSqliteDatabase = ({ db }: { db: any }) => {
 };
 
 export const buildDatabase = ({
-  options,
+  common,
   config,
 }: {
-  options: Options;
+  common: Common;
   config: Config;
 }): Database => {
   let resolvedDatabaseConfig: NonNullable<Config["database"]>;
 
-  const defaultSqliteFilename = path.join(options.ponderDir, "cache.db");
+  const defaultSqliteFilename = path.join(common.options.ponderDir, "cache.db");
 
   if (config.database) {
     if (config.database.kind === "postgres") {

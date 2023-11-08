@@ -3,8 +3,6 @@ import type { LevelWithSilent } from "pino";
 
 import type { CliOptions } from "@/bin/ponder";
 
-import type { Config } from "./config";
-
 export type Options = {
   configFile: string;
   schemaFile: string;
@@ -26,10 +24,8 @@ export type Options = {
 
 export const buildOptions = ({
   cliOptions,
-  configOptions = {},
 }: {
   cliOptions: CliOptions;
-  configOptions?: Config["options"];
 }): Options => {
   const railwayHealthcheckTimeout = process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC
     ? Math.max(Number(process.env.RAILWAY_HEALTHCHECK_TIMEOUT_SEC) - 5, 0) // Add 5 seconds of buffer.
@@ -54,8 +50,7 @@ export const buildOptions = ({
     logDir: ".ponder/logs",
 
     port: Number(process.env.PORT ?? 42069),
-    maxHealthcheckDuration:
-      configOptions?.maxHealthcheckDuration ?? railwayHealthcheckTimeout ?? 240,
+    maxHealthcheckDuration: railwayHealthcheckTimeout ?? 240,
 
     telemetryUrl: "https://ponder.sh/api/telemetry",
     telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),
