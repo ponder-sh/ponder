@@ -350,6 +350,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }) => {
     const context = {
       models: this.models,
+      contracts: {},
+      network: {},
+      client: {},
     };
 
     const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
