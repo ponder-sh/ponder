@@ -43,7 +43,7 @@ const schema = p.createSchema({
 });
 
 const transferIndexingFunction = vi.fn(async ({ event, context }) => {
-  await context.entities.TransferEvent.create({
+  await context.models.TransferEvent.create({
     id: event.log.id,
     data: {
       timestamp: Number(event.block.timestamp),
@@ -177,7 +177,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
         name: "Transfer",
       },
       context: {
-        entities: { TransferEvent: expect.anything() },
+        models: { TransferEvent: expect.anything() },
       },
     })
   );

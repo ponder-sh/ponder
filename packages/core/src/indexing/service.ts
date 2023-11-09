@@ -349,7 +349,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     indexingFunctions: IndexingFunctions;
   }) => {
     const context = {
-      entities: this.models,
+      models: this.models,
     };
 
     const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
