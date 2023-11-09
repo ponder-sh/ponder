@@ -2,6 +2,7 @@ import {
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
   type GraphQLInputType,
+  GraphQLInputFieldConfigMap,
   GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
@@ -50,7 +51,7 @@ export const buildPluralField = ({
   table: Schema["tables"][string];
   entityGqlType: GraphQLObjectType<Source, Context>;
 }): GraphQLFieldConfig<Source, Context> => {
-  const filterFields: Record<string, { type: GraphQLInputType }> = {};
+  const filterFields: GraphQLInputFieldConfigMap = {};
 
   Object.entries(table).forEach(([columnName, column]) => {
     // Note: Only include non-virtual columns in plural fields
@@ -60,13 +61,14 @@ export const buildPluralField = ({
 
       operators.universal.forEach((suffix) => {
         filterFields[`${columnName}${suffix}`] = {
-          type: enumType as GraphQLInputType, // TODO:Kyle this is probably a bad idea
+          // TODO: Kyle this cast is probably a bad idea.
+          type: enumType as GraphQLInputType,
         };
       });
 
       operators.singular.forEach((suffix) => {
         filterFields[`${columnName}${suffix}`] = {
-          type: new GraphQLList(enumType),
+          type: new GraphQLList(enumType) as GraphQLInputType,
         };
       });
     } else if (column.list) {
