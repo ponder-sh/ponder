@@ -1,8 +1,11 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
+import { Abi, Address, Client, createClient } from "viem";
+import * as chains from "viem/chains";
 
 import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
+import { Config } from "@/config/config";
 import type { Source } from "@/config/sources";
 import { UserError } from "@/errors/user";
 import type { IndexingStore, ModelInstance } from "@/indexing-store/store";
@@ -17,6 +20,7 @@ import { type Queue, type Worker, createQueue } from "@/utils/queue";
 import { wait } from "@/utils/wait";
 
 import { buildModels } from "./model";
+import { ponderActions } from "./ponderActions";
 import { getStackTrace } from "./trace";
 
 type IndexingEvents = {
@@ -33,6 +37,21 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private indexingStore: IndexingStore;
   private syncGatewayService: SyncGateway;
   private sources: Source[];
+  private contracts: Record<
+    number,
+    Record<
+      string,
+      {
+        abi: Abi;
+        address?: Address | readonly Address[];
+        startBlock?: number;
+        endBlock?: number;
+        maxBlockRange?: number;
+      }
+    >
+  >;
+  private networks: Record<number, string>;
+  private clients: Record<number, Client>;
 
   private schema?: Schema;
   private models: Record<string, Model<ModelInstance>> = {};
@@ -46,7 +65,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private eventsProcessedToTimestamp = 0;
   private hasError = false;
 
-  // private currentEventBlockNumber = 0n;
+  private currentEventBlockNumber = 0n;
   private currentEventTimestamp = 0;
 
   constructor({
@@ -54,13 +73,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
     // syncStore,
     indexingStore,
     syncGatewayService,
+    config,
     sources = [],
   }: {
     common: Common;
     syncStore: SyncStore;
     indexingStore: IndexingStore;
     syncGatewayService: SyncGateway;
-
+    config: Config;
     sources?: Source[];
   }) {
     super();
@@ -70,6 +90,54 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.sources = sources;
 
     this.eventProcessingMutex = new Mutex();
+
+    this.contracts = {};
+    for (const contract of config.contracts) {
+      for (const filter of contract.filters) {
+        const chainId = config.networks.find(
+          (n) => n.name === filter.name
+        )!.chainId;
+        if (this.contracts[chainId] === undefined) this.contracts[chainId] = {};
+
+        const address = ("address" in filter && filter.address) || undefined;
+        this.contracts[chainId][contract.name] = {
+          abi: contract.abi,
+          address,
+          startBlock: filter.startBlock,
+          endBlock: filter.endBlock,
+          maxBlockRange: filter.maxBlockRange,
+        };
+      }
+    }
+
+    this.networks = config.networks.reduce(
+      (acc, cur) => ({
+        ...acc,
+        [cur.chainId]: cur.name,
+      }),
+      {}
+    );
+    this.clients = config.networks.reduce(
+      (acc, cur) => {
+        const defaultChain =
+          Object.values(chains).find(({ id }) => id === cur.chainId) ??
+          chains.mainnet;
+
+        const client = createClient({
+          transport: cur.transport,
+          chain: { ...defaultChain, name: cur.name, id: cur.chainId },
+        });
+
+        return {
+          ...acc,
+          [cur.chainId]: client.extend(
+            ponderActions(() => this.currentEventBlockNumber)
+          ),
+        };
+      },
+
+      {}
+    );
   }
 
   kill = () => {
@@ -348,13 +416,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }: {
     indexingFunctions: IndexingFunctions;
   }) => {
-    const context = {
-      models: this.models,
-      contracts: {},
-      network: {},
-      client: {},
-    };
-
     const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
       task,
       queue,
@@ -374,6 +435,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
               service: "indexing",
               msg: `Started indexing function (event="setup")`,
             });
+
+            const context = {
+              models: this.models,
+              contracts: {},
+              network: {},
+              client: {},
+            };
 
             // Running user code here!
             await setupFunction({ context });
@@ -430,7 +498,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           // This enables contract calls occurring within the
           // user code to use the event block number by default.
-          // this.currentEventBlockNumber = event.block.number;
+          this.currentEventBlockNumber = event.block.number;
           this.currentEventTimestamp = Number(event.block.timestamp);
 
           try {
@@ -438,6 +506,16 @@ export class IndexingService extends Emittery<IndexingEvents> {
               service: "indexing",
               msg: `Started indexing function (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
             });
+
+            const context = {
+              models: this.models,
+              contracts: this.contracts[event.chainId],
+              network: {
+                name: this.networks[event.chainId],
+                chainId: event.chainId,
+              },
+              client: this.clients[event.chainId],
+            };
 
             // Running user code here!
             await indexingMetadata.fn({

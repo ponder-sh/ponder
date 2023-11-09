@@ -167,6 +167,7 @@ export class Ponder {
       indexingStore: this.indexingStore,
       syncGatewayService: this.syncGatewayService,
       sources: this.sources,
+      config,
     });
 
     this.serverService = new ServerService({

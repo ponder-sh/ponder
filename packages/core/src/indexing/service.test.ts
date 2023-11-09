@@ -1,8 +1,8 @@
+import { http } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
 import { setupIndexingStore, setupSyncStore } from "@/_test/setup";
-import { publicClient } from "@/_test/utils";
 import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
 import { Source } from "@/config/sources";
@@ -14,21 +14,34 @@ import { IndexingService } from "./service";
 beforeEach((context) => setupSyncStore(context));
 beforeEach((context) => setupIndexingStore(context));
 
-const network = {
-  name: "mainnet",
-  chainId: 1,
-  client: publicClient,
-  pollingInterval: 1_000,
-  defaultMaxBlockRange: 3,
-  finalityBlockCount: 10,
-  maxRpcRequestConcurrency: 10,
+const config = {
+  networks: [
+    {
+      name: "mainnet",
+      chainId: 1,
+      transport: http(),
+    },
+  ],
+  contracts: [
+    {
+      name: "USDC",
+      abi: usdcContractConfig.abi,
+      filters: [
+        {
+          name: "mainnet",
+          address: usdcContractConfig.address,
+          startBlock: 16369950,
+        },
+      ],
+    },
+  ],
 };
 
 const sources: Source[] = [
   {
     name: "USDC",
     ...usdcContractConfig,
-    network: network.name,
+    network: "mainnet",
     criteria: { address: usdcContractConfig.address },
     startBlock: 16369950,
     type: "logFilter",
@@ -120,6 +133,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     indexingStore,
     syncGatewayService,
     sources,
+    config,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -158,6 +172,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     indexingStore,
     syncGatewayService,
     sources,
+    config,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -176,9 +191,9 @@ test("processEvents() calls indexing functions with correct arguments", async (c
         transaction: {},
         name: "Transfer",
       },
-      context: {
+      context: expect.objectContaining({
         models: { TransferEvent: expect.anything() },
-      },
+      }),
     })
   );
 
@@ -194,6 +209,7 @@ test("processEvents() model methods insert data into the indexing store", async 
     indexingStore,
     syncGatewayService,
     sources,
+    config,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -218,6 +234,7 @@ test("processEvents() updates event count metrics", async (context) => {
     indexingStore,
     syncGatewayService,
     sources,
+    config,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -259,6 +276,7 @@ test("reset() reloads the indexing store", async (context) => {
     indexingStore,
     syncGatewayService,
     sources,
+    config,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -294,6 +312,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     indexingStore,
     syncGatewayService,
     sources,
+    config,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -325,6 +344,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
     indexingStore,
     syncGatewayService,
     sources,
+    config,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -350,6 +370,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
     indexingStore,
     syncGatewayService,
     sources,
+    config,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -379,6 +400,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     indexingStore,
     syncGatewayService,
     sources,
+    config,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -418,6 +440,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     indexingStore,
     syncGatewayService,
     sources,
+    config,
   });
 
   await service.reset({ schema, indexingFunctions });

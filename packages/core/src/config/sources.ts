@@ -74,8 +74,6 @@ export const sourceIsFactory = (source: Source): source is Factory =>
 export const buildSources = ({ config }: { config: Config }): Source[] => {
   const contracts = config.contracts ?? [];
 
-  console.log(contracts);
-
   return contracts
     .map((contract) => {
       // Note: should we filter down which indexing functions are available based on the filters

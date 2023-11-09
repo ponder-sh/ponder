@@ -1164,11 +1164,13 @@ export class SqliteSyncStore implements SyncStore {
                   type: row.tx_type,
                 }),
           },
+          chainId: row.log_chainId,
         } satisfies {
           eventSourceName: string;
           log: Log;
           block: Block;
           transaction: Transaction;
+          chainId: number;
         };
       });
 

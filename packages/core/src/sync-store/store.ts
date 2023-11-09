@@ -174,6 +174,7 @@ export interface SyncStore {
       log: Log;
       block: Block;
       transaction: Transaction;
+      chainId: number;
     }[];
     metadata: {
       pageEndsAtTimestamp: number;
