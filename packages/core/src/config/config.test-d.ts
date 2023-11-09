@@ -118,7 +118,9 @@ test("safe event names", () => {
 });
 
 test("ResolvedConfig default values", () => {
-  type a = NonNullable<Config["contracts"]>[number]["filter"];
+  type a = NonNullable<
+    Config["contracts"]
+  >[number]["filters"][number]["filter"];
   //   ^?
   assertType<a>({} as { event: string[] } | { event: string } | undefined);
 });

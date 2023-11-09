@@ -112,7 +112,7 @@ export type ContractFilter<
   filter?: readonly AbiEvent[] extends TAbi
     ?
         | { event: readonly string[]; args?: never }
-        | { event: string; args?: GetEventArgs<Abi, string> }
+        | { event: string; args?: GetEventArgs<Abi, string> | unknown }
     :
         | {
             event: readonly SafeEventNames<FilterAbiEvents<TAbi>>[number][];
@@ -120,22 +120,24 @@ export type ContractFilter<
           }
         | {
             event: SafeEventNames<FilterAbiEvents<TAbi>>[number];
-            args?: GetEventArgs<
-              Abi,
-              string,
-              {
-                EnableUnion: true;
-                IndexedOnly: true;
-                Required: false;
-              },
-              RecoverAbiEvent<
-                TAbi,
-                TEventName,
-                SafeEventNames<FilterAbiEvents<TAbi>>
-              > extends infer _abiEvent extends AbiEvent
-                ? _abiEvent
-                : AbiEvent
-            >;
+            args?:
+              | GetEventArgs<
+                  Abi,
+                  string,
+                  {
+                    EnableUnion: true;
+                    IndexedOnly: true;
+                    Required: false;
+                  },
+                  RecoverAbiEvent<
+                    TAbi,
+                    TEventName,
+                    SafeEventNames<FilterAbiEvents<TAbi>>
+                  > extends infer _abiEvent extends AbiEvent
+                    ? _abiEvent
+                    : AbiEvent
+                >
+              | unknown;
           };
 };
 
@@ -191,23 +193,36 @@ type Option = {
   maxHealthcheckDuration?: number;
 };
 
+type InternalContracts = readonly Contract<
+  string,
+  readonly AbiEvent[],
+  string
+>[];
+
 export type Config = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
   database?: Database;
   /** List of blockchain networks. */
   networks: readonly Network[];
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
-  contracts: readonly Contract<string, readonly AbiEvent[], string>[];
+  contracts: readonly {
+    name: string;
+    abi: Abi;
+    filters: readonly ({ name: string } & ContractFilter<
+      readonly AbiEvent[],
+      string
+    >)[];
+  }[];
   /** Configuration for Ponder internals. */
   options?: Option;
 };
 
 type InferContracts<
-  TContracts extends Config["contracts"],
+  TContracts extends InternalContracts,
   TNetworks extends readonly Network[]
 > = TContracts extends readonly [
-  infer First extends Config["contracts"][number],
-  ...infer Rest extends Config["contracts"]
+  infer First extends Contract<string, readonly AbiEvent[], string>,
+  ...infer Rest extends InternalContracts
 ]
   ? readonly [
       Contract<
@@ -254,10 +269,10 @@ type ResolveFilters<
     ]
   : [];
 
-type ResolveContracts<TContracts extends Config["contracts"]> =
+type ResolveContracts<TContracts extends InternalContracts> =
   TContracts extends readonly [
-    infer First extends Config["contracts"][number],
-    ...infer Rest extends Config["contracts"]
+    infer First extends Contract<string, readonly AbiEvent[], string>,
+    ...infer Rest extends InternalContracts
   ]
     ? readonly [
         Pick<First, "name" | "abi"> & {
@@ -296,7 +311,8 @@ export const createConfig = <
     ...config,
     contracts: contracts.map((contract) => {
       return {
-        required: { abi: contract.abi, name: contract.name },
+        abi: contract.abi,
+        name: contract.name,
         filters: contract.network.map((contractOverride) => {
           // Make sure network matches an element in config.networks
           const network = config.networks.find(

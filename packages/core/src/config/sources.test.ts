@@ -27,7 +27,7 @@ test("buildSources() builds topics for multiple events", () => {
           maxBlockRange: 10,
         },
       ],
-    }) as unknown as Config,
+    }) as Config,
   });
 
   expect(sources[0].criteria.topics).toMatchObject([

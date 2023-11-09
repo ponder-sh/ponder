@@ -42,7 +42,7 @@ test("PonderApp non intersecting event names", () => {
     {
       // ^?
       networks: any;
-      contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
+      contracts: readonly [{ name: "One"; filters: any; abi: OneAbi }];
     },
     any
   >;
@@ -58,7 +58,7 @@ test("PonderApp intersecting event names", () => {
     {
       // ^?
       networks: any;
-      contracts: readonly [{ name: "Two"; network: any; abi: TwoAbi }];
+      contracts: readonly [{ name: "Two"; filters: any; abi: TwoAbi }];
     },
     any
   >;
@@ -71,12 +71,12 @@ test("PonderApp intersecting event names", () => {
 
 test("PonderApp multiple contracts", () => {
   type p = PonderApp<
+    // ^?
     {
-      // ^?
       networks: any;
       contracts: readonly [
-        { name: "One"; network: any; abi: OneAbi },
-        { name: "Two"; network: any; abi: TwoAbi }
+        { name: "One"; filters: any; abi: OneAbi },
+        { name: "Two"; filters: any; abi: TwoAbi }
       ];
     },
     any
@@ -95,10 +95,10 @@ test("PonderApp multiple contracts", () => {
 test("PonderApp event type"),
   () => {
     type p = PonderApp<
+      // ^?
       {
-        // ^?
         networks: any;
-        contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
+        contracts: readonly [{ name: "One"; filters: any; abi: OneAbi }];
       },
       any
     >;
@@ -117,13 +117,13 @@ test("PonderApp event type"),
 
 test("PonderApp context network type", () => {
   type p = PonderApp<
+    // ^?
     {
-      // ^?
       networks: any;
       contracts: readonly [
         {
           name: "One";
-          network: [{ name: "mainnet" }, { name: "optimism" }];
+          filters: [{ name: "mainnet" }, { name: "optimism" }];
           abi: OneAbi;
         }
       ];
@@ -140,13 +140,13 @@ test("PonderApp context network type", () => {
 
 test("PonderApp context client type", () => {
   type p = PonderApp<
+    // ^?
     {
-      // ^?
       networks: any;
       contracts: readonly [
         {
           name: "One";
-          network: [{ name: "mainnet" }, { name: "optimism" }];
+          filters: [{ name: "mainnet" }, { name: "optimism" }];
           abi: OneAbi;
         }
       ];
@@ -163,17 +163,17 @@ test("PonderApp context client type", () => {
 
 test("PonderApp context contracts type", () => {
   type p = PonderApp<
+    // ^?
     {
-      // ^?
       networks: any;
       contracts: readonly [
         {
           name: "One";
-          network: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
+          filters: [
+            { name: "mainnet"; address: "0x1" },
+            { name: "optimism"; address: "0x2" }
+          ];
           abi: OneAbi;
-          address: "0x2";
-          startBlock: 1;
-          endBlock: 2;
         }
       ];
     },
@@ -203,11 +203,11 @@ test("PonderApp context entity type", () => {
       contracts: readonly [
         {
           name: "One";
-          network: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
+          filters: [
+            { name: "mainnet"; address: "0x1" },
+            { name: "optimism"; address: "0x4" }
+          ];
           abi: OneAbi;
-          address: "0x2";
-          startBlock: 1;
-          endBlock: 2;
         }
       ];
     },

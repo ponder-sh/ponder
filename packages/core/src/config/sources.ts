@@ -4,6 +4,7 @@ import {
   Address,
   encodeEventTopics,
   getAbiItem,
+  GetEventArgs,
   getEventSelector,
   Hex,
 } from "viem";
@@ -73,48 +74,40 @@ export const sourceIsFactory = (source: Source): source is Factory =>
 export const buildSources = ({ config }: { config: Config }): Source[] => {
   const contracts = config.contracts ?? [];
 
+  console.log(contracts);
+
   return contracts
     .map((contract) => {
       // Note: should we filter down which indexing functions are available based on the filters
       const events = getEvents({ abi: contract.abi });
 
       // Resolve the contract per network, filling in default values where applicable
-      return contract.network
+      return contract.filters
         .map((networkContract) => {
-          // Note: this is missing config validation for checking if the network is valid
           const network = config.networks.find(
             (n) => n.name === networkContract.name
           )!;
 
-          const resolvedFilter = networkContract.filter ?? contract.filter;
-
-          const topics = resolvedFilter
-            ? buildTopics(contract.abi, resolvedFilter)
+          const topics = networkContract.filter
+            ? buildTopics(contract.abi, networkContract.filter)
             : undefined;
 
           const sharedSource = {
-            // constants
             name: contract.name,
             abi: contract.abi,
             network: network.name,
             chainId: network.chainId,
             events,
-            // optionally overridden properties
-            startBlock: networkContract.startBlock ?? contract.startBlock ?? 0,
-            endBlock: networkContract.endBlock ?? contract.endBlock,
-            maxBlockRange:
-              networkContract.maxBlockRange ?? contract.maxBlockRange,
+            startBlock: networkContract.startBlock ?? 0,
+            endBlock: networkContract.endBlock,
+            maxBlockRange: networkContract.maxBlockRange,
           } as const;
 
           // Check that factory and address are not both defined
           const resolvedFactory =
-            ("factory" in networkContract && networkContract.factory) ||
-            ("factory" in contract && contract.factory);
+            "factory" in networkContract && networkContract.factory;
           const resolvedAddress =
-            ("address" in networkContract && networkContract.address) ||
-            ("address" in contract && contract.address);
-          if (resolvedFactory && resolvedAddress)
-            throw Error("Factory and address cannot both be defined");
+            "address" in networkContract && networkContract.address;
 
           if (resolvedFactory) {
             // factory
@@ -151,7 +144,9 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
 
 const buildTopics = (
   abi: Abi,
-  filter: NonNullable<NonNullable<Config["contracts"]>[number]["filter"]>
+  filter: NonNullable<
+    NonNullable<Config["contracts"]>[number]["filters"][number]["filter"]
+  >
 ): Topics => {
   if (Array.isArray(filter.event)) {
     // List of event signatures
@@ -162,7 +157,7 @@ const buildTopics = (
     // Single event with args
     return encodeEventTopics({
       abi: [findAbiEvent(abi, filter.event)],
-      args: filter.args,
+      args: filter.args as GetEventArgs<Abi, string>,
     });
   }
 };
