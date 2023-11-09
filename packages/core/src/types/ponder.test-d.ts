@@ -1,8 +1,6 @@
 import { AbiEvent, ParseAbi } from "abitype";
 import { assertType, test } from "vitest";
 
-import { bigint, bytes, createSchema, createTable, string } from "@/schema";
-
 import { ExtractAddress, ExtractAllAddresses, PonderApp } from "./ponder";
 
 type OneAbi = ParseAbi<
@@ -71,8 +69,8 @@ test("PonderApp intersecting event names", () => {
 
 test("PonderApp multiple contracts", () => {
   type p = PonderApp<
-    // ^?
     {
+      // ^?
       networks: any;
       contracts: readonly [
         { name: "One"; filters: any; abi: OneAbi },
@@ -95,8 +93,8 @@ test("PonderApp multiple contracts", () => {
 test("PonderApp event type"),
   () => {
     type p = PonderApp<
-      // ^?
       {
+        // ^?
         networks: any;
         contracts: readonly [{ name: "One"; filters: any; abi: OneAbi }];
       },
@@ -117,8 +115,8 @@ test("PonderApp event type"),
 
 test("PonderApp context network type", () => {
   type p = PonderApp<
-    // ^?
     {
+      // ^?
       networks: any;
       contracts: readonly [
         {
@@ -140,8 +138,8 @@ test("PonderApp context network type", () => {
 
 test("PonderApp context client type", () => {
   type p = PonderApp<
-    // ^?
     {
+      // ^?
       networks: any;
       contracts: readonly [
         {
@@ -163,17 +161,17 @@ test("PonderApp context client type", () => {
 
 test("PonderApp context contracts type", () => {
   type p = PonderApp<
-    // ^?
     {
+      // ^?
       networks: any;
       contracts: readonly [
         {
           name: "One";
-          filters: [
-            { name: "mainnet"; address: "0x1" },
-            { name: "optimism"; address: "0x2" }
-          ];
+          filters: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
           abi: OneAbi;
+          address: "0x2";
+          startBlock: 1;
+          endBlock: 2;
         }
       ];
     },
@@ -184,39 +182,5 @@ test("PonderApp context contracts type", () => {
   // @ts-ignore
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   (({}) as p).on("One:Event1", ({ context: { contracts } }) => {});
-  //                                         ^?
-});
-
-test("PonderApp context entity type", () => {
-  const schema = createSchema({
-    ExampleTable: createTable({
-      id: string(),
-      kevin: bytes(),
-      kyle: bigint(),
-    }),
-  });
-
-  type p = PonderApp<
-    {
-      // ^?
-      networks: any;
-      contracts: readonly [
-        {
-          name: "One";
-          filters: [
-            { name: "mainnet"; address: "0x1" },
-            { name: "optimism"; address: "0x4" }
-          ];
-          abi: OneAbi;
-        }
-      ];
-    },
-    typeof schema
-  >;
-
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  (({}) as p).on("One:Event1", ({ context: { models } }) => {});
   //                                         ^?
 });
