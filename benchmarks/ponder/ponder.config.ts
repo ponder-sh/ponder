@@ -8,7 +8,7 @@ export const config = createConfig({
     {
       name: "mainnet",
       chainId: 1,
-      transport: http(process.env.ANVIL_FORK_URL),
+      transport: http("http://localhost:8545"),
     },
   ],
   contracts: [
@@ -17,9 +17,7 @@ export const config = createConfig({
       network: [{ name: "mainnet" }],
       abi: RocketTokenRETHAbi,
       address: "0xae78736cd615f374d3085123a210448e74fc6393",
-      startBlock:
-        Number(process.env.ANVIL_FORK_BLOCK_NUMBER) -
-        Number(process.env.BLOCK_COUNT),
+      startBlock: Number(process.env.START_BLOCK),
       endBlock: Number(process.env.ANVIL_FORK_BLOCK_NUMBER),
     },
   ],

@@ -1,11 +1,9 @@
 import execa from "execa";
 import parsePrometheusTextFormat from "parse-prometheus-text-format";
 
-import { BLOCK_COUNT, FORK_BLOCK_NUMBER } from "./anvil";
 import { fetchGraphql, fetchWithTimeout, startClock } from "./utils";
 
-const START_BLOCK = Number(FORK_BLOCK_NUMBER - BLOCK_COUNT);
-const END_BLOCK = Number(FORK_BLOCK_NUMBER);
+const END_BLOCK = Number(process.env.ANVIL_FORK_BLOCK_NUMBER);
 
 const fetchSubgraphLatestBlockNumber = async () => {
   try {
