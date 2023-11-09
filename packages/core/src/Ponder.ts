@@ -183,6 +183,9 @@ export class Ponder {
     // using the initial config, register service dependencies.
     this.registerServiceDependencies();
 
+    // Regenerate the `ponder-env.d.ts` file in case it was deleted.
+    this.codegenService.generateDeclarationFile();
+
     // One-time setup for some services.
     await this.syncStore.migrateUp();
     await this.serverService.start();
@@ -236,6 +239,8 @@ export class Ponder {
   }
 
   async codegen() {
+    this.codegenService.generateDeclarationFile();
+
     const result = await this.buildService.loadSchema();
     if (result) {
       const { graphqlSchema } = result;
