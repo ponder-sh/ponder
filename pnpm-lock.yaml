@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  graphql@16.8.1:
+    hash: 3zvcnrptpojleshpmtp6be677a
+    path: patches/graphql@16.8.1.patch
+
 importers:
 
   .:
@@ -349,7 +354,7 @@ importers:
         version: 8.1.0
       graphql:
         specifier: ^16.8.1
-        version: 16.8.1
+        version: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
       graphql-http:
         specifier: ^1.22.0
         version: 1.22.0(graphql@16.8.1)
@@ -2385,7 +2390,7 @@ packages:
     hasBin: true
     dependencies:
       '@rescript/std': 9.0.0
-      graphql: 16.8.1
+      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
       graphql-import-node: 0.0.5(graphql@16.8.1)
       js-yaml: 4.1.0
     dev: true
@@ -7249,7 +7254,7 @@ packages:
     peerDependencies:
       graphql: '>=0.11 <=16'
     dependencies:
-      graphql: 16.8.1
+      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
     dev: false
 
   /graphql-import-node@0.0.5(graphql@16.8.1):
@@ -7257,7 +7262,7 @@ packages:
     peerDependencies:
       graphql: '*'
     dependencies:
-      graphql: 16.8.1
+      graphql: 16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a)
     dev: true
 
   /graphql@15.5.0:
@@ -7265,9 +7270,10 @@ packages:
     engines: {node: '>= 10.x'}
     dev: true
 
-  /graphql@16.8.1:
+  /graphql@16.8.1(patch_hash=3zvcnrptpojleshpmtp6be677a):
     resolution: {integrity: sha512-59LZHPdGZVh695Ud9lRzPBVTtlX9ZCV150Er2W43ro37wVof0ctenSaskPPjN7lVTIN8mSZt8PHUNKZuNQUuxw==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
+    patched: true
 
   /gray-matter@4.0.3:
     resolution: {integrity: sha512-5v6yZd4JK3eMI3FqqCouswVqwugaA9r4dNZB1wwcmrD02QkV5H0y7XBQW8QwQqEaZY1pM9aqORSORhJRdNK44Q==}
