@@ -19,7 +19,8 @@ import { buildSingularField } from "./singular";
 const GraphQLBigInt = new GraphQLScalarType({
   name: "BigInt",
   serialize: (value) => String(value),
-  parseValue: (value) => BigInt(value),
+  // TODO: Kyle this cast is probably a bad idea.
+  parseValue: (value) => BigInt(value as any),
   parseLiteral: (value) => {
     if (value.kind === "StringValue") {
       return BigInt(value.value);

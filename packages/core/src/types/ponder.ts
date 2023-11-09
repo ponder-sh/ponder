@@ -10,8 +10,10 @@ import {
   SafeEventNames,
 } from "@/config/config";
 import { ReadOnlyClient } from "@/indexing/ponderActions";
+import { Infer, Schema } from "@/schema/types";
 import { Block } from "@/types/block";
 import { Log } from "@/types/log";
+import { Model } from "@/types/model";
 import { Transaction } from "@/types/transaction";
 
 /** "{ContractName}:{EventName}". */
@@ -120,7 +122,7 @@ type AppContracts<TContracts extends Config["contracts"]> =
         AppContracts<Rest>
     : {};
 
-export type PonderApp<TConfig extends Config> = {
+export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
   on: <TName extends Names<TConfig["contracts"]>[number]>(
     name: TName,
     indexingFunction: ({
@@ -164,7 +166,9 @@ export type PonderApp<TConfig extends Config> = {
             : never;
         };
         client: ReadOnlyClient;
-        models: any; // use ts-schema to infer types
+        models: {
+          [key in keyof Infer<TSchema>]: Model<Infer<TSchema>[key]>;
+        };
       };
     }) => Promise<void> | void
   ) => void;

@@ -272,7 +272,7 @@ export type RecoverTableType<
   ReferenceColumn | NonReferenceColumn | EnumColumn | VirtualColumn
 >
   ? Prettify<
-      {
+      { id: RecoverColumnType<_columns["id"]> } & {
         [key in keyof RecoverRequiredColumns<_columns>]: RecoverColumnType<
           _columns[key]
         >;

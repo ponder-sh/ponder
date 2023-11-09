@@ -211,10 +211,7 @@ export const run = async (
         "resolveJsonModule": true,
         "esModuleInterop": true,
         "strict": true,
-        "rootDir": ".",
-        "paths": {
-          "@/generated": ["./generated/index.ts"]
-        }
+        "rootDir": "."
       },
       "include": ["./**/*.ts"],
       "exclude": ["node_modules"]
@@ -241,7 +238,27 @@ export const run = async (
   // Write the .gitignore file.
   writeFileSync(
     path.join(rootDir, ".gitignore"),
-    `node_modules/\n.DS_Store\n\n.env.local\n.ponder/\ngenerated/`
+    `# Dependencies
+/node_modules
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Misc
+.DS_Store
+
+# Env files
+.env*.local
+
+# Ponder
+/.next/
+/generated/
+
+# TypeScript
+ponder-env.d.ts`
   );
 
   const packageManager = await getPackageManager();

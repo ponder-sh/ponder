@@ -1,6 +1,4 @@
 import SqliteDatabase from "better-sqlite3";
-import moduleAlias from "module-alias";
-import path from "node:path";
 import { Pool } from "pg";
 import { type TestContext, beforeEach } from "vitest";
 
@@ -20,12 +18,6 @@ import { TelemetryService } from "@/telemetry/service";
 
 import { FORK_BLOCK_NUMBER, vitalik } from "./constants";
 import { poolId, testClient } from "./utils";
-
-/**
- * Set up a package alias so we can reference `@ponder/core` by name in test files.
- */
-const ponderCoreDir = path.resolve(__dirname, "../../");
-moduleAlias.addAlias("@ponder/core", ponderCoreDir);
 
 /**
  * Inject an isolated sync store into the test context.

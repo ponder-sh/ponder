@@ -47,7 +47,7 @@
   "packageManager": "pnpm@8.6.10",
   "pnpm": {
     "patchedDependencies": {
-      "graphql@15.8.0": "patches/graphql@15.8.0.patch"
+      "graphql@16.8.1": "patches/graphql@16.8.1.patch"
     }
   }
 }

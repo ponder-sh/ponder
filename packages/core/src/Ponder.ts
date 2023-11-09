@@ -173,10 +173,7 @@ export class Ponder {
       common: this.common,
       indexingStore: this.indexingStore,
     });
-    this.codegenService = new CodegenService({
-      common: this.common,
-      sources: this.sources,
-    });
+    this.codegenService = new CodegenService({ common: this.common });
     this.uiService = new UiService({
       common: this.common,
       sources: this.sources,
@@ -186,8 +183,8 @@ export class Ponder {
     // using the initial config, register service dependencies.
     this.registerServiceDependencies();
 
-    // TODO: Remove once we have the new PonderApp magic.
-    this.codegenService.generateAppFile();
+    // Regenerate the `ponder-env.d.ts` file in case it was deleted.
+    this.codegenService.generateDeclarationFile();
 
     // One-time setup for some services.
     await this.syncStore.migrateUp();
@@ -242,7 +239,7 @@ export class Ponder {
   }
 
   async codegen() {
-    this.codegenService.generateAppFile();
+    this.codegenService.generateDeclarationFile();
 
     const result = await this.buildService.loadSchema();
     if (result) {
@@ -297,7 +294,6 @@ export class Ponder {
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
       this.common.errors.hasUserError = false;
 
-      this.codegenService.generateAppFile({ schema });
       this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
 
       this.serverService.reload({ graphqlSchema });
