@@ -163,7 +163,6 @@ export class Ponder {
 
     this.indexingService = new IndexingService({
       common: this.common,
-      syncStore: this.syncStore,
       indexingStore: this.indexingStore,
       syncGatewayService: this.syncGatewayService,
       sources: this.sources,

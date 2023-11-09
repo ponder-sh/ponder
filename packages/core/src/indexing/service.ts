@@ -12,7 +12,6 @@ import type { IndexingStore, ModelInstance } from "@/indexing-store/store";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
 import type { LogEvent, SyncGateway } from "@/sync-gateway/service";
-import type { SyncStore } from "@/sync-store/store";
 import type { Model } from "@/types/model";
 import { formatShortDate } from "@/utils/date";
 import { prettyPrint } from "@/utils/print";
@@ -70,14 +69,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   constructor({
     common,
-    // syncStore,
     indexingStore,
     syncGatewayService,
     config,
     sources = [],
   }: {
     common: Common;
-    syncStore: SyncStore;
     indexingStore: IndexingStore;
     syncGatewayService: SyncGateway;
     config: Config;
