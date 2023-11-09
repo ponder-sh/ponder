@@ -30,7 +30,7 @@ export class CodegenService extends Emittery {
 
     const contents = `declare module "@/generated" {
   import type { PonderApp } from "@ponder/core";
-  
+
   export const ponder: PonderApp<
     typeof import("${configPath}").config,
     typeof import("${schemaPath}").schema
