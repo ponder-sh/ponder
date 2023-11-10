@@ -10,7 +10,11 @@ import {
 import type { Pool } from "pg";
 import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type {
+  FactoryCriteria,
+  LogFilterCriteria,
+  Topics,
+} from "@/config/sources.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
@@ -544,10 +548,13 @@ export class PostgresSyncStore implements SyncStore {
         chainId,
         logFilters: [
           ...logFilters,
-          ...factories.map((f) => ({
-            address: f.address,
-            topics: [f.eventSelector],
-          })),
+          ...factories.map(
+            (f) =>
+              ({
+                address: f.address,
+                topics: [f.eventSelector, null, null, null] as Topics,
+              } as const)
+          ),
         ],
         interval,
       });

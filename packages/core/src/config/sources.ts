@@ -23,7 +23,12 @@ declare global {
 /**
  * There are up to 4 topics in an EVM log, so given that this could be more strict.
  */
-export type Topics = (Hex | Hex[] | null)[];
+export type Topics = [
+  Hex | Hex[] | null,
+  Hex | Hex[] | null,
+  Hex | Hex[] | null,
+  Hex | Hex[] | null
+];
 
 export type LogFilterCriteria = {
   address?: Address | Address[];
@@ -148,13 +153,22 @@ const buildTopics = (
     // List of event signatures
     return [
       filter.event.map((event) => getEventSelector(findAbiEvent(abi, event))),
+      null,
+      null,
+      null,
     ];
   } else {
     // Single event with args
-    return encodeEventTopics({
+    const topics = encodeEventTopics({
       abi: [findAbiEvent(abi, filter.event)],
       args: filter.args as GetEventArgs<Abi, string>,
     });
+    return [
+      topics[0] ?? null,
+      topics[1] ?? null,
+      topics[2] ?? null,
+      topics[3] ?? null,
+    ];
   }
 };
 

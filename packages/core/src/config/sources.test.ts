@@ -36,6 +36,9 @@ test("buildSources() builds topics for multiple events", () => {
       "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
       "0x6e11fb1b7f119e3f2fa29896ef5fdf8b8a2d0d4df6fe90ba8668e7d8b2ffa25e",
     ],
+    null,
+    null,
+    null,
   ]);
 });
 
@@ -74,6 +77,9 @@ test("buildSources() for duplicate event", () => {
       "0x6e11fb1b7f119e3f2fa29896ef5fdf8b8a2d0d4df6fe90ba8668e7d8b2ffa25e",
       "0xdbb5081f3bcbc60be144528482d176e8141b95ebe19a2ab38100455dc726eaa6",
     ],
+    null,
+    null,
+    null,
   ]);
 });
 
@@ -111,6 +117,7 @@ test("buildSources() builds topics for event with args", () => {
     "0x6e11fb1b7f119e3f2fa29896ef5fdf8b8a2d0d4df6fe90ba8668e7d8b2ffa25e",
     null,
     "0x000000000000000000000000f39d15cb3910d5e33fb1a2e42d4a2da153ba076b",
+    null,
   ]);
 });
 

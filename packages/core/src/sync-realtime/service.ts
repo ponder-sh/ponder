@@ -324,7 +324,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
               logFilters: [
                 {
                   address: factory.criteria.address,
-                  topics: [factory.criteria.eventSelector],
+                  topics: [factory.criteria.eventSelector, null, null, null],
                 },
               ],
             });

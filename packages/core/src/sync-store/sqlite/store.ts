@@ -9,7 +9,11 @@ import {
 } from "kysely";
 import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type {
+  FactoryCriteria,
+  LogFilterCriteria,
+  Topics,
+} from "@/config/sources.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
@@ -514,7 +518,7 @@ export class SqliteSyncStore implements SyncStore {
           ...logFilters,
           ...factories.map((f) => ({
             address: f.address,
-            topics: [f.eventSelector],
+            topics: [f.eventSelector, null, null, null] as Topics,
           })),
         ],
         interval,
