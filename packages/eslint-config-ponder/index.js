@@ -8,4 +8,5 @@ module.exports = {
   rules: {
     "@typescript-eslint/no-floating-promises": "error",
   },
+  // ignorePatterns: ["**/ponder-env.d.ts"],
 };
