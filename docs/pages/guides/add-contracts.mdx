@@ -10,28 +10,11 @@ To add a new contract to your app, use the `contracts` field in `ponder.config.t
 
 This guide explains how each contract configuration field works, and suggests patterns for common use cases. See also the `ponder.config.ts` [API reference](/api-reference/config) page.
 
-Here's a quick overview of the fields that you can provide for each contract:
-
-| Field          | Required? | Override by network? |
-| :------------- | :-------- | :------------------- |
-| **name**       | Yes       | No                   |
-| **abi**        | Yes       | No                   |
-| **address**    | No        | Yes                  |
-| **factory**    | No        | Yes                  |
-| **filter**     | No        | Yes                  |
-| **startBlock** | No        | Yes                  |
-| **endBlock**   | No        | Yes                  |
-
-<Callout type="info">
-  This guide omits some import statements from code snippets to avoid
-  repetition.
-</Callout>
-
 ## Contract name
 
 Every contract must have a unique name, provided as a key to the `contracts` object.
 
-```ts filename="ponder.config.ts" {14}
+```ts filename="ponder.config.ts" {11}
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
@@ -39,10 +22,7 @@ import { BlitmapAbi } from "./abis/Blitmap";
 
 export default createConfig({
   networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-    },
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
   },
   contracts: {
     Blitmap: {
@@ -57,9 +37,9 @@ export default createConfig({
 
 ## ABI
 
-Each contract must have an ABI. Ponder uses ABIType to offer type hints & static validation for contract configuration and indexing function signatures. This means ABIs must be saved in `.ts` files and asserted as constant using `as const`.
+Each contract must have an ABI.
 
-For more information, please reference the [ABIType documentation](https://abitype.dev/guide/getting-started#usage).
+Ponder uses ABIType to offer autocomplete and strict type checking. This means ABIs must be saved in `.ts` files and asserted as constant using `as const`. For more information, please reference the [ABIType documentation](https://abitype.dev/guide/getting-started#usage).
 
 <div className="code-columns">
 
@@ -100,30 +80,23 @@ export default createConfig({
 
 ### Multiple ABIs
 
-It's occasionally useful to provide multiple ABIs for a contract, like when defining a proxy contract that has had multiple implementation contracts. The `mergeAbis` function exported by `@ponder/core` merges ABIs safely by removing duplicates and maintaining strict types.
+It's occasionally useful to merge ABIs, like when defining a proxy/upgradable contract that has gone through multiple implementation contracts. The `mergeAbis` function exported by `@ponder/core` safely removes duplicate ABI items and maintains strict types.
 
-<Callout type="info">
-  See the proxy contracts page for more details on using proxy contracts with
-  Ponder.
-</Callout>
-
-```ts filename="ponder.config.ts" {1,16}
+```ts filename="ponder.config.ts" {1,14}
 import { createConfig, mergeAbis } from "@ponder/core";
 import { http } from "viem";
 
 import { ERC1967ProxyAbi } from "./abis/ERC1967Proxy";
 import { NameRegistryAbi } from "./abis/NameRegistry";
+import { NameRegistry2Abi } from "./abis/NameRegistry2";
 
 export default createConfig({
   networks: {
-    goerli: {
-      chainId: 5,
-      transport: http(process.env.PONDER_RPC_URL_5),
-    },
+    goerli: { chainId: 5, transport: http(process.env.PONDER_RPC_URL_5) },
   },
   contracts: {
     FarcasterNameRegistry: {
-      abi: mergeAbis([ERC1967ProxyAbi, NameRegistryAbi]),
+      abi: mergeAbis([ERC1967ProxyAbi, NameRegistryAbi, NameRegistry2Abi]),
       network: "goerli",
       address: "0xe3Be01D99bAa8dB9905b33a3cA391238234B79D1",
       startBlock: 7648795,
@@ -139,6 +112,11 @@ export default createConfig({
 If the contract is only deployed to one network, just pass the network name as a string to the `network` field.
 
 ```ts filename="ponder.config.ts" {3,11}
+import { createConfig } from "@ponder/core";
+import { http } from "viem";
+
+import { BlitmapAbi } from "./abis/Blitmap";
+
 export default createConfig({
   networks: {
     mainnet: {
@@ -159,7 +137,7 @@ export default createConfig({
 
 ### Multiple networks
 
-If you'd like to index the same contract (having the same ABI) across multiple networks, pass an object to the `network` field that specifies network-specific options.
+If you'd like to index the same contract (having the same ABI) across multiple networks, pass an object to the `network` field containing network-specific options.
 
 ```ts filename="ponder.config.ts" {14-22}
 import { createConfig } from "@ponder/core";
@@ -208,15 +186,11 @@ ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
 });
 ```
 
-### Network override logic
+#### Network override logic
 
-Network-specific configuration uses an override pattern. Any options defined at the top level are the default, and the network-specific objects override those defaults.
+Network-specific configuration uses an override pattern. Any options defined at the top level are the default, and the network-specific objects override those defaults. All fields other than `abi` can be specified on a per-network basis, including `address`, `factory`, `filter`, `startBlock`, and `endBlock`.
 
-All fields other than `abi` can be specified on a per-network basis, including `address`, `factory`, `filter`, `startBlock`, and `endBlock`.
-
-#### Example: Uniswap V3 Factory
-
-The Uniswap V3 factory contract is deployed to the same address on most chains, but has a different address on Base.
+For example, the Uniswap V3 factory contract is deployed to the same address on most chains, but has a different address on Base.
 
 ```ts filename="ponder.config.ts"
 import { createConfig } from "@ponder/core";
@@ -236,10 +210,10 @@ export default createConfig({
       address: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
       network: {
         // No network-specific address provided for mainnet and Optimism.
-        // The default address will be used ("0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789").
+        // The default address will be used ("0x1F98431c8aD98523631AE4a59f267346ea31F984").
         mainnet: { startBlock: 12369621 },
         optimism: { startBlock: 0 },
-        // The network-specific address will be used ("0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789").
+        // The network-specific address will be used ("0x33128a8fC17869897dcE68Ed026d694621f6FDfD").
         base: {
           address: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
           startBlock: 1371680,
@@ -250,9 +224,7 @@ export default createConfig({
 });
 ```
 
-#### Example: ERC-4337 Entry Point
-
-The ERC-4337 Entry Point contract is deployed to the same address on all networks. In this scenario, we can define the `address` field at the top level.
+On the other hand, the ERC-4337 Entry Point contract is deployed to the same address on all networks, so you could define the `address` field at the top level.
 
 ```ts filename="ponder.config.ts"
 import { createConfig } from "@ponder/core";
@@ -284,7 +256,7 @@ export default createConfig({
 
 The simplest (and most common) option is to pass a single static address.
 
-```ts filename="ponder.config.ts" {17}
+```ts filename="ponder.config.ts" {14}
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
@@ -292,10 +264,7 @@ import { BlitmapAbi } from "./abis/Blitmap";
 
 export default createConfig({
   networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-    },
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
   },
   contracts: {
     Blitmap: {
@@ -312,14 +281,14 @@ export default createConfig({
 
 The `address` field also accepts a list of contract addresses.
 
-Use this option if you'd like to index multiple contracts with known addresses that have the same ABI (or share an interface, like ERC721) using the same indexing functions.
+This option can be used to index multiple contracts with known addresses that have the same ABI (or share an interface, like ERC721) using the same indexing functions.
 
 <Callout type="info">
   When using this option, `startBlock` is shared across all addresses. It's
   often best to use the earliest deployment block among them.
 </Callout>
 
-```ts filename="ponder.config.ts" {17-22}
+```ts filename="ponder.config.ts" {14-19}
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
@@ -327,10 +296,7 @@ import { ERC721Abi } from "./abis/ERC721";
 
 export default createConfig({
   networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-    },
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
   },
   contracts: {
     NiceJpegs: {
@@ -350,52 +316,157 @@ export default createConfig({
 
 ### Factory contracts
 
-## Filter
+The `factory` field specifies a set of contracts that are created by a factory. The `factory` and `address` fields are mutually exclusive.
 
-By default, Ponder fetches **all events** emitted by the contracts you define in `ponder.config.ts`.
+```ts filename="ponder.config.ts" {12-19}
+import { createConfig } from "@ponder/core";
+import { parseAbiItem } from "viem";
 
-```ts filename="ponder.config.ts"
+export default createConfig({
+  networks: {
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+  },
+  contracts: {
+    SudoswapPool: {
+      abi: SudoswapPoolAbi,
+      network: "mainnet",
+      factory: {
+        // The address of the factory contract that creates instances of this child contract.
+        address: "0xb16c1342E617A5B6E4b631EB114483FDB289c0A4",
+        // The event emitted by the factory that announces a new instance of this child contract.
+        event: parseAbiItem("event NewPair(address poolAddress)"),
+        // The name of the parameter that contains the address of the new child contract.
+        parameter: "poolAddress",
+      },
+      startBlock: 14645816,
+    },
+  },
+});
+```
+
+Now, the indexing functions you write for `SudoswapPool` will process events emitted by all child contracts that are created by the specified factory. The `event.log.address` field contains the address of the child contract that emitted the current event.
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("SudoswapPool:Transfer", async ({ event }) => {
+  // This is the address of the child contract that emitted the event.
+  event.log.address;
+  //        ^? string
+});
+```
+
+## Event filter
+
+Custom event filters allow you to index events emitted by _any contract on the network_ that match some criteria.
+
+### By event name
+
+The `filter.event` field accepts an event name (or list of event names) present in the provided ABI.
+
+```ts filename="ponder.config.ts" {14}
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-import { ERC721Abi } from "./abis/ERC721";
+import { ERC20Abi } from "./abis/ERC20";
 
 export default createConfig({
   networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-    },
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
   },
   contracts: {
-    Blitmap: {
-      abi: BlitmapAbi,
+    ERC20: {
+      abi: ERC20Abi,
       network: "mainnet",
-      address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
-      startBlock: 12439123,
+      filter: { event: "Transfer" },
+      //        ^? "Transfer" | "Approval" | ("Transfer" | "Approval")[]
+      startBlock: 18500000,
+      endBlock: 18505000,
     },
   },
 });
 ```
 
-### Many events
+The indexing functions you write will run for all events matching the filter, regardless of which contract emitted them.
 
-### One event, including arguments
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("ERC20:Transfer", async ({ event }) => {
+  // This is the address of the contract that emitted the event.
+  event.log.address;
+  //        ^? string
+});
+```
+
+### By indexed argument value
+
+You can use the `filter.event` and `filter.args` options together to filter for events that have specific indexed argument values. Each indexed argument field accepts a single value or a list of values to match.
+
+This example filters for all ERC20 `Transfer` events where the `from` parameter equals a specific address, and the `to` parameter equals one of two addresses.
+
+```ts filename="ponder.config.ts" {14-23}
+import { createConfig } from "@ponder/core";
+import { http } from "viem";
+
+import { ERC20Abi } from "./abis/ERC20";
+
+export default createConfig({
+  networks: {
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+  },
+  contracts: {
+    ERC20: {
+      abi: ERC20Abi,
+      network: "mainnet",
+      filter: {
+        event: "Transfer",
+        args: {
+          from: "0xa0ee7a142d267c1f36714e4a8f75612f20a79720",
+          to: [
+            "0x06012c8cf97bead5deae237070f9587f8e7a266d",
+            "0x7c40c393dc0f283f318791d746d894ddd3693572",
+          ],
+        },
+      },
+      startBlock: 18500000,
+      endBlock: 18505000,
+    },
+  },
+});
+```
+
+The indexing function will run for all events matching the filter.
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("ERC20:Transfer", async ({ event }) => {
+  // This will always be "0xa0ee7a142d267c1f36714e4a8f75612f20a79720"
+  event.params.from;
+  // This will be one of the two addresses above
+  event.params.to;
+});
+```
 
 ## Block range
 
+The optional `startBlock` and `endBlock` options specify the block range to index. The default value for `startBlock` is `0{:ts}`. If you don't provide an `endBlock`, Ponder will index the contract in realtime and handle chain reorganizations.
+
 <Callout type="info">
-  It's annoying to keep track of deployment block numbers. We're working on ways
-  to automatically detect them.
+  Yes, it's annoying to keep track of deployment block numbers. We're working on
+  ways to automatically detect them.
 </Callout>
 
-```ts filename="ponder.config.ts"
+```ts filename="ponder.config.ts" {15-16}
+import { createConfig } from "@ponder/core";
+import { http } from "viem";
+
+import { BlitmapAbi } from "./abis/Blitmap";
+
 export default createConfig({
   networks: {
-    mainnet: {
-      chainId: 1,
-      transport: http(process.env.PONDER_RPC_URL_1),
-    },
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
   },
   contracts: {
     Blitmap: {
@@ -403,11 +474,8 @@ export default createConfig({
       network: "mainnet",
       address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
       startBlock: 12439123,
+      endBlock: 16500000,
     },
   },
 });
 ```
-
-## Special cases
-
-### Proxy contracts
