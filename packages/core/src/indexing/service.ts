@@ -12,6 +12,7 @@ import type { IndexingStore, ModelInstance } from "@/indexing-store/store";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
 import type { LogEvent, SyncGateway } from "@/sync-gateway/service";
+import { SyncStore } from "@/sync-store/store";
 import type { Model } from "@/types/model";
 import { formatShortDate } from "@/utils/date";
 import { prettyPrint } from "@/utils/print";
@@ -21,6 +22,7 @@ import { wait } from "@/utils/wait";
 import { buildModels } from "./model";
 import { ponderActions } from "./ponderActions";
 import { getStackTrace } from "./trace";
+import { ponderTransport } from "./transport";
 
 type IndexingEvents = {
   eventsProcessed: { toTimestamp: number };
@@ -71,12 +73,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   constructor({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     networks,
     sources,
   }: {
     common: Common;
+    syncStore: SyncStore;
     indexingStore: IndexingStore;
     syncGatewayService: SyncGateway;
     networks: Config["networks"];
@@ -93,6 +97,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.contexts = buildContexts(
       sources,
       networks,
+      syncStore,
       ponderActions(() => this.currentEventBlockNumber)
     );
   }
@@ -537,6 +542,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 const buildContexts = (
   sources: Source[],
   networks: Config["networks"],
+  syncStore: SyncStore,
   actions: ReturnType<typeof ponderActions>
 ) => {
   const contexts: Record<
@@ -563,7 +569,7 @@ const buildContexts = (
       chains.mainnet;
 
     const client = createClient({
-      transport: network.transport,
+      transport: ponderTransport({ transport: network.transport, syncStore }),
       chain: { ...defaultChain, name: network.name, id: network.chainId },
     });
 

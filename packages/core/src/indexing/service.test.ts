@@ -2,7 +2,7 @@ import { http } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants";
-import { setupIndexingStore } from "@/_test/setup";
+import { setupIndexingStore, setupSyncStore } from "@/_test/setup";
 import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
 import { Source } from "@/config/sources";
@@ -12,6 +12,7 @@ import { SyncGateway } from "@/sync-gateway/service";
 import { IndexingService } from "./service";
 
 beforeEach((context) => setupIndexingStore(context));
+beforeEach((context) => setupSyncStore(context));
 
 const networks = [
   {
@@ -109,10 +110,11 @@ beforeEach(() => {
 });
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     sources,
@@ -147,10 +149,11 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 });
 
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     sources,
@@ -183,10 +186,11 @@ test("processEvents() calls indexing functions with correct arguments", async (c
 });
 
 test("processEvents() model methods insert data into the indexing store", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     sources,
@@ -207,10 +211,11 @@ test("processEvents() model methods insert data into the indexing store", async 
 });
 
 test("processEvents() updates event count metrics", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     sources,
@@ -248,10 +253,11 @@ test("processEvents() updates event count metrics", async (context) => {
 });
 
 test("reset() reloads the indexing store", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     sources,
@@ -283,10 +289,11 @@ test("reset() reloads the indexing store", async (context) => {
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     sources,
@@ -314,10 +321,11 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 });
 
 test("handleReorg() reverts the indexing store", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     sources,
@@ -339,10 +347,11 @@ test("handleReorg() reverts the indexing store", async (context) => {
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     sources,
@@ -368,10 +377,11 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     sources,
@@ -407,10 +417,11 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
-  const { common, indexingStore } = context;
+  const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
     common,
+    syncStore,
     indexingStore,
     syncGatewayService,
     sources,
