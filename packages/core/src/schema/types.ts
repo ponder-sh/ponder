@@ -262,7 +262,12 @@ export type RecoverEnumType<
     | ReferenceColumn
     | EnumColumn
     | VirtualColumn
-> = TColumn extends EnumColumn ? TEnums[TColumn["type"] & keyof TEnums] : never;
+> = TColumn extends EnumColumn
+  ? TEnums[TColumn["type"] &
+      keyof TEnums] extends infer _enum extends readonly string[]
+    ? _enum[number]
+    : never
+  : never;
 
 export type RecoverTableType<
   TEnums extends Record<string, Enum>,
