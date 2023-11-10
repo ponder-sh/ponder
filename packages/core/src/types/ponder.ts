@@ -165,7 +165,7 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
               >["network"][number]["name"]
             : never;
         };
-        client: ReadOnlyClient;
+        client: Omit<ReadOnlyClient, "extend">;
         models: {
           [key in keyof Infer<TSchema>]: Model<Infer<TSchema>[key]>;
         };
