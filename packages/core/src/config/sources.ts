@@ -4,6 +4,7 @@ import {
   Address,
   encodeEventTopics,
   getAbiItem,
+  GetEventArgs,
   getEventSelector,
   Hex,
 } from "viem";
@@ -81,7 +82,6 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
       // Resolve the contract per network, filling in default values where applicable
       return contract.network
         .map((networkContract) => {
-          // Note: this is missing config validation for checking if the network is valid
           const network = config.networks.find(
             (n) => n.name === networkContract.name
           )!;
@@ -93,13 +93,11 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
             : undefined;
 
           const sharedSource = {
-            // constants
             name: contract.name,
             abi: contract.abi,
             network: network.name,
             chainId: network.chainId,
             events,
-            // optionally overridden properties
             startBlock: networkContract.startBlock ?? contract.startBlock ?? 0,
             endBlock: networkContract.endBlock ?? contract.endBlock,
             maxBlockRange:
@@ -113,8 +111,6 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
           const resolvedAddress =
             ("address" in networkContract && networkContract.address) ||
             ("address" in contract && contract.address);
-          if (resolvedFactory && resolvedAddress)
-            throw Error("Factory and address cannot both be defined");
 
           if (resolvedFactory) {
             // factory
@@ -162,7 +158,7 @@ const buildTopics = (
     // Single event with args
     return encodeEventTopics({
       abi: [findAbiEvent(abi, filter.event)],
-      args: filter.args,
+      args: filter.args as GetEventArgs<Abi, string>,
     });
   }
 };

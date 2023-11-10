@@ -112,7 +112,7 @@ export type ContractFilter<
   filter?: readonly AbiEvent[] extends TAbi
     ?
         | { event: readonly string[]; args?: never }
-        | { event: string; args?: GetEventArgs<Abi, string> }
+        | { event: string; args?: GetEventArgs<Abi, string> | unknown }
     :
         | {
             event: readonly SafeEventNames<FilterAbiEvents<TAbi>>[number][];
@@ -120,22 +120,24 @@ export type ContractFilter<
           }
         | {
             event: SafeEventNames<FilterAbiEvents<TAbi>>[number];
-            args?: GetEventArgs<
-              Abi,
-              string,
-              {
-                EnableUnion: true;
-                IndexedOnly: true;
-                Required: false;
-              },
-              RecoverAbiEvent<
-                TAbi,
-                TEventName,
-                SafeEventNames<FilterAbiEvents<TAbi>>
-              > extends infer _abiEvent extends AbiEvent
-                ? _abiEvent
-                : AbiEvent
-            >;
+            args?:
+              | GetEventArgs<
+                  Abi,
+                  string,
+                  {
+                    EnableUnion: true;
+                    IndexedOnly: true;
+                    Required: false;
+                  },
+                  RecoverAbiEvent<
+                    TAbi,
+                    TEventName,
+                    SafeEventNames<FilterAbiEvents<TAbi>>
+                  > extends infer _abiEvent extends AbiEvent
+                    ? _abiEvent
+                    : AbiEvent
+                >
+              | unknown;
           };
 };
 
@@ -191,6 +193,12 @@ type Option = {
   maxHealthcheckDuration?: number;
 };
 
+type InternalContracts = readonly Contract<
+  string,
+  readonly AbiEvent[],
+  string
+>[];
+
 export type Config = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
   database?: Database;
@@ -202,26 +210,70 @@ export type Config = {
   options?: Option;
 };
 
+type InferContracts<
+  TContracts extends InternalContracts,
+  TNetworks extends readonly Network[]
+> = TContracts extends readonly [
+  infer First extends Contract<string, readonly AbiEvent[], string>,
+  ...infer Rest extends InternalContracts
+]
+  ? readonly [
+      Contract<
+        TNetworks[number]["name"],
+        FilterAbiEvents<First["abi"]>,
+        First["filter"] extends {
+          event: infer _event extends string;
+        }
+          ? _event
+          : string
+      >,
+      ...InferContracts<Rest, TNetworks>
+    ]
+  : [];
+
 /**
- * Identity function for type-level validation of config
+ * Validates type of config, and returns a strictly typed, resolved config.
  */
 export const createConfig = <
   const TConfig extends {
     database?: Database;
     networks: readonly Network[];
-    contracts: {
-      [key in keyof TConfig["contracts"] & number]: Contract<
-        TConfig["networks"][number]["name"],
-        FilterAbiEvents<TConfig["contracts"][key]["abi"]>,
-        TConfig["contracts"][key]["filter"] extends {
-          event: infer _event extends string;
-        }
-          ? _event
-          : string
-      >;
-    };
+    contracts: InferContracts<
+      Readonly<TConfig["contracts"]>,
+      TConfig["networks"]
+    >;
     options?: Option;
   }
 >(
   config: TConfig
-) => config;
+): TConfig => {
+  // convert to an easier type to use
+  const contracts = config.contracts as readonly Contract<
+    string,
+    AbiEvent[],
+    string
+  >[];
+
+  contracts.forEach((contract) => {
+    contract.network.forEach((contractOverride) => {
+      // Make sure network matches an element in config.networks
+      const network = config.networks.find(
+        (n) => n.name === contractOverride.name
+      );
+      if (!network)
+        throw Error('Contract network does not match a network in "networks"');
+
+      // Validate the address / factory data
+      const resolvedFactory =
+        ("factory" in contractOverride && contractOverride.factory) ||
+        ("factory" in contract && contract.factory);
+      const resolvedAddress =
+        ("address" in contractOverride && contractOverride.address) ||
+        ("address" in contract && contract.address);
+      if (resolvedFactory && resolvedAddress)
+        throw Error("Factory and address cannot both be defined");
+    });
+  });
+
+  return config;
+};

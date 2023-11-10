@@ -1,15 +1,18 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
+import { Abi, Address, Client, createClient } from "viem";
+import * as chains from "viem/chains";
 
 import type { IndexingFunctions } from "@/build/functions";
 import { LogEventMetadata } from "@/config/abi";
+import { Config } from "@/config/config";
 import type { Source } from "@/config/sources";
 import { UserError } from "@/errors/user";
 import type { IndexingStore, ModelInstance } from "@/indexing-store/store";
 import type { Common } from "@/Ponder";
 import type { Schema } from "@/schema/types";
 import type { LogEvent, SyncGateway } from "@/sync-gateway/service";
-import type { SyncStore } from "@/sync-store/store";
+import { SyncStore } from "@/sync-store/store";
 import type { Model } from "@/types/model";
 import { formatShortDate } from "@/utils/date";
 import { prettyPrint } from "@/utils/print";
@@ -17,7 +20,9 @@ import { type Queue, type Worker, createQueue } from "@/utils/queue";
 import { wait } from "@/utils/wait";
 
 import { buildModels } from "./model";
+import { ponderActions } from "./ponderActions";
 import { getStackTrace } from "./trace";
+import { ponderTransport } from "./transport";
 
 type IndexingEvents = {
   eventsProcessed: { toTimestamp: number };
@@ -33,6 +38,23 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private indexingStore: IndexingStore;
   private syncGatewayService: SyncGateway;
   private sources: Source[];
+  private contexts: Record<
+    number,
+    {
+      client: Client;
+      network: { chainId: number; name: string };
+      contracts: Record<
+        string,
+        {
+          abi: Abi;
+          address?: Address | readonly Address[];
+          startBlock: number;
+          endBlock?: number;
+          maxBlockRange?: number;
+        }
+      >;
+    }
+  > = {};
 
   private schema?: Schema;
   private models: Record<string, Model<ModelInstance>> = {};
@@ -46,22 +68,23 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private eventsProcessedToTimestamp = 0;
   private hasError = false;
 
-  // private currentEventBlockNumber = 0n;
+  private currentEventBlockNumber = 0n;
   private currentEventTimestamp = 0;
 
   constructor({
     common,
-    // syncStore,
+    syncStore,
     indexingStore,
     syncGatewayService,
-    sources = [],
+    networks,
+    sources,
   }: {
     common: Common;
     syncStore: SyncStore;
     indexingStore: IndexingStore;
     syncGatewayService: SyncGateway;
-
-    sources?: Source[];
+    networks: Config["networks"];
+    sources: Source[];
   }) {
     super();
     this.common = common;
@@ -70,6 +93,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.sources = sources;
 
     this.eventProcessingMutex = new Mutex();
+
+    this.contexts = buildContexts(
+      sources,
+      networks,
+      syncStore,
+      ponderActions(() => this.currentEventBlockNumber)
+    );
   }
 
   kill = () => {
@@ -348,10 +378,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }: {
     indexingFunctions: IndexingFunctions;
   }) => {
-    const context = {
-      entities: this.models,
-    };
-
     const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
       task,
       queue,
@@ -373,7 +399,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             });
 
             // Running user code here!
-            await setupFunction({ context });
+            await setupFunction({ context: { models: this.models } });
 
             this.common.logger.trace({
               service: "indexing",
@@ -427,7 +453,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           // This enables contract calls occurring within the
           // user code to use the event block number by default.
-          // this.currentEventBlockNumber = event.block.number;
+          this.currentEventBlockNumber = event.block.number;
           this.currentEventTimestamp = Number(event.block.timestamp);
 
           try {
@@ -435,6 +461,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
               service: "indexing",
               msg: `Started indexing function (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
             });
+
+            const context = {
+              models: this.models,
+              ...this.contexts[event.chainId],
+            };
 
             // Running user code here!
             await indexingMetadata.fn({
@@ -507,3 +538,66 @@ export class IndexingService extends Emittery<IndexingEvents> {
     return queue;
   };
 }
+
+const buildContexts = (
+  sources: Source[],
+  networks: Config["networks"],
+  syncStore: SyncStore,
+  actions: ReturnType<typeof ponderActions>
+) => {
+  const contexts: Record<
+    number,
+    {
+      client: Client;
+      network: { chainId: number; name: string };
+      contracts: Record<
+        string,
+        {
+          abi: Abi;
+          address?: Address | readonly Address[];
+          startBlock: number;
+          endBlock?: number;
+          maxBlockRange?: number;
+        }
+      >;
+    }
+  > = {};
+
+  networks.forEach((network) => {
+    const defaultChain =
+      Object.values(chains).find(({ id }) => id === network.chainId) ??
+      chains.mainnet;
+
+    const client = createClient({
+      transport: ponderTransport({ transport: network.transport, syncStore }),
+      chain: { ...defaultChain, name: network.name, id: network.chainId },
+    });
+
+    contexts[network.chainId] = {
+      network: { name: network.name, chainId: network.chainId },
+      client: client.extend(actions),
+      contracts: {},
+    };
+  });
+
+  sources.forEach((source) => {
+    const address =
+      source.type === "logFilter" ? source.criteria.address : undefined;
+
+    contexts[source.chainId] = {
+      ...contexts[source.chainId],
+      contracts: {
+        ...contexts[source.chainId].contracts,
+        [source.name]: {
+          abi: source.abi,
+          address,
+          startBlock: source.startBlock,
+          endBlock: source.endBlock,
+          maxBlockRange: source.maxBlockRange,
+        },
+      },
+    };
+  });
+
+  return contexts;
+};

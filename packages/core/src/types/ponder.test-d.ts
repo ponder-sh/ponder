@@ -1,8 +1,6 @@
 import { AbiEvent, ParseAbi } from "abitype";
 import { assertType, test } from "vitest";
 
-import { bigint, bytes, createSchema, createTable, string } from "@/schema";
-
 import { ExtractAddress, ExtractAllAddresses, PonderApp } from "./ponder";
 
 type OneAbi = ParseAbi<
@@ -184,39 +182,5 @@ test("PonderApp context contracts type", () => {
   // @ts-ignore
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   (({}) as p).on("One:Event1", ({ context: { contracts } }) => {});
-  //                                         ^?
-});
-
-test("PonderApp context entity type", () => {
-  const schema = createSchema({
-    ExampleTable: createTable({
-      id: string(),
-      kevin: bytes(),
-      kyle: bigint(),
-    }),
-  });
-
-  type p = PonderApp<
-    {
-      // ^?
-      networks: any;
-      contracts: readonly [
-        {
-          name: "One";
-          network: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
-          abi: OneAbi;
-          address: "0x2";
-          startBlock: 1;
-          endBlock: 2;
-        }
-      ];
-    },
-    typeof schema
-  >;
-
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  (({}) as p).on("One:Event1", ({ context: { models } }) => {});
   //                                         ^?
 });

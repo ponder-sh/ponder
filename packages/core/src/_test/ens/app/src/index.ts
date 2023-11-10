@@ -3,7 +3,7 @@ import { ponder } from "@/generated";
 ponder.on(
   "BaseRegistrarImplementation:Transfer",
   async ({ event, context }) => {
-    const { EnsNft, Account } = context.entities;
+    const { EnsNft, Account } = context.models;
 
     await EnsNft.upsert({
       id: event.params.tokenId.toString(),

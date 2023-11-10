@@ -18,6 +18,7 @@ export type LogEvent = {
   log: Log;
   block: Block;
   transaction: Transaction;
+  chainId: number;
 };
 
 type SyncGatewayEvents = {
@@ -180,6 +181,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
             log: event.log,
             block: event.block,
             transaction: event.transaction,
+            chainId: event.chainId,
           });
         } catch (err) {
           // TODO: emit a warning here that a log was not decoded.

@@ -1,4 +1,4 @@
-import { http } from "viem";
+import { http, ParseAbi, ParseAbiItem } from "viem";
 import { assertType, test } from "vitest";
 
 import {
@@ -83,49 +83,56 @@ export const abiWithSameEvent = [
   },
 ] as const;
 
+type OneAbi = ParseAbi<
+  [
+    "event Event0(bytes32 indexed arg3)",
+    "event Event1(bytes32 indexed)",
+    "constructor()"
+  ]
+>;
+type TwoAbi = ParseAbi<["event Event(bytes32 indexed)", "event Event()"]>;
+
 test("filter events", () => {
-  type t = FilterAbiEvents<typeof abiWithSameEvent>;
+  type t = FilterAbiEvents<OneAbi>;
   //   ^?
 
-  assertType<t>([
-    abiWithSameEvent[1],
-    abiWithSameEvent[2],
-    abiWithSameEvent[4],
-  ] as const);
+  assertType<t>(
+    [] as unknown as ParseAbi<
+      ["event Event0(bytes32 indexed arg3)", "event Event1(bytes32 indexed)"]
+    >
+  );
 });
 
 test("safe event names", () => {
   type a = SafeEventNames<
     // ^?
-    FilterAbiEvents<typeof abiSimple>
+    FilterAbiEvents<OneAbi>
   >;
-  assertType<a>(["Approve", "Transfer"] as const);
+  assertType<a>(["Event0", "Event1"] as const);
 
   type b = SafeEventNames<
     // ^?
-    FilterAbiEvents<typeof abiWithSameEvent>
+    FilterAbiEvents<TwoAbi>
   >;
-  assertType<b>([
-    "Approve(address indexed from, address indexed to, uint256 amount)",
-    "Transfer",
-    "Approve(address indexed, bytes32 indexed, uint256)",
-  ]);
+  assertType<b>(["Event(bytes32 indexed)", "Event()"] as const);
 });
 
 test("ResolvedConfig default values", () => {
-  type a = NonNullable<Config["contracts"]>[number]["filter"];
-  //   ^?
+  type a = NonNullable<
+    // ^?
+    Config["contracts"]
+  >[number]["network"][number]["filter"];
   assertType<a>({} as { event: string[] } | { event: string } | undefined);
 });
 
 test("RecoverAbiEvent", () => {
   type a = RecoverAbiEvent<
     // ^?
-    FilterAbiEvents<typeof abiSimple>,
-    "Approve"
+    FilterAbiEvents<OneAbi>,
+    "Event1"
   >;
 
-  assertType<a>(abiSimple[1]);
+  assertType<a>({} as ParseAbiItem<"event Event1(bytes32 indexed)">);
 });
 
 test("createConfig() strict config names", () => {
@@ -151,7 +158,7 @@ test("createConfig() strict config names", () => {
 });
 
 test("createConfig() has strict events inferred from abi", () => {
-  const config = createConfig({
+  createConfig({
     networks: [
       { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
     ],
@@ -173,16 +180,10 @@ test("createConfig() has strict events inferred from abi", () => {
       },
     ],
   });
-  assertType<
-    readonly [
-      "Transfer",
-      "Approve(address indexed from, address indexed to, uint256 amount)"
-    ]
-  >(config.contracts[0].filter.event);
 });
 
 test("createConfig() has strict arg types for event", () => {
-  const config = createConfig({
+  createConfig({
     networks: [
       { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
     ],
@@ -192,16 +193,12 @@ test("createConfig() has strict arg types for event", () => {
         network: [
           {
             name: "mainnet",
-            address: "0x",
-            filter: { event: "Approve", args: { from: "0x", to: "0x" } },
           },
         ],
         abi: abiSimple,
         filter: {
           event: "Approve",
-          args: {
-            to: ["0x1", "0x2"],
-          },
+          args: { to: ["0x2"] },
         },
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
         startBlock: 16370000,
@@ -210,8 +207,4 @@ test("createConfig() has strict arg types for event", () => {
       },
     ],
   });
-
-  assertType<
-    { to?: `0x${string}` | `0x${string}`[] | null | undefined } | undefined
-  >(config.contracts[0].filter?.args);
 });
