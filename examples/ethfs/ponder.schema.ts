@@ -6,7 +6,7 @@ export const schema = p.createSchema({
     name: p.string(),
     size: p.int(),
     contents: p.string(),
-    createdAt: p.int().list(),
+    createdAt: p.int(),
     type: p.string().optional(),
     encoding: p.string().optional(),
     compression: p.string().optional(),
