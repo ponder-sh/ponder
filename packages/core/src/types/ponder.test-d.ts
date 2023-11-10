@@ -40,7 +40,7 @@ test("PonderApp non intersecting event names", () => {
     {
       // ^?
       networks: any;
-      contracts: readonly [{ name: "One"; filters: any; abi: OneAbi }];
+      contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
     },
     any
   >;
@@ -56,7 +56,7 @@ test("PonderApp intersecting event names", () => {
     {
       // ^?
       networks: any;
-      contracts: readonly [{ name: "Two"; filters: any; abi: TwoAbi }];
+      contracts: readonly [{ name: "Two"; network: any; abi: TwoAbi }];
     },
     any
   >;
@@ -73,8 +73,8 @@ test("PonderApp multiple contracts", () => {
       // ^?
       networks: any;
       contracts: readonly [
-        { name: "One"; filters: any; abi: OneAbi },
-        { name: "Two"; filters: any; abi: TwoAbi }
+        { name: "One"; network: any; abi: OneAbi },
+        { name: "Two"; network: any; abi: TwoAbi }
       ];
     },
     any
@@ -96,7 +96,7 @@ test("PonderApp event type"),
       {
         // ^?
         networks: any;
-        contracts: readonly [{ name: "One"; filters: any; abi: OneAbi }];
+        contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
       },
       any
     >;
@@ -121,7 +121,7 @@ test("PonderApp context network type", () => {
       contracts: readonly [
         {
           name: "One";
-          filters: [{ name: "mainnet" }, { name: "optimism" }];
+          network: [{ name: "mainnet" }, { name: "optimism" }];
           abi: OneAbi;
         }
       ];
@@ -144,7 +144,7 @@ test("PonderApp context client type", () => {
       contracts: readonly [
         {
           name: "One";
-          filters: [{ name: "mainnet" }, { name: "optimism" }];
+          network: [{ name: "mainnet" }, { name: "optimism" }];
           abi: OneAbi;
         }
       ];
@@ -167,7 +167,7 @@ test("PonderApp context contracts type", () => {
       contracts: readonly [
         {
           name: "One";
-          filters: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
+          network: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
           abi: OneAbi;
           address: "0x2";
           startBlock: 1;

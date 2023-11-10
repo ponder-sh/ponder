@@ -36,21 +36,23 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private indexingStore: IndexingStore;
   private syncGatewayService: SyncGateway;
   private sources: Source[];
-  private contracts: Record<
+  private contexts: Record<
     number,
-    Record<
-      string,
-      {
-        abi: Abi;
-        address?: Address | readonly Address[];
-        startBlock?: number;
-        endBlock?: number;
-        maxBlockRange?: number;
-      }
-    >
-  >;
-  private networks: Record<number, string>;
-  private clients: Record<number, Client>;
+    {
+      client: Client;
+      network: { chainId: number; name: string };
+      contracts: Record<
+        string,
+        {
+          abi: Abi;
+          address?: Address | readonly Address[];
+          startBlock: number;
+          endBlock?: number;
+          maxBlockRange?: number;
+        }
+      >;
+    }
+  > = {};
 
   private schema?: Schema;
   private models: Record<string, Model<ModelInstance>> = {};
@@ -71,14 +73,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
     common,
     indexingStore,
     syncGatewayService,
-    config,
-    sources = [],
+    networks,
+    sources,
   }: {
     common: Common;
     indexingStore: IndexingStore;
     syncGatewayService: SyncGateway;
-    config: Config;
-    sources?: Source[];
+    networks: Config["networks"];
+    sources: Source[];
   }) {
     super();
     this.common = common;
@@ -88,52 +90,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     this.eventProcessingMutex = new Mutex();
 
-    this.contracts = {};
-    for (const contract of config.contracts) {
-      for (const filter of contract.filters) {
-        const chainId = config.networks.find(
-          (n) => n.name === filter.name
-        )!.chainId;
-        if (this.contracts[chainId] === undefined) this.contracts[chainId] = {};
-
-        const address = ("address" in filter && filter.address) || undefined;
-        this.contracts[chainId][contract.name] = {
-          abi: contract.abi,
-          address,
-          startBlock: filter.startBlock,
-          endBlock: filter.endBlock,
-          maxBlockRange: filter.maxBlockRange,
-        };
-      }
-    }
-
-    this.networks = config.networks.reduce(
-      (acc, cur) => ({
-        ...acc,
-        [cur.chainId]: cur.name,
-      }),
-      {}
-    );
-    this.clients = config.networks.reduce(
-      (acc, cur) => {
-        const defaultChain =
-          Object.values(chains).find(({ id }) => id === cur.chainId) ??
-          chains.mainnet;
-
-        const client = createClient({
-          transport: cur.transport,
-          chain: { ...defaultChain, name: cur.name, id: cur.chainId },
-        });
-
-        return {
-          ...acc,
-          [cur.chainId]: client.extend(
-            ponderActions(() => this.currentEventBlockNumber)
-          ),
-        };
-      },
-
-      {}
+    this.contexts = buildContexts(
+      sources,
+      networks,
+      ponderActions(() => this.currentEventBlockNumber)
     );
   }
 
@@ -433,15 +393,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
               msg: `Started indexing function (event="setup")`,
             });
 
-            const context = {
-              models: this.models,
-              contracts: {},
-              network: {},
-              client: {},
-            };
-
             // Running user code here!
-            await setupFunction({ context });
+            await setupFunction({ context: { models: this.models } });
 
             this.common.logger.trace({
               service: "indexing",
@@ -506,12 +459,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
             const context = {
               models: this.models,
-              contracts: this.contracts[event.chainId],
-              network: {
-                name: this.networks[event.chainId],
-                chainId: event.chainId,
-              },
-              client: this.clients[event.chainId],
+              ...this.contexts[event.chainId],
             };
 
             // Running user code here!
@@ -585,3 +533,65 @@ export class IndexingService extends Emittery<IndexingEvents> {
     return queue;
   };
 }
+
+const buildContexts = (
+  sources: Source[],
+  networks: Config["networks"],
+  actions: ReturnType<typeof ponderActions>
+) => {
+  const contexts: Record<
+    number,
+    {
+      client: Client;
+      network: { chainId: number; name: string };
+      contracts: Record<
+        string,
+        {
+          abi: Abi;
+          address?: Address | readonly Address[];
+          startBlock: number;
+          endBlock?: number;
+          maxBlockRange?: number;
+        }
+      >;
+    }
+  > = {};
+
+  networks.forEach((network) => {
+    const defaultChain =
+      Object.values(chains).find(({ id }) => id === network.chainId) ??
+      chains.mainnet;
+
+    const client = createClient({
+      transport: network.transport,
+      chain: { ...defaultChain, name: network.name, id: network.chainId },
+    });
+
+    contexts[network.chainId] = {
+      network: { name: network.name, chainId: network.chainId },
+      client: client.extend(actions),
+      contracts: {},
+    };
+  });
+
+  sources.forEach((source) => {
+    const address =
+      source.type === "logFilter" ? source.criteria.address : undefined;
+
+    contexts[source.chainId] = {
+      ...contexts[source.chainId],
+      contracts: {
+        ...contexts[source.chainId].contracts,
+        [source.name]: {
+          abi: source.abi,
+          address,
+          startBlock: source.startBlock,
+          endBlock: source.endBlock,
+          maxBlockRange: source.maxBlockRange,
+        },
+      },
+    };
+  });
+
+  return contexts;
+};

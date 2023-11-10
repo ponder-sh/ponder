@@ -108,9 +108,15 @@ type AppContracts<TContracts extends Config["contracts"]> =
         First["name"],
         {
           abi: First["abi"];
-          address: ExtractAllAddresses<First["filters"]>[number];
-          startBlock: ExtractAllStartBlocks<First["filters"]>[number];
-          endBlock: ExtractAllEndBlocks<First["filters"]>[number];
+          address:
+            | ExtractAddress<First>
+            | ExtractAllAddresses<First["network"]>[number];
+          startBlock:
+            | ExtractStartBlock<First>
+            | ExtractAllStartBlocks<First["network"]>[number];
+          endBlock:
+            | ExtractEndBlock<First>
+            | ExtractAllEndBlocks<First["network"]>[number];
         }
       > &
         AppContracts<Rest>
@@ -156,7 +162,7 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
             ? RecoverContract<
                 TConfig["contracts"],
                 ContractName
-              >["filters"][number]["name"]
+              >["network"][number]["name"]
             : never;
         };
         client: ReadOnlyClient;

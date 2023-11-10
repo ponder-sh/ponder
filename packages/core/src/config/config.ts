@@ -205,14 +205,7 @@ export type Config = {
   /** List of blockchain networks. */
   networks: readonly Network[];
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
-  contracts: readonly {
-    name: string;
-    abi: Abi;
-    filters: readonly ({ name: string } & ContractFilter<
-      readonly AbiEvent[],
-      string
-    >)[];
-  }[];
+  contracts: readonly Contract<string, readonly AbiEvent[], string>[];
   /** Configuration for Ponder internals. */
   options?: Option;
 };
@@ -238,50 +231,6 @@ type InferContracts<
     ]
   : [];
 
-type IntermediateContractFilter = Partial<
-  Pick<
-    ContractFilter<readonly AbiEvent[], string>,
-    "startBlock" | "endBlock" | "maxBlockRange"
-  >
-> & { name: string };
-
-type ResolveFilters<
-  TContractBase extends ContractFilter<readonly AbiEvent[], string>,
-  TContractOverride extends readonly IntermediateContractFilter[]
-> = TContractOverride extends readonly [
-  infer First extends IntermediateContractFilter,
-  ...infer Rest extends readonly IntermediateContractFilter[]
-]
-  ? [
-      {
-        name: First["name"];
-        startBlock: undefined extends First["startBlock"]
-          ? TContractBase["startBlock"]
-          : First["startBlock"];
-        endBlock: undefined extends First["endBlock"]
-          ? TContractBase["endBlock"]
-          : First["endBlock"];
-        maxBlockRange: undefined extends First["maxBlockRange"]
-          ? TContractBase["maxBlockRange"]
-          : First["maxBlockRange"];
-      },
-      ...ResolveFilters<TContractBase, Rest>
-    ]
-  : [];
-
-type ResolveContracts<TContracts extends InternalContracts> =
-  TContracts extends readonly [
-    infer First extends Contract<string, readonly AbiEvent[], string>,
-    ...infer Rest extends InternalContracts
-  ]
-    ? readonly [
-        Pick<First, "name" | "abi"> & {
-          filters: ResolveFilters<First, First["network"]>;
-        },
-        ...ResolveContracts<Rest>
-      ]
-    : [];
-
 /**
  * Validates type of config, and returns a strictly typed, resolved config.
  */
@@ -297,9 +246,7 @@ export const createConfig = <
   }
 >(
   config: TConfig
-): Pick<TConfig, "database" | "networks" | "options"> & {
-  contracts: ResolveContracts<TConfig["contracts"]>;
-} => {
+): TConfig => {
   // convert to an easier type to use
   const contracts = config.contracts as readonly Contract<
     string,
@@ -307,46 +254,36 @@ export const createConfig = <
     string
   >[];
 
-  return {
-    ...config,
-    contracts: contracts.map((contract) => {
+  contracts.forEach((contract) => {
+    contract.network.forEach((contractOverride) => {
+      // Make sure network matches an element in config.networks
+      const network = config.networks.find(
+        (n) => n.name === contractOverride.name
+      );
+      if (!network)
+        throw Error('Contract network does not match a network in "networks"');
+
+      // Validate the address / factory data
+      const resolvedFactory =
+        ("factory" in contractOverride && contractOverride.factory) ||
+        ("factory" in contract && contract.factory);
+      const resolvedAddress =
+        ("address" in contractOverride && contractOverride.address) ||
+        ("address" in contract && contract.address);
+      if (resolvedFactory && resolvedAddress)
+        throw Error("Factory and address cannot both be defined");
+
       return {
-        abi: contract.abi,
-        name: contract.name,
-        filters: contract.network.map((contractOverride) => {
-          // Make sure network matches an element in config.networks
-          const network = config.networks.find(
-            (n) => n.name === contractOverride.name
-          );
-          if (!network)
-            throw Error(
-              'Contract network does not match a network in "networks"'
-            );
-
-          // Validate the address / factory data
-          const resolvedFactory =
-            ("factory" in contractOverride && contractOverride.factory) ||
-            ("factory" in contract && contract.factory);
-          const resolvedAddress =
-            ("address" in contractOverride && contractOverride.address) ||
-            ("address" in contract && contract.address);
-          if (resolvedFactory && resolvedAddress)
-            throw Error("Factory and address cannot both be defined");
-
-          return {
-            name: contractOverride.name,
-            factory: resolvedFactory,
-            address: resolvedAddress,
-            startBlock: contractOverride.startBlock ?? contract.startBlock,
-            endBlock: contractOverride.endBlock ?? contract.endBlock,
-            maxBlockRange:
-              contractOverride.maxBlockRange ?? contract.maxBlockRange,
-            filter: contractOverride.filter ?? contract.filter,
-          };
-        }),
+        name: contractOverride.name,
+        factory: resolvedFactory,
+        address: resolvedAddress,
+        startBlock: contractOverride.startBlock ?? contract.startBlock,
+        endBlock: contractOverride.endBlock ?? contract.endBlock,
+        maxBlockRange: contractOverride.maxBlockRange ?? contract.maxBlockRange,
+        filter: contractOverride.filter ?? contract.filter,
       };
-    }),
-  } as Pick<TConfig, "database" | "networks" | "options"> & {
-    contracts: ResolveContracts<TConfig["contracts"]>;
-  };
+    });
+  });
+
+  return config;
 };

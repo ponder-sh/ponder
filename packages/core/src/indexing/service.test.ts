@@ -13,28 +13,13 @@ import { IndexingService } from "./service";
 
 beforeEach((context) => setupIndexingStore(context));
 
-const config = {
-  networks: [
-    {
-      name: "mainnet",
-      chainId: 1,
-      transport: http(),
-    },
-  ],
-  contracts: [
-    {
-      name: "USDC",
-      abi: usdcContractConfig.abi,
-      filters: [
-        {
-          name: "mainnet",
-          address: usdcContractConfig.address,
-          startBlock: 16369950,
-        },
-      ],
-    },
-  ],
-};
+const networks = [
+  {
+    name: "mainnet",
+    chainId: 1,
+    transport: http(),
+  },
+];
 
 const sources: Source[] = [
   {
@@ -131,7 +116,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     indexingStore,
     syncGatewayService,
     sources,
-    config,
+    networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -169,7 +154,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     indexingStore,
     syncGatewayService,
     sources,
-    config,
+    networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -205,7 +190,7 @@ test("processEvents() model methods insert data into the indexing store", async 
     indexingStore,
     syncGatewayService,
     sources,
-    config,
+    networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -229,7 +214,7 @@ test("processEvents() updates event count metrics", async (context) => {
     indexingStore,
     syncGatewayService,
     sources,
-    config,
+    networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -270,7 +255,7 @@ test("reset() reloads the indexing store", async (context) => {
     indexingStore,
     syncGatewayService,
     sources,
-    config,
+    networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -305,7 +290,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     indexingStore,
     syncGatewayService,
     sources,
-    config,
+    networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -336,7 +321,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
     indexingStore,
     syncGatewayService,
     sources,
-    config,
+    networks,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -361,7 +346,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
     indexingStore,
     syncGatewayService,
     sources,
-    config,
+    networks,
   });
 
   const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
@@ -390,7 +375,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     indexingStore,
     syncGatewayService,
     sources,
-    config,
+    networks,
   });
 
   await service.reset({ schema, indexingFunctions });
@@ -429,7 +414,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
     indexingStore,
     syncGatewayService,
     sources,
-    config,
+    networks,
   });
 
   await service.reset({ schema, indexingFunctions });

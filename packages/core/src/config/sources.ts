@@ -80,14 +80,16 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
       const events = getEvents({ abi: contract.abi });
 
       // Resolve the contract per network, filling in default values where applicable
-      return contract.filters
+      return contract.network
         .map((networkContract) => {
           const network = config.networks.find(
             (n) => n.name === networkContract.name
           )!;
 
-          const topics = networkContract.filter
-            ? buildTopics(contract.abi, networkContract.filter)
+          const resolvedFilter = networkContract.filter ?? contract.filter;
+
+          const topics = resolvedFilter
+            ? buildTopics(contract.abi, resolvedFilter)
             : undefined;
 
           const sharedSource = {
@@ -96,16 +98,19 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
             network: network.name,
             chainId: network.chainId,
             events,
-            startBlock: networkContract.startBlock ?? 0,
-            endBlock: networkContract.endBlock,
-            maxBlockRange: networkContract.maxBlockRange,
+            startBlock: networkContract.startBlock ?? contract.startBlock ?? 0,
+            endBlock: networkContract.endBlock ?? contract.endBlock,
+            maxBlockRange:
+              networkContract.maxBlockRange ?? contract.maxBlockRange,
           } as const;
 
           // Check that factory and address are not both defined
           const resolvedFactory =
-            "factory" in networkContract && networkContract.factory;
+            ("factory" in networkContract && networkContract.factory) ||
+            ("factory" in contract && contract.factory);
           const resolvedAddress =
-            "address" in networkContract && networkContract.address;
+            ("address" in networkContract && networkContract.address) ||
+            ("address" in contract && contract.address);
 
           if (resolvedFactory) {
             // factory
@@ -142,9 +147,7 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
 
 const buildTopics = (
   abi: Abi,
-  filter: NonNullable<
-    NonNullable<Config["contracts"]>[number]["filters"][number]["filter"]
-  >
+  filter: NonNullable<NonNullable<Config["contracts"]>[number]["filter"]>
 ): Topics => {
   if (Array.isArray(filter.event)) {
     // List of event signatures
