@@ -1,5 +1,6 @@
 import type {
   Abi,
+  Account,
   Chain,
   Client,
   ContractFunctionConfig,
@@ -46,7 +47,7 @@ export type PonderActions = {
     >,
   ) => Promise<MulticallReturnType<TContracts, TAllowFailure>>;
   readContract: <
-    TAbi extends Abi | readonly unknown[],
+    const TAbi extends Abi | readonly unknown[],
     TFunctionName extends string,
   >(
     args: Omit<
@@ -65,8 +66,12 @@ export type ReadOnlyClient<
 
 export const ponderActions =
   (getCurrentBlockNumber: () => bigint) =>
-  <TChain extends Chain | undefined = Chain | undefined>(
-    client: Client<Transport, TChain>,
+  <
+    TTransport extends Transport = Transport,
+    TChain extends Chain | undefined = Chain | undefined,
+    TAccount extends Account | undefined = Account | undefined,
+  >(
+    client: Client<TTransport, TChain, TAccount>,
   ): PonderActions => ({
     getBalance: (
       args: Omit<GetBalanceParameters, "blockTag" | "blockNumber">,
@@ -103,7 +108,7 @@ export const ponderActions =
         blockNumber: getCurrentBlockNumber(),
       }),
     readContract: <
-      TAbi extends Abi | readonly unknown[],
+      const TAbi extends Abi | readonly unknown[],
       TFunctionName extends string,
     >(
       args: Omit<

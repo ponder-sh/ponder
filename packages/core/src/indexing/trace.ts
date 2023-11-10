@@ -8,8 +8,8 @@ import {
   sourceContentFor,
   TraceMap,
 } from "@jridgewell/trace-mapping";
-import type { MimeBuffer } from "data-uri-to-buffer";
-import dataUriToBuffer from "data-uri-to-buffer";
+import type { ParsedDataURI } from "data-uri-to-buffer";
+import { dataUriToBuffer } from "data-uri-to-buffer";
 import { parse as parseStackTrace, type StackFrame } from "stacktrace-parser";
 
 import type { Options } from "@/config/options.js";
@@ -157,7 +157,7 @@ function getRawSourceMap(fileContents: string): DecodedSourceMap | null {
     return null;
   }
 
-  let buffer: MimeBuffer;
+  let buffer: ParsedDataURI;
   try {
     buffer = dataUriToBuffer(sourceUrl);
   } catch (err) {

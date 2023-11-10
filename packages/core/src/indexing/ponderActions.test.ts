@@ -7,9 +7,11 @@ import {
 } from "@/_test/constants.js";
 import { publicClient } from "@/_test/utils.js";
 
-import { ponderActions } from "./ponderActions.js";
+import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
 
-const client = publicClient.extend(ponderActions(() => 16375000n));
+const client = publicClient.extend(
+  ponderActions(() => 16375000n) as any,
+) as ReadOnlyClient;
 
 const usdcTotalSupply16375000 = 40921687992499550n;
 

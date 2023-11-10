@@ -2,7 +2,7 @@
 import path from "node:path";
 
 import Emittery from "emittery";
-import glob from "glob";
+import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
 // @ts-ignore
 import type { ViteDevServer } from "vite";

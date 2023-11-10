@@ -21,7 +21,7 @@ import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
 import { wait } from "@/utils/wait.js";
 
 import { buildModels } from "./model.js";
-import { ponderActions } from "./ponderActions.js";
+import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
 import { getStackTrace } from "./trace.js";
 import { ponderTransport } from "./transport.js";
 
@@ -576,7 +576,9 @@ const buildContexts = (
 
     contexts[network.chainId] = {
       network: { name: network.name, chainId: network.chainId },
-      client: client.extend(actions),
+      // Changing the arguments of readContract is not usually allowed,
+      // because we have such a limited api we should be good
+      client: client.extend(actions as any) as ReadOnlyClient,
       contracts: {},
     };
   });
