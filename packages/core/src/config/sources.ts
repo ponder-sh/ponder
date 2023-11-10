@@ -173,13 +173,13 @@ const buildTopics = (
 };
 
 /**
- * Finds the event ABI item for the safe event name.
+ * Finds the event ABI item for the event name or event signature.
  *
- * @param eventName Event name or event signature if there are collisions
+ * @param eventName Event name or event signature if there are duplicates
  */
 const findAbiEvent = (abi: Abi, eventName: string): AbiEvent => {
   if (eventName.includes("(")) {
-    // Collision
+    // full event signature
     return parseAbiItem(`event ${eventName}`) as AbiEvent;
   } else {
     return getAbiItem({ abi, name: eventName }) as AbiEvent;
