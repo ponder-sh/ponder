@@ -8,7 +8,7 @@ import { Ponder } from "@/Ponder.js";
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import packageJson from "../../package.json";
+import packageJson from "../../package.json" assert { type: "json" };
 
 dotenv.config({ path: ".env.local" });
 
