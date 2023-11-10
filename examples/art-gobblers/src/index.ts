@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 
 ponder.on("ArtGobblers:ArtGobbled", async ({ event, context }) => {
-  const { GobbledArt } = context.entities;
+  const { GobbledArt } = context.models;
 
   await GobbledArt.create({
     id: `${event.params.nft}-${event.params.id}`,
