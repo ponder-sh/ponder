@@ -1,9 +1,7 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
 import type { Abi, Address, Client } from "viem";
-import type { Chain } from "viem";
 import { createClient } from "viem";
-import * as chains from "viem/chains";
 
 import type { IndexingFunctions } from "@/build/functions.js";
 import type { LogEventMetadata } from "@/config/abi.js";
@@ -16,6 +14,7 @@ import type { Schema } from "@/schema/types.js";
 import type { LogEvent, SyncGateway } from "@/sync-gateway/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import type { Model } from "@/types/model.js";
+import { chains } from "@/utils/chains.js";
 import { formatShortDate } from "@/utils/date.js";
 import { prettyPrint } from "@/utils/print.js";
 import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
@@ -566,9 +565,9 @@ const buildContexts = (
   > = {};
 
   networks.forEach((network) => {
-    const defaultChain: Chain = (Object.values(chains).find((c) =>
-      "id" in c ? c.id === network.chainId : false
-    ) ?? chains.mainnet) as Chain;
+    const defaultChain =
+      Object.values(chains).find((c) => c.id === network.chainId) ??
+      chains.mainnet;
 
     const client = createClient({
       transport: ponderTransport({ transport: network.transport, syncStore }),

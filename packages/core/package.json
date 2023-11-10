@@ -18,11 +18,11 @@
   "bin": {
     "ponder": "./dist/bin/ponder.js"
   },
-  "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "typings": "./dist/index.d.ts",
   "exports": {
-    "default": "./dist/index.js",
+    "import": "./dist/index.js",
     "types": "./dist/index.d.ts"
   },
   "scripts": {
