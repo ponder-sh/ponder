@@ -1,40 +1,39 @@
 import Emittery from "emittery";
+import type { Hex, RpcError } from "viem";
 import {
   type Hash,
   type RpcBlock,
   type RpcLog,
   type RpcTransaction,
-  Hex,
   hexToNumber,
   HttpRequestError,
   InvalidParamsRpcError,
   LimitExceededRpcError,
-  RpcError,
   toHex,
 } from "viem";
 
-import type { Network } from "@/config/networks";
+import type { Network } from "@/config/networks.js";
 import {
   type Factory,
   type LogFilter,
   type LogFilterCriteria,
   type Source,
   sourceIsLogFilter,
-} from "@/config/sources";
-import type { Common } from "@/Ponder";
-import type { SyncStore } from "@/sync-store/store";
-import { formatEta, formatPercentage } from "@/utils/format";
+} from "@/config/sources.js";
+import type { Common } from "@/Ponder.js";
+import type { SyncStore } from "@/sync-store/store.js";
+import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   BlockProgressTracker,
   getChunks,
   intervalDifference,
   intervalSum,
   ProgressTracker,
-} from "@/utils/interval";
-import { type Queue, type Worker, createQueue } from "@/utils/queue";
-import { hrTimeToMs, startClock } from "@/utils/timer";
+} from "@/utils/interval.js";
+import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
+import { hrTimeToMs, startClock } from "@/utils/timer.js";
 
-import { validateHistoricalBlockRange } from "./utils";
+import { validateHistoricalBlockRange } from "./utils.js";
 
 type HistoricalSyncEvents = {
   /**

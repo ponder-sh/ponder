@@ -1,6 +1,6 @@
-import { encodeAsText } from "@/utils/encoding";
+import { encodeAsText } from "@/utils/encoding.js";
 
-import type { ModelInstance } from "../store";
+import type { ModelInstance } from "../store.js";
 
 /**
  * Convert a user-land model instance into a database-ready object.

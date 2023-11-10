@@ -1,21 +1,20 @@
+import type { GraphQLInputFieldConfigMap, GraphQLObjectType } from "graphql";
 import {
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
   type GraphQLInputType,
-  GraphQLInputFieldConfigMap,
   GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
-  GraphQLObjectType,
   GraphQLString,
 } from "graphql";
 
-import type { Scalar, Schema } from "@/schema/types";
-import { isEnumColumn, isVirtualColumn } from "@/schema/utils";
+import type { Scalar, Schema } from "@/schema/types.js";
+import { isEnumColumn, isVirtualColumn } from "@/schema/utils.js";
 
-import type { Context, Source } from "./schema";
-import { tsTypeToGqlScalar } from "./schema";
+import type { Context, Source } from "./schema.js";
+import { tsTypeToGqlScalar } from "./schema.js";
 
 type PluralArgs = {
   timestamp?: number;

@@ -1,7 +1,11 @@
-import { AbiEvent, ParseAbi } from "abitype";
+import type { AbiEvent, ParseAbi } from "abitype";
 import { assertType, test } from "vitest";
 
-import { ExtractAddress, ExtractAllAddresses, PonderApp } from "./ponder";
+import type {
+  ExtractAddress,
+  ExtractAllAddresses,
+  PonderApp,
+} from "./ponder.js";
 
 type OneAbi = ParseAbi<
   ["event Event0(bytes32 indexed arg3)", "event Event1(bytes32 indexed)"]

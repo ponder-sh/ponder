@@ -1,10 +1,10 @@
-import type { OrderByInput, WhereInput } from "@/indexing-store/store";
+import type { OrderByInput, WhereInput } from "@/indexing-store/store.js";
 
 import type {
   HasOnlyIdProperty,
   HasRequiredPropertiesOtherThanId,
   Prettify,
-} from "./utils";
+} from "./utils.js";
 
 export type Model<T extends { id: string | number | bigint }> = {
   create: (

@@ -2,8 +2,8 @@
 import { cac } from "cac";
 import dotenv from "dotenv";
 
-import { buildOptions } from "@/config/options";
-import { Ponder } from "@/Ponder";
+import { buildOptions } from "@/config/options.js";
+import { Ponder } from "@/Ponder.js";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment

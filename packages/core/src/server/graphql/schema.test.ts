@@ -1,9 +1,9 @@
 import { type GraphQLType } from "graphql";
 import { expect, test } from "vitest";
 
-import * as p from "@/schema";
+import * as p from "@/schema/index.js";
 
-import { buildGqlSchema } from "./schema";
+import { buildGqlSchema } from "./schema.js";
 
 test("filter type has correct suffixes and types", () => {
   const s = p.createSchema({

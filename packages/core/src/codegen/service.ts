@@ -1,10 +1,11 @@
 import Emittery from "emittery";
-import { GraphQLSchema, printSchema } from "graphql";
+import type { GraphQLSchema } from "graphql";
+import { printSchema } from "graphql";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { Common } from "@/Ponder";
-import { ensureDirExists } from "@/utils/exists";
+import type { Common } from "@/Ponder.js";
+import { ensureDirExists } from "@/utils/exists.js";
 
 export class CodegenService extends Emittery {
   private common: Common;

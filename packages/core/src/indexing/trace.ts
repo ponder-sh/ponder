@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { type StackFrame, parse as parseStackTrace } from "stacktrace-parser";
 
-import type { Options } from "@/config/options";
+import type { Options } from "@/config/options.js";
 
 export const getStackTrace = (error: Error, options: Options) => {
   if (!error.stack) return undefined;

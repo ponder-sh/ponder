@@ -1,10 +1,10 @@
 import { Box, Newline, render as inkRender, Text } from "ink";
 import React from "react";
 
-import { Source } from "@/config/sources";
+import type { Source } from "@/config/sources.js";
 
-import { HistoricalBar } from "./HistoricalBar";
-import { IndexingBar } from "./IndexingBar";
+import { HistoricalBar } from "./HistoricalBar.js";
+import { IndexingBar } from "./IndexingBar.js";
 
 export type UiState = {
   port: number;

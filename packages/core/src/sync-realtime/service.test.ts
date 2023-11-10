@@ -7,15 +7,15 @@ import {
   uniswapV3PoolFactoryConfig,
   usdcContractConfig,
   vitalik,
-} from "@/_test/constants";
-import { resetTestClient, setupSyncStore } from "@/_test/setup";
-import { publicClient, testClient, walletClient } from "@/_test/utils";
-import type { Network } from "@/config/networks";
-import type { Source } from "@/config/sources";
-import { decodeToBigInt } from "@/utils/encoding";
-import { range } from "@/utils/range";
+} from "@/_test/constants.js";
+import { resetTestClient, setupSyncStore } from "@/_test/setup.js";
+import { publicClient, testClient, walletClient } from "@/_test/utils.js";
+import type { Network } from "@/config/networks.js";
+import type { Source } from "@/config/sources.js";
+import { decodeToBigInt } from "@/utils/encoding.js";
+import { range } from "@/utils/range.js";
 
-import { RealtimeSyncService } from "./service";
+import { RealtimeSyncService } from "./service.js";
 
 beforeEach((context) => setupSyncStore(context));
 beforeEach(resetTestClient);

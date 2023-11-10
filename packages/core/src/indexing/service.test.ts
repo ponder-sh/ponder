@@ -1,15 +1,15 @@
 import { http } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { usdcContractConfig } from "@/_test/constants";
-import { setupIndexingStore, setupSyncStore } from "@/_test/setup";
-import type { IndexingFunctions } from "@/build/functions";
-import { LogEventMetadata } from "@/config/abi";
-import { Source } from "@/config/sources";
-import * as p from "@/schema";
-import { SyncGateway } from "@/sync-gateway/service";
+import { usdcContractConfig } from "@/_test/constants.js";
+import { setupIndexingStore, setupSyncStore } from "@/_test/setup.js";
+import type { IndexingFunctions } from "@/build/functions.js";
+import type { LogEventMetadata } from "@/config/abi.js";
+import type { Source } from "@/config/sources.js";
+import * as p from "@/schema/index.js";
+import type { SyncGateway } from "@/sync-gateway/service.js";
 
-import { IndexingService } from "./service";
+import { IndexingService } from "./service.js";
 
 beforeEach((context) => setupIndexingStore(context));
 beforeEach((context) => setupSyncStore(context));

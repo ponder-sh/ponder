@@ -1,30 +1,31 @@
 import path from "node:path";
 import process from "node:process";
 
-import { BuildService } from "@/build/service";
-import { CodegenService } from "@/codegen/service";
-import { buildDatabase } from "@/config/database";
-import { type Network, buildNetwork } from "@/config/networks";
-import { type Options } from "@/config/options";
-import { UserErrorService } from "@/errors/service";
-import { IndexingService } from "@/indexing/service";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store";
-import { SqliteIndexingStore } from "@/indexing-store/sqlite/store";
-import { type IndexingStore } from "@/indexing-store/store";
-import { LoggerService } from "@/logs/service";
-import { MetricsService } from "@/metrics/service";
-import { ServerService } from "@/server/service";
-import { SyncGateway } from "@/sync-gateway/service";
-import { HistoricalSyncService } from "@/sync-historical/service";
-import { RealtimeSyncService } from "@/sync-realtime/service";
-import { PostgresSyncStore } from "@/sync-store/postgres/store";
-import { SqliteSyncStore } from "@/sync-store/sqlite/store";
-import { type SyncStore } from "@/sync-store/store";
-import { TelemetryService } from "@/telemetry/service";
-import { UiService } from "@/ui/service";
+import { BuildService } from "@/build/service.js";
+import { CodegenService } from "@/codegen/service.js";
+import { buildDatabase } from "@/config/database.js";
+import { type Network, buildNetwork } from "@/config/networks.js";
+import { type Options } from "@/config/options.js";
+import { UserErrorService } from "@/errors/service.js";
+import { IndexingService } from "@/indexing/service.js";
+import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
+import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
+import { type IndexingStore } from "@/indexing-store/store.js";
+import { LoggerService } from "@/logs/service.js";
+import { MetricsService } from "@/metrics/service.js";
+import { ServerService } from "@/server/service.js";
+import { SyncGateway } from "@/sync-gateway/service.js";
+import { HistoricalSyncService } from "@/sync-historical/service.js";
+import { RealtimeSyncService } from "@/sync-realtime/service.js";
+import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
+import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
+import { type SyncStore } from "@/sync-store/store.js";
+import { TelemetryService } from "@/telemetry/service.js";
+import { UiService } from "@/ui/service.js";
 
-import { hydrateIndexingFunctions } from "./build/functions";
-import { buildSources, Source } from "./config/sources";
+import { hydrateIndexingFunctions } from "./build/functions.js";
+import type { Source } from "./config/sources.js";
+import { buildSources } from "./config/sources.js";
 
 export type Common = {
   options: Options;

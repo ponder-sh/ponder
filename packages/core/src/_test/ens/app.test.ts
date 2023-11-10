@@ -2,9 +2,9 @@ import { rmSync } from "node:fs";
 import request from "supertest";
 import { type TestContext, afterEach, beforeEach, expect, test } from "vitest";
 
-import { setupIndexingStore, setupSyncStore } from "@/_test/setup";
-import { buildOptions } from "@/config/options";
-import { Ponder } from "@/Ponder";
+import { setupIndexingStore, setupSyncStore } from "@/_test/setup.js";
+import { buildOptions } from "@/config/options.js";
+import { Ponder } from "@/Ponder.js";
 
 beforeEach((context) => setupSyncStore(context));
 beforeEach((context) => setupIndexingStore(context));

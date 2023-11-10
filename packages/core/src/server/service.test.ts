@@ -1,14 +1,14 @@
 import request from "supertest";
 import { beforeEach, expect, test } from "vitest";
 
-import { setupIndexingStore } from "@/_test/setup";
-import type { IndexingStore } from "@/indexing-store/store";
-import type { Common } from "@/Ponder";
-import * as p from "@/schema";
-import { range } from "@/utils/range";
+import { setupIndexingStore } from "@/_test/setup.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
+import type { Common } from "@/Ponder.js";
+import * as p from "@/schema/index.js";
+import { range } from "@/utils/range.js";
 
-import { buildGqlSchema } from "./graphql/schema";
-import { ServerService } from "./service";
+import { buildGqlSchema } from "./graphql/schema.js";
+import { ServerService } from "./service.js";
 
 beforeEach((context) => setupIndexingStore(context));
 

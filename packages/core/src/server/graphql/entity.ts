@@ -1,7 +1,7 @@
+import type { GraphQLFieldResolver } from "graphql";
 import {
   type GraphQLFieldConfigMap,
   GraphQLEnumType,
-  GraphQLFieldResolver,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
@@ -9,16 +9,16 @@ import {
   GraphQLString,
 } from "graphql";
 
-import { Schema } from "@/schema/types";
+import type { Schema } from "@/schema/types.js";
 import {
   isEnumColumn,
   isReferenceColumn,
   isVirtualColumn,
   referencedEntityName,
-} from "@/schema/utils";
+} from "@/schema/utils.js";
 
-import type { Context, Source } from "./schema";
-import { tsTypeToGqlScalar } from "./schema";
+import type { Context, Source } from "./schema.js";
+import { tsTypeToGqlScalar } from "./schema.js";
 
 export const buildEntityTypes = ({
   schema,

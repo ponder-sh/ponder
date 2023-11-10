@@ -1,14 +1,14 @@
-import { Source } from "@/config/sources";
-import type { Common } from "@/Ponder";
+import type { Source } from "@/config/sources.js";
+import type { Common } from "@/Ponder.js";
 
-import { type UiState, buildUiState, setupInkApp } from "./app";
+import { type UiState, buildUiState, setupInkApp } from "./app.js";
 
 export class UiService {
   private common: Common;
   private sources: Source[];
 
   ui: UiState;
-  renderInterval: NodeJS.Timer;
+  renderInterval: NodeJS.Timeout;
   render: () => void;
   unmount: () => void;
 

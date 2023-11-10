@@ -2,26 +2,26 @@ import type Sqlite from "better-sqlite3";
 import { randomBytes } from "crypto";
 import { Kysely, sql, SqliteDialect } from "kysely";
 
-import type { Scalar, Schema } from "@/schema/types";
+import type { Scalar, Schema } from "@/schema/types.js";
 import {
   isEnumColumn,
   isReferenceColumn,
   isVirtualColumn,
-} from "@/schema/utils";
-import { decodeToBigInt } from "@/utils/encoding";
+} from "@/schema/utils.js";
+import { decodeToBigInt } from "@/utils/encoding.js";
 
 import type {
   IndexingStore,
   ModelInstance,
   OrderByInput,
   WhereInput,
-} from "../store";
-import { formatModelFieldValue, formatModelInstance } from "../utils/format";
-import { validateSkip, validateTake } from "../utils/pagination";
+} from "../store.js";
+import { formatModelFieldValue, formatModelInstance } from "../utils/format.js";
+import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
   buildSqlWhereConditions,
-} from "../utils/where";
+} from "../utils/where.js";
 
 const MAX_INTEGER = 2_147_483_647 as const;
 const MAX_BATCH_SIZE = 1_000 as const;

@@ -9,12 +9,12 @@ import {
   GraphQLString,
 } from "graphql";
 
-import type { IndexingStore } from "@/indexing-store/store";
-import type { Scalar, Schema } from "@/schema/types";
+import type { IndexingStore } from "@/indexing-store/store.js";
+import type { Scalar, Schema } from "@/schema/types.js";
 
-import { buildEntityTypes } from "./entity";
-import { buildPluralField } from "./plural";
-import { buildSingularField } from "./singular";
+import { buildEntityTypes } from "./entity.js";
+import { buildPluralField } from "./plural.js";
+import { buildSingularField } from "./singular.js";
 
 const GraphQLBigInt = new GraphQLScalarType({
   name: "BigInt",

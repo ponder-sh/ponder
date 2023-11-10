@@ -1,6 +1,6 @@
 import type { Address, Hex, RpcLog } from "viem";
 
-import { Topics } from "@/config/sources";
+import type { Topics } from "@/config/sources.js";
 
 export function filterLogs({
   logs,

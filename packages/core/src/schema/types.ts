@@ -1,6 +1,6 @@
-import { Hex } from "viem";
+import type { Hex } from "viem";
 
-import { Prettify } from "@/types/utils";
+import type { Prettify } from "@/types/utils.js";
 
 export type Scalar =
   | "string"

@@ -4,10 +4,10 @@ import { expect, test } from "vitest";
 import {
   uniswapV3PoolFactoryConfig,
   usdcContractConfig,
-} from "@/_test/constants";
-import { publicClient } from "@/_test/utils";
+} from "@/_test/constants.js";
+import { publicClient } from "@/_test/utils.js";
 
-import { ponderActions } from "./ponderActions";
+import { ponderActions } from "./ponderActions.js";
 
 const client = publicClient.extend(ponderActions(() => 16375000n));
 

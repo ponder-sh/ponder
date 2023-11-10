@@ -1,10 +1,11 @@
 import type { AbiEvent } from "abitype";
-import { getEventSelector, RpcLog } from "viem";
+import type { RpcLog } from "viem";
+import { getEventSelector } from "viem";
 
-import { toLowerCase } from "@/utils/lowercase";
-import { getBytesConsumedByParam } from "@/utils/offset";
+import { toLowerCase } from "@/utils/lowercase.js";
+import { getBytesConsumedByParam } from "@/utils/offset.js";
 
-import { FactoryCriteria } from "./sources";
+import type { FactoryCriteria } from "./sources.js";
 
 export function buildFactoryCriteria({
   address: _address,

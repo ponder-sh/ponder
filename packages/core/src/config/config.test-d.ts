@@ -1,13 +1,14 @@
-import { http, ParseAbi, ParseAbiItem } from "viem";
+import type { ParseAbi, ParseAbiItem } from "viem";
+import { http } from "viem";
 import { assertType, test } from "vitest";
 
-import {
+import type {
   Config,
-  createConfig,
   FilterAbiEvents,
   RecoverAbiEvent,
   SafeEventNames,
-} from "./config";
+} from "./config.js";
+import { createConfig } from "./config.js";
 
 export const abiSimple = [
   {

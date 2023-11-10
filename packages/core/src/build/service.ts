@@ -10,13 +10,14 @@ import type { ViteNodeRunner } from "vite-node/client";
 // @ts-ignore
 import type { ViteNodeServer } from "vite-node/server";
 
-import type { Config } from "@/config/config";
-import type { Common } from "@/Ponder";
-import type { Schema } from "@/schema/types";
-import { buildGqlSchema } from "@/server/graphql/schema";
+import type { Config } from "@/config/config.js";
+import type { Common } from "@/Ponder.js";
+import type { Schema } from "@/schema/types.js";
+import { buildGqlSchema } from "@/server/graphql/schema.js";
 
-import type { RawIndexingFunctions } from "./functions";
-import { parseViteNodeError, ViteNodeError } from "./stacktrace";
+import type { RawIndexingFunctions } from "./functions.js";
+import type { ViteNodeError } from "./stacktrace.js";
+import { parseViteNodeError } from "./stacktrace.js";
 
 type BuildServiceEvents = {
   newConfig: { config: Config };

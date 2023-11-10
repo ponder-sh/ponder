@@ -8,26 +8,26 @@ import {
   numberToHex,
 } from "viem";
 
-import type { Network } from "@/config/networks";
+import type { Network } from "@/config/networks.js";
 import {
   type Source,
   sourceIsFactory,
   sourceIsLogFilter,
-} from "@/config/sources";
-import type { Common } from "@/Ponder";
-import type { SyncStore } from "@/sync-store/store";
-import { poll } from "@/utils/poll";
-import { type Queue, createQueue } from "@/utils/queue";
-import { range } from "@/utils/range";
-import { startClock } from "@/utils/timer";
+} from "@/config/sources.js";
+import type { Common } from "@/Ponder.js";
+import type { SyncStore } from "@/sync-store/store.js";
+import { poll } from "@/utils/poll.js";
+import { type Queue, createQueue } from "@/utils/queue.js";
+import { range } from "@/utils/range.js";
+import { startClock } from "@/utils/timer.js";
 
-import { isMatchedLogInBloomFilter } from "./bloom";
-import { filterLogs } from "./filter";
+import { isMatchedLogInBloomFilter } from "./bloom.js";
+import { filterLogs } from "./filter.js";
 import {
   type BlockWithTransactions,
   type LightBlock,
   rpcBlockToLightBlock,
-} from "./format";
+} from "./format.js";
 
 type RealtimeSyncEvents = {
   realtimeCheckpoint: { blockTimestamp: number; blockNumber: number };

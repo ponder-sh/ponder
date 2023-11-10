@@ -1,19 +1,14 @@
-import { AbiEvent, parseAbiItem } from "abitype";
-import {
-  Abi,
-  Address,
-  encodeEventTopics,
-  getAbiItem,
-  GetEventArgs,
-  getEventSelector,
-  Hex,
-} from "viem";
+import type { AbiEvent } from "abitype";
+import { parseAbiItem } from "abitype";
+import type { Abi, Address, GetEventArgs, Hex } from "viem";
+import { encodeEventTopics, getAbiItem, getEventSelector } from "viem";
 
-import { toLowerCase } from "@/utils/lowercase";
+import { toLowerCase } from "@/utils/lowercase.js";
 
-import { AbiEvents, getEvents } from "./abi";
-import { Config } from "./config";
-import { buildFactoryCriteria } from "./factories";
+import type { AbiEvents } from "./abi.js";
+import { getEvents } from "./abi.js";
+import type { Config } from "./config.js";
+import { buildFactoryCriteria } from "./factories.js";
 
 /**
  * Fix issue with Array.isArray not checking readonly arrays

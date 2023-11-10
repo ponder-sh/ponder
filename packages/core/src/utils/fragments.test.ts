@@ -1,9 +1,9 @@
 import { parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
-import { buildFactoryCriteria } from "@/config/factories";
+import { buildFactoryCriteria } from "@/config/factories.js";
 
-import { buildFactoryFragments, buildLogFilterFragments } from "./fragments";
+import { buildFactoryFragments, buildLogFilterFragments } from "./fragments.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)"

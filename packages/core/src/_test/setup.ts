@@ -2,22 +2,22 @@ import SqliteDatabase from "better-sqlite3";
 import { Pool } from "pg";
 import { type TestContext, beforeEach } from "vitest";
 
-import { patchSqliteDatabase } from "@/config/database";
-import { buildOptions } from "@/config/options";
-import { UserErrorService } from "@/errors/service";
-import { PostgresIndexingStore } from "@/indexing-store/postgres/store";
-import { SqliteIndexingStore } from "@/indexing-store/sqlite/store";
-import type { IndexingStore } from "@/indexing-store/store";
-import { LoggerService } from "@/logs/service";
-import { MetricsService } from "@/metrics/service";
-import type { Common } from "@/Ponder";
-import { PostgresSyncStore } from "@/sync-store/postgres/store";
-import { SqliteSyncStore } from "@/sync-store/sqlite/store";
-import type { SyncStore } from "@/sync-store/store";
-import { TelemetryService } from "@/telemetry/service";
+import { patchSqliteDatabase } from "@/config/database.js";
+import { buildOptions } from "@/config/options.js";
+import { UserErrorService } from "@/errors/service.js";
+import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
+import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
+import { LoggerService } from "@/logs/service.js";
+import { MetricsService } from "@/metrics/service.js";
+import type { Common } from "@/Ponder.js";
+import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
+import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
+import type { SyncStore } from "@/sync-store/store.js";
+import { TelemetryService } from "@/telemetry/service.js";
 
-import { FORK_BLOCK_NUMBER, vitalik } from "./constants";
-import { poolId, testClient } from "./utils";
+import { FORK_BLOCK_NUMBER, vitalik } from "./constants.js";
+import { poolId, testClient } from "./utils.js";
 
 /**
  * Inject an isolated sync store into the test context.

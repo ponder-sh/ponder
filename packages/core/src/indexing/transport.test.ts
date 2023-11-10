@@ -1,11 +1,12 @@
-import { getFunctionSelector, http, toHex, Transport } from "viem";
+import type { Transport } from "viem";
+import { getFunctionSelector, http, toHex } from "viem";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 
-import { usdcContractConfig } from "@/_test/constants";
-import { setupSyncStore } from "@/_test/setup";
-import { anvil } from "@/_test/utils";
+import { usdcContractConfig } from "@/_test/constants.js";
+import { setupSyncStore } from "@/_test/setup.js";
+import { anvil } from "@/_test/utils.js";
 
-import { ponderTransport } from "./transport";
+import { ponderTransport } from "./transport.js";
 
 beforeEach((context) => setupSyncStore(context));
 

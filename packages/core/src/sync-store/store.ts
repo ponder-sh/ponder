@@ -1,10 +1,10 @@
 import type { Kysely, Migrator } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources";
-import type { Block } from "@/types/block";
-import type { Log } from "@/types/log";
-import type { Transaction } from "@/types/transaction";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type { Block } from "@/types/block.js";
+import type { Log } from "@/types/log.js";
+import type { Transaction } from "@/types/transaction.js";
 
 export interface SyncStore {
   kind: "sqlite" | "postgres";

@@ -6,14 +6,14 @@ import {
   blockOneLogs,
   blockOneTransactions,
   contractReadResultOne,
-} from "@/_test/constants";
-import { setupSyncStore } from "@/_test/setup";
+} from "@/_test/constants.js";
+import { setupSyncStore } from "@/_test/setup.js";
 
 import {
   rpcToSqliteBlock,
   rpcToSqliteLog,
   rpcToSqliteTransaction,
-} from "./format";
+} from "./format.js";
 
 beforeEach((context) => setupSyncStore(context, { migrateUp: false }));
 

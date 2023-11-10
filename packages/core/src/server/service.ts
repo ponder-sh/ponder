@@ -4,12 +4,13 @@ import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { formatError, GraphQLError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
-import { createServer, Server } from "node:http";
+import type { Server } from "node:http";
+import { createServer } from "node:http";
 
-import type { IndexingStore } from "@/indexing-store/store";
-import type { Common } from "@/Ponder";
-import { graphiQLHtml } from "@/ui/graphiql.html";
-import { startClock } from "@/utils/timer";
+import type { IndexingStore } from "@/indexing-store/store.js";
+import type { Common } from "@/Ponder.js";
+import { graphiQLHtml } from "@/ui/graphiql.html.js";
+import { startClock } from "@/utils/timer.js";
 
 export class ServerService {
   private common: Common;

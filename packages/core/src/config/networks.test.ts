@@ -6,7 +6,7 @@ import {
   getDefaultMaxBlockRange,
   getRpcUrlsForClient,
   isRpcUrlPublic,
-} from "./networks";
+} from "./networks.js";
 
 test("getRpcUrlsForClient handles default RPC URL", () => {
   const client = createPublicClient({

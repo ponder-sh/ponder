@@ -1,9 +1,9 @@
-import {
+import type {
   EnumColumn,
   NonReferenceColumn,
   ReferenceColumn,
   VirtualColumn,
-} from "./types";
+} from "./types.js";
 
 /**
  * Returns the name of the entity that was referenced by a reference column

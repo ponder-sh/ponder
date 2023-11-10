@@ -1,4 +1,5 @@
-import { type Migration, type MigrationProvider, Kysely, sql } from "kysely";
+import type { Kysely } from "kysely";
+import { type Migration, type MigrationProvider, sql } from "kysely";
 
 const migrations: Record<string, Migration> = {
   ["2023_05_15_0_initial"]: {

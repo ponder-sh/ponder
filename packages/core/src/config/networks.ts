@@ -1,8 +1,9 @@
+import * as chains from "@wagmi/chains";
 import { type Client, type PublicClient, createPublicClient } from "viem";
-import * as chains from "viem/chains";
+import type { Chain } from "viem/chains";
 
-import type { Config } from "@/config/config";
-import type { Common } from "@/Ponder";
+import type { Config } from "@/config/config.js";
+import type { Common } from "@/Ponder.js";
 
 export type Network = {
   name: string;
@@ -23,8 +24,9 @@ export function buildNetwork({
 }) {
   const { name, chainId, transport } = network;
 
-  const defaultChain =
-    Object.values(chains).find(({ id }) => id === chainId) ?? chains.mainnet;
+  const defaultChain: Chain = (Object.values(chains).find((c) =>
+    "id" in c ? c.id === chainId : false
+  ) ?? chains.mainnet) as Chain;
 
   const client = createPublicClient({
     transport,

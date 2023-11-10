@@ -1,6 +1,6 @@
 import Emittery from "emittery";
 
-import { UserError } from "./user";
+import type { UserError } from "./user.js";
 
 type UserErrorEvents = {
   error: { error: UserError };

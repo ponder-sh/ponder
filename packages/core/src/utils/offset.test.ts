@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { getBytesConsumedByParam } from "./offset";
+import { getBytesConsumedByParam } from "./offset.js";
 
 test("getBytesConsumedByParam returns 32 for static primitive types", () => {
   expect(getBytesConsumedByParam({ type: "uint" })).toBe(32);

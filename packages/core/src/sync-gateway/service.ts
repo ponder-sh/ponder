@@ -1,15 +1,16 @@
 import Emittery from "emittery";
 import { type Hex, decodeEventLog } from "viem";
 
-import { LogEventMetadata } from "@/config/abi";
-import type { Network } from "@/config/networks";
-import { Source, sourceIsFactory, sourceIsLogFilter } from "@/config/sources";
-import type { Common } from "@/Ponder";
-import type { SyncStore } from "@/sync-store/store";
-import type { Block } from "@/types/block";
-import type { Log } from "@/types/log";
-import type { Transaction } from "@/types/transaction";
-import { formatShortDate } from "@/utils/date";
+import type { LogEventMetadata } from "@/config/abi.js";
+import type { Network } from "@/config/networks.js";
+import type { Source } from "@/config/sources.js";
+import { sourceIsFactory, sourceIsLogFilter } from "@/config/sources.js";
+import type { Common } from "@/Ponder.js";
+import type { SyncStore } from "@/sync-store/store.js";
+import type { Block } from "@/types/block.js";
+import type { Log } from "@/types/log.js";
+import type { Transaction } from "@/types/transaction.js";
+import { formatShortDate } from "@/utils/date.js";
 
 export type LogEvent = {
   eventSourceName: string;

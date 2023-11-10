@@ -1,10 +1,11 @@
-import { getEventSelector, parseAbiItem, RpcLog } from "viem";
+import type { RpcLog } from "viem";
+import { getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
 import {
   buildFactoryCriteria,
   getAddressFromFactoryEventLog,
-} from "./factories";
+} from "./factories.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)"
