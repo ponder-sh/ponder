@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 
 ponder.on("AdventureGold:Transfer", async ({ event, context }) => {
-  const { Account, TransferEvent } = context.entities;
+  const { Account, TransferEvent } = context.models;
 
   // Create an Account for the sender, or update the balance if it already exists.
   await Account.upsert({
@@ -40,7 +40,7 @@ ponder.on("AdventureGold:Transfer", async ({ event, context }) => {
 });
 
 ponder.on("AdventureGold:Approval", async ({ event, context }) => {
-  const { Approval, ApprovalEvent } = context.entities;
+  const { Approval, ApprovalEvent } = context.models;
 
   const approvalId =
     `${event.params.owner}-${event.params.spender}` as `0x${string}`;
@@ -71,7 +71,7 @@ ponder.on("AdventureGold:Approval", async ({ event, context }) => {
 });
 
 ponder.on("AdventureGold:OwnershipTransferred", async ({ event, context }) => {
-  const { Account } = context.entities;
+  const { Account } = context.models;
 
   await Account.upsert({
     id: event.params.previousOwner,
