@@ -28,7 +28,7 @@ test("getBytesConsumedByParam returns 32 for tuple type containing nested dynami
       ],
       name: "fooOut",
       type: "tuple",
-    })
+    }),
   ).toBe(32);
 });
 
@@ -46,6 +46,6 @@ test("getBytesConsumedByParam returns expanded byte amount for static tuple type
       ],
       name: "fooOut",
       type: "tuple",
-    })
+    }),
   ).toBe(32 * 3);
 });

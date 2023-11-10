@@ -27,7 +27,7 @@ type OperatorMap<
     | bigint
     | number
     | boolean
-    | (string | bigint | number | boolean)[]
+    | (string | bigint | number | boolean)[],
 > = {
   equals?: TField;
   not?: TField;

@@ -2,10 +2,10 @@ import Emittery from "emittery";
 import pLimit from "p-limit";
 import {
   type Hex,
-  type RpcLog,
   hexToBigInt,
   hexToNumber,
   numberToHex,
+  type RpcLog,
 } from "viem";
 
 import type { Network } from "@/config/networks.js";
@@ -17,7 +17,7 @@ import {
 import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { poll } from "@/utils/poll.js";
-import { type Queue, createQueue } from "@/utils/queue.js";
+import { createQueue, type Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
 import { startClock } from "@/utils/timer.js";
 
@@ -87,14 +87,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     this.common.metrics.ponder_realtime_is_connected.set(
       { network: this.network.name },
-      1
+      1,
     );
 
     // Set the finalized block number according to the network's finality threshold.
     // If the finality block count is greater than the latest block number, set to zero.
     const finalizedBlockNumber = Math.max(
       0,
-      latestBlockNumber - this.network.finalityBlockCount
+      latestBlockNumber - this.network.finalityBlockCount,
     );
     this.finalizedBlockNumber = finalizedBlockNumber;
 
@@ -114,7 +114,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (
       endBlocks.every(
         (endBlock) =>
-          endBlock !== undefined && endBlock < this.finalizedBlockNumber
+          endBlock !== undefined && endBlock < this.finalizedBlockNumber,
       )
     ) {
       this.common.logger.warn({
@@ -123,7 +123,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       });
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },
-        0
+        0,
       );
       return;
     }
@@ -131,7 +131,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     // If the latest block was not added to the queue, setup was not completed successfully.
     if (this.queue.size === 0) {
       throw new Error(
-        `Unable to start. Must call setup() method before start().`
+        `Unable to start. Must call setup() method before start().`,
       );
     }
 
@@ -144,13 +144,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (!finalizedBlock) throw new Error(`Unable to fetch finalized block`);
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
       { method: "eth_getBlockByNumber", network: this.network.name },
-      stopClock()
+      stopClock(),
     );
 
     this.common.logger.info({
       service: "realtime",
       msg: `Fetched finalized block at ${hexToNumber(
-        finalizedBlock.number!
+        finalizedBlock.number!,
       )} (network=${this.network.name})`,
     });
 
@@ -167,7 +167,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       async () => {
         await this.addNewLatestBlock();
       },
-      { emitOnBegin: false, interval: this.network.pollingInterval }
+      { emitOnBegin: false, interval: this.network.pollingInterval },
     );
   };
 
@@ -195,7 +195,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (!latestBlock_) throw new Error(`Unable to fetch latest block`);
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
       { method: "eth_getBlockByNumber", network: this.network.name },
-      stopClock()
+      stopClock(),
     );
     return latestBlock_ as BlockWithTransactions;
   };
@@ -295,7 +295,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           });
           this.common.metrics.ponder_realtime_rpc_request_duration.observe(
             { method: "eth_getLogs", network: this.network.name },
-            stopClock()
+            stopClock(),
           );
 
           matchedLogs = filterLogs({
@@ -313,7 +313,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         });
         this.common.metrics.ponder_realtime_rpc_request_duration.observe(
           { method: "eth_getLogs", network: this.network.name },
-          stopClock()
+          stopClock(),
         );
 
         // Find and insert any new child contracts.
@@ -333,7 +333,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
               chainId: this.network.chainId,
               logs: matchedFactoryLogs,
             });
-          })
+          }),
         );
 
         // Find any logs matching log filters or child contract filters.
@@ -355,7 +355,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
               address: childContractAddresses,
               topics: factory.criteria.topics,
             };
-          })
+          }),
         );
 
         matchedLogs = filterLogs({
@@ -382,11 +382,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       if (matchedLogCount > 0) {
         // Filter transactions down to those that are required by the matched logs.
         const requiredTransactionHashes = new Set(
-          matchedLogs.map((l) => l.transactionHash)
+          matchedLogs.map((l) => l.transactionHash),
         );
         const filteredTransactions =
           newBlockWithTransactions.transactions.filter((t) =>
-            requiredTransactionHashes.has(t.hash)
+            requiredTransactionHashes.has(t.hash),
           );
 
         // TODO: Maybe rename or at least document behavior
@@ -413,11 +413,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       this.common.metrics.ponder_realtime_latest_block_number.set(
         { network: this.network.name },
-        newBlock.number
+        newBlock.number,
       );
       this.common.metrics.ponder_realtime_latest_block_timestamp.set(
         { network: this.network.name },
-        newBlock.timestamp
+        newBlock.timestamp,
       );
 
       // If this block moves the finality checkpoint, remove now-finalized blocks from the local chain
@@ -429,12 +429,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         const newFinalizedBlock = this.blocks.find(
           (block) =>
             block.number ===
-            this.finalizedBlockNumber + this.network.finalityBlockCount
+            this.finalizedBlockNumber + this.network.finalityBlockCount,
         )!;
 
         // Remove now-finalized blocks from the local chain (except for the block at newFinalizedBlockNumber).
         this.blocks = this.blocks.filter(
-          (block) => block.number >= newFinalizedBlock.number
+          (block) => block.number >= newFinalizedBlock.number,
         );
 
         // TODO: Update this to insert:
@@ -482,7 +482,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (newBlock.number > previousHeadBlock.number + 1) {
       const missingBlockNumbers = range(
         previousHeadBlock.number + 1,
-        newBlock.number
+        newBlock.number,
       );
 
       // Fetch all missing blocks using a request concurrency limit of 10.
@@ -503,7 +503,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
               method: "eth_getBlockByNumber",
               network: this.network.name,
             },
-            stopClock()
+            stopClock(),
           );
           return block as BlockWithTransactions;
         });
@@ -550,7 +550,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     while (canonicalBlock.number > this.finalizedBlockNumber) {
       const commonAncestorBlock = this.blocks.find(
-        (b) => b.hash === canonicalBlock.parentHash
+        (b) => b.hash === canonicalBlock.parentHash,
       );
 
       // If the common ancestor block is present in our local chain, this is a short reorg.
@@ -562,7 +562,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         // Remove all non-canonical blocks from the local chain.
         this.blocks = this.blocks.filter(
-          (block) => block.number <= commonAncestorBlock.number
+          (block) => block.number <= commonAncestorBlock.number,
         );
 
         await this.syncStore.deleteRealtimeData({
@@ -606,16 +606,16 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           method: "eth_getBlockByHash",
           network: this.network.name,
         },
-        stopClock()
+        stopClock(),
       );
 
       if (!parentBlock_)
         throw new Error(
-          `Failed to fetch parent block with hash: ${canonicalBlock.parentHash}`
+          `Failed to fetch parent block with hash: ${canonicalBlock.parentHash}`,
         );
 
       canonicalBlocksWithTransactions.unshift(
-        parentBlock_ as BlockWithTransactions
+        parentBlock_ as BlockWithTransactions,
       );
       depth += 1;
       canonicalBlock = rpcBlockToLightBlock(parentBlock_);

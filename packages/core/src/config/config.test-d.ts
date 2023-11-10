@@ -88,7 +88,7 @@ type OneAbi = ParseAbi<
   [
     "event Event0(bytes32 indexed arg3)",
     "event Event1(bytes32 indexed)",
-    "constructor()"
+    "constructor()",
   ]
 >;
 type TwoAbi = ParseAbi<["event Event(bytes32 indexed)", "event Event()"]>;
@@ -100,7 +100,7 @@ test("filter events", () => {
   assertType<t>(
     [] as unknown as ParseAbi<
       ["event Event0(bytes32 indexed arg3)", "event Event1(bytes32 indexed)"]
-    >
+    >,
   );
 });
 

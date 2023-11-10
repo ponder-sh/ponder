@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { codeFrameColumns } from "@babel/code-frame";
 import {
   type DecodedSourceMap,
@@ -7,9 +10,7 @@ import {
 } from "@jridgewell/trace-mapping";
 import type { MimeBuffer } from "data-uri-to-buffer";
 import dataUriToBuffer from "data-uri-to-buffer";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { type StackFrame, parse as parseStackTrace } from "stacktrace-parser";
+import { parse as parseStackTrace, type StackFrame } from "stacktrace-parser";
 
 import type { Options } from "@/config/options.js";
 
@@ -29,7 +30,7 @@ export const getStackTrace = (error: Error, options: Options) => {
       const sourceMappedStackFrame = getSourceMappedStackFrame(
         frame.file,
         frame.lineNumber,
-        frame.column
+        frame.column,
       );
 
       // If this frame cannot be mapped to the user code build directory, skip it.
@@ -58,7 +59,7 @@ export const getStackTrace = (error: Error, options: Options) => {
           },
           {
             highlightCode: true,
-          }
+          },
         );
       }
 
@@ -98,7 +99,7 @@ export const getStackTrace = (error: Error, options: Options) => {
 function getSourceMappedStackFrame(
   file: string,
   lineNumber: number,
-  columnNumber: number | null
+  columnNumber: number | null,
 ) {
   let fileContents: string;
   try {
@@ -113,7 +114,7 @@ function getSourceMappedStackFrame(
   const result = getSourcePositionAndContent(
     sourceMap,
     lineNumber,
-    columnNumber
+    columnNumber,
   );
 
   const sourceFileRelative = result?.sourcePosition?.source;
@@ -180,7 +181,7 @@ function getRawSourceMap(fileContents: string): DecodedSourceMap | null {
 function getSourcePositionAndContent(
   rawSourceMap: DecodedSourceMap,
   lineNumber: number,
-  columnNumber: number | null
+  columnNumber: number | null,
 ) {
   const tracer = new TraceMap(rawSourceMap);
 

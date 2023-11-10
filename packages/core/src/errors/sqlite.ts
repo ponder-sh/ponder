@@ -19,7 +19,7 @@ export class SqliteError extends BaseError {
         acc[idx + 1] = parameter;
         return acc;
       },
-      {}
+      {},
     );
 
     const metaMessages = [];

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import { TemplateKind } from "@/common";
@@ -30,7 +31,7 @@ describe("create-ponder", () => {
           {
             installCommand:
               'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
-          }
+          },
         );
       });
 
@@ -51,7 +52,7 @@ describe("create-ponder", () => {
       test("downloads abi", async () => {
         const abiString = fs.readFileSync(
           path.join(rootDir, `abis/FileStore.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         const abi = JSON.parse(abiString);
 
@@ -85,7 +86,7 @@ describe("create-ponder", () => {
           {
             installCommand:
               'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
-          }
+          },
         );
       });
 
@@ -106,7 +107,7 @@ describe("create-ponder", () => {
       test("downloads abi", async () => {
         const abiString = fs.readFileSync(
           path.join(rootDir, `abis/Collector.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         const abi = JSON.parse(abiString);
 
@@ -140,7 +141,7 @@ describe("create-ponder", () => {
           {
             installCommand:
               'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
-          }
+          },
         );
       });
 
@@ -161,13 +162,13 @@ describe("create-ponder", () => {
       test("downloads abis", async () => {
         const proxyAbiString = fs.readFileSync(
           path.join(rootDir, `abis/Zora1155.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         expect(JSON.parse(proxyAbiString).length).toBeGreaterThan(0);
 
         const implementationAbiString = fs.readFileSync(
           path.join(rootDir, `abis/ZoraCreator1155Impl_0xd056.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         expect(JSON.parse(implementationAbiString).length).toBeGreaterThan(0);
       });
@@ -199,20 +200,20 @@ describe("create-ponder", () => {
           {
             installCommand:
               'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
-          }
+          },
         );
       });
 
       test("downloads abis", async () => {
         const proxyAbiString = fs.readFileSync(
           path.join(rootDir, `abis/FiatTokenProxy.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         expect(JSON.parse(proxyAbiString).length).toBeGreaterThan(0);
 
         const implementationAbiString = fs.readFileSync(
           path.join(rootDir, `abis/FiatTokenV2_0xb727.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         expect(JSON.parse(implementationAbiString).length).toBeGreaterThan(0);
       });
@@ -234,7 +235,7 @@ describe("create-ponder", () => {
           {
             installCommand:
               'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
-          }
+          },
         );
       });
 
@@ -255,13 +256,13 @@ describe("create-ponder", () => {
       test("downloads abis", async () => {
         const proxyAbiString = fs.readFileSync(
           path.join(rootDir, `abis/ZoraNFTCreatorProxy.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         expect(JSON.parse(proxyAbiString).length).toBeGreaterThan(0);
 
         const implementationAbiString = fs.readFileSync(
           path.join(rootDir, `abis/ZoraNFTCreatorV1_0xe776.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         expect(JSON.parse(implementationAbiString).length).toBeGreaterThan(0);
       });
@@ -293,7 +294,7 @@ describe("create-ponder", () => {
           {
             installCommand:
               'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
-          }
+          },
         );
       });
 
@@ -314,7 +315,7 @@ describe("create-ponder", () => {
       test("downloads abis", async () => {
         const abiString = fs.readFileSync(
           path.join(rootDir, `abis/BasePaint.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         expect(JSON.parse(abiString).length).toBeGreaterThan(0);
       });
@@ -348,7 +349,7 @@ describe("create-ponder", () => {
           {
             installCommand:
               'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
-          }
+          },
         );
       });
 
@@ -370,7 +371,7 @@ describe("create-ponder", () => {
       test("downloads abi", async () => {
         const abiString = fs.readFileSync(
           path.join(rootDir, `abis/LToken.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         const abi = JSON.parse(abiString);
 
@@ -385,7 +386,7 @@ describe("create-ponder", () => {
       test("creates src files", async () => {
         const src = fs.readdirSync(path.join(rootDir, "src"));
         expect(src.sort()).toEqual(
-          ["LETH.ts", "LFRAX.ts", "LUSDC.ts", "LUSDT.ts"].sort()
+          ["LETH.ts", "LFRAX.ts", "LUSDC.ts", "LUSDT.ts"].sort(),
         );
       });
     });
@@ -406,7 +407,7 @@ describe("create-ponder", () => {
           {
             installCommand:
               'export npm_config_LOCKFILE=false ; pnpm --silent --filter "." install',
-          }
+          },
         );
       });
 
@@ -428,7 +429,7 @@ describe("create-ponder", () => {
       test("downloads abi", async () => {
         const abiString = fs.readFileSync(
           path.join(rootDir, `abis/FiatTokenV1.json`),
-          { encoding: "utf8" }
+          { encoding: "utf8" },
         );
         const abi = JSON.parse(abiString);
 

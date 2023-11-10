@@ -30,7 +30,7 @@ const network: Network = {
 
 const rpcRequestSpy = vi.spyOn(
   network.client as { request: EIP1193RequestFn },
-  "request"
+  "request",
 );
 
 const blockNumbers = {
@@ -138,7 +138,7 @@ test("start() with factory contract inserts child contract addresses", async (co
       "0x8d92afe4ab7f4d0379d37a6da3643763964cb6df",
       "0x01b2848a0d9ffced595b0df3df10fb32430fa200",
       "0xd5f83865bf8edb1f02e688dc2ee02d39e28692b3",
-    ])
+    ]),
   );
 
   await service.kill();
@@ -248,7 +248,7 @@ test("start() with log filter and factory contract updates rpc request duration 
           method: "eth_getBlockByNumber",
         }),
       }),
-    ])
+    ]),
   );
 
   await service.kill();
@@ -408,9 +408,9 @@ test("start() handles Alchemy 'Log response size exceeded' error", async (contex
     new InvalidParamsRpcError(
       new Error(
         // The suggested block range is 16369995 to 16369996.
-        "Log response size exceeded. this block range should work: [0xf9c94b, 0xf9c94c]"
-      )
-    )
+        "Log response size exceeded. this block range should work: [0xf9c94b, 0xf9c94c]",
+      ),
+    ),
   );
 
   const service = new HistoricalSyncService({
@@ -440,7 +440,7 @@ test("start() handles Quicknode 'eth_getLogs and eth_newFilter are limited to a 
       url: "http://",
       details:
         "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range",
-    })
+    }),
   );
 
   const service = new HistoricalSyncService({

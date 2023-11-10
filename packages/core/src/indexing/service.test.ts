@@ -132,7 +132,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     expect.objectContaining({
       fromTimestamp: 0,
       toTimestamp: 10,
-    })
+    }),
   );
 
   syncGatewayService.checkpoint = 50;
@@ -142,7 +142,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     expect.objectContaining({
       fromTimestamp: 11,
       toTimestamp: 50,
-    })
+    }),
   );
 
   service.kill();
@@ -179,7 +179,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
       context: expect.objectContaining({
         models: { TransferEvent: expect.anything() },
       }),
-    })
+    }),
   );
 
   service.kill();
@@ -397,7 +397,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     expect.objectContaining({
       fromTimestamp: 0,
       toTimestamp: 10,
-    })
+    }),
   );
 
   // This simulates a scenario where there was a reorg back to 6
@@ -410,7 +410,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     expect.objectContaining({
       fromTimestamp: 7,
       toTimestamp: 9,
-    })
+    }),
   );
 
   service.kill();

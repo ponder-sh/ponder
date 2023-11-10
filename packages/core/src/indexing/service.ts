@@ -17,7 +17,7 @@ import type { Model } from "@/types/model.js";
 import { chains } from "@/utils/chains.js";
 import { formatShortDate } from "@/utils/date.js";
 import { prettyPrint } from "@/utils/print.js";
-import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
+import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
 import { wait } from "@/utils/wait.js";
 
 import { buildModels } from "./model.js";
@@ -99,7 +99,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       sources,
       networks,
       syncStore,
-      ponderActions(() => this.currentEventBlockNumber)
+      ponderActions(() => this.currentEventBlockNumber),
     );
   }
 
@@ -224,7 +224,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           this.eventsProcessedToTimestamp = commonAncestorTimestamp;
           this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-            commonAncestorTimestamp
+            commonAncestorTimestamp,
           );
 
           // Note: There's currently no way to know how many events are "thrown out"
@@ -304,7 +304,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             metadata.counts.forEach(({ eventSourceName, selector, count }) => {
               const safeName = Object.values(
                 this.sources.find((s) => s.name === eventSourceName)?.events ||
-                  {}
+                  {},
               )
                 .filter((m): m is LogEventMetadata => !!m)
                 .find((m) => m.selector === selector)?.safeName;
@@ -317,12 +317,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
               this.common.metrics.ponder_indexing_matched_events.inc(
                 { eventName: `${eventSourceName}:${safeName}` },
-                count
+                count,
               );
               if (isHandled) {
                 this.common.metrics.ponder_indexing_handled_events.inc(
                   { eventName: `${eventSourceName}:${safeName}` },
-                  count
+                  count,
                 );
               }
             });
@@ -364,7 +364,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         // Note that this happens both here and in the log event indexing function.
         // They must also happen here to handle the case where no events were processed.
         this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-          toTimestamp
+          toTimestamp,
         );
       });
     } catch (error) {
@@ -449,7 +449,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               .bySafeName[event.eventName];
           if (!indexingMetadata)
             throw new Error(
-              `Internal: Indexing function not found for event source ${event.eventSourceName}`
+              `Internal: Indexing function not found for event source ${event.eventSourceName}`,
             );
 
           // This enables contract calls occurring within the
@@ -519,7 +519,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             eventName: `${event.eventSourceName}:${event.eventName}`,
           });
           this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-            this.currentEventTimestamp
+            this.currentEventTimestamp,
           );
 
           break;
@@ -544,7 +544,7 @@ const buildContexts = (
   sources: Source[],
   networks: Config["networks"],
   syncStore: SyncStore,
-  actions: ReturnType<typeof ponderActions>
+  actions: ReturnType<typeof ponderActions>,
 ) => {
   const contexts: Record<
     number,

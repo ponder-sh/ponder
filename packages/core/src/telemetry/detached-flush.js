@@ -9,7 +9,7 @@ async function detachedFlush() {
   const events = JSON.parse(eventsContent);
 
   console.log(
-    `Sending ${events.length} telemetry events to ${telemetryUrl} from temporary file ${eventsFilePath}`
+    `Sending ${events.length} telemetry events to ${telemetryUrl} from temporary file ${eventsFilePath}`,
   );
 
   try {
@@ -22,7 +22,7 @@ async function detachedFlush() {
             "Content-Type": "application/json",
           },
         });
-      })
+      }),
     );
   } catch (e) {
     console.error(e);

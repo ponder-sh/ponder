@@ -60,7 +60,7 @@ test("filterLogs handles one logFilter, one address", () => {
 
   expect(filteredLogs).toHaveLength(1);
   expect(filteredLogs[0].address).toEqual(
-    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da"
+    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
   );
 });
 
@@ -79,10 +79,10 @@ test("filterLogs handles one logFilter, two addresses", () => {
 
   expect(filteredLogs).toHaveLength(2);
   expect(filteredLogs[0].address).toEqual(
-    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da"
+    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
   );
   expect(filteredLogs[1].address).toEqual(
-    "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da"
+    "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
   );
 });
 
@@ -106,10 +106,10 @@ test("filterLogs handles two logFilters, one address each", () => {
 
   expect(filteredLogs).toHaveLength(2);
   expect(filteredLogs[0].address).toEqual(
-    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da"
+    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
   );
   expect(filteredLogs[1].address).toEqual(
-    "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da"
+    "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
   );
 });
 

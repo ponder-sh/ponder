@@ -1,10 +1,10 @@
 import type { Generated, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import {
+  hexToNumber,
   type RpcBlock,
   type RpcLog,
   type RpcTransaction,
-  hexToNumber,
 } from "viem";
 
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -36,7 +36,7 @@ type BlocksTable = {
 export type InsertableBlock = Insertable<BlocksTable>;
 
 export function rpcToPostgresBlock(
-  block: RpcBlock
+  block: RpcBlock,
 ): Omit<InsertableBlock, "chainId"> {
   return {
     baseFeePerGas: block.baseFeePerGas ? BigInt(block.baseFeePerGas) : null,
@@ -88,7 +88,7 @@ type TransactionsTable = {
 export type InsertableTransaction = Insertable<TransactionsTable>;
 
 export function rpcToPostgresTransaction(
-  transaction: RpcTransaction
+  transaction: RpcTransaction,
 ): Omit<InsertableTransaction, "chainId"> {
   return {
     accessList: transaction.accessList

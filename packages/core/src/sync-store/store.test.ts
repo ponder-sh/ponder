@@ -730,7 +730,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
     await syncStore.getLogFilterIntervals({
       chainId: 1,
       logFilter: logFilterCriteria,
-    })
+    }),
   ).toMatchObject([[500, 550]]);
 
   // Confirm log filters have been inserted for factory child address logs.
@@ -741,7 +741,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
         address: factoryCriteriaOne.address,
         topics: [factoryCriteriaOne.eventSelector],
       },
-    })
+    }),
   ).toMatchObject([[500, 550]]);
   expect(
     await syncStore.getLogFilterIntervals({
@@ -750,7 +750,7 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
         address: factoryCriteriaOne.address,
         topics: [factoryCriteriaOne.eventSelector],
       },
-    })
+    }),
   ).toMatchObject([[500, 550]]);
 
   // Also confirm factory log filters have been inserted.
@@ -758,13 +758,13 @@ test("insertRealtimeInterval inserts log filter intervals", async (context) => {
     await syncStore.getFactoryLogFilterIntervals({
       chainId: 1,
       factory: factoryCriteriaOne,
-    })
+    }),
   ).toMatchObject([[500, 550]]);
   expect(
     await syncStore.getFactoryLogFilterIntervals({
       chainId: 1,
       factory: factoryCriteriaTwo,
-    })
+    }),
   ).toMatchObject([[500, 550]]);
 });
 
@@ -866,14 +866,14 @@ test("deleteRealtimeData updates interval data", async (context) => {
     await syncStore.getLogFilterIntervals({
       chainId: 1,
       logFilter: logFilterCriteria,
-    })
+    }),
   ).toMatchObject([[15495110, 15495111]]);
 
   expect(
     await syncStore.getFactoryLogFilterIntervals({
       chainId: 1,
       factory: factoryCriteria,
-    })
+    }),
   ).toMatchObject([[15495110, 15495111]]);
 
   await syncStore.deleteRealtimeData({
@@ -885,14 +885,14 @@ test("deleteRealtimeData updates interval data", async (context) => {
     await syncStore.getLogFilterIntervals({
       chainId: 1,
       logFilter: logFilterCriteria,
-    })
+    }),
   ).toMatchObject([[15495110, 15495110]]);
 
   expect(
     await syncStore.getFactoryLogFilterIntervals({
       chainId: 1,
       factory: factoryCriteria,
-    })
+    }),
   ).toMatchObject([[15495110, 15495110]]);
 });
 

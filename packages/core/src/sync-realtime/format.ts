@@ -1,8 +1,8 @@
 import {
   type Hash,
+  hexToNumber,
   type RpcBlock,
   type RpcTransaction,
-  hexToNumber,
 } from "viem";
 
 import type { Prettify } from "@/types/utils.js";

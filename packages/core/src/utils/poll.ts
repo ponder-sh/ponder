@@ -15,7 +15,7 @@ type PollOptions = {
  */
 export function poll(
   fn: ({ unpoll }: { unpoll: () => void }) => Promise<unknown> | unknown,
-  { emitOnBegin, interval }: PollOptions
+  { emitOnBegin, interval }: PollOptions,
 ) {
   let active = true;
 

@@ -71,7 +71,7 @@ export function buildSqlWhereConditions({
   const conditions: [
     fieldName: string,
     operator: ComparisonOperatorExpression,
-    parameter: any
+    parameter: any,
   ][] = [];
 
   for (const [fieldName, rhs] of Object.entries(where)) {

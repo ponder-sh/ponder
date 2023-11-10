@@ -1,11 +1,12 @@
+import type { Server } from "node:http";
+import { createServer } from "node:http";
+
 import cors from "cors";
 import express from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { formatError, GraphQLError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
-import type { Server } from "node:http";
-import { createServer } from "node:http";
 
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
@@ -56,18 +57,18 @@ export class ServerService {
         const requestSize = Number(req.get("Content-Length") ?? 0);
         this.common.metrics.ponder_server_request_size.observe(
           { method, path, status },
-          Number(requestSize)
+          Number(requestSize),
         );
 
         const responseSize = Number(res.get("Content-Length") ?? 0);
         this.common.metrics.ponder_server_response_size.observe(
           { method, path, status },
-          Number(responseSize)
+          Number(responseSize),
         );
 
         this.common.metrics.ponder_server_response_duration.observe(
           { method, path, status },
-          responseDuration
+          responseDuration,
         );
       });
       next();

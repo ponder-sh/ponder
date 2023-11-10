@@ -1,5 +1,6 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
+
 import prettier from "prettier";
 import type {
   SerializableConfig,
@@ -43,11 +44,11 @@ export const fromSubgraphId = async ({
   const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
   writeFileSync(
     ponderSchemaFilePath,
-    prettier.format(schemaCleaned, { parser: "graphql" })
+    prettier.format(schemaCleaned, { parser: "graphql" }),
   );
 
   const dataSources = (manifest.dataSources as unknown[]).map(
-    validateGraphProtocolSource
+    validateGraphProtocolSource,
   );
 
   // Fetch and write all referenced ABIs.
@@ -55,14 +56,15 @@ export const fromSubgraphId = async ({
     .map((source) => source.mapping.abis)
     .flat()
     .filter(
-      (source, idx, arr) => arr.findIndex((s) => s.name === source.name) === idx
+      (source, idx, arr) =>
+        arr.findIndex((s) => s.name === source.name) === idx,
     );
   await Promise.all(
     abiFiles.map(async (abi) => {
       const abiContent = await fetchIpfsFile(abi.file["/"].slice(6));
       const abiPath = path.join(rootDir, `./abis/${abi.name}.json`);
       writeFileSync(abiPath, prettier.format(abiContent, { parser: "json" }));
-    })
+    }),
   );
 
   // Build the ponder sources.

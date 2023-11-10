@@ -78,7 +78,7 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
       return contract.network
         .map((networkContract) => {
           const network = config.networks.find(
-            (n) => n.name === networkContract.name
+            (n) => n.name === networkContract.name,
           )!;
 
           const resolvedFilter = networkContract.filter ?? contract.filter;
@@ -142,7 +142,7 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
 
 const buildTopics = (
   abi: Abi,
-  filter: NonNullable<NonNullable<Config["contracts"]>[number]["filter"]>
+  filter: NonNullable<NonNullable<Config["contracts"]>[number]["filter"]>,
 ): Topics => {
   if (Array.isArray(filter.event)) {
     // List of event signatures

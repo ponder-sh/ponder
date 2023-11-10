@@ -12,7 +12,7 @@ export function validateHistoricalBlockRange({
   if (startBlock > latestBlockNumber) {
     throw new Error(
       `Start block number (${startBlock}) cannot be greater than latest block number (${latestBlockNumber}).
-         Are you sure the RPC endpoint is for the correct network?`
+         Are you sure the RPC endpoint is for the correct network?`,
     );
   }
 
@@ -30,21 +30,21 @@ export function validateHistoricalBlockRange({
     if (userDefinedEndBlock < startBlock) {
       throw new Error(
         `End block number (${userDefinedEndBlock}) cannot be less than start block number (${startBlock}).
-           Are you sure the RPC endpoint is for the correct network?`
+           Are you sure the RPC endpoint is for the correct network?`,
       );
     }
 
     if (userDefinedEndBlock > latestBlockNumber) {
       throw new Error(
         `End block number (${userDefinedEndBlock}) cannot be greater than latest block number (${latestBlockNumber}).
-           Are you sure the RPC endpoint is for the correct network?`
+           Are you sure the RPC endpoint is for the correct network?`,
       );
     }
 
     if (userDefinedEndBlock > finalizedBlockNumber) {
       throw new Error(
         `End block number (${userDefinedEndBlock}) cannot be greater than finalized block number (${finalizedBlockNumber}).
-           Are you sure the RPC endpoint is for the correct network?`
+           Are you sure the RPC endpoint is for the correct network?`,
       );
     }
   }

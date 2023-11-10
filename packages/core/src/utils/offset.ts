@@ -78,7 +78,7 @@ function hasDynamicChild(param: AbiParameter) {
 }
 
 function getArrayComponents(
-  type: string
+  type: string,
 ): [length: number | null, innerType: string] | undefined {
   const matches = type.match(/^(.*)\[(\d+)?\]$/);
   return matches

@@ -3,7 +3,7 @@ import type { GetEventArgs, Transport } from "viem";
 
 export type FilterAbiEvents<T extends Abi> = T extends readonly [
   infer First,
-  ...infer Rest extends Abi
+  ...infer Rest extends Abi,
 ]
   ? First extends AbiEvent
     ? readonly [First, ...FilterAbiEvents<Rest>]
@@ -15,7 +15,7 @@ export type FilterAbiEvents<T extends Abi> = T extends readonly [
  */
 type FilterElement<
   TElement,
-  TArr extends readonly unknown[]
+  TArr extends readonly unknown[],
 > = TArr extends readonly [infer First, ...infer Rest]
   ? TElement extends First
     ? FilterElement<TElement, Rest>
@@ -27,10 +27,10 @@ type FilterElement<
  */
 export type SafeEventNames<
   TAbi extends readonly AbiEvent[],
-  TArr extends readonly AbiEvent[] = TAbi
+  TArr extends readonly AbiEvent[] = TAbi,
 > = TAbi extends readonly [
   infer First extends AbiEvent,
-  ...infer Rest extends readonly AbiEvent[]
+  ...infer Rest extends readonly AbiEvent[],
 ]
   ? First["name"] extends FilterElement<First, TArr>[number]["name"]
     ? // Overriding occurs, use full name
@@ -47,14 +47,14 @@ export type SafeEventNames<
 export type RecoverAbiEvent<
   TAbi extends readonly AbiEvent[],
   TSafeName extends string,
-  TSafeNames extends readonly string[] = SafeEventNames<TAbi>
+  TSafeNames extends readonly string[] = SafeEventNames<TAbi>,
 > = TAbi extends readonly [
   infer FirstAbi,
-  ...infer RestAbi extends readonly AbiEvent[]
+  ...infer RestAbi extends readonly AbiEvent[],
 ]
   ? TSafeNames extends readonly [
       infer FirstName,
-      ...infer RestName extends readonly string[]
+      ...infer RestName extends readonly string[],
     ]
     ? FirstName extends TSafeName
       ? FirstAbi
@@ -66,7 +66,7 @@ export type RecoverAbiEvent<
 export type ContractRequired<
   TNetworkNames extends string,
   TAbi extends readonly AbiEvent[],
-  TEventName extends string
+  TEventName extends string,
 > = {
   /** Contract name. Must be unique across `contracts` and `filters`. */
   name: string;
@@ -85,7 +85,7 @@ export type ContractRequired<
 /** Fields for a contract used to filter down which events indexed. */
 export type ContractFilter<
   TAbi extends readonly AbiEvent[],
-  TEventName extends string
+  TEventName extends string,
 > = (
   | {
       address?: `0x${string}` | readonly `0x${string}`[];
@@ -145,7 +145,7 @@ export type ContractFilter<
 export type Contract<
   TNetworkNames extends string,
   TAbi extends readonly AbiEvent[],
-  TEventName extends string
+  TEventName extends string,
 > = ContractRequired<TNetworkNames, TAbi, TEventName> &
   ContractFilter<TAbi, TEventName>;
 
@@ -212,10 +212,10 @@ export type Config = {
 
 type InferContracts<
   TContracts extends InternalContracts,
-  TNetworks extends readonly Network[]
+  TNetworks extends readonly Network[],
 > = TContracts extends readonly [
   infer First extends Contract<string, readonly AbiEvent[], string>,
-  ...infer Rest extends InternalContracts
+  ...infer Rest extends InternalContracts,
 ]
   ? readonly [
       Contract<
@@ -227,7 +227,7 @@ type InferContracts<
           ? _event
           : string
       >,
-      ...InferContracts<Rest, TNetworks>
+      ...InferContracts<Rest, TNetworks>,
     ]
   : [];
 
@@ -243,9 +243,9 @@ export const createConfig = <
       TConfig["networks"]
     >;
     options?: Option;
-  }
+  },
 >(
-  config: TConfig
+  config: TConfig,
 ): TConfig => {
   // convert to an easier type to use
   const contracts = config.contracts as readonly Contract<
@@ -258,7 +258,7 @@ export const createConfig = <
     contract.network.forEach((contractOverride) => {
       // Make sure network matches an element in config.networks
       const network = config.networks.find(
-        (n) => n.name === contractOverride.name
+        (n) => n.name === contractOverride.name,
       );
       if (!network)
         throw Error('Contract network does not match a network in "networks"');

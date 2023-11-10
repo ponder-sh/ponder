@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import { writeFileSync } from "node:fs";
 import path from "node:path";
+
 import prettier from "prettier";
 import type { SerializableConfig } from "src/index";
 
@@ -33,7 +34,7 @@ export const fromEtherscan = async ({
     const txHash = await getContractCreationTxn(
       contractAddress,
       apiUrl,
-      apiKey
+      apiKey,
     );
 
     if (!apiKey) {
@@ -43,7 +44,7 @@ export const fromEtherscan = async ({
     const contractCreationBlockNumber = await getTxBlockNumber(
       txHash,
       apiUrl,
-      apiKey
+      apiKey,
     );
 
     blockNumber = contractCreationBlockNumber;
@@ -59,7 +60,7 @@ export const fromEtherscan = async ({
   const { abi, contractName } = await getContractAbiAndName(
     contractAddress,
     apiUrl,
-    apiKey
+    apiKey,
   );
   abis.push({ abi, contractName });
 
@@ -69,11 +70,11 @@ export const fromEtherscan = async ({
       (item) =>
         item.type === "event" &&
         item.name === "Upgraded" &&
-        item.inputs[0].name === "implementation"
+        item.inputs[0].name === "implementation",
     )
   ) {
     console.log(
-      "Detected EIP-1967 proxy, fetching implementation contract ABIs"
+      "Detected EIP-1967 proxy, fetching implementation contract ABIs",
     );
     if (!apiKey) {
       console.log("(3/n) Waiting 5 seconds for Etherscan API rate limit");
@@ -92,14 +93,14 @@ export const fromEtherscan = async ({
         console.log(
           `(${4 + index}/${
             4 + implAddresses.length - 1
-          }) Waiting 5 seconds for Etherscan API rate limit`
+          }) Waiting 5 seconds for Etherscan API rate limit`,
         );
         await wait(5000);
       }
       const { abi, contractName } = await getContractAbiAndName(
         implAddress,
         apiUrl,
-        apiKey
+        apiKey,
       );
 
       abis.push({
@@ -172,7 +173,7 @@ const fetchEtherscan = async (url: string) => {
 const getContractCreationTxn = async (
   contractAddress: string,
   apiUrl: string,
-  apiKey?: string
+  apiKey?: string,
 ) => {
   const searchParams = new URLSearchParams({
     module: "contract",
@@ -188,7 +189,7 @@ const getContractCreationTxn = async (
 const getTxBlockNumber = async (
   txHash: string,
   apiUrl: string,
-  apiKey?: string
+  apiKey?: string,
 ) => {
   const searchParams = new URLSearchParams({
     module: "proxy",
@@ -205,7 +206,7 @@ const getTxBlockNumber = async (
 const getContractAbiAndName = async (
   contractAddress: string,
   apiUrl: string,
-  apiKey?: string
+  apiKey?: string,
 ) => {
   const searchParams = new URLSearchParams({
     module: "contract",

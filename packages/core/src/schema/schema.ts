@@ -44,9 +44,9 @@ export const createTable = <
     | ({
         id: { [" column"]: IDColumn };
       } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
-    | unknown
+    | unknown,
 >(
-  columns: TColumns
+  columns: TColumns,
 ): {
   [key in keyof TColumns]: TColumns[key] extends InternalColumn
     ? TColumns[key][" column"]
@@ -57,14 +57,14 @@ export const createTable = <
   Object.entries(
     columns as {
       id: { [" column"]: IDColumn };
-    } & Record<string, InternalEnum | InternalColumn | VirtualColumn>
+    } & Record<string, InternalEnum | InternalColumn | VirtualColumn>,
   ).reduce(
     (
       acc: Record<
         string,
         NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
       >,
-      cur
+      cur,
     ) => ({
       ...acc,
       [cur[0]]:
@@ -74,7 +74,7 @@ export const createTable = <
           ? cur[1][" enum"]
           : cur[1],
     }),
-    {}
+    {},
   ) as {
     [key in keyof TColumns]: TColumns[key] extends InternalColumn
       ? TColumns[key][" column"]
@@ -102,9 +102,9 @@ export const createSchema = <
             | VirtualColumn<ExtractAllNames<tableName & string, TSchema>>;
         })
       | Enum<readonly string[]>;
-  }
+  },
 >(
-  _schema: TSchema
+  _schema: TSchema,
 ): {
   tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
   enums: {
@@ -183,7 +183,7 @@ export const createSchema = <
           if (
             (
               Object.entries(schema).find(
-                ([tableName]) => tableName === column.referenceTable
+                ([tableName]) => tableName === column.referenceTable,
               )![1] as Record<string, unknown>
             )[column.referenceColumn as string] === undefined
           )
@@ -198,13 +198,13 @@ export const createSchema = <
 
           if (
             Object.keys(schema).every(
-              (_name) => `${_name}.id` !== column.references
+              (_name) => `${_name}.id` !== column.references,
             )
           )
             throw Error("Column doesn't reference a valid table");
 
           const referencingTables = Object.entries(schema).filter(
-            ([name]) => name === referencedEntityName(column.references)
+            ([name]) => name === referencedEntityName(column.references),
           );
 
           for (const [, referencingTable] of referencingTables) {
@@ -214,7 +214,7 @@ export const createSchema = <
                 column.type
             )
               throw Error(
-                "Column type doesn't match the referenced table id type"
+                "Column type doesn't match the referenced table id type",
               );
           }
 
@@ -242,7 +242,7 @@ export const createSchema = <
         enums: Record<string, Enum>;
         tables: Record<string, Table>;
       },
-      [name, tableOrEnum]
+      [name, tableOrEnum],
     ) =>
       Array.isArray(tableOrEnum)
         ? { ...acc, enums: { ...acc.enums, [name]: tableOrEnum } }
@@ -250,7 +250,7 @@ export const createSchema = <
             ...acc,
             tables: { ...acc.tables, [name]: tableOrEnum },
           },
-    { tables: {}, enums: {} }
+    { tables: {}, enums: {} },
   ) as {
     tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
     enums: {

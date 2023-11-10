@@ -26,7 +26,7 @@ const asyncTrack = (payload: TrackParams) => {
 
 export default async function forwardTelemetry(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({

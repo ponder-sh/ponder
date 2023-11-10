@@ -1,5 +1,6 @@
-import Sqlite from "better-sqlite3";
 import path from "node:path";
+
+import Sqlite from "better-sqlite3";
 import pg from "pg";
 
 import type { Config } from "@/config/config.js";

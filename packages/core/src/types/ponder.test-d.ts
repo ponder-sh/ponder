@@ -32,7 +32,7 @@ test("ExtractAllAddress", () => {
       {
         name: "optimism";
         factory: { address: "0x2"; event: AbiEvent; parameter: string };
-      }
+      },
     ]
   >[never];
   //   ^?
@@ -78,7 +78,7 @@ test("PonderApp multiple contracts", () => {
       networks: any;
       contracts: readonly [
         { name: "One"; network: any; abi: OneAbi },
-        { name: "Two"; network: any; abi: TwoAbi }
+        { name: "Two"; network: any; abi: TwoAbi },
       ];
     },
     any
@@ -127,7 +127,7 @@ test("PonderApp context network type", () => {
           name: "One";
           network: [{ name: "mainnet" }, { name: "optimism" }];
           abi: OneAbi;
-        }
+        },
       ];
     },
     any
@@ -150,7 +150,7 @@ test("PonderApp context client type", () => {
           name: "One";
           network: [{ name: "mainnet" }, { name: "optimism" }];
           abi: OneAbi;
-        }
+        },
       ];
     },
     any
@@ -176,7 +176,7 @@ test("PonderApp context contracts type", () => {
           address: "0x2";
           startBlock: 1;
           endBlock: 2;
-        }
+        },
       ];
     },
     any

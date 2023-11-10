@@ -11,7 +11,7 @@ export const startClock = () => {
 
 export const fetchWithTimeout = async (
   input: RequestInfo | URL,
-  options: RequestInit & { timeout?: number } = {}
+  options: RequestInit & { timeout?: number } = {},
 ) => {
   const { timeout = 2_000 } = options;
 

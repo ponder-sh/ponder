@@ -48,7 +48,7 @@ const buildSingularField = ({
         type: new GraphQLNonNull(
           tsTypeToGqlScalar[
             (table as { id: BaseColumn<ID, never, false, false> }).id.type
-          ]
+          ],
         ),
       },
       timestamp: { type: GraphQLInt },

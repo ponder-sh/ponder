@@ -1,8 +1,9 @@
+import { writeFileSync } from "node:fs";
+import path from "node:path";
+
 import Emittery from "emittery";
 import type { GraphQLSchema } from "graphql";
 import { printSchema } from "graphql";
-import { writeFileSync } from "node:fs";
-import path from "node:path";
 
 import type { Common } from "@/Ponder.js";
 import { ensureDirExists } from "@/utils/exists.js";
@@ -57,7 +58,7 @@ export class CodegenService extends Emittery {
 
     const filePath = path.join(
       this.common.options.generatedDir,
-      "schema.graphql"
+      "schema.graphql",
     );
     ensureDirExists(filePath);
     writeFileSync(filePath, final, "utf8");

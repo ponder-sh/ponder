@@ -103,7 +103,7 @@ export const hydrateIndexingFunctions = ({
           eventData.safeName
         ] = { ...eventData, fn: fn };
       });
-    }
+    },
   );
 
   return indexingFunctions;

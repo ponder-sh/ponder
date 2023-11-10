@@ -38,7 +38,7 @@ export default async function () {
 
         for (const table of tables) {
           await pool.query(
-            `DROP TABLE IF EXISTS "${schema}"."${table}" CASCADE`
+            `DROP TABLE IF EXISTS "${schema}"."${table}" CASCADE`,
           );
         }
         await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);

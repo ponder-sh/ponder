@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { cac } from "cac";
 import path from "node:path";
+
+import { cac } from "cac";
 import prompts from "prompts";
 
 import type { CreatePonderOptions, Template } from "@/common";
@@ -41,7 +42,7 @@ const createPonder = async () => {
   // Validate CLI options.
   if (fromSubgraphId && fromEtherscan) {
     throw new Error(
-      `Cannot specify more than one "--from" option:\n  --from-subgraph\n  --from-etherscan-id\n`
+      `Cannot specify more than one "--from" option:\n  --from-subgraph\n  --from-etherscan-id\n`,
     );
   }
 

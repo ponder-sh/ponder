@@ -4,7 +4,7 @@ import process from "node:process";
 import { BuildService } from "@/build/service.js";
 import { CodegenService } from "@/codegen/service.js";
 import { buildDatabase } from "@/config/database.js";
-import { type Network, buildNetwork } from "@/config/networks.js";
+import { buildNetwork, type Network } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
 import { UserErrorService } from "@/errors/service.js";
 import { IndexingService } from "@/indexing/service.js";
@@ -87,7 +87,7 @@ export class Ponder {
       service: "app",
       msg: `Started using config file: ${path.relative(
         this.common.options.rootDir,
-        this.common.options.configFile
+        this.common.options.configFile,
       )}`,
     });
 
@@ -122,7 +122,7 @@ export class Ponder {
       .map((network) => buildNetwork({ network, common: this.common }))
       .filter((network) => {
         const hasEventSources = this.sources.some(
-          (eventSource) => eventSource.network === network.name
+          (eventSource) => eventSource.network === network.name,
         );
         if (!hasEventSources) {
           this.common.logger.warn({
@@ -136,7 +136,7 @@ export class Ponder {
     this.syncServices = [];
     networksToSync.forEach((network) => {
       const sourcesForNetwork = this.sources.filter(
-        (logSource) => logSource.network === network.name
+        (logSource) => logSource.network === network.name,
       );
       this.syncServices.push({
         network,
@@ -215,7 +215,7 @@ export class Ponder {
 
         historical.start();
         await realtime.start();
-      })
+      }),
     );
   }
 
@@ -236,7 +236,7 @@ export class Ponder {
 
         historical.start();
         await realtime.start();
-      })
+      }),
     );
   }
 
@@ -266,7 +266,7 @@ export class Ponder {
       this.syncServices.map(async ({ realtime, historical }) => {
         await realtime.kill();
         await historical.kill();
-      })
+      }),
     );
 
     await this.buildService.kill();
@@ -317,7 +317,7 @@ export class Ponder {
         await this.indexingService.reset({ indexingFunctions: hydrated });
 
         await this.indexingService.processEvents();
-      }
+      },
     );
 
     this.syncServices.forEach(({ network, historical, realtime }) => {
