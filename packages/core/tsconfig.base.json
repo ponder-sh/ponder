@@ -21,7 +21,7 @@
     "checkJs": false,
     "jsx": "react",
 
-    // Interop constraints. These will remain loose until we start emitting ESM.
+    // Interop constraints
     "verbatimModuleSyntax": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,

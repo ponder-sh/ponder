@@ -4,7 +4,6 @@
   "include": ["src"],
   "exclude": ["src/_test", "src/**/*.test.ts"],
   "compilerOptions": {
-    "module": "NodeNext",
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,
