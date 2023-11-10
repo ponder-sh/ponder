@@ -394,8 +394,11 @@ importers:
       stacktrace-parser:
         specifier: ^0.1.10
         version: 0.1.10
+      typescript:
+        specifier: ^5
+        version: 5.2.2
       viem:
-        specifier: ^1.18.9
+        specifier: ^1
         version: 1.18.9(typescript@5.2.2)
       vite:
         specifier: ^4.5.0
@@ -449,9 +452,6 @@ importers:
       tsc-alias:
         specifier: ^1.8.8
         version: 1.8.8
-      typescript:
-        specifier: ^5.2.2
-        version: 5.2.2
       vitest:
         specifier: ^0.34.6
         version: 0.34.6
