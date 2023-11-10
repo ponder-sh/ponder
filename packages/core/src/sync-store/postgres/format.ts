@@ -7,7 +7,7 @@ import {
   hexToNumber,
 } from "viem";
 
-import { toLowerCase } from "@/utils/lowercase";
+import { toLowerCase } from "@/utils/lowercase.js";
 
 type BlocksTable = {
   baseFeePerGas: bigint | null;

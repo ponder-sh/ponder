@@ -1,15 +1,15 @@
+import type { GraphQLObjectType } from "graphql";
 import {
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
   GraphQLInt,
   GraphQLNonNull,
-  GraphQLObjectType,
 } from "graphql";
 
-import type { BaseColumn, ID, Schema } from "@/schema/types";
+import type { BaseColumn, ID, Schema } from "@/schema/types.js";
 
-import type { Context, Source } from "./schema";
-import { tsTypeToGqlScalar } from "./schema";
+import type { Context, Source } from "./schema.js";
+import { tsTypeToGqlScalar } from "./schema.js";
 
 type SingularArgs = {
   id?: string;

@@ -1,20 +1,20 @@
-import { AbiEvent } from "abitype";
-import { Abi, GetEventArgs } from "viem";
+import type { AbiEvent } from "abitype";
+import type { Abi, GetEventArgs } from "viem";
 
-import {
+import type {
   Config,
   ContractFilter,
   ContractRequired,
   FilterAbiEvents,
   RecoverAbiEvent,
   SafeEventNames,
-} from "@/config/config";
-import { ReadOnlyClient } from "@/indexing/ponderActions";
-import { Infer, Schema } from "@/schema/types";
-import { Block } from "@/types/block";
-import { Log } from "@/types/log";
-import { Model } from "@/types/model";
-import { Transaction } from "@/types/transaction";
+} from "@/config/config.js";
+import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
+import type { Infer, Schema } from "@/schema/types.js";
+import type { Block } from "@/types/block.js";
+import type { Log } from "@/types/log.js";
+import type { Model } from "@/types/model.js";
+import type { Transaction } from "@/types/transaction.js";
 
 /** "{ContractName}:{EventName}". */
 export type Name<TContract extends Config["contracts"][number]> =

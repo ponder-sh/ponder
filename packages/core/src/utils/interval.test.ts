@@ -8,7 +8,7 @@ import {
   intervalSum,
   intervalUnion,
   ProgressTracker,
-} from "./interval";
+} from "./interval.js";
 
 test("intervalSum handles empty input", () => {
   const result = intervalSum([]);

@@ -1,12 +1,12 @@
 import Sqlite from "better-sqlite3";
 import path from "node:path";
-import pg, { Client, DatabaseError, Pool } from "pg";
+import pg from "pg";
 
-import type { Config } from "@/config/config";
-import { PostgresError } from "@/errors/postgres";
-import { SqliteError } from "@/errors/sqlite";
-import type { Common } from "@/Ponder";
-import { ensureDirExists } from "@/utils/exists";
+import type { Config } from "@/config/config.js";
+import { PostgresError } from "@/errors/postgres.js";
+import { SqliteError } from "@/errors/sqlite.js";
+import type { Common } from "@/Ponder.js";
+import { ensureDirExists } from "@/utils/exists.js";
 
 export interface SqliteDb {
   kind: "sqlite";
@@ -15,7 +15,7 @@ export interface SqliteDb {
 
 export interface PostgresDb {
   kind: "postgres";
-  pool: Pool;
+  pool: pg.Pool;
 }
 
 export type Database = SqliteDb | PostgresDb;
@@ -26,10 +26,10 @@ pg.types.setTypeParser(1700, BigInt);
 
 // Monkeypatch Pool.query to get more informative stack traces. I have no idea why this works.
 // https://stackoverflow.com/a/70601114
-const originalClientQuery = Client.prototype.query;
+const originalClientQuery = pg.Client.prototype.query;
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-Client.prototype.query = async function query(
+pg.Client.prototype.query = async function query(
   ...args: [queryText: string, values: any[], callback: () => void]
 ) {
   try {
@@ -37,7 +37,7 @@ Client.prototype.query = async function query(
   } catch (error) {
     const [statement, parameters] = args;
 
-    if (error instanceof DatabaseError) {
+    if (error instanceof pg.DatabaseError) {
       const parameters_ = parameters ?? [];
       throw new PostgresError({
         statement,
@@ -132,7 +132,7 @@ export const buildDatabase = ({
 
     return { kind: "sqlite", db };
   } else {
-    const pool = new Pool({
+    const pool = new pg.Pool({
       connectionString: resolvedDatabaseConfig.connectionString,
     });
 

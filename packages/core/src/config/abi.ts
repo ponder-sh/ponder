@@ -1,7 +1,7 @@
 import { type Abi, type AbiEvent, formatAbiItem } from "abitype";
 import { type Hex, getEventSelector } from "viem";
 
-import { getDuplicateElements } from "@/utils/duplicates";
+import { getDuplicateElements } from "@/utils/duplicates.js";
 
 export type LogEventMetadata = {
   // Event name (if no overloads) or full event signature (if name is overloaded).

@@ -5,7 +5,8 @@ import path from "node:path";
 import pico from "picocolors";
 import prettier from "prettier";
 
-import { CreatePonderOptions, TemplateKind } from "@/common";
+import type { CreatePonderOptions } from "@/common";
+import { TemplateKind } from "@/common";
 import { getPackageManager } from "@/helpers/getPackageManager";
 import { tryGitInit } from "@/helpers/git";
 import { fromBasic } from "@/templates/basic";

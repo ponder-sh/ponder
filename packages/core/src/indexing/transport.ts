@@ -1,7 +1,8 @@
-import { Address, custom, Hex, Transport } from "viem";
+import type { Address, Hex, Transport } from "viem";
+import { custom } from "viem";
 
-import { SyncStore } from "@/sync-store/store";
-import { toLowerCase } from "@/utils/lowercase";
+import type { SyncStore } from "@/sync-store/store.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 
 export const ponderTransport = ({
   transport,

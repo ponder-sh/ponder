@@ -1,6 +1,6 @@
 import type { Address, Hex } from "viem";
 
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 
 /**
  * Generates log filter fragments from a log filter.

@@ -1,28 +1,29 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
-import { Abi, Address, Client, createClient } from "viem";
-import * as chains from "viem/chains";
+import type { Abi, Address, Client } from "viem";
+import { createClient } from "viem";
 
-import type { IndexingFunctions } from "@/build/functions";
-import { LogEventMetadata } from "@/config/abi";
-import { Config } from "@/config/config";
-import type { Source } from "@/config/sources";
-import { UserError } from "@/errors/user";
-import type { IndexingStore, ModelInstance } from "@/indexing-store/store";
-import type { Common } from "@/Ponder";
-import type { Schema } from "@/schema/types";
-import type { LogEvent, SyncGateway } from "@/sync-gateway/service";
-import { SyncStore } from "@/sync-store/store";
-import type { Model } from "@/types/model";
-import { formatShortDate } from "@/utils/date";
-import { prettyPrint } from "@/utils/print";
-import { type Queue, type Worker, createQueue } from "@/utils/queue";
-import { wait } from "@/utils/wait";
+import type { IndexingFunctions } from "@/build/functions.js";
+import type { LogEventMetadata } from "@/config/abi.js";
+import type { Config } from "@/config/config.js";
+import type { Source } from "@/config/sources.js";
+import { UserError } from "@/errors/user.js";
+import type { IndexingStore, ModelInstance } from "@/indexing-store/store.js";
+import type { Common } from "@/Ponder.js";
+import type { Schema } from "@/schema/types.js";
+import type { LogEvent, SyncGateway } from "@/sync-gateway/service.js";
+import type { SyncStore } from "@/sync-store/store.js";
+import type { Model } from "@/types/model.js";
+import { chains } from "@/utils/chains.js";
+import { formatShortDate } from "@/utils/date.js";
+import { prettyPrint } from "@/utils/print.js";
+import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
+import { wait } from "@/utils/wait.js";
 
-import { buildModels } from "./model";
-import { ponderActions } from "./ponderActions";
-import { getStackTrace } from "./trace";
-import { ponderTransport } from "./transport";
+import { buildModels } from "./model.js";
+import { ponderActions } from "./ponderActions.js";
+import { getStackTrace } from "./trace.js";
+import { ponderTransport } from "./transport.js";
 
 type IndexingEvents = {
   eventsProcessed: { toTimestamp: number };
@@ -565,7 +566,7 @@ const buildContexts = (
 
   networks.forEach((network) => {
     const defaultChain =
-      Object.values(chains).find(({ id }) => id === network.chainId) ??
+      Object.values(chains).find((c) => c.id === network.chainId) ??
       chains.mainnet;
 
     const client = createClient({

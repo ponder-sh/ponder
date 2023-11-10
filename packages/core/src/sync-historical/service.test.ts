@@ -8,13 +8,13 @@ import { beforeEach, expect, test, vi } from "vitest";
 import {
   uniswapV3PoolFactoryConfig,
   usdcContractConfig,
-} from "@/_test/constants";
-import { setupSyncStore } from "@/_test/setup";
-import { publicClient } from "@/_test/utils";
-import type { Network } from "@/config/networks";
-import type { Source } from "@/config/sources";
+} from "@/_test/constants.js";
+import { setupSyncStore } from "@/_test/setup.js";
+import { publicClient } from "@/_test/utils.js";
+import type { Network } from "@/config/networks.js";
+import type { Source } from "@/config/sources.js";
 
-import { HistoricalSyncService } from "./service";
+import { HistoricalSyncService } from "./service.js";
 
 beforeEach((context) => setupSyncStore(context));
 

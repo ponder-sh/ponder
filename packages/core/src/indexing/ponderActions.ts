@@ -1,4 +1,4 @@
-import {
+import type {
   Abi,
   Chain,
   Client,
@@ -24,7 +24,7 @@ import {
   readContract as viemReadContract,
 } from "viem/actions";
 
-import { Prettify } from "@/types/utils";
+import type { Prettify } from "@/types/utils.js";
 
 export type PonderActions = {
   getBalance: (

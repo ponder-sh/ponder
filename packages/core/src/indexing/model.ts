@@ -1,7 +1,7 @@
-import type { IndexingStore, ModelInstance } from "@/indexing-store/store";
-import type { Common } from "@/Ponder";
-import type { Schema } from "@/schema/types";
-import type { Model } from "@/types/model";
+import type { IndexingStore, ModelInstance } from "@/indexing-store/store.js";
+import type { Common } from "@/Ponder.js";
+import type { Schema } from "@/schema/types.js";
+import type { Model } from "@/types/model.js";
 
 export function buildModels({
   common,

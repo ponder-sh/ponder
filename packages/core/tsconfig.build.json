@@ -4,7 +4,6 @@
   "include": ["src"],
   "exclude": ["src/_test", "src/**/*.test.ts"],
   "compilerOptions": {
-    "module": "commonjs",
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,

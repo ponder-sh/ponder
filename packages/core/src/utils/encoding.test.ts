@@ -5,7 +5,7 @@ import {
   encodeAsText,
   EVM_MAX_UINT,
   EVM_MIN_INT,
-} from "./encoding";
+} from "./encoding.js";
 
 test("encodeAsText handles small positive integer", () => {
   const value = 101n;

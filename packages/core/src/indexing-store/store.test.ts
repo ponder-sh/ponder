@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 
-import { setupIndexingStore } from "@/_test/setup";
-import * as p from "@/schema";
+import { setupIndexingStore } from "@/_test/setup.js";
+import * as p from "@/schema/index.js";
 
 beforeEach((context) => setupIndexingStore(context));
 

@@ -10,26 +10,26 @@ import {
 import type { Pool } from "pg";
 import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources";
-import type { Block } from "@/types/block";
-import type { Log } from "@/types/log";
-import type { Transaction } from "@/types/transaction";
-import type { NonNull } from "@/types/utils";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import type { Block } from "@/types/block.js";
+import type { Log } from "@/types/log.js";
+import type { Transaction } from "@/types/transaction.js";
+import type { NonNull } from "@/types/utils.js";
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
-} from "@/utils/fragments";
-import { intervalIntersectionMany, intervalUnion } from "@/utils/interval";
-import { range } from "@/utils/range";
+} from "@/utils/fragments.js";
+import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
+import { range } from "@/utils/range.js";
 
-import type { SyncStore } from "../store";
+import type { SyncStore } from "../store.js";
 import {
   type SyncStoreTables,
   rpcToPostgresBlock,
   rpcToPostgresLog,
   rpcToPostgresTransaction,
-} from "./format";
-import { migrationProvider } from "./migrations";
+} from "./format.js";
+import { migrationProvider } from "./migrations.js";
 
 export class PostgresSyncStore implements SyncStore {
   kind = "postgres" as const;

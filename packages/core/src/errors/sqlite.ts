@@ -1,6 +1,6 @@
-import { prettyPrint } from "@/utils/print";
+import { prettyPrint } from "@/utils/print.js";
 
-import { BaseError } from "./base";
+import { BaseError } from "./base.js";
 
 export class SqliteError extends BaseError {
   override name = "SqliteError";

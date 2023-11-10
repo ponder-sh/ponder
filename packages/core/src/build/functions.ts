@@ -1,10 +1,10 @@
 import type { Hex } from "viem";
 
-import type { LogEventMetadata } from "@/config/abi";
-import { Source } from "@/config/sources";
-import type { Block } from "@/types/block";
-import type { Log } from "@/types/log";
-import type { Transaction } from "@/types/transaction";
+import type { LogEventMetadata } from "@/config/abi.js";
+import type { Source } from "@/config/sources.js";
+import type { Block } from "@/types/block.js";
+import type { Log } from "@/types/log.js";
+import type { Transaction } from "@/types/transaction.js";
 
 export interface LogEvent {
   name: string;

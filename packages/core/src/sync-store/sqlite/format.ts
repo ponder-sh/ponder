@@ -7,8 +7,8 @@ import {
   hexToNumber,
 } from "viem";
 
-import { encodeAsText } from "@/utils/encoding";
-import { toLowerCase } from "@/utils/lowercase";
+import { encodeAsText } from "@/utils/encoding.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 
 export type BigIntText = string;
 

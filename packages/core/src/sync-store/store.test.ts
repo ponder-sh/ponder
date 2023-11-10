@@ -10,9 +10,9 @@ import {
   blockTwoLogs,
   blockTwoTransactions,
   usdcContractConfig,
-} from "@/_test/constants";
-import { setupSyncStore } from "@/_test/setup";
-import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources";
+} from "@/_test/constants.js";
+import { setupSyncStore } from "@/_test/setup.js";
+import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 
 beforeEach((context) => setupSyncStore(context));
 

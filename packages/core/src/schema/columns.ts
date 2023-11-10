@@ -1,10 +1,10 @@
-import {
+import type {
   BaseColumn,
   InternalColumn,
   InternalEnum,
   Scalar,
   VirtualColumn,
-} from "./types";
+} from "./types.js";
 
 type Optional<
   TScalar extends Scalar,

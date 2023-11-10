@@ -5,7 +5,7 @@ import {
   hexToNumber,
 } from "viem";
 
-import type { Prettify } from "@/types/utils";
+import type { Prettify } from "@/types/utils.js";
 
 export type LightBlock = {
   hash: Hash;

@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { validateSkip, validateTake } from "./pagination";
+import { validateSkip, validateTake } from "./pagination.js";
 
 test("validateSkip should throw if more than 5000 records", async () => {
   expect(() => validateSkip(5001)).toThrowError(

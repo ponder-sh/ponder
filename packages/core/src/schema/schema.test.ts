@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import * as p from "./index";
+import * as p from "./index.js";
 
 test("table", () => {
   const t = p.createTable({

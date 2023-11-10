@@ -2,7 +2,7 @@ import { startProxy } from "@viem/anvil";
 import dotenv from "dotenv";
 import { Pool } from "pg";
 
-import { FORK_BLOCK_NUMBER } from "./constants";
+import { FORK_BLOCK_NUMBER } from "./constants.js";
 
 export default async function () {
   dotenv.config({ path: ".env.local" });

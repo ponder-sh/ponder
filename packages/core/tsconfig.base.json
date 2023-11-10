@@ -21,15 +21,15 @@
     "checkJs": false,
     "jsx": "react",
 
-    // Interop constraints. These will remain loose until we start emitting ESM.
-    "verbatimModuleSyntax": false,
+    // Interop constraints
+    "verbatimModuleSyntax": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
 
     // Language and environment
     "moduleResolution": "NodeNext",
-    "module": "ESNext",
+    "module": "NodeNext",
     "target": "ESNext",
     "lib": [
       "ES2022", // By using ES2022 we get access to the `.cause` property on `Error` instances.

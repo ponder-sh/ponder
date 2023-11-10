@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "path";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { TelemetryService } from "@/telemetry/service";
+import { TelemetryService } from "@/telemetry/service.js";
 
 const fetchSpy = vi.fn();
 

@@ -5,8 +5,8 @@ import {
   parseAbiItem,
 } from "viem";
 
-import { getEvents } from "@/config/abi";
-import { buildFactoryCriteria } from "@/config/factories";
+import { getEvents } from "@/config/abi.js";
+import { buildFactoryCriteria } from "@/config/factories.js";
 
 export const FORK_BLOCK_NUMBER = 16380000n;
 

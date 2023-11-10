@@ -1,4 +1,4 @@
-const fs = require("fs");
+import fs from "node:fs";
 
 async function detachedFlush() {
   const args = [...process.argv];

@@ -1,4 +1,4 @@
-import {
+import type {
   Enum,
   EnumColumn,
   ExtractAllNames,
@@ -14,13 +14,13 @@ import {
   Schema,
   Table,
   VirtualColumn,
-} from "./types";
+} from "./types.js";
 import {
   isEnumColumn,
   isReferenceColumn,
   isVirtualColumn,
   referencedEntityName,
-} from "./utils";
+} from "./utils.js";
 
 /**
  * Fix issue with Array.isArray not checking readonly arrays
