@@ -96,5 +96,5 @@ test("schema", () => {
   type t = p.Infer<typeof s>;
   //   ^?
 
-  assertType<t>({} as { t: { id: string; e: ["ONE", "TWO"] } });
+  assertType<t>({} as { t: { id: string; e: "ONE" | "TWO" } });
 });
