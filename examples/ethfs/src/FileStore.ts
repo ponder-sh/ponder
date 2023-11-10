@@ -1,6 +1,9 @@
-import { fromHex, Hex } from "viem";
+import type { Hex } from "viem";
+import { fromHex } from "viem";
 
 import { ponder } from "@/generated";
+
+import { FileStoreFrontendAbi } from "../abis/FileStoreFrontend.abi";
 
 const parseJson = (encodedJson: string, defaultValue: any = null) => {
   try {
@@ -15,15 +18,17 @@ ponder.on("FileStore:FileCreated", async ({ event, context }) => {
 
   const metadata = parseJson(fromHex(rawMetadata as Hex, "string"));
 
-  await context.entities.File.create({
+  await context.models.File.create({
     id: filename,
     data: {
       name: filename,
       size: Number(size),
-      contents: await context.contracts.FileStoreFrontend.read.readFile([
-        event.transaction.to as `0x{string}`,
-        filename,
-      ]),
+      contents: await context.client.readContract({
+        abi: FileStoreFrontendAbi,
+        functionName: "readFile",
+        address: "0xBc66C61BCF49Cc3fe4E321aeCEa307F61EC57C0b",
+        args: [event.transaction.to!, filename],
+      }),
       createdAt: Number(event.block.timestamp),
       type: metadata?.type,
       compression: metadata?.compression,
@@ -33,5 +38,5 @@ ponder.on("FileStore:FileCreated", async ({ event, context }) => {
 });
 
 ponder.on("FileStore:FileDeleted", async ({ event, context }) => {
-  await context.entities.File.delete({ id: event.params.filename });
+  await context.models.File.delete({ id: event.params.filename });
 });

@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 
 ponder.on("SmolBrain:Transfer", async ({ event, context }) => {
-  const { Account, Token, TransferEvent } = context.entities;
+  const { Account, Token, TransferEvent } = context.models;
 
   // Create an Account for the sender, or update the balance if it already exists.
   await Account.upsert({
@@ -17,10 +17,10 @@ ponder.on("SmolBrain:Transfer", async ({ event, context }) => {
   await Token.upsert({
     id: event.params.tokenId,
     create: {
-      owner: event.params.to,
+      ownerId: event.params.to,
     },
     update: {
-      owner: event.params.to,
+      ownerId: event.params.to,
     },
   });
 
@@ -28,9 +28,9 @@ ponder.on("SmolBrain:Transfer", async ({ event, context }) => {
   await TransferEvent.create({
     id: event.log.id,
     data: {
-      from: event.params.from,
-      to: event.params.to,
-      token: event.params.tokenId,
+      fromId: event.params.from,
+      toId: event.params.to,
+      tokenId: event.params.tokenId,
       timestamp: Number(event.block.timestamp),
     },
   });

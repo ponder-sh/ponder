@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 
 ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
-  const { Share, Subject, TradeEvent, Trader } = context.entities;
+  const { Share, Subject, TradeEvent, Trader } = context.models;
 
   // Skip phantom events
   if (event.params.shareAmount === 0n) {

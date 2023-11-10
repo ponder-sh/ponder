@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 
 ponder.on("RocketTokenRETH:Transfer", async ({ event, context }) => {
-  await context.entities.Transfer.create({
+  await context.models.Transfer.create({
     id: `${event.transaction.hash}-${event.log.logIndex}`,
     data: {
       sender: event.params.from,
@@ -16,7 +16,7 @@ ponder.on("RocketTokenRETH:Transfer", async ({ event, context }) => {
 });
 
 ponder.on("RocketTokenRETH:Approval", async ({ event, context }) => {
-  await context.entities.Approval.create({
+  await context.models.Approval.create({
     id: `${event.transaction.hash}-${event.log.logIndex}`,
     data: {
       owner: event.params.owner,
