@@ -272,16 +272,6 @@ export const createConfig = <
         ("address" in contract && contract.address);
       if (resolvedFactory && resolvedAddress)
         throw Error("Factory and address cannot both be defined");
-
-      return {
-        name: contractOverride.name,
-        factory: resolvedFactory,
-        address: resolvedAddress,
-        startBlock: contractOverride.startBlock ?? contract.startBlock,
-        endBlock: contractOverride.endBlock ?? contract.endBlock,
-        maxBlockRange: contractOverride.maxBlockRange ?? contract.maxBlockRange,
-        filter: contractOverride.filter ?? contract.filter,
-      };
     });
   });
 
