@@ -5,7 +5,9 @@ import url from "node:url";
 
 import Conf from "conf";
 import { randomBytes } from "crypto";
-import { createRequire } from "module";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { detect, getNpmVersion } from "detect-package-manager";
 import os from "os";
 import PQueue from "p-queue";
 import path from "path";
@@ -15,11 +17,7 @@ import process from "process";
 import type { Options } from "@/config/options.js";
 import { getGitRemoteUrl } from "@/telemetry/remote.js";
 
-const require = createRequire(import.meta.url);
-
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
-
-const { detect, getNpmVersion } = require("detect-package-manager");
 
 type TelemetryEvent = {
   event: string;

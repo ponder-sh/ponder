@@ -1,8 +1,6 @@
-import { createRequire } from "module";
-
-const require = createRequire(import.meta.url);
-
-const { detect } = require("detect-package-manager");
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { detect } from "detect-package-manager";
 
 export function getPackageManager() {
   const userAgent = process.env.npm_config_user_agent;
