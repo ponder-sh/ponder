@@ -4,10 +4,10 @@ import { formatAbiItem } from "viem/utils";
 
 export type MergeAbi<
   TBase extends Abi,
-  TInsert extends Abi
+  TInsert extends Abi,
 > = TInsert extends readonly [
   infer First extends AbiItem,
-  ...infer Rest extends Abi
+  ...infer Rest extends Abi,
 ]
   ? Extract<TBase[number], First> extends never
     ? MergeAbi<readonly [...TBase, First], Rest>
@@ -16,10 +16,10 @@ export type MergeAbi<
 
 type MergeAbis<
   TMerged extends Abi,
-  TImpls extends readonly Abi[]
+  TImpls extends readonly Abi[],
 > = TImpls extends readonly [
   infer First extends Abi,
-  ...infer Rest extends readonly Abi[]
+  ...infer Rest extends readonly Abi[],
 ]
   ? MergeAbis<MergeAbi<TMerged, First>, Rest>
   : TMerged;
@@ -32,7 +32,7 @@ const isAbiEqual = (a: AbiItem, b: AbiItem): boolean =>
  */
 export const mergeAbis = <
   const TProxy extends Abi,
-  const TImpl extends readonly Abi[]
+  const TImpl extends readonly Abi[],
 >([proxy, ...impls]: readonly [TProxy, ...TImpl]) => {
   let merged: Abi = proxy;
 

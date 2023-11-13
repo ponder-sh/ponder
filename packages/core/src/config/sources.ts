@@ -27,7 +27,7 @@ export type Topics = [
   Hex | Hex[] | null,
   Hex | Hex[] | null,
   Hex | Hex[] | null,
-  Hex | Hex[] | null
+  Hex | Hex[] | null,
 ];
 
 export type LogFilterCriteria = {
