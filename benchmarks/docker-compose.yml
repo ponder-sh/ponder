@@ -22,13 +22,6 @@ services:
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
-  anvil:
-    image: ghcr.io/0xolias/simple-anvil-image:main
-    environment:
-      ANVIL_FORK_URL: "${ANVIL_FORK_URL}"
-      ANVIL_FORK_BLOCK_NUMBER: "${ANVIL_FORK_BLOCK_NUMBER}"
-    ports:
-      - 8545:8545
   graph-node:
     image: graphprotocol/graph-node
     ports:
@@ -40,7 +33,6 @@ services:
     depends_on:
       - ipfs
       - postgres
-      - anvil
     extra_hosts:
       - host.docker.internal:host-gateway
     environment:
@@ -49,6 +41,6 @@ services:
       postgres_pass: postgres
       postgres_db: postgres
       ipfs: ipfs:5001
-      ethereum: mainnet:http://anvil:8545
+      ethereum: mainnet:${ANVIL_FORK_URL}
       ETHEREUM_REORG_THRESHOLD: 0
       GRAPH_LOG: debug

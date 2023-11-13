@@ -8,7 +8,7 @@ export const config = createConfig({
     {
       name: "mainnet",
       chainId: 1,
-      transport: http("http://localhost:8545"),
+      transport: http(process.env.ANVIL_FORK_URL),
     },
   ],
   contracts: [
