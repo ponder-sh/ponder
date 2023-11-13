@@ -6,7 +6,46 @@ import { Callout } from "nextra-theme-docs";
 
 # Read contract data
 
-Ideally, smart contracts emit event logs containing all the data you need to build your application. In reality, developers often forget to include certain event logs, or omit them as a gas optimization. In many cases, you can address these gaps by reading data directly from a contract. Ponder natively supports this pattern.
+Ideally, smart contracts emit event logs containing all the data you need to build your application. In practice, developers often forget to include certain event logs, or omit them as a gas optimization. In some cases, you can address these gaps by reading data directly from a contract.
+
+Here's a basic example of reading data from the same contract that emitted the event.
+
+In this example, suppose the creator of an NFT contract forgot to include certain traits of an NFT in the `Mint` event data.
+
+```ts
+ponder.on...
+```
+
+## Supported actions
+
+The `context.client` viem Client offers the following actions, all of which support caching.
+
+When you use these actions from within indexing function code, the `blockNumber` option is automatically set to the block number of the event being processed (`event.block.number`). It's not currently possible to override this behavior.
+
+| name         | description                                               | Viem docs                                                         |
+| :----------- | :-------------------------------------------------------- | :---------------------------------------------------------------- |
+| readContract | Calls a read-only function on a contract.                 | [readContract](https://viem.sh/docs/contract/readContract.html)   |
+| multicall    | Similar to readContract, but batches requests.            | [multicall](https://viem.sh/docs/contract/multicall.html)         |
+| getBalance   | Returns the balance of an address in wei.                 | [getBalance](https://viem.sh/docs/actions/public/getBalance.html) |
+| getBytecode  | Retrieves the bytecode at an address.                     | [getBytecode](https://viem.sh/docs/contract/getBytecode.html)     |
+| getStorageAt | Returns the value from a storage slot at a given address. | [getStorageAt](https://viem.sh/docs/contract/getStorageAt.html)   |
+
+## Read from a contract that's not indexed
+
+To read from a contract that is not present in the `context.contracts` object
+
+The `context.contracts` object only contains contracts that you have added in `ponder.config.ts`. Sometimes, it's useful for read from a contract without indexing it's event logs. To
+
+The `context` object passed to every indexing function exposes a `client` property, which is a read-only viem Public Client that has been modified to cache all RPC method calls.
+
+<Callout type="info">
+  You should always use `context.client` rather than a manually constructed
+  client. If you feel tempted to create your own client, please open a GitHub
+  issue or send a message to the chat. We'd like to understand and accommodate
+  your workflow.
+</Callout>
+
+The `context` object also has a `contracts` property, which is an object containing contract addresses and ABIs from `ponder.config.ts`.
 
 The `context.contracts` object contains a read-only [viem contract instance](https://viem.sh/docs/contract/getContract.html#contract-instances) for each contract you define in [ponder.config.ts](/api-reference/ponder-config#contracts). These contract instances expose each read-only function (state mutability `"pure"` or `"view"`) present in the contract's ABI. They also [cache](#caching) contract read results, which speeds up indexing and avoids unnecessary RPC requests.
 
