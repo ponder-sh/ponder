@@ -94,7 +94,7 @@ const waitForSyncComplete = async () => {
     timeout = setTimeout(() => {
       clearInterval(interval);
       reject(new Error("Timed out waiting for subgraph to sync"));
-    }, 60_000);
+    }, 180_000);
   });
 
   return duration;
