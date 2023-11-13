@@ -32,6 +32,10 @@
     "test": "vitest",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
+  "peerDependencies": {
+    "typescript": "5.2.0",
+    "viem": "^1.18.0"
+  },
   "dependencies": {
     "@babel/code-frame": "^7.22.13",
     "@jridgewell/trace-mapping": "^0.3.20",
