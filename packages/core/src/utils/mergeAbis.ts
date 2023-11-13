@@ -24,7 +24,7 @@ type MergeAbis<
   ? MergeAbis<Rest, MergeAbi<TMerged, First>>
   : TMerged;
 
-const isAbiEqual = (a: AbiItem, b: AbiItem): boolean =>
+const isAbiItemEqual = (a: AbiItem, b: AbiItem): boolean =>
   formatAbiItem(a) === formatAbiItem(b);
 
 /**
@@ -37,7 +37,7 @@ export const mergeAbis = <const TAbis extends readonly Abi[]>(abis: TAbis) => {
     for (const item of abi) {
       // Don't add a duplicate items
       // if item is already in merged, don't add it
-      if (!merged.some((m) => isAbiEqual(m, item))) {
+      if (!merged.some((m) => isAbiItemEqual(m, item))) {
         merged = [...merged, item];
       }
     }
