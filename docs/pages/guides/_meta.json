@@ -3,7 +3,7 @@
   "add-contracts": "Add contracts",
   "design-your-schema": "Design your schema",
   "migrate-a-subgraph": "Migrate a subgraph",
-  "create-update-entities": "Create & update entities",
+  "create-update-records": "Create & update records",
   "read-contract-data": "Read contract data",
   "query-the-graphql-api": "Query the GraphQL API",
   "production": "Deploy to production"

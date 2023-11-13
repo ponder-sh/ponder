@@ -1,52 +1,56 @@
 ---
-description: "A guide to create and update entities"
+description: "A guide to create and update records"
 ---
 
 import { Callout } from "nextra-theme-docs";
 
-# Create & update entities
+# Create & update records
 
-Ponder's entity store API is inspired by the [Prisma Client API](https://www.prisma.io/docs/reference/api-reference/prisma-client-reference#model-queries). The entity store API currently supports the following methods:
+Ponder's store API is inspired by the [Prisma Client API](https://www.prisma.io/docs/reference/api-reference/prisma-client-reference#model-queries). The store currently supports the following methods:
 
-- [`create`](/guides/create-update-entities#create)
-- [`update`](/guides/create-update-entities#update)
-- [`upsert`](/guides/create-update-entities#upsert)
-- [`delete`](/guides/create-update-entities#delete)
-- [`findUnique`](/guides/create-update-entities#findunique)
-- [`findMany`](/guides/create-update-entities#findmany)
-- [`createMany`](/guides/create-update-entities#createmany)
-- [`updateMany`](/guides/create-update-entities#updatemany)
+- [`create`](/guides/create-update-records#create)
+- [`update`](/guides/create-update-records#update)
+- [`upsert`](/guides/create-update-records#upsert)
+- [`delete`](/guides/create-update-records#delete)
+- [`findUnique`](/guides/create-update-records#findunique)
+- [`findMany`](/guides/create-update-records#findmany)
+- [`createMany`](/guides/create-update-records#createmany)
+- [`updateMany`](/guides/create-update-records#updatemany)
 
 ## `create`
 
-Insert a new entity into the store.
+Insert a new records into the store.
 
 ### Options
 
 | name     | type                              |                                |
 | :------- | :-------------------------------- | :----------------------------- |
-| **id**   | `string \| number \| bigint{:ts}` | ID of the new entity           |
-| **data** | `TEntity{:ts}`                    | Data required for a new entity |
+| **id**   | `string \| number \| bigint{:ts}` | ID of the new record           |
+| **data** | `TRecord{:ts}`                    | Data required for a new record |
 
 ### Returns
 
-`Promise<TEntity>{:ts}`
+`Promise<TRecord>{:ts}`
 
 ### Examples
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Token @entity {
-  id: Int!
-  mintedBy: String!
-  mintedAt: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Token: p.createTable({
+    id: p.int(),
+    mintedBy: p.string(),
+    mintedAt: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
 ponder.on("Blitmap:Mint", async ({ event, context }) => {
-  const { Token } = context.entities;
+  const { Token } = context.models;
 
   const token = await Token.create({
     id: event.params.tokenId,
@@ -63,35 +67,39 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 
 ## `update`
 
-Update an entity that already exists.
+Update an record that already exists.
 
 ### Options
 
 | name                | type                                                    |                                   |
 | :------------------ | :------------------------------------------------------ | :-------------------------------- |
-| **id**              | `string \| number \| bigint{:ts}`                       | ID of the updated entity          |
-| **data**            | `Partial<TEntity>{:ts}`                                 | Data to update                    |
-| **data** (function) | `(args: { current: TEntity }) => Partial<TEntity>{:ts}` | Function returning data to update |
+| **id**              | `string \| number \| bigint{:ts}`                       | ID of the updated record          |
+| **data**            | `Partial<TRecord>{:ts}`                                 | Data to update                    |
+| **data** (function) | `(args: { current: TRecord }) => Partial<TRecord>{:ts}` | Function returning data to update |
 
 ### Returns
 
-`Promise<TEntity>{:ts}`
+`Promise<TRecord>{:ts}`
 
 ### Examples
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Token @entity {
-  id: Int!
-  ownedBy: String!
-  metadataUpdatedAt: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Token: p.createTable({
+    id: p.int(),
+    mintedBy: p.string(),
+    metadataUpdatedAt: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
 ponder.on("Blitmap:MetadataUpdate", async ({ event, context }) => {
-  const { Token } = context.entities;
+  const { Token } = context.models;
 
   const token = await Token.update({
     id: event.params.tokenId,
@@ -107,20 +115,24 @@ ponder.on("Blitmap:MetadataUpdate", async ({ event, context }) => {
 
 #### Update function
 
-You can optionally pass a function to the `data` field that receives the current entity as an argument and returns the update object. This is useful for updates that depend on the current entity, like an incrementing count or balance.
+You can optionally pass a function to the `data` field that receives the current record as an argument and returns the update object. This is useful for updates that depend on the current record, like an incrementing count or balance.
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Account @entity {
-  id: Int!
-  balance: BigInt!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Account: p.createTable({
+    id: p.int(),
+    balance: p.bigint(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
-  const { Account } = context.entities;
+  const { Account } = context.models;
 
   const recipient = await Account.update({
     id: event.params.to,
@@ -136,20 +148,20 @@ ponder.on("ERC20:Transfer", async ({ event, context }) => {
 
 ## `upsert`
 
-Update an entity if one already exists with the specified `id`, or create a new entity.
+Update a record if one already exists with the specified `id`, or create a new record.
 
 ### Options
 
 | name                  | type                                                    |                                      |
 | :-------------------- | :------------------------------------------------------ | :----------------------------------- |
-| **id**                | `string \| number \| bigint{:ts}`                       | ID of the entity to create or update |
-| **create**            | `TEntity{:ts}`                                          | Data required for a new entity       |
-| **update**            | `Partial<TEntity>{:ts}`                                 | Data to update                       |
-| **update** (function) | `(args: { current: TEntity }) => Partial<TEntity>{:ts}` | Function returning data to update    |
+| **id**                | `string \| number \| bigint{:ts}`                       | ID of the record to create or update |
+| **create**            | `TRecord{:ts}`                                          | Data required for a new record       |
+| **update**            | `Partial<TRecord>{:ts}`                                 | Data to update                       |
+| **update** (function) | `(args: { current: TRecord }) => Partial<TRecord>{:ts}` | Function returning data to update    |
 
 ### Returns
 
-`Promise<TEntity>{:ts}`
+`Promise<TRecord>{:ts}`
 
 ### Examples
 
@@ -157,24 +169,27 @@ Upsert can be useful for events like the ERC721 `Transfer` event, which is emitt
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Token @entity {
-  id: Int!
-  mintedBy: String!
-  ownedBy: String!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Token: p.createTable({
+    id: p.int(),
+    mintedBy: p.string().references("Account.id")
+    ownedBy: p.string().references("Account.id")
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
-  const { Token } = context.entities;
+  const { Token } = context.models;
 
   const token = await Token.upsert({
     id: event.params.tokenId,
     create: {
       mintedBy: event.params.to,
       ownedBy: event.params.to,
-      transferCount: 0,
     },
     update: {
       ownedBy: event.params.to,
@@ -188,21 +203,25 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
 
 #### Update function
 
-You can optionally pass a function to the `update` field that receives the current entity as an argument and returns the update object. This is useful for updates that depend on the current entity, like an incrementing count or balance.
+You can optionally pass a function to the `update` field that receives the current record as an argument and returns the update object. This is useful for updates that depend on the current record, like an incrementing count or balance.
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Token @entity {
-  id: Int!
-  ownedBy: String!
-  transferCount: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Token: p.createTable({
+    id: p.int(),
+    ownedBy: p.string().references("Account.id"),
+    transferCount: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
-  const { Token } = context.entities;
+  const { Token } = context.models;
 
   const token = await Token.upsert({
     id: event.params.tokenId,
@@ -223,27 +242,31 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
 
 ## `delete`
 
-`delete` deletes an entity by `id`.
+`delete` deletes a record by `id`.
 
 ### Options
 
 | name   | type                              |                            |
 | :----- | :-------------------------------- | :------------------------- |
-| **id** | `string \| number \| bigint{:ts}` | ID of the entity to delete |
+| **id** | `string \| number \| bigint{:ts}` | ID of the record to delete |
 
 ### Returns
 
-`Promise<boolean>{:ts}` (`true{:ts}` if the entity was deleted, `false{:ts}` if it was not found)
+`Promise<boolean>{:ts}` (`true{:ts}` if the record was deleted, `false{:ts}` if it was not found)
 
 ### Examples
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Player @entity {
-  id: String!
-  age: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
@@ -260,27 +283,31 @@ const jim = await Player.findUnique({ id: "Jim" });
 
 ## `findUnique`
 
-`findUnique` finds and returns an entity by `id`.
+`findUnique` finds and returns a record by `id`.
 
 ### Options
 
 | name   | type                              |                                     |
 | :----- | :-------------------------------- | :---------------------------------- |
-| **id** | `string \| number \| bigint{:ts}` | ID of the entity to find and return |
+| **id** | `string \| number \| bigint{:ts}` | ID of the record to find and return |
 
 ### Returns
 
-`Promise<TEntity | null>{:ts}`
+`Promise<TRecord | null>{:ts}`
 
 ### Examples
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Player @entity {
-  id: String!
-  age: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
@@ -297,20 +324,20 @@ const sara = await Player.findUnique({ id: "Sara" });
 
 ## `findMany`
 
-`findMany` returns a list of entities according to the filter, sort, and pagination options you provide. Note that `findMany` offers programmatic access to the functionality exposed by the autogenerated [GraphQL API](/guides/query-the-graphql-api).
+`findMany` returns a list of records according to the filter, sort, and pagination options you provide. Note that `findMany` offers programmatic access to the functionality exposed by the autogenerated [GraphQL API](/guides/query-the-graphql-api).
 
 ### Options
 
 | name        | type                                      |                                          |
 | :---------- | :---------------------------------------- | :--------------------------------------- |
-| **where**   | `WhereInput<TEntity> \| undefined{:ts}`   | Filter matching entities to return       |
-| **orderBy** | `OrderByInput<TEntity> \| undefined{:ts}` | Sort applied to the list                 |
+| **where**   | `WhereInput<TRecord> \| undefined{:ts}`   | Filter matching records to return        |
+| **orderBy** | `OrderByInput<TRecord> \| undefined{:ts}` | Sort applied to the list                 |
 | **skip**    | `number \| undefined{:ts}`                | Number of records to skip (SQL `OFFSET`) |
 | **take**    | `number \| undefined{:ts}`                | Number of records to take (SQL `LIMIT`)  |
 
 ### Returns
 
-`Promise<TEntity[]>{:ts}`
+`Promise<TRecord[]>{:ts}`
 
 ### Examples
 
@@ -320,11 +347,15 @@ Filter the result list by passing a `where` option containing a field name, filt
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Player @entity {
-  id: String!
-  age: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
@@ -356,19 +387,17 @@ const players = await Player.findMany({
 
 If you provide multiple filters, they will be combined with a logical `AND`.
 
-<Callout type="info">
-  If you need more complex filters that use logical `OR`, `NOT`, or nested
-  conditions, please [open a
-  discussion](https://github.com/0xOlias/ponder/discussions).
-</Callout>
-
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Player @entity {
-  id: String!
-  age: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
@@ -395,11 +424,15 @@ Sort the result list by passing an `orderBy` option containing a field name and 
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Player @entity {
-  id: String!
-  age: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
@@ -427,16 +460,20 @@ Paginate through the result list using the `skip` and `take` options.
 
 <Callout type="warning">
   Avoid using `findMany` to return result lists that require pagination. (If you
-  need this, you're probably doing something wrong. Ask for help.)
+  need this, please reach out so we can better support your use case.)
 </Callout>
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Player @entity {
-  id: String!
-  age: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
@@ -460,27 +497,31 @@ const players = await Player.findMany({
 
 ## `createMany`
 
-`createMany` inserts multiple entities into the store in a single operation. It returns a list of the created entities.
+`createMany` inserts multiple records into the store in a single operation. It returns a list of the created records.
 
 ### Options
 
-| name     | type             |                            |
-| :------- | :--------------- | :------------------------- |
-| **data** | `TEntity[]{:ts}` | List of entities to create |
+| name     | type             |                           |
+| :------- | :--------------- | :------------------------ |
+| **data** | `TRecord[]{:ts}` | List of records to create |
 
 ### Returns
 
-`Promise<TEntity[]>{:ts}`
+`Promise<TRecord[]>{:ts}`
 
 ### Examples
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Player @entity {
-  id: String!
-  age: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
@@ -504,29 +545,33 @@ const players = await Player.findMany();
 
 ## `updateMany`
 
-`updateMany` updates multiple entities in a single operation using the same update logic. Like the `update` method, `updateMany` also optionally accepts an [update function](/guides/create-update-entities#update-function).
+`updateMany` updates multiple records in a single operation using the same update logic. Like the `update` method, `updateMany` also optionally accepts an [update function](/guides/create-update-records#update-function).
 
 ### Options
 
-| name                | type                                                    |                                        |
-| :------------------ | :------------------------------------------------------ | :------------------------------------- |
-| **where**           | `WhereInput<TEntity>{:ts}`                              | Filter matching entities to be updated |
-| **data**            | `Partial<TEntity>{:ts}`                                 | Data to update                         |
-| **data** (function) | `(args: { current: TEntity }) => Partial<TEntity>{:ts}` | Function returning data to update      |
+| name                | type                                                    |                                       |
+| :------------------ | :------------------------------------------------------ | :------------------------------------ |
+| **where**           | `WhereInput<TRecord>{:ts}`                              | Filter matching records to be updated |
+| **data**            | `Partial<TRecord>{:ts}`                                 | Data to update                        |
+| **data** (function) | `(args: { current: TRecord }) => Partial<TRecord>{:ts}` | Function returning data to update     |
 
 ### Returns
 
-`Promise<TEntity[]>{:ts}`
+`Promise<TRecord[]>{:ts}`
 
 ### Examples
 
 <div className="code-columns">
 
-```graphql filename="schema.graphql"
-type Player @entity {
-  id: String!
-  age: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+});
 ```
 
 ```ts filename="src/index.ts"
