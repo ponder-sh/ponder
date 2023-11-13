@@ -1,6 +1,7 @@
 import { BigInt } from "@graphprotocol/graph-ts";
 
-import type {
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import {
   Approval as TApprovalEvent,
   Transfer as TTransferEvent,
 } from "../../generated/RocketTokenRETH/RocketTokenRETH";
