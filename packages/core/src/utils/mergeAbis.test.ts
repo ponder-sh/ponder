@@ -5,18 +5,19 @@ import { mergeAbis } from "./mergeAbis.js";
 
 const proxy = parseAbi([
   "function one(address) returns (uint256)",
-  "function two()",
+  "function two(uint256)",
 ]);
 const impl = parseAbi([
   "function one(bytes32) returns (bool)",
-  "function three()",
+  "function two(uint256)",
 ]);
 
 test("mergeAbis()", () => {
   const a = mergeAbis([proxy, impl]);
   //    ^?
 
-  const out = [...proxy, ...impl] as const;
+  const out = [...proxy, impl[0]] as const;
+  expect(a.length).toBe(3);
   expect(a).toMatchObject(out);
   assertType<typeof out>(a);
 });

@@ -1,4 +1,18 @@
 import type { Abi } from "abitype";
+import type { AbiItem } from "viem";
+import { formatAbiItem } from "viem/utils";
+
+export type MergeAbi<
+  TBase extends Abi,
+  TInsert extends Abi
+> = TInsert extends readonly [
+  infer First extends AbiItem,
+  ...infer Rest extends Abi
+]
+  ? Extract<TBase[number], First> extends never
+    ? MergeAbi<readonly [...TBase, First], Rest>
+    : MergeAbi<TBase, Rest>
+  : TBase;
 
 type MergeAbis<
   TMerged extends Abi,
@@ -7,8 +21,11 @@ type MergeAbis<
   infer First extends Abi,
   ...infer Rest extends readonly Abi[]
 ]
-  ? MergeAbis<[...TMerged, ...First], Rest>
+  ? MergeAbis<MergeAbi<TMerged, First>, Rest>
   : TMerged;
+
+const isAbiEqual = (a: AbiItem, b: AbiItem): boolean =>
+  formatAbiItem(a) === formatAbiItem(b);
 
 /**
  * Build a single Abi from a proxy and its implementations
@@ -20,7 +37,13 @@ export const mergeAbis = <
   let merged: Abi = proxy;
 
   for (const impl of impls) {
-    merged = [...merged, ...impl];
+    for (const item of impl) {
+      // Don't add a duplicate items
+      // if item is already in merged, don't add it
+      if (!merged.some((m) => isAbiEqual(m, item))) {
+        merged = [...merged, item];
+      }
+    }
   }
 
   return merged as MergeAbis<TProxy, TImpl>;
