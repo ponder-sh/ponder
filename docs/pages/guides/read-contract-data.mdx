@@ -8,12 +8,47 @@ import { Callout } from "nextra-theme-docs";
 
 Ideally, smart contracts emit event logs containing all the data you need to build your application. In practice, developers often forget to include certain event logs, or omit them as a gas optimization. In some cases, you can address these gaps by reading data directly from a contract.
 
-Here's a basic example of reading data from the same contract that emitted the event.
+## Read from
 
-In this example, suppose the creator of an NFT contract forgot to include certain traits of an NFT in the `Mint` event data.
+Suppose we're building an application that stores the gradient metadata of each Zorb NFT.
 
-```ts
-ponder.on...
+```solidity filename="ZorbNft.sol"
+contract ZorbNft {
+    function gradientForAddress(address user) public pure returns (bytes[5] memory) {
+        return ColorLib.gradientForAddress(user);
+    }
+    // ...
+}
+```
+
+The gradient data is not available in any of the events emitted by the ZorbNft contract, but we can work around this by calling the `gradientForAddress` function.
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("ZorbNft:Transfer", async ({ event, context }) => {
+  // If this is a mint, read metadata from the contract
+  // and create a new Zorb record.
+  if (event.from.to === ZERO_ADDRESS) {
+    const gradientData = await context.client.readContract({
+      abi: context.contracts.ZorbNft.abi,
+      address: context.contracts.ZorbNft.address,
+      functionName: "gradientForAddress",
+      args: [event.params.to],
+    });
+
+    await context.models.Zorb.create({
+      id: event.params.tokenId,
+      data: {
+        gradient: gradientData,
+        ownerId: event.params.to,
+      },
+    });
+  }
+
+  // If not a mint, just update ownership information.
+  // ...
+});
 ```
 
 ## Supported actions
@@ -24,13 +59,15 @@ When you use these actions from within indexing function code, the `blockNumber`
 
 | name         | description                                               | Viem docs                                                         |
 | :----------- | :-------------------------------------------------------- | :---------------------------------------------------------------- |
-| readContract | Calls a read-only function on a contract.                 | [readContract](https://viem.sh/docs/contract/readContract.html)   |
+| readContract | Returns the result of a read-only function on a contract. | [readContract](https://viem.sh/docs/contract/readContract.html)   |
 | multicall    | Similar to readContract, but batches requests.            | [multicall](https://viem.sh/docs/contract/multicall.html)         |
 | getBalance   | Returns the balance of an address in wei.                 | [getBalance](https://viem.sh/docs/actions/public/getBalance.html) |
-| getBytecode  | Retrieves the bytecode at an address.                     | [getBytecode](https://viem.sh/docs/contract/getBytecode.html)     |
+| getBytecode  | Returns the bytecode at an address.                       | [getBytecode](https://viem.sh/docs/contract/getBytecode.html)     |
 | getStorageAt | Returns the value from a storage slot at a given address. | [getStorageAt](https://viem.sh/docs/contract/getStorageAt.html)   |
 
 ## Read from a contract that's not indexed
+
+To read data from a contract without indexing it, import the ABI and address
 
 To read from a contract that is not present in the `context.contracts` object
 
