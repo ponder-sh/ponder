@@ -40,7 +40,7 @@ const bench = async () => {
   const ponderCold = await ponder();
   const ponderHot = await ponder();
 
-  // console.log({ subgraphHot, subgraphCold, ponderHot, ponderCold });
+  console.log({ ponderHot, ponderCold });
 };
 
 await bench();
