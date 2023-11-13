@@ -548,13 +548,10 @@ export class PostgresSyncStore implements SyncStore {
         chainId,
         logFilters: [
           ...logFilters,
-          ...factories.map(
-            (f) =>
-              ({
-                address: f.address,
-                topics: [f.eventSelector, null, null, null] as Topics,
-              } as const)
-          ),
+          ...factories.map((f) => ({
+            address: f.address,
+            topics: [f.eventSelector, null, null, null] as Topics,
+          })),
         ],
         interval,
       });
