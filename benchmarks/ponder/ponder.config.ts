@@ -17,7 +17,7 @@ export const config = createConfig({
       network: [{ name: "mainnet" }],
       abi: RocketTokenRETHAbi,
       address: "0xae78736cd615f374d3085123a210448e74fc6393",
-      startBlock: 17499000,
+      startBlock: 17490000,
       endBlock: 17500000,
     },
   ],

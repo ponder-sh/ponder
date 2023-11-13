@@ -1,3 +1,5 @@
+import { rmSync } from "node:fs";
+
 import { execa } from "execa";
 
 import { fetchWithTimeout, parsePrometheusText, startClock } from "./utils";
@@ -71,7 +73,7 @@ const waitForSyncComplete = async () => {
   return duration;
 };
 
-export const ponder = async () => {
+const ponder = async () => {
   console.log("Creating Ponder instance...");
   const subprocess = execa("ponder", ["start", `--root-dir=ponder`], {
     stdio: "inherit",
@@ -85,3 +87,21 @@ export const ponder = async () => {
 
   return { setupDuration, duration };
 };
+
+const bench = async () => {
+  rmSync("./ponder/.ponder/", {
+    recursive: true,
+    force: true,
+  });
+  rmSync("./ponder/generated/", {
+    recursive: true,
+    force: true,
+  });
+
+  const ponderCold = await ponder();
+  const ponderHot = await ponder();
+
+  console.log({ ponderHot, ponderCold });
+};
+
+await bench();

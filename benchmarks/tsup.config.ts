@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/bench.ts"],
+  entry: ["src/ponder.ts"],
   bundle: true,
   format: ["esm"],
   sourcemap: false,

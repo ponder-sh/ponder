@@ -1,6 +1,5 @@
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 
-import { ponder } from "./ponder";
 import { subgraph } from "./subgraph";
 
 const changeMappingFileDelim = (delim: string) => {
@@ -36,11 +35,6 @@ const bench = async () => {
   changeMappingFileDelim("+");
 
   // const subgraphHot = await subgraph();
-
-  const ponderCold = await ponder();
-  const ponderHot = await ponder();
-
-  console.log({ ponderHot, ponderCold });
 };
 
 await bench();

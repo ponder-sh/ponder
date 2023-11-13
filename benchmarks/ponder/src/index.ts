@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 
 ponder.on("RocketTokenRETH:Transfer", async ({ event, context }) => {
-  const { Account, TransferEvent } = context.entities;
+  const { Account, TransferEvent } = context.models;
 
   // Create an Account for the sender, or update the balance if it already exists.
   const sender = await Account.findUnique({ id: event.params.from });
@@ -54,7 +54,7 @@ ponder.on("RocketTokenRETH:Transfer", async ({ event, context }) => {
 });
 
 ponder.on("RocketTokenRETH:Approval", async ({ event, context }) => {
-  const { Approval, ApprovalEvent } = context.entities;
+  const { Approval, ApprovalEvent } = context.models;
 
   const approvalId =
     `${event.params.owner}-${event.params.spender}` as `0x${string}`;
