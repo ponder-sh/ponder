@@ -3,7 +3,7 @@ import parsePrometheusTextFormat from "parse-prometheus-text-format";
 
 import { fetchGraphql, fetchWithTimeout, startClock } from "./utils";
 
-const END_BLOCK = Number(process.env.ANVIL_FORK_BLOCK_NUMBER);
+const END_BLOCK = 17500000;
 
 const fetchSubgraphLatestBlockNumber = async () => {
   try {
