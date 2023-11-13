@@ -1,4 +1,4 @@
-import execa from "execa";
+import { execa } from "execa";
 import parsePrometheusTextFormat from "parse-prometheus-text-format";
 
 import { fetchGraphql, fetchWithTimeout, startClock } from "./utils";

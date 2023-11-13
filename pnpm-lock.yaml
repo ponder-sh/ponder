@@ -56,8 +56,8 @@ importers:
   benchmarks:
     devDependencies:
       '@graphprotocol/graph-cli':
-        specifier: ^0.61.0
-        version: 0.61.0(@types/node@20.9.0)(node-fetch@3.3.2)(typescript@5.2.2)
+        specifier: 0.54.0-alpha-20230727052453-1e0e6e5
+        version: 0.54.0-alpha-20230727052453-1e0e6e5(@types/node@20.9.0)(node-fetch@3.3.2)(typescript@5.2.2)
       '@graphprotocol/graph-ts':
         specifier: ^0.31.0
         version: 0.31.0
@@ -82,6 +82,8 @@ importers:
       viem:
         specifier: 1.19.1
         version: 1.19.1(typescript@5.2.2)
+
+  benchmarks/subgraph: {}
 
   docs:
     dependencies:
@@ -2388,15 +2390,13 @@ packages:
       js-yaml: 4.1.0
     dev: true
 
-  /@graphprotocol/graph-cli@0.61.0(@types/node@20.9.0)(node-fetch@3.3.2)(typescript@5.2.2):
-    resolution: {integrity: sha512-gc3+DioZ/K40sQCt6DsNvbqfPTc9ZysuSz3I9MJ++bD6SftaSSweWwfpPysDMzDuxvUAhLAsJ6QjBACPngT2Kw==}
+  /@graphprotocol/graph-cli@0.54.0-alpha-20230727052453-1e0e6e5(@types/node@20.9.0)(node-fetch@3.3.2)(typescript@5.2.2):
+    resolution: {integrity: sha512-pxZAJvUXHRMtPIoMTSvVyIjqrfMGCtaqWG9qdRDrLMxUKrIuGWniMKntxaFnHPlgz6OQznN9Zt8wV6uScD/4Sg==}
     engines: {node: '>=14'}
     hasBin: true
     dependencies:
       '@float-capital/float-subgraph-uncrashable': 0.0.0-internal-testing.5
       '@oclif/core': 2.8.6(@types/node@20.9.0)(typescript@5.2.2)
-      '@oclif/plugin-autocomplete': 2.3.10(@types/node@20.9.0)(typescript@5.2.2)
-      '@oclif/plugin-not-found': 2.4.3(@types/node@20.9.0)(typescript@5.2.2)
       '@whatwg-node/fetch': 0.8.8
       assemblyscript: 0.19.23
       binary-install-raw: 0.0.13(debug@4.3.4)
@@ -2858,45 +2858,6 @@ packages:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.15.0
 
-  /@oclif/core@2.15.0(@types/node@20.9.0)(typescript@5.2.2):
-    resolution: {integrity: sha512-fNEMG5DzJHhYmI3MgpByTvltBOMyFcnRIUMxbiz2ai8rhaYgaTHMG3Q38HcosfIvtw9nCjxpcQtC8MN8QtVCcA==}
-    engines: {node: '>=14.0.0'}
-    dependencies:
-      '@types/cli-progress': 3.11.5
-      ansi-escapes: 4.3.2
-      ansi-styles: 4.3.0
-      cardinal: 2.1.1
-      chalk: 4.1.2
-      clean-stack: 3.0.1
-      cli-progress: 3.12.0
-      debug: 4.3.4(supports-color@8.1.1)
-      ejs: 3.1.9
-      get-package-type: 0.1.0
-      globby: 11.1.0
-      hyperlinker: 1.0.0
-      indent-string: 4.0.0
-      is-wsl: 2.2.0
-      js-yaml: 3.14.1
-      natural-orderby: 2.0.3
-      object-treeify: 1.1.33
-      password-prompt: 1.1.3
-      slice-ansi: 4.0.0
-      string-width: 4.2.3
-      strip-ansi: 6.0.1
-      supports-color: 8.1.1
-      supports-hyperlinks: 2.3.0
-      ts-node: 10.9.1(@types/node@20.9.0)(typescript@5.2.2)
-      tslib: 2.6.2
-      widest-line: 3.1.0
-      wordwrap: 1.0.0
-      wrap-ansi: 7.0.0
-    transitivePeerDependencies:
-      - '@swc/core'
-      - '@swc/wasm'
-      - '@types/node'
-      - typescript
-    dev: true
-
   /@oclif/core@2.8.6(@types/node@20.9.0)(typescript@5.2.2):
     resolution: {integrity: sha512-1QlPaHMhOORySCXkQyzjsIsy2GYTilOw3LkjeHkCgsPJQjAT4IclVytJusWktPbYNys9O+O4V23J44yomQvnBQ==}
     engines: {node: '>=14.0.0'}
@@ -2930,35 +2891,6 @@ packages:
       widest-line: 3.1.0
       wordwrap: 1.0.0
       wrap-ansi: 7.0.0
-    transitivePeerDependencies:
-      - '@swc/core'
-      - '@swc/wasm'
-      - '@types/node'
-      - typescript
-    dev: true
-
-  /@oclif/plugin-autocomplete@2.3.10(@types/node@20.9.0)(typescript@5.2.2):
-    resolution: {integrity: sha512-Ow1AR8WtjzlyCtiWWPgzMyT8SbcDJFr47009riLioHa+MHX2BCDtVn2DVnN/E6b9JlPV5ptQpjefoRSNWBesmg==}
-    engines: {node: '>=12.0.0'}
-    dependencies:
-      '@oclif/core': 2.15.0(@types/node@20.9.0)(typescript@5.2.2)
-      chalk: 4.1.2
-      debug: 4.3.4(supports-color@8.1.1)
-    transitivePeerDependencies:
-      - '@swc/core'
-      - '@swc/wasm'
-      - '@types/node'
-      - supports-color
-      - typescript
-    dev: true
-
-  /@oclif/plugin-not-found@2.4.3(@types/node@20.9.0)(typescript@5.2.2):
-    resolution: {integrity: sha512-nIyaR4y692frwh7wIHZ3fb+2L6XEecQwRDIb4zbEam0TvaVmBQWZoColQyWA84ljFBPZ8XWiQyTz+ixSwdRkqg==}
-    engines: {node: '>=12.0.0'}
-    dependencies:
-      '@oclif/core': 2.15.0(@types/node@20.9.0)(typescript@5.2.2)
-      chalk: 4.1.2
-      fast-levenshtein: 3.0.0
     transitivePeerDependencies:
       - '@swc/core'
       - '@swc/wasm'
@@ -4222,11 +4154,6 @@ packages:
 
   /ast-types-flow@0.0.8:
     resolution: {integrity: sha512-OH/2E5Fg20h2aPrbe+QL8JZQFko0YZaF+j4mnQ7BGhfavO7OpSLa8a0y9sBwomHdSbkhTS8TQNayBfnW5DwbvQ==}
-    dev: true
-
-  /astral-regex@2.0.0:
-    resolution: {integrity: sha512-Z7tMw1ytTXt5jqMcOP+OQteU1VuNK9Y02uuJtKQ1Sv69jXQKKg5cibLwGJow8yzZP+eAc18EmLGPal0bp36rvQ==}
-    engines: {node: '>=8'}
     dev: true
 
   /astring@1.8.6:
@@ -6683,12 +6610,6 @@ packages:
   /fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
 
-  /fast-levenshtein@3.0.0:
-    resolution: {integrity: sha512-hKKNajm46uNmTlhHSyZkmToAc56uZJwYq7yrciZjqOxnlfQwERDQJmHPUp7m1m9wx8vgOe8IaCKZ5Kv2k1DdCQ==}
-    dependencies:
-      fastest-levenshtein: 1.0.16
-    dev: true
-
   /fast-printf@1.6.9:
     resolution: {integrity: sha512-FChq8hbz65WMj4rstcQsFB0O7Cy++nmbNfLYnD9cYv2cRn8EG6k/MGn9kO/tjO66t09DLDugj3yL+V2o6Qftrg==}
     engines: {node: '>=10.0'}
@@ -6715,11 +6636,6 @@ packages:
     resolution: {integrity: sha512-5jOCVXADYNuRkKFzNJ0dCCewsZiYo0dz8QNYljkOpFC6r2U4OBmKtvm/Tsuh4w1YYdDqDb31a8TVhBJ2OJKdqQ==}
     dependencies:
       punycode: 1.4.1
-    dev: true
-
-  /fastest-levenshtein@1.0.16:
-    resolution: {integrity: sha512-eRnCtTTtGZFpQCwhJiUOuxPQWRXVKYDn0b2PeHfXL6/Zi53SLAzAHfVhVWK2AryC/WH05kGfxhFIPvTF0SXQzg==}
-    engines: {node: '>= 4.9.1'}
     dev: true
 
   /fastq@1.15.0:
@@ -11521,15 +11437,6 @@ packages:
   /slash@4.0.0:
     resolution: {integrity: sha512-3dOsAHXXUkQTpOYcoAxLIorMTp4gIQr5IW3iVb7A7lFIp0VHhnynm9izx6TssdrIcVIESAlVjtnO2K8bg+Coew==}
     engines: {node: '>=12'}
-    dev: true
-
-  /slice-ansi@4.0.0:
-    resolution: {integrity: sha512-qMCMfhY040cVHT43K9BFygqYbUPFZKHOg7K73mtTWJRb8pyP3fzf4Ixd5SzdEJQ6MRUg/WBnOLxghZtKKurENQ==}
-    engines: {node: '>=10'}
-    dependencies:
-      ansi-styles: 4.3.0
-      astral-regex: 2.0.0
-      is-fullwidth-code-point: 3.0.0
     dev: true
 
   /slice-ansi@5.0.0:

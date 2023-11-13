@@ -6,7 +6,7 @@
     "bench:ci": "tsup-node && node dist/bench.mjs"
   },
   "devDependencies": {
-    "@graphprotocol/graph-cli": "^0.61.0",
+    "@graphprotocol/graph-cli": "0.54.0-alpha-20230727052453-1e0e6e5",
     "@graphprotocol/graph-ts": "^0.31.0",
     "@ponder/core": "workspace:*",
     "@types/node": "^20.9.0",
