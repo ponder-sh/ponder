@@ -26,13 +26,6 @@ jobs:
         image: ipfs/go-ipfs:v0.10.0
         ports:
           - 5001:5001
-      anvil:
-        image: ghcr.io/0xolias/simple-anvil-image:main
-        env:
-          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-          ANVIL_FORK_BLOCK_NUMBER: 17500010
-        ports:
-          - 8545:8545
       graph-node:
         image: graphprotocol/graph-node
         # Would be best to get this health check working, but so far it hasn't been an issue.
@@ -67,5 +60,4 @@ jobs:
         run: pnpm bench:ci
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-          ANVIL_FORK_BLOCK_NUMBER: 17500010
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres

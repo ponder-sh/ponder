@@ -17,8 +17,8 @@ export const config = createConfig({
       network: [{ name: "mainnet" }],
       abi: RocketTokenRETHAbi,
       address: "0xae78736cd615f374d3085123a210448e74fc6393",
-      startBlock: Number(process.env.START_BLOCK),
-      endBlock: Number(process.env.ANVIL_FORK_BLOCK_NUMBER),
+      startBlock: 17490000,
+      endBlock: 17500000,
     },
   ],
 });

@@ -23,7 +23,7 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
   graph-node:
-    image: graphprotocol/graph-node
+    image: graphprotocol/graph-node:latest
     ports:
       - 8000:8000
       - 8001:8001
