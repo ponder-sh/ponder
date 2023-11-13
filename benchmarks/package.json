@@ -6,14 +6,14 @@
     "bench:ci": "tsup-node && node dist/bench.mjs"
   },
   "devDependencies": {
-    "@graphprotocol/graph-cli": "^0.51.1",
+    "@graphprotocol/graph-cli": "^0.61.0",
     "@graphprotocol/graph-ts": "^0.31.0",
     "@ponder/core": "workspace:*",
-    "@types/node": "^18.16.18",
-    "execa": "^5.1.1",
+    "@types/node": "^20.9.0",
+    "execa": "^8.0.1",
     "parse-prometheus-text-format": "^1.1.1",
-    "tsup": "^7.0.0",
-    "typescript": "^5.1.3",
-    "viem": "1.2.6"
+    "tsup": "^7.2.0",
+    "typescript": "^5.2.2",
+    "viem": "1.19.1"
   }
 }
