@@ -12,7 +12,7 @@ dataSources:
       endBlock: 17500000
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.7
+      apiVersion: 0.0.8
       language: wasm/assemblyscript
       entities:
         - Approval
