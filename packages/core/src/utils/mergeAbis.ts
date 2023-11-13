@@ -28,7 +28,7 @@ const isAbiEqual = (a: AbiItem, b: AbiItem): boolean =>
   formatAbiItem(a) === formatAbiItem(b);
 
 /**
- * Build a single Abi from an array of Abis
+ * Combine multiple ABIs into one, removing duplicates if necessary.
  */
 export const mergeAbis = <const TAbis extends readonly Abi[]>(abis: TAbis) => {
   let merged: Abi = [];
