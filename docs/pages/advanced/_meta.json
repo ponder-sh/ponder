@@ -1,6 +1,4 @@
 {
-  "factory-contracts": "Factory contracts",
-  "custom-filters": "Custom log filters",
   "proxy-contracts": "Proxy contracts",
   "logging": "Logging",
   "telemetry": "Telemetry"
