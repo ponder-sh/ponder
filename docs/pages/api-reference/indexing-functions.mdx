@@ -8,136 +8,104 @@ import { Callout } from "nextra-theme-docs";
 
 Indexing functions are user-defined functions that process blockchain data. They can be registered within any `.ts` file inside the `src/` directory. There are two kinds of events: **log events** and the **`"setup"` event**.
 
-## Log events
+## Registration
 
-Log events correspond to a smart contract event log that has occurred. The Ponder engine fetches event logs for all contracts defined in `ponder.config.ts`, then passes that data to the corresponding indexing function.
+To register an indexing function, use the `.on(){:ts}` method of the `ponder` object exported from `"@/generated"{:ts}`.
+
+Ponder uses
+
+<Callout type="info">
+  Values returned by indexing functions are ignored.
+</Callout>
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
 
 ponder.on("ContractName:EventName", async ({ event, context }) => {
   const { params, log, block, transaction } = event;
-  const { models, contracts } = context;
+  const { models, network, client, contracts } = context;
 
   // ...
 });
 ```
 
-### Options
+## Event
 
-| name                                                   | description                                                      |
-| :----------------------------------------------------- | :--------------------------------------------------------------- |
-| [`event`](/api-reference/indexing-functions#event)     | Event-specific data (log arguments, log, block, and transaction) |
-| [`context`](/api-reference/indexing-functions#context) | Global resources (model objects, read-only contract objects)     |
-
-<Callout type="info">Value returned by indexing functions are ignored.</Callout>
-
-### `Event`
-
-The `event` object contains the log arguments, the transaction that produced the log, and the block containing that transaction. `Log`, `Block`, and `Transaction` are similar to the corresponding types from [viem](https://viem.sh), but are adapted to represent only the finalized blockchain state.
+The `event` argument passed to each indexing function contains raw event data.
 
 ```ts
 type Event = {
   name: string;
-  params: {
-    /* Event-specific ABI parameters typed using AbiParameterToPrimitiveType */
-  };
+  params: Params;
   log: Log;
   block: Block;
   transaction: Transaction;
 };
 ```
 
-#### `Log`
+### Params
 
-The raw log object.
+The `event.params` object contains event log arguments decoded using the contract ABI.
 
 ```ts
-type Log = {
-  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`). */
-  id: string;
-  /** The address from which this log originated */
-  address: Address;
-  /** Hash of block containing this log */
-  blockHash: Hash;
-  /** Number of block containing this log */
-  blockNumber: bigint;
-  /** Contains the non-indexed arguments of the log */
-  data: Hex;
-  /** Index of this log within its block */
-  logIndex: number;
-  /** `true` if this log has been removed in a chain reorganization */
-  removed: boolean;
-  /** List of order-dependent topics */
-  topics: [Hex, ...Hex[]] | [];
-  /** Hash of the transaction that created this log */
-  transactionHash: Hash;
-  /** Index of the transaction that created this log */
-  transactionIndex: number;
-};
+type Params =
 ```
 
-#### `Block`
+### Block, transaction, and log
 
-The block containing the transaction that emitted this log.
+The `event.block`, `event.transaction`, and `event.log` objects contain raw blockchain data.
 
-```ts
+```ts filename="Block, transaction, and log types"
+/** The block containing the transaction that emitted the log being processed. */
 type Block = {
   /** Base fee per gas */
   baseFeePerGas: bigint | null;
   /** "Extra data" field of this block */
-  extraData: Hex;
+  extraData: `0x${string}`;
   /** Maximum gas allowed in this block */
   gasLimit: bigint;
   /** Total used gas by all transactions in this block */
   gasUsed: bigint;
   /** Block hash */
-  hash: Hash;
+  hash: `0x${string}`;
   /** Logs bloom filter */
-  logsBloom: Hex;
+  logsBloom: `0x${string}`;
   /** Address that received this block’s mining rewards */
-  miner: Address;
+  miner: `0x${string}`;
   /** Block number */
   number: bigint;
   /** Parent block hash */
-  parentHash: Hash;
+  parentHash: `0x${string}`;
   /** Root of the this block’s receipts trie */
-  receiptsRoot: Hex;
+  receiptsRoot: `0x${string}`;
   /** Size of this block in bytes */
   size: bigint;
   /** Root of this block’s final state trie */
-  stateRoot: Hash;
+  stateRoot: `0x${string}`;
   /** Unix timestamp of when this block was collated */
   timestamp: bigint;
   /** Total difficulty of the chain until this block */
   totalDifficulty: bigint | null;
   /** Root of this block’s transaction trie */
-  transactionsRoot: Hash;
+  transactionsRoot: `0x${string}`;
 };
-```
 
-#### `Transaction`
-
-The transaction that emitted this log.
-
-```ts
+/** The transaction that emitted the log being processed. */
 type Transaction = {
   /** Hash of block containing this transaction */
-  blockHash: Hash;
+  blockHash: `0x${string}`;
   /** Number of block containing this transaction */
   blockNumber: bigint;
-  /** Chain ID. */
-  chainId: number;
   /** Transaction sender */
-  from: Address;
+  from: `0x${string}`;
   /** Gas provided for transaction execution */
   gas: bigint;
   /** Base fee per gas. */
   gasPrice?: bigint | undefined;
   /** Hash of this transaction */
-  hash: Hash;
+  hash: `0x${string}`;
   /** Contract code or a hashed method call */
-  input: Hex;
+  input: `0x${string}`;
   /** Total fee per gas in wei (gasPrice/baseFeePerGas + maxPriorityFeePerGas). */
   maxFeePerGas?: bigint | undefined;
   /** Max priority fee per gas (in wei). */
@@ -145,13 +113,148 @@ type Transaction = {
   /** Unique number identifying this transaction */
   nonce: number;
   /** Transaction recipient or `null` if deploying a contract */
-  to: Address | null;
+  to: `0x${string}` | null;
   /** Index of this transaction in the block */
   transactionIndex: number;
   /** Value in wei sent with this transaction */
   value: bigint;
 };
+
+/** The log being processed. */
+type Log = {
+  /** Globally unique identifier for this log (`${blockHash}-${logIndex}`). */
+  id: string;
+  /** The address from which this log originated */
+  address: `0x${string}`;
+  /** Hash of block containing this log */
+  blockHash: `0x${string}`;
+  /** Number of block containing this log */
+  blockNumber: bigint;
+  /** Contains the non-indexed arguments of the log */
+  data: `0x${string}`;
+  /** Index of this log within its block */
+  logIndex: number;
+  /** `true` if this log has been removed in a chain reorganization */
+  removed: boolean;
+  /** List of order-dependent topics */
+  topics: [`0x${string}`, ...`0x${string}`[]] | [];
+  /** Hash of the transaction that created this log */
+  transactionHash: `0x${string}`;
+  /** Index of the transaction that created this log */
+  transactionIndex: number;
+};
 ```
+
+## Context
+
+The `context` argument passed to each indexing function contains database model objects and helper objects based on your config.
+
+At runtime, the indexing engine uses a different `context` object depending on the network the current event was emitted on. The TypeScript types for the `context` object reflect this by creating a union of possible types for `context.network` and `context.contracts`.
+
+<div className="code-columns">
+
+```ts filename="ponder.config.ts" {14-22}
+import { createConfig } from "@ponder/core";
+import { http } from "viem";
+
+import { UniswapV3FactoryAbi } from "./abis/UniswapV3Factory";
+
+export default createConfig({
+  networks: {
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+    base: { chainId: 8453, transport: http(process.env.PONDER_RPC_URL_8453) },
+  },
+  contracts: {
+    UniswapV3Factory: {
+      abi: UniswapV3FactoryAbi,
+      network: {
+        mainnet: {
+          address: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+          startBlock: 12369621,
+        },
+        base: {
+          address: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+          startBlock: 1371680,
+        },
+      },
+    },
+  },
+});
+```
+
+```ts filename="src/index.ts"
+ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
+  context.network;
+  //      ^? { name: "mainnet", chainId 1 } | { name: "base", chainId 8453 }
+
+  event.log.address;
+  //        ^? "0x1F98431c8aD98523631AE4a59f267346ea31F984" | "0x33128a8fC17869897dcE68Ed026d694621f6FDfD"
+
+  if (context.network.name === "mainnet") {
+    // Do mainnet-specific stuff!
+  }
+});
+```
+
+</div>
+
+### Models
+
+The `context.models` object contains ORM-style models that can be used to create, read, update, and delete database records.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export default p.createSchema({
+  Person: p.createTable({
+    id: p.string(),
+    age: p.int().optional(),
+  }),
+  Dog: p.createTable({
+    id: p.bigint(),
+    ownerId: p.string().references("Person.id"),
+  }),
+});
+```
+
+```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
+ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
+  context.models.Person;
+  //             ^? Model<{ id: string; age?: number }>;
+  context.models.Dog;
+  //             ^? Model<{ id: bigint; ownerId: string; }>;
+});
+```
+
+</div>
+
+### Network
+
+The `context.network` object contains information about the network that the current event was emitted on. The name and chain ID properties are strictly typed as a union of possible values based on the networks that the contract is configured to run on.
+
+```ts filename="src/index.ts"
+ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
+  context.network;
+  //      ^? { name: "mainnet", chainId 1 } | { name: "base", chainId 8453 }
+
+  if (context.network.name === "mainnet") {
+    // Do mainnet-specific stuff!
+  }
+});
+```
+
+### Client
+
+<Callout type="info">
+  See the [Read contract data](/guides/read-contract-data) guide for more
+  details.
+</Callout>
+
+### Contracts
 
 ### `Context`
 
