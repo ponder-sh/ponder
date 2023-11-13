@@ -60,6 +60,9 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
+      - name: Codegen
+        run: cd benchmarks && pnpm graph codegen subgraph/subgraph.yaml
+
       - name: Bench
         run: pnpm bench:ci
         env:
