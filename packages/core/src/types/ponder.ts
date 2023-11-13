@@ -26,7 +26,7 @@ export type Name<TContract extends Config["contracts"][number]> =
 export type Names<TContracts extends Config["contracts"]> =
   TContracts extends readonly [
     infer First extends Config["contracts"][number],
-    ...infer Rest extends Config["contracts"]
+    ...infer Rest extends Config["contracts"],
   ]
     ? [Name<First>, ...Names<Rest>]
     : [];
@@ -34,10 +34,10 @@ export type Names<TContracts extends Config["contracts"]> =
 /** Recover the `contract` element at the index where {@link TName} is equal to {@link TContracts}[index]. */
 export type RecoverContract<
   TContracts extends Config["contracts"],
-  TName extends string
+  TName extends string,
 > = TContracts extends readonly [
   infer First extends Config["contracts"][number],
-  ...infer Rest extends Config["contracts"]
+  ...infer Rest extends Config["contracts"],
 ]
   ? First["name"] extends TName
     ? First
@@ -54,28 +54,28 @@ type ContractNetworkOverrides = ContractRequired<
 export type ExtractAddress<
   TContract extends
     | ContractNetworkOverrides
-    | ContractFilter<readonly AbiEvent[], string>
+    | ContractFilter<readonly AbiEvent[], string>,
 > = Extract<TContract, { address: unknown }>["address"];
 
 /** Extract the startBlock type from a Contract. */
 export type ExtractStartBlock<
   TContract extends
     | ContractNetworkOverrides
-    | ContractFilter<readonly AbiEvent[], string>
+    | ContractFilter<readonly AbiEvent[], string>,
 > = Extract<TContract, { startBlock: unknown }>["startBlock"];
 
 /** Extract the endBlock type from a Contract. */
 export type ExtractEndBlock<
   TContract extends
     | ContractNetworkOverrides
-    | ContractFilter<readonly AbiEvent[], string>
+    | ContractFilter<readonly AbiEvent[], string>,
 > = Extract<TContract, { endBlock: unknown }>["endBlock"];
 
 /** Extract all address from a list of Contracts. */
 export type ExtractAllAddresses<TContracts extends ContractNetworkOverrides> =
   TContracts extends readonly [
     infer First extends ContractNetworkOverrides[number],
-    ...infer Rest extends ContractNetworkOverrides
+    ...infer Rest extends ContractNetworkOverrides,
   ]
     ? readonly [ExtractAddress<First>, ...ExtractAllAddresses<Rest>]
     : [];
@@ -84,7 +84,7 @@ export type ExtractAllAddresses<TContracts extends ContractNetworkOverrides> =
 export type ExtractAllStartBlocks<TContracts extends ContractNetworkOverrides> =
   TContracts extends readonly [
     infer First extends ContractNetworkOverrides[number],
-    ...infer Rest extends ContractNetworkOverrides
+    ...infer Rest extends ContractNetworkOverrides,
   ]
     ? readonly [ExtractStartBlock<First>, ...ExtractAllStartBlocks<Rest>]
     : [];
@@ -93,7 +93,7 @@ export type ExtractAllStartBlocks<TContracts extends ContractNetworkOverrides> =
 export type ExtractAllEndBlocks<TContracts extends ContractNetworkOverrides> =
   TContracts extends readonly [
     infer First extends ContractNetworkOverrides[number],
-    ...infer Rest extends ContractNetworkOverrides
+    ...infer Rest extends ContractNetworkOverrides,
   ]
     ? readonly [ExtractEndBlock<First>, ...ExtractAllEndBlocks<Rest>]
     : [];
@@ -102,7 +102,7 @@ export type ExtractAllEndBlocks<TContracts extends ContractNetworkOverrides> =
 type AppContracts<TContracts extends Config["contracts"]> =
   TContracts extends readonly [
     infer First extends Config["contracts"][number],
-    ...infer Rest extends Config["contracts"]
+    ...infer Rest extends Config["contracts"],
   ]
     ? Record<
         First["name"],
@@ -165,11 +165,11 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
               >["network"][number]["name"]
             : never;
         };
-        client: ReadOnlyClient;
+        client: Omit<ReadOnlyClient, "extend">;
         models: {
           [key in keyof Infer<TSchema>]: Model<Infer<TSchema>[key]>;
         };
       };
-    }) => Promise<void> | void
+    }) => Promise<void> | void,
   ) => void;
 };

@@ -1,4 +1,4 @@
-import { type Client, type PublicClient, createPublicClient } from "viem";
+import { type Client, createPublicClient, type PublicClient } from "viem";
 
 import type { Config } from "@/config/config.js";
 import type { Common } from "@/Ponder.js";

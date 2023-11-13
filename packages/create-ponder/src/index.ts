@@ -1,7 +1,8 @@
-import type { Abi, AbiEvent } from "abitype";
 import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
+import type { Abi, AbiEvent } from "abitype";
 import pico from "picocolors";
 import prettier from "prettier";
 
@@ -40,7 +41,7 @@ export type SerializableConfig = {
 
 export const run = async (
   options: CreatePonderOptions,
-  overrides: { installCommand?: string } = {}
+  overrides: { installCommand?: string } = {},
 ) => {
   const ponderVersion = rootPackageJson.version;
   const { rootDir } = options;
@@ -52,7 +53,7 @@ export const run = async (
   let config: SerializableConfig;
 
   console.log(
-    `\nCreating a new Ponder app in ${pico.bold(pico.green(rootDir))}.`
+    `\nCreating a new Ponder app in ${pico.bold(pico.green(rootDir))}.`,
   );
 
   switch (options.template?.kind) {
@@ -96,7 +97,7 @@ export const run = async (
     }
 
     const abiEvents = abi.filter(
-      (item): item is AbiEvent => item.type === "event"
+      (item): item is AbiEvent => item.type === "event",
     );
 
     const eventNamesToWrite = abiEvents.map((event) => event.name).slice(0, 2);
@@ -109,14 +110,14 @@ export const run = async (
           (eventName) => `
           ponder.on("${contract.name}:${eventName}", async ({ event, context }) => {
             console.log(event.params)
-          })`
+          })`,
         )
         .join("\n")}
     `;
 
     writeFileSync(
       path.join(rootDir, `./src/${contract.name}.ts`),
-      prettier.format(indexingFunctionFileContents, { parser: "typescript" })
+      prettier.format(indexingFunctionFileContents, { parser: "typescript" }),
     );
   });
 
@@ -129,7 +130,7 @@ export const run = async (
       networks: ${JSON.stringify(config.networks)
         .replaceAll(
           /"process.env.PONDER_RPC_URL_(.*?)"/g,
-          "process.env.PONDER_RPC_URL_$1"
+          "process.env.PONDER_RPC_URL_$1",
         )
         .replaceAll(/"http\((.*?)\)"/g, "http($1)")},
       contracts: ${JSON.stringify(config.contracts)},
@@ -138,7 +139,7 @@ export const run = async (
 
   writeFileSync(
     path.join(rootDir, "ponder.config.ts"),
-    prettier.format(finalConfig, { parser: "babel" })
+    prettier.format(finalConfig, { parser: "babel" }),
   );
 
   // Write the ponder.schema.ts file
@@ -162,15 +163,15 @@ export const run = async (
 
   writeFileSync(
     path.join(rootDir, "ponder.schema.ts"),
-    prettier.format(schemaGraphqlFileContents, { parser: "babel" })
+    prettier.format(schemaGraphqlFileContents, { parser: "babel" }),
   );
 
   // Write the .env.local file.
   const uniqueChainIds = Array.from(
-    new Set(config.networks.map((n) => n.chainId))
+    new Set(config.networks.map((n) => n.chainId)),
   );
   const envLocal = `${uniqueChainIds.map(
-    (chainId) => `PONDER_RPC_URL_${chainId}=""\n`
+    (chainId) => `PONDER_RPC_URL_${chainId}=""\n`,
   )}`;
   writeFileSync(path.join(rootDir, ".env.local"), envLocal);
 
@@ -199,7 +200,7 @@ export const run = async (
   `;
   writeFileSync(
     path.join(rootDir, "package.json"),
-    prettier.format(packageJson, { parser: "json" })
+    prettier.format(packageJson, { parser: "json" }),
   );
 
   // Write the tsconfig.json file.
@@ -220,7 +221,7 @@ export const run = async (
   `;
   writeFileSync(
     path.join(rootDir, "tsconfig.json"),
-    prettier.format(tsConfig, { parser: "json" })
+    prettier.format(tsConfig, { parser: "json" }),
   );
 
   if (options.eslint) {
@@ -232,7 +233,7 @@ export const run = async (
 
     writeFileSync(
       path.join(rootDir, ".eslintrc.json"),
-      prettier.format(eslintConfig, { parser: "json" })
+      prettier.format(eslintConfig, { parser: "json" }),
     );
   }
 
@@ -259,7 +260,7 @@ yarn-error.log*
 /generated/
 
 # TypeScript
-ponder-env.d.ts`
+ponder-env.d.ts`,
   );
 
   const packageManager = await getPackageManager();
@@ -294,6 +295,6 @@ ponder-env.d.ts`
   console.log(`\nGenerated types.`);
 
   console.log(
-    pico.green("\nSuccess! ") + `Created ${options.projectName} at ${rootDir}`
+    pico.green("\nSuccess! ") + `Created ${options.projectName} at ${rootDir}`,
   );
 };

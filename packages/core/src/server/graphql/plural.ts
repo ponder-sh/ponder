@@ -2,8 +2,8 @@ import type { GraphQLInputFieldConfigMap, GraphQLObjectType } from "graphql";
 import {
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
-  type GraphQLInputType,
   GraphQLInputObjectType,
+  type GraphQLInputType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
@@ -138,7 +138,7 @@ export const buildPluralField = ({
 
   return {
     type: new GraphQLNonNull(
-      new GraphQLList(new GraphQLNonNull(entityGqlType))
+      new GraphQLList(new GraphQLNonNull(entityGqlType)),
     ),
     args: {
       skip: { type: GraphQLInt, defaultValue: 0 },
@@ -184,7 +184,7 @@ function buildWhereObject({ where }: { where: Record<string, any> }) {
     const storeCondition = graphqlFilterToStoreCondition[condition];
     if (!storeCondition) {
       throw new Error(
-        `Invalid query: Unknown where condition: ${fieldName}_${condition}`
+        `Invalid query: Unknown where condition: ${fieldName}_${condition}`,
       );
     }
 

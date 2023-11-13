@@ -40,7 +40,7 @@ test("filter type has correct suffixes and types", () => {
       acc[key] = value.type.toString();
       return acc;
     },
-    {}
+    {},
   );
 
   expect(fieldsPretty).toMatchObject({

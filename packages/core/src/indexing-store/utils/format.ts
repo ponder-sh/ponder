@@ -7,7 +7,7 @@ import type { ModelInstance } from "../store.js";
  */
 export function formatModelInstance(
   data: Partial<ModelInstance>,
-  encodeBigInts: boolean
+  encodeBigInts: boolean,
 ) {
   const instance: { [key: string]: string | number | null | bigint } = {};
 

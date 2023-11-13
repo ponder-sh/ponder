@@ -1,6 +1,6 @@
 import SqliteDatabase from "better-sqlite3";
 import { Pool } from "pg";
-import { type TestContext, beforeEach } from "vitest";
+import { beforeEach, type TestContext } from "vitest";
 
 import { patchSqliteDatabase } from "@/config/database.js";
 import { buildOptions } from "@/config/options.js";
@@ -61,7 +61,7 @@ beforeEach((context) => {
  */
 export async function setupSyncStore(
   context: TestContext,
-  options = { migrateUp: true }
+  options = { migrateUp: true },
 ) {
   if (process.env.DATABASE_URL) {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });

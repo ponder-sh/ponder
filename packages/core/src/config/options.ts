@@ -1,4 +1,5 @@
 import path from "node:path";
+
 import type { LevelWithSilent } from "pino";
 
 import type { CliOptions } from "@/bin/ponder.js";
@@ -34,7 +35,7 @@ export const buildOptions = ({
   const logLevel = (
     process.env.PONDER_LOG_LEVEL &&
     ["silent", "fatal", "error", "warn", "info", "debug", "trace"].includes(
-      process.env.PONDER_LOG_LEVEL
+      process.env.PONDER_LOG_LEVEL,
     )
       ? process.env.PONDER_LOG_LEVEL
       : "info"
@@ -55,7 +56,7 @@ export const buildOptions = ({
     telemetryUrl: "https://ponder.sh/api/telemetry",
     telemetryDisabled: Boolean(process.env.PONDER_TELEMETRY_DISABLED),
     telemetryIsExampleProject: Boolean(
-      process.env.PONDER_TELEMETRY_IS_EXAMPLE_PROJECT
+      process.env.PONDER_TELEMETRY_IS_EXAMPLE_PROJECT,
     ),
 
     logLevel,

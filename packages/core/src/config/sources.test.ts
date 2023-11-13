@@ -145,6 +145,6 @@ test("buildSources() overrides default values with network values", () => {
   });
 
   expect(sources[0].criteria.address).toBe(
-    "0xf39d15cb3910d5e33fb1a2e42d4a2da153ba076b"
+    "0xf39d15cb3910d5e33fb1a2e42d4a2da153ba076b",
   );
 });

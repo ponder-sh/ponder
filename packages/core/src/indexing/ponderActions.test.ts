@@ -7,9 +7,11 @@ import {
 } from "@/_test/constants.js";
 import { publicClient } from "@/_test/utils.js";
 
-import { ponderActions } from "./ponderActions.js";
+import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
 
-const client = publicClient.extend(ponderActions(() => 16375000n));
+const client = publicClient.extend(
+  ponderActions(() => 16375000n) as any,
+) as ReadOnlyClient;
 
 const usdcTotalSupply16375000 = 40921687992499550n;
 
@@ -28,7 +30,7 @@ test("getBytecode()", async () => {
 
   expect(bytecode).toBeTruthy();
   expect(keccak256(bytecode!)).toBe(
-    "0xd80d4b7c890cb9d6a4893e6b52bc34b56b25335cb13716e0d1d31383e6b41505"
+    "0xd80d4b7c890cb9d6a4893e6b52bc34b56b25335cb13716e0d1d31383e6b41505",
   );
 });
 
@@ -39,7 +41,7 @@ test("getStorageAt()", async () => {
   });
 
   expect(storage).toBe(
-    "0x0000000000000000000000001a9c8182c09f50c8318d769245bea52c32be35bc"
+    "0x0000000000000000000000001a9c8182c09f50c8318d769245bea52c32be35bc",
   );
 });
 

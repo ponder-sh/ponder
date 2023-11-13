@@ -1,4 +1,5 @@
 import path from "node:path";
+
 import pc from "picocolors";
 import { type LevelWithSilent, type Logger, pino } from "pino";
 
@@ -50,7 +51,7 @@ export class LoggerService {
         level: "trace",
         serializers: { error: pino.stdSerializers.errWithCause },
       },
-      pino.multistream(streams)
+      pino.multistream(streams),
     );
   }
 

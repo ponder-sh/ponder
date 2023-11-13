@@ -1,5 +1,5 @@
 import Emittery from "emittery";
-import { type Hex, decodeEventLog } from "viem";
+import { decodeEventLog, type Hex } from "viem";
 
 import type { LogEventMetadata } from "@/config/abi.js";
 import type { Network } from "@/config/networks.js";
@@ -133,7 +133,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
         fromBlock: logFilter.startBlock,
         toBlock: logFilter.endBlock,
         includeEventSelectors: Object.keys(
-          indexingMetadata[logFilter.name]?.bySelector ?? {}
+          indexingMetadata[logFilter.name]?.bySelector ?? {},
         ) as Hex[],
       })),
       factories: this.sources.filter(sourceIsFactory).map((factory) => ({
@@ -143,7 +143,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
         fromBlock: factory.startBlock,
         toBlock: factory.endBlock,
         includeEventSelectors: Object.keys(
-          indexingMetadata[factory.name]?.bySelector ?? {}
+          indexingMetadata[factory.name]?.bySelector ?? {},
         ) as Hex[],
       })),
     });
@@ -155,7 +155,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
         const selector = event.log.topics[0];
         if (!selector) {
           throw new Error(
-            `Received an event log with no selector: ${event.log}`
+            `Received an event log with no selector: ${event.log}`,
           );
         }
 
@@ -163,7 +163,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
           indexingMetadata[event.eventSourceName]?.bySelector[selector];
         if (!logEventMetadata) {
           throw new Error(
-            `Metadata for event ${event.eventSourceName}:${selector} not found in includeEvents`
+            `Metadata for event ${event.eventSourceName}:${selector} not found in includeEvents`,
           );
         }
         const { abiItem, safeName } = logEventMetadata;
@@ -212,7 +212,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     this.common.logger.trace({
       service: "gateway",
       msg: `New historical checkpoint at ${timestamp} [${formatShortDate(
-        timestamp
+        timestamp,
       )}] (chainId=${chainId})`,
     });
 
@@ -227,7 +227,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     const networkCheckpoints = Object.values(this.networkCheckpoints);
     if (networkCheckpoints.every((n) => n.isHistoricalSyncComplete)) {
       const maxHistoricalCheckpoint = Math.max(
-        ...networkCheckpoints.map((n) => n.historicalCheckpoint)
+        ...networkCheckpoints.map((n) => n.historicalCheckpoint),
       );
       this.historicalSyncCompletedAt = maxHistoricalCheckpoint;
 
@@ -250,7 +250,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     this.common.logger.trace({
       service: "gateway",
       msg: `New realtime checkpoint at ${timestamp} [${formatShortDate(
-        timestamp
+        timestamp,
       )}] (chainId=${chainId})`,
     });
 
@@ -280,7 +280,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     const checkpoints = Object.values(this.networkCheckpoints).map((n) =>
       n.isHistoricalSyncComplete
         ? Math.max(n.historicalCheckpoint, n.realtimeCheckpoint)
-        : n.historicalCheckpoint
+        : n.historicalCheckpoint,
     );
     const newCheckpoint = Math.min(...checkpoints);
 
@@ -290,7 +290,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
       this.common.logger.trace({
         service: "gateway",
         msg: `New event checkpoint at ${this.checkpoint} [${formatShortDate(
-          this.checkpoint
+          this.checkpoint,
         )}]`,
       });
 
@@ -300,7 +300,9 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
 
   private recalculateFinalityCheckpoint = () => {
     const newFinalityCheckpoint = Math.min(
-      ...Object.values(this.networkCheckpoints).map((n) => n.finalityCheckpoint)
+      ...Object.values(this.networkCheckpoints).map(
+        (n) => n.finalityCheckpoint,
+      ),
     );
 
     if (newFinalityCheckpoint > this.finalityCheckpoint) {

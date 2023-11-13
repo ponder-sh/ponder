@@ -37,5 +37,5 @@ export const getGraphProtocolChainId = (networkName: string) => {
 };
 
 export const subgraphYamlFileNames = ["subgraph.yaml"].concat(
-  Object.keys(chainIdByGraphNetwork).map((n) => `subgraph-${n}.yaml`)
+  Object.keys(chainIdByGraphNetwork).map((n) => `subgraph-${n}.yaml`),
 );

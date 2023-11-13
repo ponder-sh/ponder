@@ -20,7 +20,7 @@ export async function getGitRemoteUrl() {
           return;
         }
         resolve(stdout);
-      }
+      },
     );
 
     return String(await promise).trim();

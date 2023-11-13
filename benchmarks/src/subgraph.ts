@@ -17,7 +17,7 @@ const fetchSubgraphLatestBlockNumber = async () => {
             number
           }
         }
-      }`
+      }`,
     );
 
     const error = response.errors?.[0];
@@ -25,7 +25,7 @@ const fetchSubgraphLatestBlockNumber = async () => {
     if (error) {
       if (
         error.message?.endsWith(
-          "Wait for it to ingest a few blocks before querying it"
+          "Wait for it to ingest a few blocks before querying it",
         )
       ) {
         return 0;
@@ -82,7 +82,7 @@ const waitForSyncComplete = async () => {
     const interval = setInterval(async () => {
       const latestSyncedBlockNumber = await fetchSubgraphLatestBlockNumber();
       console.log(
-        `Latest synced block number: ${latestSyncedBlockNumber}/${END_BLOCK}`
+        `Latest synced block number: ${latestSyncedBlockNumber}/${END_BLOCK}`,
       );
 
       if (latestSyncedBlockNumber >= END_BLOCK) {
@@ -114,7 +114,7 @@ export const subgraph = async () => {
     {
       timeout: 10_000,
       stdio: "inherit",
-    }
+    },
   );
 
   console.log("Deploying subgraph...");
@@ -132,7 +132,7 @@ export const subgraph = async () => {
     {
       timeout: 10_000,
       stdio: "inherit",
-    }
+    },
   );
 
   const duration = await waitForSyncComplete();

@@ -57,16 +57,16 @@ test(
     if (syncStore.kind !== "sqlite") return;
 
     const { error } = await syncStore.migrator.migrateTo(
-      "2023_09_19_0_new_sync_design"
+      "2023_09_19_0_new_sync_design",
     );
     expect(error).toBeFalsy();
 
     await seed_2023_09_19_0_new_sync_design(syncStore.db);
 
     const { error: latestError } = await syncStore.migrator.migrateTo(
-      "2023_11_06_0_new_rpc_cache_design"
+      "2023_11_06_0_new_rpc_cache_design",
     );
     expect(latestError).toBeFalsy();
   },
-  {}
+  {},
 );

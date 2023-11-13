@@ -97,7 +97,7 @@ const App = (ui: UiState) => {
                 title={eventSourceName}
                 stat={stat}
               />
-            )
+            ),
           )}
           <Text> </Text>
         </Box>

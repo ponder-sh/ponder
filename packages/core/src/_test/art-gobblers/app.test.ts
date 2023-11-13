@@ -1,6 +1,7 @@
 import { rmSync } from "node:fs";
+
 import request from "supertest";
-import { type TestContext, afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, type TestContext } from "vitest";
 
 import { setupIndexingStore, setupSyncStore } from "@/_test/setup.js";
 import { buildOptions } from "@/config/options.js";

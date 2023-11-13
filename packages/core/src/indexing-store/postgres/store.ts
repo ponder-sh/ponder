@@ -54,11 +54,11 @@ export class PostgresIndexingStore implements IndexingStore {
           ? async (connection) => {
               await connection.executeQuery(
                 CompiledQuery.raw(
-                  `CREATE SCHEMA IF NOT EXISTS ${databaseSchema}`
-                )
+                  `CREATE SCHEMA IF NOT EXISTS ${databaseSchema}`,
+                ),
               );
               await connection.executeQuery(
-                CompiledQuery.raw(`SET search_path = ${databaseSchema}`)
+                CompiledQuery.raw(`SET search_path = ${databaseSchema}`),
               );
             }
           : undefined,
@@ -83,7 +83,7 @@ export class PostgresIndexingStore implements IndexingStore {
           Object.keys(this.schema.tables).map((tableName) => {
             const dbTableName = `${tableName}_${this.versionId}`;
             tx.schema.dropTable(dbTableName);
-          })
+          }),
         );
       }
 
@@ -108,11 +108,11 @@ export class PostgresIndexingStore implements IndexingStore {
                   if (!column.optional) col = col.notNull();
                   col = col.check(
                     sql`${sql.ref(columnName)} in (${sql.join(
-                      schema!.enums[column.type].map((v) => sql.lit(v))
-                    )})`
+                      schema!.enums[column.type].map((v) => sql.lit(v)),
+                    )})`,
                   );
                   return col;
-                }
+                },
               );
             } else if (column.list) {
               tableBuilder = tableBuilder.addColumn(
@@ -121,7 +121,7 @@ export class PostgresIndexingStore implements IndexingStore {
                 (col) => {
                   if (!column.optional) col = col.notNull();
                   return col;
-                }
+                },
               );
             } else {
               // Non-list base column
@@ -131,7 +131,7 @@ export class PostgresIndexingStore implements IndexingStore {
                 (col) => {
                   if (!column.optional) col = col.notNull();
                   return col;
-                }
+                },
               );
             }
           });
@@ -140,22 +140,22 @@ export class PostgresIndexingStore implements IndexingStore {
           tableBuilder = tableBuilder.addColumn(
             "effectiveFrom",
             "integer",
-            (col) => col.notNull()
+            (col) => col.notNull(),
           );
           tableBuilder = tableBuilder.addColumn(
             "effectiveTo",
             "integer",
-            (col) => col.notNull()
+            (col) => col.notNull(),
           );
           tableBuilder = tableBuilder.addPrimaryKeyConstraint(
             `${dbTableName}_id_effectiveTo_unique`,
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore
-            ["id", "effectiveTo"]
+            ["id", "effectiveTo"],
           );
 
           await tableBuilder.execute();
-        })
+        }),
       );
     });
   };
@@ -169,7 +169,7 @@ export class PostgresIndexingStore implements IndexingStore {
             await tx.schema
               .dropTable(`${tableName}_${this.versionId}`)
               .execute();
-          })
+          }),
         );
       });
     }
@@ -515,7 +515,7 @@ export class PostgresIndexingStore implements IndexingStore {
           fieldName,
           direction === "asc" || direction === undefined
             ? sql`asc nulls first`
-            : sql`desc nulls last`
+            : sql`desc nulls last`,
         );
       }
     }
@@ -523,7 +523,7 @@ export class PostgresIndexingStore implements IndexingStore {
     const instances = await query.execute();
 
     return instances.map((instance) =>
-      this.deserializeInstance({ modelName, instance })
+      this.deserializeInstance({ modelName, instance }),
     );
   };
 
@@ -550,8 +550,8 @@ export class PostgresIndexingStore implements IndexingStore {
 
     const instances = await Promise.all(
       chunkedInstances.map((c) =>
-        this.db.insertInto(tableName).values(c).returningAll().execute()
-      )
+        this.db.insertInto(tableName).values(c).returningAll().execute(),
+      ),
     );
 
     return instances
@@ -650,12 +650,12 @@ export class PostgresIndexingStore implements IndexingStore {
             })
             .returningAll()
             .executeTakeFirstOrThrow();
-        })
+        }),
       );
     });
 
     return instances.map((instance) =>
-      this.deserializeInstance({ modelName, instance })
+      this.deserializeInstance({ modelName, instance }),
     );
   };
 
@@ -677,7 +677,7 @@ export class PostgresIndexingStore implements IndexingStore {
             .where("effectiveTo", ">=", safeTimestamp)
             .set({ effectiveTo: MAX_INTEGER })
             .execute();
-        })
+        }),
       );
     });
   };
@@ -690,7 +690,7 @@ export class PostgresIndexingStore implements IndexingStore {
     instance: Record<string, unknown>;
   }) => {
     const entity = Object.entries(this.schema!.tables).find(
-      ([name]) => name === modelName
+      ([name]) => name === modelName,
     )![1];
     const deserializedInstance = {} as ModelInstance;
 

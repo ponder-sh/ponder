@@ -40,5 +40,5 @@ ponder.on(
         lastActive: Number(event.block.timestamp),
       },
     });
-  }
+  },
 );

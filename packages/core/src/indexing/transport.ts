@@ -23,11 +23,11 @@ export const ponderTransport = ({
         if (method === "eth_call") {
           const [{ data, to }, _blockNumber] = params as [
             { data: Hex; to: Hex },
-            Hex
+            Hex,
           ];
 
           request = `${method as string}_${toLowerCase(to)}_${toLowerCase(
-            data
+            data,
           )}`;
           blockNumber = BigInt(_blockNumber);
         } else if (method === "eth_getBalance") {
@@ -44,7 +44,7 @@ export const ponderTransport = ({
           const [address, slot, _blockNumber] = params as [Address, Hex, Hex];
 
           request = `${method as string}_${toLowerCase(address)}_${toLowerCase(
-            slot
+            slot,
           )}`;
           blockNumber = BigInt(_blockNumber);
         }

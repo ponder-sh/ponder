@@ -311,7 +311,7 @@ const migrations: Record<string, Migration> = {
         .createTable("logFilterIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("logFilterId", "text", (col) =>
-          col.notNull().references("logFilters.id")
+          col.notNull().references("logFilters.id"),
         )
         .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
         .addColumn("endBlock", "varchar(79)", (col) => col.notNull())
@@ -338,7 +338,7 @@ const migrations: Record<string, Migration> = {
         .createTable("factoryLogFilterIntervals")
         .addColumn("id", "integer", (col) => col.notNull().primaryKey()) // Auto-increment
         .addColumn("factoryId", "text", (col) =>
-          col.notNull().references("factories.id")
+          col.notNull().references("factories.id"),
         )
         .addColumn("startBlock", "varchar(79)", (col) => col.notNull())
         .addColumn("endBlock", "varchar(79)", (col) => col.notNull())

@@ -1258,7 +1258,7 @@ test("throws if limit is greater than 1000", async (context) => {
   `);
 
   expect(response.body.errors[0].message).toBe(
-    "Invalid query. Cannot take more than 1000 rows. Received: 1005 rows."
+    "Invalid query. Cannot take more than 1000 rows. Received: 1005 rows.",
   );
   expect(response.statusCode).toBe(200);
 
@@ -1306,7 +1306,7 @@ test("throws if skip is greater than 5000", async (context) => {
   `);
 
   expect(response.body.errors[0].message).toBe(
-    "Invalid query. Cannot skip more than 5000 rows. Received: 5005 rows."
+    "Invalid query. Cannot skip more than 5000 rows. Received: 5005 rows.",
   );
   expect(response.statusCode).toBe(200);
 

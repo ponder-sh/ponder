@@ -16,7 +16,7 @@ export type Model<T extends { id: string | number | bigint }> = {
         : HasRequiredPropertiesOtherThanId<T> extends true
         ? { data: Prettify<Omit<T, "id">> }
         : { data?: Prettify<Omit<T, "id">> })
-    >
+    >,
   ) => Promise<Prettify<T>>;
 
   createMany: (options: { data: Prettify<T>[] }) => Promise<Prettify<T>[]>;
@@ -42,7 +42,7 @@ export type Model<T extends { id: string | number | bigint }> = {
                   current: Prettify<T>;
                 }) => Prettify<Omit<Partial<T>, "id">>);
           })
-    >
+    >,
   ) => Promise<Prettify<T>>;
 
   updateMany: (options: {
@@ -77,7 +77,7 @@ export type Model<T extends { id: string | number | bigint }> = {
                   current: Prettify<T>;
                 }) => Prettify<Omit<Partial<T>, "id">>);
           })
-    >
+    >,
   ) => Promise<Prettify<T>>;
 
   findUnique: (options: { id: T["id"] }) => Promise<Prettify<T> | null>;

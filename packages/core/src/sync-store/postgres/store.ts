@@ -1,11 +1,11 @@
 import {
-  type ExpressionBuilder,
-  type Transaction as KyselyTransaction,
   CompiledQuery,
+  type ExpressionBuilder,
   Kysely,
   Migrator,
   PostgresDialect,
   sql,
+  type Transaction as KyselyTransaction,
 } from "kysely";
 import type { Pool } from "pg";
 import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
@@ -24,10 +24,10 @@ import { range } from "@/utils/range.js";
 
 import type { SyncStore } from "../store.js";
 import {
-  type SyncStoreTables,
   rpcToPostgresBlock,
   rpcToPostgresLog,
   rpcToPostgresTransaction,
+  type SyncStoreTables,
 } from "./format.js";
 import { migrationProvider } from "./migrations.js";
 
@@ -50,11 +50,11 @@ export class PostgresSyncStore implements SyncStore {
           ? async (connection) => {
               await connection.executeQuery(
                 CompiledQuery.raw(
-                  `CREATE SCHEMA IF NOT EXISTS ${databaseSchema}`
-                )
+                  `CREATE SCHEMA IF NOT EXISTS ${databaseSchema}`,
+                ),
               );
               await connection.executeQuery(
-                CompiledQuery.raw(`SET search_path = ${databaseSchema}`)
+                CompiledQuery.raw(`SET search_path = ${databaseSchema}`),
               );
             }
           : undefined,
@@ -106,7 +106,7 @@ export class PostgresSyncStore implements SyncStore {
             rpcTransactions.map((transaction) => ({
               ...rpcToPostgresTransaction(transaction),
               chainId,
-            }))
+            })),
           )
           .onConflict((oc) => oc.column("hash").doNothing())
           .execute();
@@ -119,7 +119,7 @@ export class PostgresSyncStore implements SyncStore {
             rpcLogs.map((log) => ({
               ...rpcToPostgresLog(log),
               chainId,
-            }))
+            })),
           )
           .onConflict((oc) => oc.column("id").doNothing())
           .execute();
@@ -164,7 +164,7 @@ export class PostgresSyncStore implements SyncStore {
             existingIntervalRows.map((i) => [
               Number(i.startBlock),
               Number(i.endBlock),
-            ])
+            ]),
           );
 
           const mergedIntervalRows = mergedIntervals.map(
@@ -172,7 +172,7 @@ export class PostgresSyncStore implements SyncStore {
               logFilterId,
               startBlock: BigInt(startBlock),
               endBlock: BigInt(endBlock),
-            })
+            }),
           );
 
           if (mergedIntervalRows.length > 0) {
@@ -184,7 +184,7 @@ export class PostgresSyncStore implements SyncStore {
 
           return mergedIntervals;
         });
-      })
+      }),
     );
 
     const intervals = await this.db
@@ -195,12 +195,12 @@ export class PostgresSyncStore implements SyncStore {
             fragments.map(
               (f) =>
                 sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                  f.topic0
+                  f.topic0,
                 )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                  f.topic3
-                )} )`
-            )
-          )} )`
+                  f.topic3,
+                )} )`,
+            ),
+          )} )`,
       )
       .selectFrom("logFilterIntervals")
       .leftJoin("logFilters", "logFilterId", "logFilters.id")
@@ -209,7 +209,7 @@ export class PostgresSyncStore implements SyncStore {
           or([
             cmpr("address", "is", null),
             cmpr("fragmentAddress", "=", sql.ref("address")),
-          ])
+          ]),
         );
         for (const idx_ of range(0, 4)) {
           baseJoin = baseJoin.on(({ or, cmpr }) => {
@@ -227,17 +227,20 @@ export class PostgresSyncStore implements SyncStore {
       .where("chainId", "=", chainId)
       .execute();
 
-    const intervalsByFragment = intervals.reduce((acc, cur) => {
-      const { fragmentId, ...rest } = cur;
-      acc[fragmentId] ||= [];
-      acc[fragmentId].push(rest);
-      return acc;
-    }, {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>);
+    const intervalsByFragment = intervals.reduce(
+      (acc, cur) => {
+        const { fragmentId, ...rest } = cur;
+        acc[fragmentId] ||= [];
+        acc[fragmentId].push(rest);
+        return acc;
+      },
+      {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>,
+    );
 
     const fragmentIntervals = fragments.map((f) => {
       return (intervalsByFragment[f.id] ?? []).map(
         (r) =>
-          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
+          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number],
       );
     });
 
@@ -259,7 +262,7 @@ export class PostgresSyncStore implements SyncStore {
             rpcLogs.map((log) => ({
               ...rpcToPostgresLog(log),
               chainId,
-            }))
+            })),
           )
           .onConflict((oc) => oc.column("id").doNothing())
           .execute();
@@ -395,7 +398,7 @@ export class PostgresSyncStore implements SyncStore {
             existingIntervals.map((i) => [
               Number(i.startBlock),
               Number(i.endBlock),
-            ])
+            ]),
           );
 
           const mergedIntervalRows = mergedIntervals.map(
@@ -403,7 +406,7 @@ export class PostgresSyncStore implements SyncStore {
               factoryId,
               startBlock: BigInt(startBlock),
               endBlock: BigInt(endBlock),
-            })
+            }),
           );
 
           if (mergedIntervalRows.length > 0) {
@@ -415,7 +418,7 @@ export class PostgresSyncStore implements SyncStore {
 
           return mergedIntervals;
         });
-      })
+      }),
     );
 
     const intervals = await this.db
@@ -426,14 +429,14 @@ export class PostgresSyncStore implements SyncStore {
             fragments.map(
               (f) =>
                 sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                  f.eventSelector
+                  f.eventSelector,
                 )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
-                  f.topic0
+                  f.topic0,
                 )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                  f.topic3
-                )} )`
-            )
-          )} )`
+                  f.topic3,
+                )} )`,
+            ),
+          )} )`,
       )
       .selectFrom("factoryLogFilterIntervals")
       .leftJoin("factories", "factoryId", "factories.id")
@@ -445,9 +448,9 @@ export class PostgresSyncStore implements SyncStore {
             cmpr(
               "fragmentChildAddressLocation",
               "=",
-              sql.ref("childAddressLocation")
+              sql.ref("childAddressLocation"),
             ),
-          ])
+          ]),
         );
         for (const idx_ of range(0, 4)) {
           baseJoin = baseJoin.on(({ or, cmpr }) => {
@@ -465,20 +468,23 @@ export class PostgresSyncStore implements SyncStore {
       .where("chainId", "=", chainId)
       .execute();
 
-    const intervalsByFragment = intervals.reduce((acc, cur) => {
-      const { fragmentId, ...rest } = cur;
-      acc[fragmentId] ||= [];
-      acc[fragmentId].push({
-        startBlock: rest.startBlock,
-        endBlock: rest.endBlock,
-      });
-      return acc;
-    }, {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>);
+    const intervalsByFragment = intervals.reduce(
+      (acc, cur) => {
+        const { fragmentId, ...rest } = cur;
+        acc[fragmentId] ||= [];
+        acc[fragmentId].push({
+          startBlock: rest.startBlock,
+          endBlock: rest.endBlock,
+        });
+        return acc;
+      },
+      {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>,
+    );
 
     const fragmentIntervals = fragments.map((f) => {
       return (intervalsByFragment[f.id] ?? []).map(
         (r) =>
-          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
+          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number],
       );
     });
 
@@ -597,7 +603,7 @@ export class PostgresSyncStore implements SyncStore {
               .whereRef("logFilters.id", "=", "logFilterIntervals.logFilterId")
               .limit(1),
           "=",
-          chainId
+          chainId,
         )
         .where("startBlock", ">", fromBlock)
         .execute();
@@ -612,7 +618,7 @@ export class PostgresSyncStore implements SyncStore {
               .whereRef("logFilters.id", "=", "logFilterIntervals.logFilterId")
               .limit(1),
           "=",
-          chainId
+          chainId,
         )
         .where("endBlock", ">", fromBlock)
         .execute();
@@ -627,11 +633,11 @@ export class PostgresSyncStore implements SyncStore {
               .whereRef(
                 "factories.id",
                 "=",
-                "factoryLogFilterIntervals.factoryId"
+                "factoryLogFilterIntervals.factoryId",
               )
               .limit(1),
           "=",
-          chainId
+          chainId,
         )
         .where("startBlock", ">", fromBlock)
         .execute();
@@ -646,11 +652,11 @@ export class PostgresSyncStore implements SyncStore {
               .whereRef(
                 "factories.id",
                 "=",
-                "factoryLogFilterIntervals.factoryId"
+                "factoryLogFilterIntervals.factoryId",
               )
               .limit(1),
           "=",
-          chainId
+          chainId,
         )
         .where("endBlock", ">", fromBlock)
         .execute();
@@ -687,7 +693,7 @@ export class PostgresSyncStore implements SyncStore {
           .insertInto("logFilterIntervals")
           .values({ logFilterId, startBlock, endBlock })
           .execute();
-      })
+      }),
     );
   };
 
@@ -719,7 +725,7 @@ export class PostgresSyncStore implements SyncStore {
           .insertInto("factoryLogFilterIntervals")
           .values({ factoryId, startBlock, endBlock })
           .execute();
-      })
+      }),
     );
   };
 
@@ -738,7 +744,7 @@ export class PostgresSyncStore implements SyncStore {
       .insertInto("rpcRequestResults")
       .values({ request, blockNumber, chainId, result })
       .onConflict((oc) =>
-        oc.constraint("rpcRequestResultPrimaryKey").doUpdateSet({ result })
+        oc.constraint("rpcRequestResultPrimaryKey").doUpdateSet({ result }),
       )
       .execute();
   };
@@ -800,8 +806,8 @@ export class PostgresSyncStore implements SyncStore {
         "eventSources(eventSource_name)",
         () =>
           sql`( values ${sql.join(
-            eventSourceNames.map((name) => sql`( ${sql.val(name)} )`)
-          )} )`
+            eventSourceNames.map((name) => sql`( ${sql.val(name)} )`),
+          )} )`,
       )
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
@@ -883,8 +889,8 @@ export class PostgresSyncStore implements SyncStore {
         cmpr(
           "logs.chainId",
           "=",
-          sql`cast (${sql.val(logFilter.chainId)} as integer)`
-        )
+          sql`cast (${sql.val(logFilter.chainId)} as integer)`,
+        ),
       );
 
       if (logFilter.criteria.address) {
@@ -942,8 +948,8 @@ export class PostgresSyncStore implements SyncStore {
         cmpr(
           "logs.chainId",
           "=",
-          sql`cast (${sql.val(factory.chainId)} as integer)`
-        )
+          sql`cast (${sql.val(factory.chainId)} as integer)`,
+        ),
       );
 
       const selectChildAddressExpression =
@@ -959,8 +965,8 @@ export class PostgresSyncStore implements SyncStore {
             .select(selectChildAddressExpression.as("childAddress"))
             .where("chainId", "=", factory.chainId)
             .where("address", "=", factory.criteria.address)
-            .where("topic0", "=", factory.criteria.eventSelector)
-        )
+            .where("topic0", "=", factory.criteria.eventSelector),
+        ),
       );
 
       if (factory.fromBlock) {
@@ -984,9 +990,9 @@ export class PostgresSyncStore implements SyncStore {
             cmprs.push(
               or(
                 logFilter.includeEventSelectors.map((t) =>
-                  cmpr("logs.topic0", "=", t)
-                )
-              )
+                  cmpr("logs.topic0", "=", t),
+                ),
+              ),
             );
           }
           return and(cmprs);
@@ -998,9 +1004,9 @@ export class PostgresSyncStore implements SyncStore {
             cmprs.push(
               or(
                 factory.includeEventSelectors.map((t) =>
-                  cmpr("logs.topic0", "=", t)
-                )
-              )
+                  cmpr("logs.topic0", "=", t),
+                ),
+              ),
             );
           }
           return and(cmprs);
@@ -1026,11 +1032,11 @@ export class PostgresSyncStore implements SyncStore {
 
         // NOTE: Not adding the includeEventSelectors clause here.
         const logFilterCmprs = logFilters.map((logFilter) =>
-          and(buildLogFilterCmprs({ where, logFilter }))
+          and(buildLogFilterCmprs({ where, logFilter })),
         );
 
         const factoryCmprs = factories.map((factory) =>
-          and(buildFactoryCmprs({ where, factory }))
+          and(buildFactoryCmprs({ where, factory })),
         );
 
         return or([...logFilterCmprs, ...factoryCmprs]);
@@ -1220,7 +1226,7 @@ function buildFactoryChildAddressSelectExpression({
     const start = 2 + 12 * 2 + 1;
     const length = 20 * 2;
     return sql<Hex>`'0x' || substring(${sql.ref(
-      childAddressLocation
+      childAddressLocation,
     )} from ${start}::integer for ${length}::integer)`;
   }
 }

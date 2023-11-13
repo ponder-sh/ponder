@@ -7,7 +7,7 @@ const END_BLOCK_TIMESTAMP = 1687010711; // Mainnet block 17500010
 const fetchPonderMetrics = async () => {
   try {
     const metricsResponse = await fetchWithTimeout(
-      "http://localhost:42069/metrics"
+      "http://localhost:42069/metrics",
     );
     const metricsRaw = await metricsResponse.text();
     const metrics = parsePrometheusText(metricsRaw);
@@ -26,10 +26,10 @@ const waitForSyncComplete = async () => {
       const metrics = await fetchPonderMetrics();
       const latestProcessedTimestamp =
         metrics.find(
-          (m) => m.name === "ponder_indexing_latest_processed_timestamp"
+          (m) => m.name === "ponder_indexing_latest_processed_timestamp",
         )?.metrics[0].value ?? 0;
       console.log(
-        `Latest processed timestamp: ${latestProcessedTimestamp}/${END_BLOCK_TIMESTAMP}`
+        `Latest processed timestamp: ${latestProcessedTimestamp}/${END_BLOCK_TIMESTAMP}`,
       );
 
       if (latestProcessedTimestamp >= END_BLOCK_TIMESTAMP) {

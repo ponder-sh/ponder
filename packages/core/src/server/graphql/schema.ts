@@ -1,6 +1,6 @@
 import {
-  type GraphQLFieldConfig,
   GraphQLBoolean,
+  type GraphQLFieldConfig,
   GraphQLFloat,
   GraphQLInt,
   GraphQLObjectType,
@@ -26,7 +26,7 @@ const GraphQLBigInt = new GraphQLScalarType({
       return BigInt(value.value);
     } else {
       throw new Error(
-        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`
+        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
       );
     }
   },

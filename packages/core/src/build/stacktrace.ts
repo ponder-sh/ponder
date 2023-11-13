@@ -1,5 +1,6 @@
-import { codeFrameColumns } from "@babel/code-frame";
 import { readFileSync } from "node:fs";
+
+import { codeFrameColumns } from "@babel/code-frame";
 import { parse as parseStackTrace } from "stacktrace-parser";
 
 class ESBuildTransformError extends Error {
@@ -103,7 +104,7 @@ export function parseViteNodeError(error: Error): ViteNodeError {
         codeFrame = codeFrameColumns(
           sourceFileContents,
           { start: { line: lineNumber, column: column ?? undefined } },
-          { highlightCode: true }
+          { highlightCode: true },
         );
         break;
       } catch (err) {

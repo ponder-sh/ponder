@@ -1,5 +1,5 @@
 import { type Abi, type AbiEvent, formatAbiItem } from "abitype";
-import { type Hex, getEventSelector } from "viem";
+import { getEventSelector, type Hex } from "viem";
 
 import { getDuplicateElements } from "@/utils/duplicates.js";
 
@@ -25,7 +25,7 @@ export const getEvents = ({ abi }: { abi: Abi }) => {
     .filter((item) => item.anonymous === undefined || item.anonymous === false);
 
   const overloadedEventNames = getDuplicateElements(
-    abiEvents.map((item) => item.name)
+    abiEvents.map((item) => item.name),
   );
 
   return abiEvents.reduce<AbiEvents>((acc, item) => {

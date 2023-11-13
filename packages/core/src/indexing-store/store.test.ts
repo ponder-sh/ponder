@@ -101,7 +101,7 @@ test("create() throws on unique constraint violation", async (context) => {
       timestamp: 15,
       id: "id1",
       data: { name: "Skip", age: 13 },
-    })
+    }),
   ).rejects.toThrow();
 });
 
@@ -155,7 +155,7 @@ test("create() throws on invalid enum value", async (context) => {
       timestamp: 10,
       id: "id1",
       data: { name: "Skip", kind: "NOTACAT" },
-    })
+    }),
   ).rejects.toThrow();
 });
 
@@ -293,7 +293,7 @@ test("update() throws if trying to update an instance in the past", async (conte
       timestamp: 8,
       id: "id1",
       data: { name: "Peanut Butter" },
-    })
+    }),
   ).rejects.toThrow();
 });
 
@@ -422,7 +422,7 @@ test("upsert() throws if trying to update an instance in the past", async (conte
       id: "id1",
       create: { name: "Jelly" },
       update: { name: "Peanut Butter" },
-    })
+    }),
   ).rejects.toThrow();
 });
 
@@ -751,7 +751,7 @@ test("findMany() errors on invalid filter condition", async (context) => {
     indexingStore.findMany({
       modelName: "Pet",
       where: { name: { invalidWhereCondition: "ar" } },
-    })
+    }),
   ).rejects.toThrow("Invalid filter condition name: invalidWhereCondition");
 });
 
@@ -763,7 +763,7 @@ test("findMany() errors on orderBy object with multiple keys", async (context) =
     indexingStore.findMany({
       modelName: "Pet",
       orderBy: { name: "asc", bigAge: "desc" },
-    })
+    }),
   ).rejects.toThrow("Invalid sort condition: Must have exactly one property");
 });
 

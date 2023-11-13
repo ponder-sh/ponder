@@ -32,7 +32,7 @@ const network: Network = {
 
 const rpcRequestSpy = vi.spyOn(
   network.client as { request: EIP1193RequestFn },
-  "request"
+  "request",
 );
 
 const usdcLogFilter = {
@@ -262,7 +262,7 @@ test("start() handles error while fetching new latest block gracefully", async (
 
   // Mock a failed new block request.
   rpcRequestSpy.mockRejectedValueOnce(
-    new HttpRequestError({ url: "http://test.com" })
+    new HttpRequestError({ url: "http://test.com" }),
   );
   await service.addNewLatestBlock();
 
@@ -420,7 +420,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
     .selectAll()
     .execute();
   expect(
-    blocksAfterReorg.map((block) => decodeToBigInt(block.number))
+    blocksAfterReorg.map((block) => decodeToBigInt(block.number)),
   ).toMatchObject([
     16379996n,
     16379997n,
@@ -582,7 +582,7 @@ test("start() with factory contract inserts new child contracts records and chil
       log: expect.objectContaining({
         address: "0x25e0870d42b6cef90b6dc8216588fad55d5f55c4",
       }),
-    })
+    }),
   );
 
   await service.kill();

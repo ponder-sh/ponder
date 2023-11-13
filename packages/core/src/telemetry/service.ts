@@ -1,10 +1,11 @@
-import Conf from "conf";
-import { randomBytes } from "crypto";
-import { createRequire } from "module";
 import child_process from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import url from "node:url";
+
+import Conf from "conf";
+import { randomBytes } from "crypto";
+import { createRequire } from "module";
 import os from "os";
 import PQueue from "p-queue";
 import path from "path";
@@ -131,8 +132,8 @@ export class TelemetryService {
 
     console.log(
       `${pc.magenta(
-        "Attention"
-      )}: Ponder now collects completely anonymous telemetry regarding usage. This data helps shape Ponder's roadmap and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`
+        "Attention",
+      )}: Ponder now collects completely anonymous telemetry regarding usage. This data helps shape Ponder's roadmap and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`,
     );
   }
 
@@ -149,7 +150,7 @@ export class TelemetryService {
 
     const telemetryEventsFilePath = path.join(
       this.options.ponderDir,
-      "telemetry-events.json"
+      "telemetry-events.json",
     );
     fs.writeFileSync(telemetryEventsFilePath, serializedEvents);
 

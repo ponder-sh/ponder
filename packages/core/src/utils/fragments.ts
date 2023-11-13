@@ -62,17 +62,16 @@ function buildFragments({
   chainId,
   idCallback,
   ...rest
-}:
-  | (LogFilterCriteria | FactoryCriteria) & {
-      idCallback: (
-        address: Address | null,
-        topic0: ReturnType<typeof parseTopics>["topic0"],
-        topic1: ReturnType<typeof parseTopics>["topic1"],
-        topic2: ReturnType<typeof parseTopics>["topic2"],
-        topic3: ReturnType<typeof parseTopics>["topic3"]
-      ) => string;
-      chainId: number;
-    }) {
+}: (LogFilterCriteria | FactoryCriteria) & {
+  idCallback: (
+    address: Address | null,
+    topic0: ReturnType<typeof parseTopics>["topic0"],
+    topic1: ReturnType<typeof parseTopics>["topic1"],
+    topic2: ReturnType<typeof parseTopics>["topic2"],
+    topic3: ReturnType<typeof parseTopics>["topic3"],
+  ) => string;
+  chainId: number;
+}) {
   const fragments: {
     id: string;
     chainId: number;

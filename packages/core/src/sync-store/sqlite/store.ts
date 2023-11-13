@@ -1,11 +1,11 @@
 import type Sqlite from "better-sqlite3";
 import {
   type ExpressionBuilder,
-  type Transaction as KyselyTransaction,
   Kysely,
   Migrator,
   sql,
   SqliteDialect,
+  type Transaction as KyselyTransaction,
 } from "kysely";
 import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
@@ -25,10 +25,10 @@ import { range } from "@/utils/range.js";
 import type { SyncStore } from "../store.js";
 import type { BigIntText } from "./format.js";
 import {
-  type SyncStoreTables,
   rpcToSqliteBlock,
   rpcToSqliteLog,
   rpcToSqliteTransaction,
+  type SyncStoreTables,
 } from "./format.js";
 import { migrationProvider } from "./migrations.js";
 
@@ -134,7 +134,7 @@ export class SqliteSyncStore implements SyncStore {
             existingIntervalRows.map((i) => [
               Number(decodeToBigInt(i.startBlock)),
               Number(decodeToBigInt(i.endBlock)),
-            ])
+            ]),
           );
 
           const mergedIntervalRows = mergedIntervals.map(
@@ -142,7 +142,7 @@ export class SqliteSyncStore implements SyncStore {
               logFilterId,
               startBlock: encodeAsText(startBlock),
               endBlock: encodeAsText(endBlock),
-            })
+            }),
           );
 
           if (mergedIntervalRows.length > 0) {
@@ -154,7 +154,7 @@ export class SqliteSyncStore implements SyncStore {
 
           return mergedIntervals;
         });
-      })
+      }),
     );
 
     const intervals = await this.db
@@ -165,12 +165,12 @@ export class SqliteSyncStore implements SyncStore {
             fragments.map(
               (f) =>
                 sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                  f.topic0
+                  f.topic0,
                 )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                  f.topic3
-                )} )`
-            )
-          )} )`
+                  f.topic3,
+                )} )`,
+            ),
+          )} )`,
       )
       .selectFrom("logFilterIntervals")
       .leftJoin("logFilters", "logFilterId", "logFilters.id")
@@ -179,7 +179,7 @@ export class SqliteSyncStore implements SyncStore {
           or([
             cmpr("address", "is", null),
             cmpr("fragmentAddress", "=", sql.ref("address")),
-          ])
+          ]),
         );
         for (const idx_ of range(0, 4)) {
           baseJoin = baseJoin.on(({ or, cmpr }) => {
@@ -197,20 +197,23 @@ export class SqliteSyncStore implements SyncStore {
       .where("chainId", "=", chainId)
       .execute();
 
-    const intervalsByFragment = intervals.reduce((acc, cur) => {
-      const { fragmentId, ...rest } = cur;
-      acc[fragmentId] ||= [];
-      acc[fragmentId].push({
-        startBlock: decodeToBigInt(rest.startBlock),
-        endBlock: decodeToBigInt(rest.endBlock),
-      });
-      return acc;
-    }, {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>);
+    const intervalsByFragment = intervals.reduce(
+      (acc, cur) => {
+        const { fragmentId, ...rest } = cur;
+        acc[fragmentId] ||= [];
+        acc[fragmentId].push({
+          startBlock: decodeToBigInt(rest.startBlock),
+          endBlock: decodeToBigInt(rest.endBlock),
+        });
+        return acc;
+      },
+      {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>,
+    );
 
     const fragmentIntervals = fragments.map((f) => {
       return (intervalsByFragment[f.id] ?? []).map(
         (r) =>
-          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
+          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number],
       );
     });
 
@@ -363,7 +366,7 @@ export class SqliteSyncStore implements SyncStore {
             existingIntervals.map((i) => [
               Number(decodeToBigInt(i.startBlock)),
               Number(decodeToBigInt(i.endBlock)),
-            ])
+            ]),
           );
 
           const mergedIntervalRows = mergedIntervals.map(
@@ -371,7 +374,7 @@ export class SqliteSyncStore implements SyncStore {
               factoryId,
               startBlock: encodeAsText(startBlock),
               endBlock: encodeAsText(endBlock),
-            })
+            }),
           );
 
           if (mergedIntervalRows.length > 0) {
@@ -383,7 +386,7 @@ export class SqliteSyncStore implements SyncStore {
 
           return mergedIntervals;
         });
-      })
+      }),
     );
 
     const intervals = await this.db
@@ -394,14 +397,14 @@ export class SqliteSyncStore implements SyncStore {
             fragments.map(
               (f) =>
                 sql`( ${sql.val(f.id)}, ${sql.val(f.address)}, ${sql.val(
-                  f.eventSelector
+                  f.eventSelector,
                 )}, ${sql.val(f.childAddressLocation)}, ${sql.val(
-                  f.topic0
+                  f.topic0,
                 )}, ${sql.val(f.topic1)}, ${sql.val(f.topic2)}, ${sql.val(
-                  f.topic3
-                )} )`
-            )
-          )} )`
+                  f.topic3,
+                )} )`,
+            ),
+          )} )`,
       )
       .selectFrom("factoryLogFilterIntervals")
       .leftJoin("factories", "factoryId", "factories.id")
@@ -413,9 +416,9 @@ export class SqliteSyncStore implements SyncStore {
             cmpr(
               "fragmentChildAddressLocation",
               "=",
-              sql.ref("childAddressLocation")
+              sql.ref("childAddressLocation"),
             ),
-          ])
+          ]),
         );
         for (const idx_ of range(0, 4)) {
           baseJoin = baseJoin.on(({ or, cmpr }) => {
@@ -433,20 +436,23 @@ export class SqliteSyncStore implements SyncStore {
       .where("chainId", "=", chainId)
       .execute();
 
-    const intervalsByFragment = intervals.reduce((acc, cur) => {
-      const { fragmentId, ...rest } = cur;
-      acc[fragmentId] ||= [];
-      acc[fragmentId].push({
-        startBlock: decodeToBigInt(rest.startBlock),
-        endBlock: decodeToBigInt(rest.endBlock),
-      });
-      return acc;
-    }, {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>);
+    const intervalsByFragment = intervals.reduce(
+      (acc, cur) => {
+        const { fragmentId, ...rest } = cur;
+        acc[fragmentId] ||= [];
+        acc[fragmentId].push({
+          startBlock: decodeToBigInt(rest.startBlock),
+          endBlock: decodeToBigInt(rest.endBlock),
+        });
+        return acc;
+      },
+      {} as Record<string, { startBlock: bigint; endBlock: bigint }[]>,
+    );
 
     const fragmentIntervals = fragments.map((f) => {
       return (intervalsByFragment[f.id] ?? []).map(
         (r) =>
-          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number]
+          [Number(r.startBlock), Number(r.endBlock)] satisfies [number, number],
       );
     });
 
@@ -567,7 +573,7 @@ export class SqliteSyncStore implements SyncStore {
               .whereRef("logFilters.id", "=", "logFilterIntervals.logFilterId")
               .limit(1),
           "=",
-          chainId
+          chainId,
         )
         .where("startBlock", ">", fromBlock)
         .execute();
@@ -582,7 +588,7 @@ export class SqliteSyncStore implements SyncStore {
               .whereRef("logFilters.id", "=", "logFilterIntervals.logFilterId")
               .limit(1),
           "=",
-          chainId
+          chainId,
         )
         .where("endBlock", ">", fromBlock)
         .execute();
@@ -597,11 +603,11 @@ export class SqliteSyncStore implements SyncStore {
               .whereRef(
                 "factories.id",
                 "=",
-                "factoryLogFilterIntervals.factoryId"
+                "factoryLogFilterIntervals.factoryId",
               )
               .limit(1),
           "=",
-          chainId
+          chainId,
         )
         .where("startBlock", ">", fromBlock)
         .execute();
@@ -616,11 +622,11 @@ export class SqliteSyncStore implements SyncStore {
               .whereRef(
                 "factories.id",
                 "=",
-                "factoryLogFilterIntervals.factoryId"
+                "factoryLogFilterIntervals.factoryId",
               )
               .limit(1),
           "=",
-          chainId
+          chainId,
         )
         .where("endBlock", ">", fromBlock)
         .execute();
@@ -661,7 +667,7 @@ export class SqliteSyncStore implements SyncStore {
             endBlock: encodeAsText(endBlock),
           })
           .execute();
-      })
+      }),
     );
   };
 
@@ -697,7 +703,7 @@ export class SqliteSyncStore implements SyncStore {
             endBlock: encodeAsText(endBlock),
           })
           .execute();
-      })
+      }),
     );
   };
 
@@ -788,8 +794,8 @@ export class SqliteSyncStore implements SyncStore {
         "eventSources(eventSource_name)",
         () =>
           sql`( values ${sql.join(
-            eventSourceNames.map((name) => sql`( ${sql.val(name)} )`)
-          )} )`
+            eventSourceNames.map((name) => sql`( ${sql.val(name)} )`),
+          )} )`,
       )
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
@@ -904,13 +910,13 @@ export class SqliteSyncStore implements SyncStore {
 
       if (logFilter.fromBlock) {
         cmprs.push(
-          cmpr("blocks.number", ">=", encodeAsText(logFilter.fromBlock))
+          cmpr("blocks.number", ">=", encodeAsText(logFilter.fromBlock)),
         );
       }
 
       if (logFilter.toBlock) {
         cmprs.push(
-          cmpr("blocks.number", "<=", encodeAsText(logFilter.toBlock))
+          cmpr("blocks.number", "<=", encodeAsText(logFilter.toBlock)),
         );
       }
 
@@ -943,13 +949,13 @@ export class SqliteSyncStore implements SyncStore {
             .select(selectChildAddressExpression.as("childAddress"))
             .where("chainId", "=", factory.chainId)
             .where("address", "=", factory.criteria.address)
-            .where("topic0", "=", factory.criteria.eventSelector)
-        )
+            .where("topic0", "=", factory.criteria.eventSelector),
+        ),
       );
 
       if (factory.fromBlock) {
         cmprs.push(
-          cmpr("blocks.number", ">=", encodeAsText(factory.fromBlock))
+          cmpr("blocks.number", ">=", encodeAsText(factory.fromBlock)),
         );
       }
 
@@ -970,9 +976,9 @@ export class SqliteSyncStore implements SyncStore {
             cmprs.push(
               or(
                 logFilter.includeEventSelectors.map((t) =>
-                  cmpr("logs.topic0", "=", t)
-                )
-              )
+                  cmpr("logs.topic0", "=", t),
+                ),
+              ),
             );
           }
           return and(cmprs);
@@ -984,9 +990,9 @@ export class SqliteSyncStore implements SyncStore {
             cmprs.push(
               or(
                 factory.includeEventSelectors.map((t) =>
-                  cmpr("logs.topic0", "=", t)
-                )
-              )
+                  cmpr("logs.topic0", "=", t),
+                ),
+              ),
             );
           }
           return and(cmprs);
@@ -1012,11 +1018,11 @@ export class SqliteSyncStore implements SyncStore {
 
         // NOTE: Not adding the includeEventSelectors clause here.
         const logFilterCmprs = logFilters.map((logFilter) =>
-          and(buildLogFilterCmprs({ where, logFilter }))
+          and(buildLogFilterCmprs({ where, logFilter })),
         );
 
         const factoryCmprs = factories.map((factory) =>
-          and(buildFactoryCmprs({ where, factory }))
+          and(buildFactoryCmprs({ where, factory })),
         );
 
         return or([...logFilterCmprs, ...factoryCmprs]);
@@ -1149,7 +1155,7 @@ export class SqliteSyncStore implements SyncStore {
                   type: "eip1559",
                   maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
                   maxPriorityFeePerGas: decodeToBigInt(
-                    row.tx_maxPriorityFeePerGas
+                    row.tx_maxPriorityFeePerGas,
                   ),
                 }
               : row.tx_type === "0x7e"
@@ -1157,7 +1163,7 @@ export class SqliteSyncStore implements SyncStore {
                   type: "deposit",
                   maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
                   maxPriorityFeePerGas: decodeToBigInt(
-                    row.tx_maxPriorityFeePerGas
+                    row.tx_maxPriorityFeePerGas,
                   ),
                 }
               : {
@@ -1216,7 +1222,7 @@ function buildFactoryChildAddressSelectExpression({
     const start = 2 + 12 * 2 + 1;
     const length = 20 * 2;
     return sql<Hex>`'0x' || substring(${sql.ref(
-      childAddressLocation
+      childAddressLocation,
     )}, ${start}, ${length})`;
   }
 }

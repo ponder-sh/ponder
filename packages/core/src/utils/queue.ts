@@ -10,11 +10,11 @@ type TaskOptions = { priority?: number; retry?: boolean };
 export type Queue<TTask> = PQueue & {
   addTask: (
     task: TTask & { _retryCount?: number },
-    options?: TaskOptions
+    options?: TaskOptions,
   ) => Promise<void>;
   addTasks: (
     tasks: (TTask & { _retryCount?: number })[],
-    options?: TaskOptions
+    options?: TaskOptions,
   ) => Promise<void>;
 };
 
@@ -98,7 +98,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
       retries: 3,
       factor: 2,
       minTimeout: 100, // 100 ms
-    }
+    },
   );
 
   queue.addTask = async (task, taskOptions) => {
@@ -130,7 +130,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
         }
         await onComplete?.({ result, task, context, queue });
       },
-      { priority }
+      { priority },
     );
   };
 
@@ -165,9 +165,9 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
             }
             await onComplete?.({ result, task, context, queue });
           },
-          { priority }
+          { priority },
         );
-      })
+      }),
     );
   };
 

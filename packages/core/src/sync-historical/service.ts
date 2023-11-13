@@ -2,13 +2,13 @@ import Emittery from "emittery";
 import type { Hex, RpcError } from "viem";
 import {
   type Hash,
-  type RpcBlock,
-  type RpcLog,
-  type RpcTransaction,
   hexToNumber,
   HttpRequestError,
   InvalidParamsRpcError,
   LimitExceededRpcError,
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
   toHex,
 } from "viem";
 
@@ -30,7 +30,7 @@ import {
   intervalSum,
   ProgressTracker,
 } from "@/utils/interval.js";
-import { type Queue, type Worker, createQueue } from "@/utils/queue.js";
+import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
 import { hrTimeToMs, startClock } from "@/utils/timer.js";
 
 import { validateHistoricalBlockRange } from "./utils.js";
@@ -73,7 +73,7 @@ type BlockTask = {
   kind: "BLOCK";
   blockNumber: number;
   callbacks: ((
-    block: RpcBlock & { transactions: RpcTransaction[] }
+    block: RpcBlock & { transactions: RpcTransaction[] },
   ) => Promise<void>)[];
 };
 
@@ -178,7 +178,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             });
             this.common.metrics.ponder_historical_total_blocks.set(
               { network: this.network.name, eventSource: source.name },
-              0
+              0,
             );
             this.common.logger.warn({
               service: "historical",
@@ -214,7 +214,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           for (const [fromBlock, toBlock] of logFilterTaskChunks) {
             this.queue.addTask(
               { kind: "LOG_FILTER", logFilter: source, fromBlock, toBlock },
-              { priority: Number.MAX_SAFE_INTEGER - fromBlock }
+              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
             );
           }
           if (logFilterTaskChunks.length > 0) {
@@ -230,17 +230,17 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           this.common.metrics.ponder_historical_total_blocks.set(
             { network: this.network.name, eventSource: source.name },
-            targetBlockCount
+            targetBlockCount,
           );
           this.common.metrics.ponder_historical_cached_blocks.set(
             { network: this.network.name, eventSource: source.name },
-            cachedBlockCount
+            cachedBlockCount,
           );
 
           this.common.logger.info({
             service: "historical",
             msg: `Started sync with ${formatPercentage(
-              Math.min(1, cachedBlockCount / (targetBlockCount || 1))
+              Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
             )} cached (eventSource=${source.name} network=${
               this.network.name
             })`,
@@ -261,7 +261,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               });
             this.common.metrics.ponder_historical_total_blocks.set(
               { network: this.network.name, eventSource: source.name },
-              0
+              0,
             );
             this.common.logger.warn({
               service: "historical",
@@ -303,7 +303,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 fromBlock,
                 toBlock,
               },
-              { priority: Number.MAX_SAFE_INTEGER - fromBlock }
+              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
             );
           }
           if (factoryChildAddressTaskChunks.length > 0) {
@@ -316,7 +316,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           const targetFactoryChildAddressBlockCount = endBlock - startBlock + 1;
           const cachedFactoryChildAddressBlockCount = intervalSum(
-            completedFactoryChildAddressIntervals
+            completedFactoryChildAddressIntervals,
           );
 
           this.common.metrics.ponder_historical_total_blocks.set(
@@ -324,14 +324,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
               network: this.network.name,
               eventSource: `${source.name}_factory`,
             },
-            targetFactoryChildAddressBlockCount
+            targetFactoryChildAddressBlockCount,
           );
           this.common.metrics.ponder_historical_cached_blocks.set(
             {
               network: this.network.name,
               eventSource: `${source.name}_factory`,
             },
-            cachedFactoryChildAddressBlockCount
+            cachedFactoryChildAddressBlockCount,
           );
 
           const completedFactoryLogFilterIntervals =
@@ -353,7 +353,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             factoryLogFilterProgressTracker.getRequired();
           const missingFactoryLogFilterIntervals = intervalDifference(
             requiredFactoryLogFilterIntervals,
-            requiredFactoryChildAddressIntervals
+            requiredFactoryChildAddressIntervals,
           );
 
           const missingFactoryLogFilterTaskChunks = getChunks({
@@ -373,7 +373,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
                 fromBlock,
                 toBlock,
               },
-              { priority: Number.MAX_SAFE_INTEGER - fromBlock }
+              { priority: Number.MAX_SAFE_INTEGER - fromBlock },
             );
           }
           if (missingFactoryLogFilterTaskChunks.length > 0) {
@@ -386,16 +386,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
           const targetFactoryLogFilterBlockCount = endBlock - startBlock + 1;
           const cachedFactoryLogFilterBlockCount = intervalSum(
-            completedFactoryLogFilterIntervals
+            completedFactoryLogFilterIntervals,
           );
 
           this.common.metrics.ponder_historical_total_blocks.set(
             { network: this.network.name, eventSource: source.name },
-            targetFactoryLogFilterBlockCount
+            targetFactoryLogFilterBlockCount,
           );
           this.common.metrics.ponder_historical_cached_blocks.set(
             { network: this.network.name, eventSource: source.name },
-            cachedFactoryLogFilterBlockCount
+            cachedFactoryLogFilterBlockCount,
           );
 
           // Use factory log filter progress for the logger because it better represents
@@ -403,18 +403,18 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           const cacheRate = Math.min(
             1,
             cachedFactoryLogFilterBlockCount /
-              (targetFactoryLogFilterBlockCount || 1)
+              (targetFactoryLogFilterBlockCount || 1),
           );
           this.common.logger.info({
             service: "historical",
             msg: `Started sync with ${formatPercentage(
-              cacheRate
+              cacheRate,
             )} cached (eventSource=${source.name} network=${
               this.network.name
             })`,
           });
         }
-      })
+      }),
     );
   }
 
@@ -589,7 +589,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           chainId: logFilter.chainId,
           block,
           transactions: block.transactions.filter((tx) =>
-            transactionHashes.has(tx.hash)
+            transactionHashes.has(tx.hash),
           ),
           logs,
           logFilter: logFilter.criteria,
@@ -600,7 +600,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         });
         this.common.metrics.ponder_historical_completed_blocks.inc(
           { network: this.network.name, eventSource: logFilter.name },
-          endBlock - startBlock + 1
+          endBlock - startBlock + 1,
         );
       });
     }
@@ -653,7 +653,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           },
           block,
           transactions: block.transactions.filter((tx) =>
-            transactionHashes.has(tx.hash)
+            transactionHashes.has(tx.hash),
           ),
           logs,
           interval: {
@@ -679,13 +679,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       for (const [fromBlock, toBlock] of factoryLogFilterChunks) {
         this.queue.addTask(
           { kind: "FACTORY_LOG_FILTER", factory, fromBlock, toBlock },
-          { priority: Number.MAX_SAFE_INTEGER - fromBlock }
+          { priority: Number.MAX_SAFE_INTEGER - fromBlock },
         );
       }
     }
     this.common.metrics.ponder_historical_completed_blocks.inc(
       { network: this.network.name, eventSource: `${factory.name}_factory` },
-      toBlock - fromBlock + 1
+      toBlock - fromBlock + 1,
     );
 
     this.common.logger.trace({
@@ -728,7 +728,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           factory: factory.criteria,
           block,
           transactions: block.transactions.filter((tx) =>
-            transactionHashes.has(tx.hash)
+            transactionHashes.has(tx.hash),
           ),
           logs,
           interval: {
@@ -739,7 +739,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
         this.common.metrics.ponder_historical_completed_blocks.inc(
           { network: this.network.name, eventSource: factory.name },
-          endBlock - startBlock + 1
+          endBlock - startBlock + 1,
         );
       });
     }
@@ -767,7 +767,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     })) as RpcBlock & { transactions: RpcTransaction[] };
     this.common.metrics.ponder_historical_rpc_request_duration.observe(
       { method: "eth_getBlockByNumber", network: this.network.name },
-      stopClock()
+      stopClock(),
     );
 
     if (!block) throw new Error(`Block not found: ${blockNumber}`);
@@ -806,7 +806,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     logs.forEach((log) => {
       const blockNumber = hexToNumber(log.blockNumber!);
       (txHashesByBlockNumber[blockNumber] ||= new Set<Hash>()).add(
-        log.transactionHash!
+        log.transactionHash!,
       );
       (logsByBlockNumber[blockNumber] ||= []).push(log);
     });
@@ -845,14 +845,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private enqueueBlockTasks = () => {
     const blockTasksCanBeEnqueuedTo = Math.min(
       ...Object.values(this.logFilterProgressTrackers).map((i) =>
-        i.getCheckpoint()
+        i.getCheckpoint(),
       ),
       ...Object.values(this.factoryChildAddressProgressTrackers).map((i) =>
-        i.getCheckpoint()
+        i.getCheckpoint(),
       ),
       ...Object.values(this.factoryLogFilterProgressTrackers).map((i) =>
-        i.getCheckpoint()
-      )
+        i.getCheckpoint(),
+      ),
     );
 
     if (blockTasksCanBeEnqueuedTo > this.blockTasksEnqueuedCheckpoint) {
@@ -869,7 +869,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             blockNumber,
             callbacks: this.blockCallbacks[blockNumber],
           },
-          { priority: Number.MAX_SAFE_INTEGER - blockNumber }
+          { priority: Number.MAX_SAFE_INTEGER - blockNumber },
         );
         delete this.blockCallbacks[blockNumber];
       }
@@ -879,7 +879,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   };
 
   private _eth_getLogs = async (
-    options: LogFilterCriteria & { fromBlock: Hex; toBlock: Hex }
+    options: LogFilterCriteria & { fromBlock: Hex; toBlock: Hex },
   ) => {
     const logs: RpcLog[] = [];
 
@@ -897,7 +897,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     } finally {
       this.common.metrics.ponder_historical_rpc_request_duration.observe(
         { method: "eth_getLogs", network: this.network.name },
-        stopClock()
+        stopClock(),
       );
     }
 
@@ -927,7 +927,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         maxChunkSize: Math.round((to - from) / 10),
       });
       retryRanges.push(
-        ...chunks.map(([f, t]) => [toHex(f), toHex(t)] as const)
+        ...chunks.map(([f, t]) => [toHex(f), toHex(t)] as const),
       );
     } else if (
       // Infura block range limit error.
@@ -947,7 +947,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     ) {
       const midpoint = Math.floor(
         (Number(options.toBlock) - Number(options.fromBlock)) / 2 +
-          Number(options.fromBlock)
+          Number(options.fromBlock),
       );
 
       retryRanges.push([toHex(options.fromBlock), toHex(midpoint)]);
@@ -956,12 +956,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       // Handle Quicknode block range limit error (should never happen).
       error instanceof HttpRequestError &&
       error.details.includes(
-        "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range"
+        "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range",
       )
     ) {
       const midpoint = Math.floor(
         (Number(options.toBlock) - Number(options.fromBlock)) / 2 +
-          Number(options.fromBlock)
+          Number(options.fromBlock),
       );
       retryRanges.push([toHex(options.fromBlock), toHex(midpoint)]);
       retryRanges.push([toHex(midpoint + 1), options.toBlock]);
@@ -997,10 +997,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     return eventSourceNames.map((name) => {
       const totalBlocks = totalBlocksMetric.find(
-        (m) => m.labels.eventSource === name
+        (m) => m.labels.eventSource === name,
       )?.value;
       const cachedBlocks = cachedBlocksMetric.find(
-        (m) => m.labels.eventSource === name
+        (m) => m.labels.eventSource === name,
       )?.value;
       const completedBlocks =
         completedBlocksMetric.find((m) => m.labels.eventSource === name)
@@ -1051,7 +1051,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         completionStats.forEach(({ eventSource, rate }) => {
           this.common.metrics.ponder_historical_completion_rate.set(
             { eventSource, network: this.network.name },
-            rate
+            rate,
           );
         });
       };
@@ -1065,7 +1065,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         if (eta) {
           this.common.metrics.ponder_historical_completion_eta.set(
             { eventSource, network: this.network.name },
-            eta
+            eta,
           );
         }
       });
