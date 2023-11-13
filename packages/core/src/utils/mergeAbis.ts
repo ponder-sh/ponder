@@ -13,10 +13,10 @@ type MergeAbis<
 /**
  * Build a single Abi from a proxy and its implementations
  */
-export const mergeAbis = <TProxy extends Abi, TImpl extends readonly Abi[]>([
-  proxy,
-  ...impls
-]: readonly [TProxy, ...TImpl]) => {
+export const mergeAbis = <
+  const TProxy extends Abi,
+  const TImpl extends readonly Abi[]
+>([proxy, ...impls]: readonly [TProxy, ...TImpl]) => {
   let merged: Abi = proxy;
 
   for (const impl of impls) {

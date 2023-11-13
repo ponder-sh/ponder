@@ -16,7 +16,7 @@ test("mergeAbis()", () => {
   const a = mergeAbis([proxy, impl]);
   //    ^?
 
-  const out = [proxy[0], proxy[1], impl[0], impl[1]] as const;
+  const out = [...proxy, ...impl] as const;
   expect(a).toMatchObject(out);
   assertType<typeof out>(a);
 });
