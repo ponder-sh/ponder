@@ -57,22 +57,21 @@ export const BlitmapAbi = [
 ] as const;
 ```
 
-```ts filename="ponder.config.ts" {3, 10}
+```ts filename="ponder.config.ts" {3, 9}
 import { createConfig } from "@ponder/core";
 
 import { BlitmapAbi } from "./abis/Blitmap";
 
 export default createConfig({
   // ...
-  contracts: [
-    {
-      name: "Blitmap",
+  contracts: {
+    Blitmap: {
       abi: BlitmapAbi,
       network: "mainnet",
       address: "0x8d04a8c79cEB0889Bdd12acdF3Fa9D207eD3Ff63",
       startBlock: 12439123,
     },
-  ],
+  },
 });
 ```
 
