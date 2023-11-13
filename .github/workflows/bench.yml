@@ -27,7 +27,7 @@ jobs:
         ports:
           - 5001:5001
       graph-node:
-        image: graphprotocol/graph-node
+        image: graphprotocol/graph-node:79703ba
         # Would be best to get this health check working, but so far it hasn't been an issue.
         # options: >-
         #   --health-cmd "curl --fail http://graph-node:8040"
