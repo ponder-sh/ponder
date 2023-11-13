@@ -120,6 +120,9 @@ test("filterLogs handles one logFilter, one topic", () => {
       {
         topics: [
           "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+          null,
+          null,
+          null,
         ],
       },
     ],
@@ -147,6 +150,7 @@ test("filterLogs handles one logFilter, many topics", () => {
           "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
           null,
           "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
+          null,
         ],
       },
     ],
@@ -170,12 +174,15 @@ test("filterLogs handles two logFilters, one topic each", () => {
           null,
           null,
           "0x000000000000000000000000f16e9b0d03470827a95cdfd0cb8a8a3b46969b91",
+          null,
         ],
       },
       {
         topics: [
           null,
           "0x45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98bc3f1f606b66105fa",
+          null,
+          null,
         ],
       },
     ],
@@ -205,6 +212,7 @@ test("filterLogs handles one logFilter, one topic, list of values", () => {
             "0x000000000000000000000000a00f99bc38b1ecda1fd70eaa1cd31d576a9f46b0",
             "0x45cb5db23d2f6597075701e7f0e2367f4e6a39d17a8cf98bc3f1f606b66105fa",
           ],
+          null,
           null,
         ],
       },
