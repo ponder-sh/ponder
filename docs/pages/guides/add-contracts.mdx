@@ -80,7 +80,7 @@ export default createConfig({
 
 ### Multiple ABIs
 
-It's occasionally useful to merge ABIs, like when defining a proxy/upgradable contract that has gone through multiple implementation contracts. The `mergeAbis` function exported by `@ponder/core` safely removes duplicate ABI items and maintains strict types.
+It's occasionally useful to provide multiple ABIs for one contract, like when defining a proxy/upgradable contract that has gone through multiple implementation contracts. The `mergeAbis` function exported by `@ponder/core` safely removes duplicate ABI items and maintains strict types.
 
 ```ts filename="ponder.config.ts" {1,14}
 import { createConfig, mergeAbis } from "@ponder/core";
@@ -381,11 +381,22 @@ event ChildCreated(ChildContract child);
 
 3. **Nested factory patterns**: Ponder doesn't support factory patterns that are nested beyond a single layer.
 
+### Proxy & upgradable contracts
+
+To index a proxy/upgradable contract, use the proxy contract address in the `address` field. Then, be sure to include the ABIs of all implementation contracts that the proxy has ever had. The implementation ABIs are required to properly identify and decode all historical event logs. To add multiple ABIs safely, use the [`mergeAbis`](/guides/add-contracts#multiple-abis) utility function.
+
+<Callout>
+Tip: On Etherscan, there is a link to the current implementation contract on the **Contract → Read as Proxy** tab. You can copy all the implementation ABIs as text and paste them into `.ts` files.
+
+![Etherscan contract proxy address](/etherscan-proxy-contract.png)
+
+</Callout>
+
 ## Event filter
 
 Custom event filters allow you to index events emitted by _any contract on the network_ that match some criteria.
 
-### By event name
+### By event name or signature
 
 The `filter.event` field accepts an event name (or list of event names) present in the provided ABI.
 

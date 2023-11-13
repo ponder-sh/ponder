@@ -1,5 +1,5 @@
 {
-  "proxy-contracts": "Proxy contracts",
   "logging": "Logging",
-  "telemetry": "Telemetry"
+  "telemetry": "Telemetry",
+  "metrics": "Metrics"
 }
