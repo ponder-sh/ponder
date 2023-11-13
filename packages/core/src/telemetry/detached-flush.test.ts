@@ -3,6 +3,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+
 import { expect, test } from "vitest";
 
 test("detached flush script should run without error", async () => {
@@ -26,14 +27,14 @@ test("detached flush script should run without error", async () => {
   }>((resolve) => {
     child_process.exec(
       `"${process.execPath}" "${flushDetachedScriptPath}" "${telemetryUrl}" "${telemetryEventsFilePath}"`,
-      (error, stdout, stderr) => resolve({ error, stdout, stderr })
+      (error, stdout, stderr) => resolve({ error, stdout, stderr }),
     );
   });
 
   expect(stderr).toBe("");
   expect(error).toBe(null);
   expect(stdout).toContain(
-    `Sending 5 telemetry events to ${telemetryUrl} from temporary file ${telemetryEventsFilePath}`
+    `Sending 5 telemetry events to ${telemetryUrl} from temporary file ${telemetryEventsFilePath}`,
   );
   expect(existsSync(telemetryEventsFilePath)).toBeFalsy();
 });

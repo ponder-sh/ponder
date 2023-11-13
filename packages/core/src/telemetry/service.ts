@@ -1,17 +1,23 @@
-import Conf from "conf";
-import { randomBytes } from "crypto";
-import { detect, getNpmVersion } from "detect-package-manager";
 import child_process from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import url from "node:url";
+
+import Conf from "conf";
+import { randomBytes } from "crypto";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { detect, getNpmVersion } from "detect-package-manager";
 import os from "os";
 import PQueue from "p-queue";
 import path from "path";
 import pc from "picocolors";
 import process from "process";
 
-import type { Options } from "@/config/options";
-import { getGitRemoteUrl } from "@/telemetry/remote";
+import type { Options } from "@/config/options.js";
+import { getGitRemoteUrl } from "@/telemetry/remote.js";
+
+const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 
 type TelemetryEvent = {
   event: string;
@@ -124,8 +130,8 @@ export class TelemetryService {
 
     console.log(
       `${pc.magenta(
-        "Attention"
-      )}: Ponder now collects completely anonymous telemetry regarding usage. This data helps shape Ponder's roadmap and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`
+        "Attention",
+      )}: Ponder now collects completely anonymous telemetry regarding usage. This data helps shape Ponder's roadmap and prioritize features. See https://ponder.sh/advanced/telemetry for more information.`,
     );
   }
 
@@ -142,7 +148,7 @@ export class TelemetryService {
 
     const telemetryEventsFilePath = path.join(
       this.options.ponderDir,
-      "telemetry-events.json"
+      "telemetry-events.json",
     );
     fs.writeFileSync(telemetryEventsFilePath, serializedEvents);
 
@@ -208,8 +214,8 @@ export class TelemetryService {
     const packageJsonPath = fs.existsSync(packageJsonCwdPath)
       ? packageJsonCwdPath
       : fs.existsSync(packageJsonRootPath)
-      ? packageJsonRootPath
-      : undefined;
+        ? packageJsonRootPath
+        : undefined;
     const packageJson = packageJsonPath
       ? JSON.parse(fs.readFileSync("package.json", "utf8"))
       : undefined;

@@ -1,5 +1,6 @@
-import { codeFrameColumns } from "@babel/code-frame";
 import { readFileSync } from "node:fs";
+
+import { codeFrameColumns } from "@babel/code-frame";
 import { parse as parseStackTrace } from "stacktrace-parser";
 
 class ESBuildTransformError extends Error {
@@ -55,8 +56,8 @@ export function parseViteNodeError(error: Error): ViteNodeError {
       errorKind === "Transform failed"
         ? new ESBuildTransformError(innerError.detail)
         : errorKind === "Build failed"
-        ? new ESBuildBuildError(innerError.detail)
-        : new ESBuildContextError(innerError.detail);
+          ? new ESBuildBuildError(innerError.detail)
+          : new ESBuildContextError(innerError.detail);
     if (innerError.location)
       resolvedError.stack = `    at ${innerError.location}`;
   } else {
@@ -103,7 +104,7 @@ export function parseViteNodeError(error: Error): ViteNodeError {
         codeFrame = codeFrameColumns(
           sourceFileContents,
           { start: { line: lineNumber, column: column ?? undefined } },
-          { highlightCode: true }
+          { highlightCode: true },
         );
         break;
       } catch (err) {

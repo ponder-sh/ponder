@@ -29,7 +29,7 @@
 
     // Language and environment
     "moduleResolution": "NodeNext",
-    "module": "ESNext",
+    "module": "NodeNext",
     "target": "ESNext",
     "lib": [
       "ES2022", // By using ES2022 we get access to the `.cause` property on `Error` instances.

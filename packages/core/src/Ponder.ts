@@ -1,30 +1,31 @@
 import path from "node:path";
 import process from "node:process";
 
-import { BuildService } from "@/build/service";
-import { CodegenService } from "@/codegen/service";
-import { buildDatabase } from "@/config/database";
-import { type Network, buildNetwork } from "@/config/networks";
-import { type Options } from "@/config/options";
-import { UserErrorService } from "@/errors/service";
-import { EventAggregatorService } from "@/event-aggregator/service";
-import { PostgresEventStore } from "@/event-store/postgres/store";
-import { SqliteEventStore } from "@/event-store/sqlite/store";
-import { type EventStore } from "@/event-store/store";
-import { HistoricalSyncService } from "@/historical-sync/service";
-import { IndexingService } from "@/indexing/service";
-import { LoggerService } from "@/logs/service";
-import { MetricsService } from "@/metrics/service";
-import { RealtimeSyncService } from "@/realtime-sync/service";
-import { ServerService } from "@/server/service";
-import { TelemetryService } from "@/telemetry/service";
-import { UiService } from "@/ui/service";
-import { PostgresUserStore } from "@/user-store/postgres/store";
-import { SqliteUserStore } from "@/user-store/sqlite/store";
-import { type UserStore } from "@/user-store/store";
+import { BuildService } from "@/build/service.js";
+import { CodegenService } from "@/codegen/service.js";
+import { buildDatabase } from "@/config/database.js";
+import { buildNetwork, type Network } from "@/config/networks.js";
+import { type Options } from "@/config/options.js";
+import { UserErrorService } from "@/errors/service.js";
+import { IndexingService } from "@/indexing/service.js";
+import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
+import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
+import { type IndexingStore } from "@/indexing-store/store.js";
+import { LoggerService } from "@/logs/service.js";
+import { MetricsService } from "@/metrics/service.js";
+import { ServerService } from "@/server/service.js";
+import { SyncGateway } from "@/sync-gateway/service.js";
+import { HistoricalSyncService } from "@/sync-historical/service.js";
+import { RealtimeSyncService } from "@/sync-realtime/service.js";
+import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
+import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
+import { type SyncStore } from "@/sync-store/store.js";
+import { TelemetryService } from "@/telemetry/service.js";
+import { UiService } from "@/ui/service.js";
 
-import { hydrateIndexingFunctions } from "./build/functions";
-import { buildSources, Source } from "./config/sources";
+import { hydrateIndexingFunctions } from "./build/functions.js";
+import type { Source } from "./config/sources.js";
+import { buildSources } from "./config/sources.js";
 
 export type Common = {
   options: Options;
@@ -42,17 +43,17 @@ export class Ponder {
   sources: Source[] = undefined!;
 
   // Sync services
-  eventStore: EventStore = undefined!;
+  syncStore: SyncStore = undefined!;
   syncServices: {
     network: Network;
     sources: Source[];
     historical: HistoricalSyncService;
     realtime: RealtimeSyncService;
   }[] = undefined!;
-  eventAggregatorService: EventAggregatorService = undefined!;
+  syncGatewayService: SyncGateway = undefined!;
 
   // Indexing services
-  userStore: UserStore = undefined!;
+  indexingStore: IndexingStore = undefined!;
   indexingService: IndexingService = undefined!;
 
   // Misc services
@@ -75,18 +76,18 @@ export class Ponder {
   }
 
   async setup({
-    eventStore,
-    userStore,
+    syncStore,
+    indexingStore,
   }: {
     // These options are only used for testing.
-    eventStore?: EventStore;
-    userStore?: UserStore;
+    syncStore?: SyncStore;
+    indexingStore?: IndexingStore;
   } = {}) {
     this.common.logger.debug({
       service: "app",
       msg: `Started using config file: ${path.relative(
         this.common.options.rootDir,
-        this.common.options.configFile
+        this.common.options.configFile,
       )}`,
     });
 
@@ -103,17 +104,17 @@ export class Ponder {
     }
 
     const database = buildDatabase({ common: this.common, config });
-    this.eventStore =
-      eventStore ??
+    this.syncStore =
+      syncStore ??
       (database.kind === "sqlite"
-        ? new SqliteEventStore({ db: database.db })
-        : new PostgresEventStore({ pool: database.pool }));
+        ? new SqliteSyncStore({ db: database.db })
+        : new PostgresSyncStore({ pool: database.pool }));
 
-    this.userStore =
-      userStore ??
+    this.indexingStore =
+      indexingStore ??
       (database.kind === "sqlite"
-        ? new SqliteUserStore({ db: database.db })
-        : new PostgresUserStore({ pool: database.pool }));
+        ? new SqliteIndexingStore({ db: database.db })
+        : new PostgresIndexingStore({ pool: database.pool }));
 
     this.sources = buildSources({ config });
 
@@ -121,7 +122,7 @@ export class Ponder {
       .map((network) => buildNetwork({ network, common: this.common }))
       .filter((network) => {
         const hasEventSources = this.sources.some(
-          (eventSource) => eventSource.network === network.name
+          (eventSource) => eventSource.network === network.name,
         );
         if (!hasEventSources) {
           this.common.logger.warn({
@@ -135,48 +136,46 @@ export class Ponder {
     this.syncServices = [];
     networksToSync.forEach((network) => {
       const sourcesForNetwork = this.sources.filter(
-        (logSource) => logSource.network === network.name
+        (logSource) => logSource.network === network.name,
       );
       this.syncServices.push({
         network,
         sources: sourcesForNetwork,
         historical: new HistoricalSyncService({
           common: this.common,
-          eventStore: this.eventStore,
+          syncStore: this.syncStore,
           network,
           sources: sourcesForNetwork,
         }),
         realtime: new RealtimeSyncService({
           common: this.common,
-          eventStore: this.eventStore,
+          syncStore: this.syncStore,
           network,
           sources: sourcesForNetwork,
         }),
       });
     });
-    this.eventAggregatorService = new EventAggregatorService({
+    this.syncGatewayService = new SyncGateway({
       common: this.common,
-      eventStore: this.eventStore,
+      syncStore: this.syncStore,
       networks: networksToSync,
       sources: this.sources,
     });
 
     this.indexingService = new IndexingService({
       common: this.common,
-      eventStore: this.eventStore,
-      userStore: this.userStore,
-      eventAggregatorService: this.eventAggregatorService,
+      syncStore: this.syncStore,
+      indexingStore: this.indexingStore,
+      syncGatewayService: this.syncGatewayService,
       sources: this.sources,
+      networks: config.networks,
     });
 
     this.serverService = new ServerService({
       common: this.common,
-      userStore: this.userStore,
+      indexingStore: this.indexingStore,
     });
-    this.codegenService = new CodegenService({
-      common: this.common,
-      sources: this.sources,
-    });
+    this.codegenService = new CodegenService({ common: this.common });
     this.uiService = new UiService({
       common: this.common,
       sources: this.sources,
@@ -186,11 +185,11 @@ export class Ponder {
     // using the initial config, register service dependencies.
     this.registerServiceDependencies();
 
-    // TODO: Remove once we have the new PonderApp magic.
-    this.codegenService.generateAppFile();
+    // Regenerate the `ponder-env.d.ts` file in case it was deleted.
+    this.codegenService.generateDeclarationFile();
 
     // One-time setup for some services.
-    await this.eventStore.migrateUp();
+    await this.syncStore.migrateUp();
     await this.serverService.start();
 
     // Finally, load the schema + indexing functions which will trigger
@@ -205,7 +204,7 @@ export class Ponder {
       properties: {
         command: "ponder dev",
         contractCount: this.sources.length,
-        databaseKind: this.eventStore.kind,
+        databaseKind: this.syncStore.kind,
       },
     });
 
@@ -216,7 +215,7 @@ export class Ponder {
 
         historical.start();
         await realtime.start();
-      })
+      }),
     );
   }
 
@@ -226,7 +225,7 @@ export class Ponder {
       properties: {
         command: "ponder start",
         contractCount: this.sources.length,
-        databaseKind: this.eventStore.kind,
+        databaseKind: this.syncStore.kind,
       },
     });
 
@@ -237,12 +236,12 @@ export class Ponder {
 
         historical.start();
         await realtime.start();
-      })
+      }),
     );
   }
 
   async codegen() {
-    this.codegenService.generateAppFile();
+    this.codegenService.generateDeclarationFile();
 
     const result = await this.buildService.loadSchema();
     if (result) {
@@ -254,7 +253,7 @@ export class Ponder {
   }
 
   async kill() {
-    this.eventAggregatorService.clearListeners();
+    this.syncGatewayService.clearListeners();
 
     this.common.telemetry.record({
       event: "App Killed",
@@ -267,7 +266,7 @@ export class Ponder {
       this.syncServices.map(async ({ realtime, historical }) => {
         await realtime.kill();
         await historical.kill();
-      })
+      }),
     );
 
     await this.buildService.kill();
@@ -276,8 +275,8 @@ export class Ponder {
     await this.serverService.kill();
     await this.common.telemetry.kill();
 
-    await this.userStore.kill();
-    await this.eventStore.kill();
+    await this.indexingStore.kill();
+    await this.syncStore.kill();
 
     this.common.logger.debug({
       service: "app",
@@ -297,7 +296,6 @@ export class Ponder {
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
       this.common.errors.hasUserError = false;
 
-      this.codegenService.generateAppFile({ schema });
       this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
 
       this.serverService.reload({ graphqlSchema });
@@ -319,57 +317,54 @@ export class Ponder {
         await this.indexingService.reset({ indexingFunctions: hydrated });
 
         await this.indexingService.processEvents();
-      }
+      },
     );
 
     this.syncServices.forEach(({ network, historical, realtime }) => {
       const { chainId } = network;
 
       historical.on("historicalCheckpoint", ({ blockTimestamp }) => {
-        this.eventAggregatorService.handleNewHistoricalCheckpoint({
+        this.syncGatewayService.handleNewHistoricalCheckpoint({
           chainId,
           timestamp: blockTimestamp,
         });
       });
 
       historical.on("syncComplete", () => {
-        this.eventAggregatorService.handleHistoricalSyncComplete({
+        this.syncGatewayService.handleHistoricalSyncComplete({
           chainId,
         });
       });
 
       realtime.on("realtimeCheckpoint", ({ blockTimestamp }) => {
-        this.eventAggregatorService.handleNewRealtimeCheckpoint({
+        this.syncGatewayService.handleNewRealtimeCheckpoint({
           chainId,
           timestamp: blockTimestamp,
         });
       });
 
       realtime.on("finalityCheckpoint", ({ blockTimestamp }) => {
-        this.eventAggregatorService.handleNewFinalityCheckpoint({
+        this.syncGatewayService.handleNewFinalityCheckpoint({
           chainId,
           timestamp: blockTimestamp,
         });
       });
 
       realtime.on("shallowReorg", ({ commonAncestorBlockTimestamp }) => {
-        this.eventAggregatorService.handleReorg({
+        this.syncGatewayService.handleReorg({
           commonAncestorTimestamp: commonAncestorBlockTimestamp,
         });
       });
     });
 
-    this.eventAggregatorService.on("newCheckpoint", async () => {
+    this.syncGatewayService.on("newCheckpoint", async () => {
       await this.indexingService.processEvents();
     });
 
-    this.eventAggregatorService.on(
-      "reorg",
-      async ({ commonAncestorTimestamp }) => {
-        await this.indexingService.handleReorg({ commonAncestorTimestamp });
-        await this.indexingService.processEvents();
-      }
-    );
+    this.syncGatewayService.on("reorg", async ({ commonAncestorTimestamp }) => {
+      await this.indexingService.handleReorg({ commonAncestorTimestamp });
+      await this.indexingService.processEvents();
+    });
 
     this.indexingService.on("eventsProcessed", ({ toTimestamp }) => {
       if (this.serverService.isHistoricalIndexingComplete) return;
@@ -378,8 +373,8 @@ export class Ponder {
       // the new toTimestamp is greater than the historical sync completion timestamp,
       // historical event processing is complete, and the server should begin responding as healthy.
       if (
-        this.eventAggregatorService.historicalSyncCompletedAt &&
-        toTimestamp >= this.eventAggregatorService.historicalSyncCompletedAt
+        this.syncGatewayService.historicalSyncCompletedAt &&
+        toTimestamp >= this.syncGatewayService.historicalSyncCompletedAt
       ) {
         this.serverService.setIsHistoricalIndexingComplete();
       }

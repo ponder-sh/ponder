@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-import Emittery from "emittery";
-import glob from "glob";
-import type { GraphQLSchema } from "graphql";
 import path from "node:path";
+
+import Emittery from "emittery";
+import { glob } from "glob";
+import type { GraphQLSchema } from "graphql";
 // @ts-ignore
 import type { ViteDevServer } from "vite";
 // @ts-ignore
@@ -10,13 +11,14 @@ import type { ViteNodeRunner } from "vite-node/client";
 // @ts-ignore
 import type { ViteNodeServer } from "vite-node/server";
 
-import type { Config } from "@/config/config";
-import type { Common } from "@/Ponder";
-import type { Schema } from "@/schema/types";
-import { buildGqlSchema } from "@/server/graphql/schema";
+import type { Config } from "@/config/config.js";
+import type { Common } from "@/Ponder.js";
+import type { Schema } from "@/schema/types.js";
+import { buildGqlSchema } from "@/server/graphql/schema.js";
 
-import type { RawIndexingFunctions } from "./functions";
-import { parseViteNodeError, ViteNodeError } from "./stacktrace";
+import type { RawIndexingFunctions } from "./functions.js";
+import type { ViteNodeError } from "./stacktrace.js";
+import { parseViteNodeError } from "./stacktrace.js";
 
 type BuildServiceEvents = {
   newConfig: { config: Config };
@@ -122,7 +124,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const handleFileChange = async (files_: string[]) => {
       const files = files_.map(
         (file) =>
-          toFilePath(normalizeModuleId(file), this.common.options.rootDir).path
+          toFilePath(normalizeModuleId(file), this.common.options.rootDir).path,
       );
 
       // Invalidate all modules that depend on the updated files.
@@ -148,8 +150,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       const srcRegex = new RegExp(
         `^${this.common.options.srcDir.replace(
           /[.*+?^${}()|[\]\\]/g,
-          "\\$&"
-        )}/.*\\.(js|ts)$`
+          "\\$&",
+        )}/.*\\.(js|ts)$`,
       );
       const srcFiles = invalidated.filter((file) => srcRegex.test(file));
 
@@ -165,8 +167,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       const ignoreRegex = new RegExp(
         `^${this.common.options.ponderDir.replace(
           /[.*+?^${}()|[\]\\]/g,
-          "\\$&"
-        )}/.*[^/]$`
+          "\\$&",
+        )}/.*[^/]$`,
       );
       if (ignoreRegex.test(file)) return;
 
@@ -222,15 +224,15 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const files =
       files_ ??
       glob.sync(
-        path.join(this.common.options.srcDir, "**/*.{js,cjs,mjs,ts,mts}")
+        path.join(this.common.options.srcDir, "**/*.{js,cjs,mjs,ts,mts}"),
       );
 
     const results = await Promise.all(
-      files.map((file) => this.executeFile(file))
+      files.map((file) => this.executeFile(file)),
     );
 
     const errorResults = results.filter(
-      (r): r is { file: string; error: ViteNodeError } => r.error !== undefined
+      (r): r is { file: string; error: ViteNodeError } => r.error !== undefined,
     );
     if (errorResults.length > 0) {
       this.handleViteNodeError(errorResults[0]);
@@ -238,7 +240,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     }
 
     const successResults = results.filter(
-      (r): r is { file: string; exports: any } => r.exports !== undefined
+      (r): r is { file: string; exports: any } => r.exports !== undefined,
     );
 
     for (const result of successResults) {
@@ -260,7 +262,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       for (const eventName of Object.keys(this.indexingFunctions[file])) {
         if (eventNameSet.has(eventName)) {
           throw new Error(
-            `Cannot register two indexing functions for one event '${eventName}' in '${file}'`
+            `Cannot register two indexing functions for one event '${eventName}' in '${file}'`,
           );
         }
         eventNameSet.add(eventName);
@@ -279,7 +281,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const rawIndexingFunctions: RawIndexingFunctions = { eventSources: {} };
     for (const file of Object.keys(this.indexingFunctions)) {
       for (const [fullName, fn] of Object.entries(
-        this.indexingFunctions[file]
+        this.indexingFunctions[file],
       )) {
         if (fullName === "setup") {
           rawIndexingFunctions._meta_ ||= {};
@@ -291,7 +293,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
           rawIndexingFunctions.eventSources[eventSourceName] ||= {};
           if (rawIndexingFunctions.eventSources[eventSourceName][eventName])
             throw new Error(
-              `Cannot add multiple handler functions for event: ${name}`
+              `Cannot add multiple handler functions for event: ${name}`,
             );
           rawIndexingFunctions.eventSources[eventSourceName][eventName] = fn;
         }
@@ -324,15 +326,15 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       error.name === "ESBuildTransformError"
         ? "transforming"
         : error.name === "ESBuildBuildError" ||
-          error.name === "ESBuildContextError"
-        ? "building"
-        : "executing";
+            error.name === "ESBuildContextError"
+          ? "building"
+          : "executing";
 
     this.common.logger.error({
       service: "build",
       msg: `Error while ${verb} ${path.relative(
         this.common.options.rootDir,
-        file
+        file,
       )}`,
       error: error,
     });

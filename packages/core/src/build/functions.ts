@@ -1,10 +1,10 @@
 import type { Hex } from "viem";
 
-import type { LogEventMetadata } from "@/config/abi";
-import { Source } from "@/config/sources";
-import type { Block } from "@/types/block";
-import type { Log } from "@/types/log";
-import type { Transaction } from "@/types/transaction";
+import type { LogEventMetadata } from "@/config/abi.js";
+import type { Source } from "@/config/sources.js";
+import type { Block } from "@/types/block.js";
+import type { Log } from "@/types/log.js";
+import type { Transaction } from "@/types/transaction.js";
 
 export interface LogEvent {
   name: string;
@@ -42,42 +42,6 @@ export type RawIndexingFunctions = {
   };
 };
 
-// @ponder/core creates an instance of this class called `ponder`
-export class PonderApp<
-  IndexingFunctions = Record<string, LogEventIndexingFunction>
-> {
-  private indexingFunctions: RawIndexingFunctions = { eventSources: {} };
-  private errors: Error[] = [];
-
-  on<EventName extends Extract<keyof IndexingFunctions, string>>(
-    name: EventName,
-    indexingFunction: IndexingFunctions[EventName]
-  ) {
-    if (name === "setup") {
-      this.indexingFunctions._meta_ ||= {};
-      this.indexingFunctions._meta_.setup =
-        indexingFunction as SetupEventIndexingFunction;
-      return;
-    }
-
-    const [eventSourceName, eventName] = name.split(":");
-    if (!eventSourceName || !eventName) {
-      this.errors.push(new Error(`Invalid event name: ${name}`));
-      return;
-    }
-
-    this.indexingFunctions.eventSources[eventSourceName] ||= {};
-    if (this.indexingFunctions.eventSources[eventSourceName][eventName]) {
-      this.errors.push(
-        new Error(`Cannot add multiple indexing functions for event: ${name}`)
-      );
-      return;
-    }
-    this.indexingFunctions.eventSources[eventSourceName][eventName] =
-      indexingFunction as LogEventIndexingFunction;
-  }
-}
-
 export type IndexingFunctions = {
   _meta_: {
     setup?: {
@@ -86,7 +50,7 @@ export type IndexingFunctions = {
   };
   eventSources: {
     [key: EventSourceName]: {
-      // This mapping is passed from the IndexingService to the EventAggregatorService, which uses
+      // This mapping is passed from the IndexingService to the SyncGatewayService, which uses
       // it to fetch from the store _only_ the events that the user has indexed.
       bySelector: { [key: Hex]: LogEventMetadata };
       // This mapping is used by the IndexingService to fetch the user-provided `fn` before running it.
@@ -139,7 +103,7 @@ export const hydrateIndexingFunctions = ({
           eventData.safeName
         ] = { ...eventData, fn: fn };
       });
-    }
+    },
   );
 
   return indexingFunctions;

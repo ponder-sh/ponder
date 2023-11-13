@@ -1,14 +1,14 @@
-import { Source } from "@/config/sources";
-import type { Common } from "@/Ponder";
+import type { Source } from "@/config/sources.js";
+import type { Common } from "@/Ponder.js";
 
-import { type UiState, buildUiState, setupInkApp } from "./app";
+import { buildUiState, setupInkApp, type UiState } from "./app.js";
 
 export class UiService {
   private common: Common;
   private sources: Source[];
 
   ui: UiState;
-  renderInterval: NodeJS.Timer;
+  renderInterval: NodeJS.Timeout;
   render: () => void;
   unmount: () => void;
 
@@ -31,7 +31,7 @@ export class UiService {
 
     this.renderInterval = setInterval(async () => {
       const eventSourceNames = Object.keys(
-        this.ui.historicalSyncEventSourceStats
+        this.ui.historicalSyncEventSourceStats,
       );
 
       // Historical sync
@@ -43,9 +43,8 @@ export class UiService {
       ).values;
 
       eventSourceNames.forEach((name) => {
-        const rate = rateMetric.find(
-          (m) => m.labels.eventSource === name
-        )?.value;
+        const rate = rateMetric.find((m) => m.labels.eventSource === name)
+          ?.value;
         const eta = etaMetric.find((m) => m.labels.eventSource === name)?.value;
 
         if (rate !== undefined) {
@@ -56,8 +55,8 @@ export class UiService {
 
       const minRate = Math.min(
         ...eventSourceNames.map(
-          (name) => this.ui.historicalSyncEventSourceStats[name].rate
-        )
+          (name) => this.ui.historicalSyncEventSourceStats[name].rate,
+        ),
       );
 
       if (!this.ui.isHistoricalSyncComplete && minRate === 1) {

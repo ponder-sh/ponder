@@ -1,13 +1,9 @@
-import { Hex } from "viem";
+import type { Hex } from "viem";
 import { assertType, test } from "vitest";
 
-import * as p from "./index";
-import {
-  type BaseColumn,
-  type RecoverColumnType,
-  EnumColumn,
-  VirtualColumn,
-} from "./types";
+import * as p from "./index.js";
+import type { EnumColumn, VirtualColumn } from "./types.js";
+import { type BaseColumn, type RecoverColumnType } from "./types.js";
 
 test("string", () => {
   const c = p.string();

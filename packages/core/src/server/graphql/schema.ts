@@ -1,6 +1,6 @@
 import {
-  type GraphQLFieldConfig,
   GraphQLBoolean,
+  type GraphQLFieldConfig,
   GraphQLFloat,
   GraphQLInt,
   GraphQLObjectType,
@@ -9,23 +9,24 @@ import {
   GraphQLString,
 } from "graphql";
 
-import type { Scalar, Schema } from "@/schema/types";
-import type { UserStore } from "@/user-store/store";
+import type { IndexingStore } from "@/indexing-store/store.js";
+import type { Scalar, Schema } from "@/schema/types.js";
 
-import { buildEntityTypes } from "./entity";
-import { buildPluralField } from "./plural";
-import { buildSingularField } from "./singular";
+import { buildEntityTypes } from "./entity.js";
+import { buildPluralField } from "./plural.js";
+import { buildSingularField } from "./singular.js";
 
 const GraphQLBigInt = new GraphQLScalarType({
   name: "BigInt",
   serialize: (value) => String(value),
-  parseValue: (value) => BigInt(value),
+  // TODO: Kyle this cast is probably a bad idea.
+  parseValue: (value) => BigInt(value as any),
   parseLiteral: (value) => {
     if (value.kind === "StringValue") {
       return BigInt(value.value);
     } else {
       throw new Error(
-        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`
+        `Invalid value kind provided for field of type BigInt: ${value.kind}. Expected: StringValue`,
       );
     }
   },
@@ -41,7 +42,7 @@ export const tsTypeToGqlScalar: { [type in Scalar]: GraphQLScalarType } = {
 };
 
 export type Source = { request: unknown };
-export type Context = { store: UserStore };
+export type Context = { store: IndexingStore };
 
 export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
   const queryFields: Record<string, GraphQLFieldConfig<Source, Context>> = {};

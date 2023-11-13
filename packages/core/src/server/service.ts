@@ -1,19 +1,21 @@
+import type { Server } from "node:http";
+import { createServer } from "node:http";
+
 import cors from "cors";
 import express from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { formatError, GraphQLError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
 import { createHttpTerminator } from "http-terminator";
-import { createServer, Server } from "node:http";
 
-import type { Common } from "@/Ponder";
-import { graphiQLHtml } from "@/ui/graphiql.html";
-import type { UserStore } from "@/user-store/store";
-import { startClock } from "@/utils/timer";
+import type { IndexingStore } from "@/indexing-store/store.js";
+import type { Common } from "@/Ponder.js";
+import { graphiQLHtml } from "@/ui/graphiql.html.js";
+import { startClock } from "@/utils/timer.js";
 
 export class ServerService {
   private common: Common;
-  private userStore: UserStore;
+  private indexingStore: IndexingStore;
 
   private port: number;
   app?: express.Express;
@@ -22,9 +24,15 @@ export class ServerService {
 
   isHistoricalIndexingComplete = false;
 
-  constructor({ common, userStore }: { common: Common; userStore: UserStore }) {
+  constructor({
+    common,
+    indexingStore,
+  }: {
+    common: Common;
+    indexingStore: IndexingStore;
+  }) {
     this.common = common;
-    this.userStore = userStore;
+    this.indexingStore = indexingStore;
     this.port = this.common.options.port;
   }
 
@@ -41,26 +49,26 @@ export class ServerService {
           res.statusCode >= 200 && res.statusCode < 300
             ? "2XX"
             : res.statusCode >= 300 && res.statusCode < 400
-            ? "3XX"
-            : res.statusCode >= 400 && res.statusCode < 500
-            ? "4XX"
-            : "5XX";
+              ? "3XX"
+              : res.statusCode >= 400 && res.statusCode < 500
+                ? "4XX"
+                : "5XX";
 
         const requestSize = Number(req.get("Content-Length") ?? 0);
         this.common.metrics.ponder_server_request_size.observe(
           { method, path, status },
-          Number(requestSize)
+          Number(requestSize),
         );
 
         const responseSize = Number(res.get("Content-Length") ?? 0);
         this.common.metrics.ponder_server_response_size.observe(
           { method, path, status },
-          Number(responseSize)
+          Number(responseSize),
         );
 
         this.common.metrics.ponder_server_response_duration.observe(
           { method, path, status },
-          responseDuration
+          responseDuration,
         );
       });
       next();
@@ -143,7 +151,7 @@ export class ServerService {
   reload({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
     const graphqlMiddleware = createHandler({
       schema: graphqlSchema,
-      context: { store: this.userStore },
+      context: { store: this.indexingStore },
     });
 
     /**

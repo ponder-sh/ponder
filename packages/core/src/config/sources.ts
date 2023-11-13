@@ -1,18 +1,14 @@
-import { AbiEvent, parseAbiItem } from "abitype";
-import {
-  Abi,
-  Address,
-  encodeEventTopics,
-  getAbiItem,
-  getEventSelector,
-  Hex,
-} from "viem";
+import type { AbiEvent } from "abitype";
+import { parseAbiItem } from "abitype";
+import type { Abi, Address, GetEventArgs, Hex } from "viem";
+import { encodeEventTopics, getAbiItem, getEventSelector } from "viem";
 
-import { toLowerCase } from "@/utils/lowercase";
+import { toLowerCase } from "@/utils/lowercase.js";
 
-import { AbiEvents, getEvents } from "./abi";
-import { Config } from "./config";
-import { buildFactoryCriteria } from "./factories";
+import type { AbiEvents } from "./abi.js";
+import { getEvents } from "./abi.js";
+import type { Config } from "./config.js";
+import { buildFactoryCriteria } from "./factories.js";
 
 /**
  * Fix issue with Array.isArray not checking readonly arrays
@@ -27,7 +23,12 @@ declare global {
 /**
  * There are up to 4 topics in an EVM log, so given that this could be more strict.
  */
-export type Topics = (Hex | Hex[] | null)[];
+export type Topics = [
+  Hex | Hex[] | null,
+  Hex | Hex[] | null,
+  Hex | Hex[] | null,
+  Hex | Hex[] | null,
+];
 
 export type LogFilterCriteria = {
   address?: Address | Address[];
@@ -81,9 +82,8 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
       // Resolve the contract per network, filling in default values where applicable
       return contract.network
         .map((networkContract) => {
-          // Note: this is missing config validation for checking if the network is valid
           const network = config.networks.find(
-            (n) => n.name === networkContract.name
+            (n) => n.name === networkContract.name,
           )!;
 
           const resolvedFilter = networkContract.filter ?? contract.filter;
@@ -93,13 +93,11 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
             : undefined;
 
           const sharedSource = {
-            // constants
             name: contract.name,
             abi: contract.abi,
             network: network.name,
             chainId: network.chainId,
             events,
-            // optionally overridden properties
             startBlock: networkContract.startBlock ?? contract.startBlock ?? 0,
             endBlock: networkContract.endBlock ?? contract.endBlock,
             maxBlockRange:
@@ -113,8 +111,6 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
           const resolvedAddress =
             ("address" in networkContract && networkContract.address) ||
             ("address" in contract && contract.address);
-          if (resolvedFactory && resolvedAddress)
-            throw Error("Factory and address cannot both be defined");
 
           if (resolvedFactory) {
             // factory
@@ -137,8 +133,8 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
                 address: Array.isArray(resolvedAddress)
                   ? resolvedAddress.map((r) => toLowerCase(r))
                   : resolvedAddress
-                  ? toLowerCase(resolvedAddress)
-                  : undefined,
+                    ? toLowerCase(resolvedAddress)
+                    : undefined,
                 topics,
               },
             } as const satisfies LogFilter;
@@ -151,30 +147,39 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
 
 const buildTopics = (
   abi: Abi,
-  filter: NonNullable<NonNullable<Config["contracts"]>[number]["filter"]>
+  filter: NonNullable<NonNullable<Config["contracts"]>[number]["filter"]>,
 ): Topics => {
   if (Array.isArray(filter.event)) {
     // List of event signatures
     return [
       filter.event.map((event) => getEventSelector(findAbiEvent(abi, event))),
+      null,
+      null,
+      null,
     ];
   } else {
     // Single event with args
-    return encodeEventTopics({
+    const topics = encodeEventTopics({
       abi: [findAbiEvent(abi, filter.event)],
-      args: filter.args,
+      args: filter.args as GetEventArgs<Abi, string>,
     });
+    return [
+      topics[0] ?? null,
+      topics[1] ?? null,
+      topics[2] ?? null,
+      topics[3] ?? null,
+    ];
   }
 };
 
 /**
- * Finds the event ABI item for the safe event name.
+ * Finds the event ABI item for the event name or event signature.
  *
- * @param eventName Event name or event signature if there are collisions
+ * @param eventName Event name or event signature if there are duplicates
  */
 const findAbiEvent = (abi: Abi, eventName: string): AbiEvent => {
   if (eventName.includes("(")) {
-    // Collision
+    // full event signature
     return parseAbiItem(`event ${eventName}`) as AbiEvent;
   } else {
     return getAbiItem({ abi, name: eventName }) as AbiEvent;

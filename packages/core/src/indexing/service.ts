@@ -1,26 +1,29 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
+import type { Abi, Address, Client } from "viem";
+import { createClient } from "viem";
 
-import type { IndexingFunctions } from "@/build/functions";
-import { LogEventMetadata } from "@/config/abi";
-import type { Source } from "@/config/sources";
-import { UserError } from "@/errors/user";
-import type {
-  EventAggregatorService,
-  LogEvent,
-} from "@/event-aggregator/service";
-import type { EventStore } from "@/event-store/store";
-import type { Common } from "@/Ponder";
-import type { Schema } from "@/schema/types";
-import type { Model } from "@/types/model";
-import type { ModelInstance, UserStore } from "@/user-store/store";
-import { formatShortDate } from "@/utils/date";
-import { prettyPrint } from "@/utils/print";
-import { type Queue, type Worker, createQueue } from "@/utils/queue";
-import { wait } from "@/utils/wait";
+import type { IndexingFunctions } from "@/build/functions.js";
+import type { LogEventMetadata } from "@/config/abi.js";
+import type { Config } from "@/config/config.js";
+import type { Source } from "@/config/sources.js";
+import { UserError } from "@/errors/user.js";
+import type { IndexingStore, ModelInstance } from "@/indexing-store/store.js";
+import type { Common } from "@/Ponder.js";
+import type { Schema } from "@/schema/types.js";
+import type { LogEvent, SyncGateway } from "@/sync-gateway/service.js";
+import type { SyncStore } from "@/sync-store/store.js";
+import type { Model } from "@/types/model.js";
+import { chains } from "@/utils/chains.js";
+import { formatShortDate } from "@/utils/date.js";
+import { prettyPrint } from "@/utils/print.js";
+import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
+import { wait } from "@/utils/wait.js";
 
-import { buildModels } from "./model";
-import { getStackTrace } from "./trace";
+import { buildModels } from "./model.js";
+import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
+import { getStackTrace } from "./trace.js";
+import { ponderTransport } from "./transport.js";
 
 type IndexingEvents = {
   eventsProcessed: { toTimestamp: number };
@@ -33,9 +36,26 @@ type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
 
 export class IndexingService extends Emittery<IndexingEvents> {
   private common: Common;
-  private userStore: UserStore;
-  private eventAggregatorService: EventAggregatorService;
+  private indexingStore: IndexingStore;
+  private syncGatewayService: SyncGateway;
   private sources: Source[];
+  private contexts: Record<
+    number,
+    {
+      client: Client;
+      network: { chainId: number; name: string };
+      contracts: Record<
+        string,
+        {
+          abi: Abi;
+          address?: Address | readonly Address[];
+          startBlock: number;
+          endBlock?: number;
+          maxBlockRange?: number;
+        }
+      >;
+    }
+  > = {};
 
   private schema?: Schema;
   private models: Record<string, Model<ModelInstance>> = {};
@@ -49,30 +69,38 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private eventsProcessedToTimestamp = 0;
   private hasError = false;
 
-  // private currentEventBlockNumber = 0n;
+  private currentEventBlockNumber = 0n;
   private currentEventTimestamp = 0;
 
   constructor({
     common,
-    // eventStore,
-    userStore,
-    eventAggregatorService,
-    sources = [],
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    networks,
+    sources,
   }: {
     common: Common;
-    eventStore: EventStore;
-    userStore: UserStore;
-    eventAggregatorService: EventAggregatorService;
-
-    sources?: Source[];
+    syncStore: SyncStore;
+    indexingStore: IndexingStore;
+    syncGatewayService: SyncGateway;
+    networks: Config["networks"];
+    sources: Source[];
   }) {
     super();
     this.common = common;
-    this.userStore = userStore;
-    this.eventAggregatorService = eventAggregatorService;
+    this.indexingStore = indexingStore;
+    this.syncGatewayService = syncGatewayService;
     this.sources = sources;
 
     this.eventProcessingMutex = new Mutex();
+
+    this.contexts = buildContexts(
+      sources,
+      networks,
+      syncStore,
+      ponderActions(() => this.currentEventBlockNumber),
+    );
   }
 
   kill = () => {
@@ -88,7 +116,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   /**
    * Registers a new set of indexing functions and/or a new schema, cancels
    * the current event processing mutex & event queue, drops and re-creates
-   * all tables from the user store, and resets eventsProcessedToTimestamp to zero.
+   * all tables from the indexing store, and resets eventsProcessedToTimestamp to zero.
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
@@ -103,7 +131,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       this.schema = newSchema;
       this.models = buildModels({
         common: this.common,
-        userStore: this.userStore,
+        indexingStore: this.indexingStore,
         schema: this.schema,
         getCurrentEventTimestamp: () => this.currentEventTimestamp,
       });
@@ -132,7 +160,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     });
     this.common.logger.debug({
       service: "indexing",
-      msg: `Paused event queue (versionId=${this.userStore.versionId})`,
+      msg: `Paused event queue (versionId=${this.indexingStore.versionId})`,
     });
 
     this.hasError = false;
@@ -142,13 +170,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
     this.common.metrics.ponder_indexing_handled_events.reset();
     this.common.metrics.ponder_indexing_processed_events.reset();
 
-    await this.userStore.reload({ schema: this.schema });
+    await this.indexingStore.reload({ schema: this.schema });
     this.common.logger.debug({
       service: "indexing",
-      msg: `Reset user store (versionId=${this.userStore.versionId})`,
+      msg: `Reset indexing store (versionId=${this.indexingStore.versionId})`,
     });
 
-    // When we call userStore.reload() above, the user store is dropped.
+    // When we call indexingStore.reload() above, the indexing store is dropped.
     // Set the latest processed timestamp to zero accordingly.
     this.eventsProcessedToTimestamp = 0;
     this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
@@ -156,7 +184,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   /**
    * This method is triggered by the realtime sync service detecting a reorg,
-   * which can happen at any time. The event queue and the user store can be
+   * which can happen at any time. The event queue and the indexing store can be
    * in one of several different states that we need to keep in mind:
    *
    * 1) No events have been added to the queue yet.
@@ -166,7 +194,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
    *
    * Note: It's crucial that we acquire a mutex lock while handling the reorg.
    * This will only ever run while the queue is idle, so we can be confident
-   * that eventsProcessedToTimestamp matches the current state of the user store,
+   * that eventsProcessedToTimestamp matches the current state of the indexing store,
    * and that no unsafe events will get processed after handling the reorg.
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
@@ -178,7 +206,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }) => {
     try {
       await this.eventProcessingMutex.runExclusive(async () => {
-        // If there is a user error, the queue & user store will be wiped on reload (case 4).
+        // If there is a user error, the queue & indexing store will be wiped on reload (case 4).
         if (this.hasError) return;
 
         if (this.eventsProcessedToTimestamp <= commonAncestorTimestamp) {
@@ -188,15 +216,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
             msg: `No unsafe events were detected while reconciling a reorg, no-op`,
           });
         } else {
-          // Unsafe events have been processed, must revert the user store and update
+          // Unsafe events have been processed, must revert the indexing store and update
           // eventsProcessedToTimestamp accordingly (case 3).
-          await this.userStore.revert({
+          await this.indexingStore.revert({
             safeTimestamp: commonAncestorTimestamp,
           });
 
           this.eventsProcessedToTimestamp = commonAncestorTimestamp;
           this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-            commonAncestorTimestamp
+            commonAncestorTimestamp,
           );
 
           // Note: There's currently no way to know how many events are "thrown out"
@@ -205,7 +233,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           this.common.logger.debug({
             service: "indexing",
-            msg: `Reverted user store to safe timestamp ${commonAncestorTimestamp}`,
+            msg: `Reverted indexing store to safe timestamp ${commonAncestorTimestamp}`,
           });
         }
       });
@@ -220,7 +248,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
    * Processes all newly available events.
    *
    * Acquires a lock on the event processing mutex, then gets the latest checkpoint
-   * from the event aggregator service. Fetches events between previous checkpoint
+   * from the sync gateway service. Fetches events between previous checkpoint
    * and the new checkpoint, adds them to the queue, then processes them.
    */
   processEvents = async () => {
@@ -228,12 +256,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
       await this.eventProcessingMutex.runExclusive(async () => {
         if (this.hasError || !this.queue) return;
 
-        const eventsAvailableTo = this.eventAggregatorService.checkpoint;
+        const eventsAvailableTo = this.syncGatewayService.checkpoint;
 
         // If we have already added events to the queue for the current checkpoint,
         // do nothing and return. This can happen if a number of calls to processEvents
         // "stack up" while one is being processed, and then they all run sequentially
-        // but the event aggregator service checkpoint has not moved.
+        // but the sync gateway service checkpoint has not moved.
         if (this.eventsProcessedToTimestamp >= eventsAvailableTo) {
           return;
         }
@@ -260,7 +288,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           }
         }
 
-        const iterator = this.eventAggregatorService.getEvents({
+        const iterator = this.syncGatewayService.getEvents({
           fromTimestamp,
           toTimestamp,
           indexingMetadata: this.indexingMetadata,
@@ -276,7 +304,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             metadata.counts.forEach(({ eventSourceName, selector, count }) => {
               const safeName = Object.values(
                 this.sources.find((s) => s.name === eventSourceName)?.events ||
-                  {}
+                  {},
               )
                 .filter((m): m is LogEventMetadata => !!m)
                 .find((m) => m.selector === selector)?.safeName;
@@ -289,12 +317,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
               this.common.metrics.ponder_indexing_matched_events.inc(
                 { eventName: `${eventSourceName}:${safeName}` },
-                count
+                count,
               );
               if (isHandled) {
                 this.common.metrics.ponder_indexing_handled_events.inc(
                   { eventName: `${eventSourceName}:${safeName}` },
-                  count
+                  count,
                 );
               }
             });
@@ -336,7 +364,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         // Note that this happens both here and in the log event indexing function.
         // They must also happen here to handle the case where no events were processed.
         this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-          toTimestamp
+          toTimestamp,
         );
       });
     } catch (error) {
@@ -351,10 +379,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }: {
     indexingFunctions: IndexingFunctions;
   }) => {
-    const context = {
-      entities: this.models,
-    };
-
     const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
       task,
       queue,
@@ -376,7 +400,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             });
 
             // Running user code here!
-            await setupFunction({ context });
+            await setupFunction({ context: { models: this.models } });
 
             this.common.logger.trace({
               service: "indexing",
@@ -425,12 +449,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
               .bySafeName[event.eventName];
           if (!indexingMetadata)
             throw new Error(
-              `Internal: Indexing function not found for event source ${event.eventSourceName}`
+              `Internal: Indexing function not found for event source ${event.eventSourceName}`,
             );
 
           // This enables contract calls occurring within the
           // user code to use the event block number by default.
-          // this.currentEventBlockNumber = event.block.number;
+          this.currentEventBlockNumber = event.block.number;
           this.currentEventTimestamp = Number(event.block.timestamp);
 
           try {
@@ -438,6 +462,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
               service: "indexing",
               msg: `Started indexing function (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
             });
+
+            const context = {
+              models: this.models,
+              ...this.contexts[event.chainId],
+            };
 
             // Running user code here!
             await indexingMetadata.fn({
@@ -490,7 +519,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             eventName: `${event.eventSourceName}:${event.eventName}`,
           });
           this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-            this.currentEventTimestamp
+            this.currentEventTimestamp,
           );
 
           break;
@@ -510,3 +539,68 @@ export class IndexingService extends Emittery<IndexingEvents> {
     return queue;
   };
 }
+
+const buildContexts = (
+  sources: Source[],
+  networks: Config["networks"],
+  syncStore: SyncStore,
+  actions: ReturnType<typeof ponderActions>,
+) => {
+  const contexts: Record<
+    number,
+    {
+      client: Client;
+      network: { chainId: number; name: string };
+      contracts: Record<
+        string,
+        {
+          abi: Abi;
+          address?: Address | readonly Address[];
+          startBlock: number;
+          endBlock?: number;
+          maxBlockRange?: number;
+        }
+      >;
+    }
+  > = {};
+
+  networks.forEach((network) => {
+    const defaultChain =
+      Object.values(chains).find((c) => c.id === network.chainId) ??
+      chains.mainnet;
+
+    const client = createClient({
+      transport: ponderTransport({ transport: network.transport, syncStore }),
+      chain: { ...defaultChain, name: network.name, id: network.chainId },
+    });
+
+    contexts[network.chainId] = {
+      network: { name: network.name, chainId: network.chainId },
+      // Changing the arguments of readContract is not usually allowed,
+      // because we have such a limited api we should be good
+      client: client.extend(actions as any) as ReadOnlyClient,
+      contracts: {},
+    };
+  });
+
+  sources.forEach((source) => {
+    const address =
+      source.type === "logFilter" ? source.criteria.address : undefined;
+
+    contexts[source.chainId] = {
+      ...contexts[source.chainId],
+      contracts: {
+        ...contexts[source.chainId].contracts,
+        [source.name]: {
+          abi: source.abi,
+          address,
+          startBlock: source.startBlock,
+          endBlock: source.endBlock,
+          maxBlockRange: source.maxBlockRange,
+        },
+      },
+    };
+  });
+
+  return contexts;
+};

@@ -1,9 +1,9 @@
 import { test } from "vitest";
 
-import * as p from "@/schema";
-import { RecoverTableType } from "@/schema/types";
+import * as p from "@/schema/index.js";
+import type { RecoverTableType } from "@/schema/types.js";
 
-import { Model } from "..";
+import type { Model } from "./model.js";
 
 test("model", () => {
   const schema = p.createSchema({

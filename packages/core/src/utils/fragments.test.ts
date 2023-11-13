@@ -1,12 +1,12 @@
 import { parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
-import { buildFactoryCriteria } from "@/config/factories";
+import { buildFactoryCriteria } from "@/config/factories.js";
 
-import { buildFactoryFragments, buildLogFilterFragments } from "./fragments";
+import { buildFactoryFragments, buildLogFilterFragments } from "./fragments.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
-  "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)"
+  "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
 
 test("buildLogFilterFragments generates 1 log filter fragment for null filter", () => {
@@ -103,7 +103,7 @@ test("buildFactoryFragments builds id containing topic", () => {
   });
 
   expect(buildFactoryFragments({ chainId: 1, ...criteria })[0].id).toBe(
-    "1_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_topic1_null_null_null_null"
+    "1_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_topic1_null_null_null_null",
   );
 });
 
@@ -115,6 +115,6 @@ test("buildFactoryFragments builds id containing offset", () => {
   });
 
   expect(buildFactoryFragments({ chainId: 115511, ...criteria })[0].id).toBe(
-    "115511_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null"
+    "115511_0xa_0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599_offset64_null_null_null_null",
   );
 });

@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 
-import * as p from "./index";
-import { isEnumColumn, isReferenceColumn, isVirtualColumn } from "./utils";
+import * as p from "./index.js";
+import { isEnumColumn, isReferenceColumn, isVirtualColumn } from "./utils.js";
 
 test("virtual column", () => {
   expect(isVirtualColumn(p.string()[" column"])).toBe(false);

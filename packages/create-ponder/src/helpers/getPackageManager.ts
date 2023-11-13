@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import { detect } from "detect-package-manager";
 
 export function getPackageManager() {

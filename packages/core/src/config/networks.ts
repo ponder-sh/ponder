@@ -1,8 +1,8 @@
-import { type Client, type PublicClient, createPublicClient } from "viem";
-import * as chains from "viem/chains";
+import { type Client, createPublicClient, type PublicClient } from "viem";
 
-import type { Config } from "@/config/config";
-import type { Common } from "@/Ponder";
+import type { Config } from "@/config/config.js";
+import type { Common } from "@/Ponder.js";
+import { chains } from "@/utils/chains.js";
 
 export type Network = {
   name: string;
@@ -24,7 +24,8 @@ export function buildNetwork({
   const { name, chainId, transport } = network;
 
   const defaultChain =
-    Object.values(chains).find(({ id }) => id === chainId) ?? chains.mainnet;
+    Object.values(chains).find((c) => ("id" in c ? c.id === chainId : false)) ??
+    chains.mainnet;
 
   const client = createPublicClient({
     transport,

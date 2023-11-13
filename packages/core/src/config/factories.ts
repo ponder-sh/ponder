@@ -1,10 +1,11 @@
 import type { AbiEvent } from "abitype";
-import { getEventSelector, RpcLog } from "viem";
+import type { RpcLog } from "viem";
+import { getEventSelector } from "viem";
 
-import { toLowerCase } from "@/utils/lowercase";
-import { getBytesConsumedByParam } from "@/utils/offset";
+import { toLowerCase } from "@/utils/lowercase.js";
+import { getBytesConsumedByParam } from "@/utils/offset.js";
 
-import { FactoryCriteria } from "./sources";
+import type { FactoryCriteria } from "./sources.js";
 
 export function buildFactoryCriteria({
   address: _address,
@@ -33,17 +34,17 @@ export function buildFactoryCriteria({
   }
 
   const nonIndexedInputs = event.inputs.filter(
-    (x) => !("indexed" in x && x.indexed)
+    (x) => !("indexed" in x && x.indexed),
   );
   const nonIndexedInputPosition = nonIndexedInputs.findIndex(
-    (input) => input.name === parameter
+    (input) => input.name === parameter,
   );
 
   if (nonIndexedInputPosition === -1) {
     throw new Error(
       `Factory event parameter '${parameter}' not found in factory event signature. Found: ${event.inputs
         .map((i) => i.name)
-        .join(", ")}.`
+        .join(", ")}.`,
     );
   }
 
@@ -73,7 +74,7 @@ export function getAddressFromFactoryEventLog({
     const topic = log.topics[childAddressTopic];
     if (topic === undefined) {
       throw new Error(
-        `Invalid log for factory criteria: Not enough topic values, expected at least ${childAddressTopic}`
+        `Invalid log for factory criteria: Not enough topic values, expected at least ${childAddressTopic}`,
       );
     }
     const start = 2 + 12 * 2;
@@ -90,7 +91,7 @@ export function getAddressFromFactoryEventLog({
       throw new Error(
         `Invalid log for factory criteria: Data size too small, expected at least ${
           end / 2 - 1
-        } bytes`
+        } bytes`,
       );
     }
 
@@ -98,6 +99,6 @@ export function getAddressFromFactoryEventLog({
   }
 
   throw new Error(
-    `Invalid child address location identifier: ${childAddressLocation}`
+    `Invalid child address location identifier: ${childAddressLocation}`,
   );
 }

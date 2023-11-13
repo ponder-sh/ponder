@@ -5,7 +5,7 @@ export class UserError extends Error {
 
   constructor(
     message: string,
-    options: { stack?: string; meta?: string; cause?: unknown } = {}
+    options: { stack?: string; meta?: string; cause?: unknown } = {},
   ) {
     super(message, options.cause ? { cause: options.cause } : undefined);
 

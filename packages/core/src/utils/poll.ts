@@ -1,4 +1,4 @@
-import { wait } from "./wait";
+import { wait } from "./wait.js";
 
 // Adapted from viem.
 // https://github.com/wagmi-dev/viem/blob/38422ac7617022761ee7aa87310dd89adb34573c/src/utils/poll.ts
@@ -15,7 +15,7 @@ type PollOptions = {
  */
 export function poll(
   fn: ({ unpoll }: { unpoll: () => void }) => Promise<unknown> | unknown,
-  { emitOnBegin, interval }: PollOptions
+  { emitOnBegin, interval }: PollOptions,
 ) {
   let active = true;
 

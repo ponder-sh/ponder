@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { SerializableConfig } from "@/index";
+import type { SerializableConfig } from "@/index.js";
 
 export const fromBasic = ({ rootDir }: { rootDir: string }) => {
   const abiFileContents = `[]`;

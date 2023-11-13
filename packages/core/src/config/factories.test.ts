@@ -1,13 +1,14 @@
-import { getEventSelector, parseAbiItem, RpcLog } from "viem";
+import type { RpcLog } from "viem";
+import { getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
 import {
   buildFactoryCriteria,
   getAddressFromFactoryEventLog,
-} from "./factories";
+} from "./factories.js";
 
 const llamaFactoryEventAbiItem = parseAbiItem(
-  "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)"
+  "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
 
 test("buildFactoryCriteria throws if provided parameter not found in inputs", () => {
@@ -16,9 +17,9 @@ test("buildFactoryCriteria throws if provided parameter not found in inputs", ()
       address: "0xa",
       event: llamaFactoryEventAbiItem,
       parameter: "fakeParameter",
-    })
+    }),
   ).toThrowError(
-    "Factory event parameter 'fakeParameter' not found in factory event signature. Found: deployer, name, llamaCore, llamaExecutor, llamaPolicy, chainId."
+    "Factory event parameter 'fakeParameter' not found in factory event signature. Found: deployer, name, llamaCore, llamaExecutor, llamaPolicy, chainId.",
   );
 });
 
@@ -79,9 +80,9 @@ test("getAddressFromFactoryEventLog throws for invalid child address location", 
         childAddressLocation: "notATopicOrOffset123",
       },
       log: llamaInstanceCreatedLog,
-    })
+    }),
   ).toThrowError(
-    "Invalid child address location identifier: notATopicOrOffset123"
+    "Invalid child address location identifier: notATopicOrOffset123",
   );
 });
 
@@ -96,9 +97,9 @@ test("getAddressFromFactoryEventLog throws for log with not enough data", () => 
     getAddressFromFactoryEventLog({
       criteria,
       log: { ...llamaInstanceCreatedLog, data: "0x01" },
-    })
+    }),
   ).toThrowError(
-    "Invalid log for factory criteria: Data size too small, expected at least 32 bytes"
+    "Invalid log for factory criteria: Data size too small, expected at least 32 bytes",
   );
 });
 
@@ -118,9 +119,9 @@ test("getAddressFromFactoryEventLog throws for log with not enough topics", () =
           "0x00fef2d461a2fabbb523f9f42752c61336f03b17a602af52cc6c83cb8b110599",
         ],
       },
-    })
+    }),
   ).toThrowError(
-    "Invalid log for factory criteria: Not enough topic values, expected at least 1"
+    "Invalid log for factory criteria: Not enough topic values, expected at least 1",
   );
 });
 

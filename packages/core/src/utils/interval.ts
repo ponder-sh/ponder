@@ -55,7 +55,7 @@ export function intervalUnion(intervals: [number, number][]) {
  */
 export function intervalIntersection(
   list1: [number, number][],
-  list2: [number, number][]
+  list2: [number, number][],
 ) {
   const result: [number, number][] = [];
   let i = 0;
@@ -112,7 +112,7 @@ export function intervalIntersectionMany(lists: [number, number][][]) {
  */
 export function intervalDifference(
   initial: [number, number][],
-  remove: [number, number][]
+  remove: [number, number][],
 ) {
   const result: [number, number][] = [];
 
@@ -202,7 +202,7 @@ export class ProgressTracker {
   }) {
     if (target[0] > target[1])
       throw new Error(
-        `Invalid interval: start (${target[0]}) is greater than end (${target[1]})`
+        `Invalid interval: start (${target[0]}) is greater than end (${target[1]})`,
       );
 
     this.target = target;
@@ -217,7 +217,7 @@ export class ProgressTracker {
   addCompletedInterval(interval: [number, number]) {
     if (interval[0] > interval[1])
       throw new Error(
-        `Invalid interval: start (${interval[0]}) is greater than end (${interval[1]})`
+        `Invalid interval: start (${interval[0]}) is greater than end (${interval[1]})`,
       );
 
     const prevCheckpoint = this.getCheckpoint();
@@ -349,7 +349,7 @@ export class BlockProgressTracker {
       minNewPendingBlock <= maxPendingBlock
     ) {
       throw new Error(
-        `New pending block number ${minNewPendingBlock} was added out of order. Already added block number ${maxPendingBlock}.`
+        `New pending block number ${minNewPendingBlock} was added out of order. Already added block number ${maxPendingBlock}.`,
       );
     }
 
@@ -367,11 +367,11 @@ export class BlockProgressTracker {
   }) {
     // Find and remove the completed block from the pending list.
     const pendingBlockIndex = this.pendingBlocks.findIndex(
-      (pendingBlock) => pendingBlock === blockNumber
+      (pendingBlock) => pendingBlock === blockNumber,
     );
     if (pendingBlockIndex === -1) {
       throw new Error(
-        `Block number ${blockNumber} was not pending. Ensure to add blocks as pending before marking them as completed.`
+        `Block number ${blockNumber} was not pending. Ensure to add blocks as pending before marking them as completed.`,
       );
     }
     this.pendingBlocks.splice(pendingBlockIndex, 1);
@@ -393,7 +393,7 @@ export class BlockProgressTracker {
     // Find all completed blocks that are less than the minimum pending block.
     // These blocks are "safe".
     const safeCompletedBlocks = this.completedBlocks.filter(
-      ({ blockNumber }) => blockNumber < this.pendingBlocks[0]
+      ({ blockNumber }) => blockNumber < this.pendingBlocks[0],
     );
 
     // If there are no safe blocks, the first pending block has not been completed yet.
@@ -405,7 +405,7 @@ export class BlockProgressTracker {
     // Remove all safe completed blocks that are less than the new checkpoint.
     // This avoid a memory leak and speeds up subsequent calls.
     this.completedBlocks = this.completedBlocks.filter(
-      ({ blockNumber }) => blockNumber >= maximumSafeCompletedBlock.blockNumber
+      ({ blockNumber }) => blockNumber >= maximumSafeCompletedBlock.blockNumber,
     );
 
     return maximumSafeCompletedBlock;

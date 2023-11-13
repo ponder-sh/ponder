@@ -1,10 +1,10 @@
-import type { OrderByInput, WhereInput } from "@/user-store/store";
+import type { OrderByInput, WhereInput } from "@/indexing-store/store.js";
 
 import type {
   HasOnlyIdProperty,
   HasRequiredPropertiesOtherThanId,
   Prettify,
-} from "./utils";
+} from "./utils.js";
 
 export type Model<T extends { id: string | number | bigint }> = {
   create: (
@@ -14,9 +14,9 @@ export type Model<T extends { id: string | number | bigint }> = {
       } & (HasOnlyIdProperty<T> extends true
         ? { data?: never }
         : HasRequiredPropertiesOtherThanId<T> extends true
-        ? { data: Prettify<Omit<T, "id">> }
-        : { data?: Prettify<Omit<T, "id">> })
-    >
+          ? { data: Prettify<Omit<T, "id">> }
+          : { data?: Prettify<Omit<T, "id">> })
+    >,
   ) => Promise<Prettify<T>>;
 
   createMany: (options: { data: Prettify<T>[] }) => Promise<Prettify<T>[]>;
@@ -28,21 +28,21 @@ export type Model<T extends { id: string | number | bigint }> = {
       } & (HasOnlyIdProperty<T> extends true
         ? { data?: never }
         : HasRequiredPropertiesOtherThanId<T> extends true
-        ? {
-            data:
-              | Prettify<Omit<Partial<T>, "id">>
-              | ((options: {
-                  current: Prettify<T>;
-                }) => Prettify<Omit<Partial<T>, "id">>);
-          }
-        : {
-            data?:
-              | Prettify<Omit<Partial<T>, "id">>
-              | ((options: {
-                  current: Prettify<T>;
-                }) => Prettify<Omit<Partial<T>, "id">>);
-          })
-    >
+          ? {
+              data:
+                | Prettify<Omit<Partial<T>, "id">>
+                | ((options: {
+                    current: Prettify<T>;
+                  }) => Prettify<Omit<Partial<T>, "id">>);
+            }
+          : {
+              data?:
+                | Prettify<Omit<Partial<T>, "id">>
+                | ((options: {
+                    current: Prettify<T>;
+                  }) => Prettify<Omit<Partial<T>, "id">>);
+            })
+    >,
   ) => Promise<Prettify<T>>;
 
   updateMany: (options: {
@@ -61,23 +61,23 @@ export type Model<T extends { id: string | number | bigint }> = {
       } & (HasOnlyIdProperty<T> extends true
         ? { create?: never; update?: never }
         : HasRequiredPropertiesOtherThanId<T> extends true
-        ? {
-            create: Prettify<Omit<T, "id">>;
-            update:
-              | Prettify<Omit<Partial<T>, "id">>
-              | ((options: {
-                  current: Prettify<T>;
-                }) => Prettify<Omit<Partial<T>, "id">>);
-          }
-        : {
-            create?: Prettify<Omit<T, "id">>;
-            update?:
-              | Prettify<Omit<Partial<T>, "id">>
-              | ((options: {
-                  current: Prettify<T>;
-                }) => Prettify<Omit<Partial<T>, "id">>);
-          })
-    >
+          ? {
+              create: Prettify<Omit<T, "id">>;
+              update:
+                | Prettify<Omit<Partial<T>, "id">>
+                | ((options: {
+                    current: Prettify<T>;
+                  }) => Prettify<Omit<Partial<T>, "id">>);
+            }
+          : {
+              create?: Prettify<Omit<T, "id">>;
+              update?:
+                | Prettify<Omit<Partial<T>, "id">>
+                | ((options: {
+                    current: Prettify<T>;
+                  }) => Prettify<Omit<Partial<T>, "id">>);
+            })
+    >,
   ) => Promise<Prettify<T>>;
 
   findUnique: (options: { id: T["id"] }) => Promise<Prettify<T> | null>;

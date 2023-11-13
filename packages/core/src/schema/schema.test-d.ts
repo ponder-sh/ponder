@@ -1,14 +1,14 @@
 import { assertType, test } from "vitest";
 
-import * as p from "./index";
-import {
+import * as p from "./index.js";
+import type {
   BaseColumn,
   ExtractAllNames,
   FilterEnums,
   FilterTables,
   RecoverTableType,
   Schema,
-} from "./types";
+} from "./types.js";
 
 test("table", () => {
   const a = p.createTable({
@@ -96,5 +96,5 @@ test("schema", () => {
   type t = p.Infer<typeof s>;
   //   ^?
 
-  assertType<t>({} as { t: { id: string; e: ["ONE", "TWO"] } });
+  assertType<t>({} as { t: { id: string; e: "ONE" | "TWO" } });
 });

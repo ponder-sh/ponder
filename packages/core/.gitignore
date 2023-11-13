@@ -3,3 +3,4 @@ dist/
 generated/
 .env.local
 **/*.node
+ponder-env.d.ts

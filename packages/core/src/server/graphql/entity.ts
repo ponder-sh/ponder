@@ -1,7 +1,7 @@
+import type { GraphQLFieldResolver } from "graphql";
 import {
-  type GraphQLFieldConfigMap,
   GraphQLEnumType,
-  GraphQLFieldResolver,
+  type GraphQLFieldConfigMap,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
@@ -9,16 +9,16 @@ import {
   GraphQLString,
 } from "graphql";
 
-import { Schema } from "@/schema/types";
+import type { Schema } from "@/schema/types.js";
 import {
   isEnumColumn,
   isReferenceColumn,
   isVirtualColumn,
   referencedEntityName,
-} from "@/schema/utils";
+} from "@/schema/utils.js";
 
-import type { Context, Source } from "./schema";
-import { tsTypeToGqlScalar } from "./schema";
+import type { Context, Source } from "./schema.js";
+import { tsTypeToGqlScalar } from "./schema.js";
 
 export const buildEntityTypes = ({
   schema,
@@ -40,7 +40,7 @@ export const buildEntityTypes = ({
             const resolver: GraphQLFieldResolver<Source, Context> = async (
               parent,
               args,
-              context
+              context,
             ) => {
               const { store } = context;
 
@@ -70,8 +70,8 @@ export const buildEntityTypes = ({
             fieldConfigMap[columnName] = {
               type: new GraphQLNonNull(
                 new GraphQLList(
-                  new GraphQLNonNull(entityGqlTypes[column.referenceTable])
-                )
+                  new GraphQLNonNull(entityGqlTypes[column.referenceTable]),
+                ),
               ),
               args: {
                 skip: { type: GraphQLInt, defaultValue: 0 },
@@ -89,7 +89,7 @@ export const buildEntityTypes = ({
               name: enumName,
               values: schema.enums[enumName].reduce(
                 (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
-                {}
+                {},
               ),
             });
 
@@ -103,7 +103,7 @@ export const buildEntityTypes = ({
             const resolver: GraphQLFieldResolver<Source, Context> = async (
               parent,
               _args,
-              context
+              context,
             ) => {
               const { store } = context;
 
@@ -126,7 +126,7 @@ export const buildEntityTypes = ({
             };
           } else if (column.list) {
             const listType = new GraphQLList(
-              new GraphQLNonNull(tsTypeToGqlScalar[column.type])
+              new GraphQLNonNull(tsTypeToGqlScalar[column.type]),
             );
             fieldConfigMap[columnName] = {
               type: column.optional ? listType : new GraphQLNonNull(listType),

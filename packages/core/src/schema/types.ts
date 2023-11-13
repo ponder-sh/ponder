@@ -1,6 +1,6 @@
-import { Hex } from "viem";
+import type { Hex } from "viem";
 
-import { Prettify } from "@/types/utils";
+import type { Prettify } from "@/types/utils.js";
 
 export type Scalar =
   | "string"
@@ -16,7 +16,7 @@ export type BaseColumn<
   TType extends Scalar = Scalar,
   TReferences extends `${string}.id` | undefined | unknown = unknown,
   TOptional extends boolean | unknown = unknown,
-  TList extends boolean | unknown = unknown
+  TList extends boolean | unknown = unknown,
 > = {
   _type: "b";
   type: TType;
@@ -28,20 +28,20 @@ export type BaseColumn<
 export type ReferenceColumn<
   TType extends Scalar = Scalar,
   TReferences extends `${string}.id` = `${string}.id`,
-  TOptional extends boolean = boolean
+  TOptional extends boolean = boolean,
 > = BaseColumn<TType, TReferences, TOptional, false>;
 
 export type NonReferenceColumn<
   TType extends Scalar = Scalar,
   TOptional extends boolean = boolean,
-  TList extends boolean = boolean
+  TList extends boolean = boolean,
 > = BaseColumn<TType, undefined, TOptional, TList>;
 
 export type InternalColumn<
   TType extends Scalar = Scalar,
   TReferences extends `${string}.id` | undefined | unknown = unknown,
   TOptional extends boolean | unknown = unknown,
-  TList extends boolean | unknown = unknown
+  TList extends boolean | unknown = unknown,
 > = {
   [" column"]: BaseColumn<TType, TReferences, TOptional, TList>;
 };
@@ -52,14 +52,14 @@ export type IDColumn<TType extends ID = ID> = {
 
 export type InternalEnum<
   TType extends string | unknown = unknown,
-  TOptional extends boolean | unknown = unknown
+  TOptional extends boolean | unknown = unknown,
 > = {
   [" enum"]: EnumColumn<TType, TOptional>;
 };
 
 export type EnumColumn<
   TType extends string | unknown = unknown,
-  TOptional extends boolean | unknown = unknown
+  TOptional extends boolean | unknown = unknown,
 > = {
   _type: "e";
   type: TType;
@@ -67,7 +67,8 @@ export type EnumColumn<
 };
 
 export type VirtualColumn<T extends `${string}.${string}` | unknown = unknown> =
-  T extends `${infer TTableName extends string}.${infer TColumnName extends string}`
+  T extends `${infer TTableName extends string}.${infer TColumnName extends
+    string}`
     ? {
         _type: "v";
         referenceTable: TTableName;
@@ -84,11 +85,11 @@ export type Table<
     | ({
         id: { [" column"]: IDColumn };
       } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
-    | unknown
+    | unknown,
 > = TColumns;
 
 export type Enum<
-  TValues extends readonly string[] | unknown = readonly string[] | unknown
+  TValues extends readonly string[] | unknown = readonly string[] | unknown,
 > = TValues;
 
 export type Schema = {
@@ -146,7 +147,7 @@ export type FilterReferenceColumns<
         string,
         NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
       >
-    | Enum
+    | Enum,
 > = Pick<
   TColumns,
   {
@@ -168,7 +169,7 @@ export type ExtractAllNames<
         NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
       >
     | Enum
-  >
+  >,
 > = {
   [tableName in keyof FilterTables<TSchema>]: `${tableName &
     string}.${keyof FilterReferenceColumns<TTableName, TSchema[tableName]> &
@@ -181,23 +182,23 @@ export type ExtractAllNames<
 export type RecoverScalarType<TScalar extends Scalar> = TScalar extends "string"
   ? string
   : TScalar extends "int"
-  ? number
-  : TScalar extends "float"
-  ? number
-  : TScalar extends "boolean"
-  ? boolean
-  : TScalar extends "bytes"
-  ? Hex
-  : TScalar extends "bigint"
-  ? bigint
-  : never;
+    ? number
+    : TScalar extends "float"
+      ? number
+      : TScalar extends "boolean"
+        ? boolean
+        : TScalar extends "bytes"
+          ? Hex
+          : TScalar extends "bigint"
+            ? bigint
+            : never;
 
 export type RecoverColumnType<
   TColumn extends
     | NonReferenceColumn
     | ReferenceColumn
     | EnumColumn
-    | VirtualColumn
+    | VirtualColumn,
 > = TColumn extends {
   type: infer _type extends Scalar;
   list: infer _list extends boolean;
@@ -211,7 +212,7 @@ export type RecoverOptionalColumns<
   TColumns extends Record<
     string,
     NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
-  >
+  >,
 > = Pick<
   TColumns,
   {
@@ -229,7 +230,7 @@ export type RecoverRequiredColumns<
   TColumns extends Record<
     string,
     NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
-  >
+  >,
 > = Pick<
   TColumns,
   {
@@ -247,7 +248,7 @@ export type RecoverEnumColumns<
   TColumns extends Record<
     string,
     NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
-  >
+  >,
 > = Pick<
   TColumns,
   {
@@ -261,18 +262,23 @@ export type RecoverEnumType<
     | NonReferenceColumn
     | ReferenceColumn
     | EnumColumn
-    | VirtualColumn
-> = TColumn extends EnumColumn ? TEnums[TColumn["type"] & keyof TEnums] : never;
+    | VirtualColumn,
+> = TColumn extends EnumColumn
+  ? TEnums[TColumn["type"] & keyof TEnums] extends infer _enum extends
+      readonly string[]
+    ? _enum[number]
+    : never
+  : never;
 
 export type RecoverTableType<
   TEnums extends Record<string, Enum>,
-  TTable extends Table
+  TTable extends Table,
 > = TTable extends infer _columns extends Record<
   string,
   ReferenceColumn | NonReferenceColumn | EnumColumn | VirtualColumn
 >
   ? Prettify<
-      {
+      { id: RecoverColumnType<_columns["id"]> } & {
         [key in keyof RecoverRequiredColumns<_columns>]: RecoverColumnType<
           _columns[key]
         >;

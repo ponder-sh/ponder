@@ -1,14 +1,15 @@
-import { Address, custom, Hex, Transport } from "viem";
+import type { Address, Hex, Transport } from "viem";
+import { custom } from "viem";
 
-import { EventStore } from "@/event-store/store";
-import { toLowerCase } from "@/utils/lowercase";
+import type { SyncStore } from "@/sync-store/store.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 
 export const ponderTransport = ({
   transport,
-  eventStore,
+  syncStore,
 }: {
   transport: Transport;
-  eventStore: EventStore;
+  syncStore: SyncStore;
 }): Transport => {
   return ({ chain }) => {
     const underlyingTransport = transport({ chain });
@@ -22,11 +23,11 @@ export const ponderTransport = ({
         if (method === "eth_call") {
           const [{ data, to }, _blockNumber] = params as [
             { data: Hex; to: Hex },
-            Hex
+            Hex,
           ];
 
           request = `${method as string}_${toLowerCase(to)}_${toLowerCase(
-            data
+            data,
           )}`;
           blockNumber = BigInt(_blockNumber);
         } else if (method === "eth_getBalance") {
@@ -43,13 +44,13 @@ export const ponderTransport = ({
           const [address, slot, _blockNumber] = params as [Address, Hex, Hex];
 
           request = `${method as string}_${toLowerCase(address)}_${toLowerCase(
-            slot
+            slot,
           )}`;
           blockNumber = BigInt(_blockNumber);
         }
 
         if (request !== null && blockNumber !== null) {
-          const cachedResult = await eventStore.getRpcRequestResult({
+          const cachedResult = await syncStore.getRpcRequestResult({
             blockNumber,
             chainId: chain!.id,
             request,
@@ -58,7 +59,7 @@ export const ponderTransport = ({
           if (cachedResult?.result) return cachedResult.result;
           else {
             const response = await underlyingTransport.request(body);
-            await eventStore.insertRpcRequestResult({
+            await syncStore.insertRpcRequestResult({
               blockNumber: BigInt(blockNumber),
               chainId: chain!.id,
               request,

@@ -1,20 +1,20 @@
+import type { GraphQLInputFieldConfigMap, GraphQLObjectType } from "graphql";
 import {
   type GraphQLFieldConfig,
   type GraphQLFieldResolver,
-  type GraphQLInputType,
   GraphQLInputObjectType,
+  type GraphQLInputType,
   GraphQLInt,
   GraphQLList,
   GraphQLNonNull,
-  GraphQLObjectType,
   GraphQLString,
 } from "graphql";
 
-import type { Scalar, Schema } from "@/schema/types";
-import { isEnumColumn, isVirtualColumn } from "@/schema/utils";
+import type { Scalar, Schema } from "@/schema/types.js";
+import { isEnumColumn, isVirtualColumn } from "@/schema/utils.js";
 
-import type { Context, Source } from "./schema";
-import { tsTypeToGqlScalar } from "./schema";
+import type { Context, Source } from "./schema.js";
+import { tsTypeToGqlScalar } from "./schema.js";
 
 type PluralArgs = {
   timestamp?: number;
@@ -50,7 +50,7 @@ export const buildPluralField = ({
   table: Schema["tables"][string];
   entityGqlType: GraphQLObjectType<Source, Context>;
 }): GraphQLFieldConfig<Source, Context> => {
-  const filterFields: Record<string, { type: GraphQLInputType }> = {};
+  const filterFields: GraphQLInputFieldConfigMap = {};
 
   Object.entries(table).forEach(([columnName, column]) => {
     // Note: Only include non-virtual columns in plural fields
@@ -60,13 +60,14 @@ export const buildPluralField = ({
 
       operators.universal.forEach((suffix) => {
         filterFields[`${columnName}${suffix}`] = {
-          type: enumType as GraphQLInputType, // TODO:Kyle this is probably a bad idea
+          // TODO: Kyle this cast is probably a bad idea.
+          type: enumType as GraphQLInputType,
         };
       });
 
       operators.singular.forEach((suffix) => {
         filterFields[`${columnName}${suffix}`] = {
-          type: new GraphQLList(enumType),
+          type: new GraphQLList(enumType) as GraphQLInputType,
         };
       });
     } else if (column.list) {
@@ -137,7 +138,7 @@ export const buildPluralField = ({
 
   return {
     type: new GraphQLNonNull(
-      new GraphQLList(new GraphQLNonNull(entityGqlType))
+      new GraphQLList(new GraphQLNonNull(entityGqlType)),
     ),
     args: {
       skip: { type: GraphQLInt, defaultValue: 0 },
@@ -183,7 +184,7 @@ function buildWhereObject({ where }: { where: Record<string, any> }) {
     const storeCondition = graphqlFilterToStoreCondition[condition];
     if (!storeCondition) {
       throw new Error(
-        `Invalid query: Unknown where condition: ${fieldName}_${condition}`
+        `Invalid query: Unknown where condition: ${fieldName}_${condition}`,
       );
     }
 

@@ -9,7 +9,7 @@ const changeMappingFileDelim = (delim: string) => {
   });
   mappingFileContents = mappingFileContents.replace(
     /(kevin:.)/g,
-    `kevin:${delim}`
+    `kevin:${delim}`,
   );
 
   writeFileSync("./subgraph/src/mapping.ts", mappingFileContents, "utf-8");

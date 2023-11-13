@@ -8,7 +8,7 @@ import {
   intervalSum,
   intervalUnion,
   ProgressTracker,
-} from "./interval";
+} from "./interval.js";
 
 test("intervalSum handles empty input", () => {
   const result = intervalSum([]);
@@ -98,7 +98,7 @@ test("intervalIntersection correctly finds intersections", () => {
       [2, 4],
       [4, 6],
       [10, 11],
-    ]
+    ],
   );
   expect(result).toEqual([
     [2, 6],
@@ -116,7 +116,7 @@ test("intervalIntersection handles no intersections", () => {
     [
       [4, 4],
       [8, 8],
-    ]
+    ],
   );
   expect(result).toEqual([]);
 });
@@ -135,7 +135,7 @@ test("intervalDifference correctly finds differences", () => {
     [
       [2, 4],
       [8, 10],
-    ]
+    ],
   );
 
   expect(result).toEqual([
@@ -154,7 +154,7 @@ test("intervalDifference handles no difference", () => {
     [
       [0, 0],
       [4, 4],
-    ]
+    ],
   );
   expect(result).toEqual([
     [1, 3],
@@ -168,7 +168,7 @@ test("intervalDifference handles full difference", () => {
       [1, 5],
       [4, 7],
     ],
-    [[0, 8]]
+    [[0, 8]],
   );
   expect(result).toEqual([]);
 });
@@ -182,7 +182,7 @@ test("ProgressTracker constructor initializes correctly", () => {
 
 test("ProgressTracker constructor throws if passed an invalid interval", () => {
   expect(
-    () => new ProgressTracker({ target: [10, 1], completed: [] })
+    () => new ProgressTracker({ target: [10, 1], completed: [] }),
   ).toThrowError("Invalid interval: start (10) is greater than end (1)");
 });
 
@@ -217,7 +217,7 @@ test("ProgressTracker addCompletedInterval constructor throws if passed an inval
   const tracker = new ProgressTracker({ target: [1, 10], completed: [] });
 
   expect(() => tracker.addCompletedInterval([5, 3])).toThrowError(
-    "Invalid interval: start (5) is greater than end (3)"
+    "Invalid interval: start (5) is greater than end (3)",
   );
 });
 
@@ -358,9 +358,9 @@ test("BlockProgressTracker throws if pending blocks are added out of order", () 
   tracker.addPendingBlocks({ blockNumbers: [5, 6, 9, 10] });
 
   expect(() =>
-    tracker.addPendingBlocks({ blockNumbers: [8, 12] })
+    tracker.addPendingBlocks({ blockNumbers: [8, 12] }),
   ).toThrowError(
-    "New pending block number 8 was added out of order. Already added block number 10."
+    "New pending block number 8 was added out of order. Already added block number 10.",
   );
 });
 
@@ -368,8 +368,8 @@ test("BlockProgressTracker throws if completed block was not pending", () => {
   const tracker = new BlockProgressTracker();
 
   expect(() =>
-    tracker.addCompletedBlock({ blockNumber: 5, blockTimestamp: 98 })
+    tracker.addCompletedBlock({ blockNumber: 5, blockTimestamp: 98 }),
   ).toThrowError(
-    "Block number 5 was not pending. Ensure to add blocks as pending before marking them as completed."
+    "Block number 5 was not pending. Ensure to add blocks as pending before marking them as completed.",
   );
 });

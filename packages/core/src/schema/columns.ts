@@ -1,15 +1,15 @@
-import {
+import type {
   BaseColumn,
   InternalColumn,
   InternalEnum,
   Scalar,
   VirtualColumn,
-} from "./types";
+} from "./types.js";
 
 type Optional<
   TScalar extends Scalar,
   TReferences extends `${string}.id` | undefined,
-  TList extends boolean
+  TList extends boolean,
 > = () => TReferences extends undefined
   ? TList extends true
     ? InternalColumn<TScalar, TReferences, true, TList>
@@ -25,9 +25,9 @@ type Optional<
 const optional = <
   TScalar extends Scalar,
   TReferences extends `${string}.id` | undefined,
-  TList extends boolean
+  TList extends boolean,
 >(
-  column: BaseColumn<TScalar, TReferences, false, TList>
+  column: BaseColumn<TScalar, TReferences, false, TList>,
 ): Optional<TScalar, TReferences, TList> =>
   (() => {
     const newColumn = { ...column, optional: true } as const;
@@ -40,14 +40,14 @@ const optional = <
           [" column"]: newColumn,
           list: list(newColumn as BaseColumn<TScalar, undefined, true, false>),
           references: references(
-            newColumn as BaseColumn<TScalar, undefined, true, false>
+            newColumn as BaseColumn<TScalar, undefined, true, false>,
           ),
         };
   }) as Optional<TScalar, TReferences, TList>;
 
 type List<
   TScalar extends Scalar,
-  TOptional extends boolean
+  TOptional extends boolean,
 > = () => TOptional extends true
   ? InternalColumn<TScalar, undefined, TOptional, true>
   : InternalColumn<TScalar, undefined, TOptional, true> & {
@@ -60,7 +60,7 @@ type List<
  * List columns can't be references
  */
 const list = <TScalar extends Scalar, TOptional extends boolean>(
-  column: BaseColumn<TScalar, undefined, TOptional, false>
+  column: BaseColumn<TScalar, undefined, TOptional, false>,
 ): List<TScalar, TOptional> =>
   (() => {
     const newColumn = { ...column, list: true } as const;
@@ -71,15 +71,15 @@ const list = <TScalar extends Scalar, TOptional extends boolean>(
       : {
           [" column"]: newColumn,
           optional: optional(
-            newColumn as BaseColumn<TScalar, undefined, false, true>
+            newColumn as BaseColumn<TScalar, undefined, false, true>,
           ),
         };
   }) as List<TScalar, TOptional>;
 
 type References<TScalar extends Scalar, TOptional extends boolean> = <
-  TReferences extends `${string}.id`
+  TReferences extends `${string}.id`,
 >(
-  references: TReferences
+  references: TReferences,
 ) => TOptional extends true
   ? InternalColumn<TScalar, TReferences, TOptional, false>
   : InternalColumn<TScalar, TReferences, TOptional, false> & {
@@ -92,7 +92,7 @@ type References<TScalar extends Scalar, TOptional extends boolean> = <
  * Reference columns can't be lists
  */
 const references = <TScalar extends Scalar, TOptional extends boolean>(
-  column: BaseColumn<TScalar, undefined, TOptional, false>
+  column: BaseColumn<TScalar, undefined, TOptional, false>,
 ): References<TScalar, TOptional> =>
   (<TReferences extends `${string}.id`>(references: TReferences) => {
     const newColumn = { ...column, references } as const;
@@ -102,7 +102,7 @@ const references = <TScalar extends Scalar, TOptional extends boolean>(
       : {
           [" column"]: newColumn,
           optional: optional(
-            newColumn as BaseColumn<TScalar, TReferences, false, false>
+            newColumn as BaseColumn<TScalar, TReferences, false, false>,
           ),
         };
   }) as References<TScalar, TOptional>;
@@ -132,7 +132,7 @@ const emptyColumn =
 
 type Enum<
   TType extends string,
-  TOptional extends boolean
+  TOptional extends boolean,
 > = TOptional extends true
   ? InternalEnum<TType, TOptional>
   : InternalEnum<TType, TOptional> & {
@@ -165,12 +165,12 @@ const bytes = emptyColumn("bytes");
 const bigint = emptyColumn("bigint");
 
 const virtual = <T extends `${string}.${string}`>(
-  derived: T
+  derived: T,
 ): VirtualColumn<T> =>
   ({
     _type: "v",
     referenceTable: derived.split(".")[0],
     referenceColumn: derived.split(".")[1],
-  } as VirtualColumn<T>);
+  }) as VirtualColumn<T>;
 
 export { _enum, bigint, boolean, bytes, float, int, string, virtual };

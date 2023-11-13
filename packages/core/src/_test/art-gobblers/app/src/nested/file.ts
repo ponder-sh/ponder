@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 
 ponder.on("ArtGobblers:GobblerClaimed", async ({ event, context }) => {
-  const { Account, Token } = context.entities;
+  const { Account, Token } = context.models;
 
   await Account.upsert({ id: event.params.user, create: {}, update: {} });
 

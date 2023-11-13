@@ -25,4 +25,4 @@ runs:
 
     - name: Build
       shell: bash
-      run: cd packages/core && pnpm build
+      run: pnpm build

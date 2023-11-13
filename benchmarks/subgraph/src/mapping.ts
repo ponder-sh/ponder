@@ -1,6 +1,6 @@
 import { BigInt } from "@graphprotocol/graph-ts";
 
-import {
+import type {
   Approval as TApprovalEvent,
   Transfer as TTransferEvent,
 } from "../../generated/RocketTokenRETH/RocketTokenRETH";

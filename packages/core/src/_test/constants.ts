@@ -1,12 +1,12 @@
 import {
+  parseAbiItem,
   type RpcBlock,
   type RpcLog,
   type RpcTransaction,
-  parseAbiItem,
 } from "viem";
 
-import { getEvents } from "@/config/abi";
-import { buildFactoryCriteria } from "@/config/factories";
+import { getEvents } from "@/config/abi.js";
+import { buildFactoryCriteria } from "@/config/factories.js";
 
 export const FORK_BLOCK_NUMBER = 16380000n;
 
@@ -901,7 +901,7 @@ export const uniswapV3PoolFactoryConfig = {
   criteria: buildFactoryCriteria({
     address: "0x1f98431c8ad98523631ae4a59f267346ea31f984",
     event: parseAbiItem(
-      "event PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24 tickSpacing, address pool)"
+      "event PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24 tickSpacing, address pool)",
     ),
     parameter: "pool",
   }),
