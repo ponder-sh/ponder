@@ -37,7 +37,7 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
 
   const tokenUri = await Blitmap.read.tokenURI(event.params.tokenId);
 
-  const token = await context.entities.Token.create({
+  const token = await context.models.Token.create({
     id: event.params.tokenId,
     data: { uri: tokenUri },
   });

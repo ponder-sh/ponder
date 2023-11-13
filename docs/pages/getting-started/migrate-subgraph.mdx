@@ -86,7 +86,7 @@ See [tips for migrating mapping functions](/getting-started/migrate-subgraph#tip
 
 ### Query the GraphQL API
 
-As you migrate your indexing functions and start inserting entity data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
+As you migrate your indexing functions and start inserting data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `schema.graphql` file will be reflected here.
 
 </Steps>
 
@@ -96,7 +96,7 @@ As you migrate your indexing functions and start inserting entity data, open the
 
 You can import NPM packages, debug with `console.log`, and use normal JavaScript types like `string` and `number`.
 
-### Entities & contracts are injected, not imported
+### Database models & contracts are injected, not imported
 
 In a Graph Protocol subgraph mapping file, entity models and contract factories are imported:
 
@@ -115,7 +115,7 @@ export function handleTransfer(event) {
 }
 ```
 
-With Ponder, entity models and contracts are injected as properties of `context`.
+With Ponder, database models and contracts are injected as properties of `context`.
 
 The `contract.contracts` objects are [viem Contract Instances](https://viem.sh/docs/contract/getContract.html) that are already connected to the network specified in `ponder.config.ts`. (You don't need to call `Contract.bind(address)`.
 
@@ -123,10 +123,10 @@ The `contract.contracts` objects are [viem Contract Instances](https://viem.sh/d
 import { ponder } from "@/generated";
 
 ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
-  const { Token } = context.entities;
+  const { Token } = context.models;
   const { MyNftContract } = context.contracts;
 
-  // Get an entity object
+  // Get a database record
   const token = await Token.findUnique({ id: event.params.id });
 
   // Call a contract read function

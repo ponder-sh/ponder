@@ -29,13 +29,12 @@ npm create ponder@latest {...options}
 
 ## Options
 
-| option                        | description                                         |
-| :---------------------------- | :-------------------------------------------------- |
-| `--from-etherscan <url>`      | Link to a contract page on Etherscan                |
-| `--from-subgraph-id <id>`     | Subgraph ID, an IPFS content hash like `"Qmb..."`   |
-| `--from-subgraph-repo <path>` | Path to a subgraph repository on your local machine |
-| `--etherscan-api-key <key>`   | Etherscan API key to use with `--from-etherscan`    |
-| `--dir <path>`                | Path to use for the project root                    |
+| option                      | description                                       |
+| :-------------------------- | :------------------------------------------------ |
+| `--from-etherscan <url>`    | Link to a contract page on Etherscan              |
+| `--from-subgraph-id <id>`   | Subgraph ID, an IPFS content hash like `"Qmb..."` |
+| `--etherscan-api-key <key>` | Etherscan API key to use with `--from-etherscan`  |
+| `--dir <path>`              | Path to use for the project root                  |
 
 ## Templates
 
@@ -52,7 +51,3 @@ The `--from-etherscan` option accepts a link to an Etherscan contract page. See 
 The `--from-subgraph-id` option accepts a deployment ID for a subgraph that has been deployed to the hosted service. This template will copy `schema.graphql` as well as the addresses, ABIs, and start blocks for each event source defined in the subgraph's `subgraph.yaml`.
 
 ![Subgraph ID screenshot](/subgraph-id.png)
-
-### Subgraph repo
-
-The `--from-subgraph-repo` option accepts a path to a subgraph directory on your local machine. If your subgraph has been deployed to the hosted service, use `--from-subgraph-id` instead.

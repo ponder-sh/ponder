@@ -7,7 +7,7 @@ import { Tabs, Tab } from "nextra/components";
 
 # `ponder.config.ts`
 
-Ponder's configuration file file contains smart contract addresses, paths to ABIs, RPC URLs, and database connection details.
+Ponder's configuration file contains smart contract addresses, ABIs, RPC URLs, and database connection details.
 
 - `ponder.config.ts` must provide a **named export called `config`**, not a default export.
 - By default, `ponder {dev/start/codegen}` looks for `ponder.config.ts` in the current working directory, but you can specify a different path with the `--config-file` option.
@@ -78,7 +78,7 @@ Filters are custom event log filters that are more flexible than `contracts`. Po
 
 ### Database
 
-Ponder uses a SQL database to cache blockchain data and store entity data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder works best with a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
+Ponder uses a SQL database to cache blockchain data and store indexed data. In development, Ponder uses a SQLite database located at `.ponder/cache.db`. In production, Ponder works best with a PostgreSQL database. If no `database` is specified in `ponder.config.ts`, Ponder will use SQLite _unless_ the `DATABASE_URL` environment variable is present, in which case it will use PostgreSQL with `DATABASE_URL` as the connection string.
 
 See [Deploy to production](/guides/production) for more details.
 

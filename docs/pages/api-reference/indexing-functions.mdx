@@ -17,7 +17,7 @@ import { ponder } from "@/generated";
 
 ponder.on("ContractName:EventName", async ({ event, context }) => {
   const { params, log, block, transaction } = event;
-  const { entities, contracts } = context;
+  const { models, contracts } = context;
 
   // ...
 });
@@ -28,7 +28,7 @@ ponder.on("ContractName:EventName", async ({ event, context }) => {
 | name                                                   | description                                                      |
 | :----------------------------------------------------- | :--------------------------------------------------------------- |
 | [`event`](/api-reference/indexing-functions#event)     | Event-specific data (log arguments, log, block, and transaction) |
-| [`context`](/api-reference/indexing-functions#context) | Global resources (entity objects, read-only contract objects)    |
+| [`context`](/api-reference/indexing-functions#context) | Global resources (model objects, read-only contract objects)     |
 
 <Callout type="info">Value returned by indexing functions are ignored.</Callout>
 
@@ -155,22 +155,22 @@ type Transaction = {
 
 ### `Context`
 
-This object contains a CRUD interface for the entities defined in `schema.graphql`, and a read-only contract object for each contract specified in `ponder.config.ts`.
+This object contains CRUD objects for the tables defined in `schema.graphql`, and a read-only contract object for each contract specified in `ponder.config.ts`.
 
 ```ts
 type Context = {
-  // Keyed by entity type names from schema.graphql
-  entities: Record<string, Entity>;
+  // Keyed by table names from ponder.schema.ts
+  models: Record<string, Model>;
   // Keyed by contract names from ponder.config.ts
   contracts: Record<string, ReadOnlyContract>;
 };
 ```
 
-#### `Entity`
+#### `Model`
 
-These objects are used to create, read, update, and delete entity instances. `context.entities` contains an `Entity` object for each entity type defined in `schema.graphql`.
+These objects are used to create, read, update, and delete database records. `context.models` contains a `Model` object for each table defined in `schema.ponder.ts`.
 
-See [Create & update entities](/guides/create-update-entities) for a complete API reference.
+See [Create & update records](/guides/create-update-records) for a complete API reference.
 
 #### `ReadOnlyContract`
 
@@ -210,7 +210,7 @@ You can also define an indexing function for a special event called `"setup"` th
 import { ponder } from "@/generated";
 
 ponder.on("setup", async ({ context }) => {
-  const { entities, contracts } = context;
+  const { models, contracts } = context;
 
   // ...
 });
@@ -218,6 +218,6 @@ ponder.on("setup", async ({ context }) => {
 
 ### Options
 
-| name                                                   | description                                                   |
-| :----------------------------------------------------- | :------------------------------------------------------------ |
-| [`context`](/api-reference/indexing-functions#context) | Global resources (entity objects, read-only contract objects) |
+| name                                                   | description                                                  |
+| :----------------------------------------------------- | :----------------------------------------------------------- |
+| [`context`](/api-reference/indexing-functions#context) | Global resources (model objects, read-only contract objects) |

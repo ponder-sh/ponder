@@ -16,24 +16,35 @@ Ponder uses your `schema.graphql` file to generate a GraphQL API for your app. W
 
 ## Schema generation
 
-Ponder creates a **singular** and a **plural** query field for each entity type in your schema. For example, if your schema contains a `Person` entity, Ponder will create a `person` and a `persons` field on the root `Query` type. The singular query field returns a single entity (or null), while the plural query field returns a list of entities.
+Ponder creates a **singular** and a **plural** query field for each table in your schema. For example, if your schema contains a `Person` table, Ponder will create a `person` and a `persons` field on the root `Query` type. The singular query field returns a single record (or null), while the plural query field returns a list of records.
 
 <div className="code-columns">
 
-{/* prettier-ignore */}
-```graphql filename="schema.graphql"
-type Person @entity {
-  id: Int!
-  name: String!
-  age: Int!
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
+
+export const schema = p.createSchema({
+  Person: p.createTable({
+    id: p.int(),
+    name: p.string(),
+    age: p.int().optional(),
+  }),
+});
 ```
 
 {/* prettier-ignore */}
 ```graphql filename="Generated schema"
-type Query {
-  person(id: Int!, timestamp: Int): Person
+type Person {
+  id: Int!
+  name: String!
+  age: Int
+}
 
+type Query {
+  person(
+    id: Int!,
+    timestamp: Int
+  ): Person
   persons(
     skip: Int = 0,
     first: Int = 100,
@@ -49,28 +60,28 @@ type Query {
 
 ## Filtering
 
-The GraphQL API supports filtering through the `where` argument. The `where` argument type contains filter options for every field defined on your entity. Here are the filter options available for each field type.
+The GraphQL API supports filtering through the `where` argument. The `where` argument type contains filter options for every column defined on your table. Here are the filter options available for each field type.
 
-| Filter option             | Available for field types                | _Include entities where..._                         |
-| :------------------------ | :--------------------------------------- | :-------------------------------------------------- |
-| `{field}`                 | All                                      | \{field\} **equals** the value                      |
-| `{field}_not`             | All                                      | \{field\} **does not equal** the value              |
-| `{field}_in`              | Scalars, enums, one-to-one relationships | \{field\} **is one of** the values                  |
-| `{field}_not_in`          | Scalars, enums, one-to-one relationships | \{field\} **is not one of** the values              |
-| `{field}_has`             | Lists of scalars and enums               | \{field\} **has** the value as an element           |
-| `{field}_not_has`         | Lists of scalars and enums               | \{field\} **does not have** the value as an element |
-| `{field}_gt`              | Numeric scalars (Int, Float, BigInt)     | \{field\} is **greater than** the value             |
-| `{field}_lt`              | Numeric scalars                          | \{field\} is **less than** the value                |
-| `{field}_gte`             | Numeric scalars                          | \{field\} is **greater than or equal to** the value |
-| `{field}_lte`             | Numeric scalars                          | \{field\} is **less than or equal to** the value    |
-| `{field}_contains`        | String scalars (String, Bytes)           | \{field\} **contains** the substring                |
-| `{field}_not_contains`    | String scalars                           | \{field\} **does not contain** the substring        |
-| `{field}_starts_with`     | String scalars                           | \{field\} **starts with** the substring             |
-| `{field}_not_starts_with` | String scalars                           | \{field\} **does not start with** the substring     |
-| `{field}_ends_with`       | String scalars                           | \{field\} **ends with** the substring               |
-| `{field}_not_ends_with`   | String scalars                           | \{field\} **does not end with** the substring       |
+| Filter option              | Available for column types                    | _Include records where \{column\}..._     |
+| :------------------------- | :-------------------------------------------- | :---------------------------------------- |
+| `{column}`                 | All                                           | **equals** the value                      |
+| `{column}_not`             | All                                           | **does not equal** the value              |
+| `{column}_in`              | All primitives and enums                      | **is one of** the values                  |
+| `{column}_not_in`          | All primitives and enums                      | **is not one of** the values              |
+| `{column}_gt`              | Numeric primitives (`int`, `float`, `bigint`) | is **greater than** the value             |
+| `{column}_lt`              | Numeric primitives                            | is **less than** the value                |
+| `{column}_gte`             | Numeric primitives                            | is **greater than or equal to** the value |
+| `{column}_lte`             | Numeric primitives                            | is **less than or equal to** the value    |
+| `{column}_contains`        | String primitives (`string`, `bytes`)         | **contains** the substring                |
+| `{column}_not_contains`    | String primitives                             | **does not contain** the substring        |
+| `{column}_starts_with`     | String primitives                             | **starts with** the substring             |
+| `{column}_not_starts_with` | String primitives                             | **does not start with** the substring     |
+| `{column}_ends_with`       | String primitives                             | **ends with** the substring               |
+| `{column}_not_ends_with`   | String primitives                             | **does not end with** the substring       |
+| `{column}_has`             | Lists of primitives and enums                 | **has** the value as an element           |
+| `{column}_not_has`         | Lists of primitives and enums                 | **does not have** the value as an element |
 
-For all following examples, assume these entities exist in your database.
+For all following examples, assume these records exist in your database.
 
 <div className="code-columns">
 
@@ -88,7 +99,7 @@ For all following examples, assume these entities exist in your database.
 
 </div>
 
-Get all `Person` entities with an `age` greater than `32`:
+Get all `Person` records with an `age` greater than `32`:
 
 <div className="code-columns">
 
@@ -114,7 +125,7 @@ query {
 
 </div>
 
-Get all `Person` entities with a `name` that does not end with `"y"`:
+Get all `Person` records with a `name` that does not end with `"y"`:
 
 <div className="code-columns">
 
@@ -174,16 +185,16 @@ query {
 </div>
 
 <Callout type="warning">
-  The default and max `first` and `skip` values are also applied to [derived
+  The default and max `first` and `skip` values are also applied to [virtual
   fields](/guides/design-your-schema#one-to-many-relationships). If you find
-  youself needing to paginate through more than 1000 items in a derived field,
+  youself needing to paginate through more than 1000 items in a virtual field,
   strongly consider writing a new query that fetches those items at the root
   level.
 </Callout>
 
 ## Sorting
 
-Use the `orderBy` and `orderDirection` arguments to sort entities by a scalar field. String scalars (String, Bytes) use a lexicographic sort.
+Use the `orderBy` and `orderDirection` arguments to sort records by a column. String primitive (`string`, `bytes`) values are sorted lexicographically.
 
 | Pagination option | Default |
 | :---------------- | :------ |
@@ -224,7 +235,7 @@ Using time-travel queries, you can query the state of your app's database at any
 | :----------------- | :--------------------- |
 | `timestamp`        | `undefined` ("latest") |
 
-In this example, consider that only Pablo had been added to the database at the specified timestamp, and his age at that time was 42. The other entities were inserted later.
+In this example, consider that only Pablo had been added to the database at the specified timestamp, and his age at that time was 42. The other records were inserted later.
 
 <div className="code-columns">
 
@@ -249,24 +260,26 @@ query {
 
 </div>
 
-## Derived fields
+## Virtual fields
 
-Derived fields return the list of child/derived entities that "belong" to the parent. They're very similar to the plural query field that, except derived fields are automatically filtered by the parent's ID.
+Virtual fields return the list of child records that "belong" to the parent. They're very similar to the plural query field that, except derived fields are automatically filtered by the parent's ID.
 
 <div className="code-columns">
 
-{/* prettier-ignore */}
-```graphql filename="schema.graphql"
-type Person @entity {
-  id: Int!
-  pets: [Pet!]! @derivedFrom(field: "ownerId")
-}
+```ts filename="ponder.schema.ts"
+import { p } from "@ponder/core";
 
-type Pet @entity {
-  id: Int!
-  name: String!
-  ownerId: Int!
-}
+export const schema = p.createSchema({
+  Person: p.createTable({
+    id: p.int(),
+    dogs: p.virtual("Pet.ownerId"),
+  }),
+  Pet: p.createTable({
+    id: p.string(),
+    name: p.string(),
+    ownerId: p.int().references("Person.id"),
+  }),
+});
 ```
 
 {/* prettier-ignore */}
