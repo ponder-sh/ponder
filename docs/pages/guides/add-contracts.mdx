@@ -356,6 +356,31 @@ ponder.on("SudoswapPool:Transfer", async ({ event }) => {
 });
 ```
 
+**Factory contract requirements & limitations**
+
+1. **Scaling**: Ponder does not currently support factory contracts with more than 10,000 children. This includes Uniswap V2, V3, and many other permisionless pool-based DeFi protocols. Why not? The Ethereum JSON-RPC API does not scale well for factory contracts. There's only so much that Ponder's sync engine can do about this while remaining compatible with the JSON-RPC API. We're actively working to address scaling challenges via features like remote sync, shared caching, and concurrent indexing. Thanks for your patience.
+2. **Event signature requirements**: The factory contract must emit an event log announcing the creation of each new child contract that contains the new child contract address as a named parameter (with type `"address"`). The parameter can be either indexed or non-indexed. Here are a few factory event signatures with their eligibility explained:
+
+```solidity
+// ✅ Eligible. The parameter "child" has type "address" and is non-indexed.
+event ChildContractCreated(address child);
+
+// ✅ Eligible. The parameter "pool" has type "address" and is indexed.
+event PoolCreated(address indexed deployer, address indexed pool, uint256 fee);
+
+// ❌ Ineligible. The parameter "contracts" is an array type, which is not supported.
+// Always emit a separate event for each child contract, even if they are created in a batch.
+event ContractsCreated(address[] contracts);
+
+// ❌ Ineligible. The parameter "child" is a struct/tuple, which is not supported.
+struct ChildContract {
+  address addr;
+}
+event ChildCreated(ChildContract child);
+```
+
+3. **Nested factory patterns**: Ponder doesn't support factory patterns that are nested beyond a single layer.
+
 ## Event filter
 
 Custom event filters allow you to index events emitted by _any contract on the network_ that match some criteria.
