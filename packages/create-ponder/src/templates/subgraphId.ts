@@ -2,15 +2,15 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 
 import prettier from "prettier";
+import { parse } from "yaml";
+
+import { getGraphProtocolChainId } from "@/helpers/getGraphProtocolChainId.js";
+import { validateGraphProtocolSource } from "@/helpers/validateGraphProtocolSource.js";
 import type {
   SerializableConfig,
   SerializableContract,
   SerializableNetwork,
-} from "src/index";
-import { parse } from "yaml";
-
-import { getGraphProtocolChainId } from "@/helpers/getGraphProtocolChainId";
-import { validateGraphProtocolSource } from "@/helpers/validateGraphProtocolSource";
+} from "@/index.js";
 
 const fetchIpfsFile = async (cid: string) => {
   const url = `https://ipfs.network.thegraph.com/api/v0/cat?arg=${cid}`;
@@ -44,7 +44,7 @@ export const fromSubgraphId = async ({
   const ponderSchemaFilePath = path.join(rootDir, "schema.graphql");
   writeFileSync(
     ponderSchemaFilePath,
-    prettier.format(schemaCleaned, { parser: "graphql" }),
+    await prettier.format(schemaCleaned, { parser: "graphql" }),
   );
 
   const dataSources = (manifest.dataSources as unknown[]).map(
@@ -63,7 +63,10 @@ export const fromSubgraphId = async ({
     abiFiles.map(async (abi) => {
       const abiContent = await fetchIpfsFile(abi.file["/"].slice(6));
       const abiPath = path.join(rootDir, `./abis/${abi.name}.json`);
-      writeFileSync(abiPath, prettier.format(abiContent, { parser: "json" }));
+      writeFileSync(
+        abiPath,
+        await prettier.format(abiContent, { parser: "json" }),
+      );
     }),
   );
 

@@ -1,7 +1,7 @@
 /* eslint-disable no-empty */
 import { execSync } from "child_process";
 import path from "path";
-import rimraf from "rimraf";
+import { rimraf } from "rimraf";
 
 // File adapted from next.js
 // https://github.dev/vercel/next.js/blob/9ad1f321b7902542acd2be041fb2f15f023a0ed9/packages/create-next-app/helpers/git.ts

@@ -1,4 +1,8 @@
-import { detect } from "detect-package-manager";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+
+const { detect } = require("detect-package-manager");
 
 export function getPackageManager() {
   const userAgent = process.env.npm_config_user_agent;
