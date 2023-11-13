@@ -1,23 +1,38 @@
-import { parseAbi } from "abitype";
+import { parseAbiItem } from "abitype";
 import { assertType, expect, test } from "vitest";
 
 import { mergeAbis } from "./mergeAbis.js";
 
-const proxy = parseAbi([
-  "function one(address) returns (uint256)",
-  "function two(uint256)",
-]);
-const impl = parseAbi([
-  "function one(bytes32) returns (bool)",
-  "function two(uint256)",
-]);
+test("mergeAbis() duplicate items", () => {
+  const abi = parseAbiItem("function a()");
 
-test("mergeAbis()", () => {
-  const a = mergeAbis([proxy, impl]);
+  const merged = mergeAbis([[abi], [abi]]);
   //    ^?
 
-  const out = [...proxy, impl[0]] as const;
-  expect(a.length).toBe(3);
-  expect(a).toMatchObject(out);
-  assertType<typeof out>(a);
+  const out = [abi] as const;
+  expect(merged.length).toBe(1);
+  expect(merged).toMatchObject(out);
+  assertType<typeof out>(merged);
+});
+
+test("mergeAbis() overloaded items", () => {
+  const one = parseAbiItem("function a()");
+  const two = parseAbiItem("function a(bytes32)");
+
+  const merged = mergeAbis([[one], [two]]);
+  //    ^?
+
+  const out = [one, two] as const;
+  expect(merged.length).toBe(2);
+  expect(merged).toMatchObject(out);
+  assertType<typeof out>(merged);
+});
+
+test("mergeAbis() empty abi", () => {
+  const abi = parseAbiItem("function a()");
+
+  const a = mergeAbis([[abi], []]);
+
+  expect(a).toMatchObject([abi] as const);
+  assertType<readonly [typeof abi]>(a);
 });

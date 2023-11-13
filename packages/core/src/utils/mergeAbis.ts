@@ -15,29 +15,26 @@ export type MergeAbi<
   : TBase;
 
 type MergeAbis<
-  TMerged extends Abi,
-  TImpls extends readonly Abi[],
-> = TImpls extends readonly [
+  TAbis extends readonly Abi[],
+  TMerged extends Abi = [],
+> = TAbis extends readonly [
   infer First extends Abi,
   ...infer Rest extends readonly Abi[],
 ]
-  ? MergeAbis<MergeAbi<TMerged, First>, Rest>
+  ? MergeAbis<Rest, MergeAbi<TMerged, First>>
   : TMerged;
 
 const isAbiEqual = (a: AbiItem, b: AbiItem): boolean =>
   formatAbiItem(a) === formatAbiItem(b);
 
 /**
- * Build a single Abi from a proxy and its implementations
+ * Build a single Abi from an array of Abis
  */
-export const mergeAbis = <
-  const TProxy extends Abi,
-  const TImpl extends readonly Abi[],
->([proxy, ...impls]: readonly [TProxy, ...TImpl]) => {
-  let merged: Abi = proxy;
+export const mergeAbis = <const TAbis extends readonly Abi[]>(abis: TAbis) => {
+  let merged: Abi = [];
 
-  for (const impl of impls) {
-    for (const item of impl) {
+  for (const abi of abis) {
+    for (const item of abi) {
       // Don't add a duplicate items
       // if item is already in merged, don't add it
       if (!merged.some((m) => isAbiEqual(m, item))) {
@@ -46,5 +43,5 @@ export const mergeAbis = <
     }
   }
 
-  return merged as MergeAbis<TProxy, TImpl>;
+  return merged as MergeAbis<TAbis>;
 };
