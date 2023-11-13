@@ -182,16 +182,16 @@ export type ExtractAllNames<
 export type RecoverScalarType<TScalar extends Scalar> = TScalar extends "string"
   ? string
   : TScalar extends "int"
-  ? number
-  : TScalar extends "float"
-  ? number
-  : TScalar extends "boolean"
-  ? boolean
-  : TScalar extends "bytes"
-  ? Hex
-  : TScalar extends "bigint"
-  ? bigint
-  : never;
+    ? number
+    : TScalar extends "float"
+      ? number
+      : TScalar extends "boolean"
+        ? boolean
+        : TScalar extends "bytes"
+          ? Hex
+          : TScalar extends "bigint"
+            ? bigint
+            : never;
 
 export type RecoverColumnType<
   TColumn extends

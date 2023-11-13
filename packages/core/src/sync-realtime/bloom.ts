@@ -22,8 +22,8 @@ export function isMatchedLogInBloomFilter({
       logFilter.address === undefined
         ? []
         : Array.isArray(logFilter.address)
-        ? logFilter.address
-        : [logFilter.address];
+          ? logFilter.address
+          : [logFilter.address];
     allAddresses.push(...address);
   });
   if (allAddresses.some((a) => isContractAddressInBloom(bloom, a))) {

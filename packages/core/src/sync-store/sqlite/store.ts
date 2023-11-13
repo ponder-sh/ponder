@@ -1145,30 +1145,30 @@ export class SqliteSyncStore implements SyncStore {
                   gasPrice: decodeToBigInt(row.tx_gasPrice),
                 }
               : row.tx_type === "0x1"
-              ? {
-                  type: "eip2930",
-                  gasPrice: decodeToBigInt(row.tx_gasPrice),
-                  accessList: JSON.parse(row.tx_accessList),
-                }
-              : row.tx_type === "0x2"
-              ? {
-                  type: "eip1559",
-                  maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
-                  maxPriorityFeePerGas: decodeToBigInt(
-                    row.tx_maxPriorityFeePerGas,
-                  ),
-                }
-              : row.tx_type === "0x7e"
-              ? {
-                  type: "deposit",
-                  maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
-                  maxPriorityFeePerGas: decodeToBigInt(
-                    row.tx_maxPriorityFeePerGas,
-                  ),
-                }
-              : {
-                  type: row.tx_type,
-                }),
+                ? {
+                    type: "eip2930",
+                    gasPrice: decodeToBigInt(row.tx_gasPrice),
+                    accessList: JSON.parse(row.tx_accessList),
+                  }
+                : row.tx_type === "0x2"
+                  ? {
+                      type: "eip1559",
+                      maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
+                      maxPriorityFeePerGas: decodeToBigInt(
+                        row.tx_maxPriorityFeePerGas,
+                      ),
+                    }
+                  : row.tx_type === "0x7e"
+                    ? {
+                        type: "deposit",
+                        maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
+                        maxPriorityFeePerGas: decodeToBigInt(
+                          row.tx_maxPriorityFeePerGas,
+                        ),
+                      }
+                    : {
+                        type: row.tx_type,
+                      }),
           },
           chainId: row.log_chainId,
         } satisfies {

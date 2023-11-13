@@ -25,8 +25,8 @@ export class BaseError extends Error {
       args.cause instanceof BaseError
         ? args.cause.details
         : args.cause?.message
-        ? args.cause.message
-        : args.details;
+          ? args.cause.message
+          : args.details;
 
     const message = [
       shortMessage || "An error occurred.",

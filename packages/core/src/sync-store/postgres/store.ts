@@ -1155,24 +1155,24 @@ export class PostgresSyncStore implements SyncStore {
             ...(row.tx_type === "0x0"
               ? { type: "legacy", gasPrice: row.tx_gasPrice }
               : row.tx_type === "0x1"
-              ? {
-                  type: "eip2930",
-                  gasPrice: row.tx_gasPrice,
-                  accessList: JSON.parse(row.tx_accessList),
-                }
-              : row.tx_type === "0x2"
-              ? {
-                  type: "eip1559",
-                  maxFeePerGas: row.tx_maxFeePerGas,
-                  maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
-                }
-              : row.tx_type === "0x7e"
-              ? {
-                  type: "deposit",
-                  maxFeePerGas: row.tx_maxFeePerGas,
-                  maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
-                }
-              : { type: row.tx_type }),
+                ? {
+                    type: "eip2930",
+                    gasPrice: row.tx_gasPrice,
+                    accessList: JSON.parse(row.tx_accessList),
+                  }
+                : row.tx_type === "0x2"
+                  ? {
+                      type: "eip1559",
+                      maxFeePerGas: row.tx_maxFeePerGas,
+                      maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
+                    }
+                  : row.tx_type === "0x7e"
+                    ? {
+                        type: "deposit",
+                        maxFeePerGas: row.tx_maxFeePerGas,
+                        maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
+                      }
+                    : { type: row.tx_type }),
           },
           chainId: row.log_chainId,
         } satisfies {

@@ -216,8 +216,8 @@ export class TelemetryService {
     const packageJsonPath = fs.existsSync(packageJsonCwdPath)
       ? packageJsonCwdPath
       : fs.existsSync(packageJsonRootPath)
-      ? packageJsonRootPath
-      : undefined;
+        ? packageJsonRootPath
+        : undefined;
     const packageJson = packageJsonPath
       ? JSON.parse(fs.readFileSync("package.json", "utf8"))
       : undefined;

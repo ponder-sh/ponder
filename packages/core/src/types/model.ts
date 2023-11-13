@@ -14,8 +14,8 @@ export type Model<T extends { id: string | number | bigint }> = {
       } & (HasOnlyIdProperty<T> extends true
         ? { data?: never }
         : HasRequiredPropertiesOtherThanId<T> extends true
-        ? { data: Prettify<Omit<T, "id">> }
-        : { data?: Prettify<Omit<T, "id">> })
+          ? { data: Prettify<Omit<T, "id">> }
+          : { data?: Prettify<Omit<T, "id">> })
     >,
   ) => Promise<Prettify<T>>;
 
@@ -28,20 +28,20 @@ export type Model<T extends { id: string | number | bigint }> = {
       } & (HasOnlyIdProperty<T> extends true
         ? { data?: never }
         : HasRequiredPropertiesOtherThanId<T> extends true
-        ? {
-            data:
-              | Prettify<Omit<Partial<T>, "id">>
-              | ((options: {
-                  current: Prettify<T>;
-                }) => Prettify<Omit<Partial<T>, "id">>);
-          }
-        : {
-            data?:
-              | Prettify<Omit<Partial<T>, "id">>
-              | ((options: {
-                  current: Prettify<T>;
-                }) => Prettify<Omit<Partial<T>, "id">>);
-          })
+          ? {
+              data:
+                | Prettify<Omit<Partial<T>, "id">>
+                | ((options: {
+                    current: Prettify<T>;
+                  }) => Prettify<Omit<Partial<T>, "id">>);
+            }
+          : {
+              data?:
+                | Prettify<Omit<Partial<T>, "id">>
+                | ((options: {
+                    current: Prettify<T>;
+                  }) => Prettify<Omit<Partial<T>, "id">>);
+            })
     >,
   ) => Promise<Prettify<T>>;
 
@@ -61,22 +61,22 @@ export type Model<T extends { id: string | number | bigint }> = {
       } & (HasOnlyIdProperty<T> extends true
         ? { create?: never; update?: never }
         : HasRequiredPropertiesOtherThanId<T> extends true
-        ? {
-            create: Prettify<Omit<T, "id">>;
-            update:
-              | Prettify<Omit<Partial<T>, "id">>
-              | ((options: {
-                  current: Prettify<T>;
-                }) => Prettify<Omit<Partial<T>, "id">>);
-          }
-        : {
-            create?: Prettify<Omit<T, "id">>;
-            update?:
-              | Prettify<Omit<Partial<T>, "id">>
-              | ((options: {
-                  current: Prettify<T>;
-                }) => Prettify<Omit<Partial<T>, "id">>);
-          })
+          ? {
+              create: Prettify<Omit<T, "id">>;
+              update:
+                | Prettify<Omit<Partial<T>, "id">>
+                | ((options: {
+                    current: Prettify<T>;
+                  }) => Prettify<Omit<Partial<T>, "id">>);
+            }
+          : {
+              create?: Prettify<Omit<T, "id">>;
+              update?:
+                | Prettify<Omit<Partial<T>, "id">>
+                | ((options: {
+                    current: Prettify<T>;
+                  }) => Prettify<Omit<Partial<T>, "id">>);
+            })
     >,
   ) => Promise<Prettify<T>>;
 

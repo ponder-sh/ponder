@@ -51,8 +51,8 @@ export const createTable = <
   [key in keyof TColumns]: TColumns[key] extends InternalColumn
     ? TColumns[key][" column"]
     : TColumns[key] extends InternalEnum
-    ? TColumns[key][" enum"]
-    : TColumns[key];
+      ? TColumns[key][" enum"]
+      : TColumns[key];
 } =>
   Object.entries(
     columns as {
@@ -71,16 +71,16 @@ export const createTable = <
         " column" in cur[1]
           ? (cur[1][" column"] as NonReferenceColumn | ReferenceColumn)
           : " enum" in cur[1]
-          ? cur[1][" enum"]
-          : cur[1],
+            ? cur[1][" enum"]
+            : cur[1],
     }),
     {},
   ) as {
     [key in keyof TColumns]: TColumns[key] extends InternalColumn
       ? TColumns[key][" column"]
       : TColumns[key] extends InternalEnum
-      ? TColumns[key][" enum"]
-      : TColumns[key];
+        ? TColumns[key][" enum"]
+        : TColumns[key];
   };
 
 export const createEnum = <const TEnum extends Enum>(_enum: TEnum) => _enum;
