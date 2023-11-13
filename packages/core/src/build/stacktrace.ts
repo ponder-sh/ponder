@@ -56,8 +56,8 @@ export function parseViteNodeError(error: Error): ViteNodeError {
       errorKind === "Transform failed"
         ? new ESBuildTransformError(innerError.detail)
         : errorKind === "Build failed"
-        ? new ESBuildBuildError(innerError.detail)
-        : new ESBuildContextError(innerError.detail);
+          ? new ESBuildBuildError(innerError.detail)
+          : new ESBuildContextError(innerError.detail);
     if (innerError.location)
       resolvedError.stack = `    at ${innerError.location}`;
   } else {

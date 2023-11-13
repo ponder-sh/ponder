@@ -128,8 +128,8 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
                 address: Array.isArray(resolvedAddress)
                   ? resolvedAddress.map((r) => toLowerCase(r))
                   : resolvedAddress
-                  ? toLowerCase(resolvedAddress)
-                  : undefined,
+                    ? toLowerCase(resolvedAddress)
+                    : undefined,
                 topics,
               },
             } as const satisfies LogFilter;

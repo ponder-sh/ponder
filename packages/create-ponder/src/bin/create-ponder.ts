@@ -4,9 +4,9 @@ import path from "node:path";
 import { cac } from "cac";
 import prompts from "prompts";
 
-import type { CreatePonderOptions, Template } from "@/common";
-import { TemplateKind } from "@/common";
-import { run } from "@/index";
+import type { CreatePonderOptions, Template } from "@/common.js";
+import { TemplateKind } from "@/common.js";
+import { run } from "@/index.js";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment

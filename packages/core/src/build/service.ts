@@ -326,9 +326,9 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       error.name === "ESBuildTransformError"
         ? "transforming"
         : error.name === "ESBuildBuildError" ||
-          error.name === "ESBuildContextError"
-        ? "building"
-        : "executing";
+            error.name === "ESBuildContextError"
+          ? "building"
+          : "executing";
 
     this.common.logger.error({
       service: "build",

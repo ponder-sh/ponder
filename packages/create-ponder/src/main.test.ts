@@ -4,8 +4,8 @@ import path from "node:path";
 
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
-import { TemplateKind } from "@/common";
-import { run } from "@/index";
+import { TemplateKind } from "@/common.js";
+import { run } from "@/index.js";
 
 const tmpDir = "../../tmp";
 

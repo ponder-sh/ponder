@@ -6,13 +6,13 @@ import type { Abi, AbiEvent } from "abitype";
 import pico from "picocolors";
 import prettier from "prettier";
 
-import type { CreatePonderOptions } from "@/common";
-import { TemplateKind } from "@/common";
-import { getPackageManager } from "@/helpers/getPackageManager";
-import { tryGitInit } from "@/helpers/git";
-import { fromBasic } from "@/templates/basic";
-import { fromEtherscan } from "@/templates/etherscan";
-import { fromSubgraphId } from "@/templates/subgraphId";
+import type { CreatePonderOptions } from "@/common.js";
+import { TemplateKind } from "@/common.js";
+import { getPackageManager } from "@/helpers/getPackageManager.js";
+import { tryGitInit } from "@/helpers/git.js";
+import { fromBasic } from "@/templates/basic.js";
+import { fromEtherscan } from "@/templates/etherscan.js";
+import { fromSubgraphId } from "@/templates/subgraphId.js";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -81,7 +81,7 @@ export const run = async (
   }
 
   // Write the indexing function files.
-  config.contracts.forEach((contract) => {
+  config.contracts.forEach(async (contract) => {
     let abi: Abi;
     if (Array.isArray(contract.abi)) {
       // If it's an array of ABIs, use the 2nd one (the implementation ABI).
@@ -117,7 +117,9 @@ export const run = async (
 
     writeFileSync(
       path.join(rootDir, `./src/${contract.name}.ts`),
-      prettier.format(indexingFunctionFileContents, { parser: "typescript" }),
+      await prettier.format(indexingFunctionFileContents, {
+        parser: "typescript",
+      }),
     );
   });
 
@@ -139,7 +141,7 @@ export const run = async (
 
   writeFileSync(
     path.join(rootDir, "ponder.config.ts"),
-    prettier.format(finalConfig, { parser: "babel" }),
+    await prettier.format(finalConfig, { parser: "babel" }),
   );
 
   // Write the ponder.schema.ts file
@@ -163,7 +165,7 @@ export const run = async (
 
   writeFileSync(
     path.join(rootDir, "ponder.schema.ts"),
-    prettier.format(schemaGraphqlFileContents, { parser: "babel" }),
+    await prettier.format(schemaGraphqlFileContents, { parser: "babel" }),
   );
 
   // Write the .env.local file.
@@ -200,7 +202,7 @@ export const run = async (
   `;
   writeFileSync(
     path.join(rootDir, "package.json"),
-    prettier.format(packageJson, { parser: "json" }),
+    await prettier.format(packageJson, { parser: "json" }),
   );
 
   // Write the tsconfig.json file.
@@ -221,7 +223,7 @@ export const run = async (
   `;
   writeFileSync(
     path.join(rootDir, "tsconfig.json"),
-    prettier.format(tsConfig, { parser: "json" }),
+    await prettier.format(tsConfig, { parser: "json" }),
   );
 
   if (options.eslint) {
@@ -233,7 +235,7 @@ export const run = async (
 
     writeFileSync(
       path.join(rootDir, ".eslintrc.json"),
-      prettier.format(eslintConfig, { parser: "json" }),
+      await prettier.format(eslintConfig, { parser: "json" }),
     );
   }
 

@@ -127,8 +127,8 @@ function getOperatorAndParameter({
         operator === "="
           ? ("is" as const)
           : operator === "!="
-          ? ("is not" as const)
-          : operator,
+            ? ("is not" as const)
+            : operator,
       parameter: null,
     };
   }

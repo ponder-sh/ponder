@@ -3,10 +3,10 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 
 import prettier from "prettier";
-import type { SerializableConfig } from "src/index";
 
-import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId";
-import { wait } from "@/helpers/wait";
+import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId.js";
+import { wait } from "@/helpers/wait.js";
+import type { SerializableConfig } from "@/index.js";
 
 export const fromEtherscan = async ({
   rootDir,
@@ -112,10 +112,13 @@ export const fromEtherscan = async ({
 
   // Write ABI files.
   let abiConfig: any;
-  abis.forEach(({ abi, contractName }) => {
+  abis.forEach(async ({ abi, contractName }) => {
     const abiRelativePath = `./abis/${contractName}.json`;
     const abiAbsolutePath = path.join(rootDir, abiRelativePath);
-    writeFileSync(abiAbsolutePath, prettier.format(abi, { parser: "json" }));
+    writeFileSync(
+      abiAbsolutePath,
+      await prettier.format(abi, { parser: "json" }),
+    );
 
     if (abis.length === 1) {
       abiConfig = abiRelativePath;

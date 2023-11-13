@@ -49,10 +49,10 @@ export class ServerService {
           res.statusCode >= 200 && res.statusCode < 300
             ? "2XX"
             : res.statusCode >= 300 && res.statusCode < 400
-            ? "3XX"
-            : res.statusCode >= 400 && res.statusCode < 500
-            ? "4XX"
-            : "5XX";
+              ? "3XX"
+              : res.statusCode >= 400 && res.statusCode < 500
+                ? "4XX"
+                : "5XX";
 
         const requestSize = Number(req.get("Content-Length") ?? 0);
         this.common.metrics.ponder_server_request_size.observe(

@@ -6,7 +6,7 @@ import { LlamaCoreAbi } from "./abis/LlamaCore.abi";
 import { LlamaPolicyAbi } from "./abis/LlamaPolicy.abi";
 
 const llamaFactoryEvent = parseAbiItem(
-  "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)"
+  "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
 
 export const config = createConfig({
