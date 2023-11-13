@@ -30,16 +30,17 @@ const bench = async () => {
   });
 
   const subgraphCold = await subgraph();
+  console.log({ subgraphCold });
 
   // Force handler cache invalidation
   changeMappingFileDelim("+");
 
-  const subgraphHot = await subgraph();
+  // const subgraphHot = await subgraph();
 
   const ponderCold = await ponder();
   const ponderHot = await ponder();
 
-  console.log({ subgraphHot, subgraphCold, ponderHot, ponderCold });
+  // console.log({ subgraphHot, subgraphCold, ponderHot, ponderCold });
 };
 
 await bench();

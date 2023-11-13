@@ -83,9 +83,9 @@ const waitForSyncComplete = async () => {
         `Latest synced block number: ${latestSyncedBlockNumber}/${END_BLOCK}`,
       );
 
-      for (const m of await fetchSubgraphMetrics()) {
-        console.log(JSON.stringify(m));
-      }
+      // for (const m of await fetchSubgraphMetrics()) {
+      //   console.log(JSON.stringify(m));
+      // }
 
       if (latestSyncedBlockNumber >= END_BLOCK) {
         duration = endClock();
