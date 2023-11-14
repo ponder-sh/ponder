@@ -110,8 +110,8 @@ ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
   await EnsName.create({
     id: `${name}-${owner}`,
     data: {
-      name: event.params.name,
-      owner: event.params.owner,
+      name: event.args.name,
+      owner: event.args.owner,
       registeredAt: event.block.timestamp
     }
   });

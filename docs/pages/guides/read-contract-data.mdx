@@ -57,12 +57,12 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
     abi: Blitmap.abi,
     address: Blitmap.address,
     functionName: "tokenURI",
-    args: [event.params.tokenId],
+    args: [event.args.tokenId],
   });
 
   // Insert a Token record, including the URI.
   const token = await context.db.Token.create({
-    id: event.params.tokenId,
+    id: event.args.tokenId,
     data: { uri: tokenUri },
   });
 });
@@ -123,7 +123,7 @@ ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
     abi: context.contracts.ZorbNft.abi,
     address: context.contracts.ZorbNft.address,
     functionName: "gradientForAddress",
-    args: [event.params.to],
+    args: [event.args.to],
   });
 });
 ```
@@ -149,7 +149,7 @@ ponder.on("SudoswapPool:Transfer", async ({ event, context }) => {
 });
 ```
 
-To call a factory contract child from an indexing function for a _different_ contract, use your application logic to determine the correct address to enter. For example, the address might come from `event.params`.
+To call a factory contract child from an indexing function for a _different_ contract, use your application logic to determine the correct address to enter. For example, the address might come from `event.args`.
 
 ```ts filename="src/index.ts" {6}
 import { ponder } from "@/generated";
@@ -157,7 +157,7 @@ import { ponder } from "@/generated";
 ponder.on("FancyLendingProtocol:RegisterPool", async ({ event, context }) => {
   const totalSupply = await context.client.readContract({
     abi: context.contracts.SudoswapPool.abi,
-    address: event.params.pool,
+    address: event.args.pool,
     functionName: "totalSupply",
   });
 });
@@ -200,7 +200,7 @@ ponder.on("AaveToken:Mint", async ({ event, context }) => {
     functionName: "latestRoundData",
   });
 
-  const usdValue = priceData.answer * event.params.amount;
+  const usdValue = priceData.answer * event.args.amount;
   // ...
 });
 ```
@@ -252,7 +252,7 @@ const Blitmap = getContract({
 });
 
 ponder.on("Blitmap:Mint", async ({ event, context }) => {
-  const tokenUri = await Blitmap.read.tokenURI(event.params.tokenId);
+  const tokenUri = await Blitmap.read.tokenURI(event.args.tokenId);
 });
 ```
 
@@ -264,7 +264,7 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
     abi: context.contracts.Blitmap.abi,
     address: context.contracts.Blitmap.address,
     method: "tokenUri",
-    args: [event.params.tokenId],
+    args: [event.args.tokenId],
   });
 });
 ```
@@ -302,14 +302,14 @@ ponder.on("ZorbNft:Transfer", async ({ event, context }) => {
       abi: context.contracts.ZorbNft.abi,
       address: context.contracts.ZorbNft.address,
       functionName: "gradientForAddress",
-      args: [event.params.to],
+      args: [event.args.to],
     });
 
     await context.db.Zorb.create({
-      id: event.params.tokenId,
+      id: event.args.tokenId,
       data: {
         gradient: gradientData,
-        ownerId: event.params.to,
+        ownerId: event.args.to,
       },
     });
 
@@ -318,9 +318,9 @@ ponder.on("ZorbNft:Transfer", async ({ event, context }) => {
 
   // If not a mint, just update ownership information.
   await context.db.Zorb.update({
-    id: event.params.tokenId,
+    id: event.args.tokenId,
     data: {
-      ownerId: event.params.to,
+      ownerId: event.args.to,
     },
   });
 });

@@ -480,9 +480,9 @@ import { ponder } from "@/generated";
 
 ponder.on("ERC20:Transfer", async ({ event }) => {
   // This will always be "0xa0ee7a142d267c1f36714e4a8f75612f20a79720"
-  event.params.from;
+  event.args.from;
   // This will be one of the two addresses above
-  event.params.to;
+  event.args.to;
 });
 ```
 

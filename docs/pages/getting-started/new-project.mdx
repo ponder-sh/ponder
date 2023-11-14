@@ -103,9 +103,9 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
   const { BlitmapToken } = context.db;
 
   await BlitmapToken.create({
-    id: event.params.tokenId,
+    id: event.args.tokenId,
     data: {
-      owner: event.params.to,
+      owner: event.args.to,
     },
   });
 });

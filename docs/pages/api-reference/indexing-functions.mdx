@@ -22,7 +22,7 @@ Ponder uses
 import { ponder } from "@/generated";
 
 ponder.on("ContractName:EventName", async ({ event, context }) => {
-  const { params, log, block, transaction } = event;
+  const { args, log, block, transaction } = event;
   const { db, network, client, contracts } = context;
 
   // ...
@@ -36,20 +36,20 @@ The `event` argument passed to each indexing function contains raw event data.
 ```ts
 type Event = {
   name: string;
-  params: Params;
+  args: Args;
   log: Log;
   block: Block;
   transaction: Transaction;
 };
 ```
 
-### Params
+### Event arguments
 
-The `event.params` object contains event log arguments decoded using Viem's [decodeEventLog](https://viem.sh/docs/contract/decodeEventLog.html).
+The `event.args` object contains event log arguments decoded using Viem's [decodeEventLog](https://viem.sh/docs/contract/decodeEventLog.html).
 
 ```ts
-/** Sample `params` type for an ERC20 Transfer event. */
-type Params = {
+/** Sample `args` type for an ERC20 Transfer event. */
+type Args = {
   from: `0x${string}`;
   to: `0x${string}`;
   value: bigint;

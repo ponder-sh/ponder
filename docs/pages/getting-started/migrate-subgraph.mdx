@@ -122,14 +122,14 @@ import { ponder } from "@/generated";
 
 ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
   // Get a database record
-  const token = await context.db.Token.findUnique({ id: event.params.id });
+  const token = await context.db.Token.findUnique({ id: event.args.id });
 
   // Call a contract read function
   const tokenUri = await context.client.readContract({
     abi: context.contracts.MyNftContract.abi,
     address: context.contracts.MyNftContract.address,
     functionName: "tokenURI",
-    args: [event.params.tokenId],
+    args: [event.args.tokenId],
   });
 
   // ...
