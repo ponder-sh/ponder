@@ -151,9 +151,8 @@ test("createConfig() strict network names", () => {
         transport: http("http://127.0.0.1:8545"),
       },
     },
-    contracts: [
-      {
-        name: "BaseRegistrarImplementation",
+    contracts: {
+      BaseRegistrarImplementation: {
         network: { mainnet: {} },
         abi: [],
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
@@ -161,10 +160,12 @@ test("createConfig() strict network names", () => {
         endBlock: 16370020,
         maxBlockRange: 10,
       },
-    ],
+    },
   });
 
-  assertType<{ mainnet: {} }>(config.contracts[0].network);
+  assertType<{ mainnet: {} }>(
+    config.contracts["BaseRegistrarImplementation"].network,
+  );
   assertType<{ mainnet: { chainId: 1 } }>(config.networks);
 });
 
@@ -176,9 +177,8 @@ test("createConfig() short network name", () => {
         transport: http("http://127.0.0.1:8545"),
       },
     },
-    contracts: [
-      {
-        name: "BaseRegistrarImplementation",
+    contracts: {
+      BaseRegistrarImplementation: {
         network: "mainnet",
         abi: [],
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
@@ -186,10 +186,12 @@ test("createConfig() short network name", () => {
         endBlock: 16370020,
         maxBlockRange: 10,
       },
-    ],
+    },
   });
 
-  assertType<"mainnet">(config.contracts[0].network);
+  assertType<"mainnet">(
+    config.contracts["BaseRegistrarImplementation"].network,
+  );
   assertType<{ mainnet: { chainId: 1 } }>(config.networks);
 });
 
@@ -198,10 +200,9 @@ test("createConfig() has strict events inferred from abi", () => {
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
-    contracts: [
-      {
-        name: "BaseRegistrarImplementation",
-        network: { mainnet: {} },
+    contracts: {
+      BaseRegistrarImplementation: {
+        network: "mainnet",
         abi: abiWithSameEvent,
         filter: {
           event: [
@@ -214,29 +215,30 @@ test("createConfig() has strict events inferred from abi", () => {
         endBlock: 16370020,
         maxBlockRange: 10,
       },
-    ],
+    },
   });
 });
 
 test("createConfig() has strict arg types for event", () => {
-  createConfig({
+  const t = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
-    contracts: [
-      {
-        name: "BaseRegistrarImplementation",
-        network: { mainnet: {} },
+    contracts: {
+      BaseRegistrarImplementation: {
+        network: "mainnet",
         abi: abiSimple,
         filter: {
-          event: "Approve",
-          args: { to: ["0x2"] },
+          event: "Transfer",
+          args: { to: ["0x00"] },
         },
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
         startBlock: 16370000,
         endBlock: 16370020,
         maxBlockRange: 10,
       },
-    ],
+    },
   });
+  t.contracts.BaseRegistrarImplementation.abi;
+  //                                      ^?
 });

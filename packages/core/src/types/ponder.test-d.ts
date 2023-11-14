@@ -1,29 +1,19 @@
 import type { ParseAbi } from "abitype";
 import { assertType, test } from "vitest";
 
-import type { ExtractAllAddresses, PonderApp } from "./ponder.js";
+import type { PonderApp } from "./ponder.js";
 
 type OneAbi = ParseAbi<
   ["event Event0(bytes32 indexed arg3)", "event Event1(bytes32 indexed)"]
 >;
 type TwoAbi = ParseAbi<["event Event(bytes32 indexed)", "event Event()"]>;
 
-test("ExtractAllAddress", () => {
-  type a = ExtractAllAddresses<{
-    // ^?
-    mainnet: { address: "0x2" };
-    optimism: { address: "0x3" };
-  }>;
-  //   ^?
-  assertType<a>("" as "0x2" | "0x3");
-});
-
 test("PonderApp non intersecting event names", () => {
   type p = PonderApp<
     {
       // ^?
       networks: any;
-      contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
+      contracts: { One: { network: any; abi: OneAbi } };
     },
     any
   >;
@@ -36,10 +26,10 @@ test("PonderApp non intersecting event names", () => {
 
 test("PonderApp intersecting event names", () => {
   type p = PonderApp<
+    // ^?
     {
-      // ^?
       networks: any;
-      contracts: readonly [{ name: "Two"; network: any; abi: TwoAbi }];
+      contracts: { Two: { network: any; abi: TwoAbi } };
     },
     any
   >;
@@ -52,13 +42,13 @@ test("PonderApp intersecting event names", () => {
 
 test("PonderApp multiple contracts", () => {
   type p = PonderApp<
+    // ^?
     {
-      // ^?
       networks: any;
-      contracts: readonly [
-        { name: "One"; network: any; abi: OneAbi },
-        { name: "Two"; network: any; abi: TwoAbi },
-      ];
+      contracts: {
+        One: { network: any; abi: OneAbi };
+        Two: { network: any; abi: TwoAbi };
+      };
     },
     any
   >;
@@ -75,10 +65,10 @@ test("PonderApp multiple contracts", () => {
 
 test("PonderApp event type", () => {
   type p = PonderApp<
+    // ^?
     {
-      // ^?
       networks: any;
-      contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
+      contracts: { One: { network: any; abi: OneAbi } };
     },
     any
   >;
@@ -97,16 +87,15 @@ test("PonderApp event type", () => {
 
 test("PonderApp context network type", () => {
   type p = PonderApp<
+    // ^?
     {
-      // ^?
       networks: any;
-      contracts: readonly [
-        {
-          name: "One";
+      contracts: {
+        One: {
           network: { mainnet: {}; optimism: {} };
           abi: OneAbi;
-        },
-      ];
+        };
+      };
     },
     any
   >;
@@ -120,16 +109,15 @@ test("PonderApp context network type", () => {
 
 test("PonderApp context client type", () => {
   type p = PonderApp<
+    // ^?
     {
-      // ^?
       networks: any;
-      contracts: readonly [
-        {
-          name: "One";
+      contracts: {
+        One: {
           network: { mainnet: {}; optimism: {} };
           abi: OneAbi;
-        },
-      ];
+        };
+      };
     },
     any
   >;
@@ -143,19 +131,18 @@ test("PonderApp context client type", () => {
 
 test("PonderApp context contracts type", () => {
   type p = PonderApp<
+    // ^?
     {
-      // ^?
       networks: any;
-      contracts: readonly [
-        {
-          name: "One";
+      contracts: {
+        One: {
           network: { mainnet: { address: "0x1" }; optimism: {} };
           abi: OneAbi;
           address: "0x2";
           startBlock: 1;
           endBlock: 2;
-        },
-      ];
+        };
+      };
     },
     any
   >;

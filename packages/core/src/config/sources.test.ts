@@ -15,9 +15,8 @@ test("buildSources() builds topics for multiple events", () => {
           transport: http("http://127.0.0.1:8545"),
         },
       },
-      contracts: [
-        {
-          name: "BaseRegistrarImplementation",
+      contracts: {
+        BaseRegistrarImplementation: {
           network: { mainnet: {} },
           abi: abiSimple,
           filter: { event: ["Transfer", "Approve"] },
@@ -26,7 +25,7 @@ test("buildSources() builds topics for multiple events", () => {
           endBlock: 16370020,
           maxBlockRange: 10,
         },
-      ],
+      },
     }) as Config,
   });
 
@@ -50,9 +49,8 @@ test("buildSources() for duplicate event", () => {
           transport: http("http://127.0.0.1:8545"),
         },
       },
-      contracts: [
-        {
-          name: "BaseRegistrarImplementation",
+      contracts: {
+        BaseRegistrartImplementation: {
           network: { mainnet: {} },
           abi: abiWithSameEvent,
           filter: {
@@ -66,7 +64,7 @@ test("buildSources() for duplicate event", () => {
           endBlock: 16370020,
           maxBlockRange: 10,
         },
-      ],
+      },
     }) as unknown as Config,
   });
 
@@ -90,9 +88,8 @@ test("buildSources() builds topics for event with args", () => {
           transport: http("http://127.0.0.1:8545"),
         },
       },
-      contracts: [
-        {
-          name: "BaseRegistrarImplementation",
+      contracts: {
+        BaseRegistrarImplmentation: {
           network: { mainnet: {} },
           abi: abiSimple,
           filter: {
@@ -106,7 +103,7 @@ test("buildSources() builds topics for event with args", () => {
           endBlock: 16370020,
           maxBlockRange: 10,
         },
-      ],
+      },
     }) as unknown as Config,
   });
 
@@ -127,9 +124,8 @@ test("buildSources() overrides default values with network values", () => {
           transport: http("http://127.0.0.1:8545"),
         },
       },
-      contracts: [
-        {
-          name: "BaseRegistrarImplementation",
+      contracts: {
+        BaseRegistrarImplementation: {
           network: {
             mainnet: {
               address: "0xF39d15cB3910d5e33fb1a2E42D4a2da153Ba076B",
@@ -142,7 +138,7 @@ test("buildSources() overrides default values with network values", () => {
           endBlock: 16370020,
           maxBlockRange: 10,
         },
-      ],
+      },
     }) as unknown as Config,
   });
 
@@ -160,9 +156,8 @@ test("buildSources() network shortcut", () => {
           transport: http("http://127.0.0.1:8545"),
         },
       },
-      contracts: [
-        {
-          name: "BaseRegistrarImplementation",
+      contracts: {
+        BaseRegistrarImplementation: {
           network: "mainnet",
           abi: abiSimple,
           filter: { event: ["Transfer"] },
@@ -171,7 +166,7 @@ test("buildSources() network shortcut", () => {
           endBlock: 16370020,
           maxBlockRange: 10,
         },
-      ],
+      },
     }) as unknown as Config,
   });
 

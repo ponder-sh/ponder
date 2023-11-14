@@ -74,8 +74,8 @@ export const sourceIsFactory = (source: Source): source is Factory =>
 export const buildSources = ({ config }: { config: Config }): Source[] => {
   const contracts = config.contracts ?? [];
 
-  return contracts
-    .map((contract) => {
+  return Object.entries(contracts)
+    .map(([contractName, contract]) => {
       // Note: should we filter down which indexing functions are available based on the filters
       const events = getEvents({ abi: contract.abi });
 
@@ -91,7 +91,7 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
           : undefined;
 
         const sharedSource = {
-          name: contract.name,
+          name: contractName,
           abi: contract.abi,
           network: contract.network,
           chainId: network.chainId,
@@ -144,7 +144,7 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
               : undefined;
 
             const sharedSource = {
-              name: contract.name,
+              name: contractName,
               abi: contract.abi,
               network: networkName,
               chainId: network.chainId,
@@ -200,7 +200,7 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
 
 const buildTopics = (
   abi: Abi,
-  filter: NonNullable<NonNullable<Config["contracts"]>[number]["filter"]>,
+  filter: NonNullable<Config["contracts"][string]["filter"]>,
 ): Topics => {
   if (Array.isArray(filter.event)) {
     // List of event signatures

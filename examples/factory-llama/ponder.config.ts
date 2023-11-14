@@ -16,9 +16,8 @@ export default createConfig({
       transport: http(process.env.PONDER_RPC_URL_11155111),
     },
   },
-  contracts: [
-    {
-      name: "LlamaCore",
+  contracts: {
+    LLamaCore: {
       network: "sepolia",
       abi: LlamaCoreAbi,
       factory: {
@@ -28,8 +27,7 @@ export default createConfig({
       },
       startBlock: 4121269,
     },
-    {
-      name: "LlamaPolicy",
+    LlamaPolicy: {
       network: "sepolia",
       abi: LlamaPolicyAbi,
       factory: {
@@ -39,5 +37,5 @@ export default createConfig({
       },
       startBlock: 4121269,
     },
-  ],
+  },
 });

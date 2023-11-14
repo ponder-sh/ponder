@@ -1,10 +1,7 @@
-import type { AbiEvent } from "abitype";
 import type { Abi, GetEventArgs } from "viem";
 
 import type {
   Config,
-  ContractFilter,
-  ContractRequired,
   FilterAbiEvents,
   RecoverAbiEvent,
   SafeEventNames,
@@ -16,99 +13,17 @@ import type { Log } from "@/types/log.js";
 import type { Model } from "@/types/model.js";
 import type { Transaction } from "@/types/transaction.js";
 
+import type { Prettify } from "./utils.js";
+
 /** "{ContractName}:{EventName}". */
-export type Name<TContract extends Config["contracts"][number]> =
-  `${TContract["name"]}:${SafeEventNames<
-    FilterAbiEvents<TContract["abi"]>
+export type Names<TContracts extends Config["contracts"]> = {
+  [key in keyof TContracts]: `${key & string}:${SafeEventNames<
+    FilterAbiEvents<TContracts[key]["abi"]>
   >[number]}`;
-
-/** All possible names for a list of contracts. */
-export type Names<TContracts extends Config["contracts"]> =
-  TContracts extends readonly [
-    infer First extends Config["contracts"][number],
-    ...infer Rest extends Config["contracts"],
-  ]
-    ? [Name<First>, ...Names<Rest>]
-    : [];
-
-/** Recover the `contract` element at the index where {@link TName} is equal to {@link TContracts}[index]. */
-export type RecoverContract<
-  TContracts extends Config["contracts"],
-  TName extends string,
-> = TContracts extends readonly [
-  infer First extends Config["contracts"][number],
-  ...infer Rest extends Config["contracts"],
-]
-  ? First["name"] extends TName
-    ? First
-    : RecoverContract<Rest, TName>
-  : never;
-
-type ContractNetworkOverrides = ContractRequired<
-  string,
-  readonly AbiEvent[],
-  string
->["network"];
-
-/** Extract the address type from a Contract. */
-export type ExtractAddress<
-  TContract extends
-    | ContractNetworkOverrides
-    | ContractFilter<readonly AbiEvent[], string>,
-> = Extract<TContract, { address: unknown }>["address"];
-
-/** Extract the startBlock type from a Contract. */
-export type ExtractStartBlock<
-  TContract extends
-    | ContractNetworkOverrides
-    | ContractFilter<readonly AbiEvent[], string>,
-> = Extract<TContract, { startBlock: unknown }>["startBlock"];
-
-/** Extract the endBlock type from a Contract. */
-export type ExtractEndBlock<
-  TContract extends
-    | ContractNetworkOverrides
-    | ContractFilter<readonly AbiEvent[], string>,
-> = Extract<TContract, { endBlock: unknown }>["endBlock"];
-
-/** Extract all address from a list of Contracts. */
-export type ExtractAllAddresses<TContracts extends ContractNetworkOverrides> =
-  Extract<TContracts[keyof TContracts], { address: unknown }>["address"];
-
-/** Extract all startBlocks from a list of Contracts. */
-export type ExtractAllStartBlocks<TContracts extends ContractNetworkOverrides> =
-  Extract<TContracts[keyof TContracts], { startBlock: unknown }>["startBlock"];
-
-/** Extract all endBlocks from a list of Contracts. */
-export type ExtractAllEndBlocks<TContracts extends ContractNetworkOverrides> =
-  Extract<TContracts[keyof TContracts], { endBlock: unknown }>["endBlock"];
-
-/** Transform Contracts into the appropriate type for PonderApp. */
-type AppContracts<TContracts extends Config["contracts"]> =
-  TContracts extends readonly [
-    infer First extends Config["contracts"][number],
-    ...infer Rest extends Config["contracts"],
-  ]
-    ? Record<
-        First["name"],
-        {
-          abi: First["abi"];
-          address:
-            | ExtractAddress<First>
-            | ExtractAllAddresses<First["network"]>;
-          startBlock:
-            | ExtractStartBlock<First>
-            | ExtractAllStartBlocks<First["network"]>;
-          endBlock:
-            | ExtractEndBlock<First>
-            | ExtractAllEndBlocks<First["network"]>;
-        }
-      > &
-        AppContracts<Rest>
-    : {};
+}[keyof TContracts];
 
 export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
-  on: <TName extends Names<TConfig["contracts"]>[number]>(
+  on: <TName extends Names<TConfig["contracts"]>>(
     name: TName,
     indexingFunction: ({
       event,
@@ -126,7 +41,7 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
           },
           TName extends `${infer ContractName}:${infer EventName}`
             ? RecoverAbiEvent<
-                RecoverContract<TConfig["contracts"], ContractName> extends {
+                TConfig["contracts"][ContractName] extends {
                   abi: infer _abi extends Abi;
                 }
                   ? FilterAbiEvents<_abi>
@@ -140,17 +55,45 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
         transaction: Transaction;
       };
       context: {
-        contracts: AppContracts<TConfig["contracts"]>;
+        contracts: {
+          [ContractName in keyof TConfig["contracts"]]: {
+            abi: TConfig["contracts"][ContractName]["abi"];
+            address:
+              | Extract<
+                  TConfig["contracts"][ContractName],
+                  { address: unknown }
+                >["address"]
+              | Extract<
+                  TConfig["contracts"][ContractName]["network"][keyof TConfig["contracts"][ContractName]["network"]],
+                  { address: unknown }
+                >["address"];
+            startBlock:
+              | Extract<
+                  TConfig["contracts"][ContractName],
+                  { startBlock: unknown }
+                >["startBlock"]
+              | Extract<
+                  TConfig["contracts"][ContractName]["network"][keyof TConfig["contracts"][ContractName]["network"]],
+                  { startBlock: unknown }
+                >["startBlock"];
+            endBlock:
+              | Extract<
+                  TConfig["contracts"][ContractName],
+                  { endBlock: unknown }
+                >["endBlock"]
+              | Extract<
+                  TConfig["contracts"][ContractName]["network"][keyof TConfig["contracts"][ContractName]["network"]],
+                  { endBlock: unknown }
+                >["endBlock"];
+          };
+        };
         network: {
           chainId: number;
           name: TName extends `${infer ContractName}:${string}`
-            ? keyof RecoverContract<
-                TConfig["contracts"],
-                ContractName
-              >["network"]
+            ? keyof TConfig["contracts"][ContractName]["network"]
             : never;
         };
-        client: Omit<ReadOnlyClient, "extend">;
+        client: Prettify<Omit<ReadOnlyClient, "extend">>;
         models: {
           [key in keyof Infer<TSchema>]: Model<Infer<TSchema>[key]>;
         };
