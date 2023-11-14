@@ -31,7 +31,7 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
     }: {
       event: {
         name: TName extends `${string}:${infer EventName}` ? EventName : string;
-        params: GetEventArgs<
+        args: GetEventArgs<
           Abi,
           string,
           {

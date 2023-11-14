@@ -78,7 +78,7 @@ const getEvents = vi.fn(async function* getEvents({
       {
         eventSourceName: "USDC",
         eventName: "Transfer",
-        params: { from: "0x0", to: "0x1", amount: 100n },
+        args: { from: "0x0", to: "0x1", amount: 100n },
         log: { id: String(toTimestamp) },
         block: { timestamp: BigInt(toTimestamp) },
         transaction: {},
@@ -169,7 +169,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
       event: {
         eventSourceName: "USDC",
         eventName: "Transfer",
-        params: { from: "0x0", to: "0x1", amount: 100n },
+        args: { from: "0x0", to: "0x1", amount: 100n },
         log: { id: "10" },
         block: { timestamp: 10n },
         transaction: {},

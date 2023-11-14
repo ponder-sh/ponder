@@ -13,17 +13,17 @@ ponder.on("setup", async ({ context }) => {
 ponder.on("ArtGobblers:Transfer", async ({ event, context }) => {
   const { Account, Token } = context.models;
 
-  await Account.upsert({ id: event.params.from, create: {}, update: {} });
+  await Account.upsert({ id: event.args.from, create: {}, update: {} });
 
-  await Account.upsert({ id: event.params.to, create: {}, update: {} });
+  await Account.upsert({ id: event.args.to, create: {}, update: {} });
 
   await Token.upsert({
-    id: event.params.id,
+    id: event.args.id,
     create: {
-      ownerId: event.params.to,
+      ownerId: event.args.to,
     },
     update: {
-      ownerId: event.params.to,
+      ownerId: event.args.to,
     },
   });
 });

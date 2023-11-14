@@ -500,7 +500,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               event.eventName
             }" event at block ${Number(event.block.number)}: ${error.message}`;
 
-            const metaMessage = `Event params:\n${prettyPrint(event.params)}`;
+            const metaMessage = `Event args:\n${prettyPrint(event.args)}`;
 
             const userError = new UserError(message, {
               stack: trace,
