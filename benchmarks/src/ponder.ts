@@ -76,13 +76,8 @@ const waitForSyncComplete = async () => {
 
 const ponder = async () => {
   console.log("Creating Ponder instance...");
-  const ponderBinPathAbs = path.resolve(
-    __dirname,
-    "../packages/core/dist/bin/ponder",
-  );
-  console.log({ ponderBinPathAbs });
 
-  const subprocess = execa(ponderBinPathAbs, ["start"], {
+  const subprocess = execa("./packages/core/dist/bin/ponder", ["start"], {
     stdio: "inherit",
     detached: true,
   });
