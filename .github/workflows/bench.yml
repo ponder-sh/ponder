@@ -6,7 +6,7 @@ on:
 jobs:
   bench-ponder:
     name: Bench:Ponder
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     services:
       postgres:
         image: postgres
