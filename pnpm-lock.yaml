@@ -151,6 +151,28 @@ importers:
         specifier: ^1.19.1
         version: 1.19.1(typescript@5.2.2)
 
+  examples/feature-filter:
+    dependencies:
+      '@ponder/core':
+        specifier: workspace:latest
+        version: link:../../packages/core
+    devDependencies:
+      abitype:
+        specifier: ^0.10.2
+        version: 0.10.2(typescript@5.2.2)
+      eslint:
+        specifier: ^8.53.0
+        version: 8.53.0
+      eslint-config-ponder:
+        specifier: workspace:latest
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.2.2
+        version: 5.2.2
+      viem:
+        specifier: ^1.19.1
+        version: 1.19.1(typescript@5.2.2)
+
   examples/feature-proxy:
     dependencies:
       '@ponder/core':
