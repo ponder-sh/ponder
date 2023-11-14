@@ -1,7 +1,6 @@
 import { createConfig } from "@ponder/core";
+import { erc721ABI } from "@wagmi/core";
 import { http } from "viem";
-
-import { SmolBrainAbi } from "./abis/SmolBrain.abi";
 
 export default createConfig({
   networks: {
@@ -11,9 +10,9 @@ export default createConfig({
     },
   },
   contracts: {
-    SmolBrain: {
+    ERC721: {
       network: "arbitrum",
-      abi: SmolBrainAbi,
+      abi: erc721ABI,
       address: "0x6325439389E0797Ab35752B4F43a14C004f22A9c",
       startBlock: 3163146,
     },

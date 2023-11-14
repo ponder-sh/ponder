@@ -1,6 +1,6 @@
 import { ponder } from "@/generated";
 
-ponder.on("SmolBrain:Transfer", async ({ event, context }) => {
+ponder.on("ERC721:Transfer", async ({ event, context }) => {
   const { Account, Token, TransferEvent } = context.models;
 
   // Create an Account for the sender, or update the balance if it already exists.

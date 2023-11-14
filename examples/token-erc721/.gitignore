@@ -1,7 +1,0 @@
-node_modules/
-.DS_Store
-
-.env.local
-.ponder/
-generated/
-ponder-env.d.ts
