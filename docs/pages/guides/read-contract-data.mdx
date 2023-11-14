@@ -93,18 +93,22 @@ In this example, the `Blitmap:Mint` event does not include the token URI of the 
 <div className="code-columns">
 
 ```ts filename="ponder.config.ts"
-export const config = {
-  /* ... */
-  contracts: [
-    {
-      name: "Blitmap",
+import { createConfig } from "@ponder/core";
+import { http } from "viem";
+
+export default createConfig({
+  networks: {
+    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+  },
+  contracts: {
+    Blitmap: {
       network: "mainnet",
       abi: "./abis/Blitmap.json",
       address: "0x8d04...D3Ff63",
       startBlock: 12439123,
     },
-  ],
-};
+  },
+});
 ```
 
 ```ts filename="src/index.ts"
@@ -132,7 +136,7 @@ To tell Ponder not to fetch event logs for a contract, set `isLogEventSource: fa
 <div className="code-columns">
 
 ```ts filename="ponder.config.ts"
-export const config = {
+export default {
   /* ... */
   contracts: [
     {

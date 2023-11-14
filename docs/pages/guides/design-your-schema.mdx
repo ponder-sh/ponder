@@ -13,7 +13,7 @@ Here's an example `ponder.schema.ts` file for a simple ERC20 app.
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Account: p.createTable({
     id: p.string(),
     balance: p.bigint(),
@@ -64,7 +64,7 @@ Here's an example `Account` table that has a column of every type, and a functio
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Account: p.createTable({
     id: p.bytes(),
     daiBalance: p.bigint(),
@@ -102,7 +102,7 @@ To define a enum, pass a list of allowable values to `p.createEnum(){:ts}` (simi
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Color: p.createEnum(["ORANGE", "BLACK"]),
   Cat: p.createTable({
     id: p.string(),
@@ -133,7 +133,7 @@ To define a list, add `.list(){:ts}` to any primitive or enum column. Lists shou
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Color: p.createEnum(["ORANGE", "BLACK"]),
   FancyCat: p.createTable({
     id: p.string(),
@@ -172,7 +172,7 @@ Suppose every `Dog` belongs to a `Person`. When you insert a `Dog` record, set t
 ```ts filename="ponder.schema.ts" {5,10}
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Person: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -244,7 +244,7 @@ To create a virtual column, use `p.virtual()` as the column type passing the nam
 ```ts filename="ponder.schema.ts" {7}
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Person: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -343,7 +343,7 @@ All columns are **required**, e.g. `NOT NULL{:sql}` by default. To mark a column
 ```ts filename="ponder.schema.ts" {7}
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   User: p.createTable({
     id: p.bytes(),
     ens: p.string(),

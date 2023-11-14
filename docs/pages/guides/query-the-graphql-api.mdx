@@ -23,7 +23,7 @@ Ponder creates a **singular** and a **plural** query field for each table in you
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Person: p.createTable({
     id: p.int(),
     name: p.string(),
@@ -269,7 +269,7 @@ Virtual fields return the list of child records that "belong" to the parent. The
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Person: p.createTable({
     id: p.int(),
     dogs: p.virtual("Pet.ownerId"),

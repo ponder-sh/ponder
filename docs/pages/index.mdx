@@ -58,26 +58,25 @@ contract BaseRegistrar {
 First, we add `BaseRegistrar` as a contract in our config file. Ponder's sync engine fetches all the events logs that have been emitted by the `BaseRegistrar` contract.
 
 ```ts filename="ponder.config.ts"
+import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-export const config = {
-  networks: [
-    {
-      name: "mainnet",
+export default createConfig({
+  networks: {
+    mainnet: {
       chainId: 1,
       transport: http("https://eth-mainnet.g.alchemy.com/v2/..."),
     },
-  ],
-  contracts: [
-    {
-      name: "BaseRegistrar",
+  },
+  contracts: {
+    BaseRegistrar: {
       network: "mainnet",
       abi: "./abis/BaseRegistrar.json",
       address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
       startBlock: 9380410,
     },
-  ],
-};
+  },
+});
 ```
 
 ### Create your schema
@@ -87,7 +86,7 @@ The `ponder.schema.ts` file contains the database schema, and defines the shape 
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   EnsName: p.createTable({
     id: p.string(),
     name: p.string(),

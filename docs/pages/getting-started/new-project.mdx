@@ -80,7 +80,7 @@ The `ponder.schema.ts` file contains the database schema, and defines the shape 
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   BlitmapToken: p.createTable({
     id: p.string(),
     owner: p.string(), // Ethereum address

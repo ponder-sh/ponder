@@ -39,7 +39,7 @@ Insert a new records into the store.
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Token: p.createTable({
     id: p.int(),
     mintedBy: p.string(),
@@ -88,7 +88,7 @@ Update an record that already exists.
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Token: p.createTable({
     id: p.int(),
     mintedBy: p.string(),
@@ -122,7 +122,7 @@ You can optionally pass a function to the `data` field that receives the current
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Account: p.createTable({
     id: p.int(),
     balance: p.bigint(),
@@ -172,7 +172,7 @@ Upsert can be useful for events like the ERC721 `Transfer` event, which is emitt
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Token: p.createTable({
     id: p.int(),
     mintedBy: p.string().references("Account.id")
@@ -210,7 +210,7 @@ You can optionally pass a function to the `update` field that receives the curre
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Token: p.createTable({
     id: p.int(),
     ownedBy: p.string().references("Account.id"),
@@ -261,7 +261,7 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -302,7 +302,7 @@ const jim = await Player.findUnique({ id: "Jim" });
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -350,7 +350,7 @@ Filter the result list by passing a `where` option containing a field name, filt
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -392,7 +392,7 @@ If you provide multiple filters, they will be combined with a logical `AND`.
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -427,7 +427,7 @@ Sort the result list by passing an `orderBy` option containing a field name and 
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -468,7 +468,7 @@ Paginate through the result list using the `skip` and `take` options.
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -516,7 +516,7 @@ const players = await Player.findMany({
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -566,7 +566,7 @@ const players = await Player.findMany();
 ```ts filename="ponder.schema.ts"
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
