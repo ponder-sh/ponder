@@ -44,7 +44,7 @@ export function buildNetwork({
     if (isRpcUrlPublic(rpcUrl)) {
       common.logger.warn({
         service: "config",
-        msg: `Using public RPC URL for network "${name}". Ponder requires an RPC URL with a higher rate limit.`,
+        msg: `Using public RPC URL for network "${networkName}". Ponder requires an RPC URL with a higher rate limit.`,
       });
     }
   });
