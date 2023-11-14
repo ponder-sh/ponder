@@ -77,7 +77,7 @@ const waitForSyncComplete = async () => {
 const ponder = async () => {
   console.log("Creating Ponder instance...");
 
-  const subprocess = execa("ponder", ["start"], {
+  const subprocess = execa("ponder", ["start", `--root-dir=ponder`], {
     stdio: "inherit",
     detached: true,
   });
