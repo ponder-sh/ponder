@@ -77,14 +77,10 @@ const waitForSyncComplete = async () => {
 const ponder = async () => {
   console.log("Creating Ponder instance...");
 
-  const subprocess = execa(
-    "../packages/core/dist/bin/ponder.js",
-    ["start", `--root-dir=ponder`],
-    {
-      stdio: "inherit",
-      detached: true,
-    },
-  );
+  const subprocess = execa("ponder", ["start", `--root-dir=ponder`], {
+    stdio: "inherit",
+    detached: true,
+  });
 
   const setupDuration = await waitForSetupComplete();
   const duration = await waitForSyncComplete();
