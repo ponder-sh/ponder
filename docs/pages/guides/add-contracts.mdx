@@ -138,7 +138,7 @@ export default createConfig({
 
 If you'd like to index the same contract (having the same ABI) across multiple networks, pass an object to the `network` field containing network-specific options.
 
-```ts filename="ponder.config.ts" {14-22}
+```ts filename="ponder.config.ts" {14-23}
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
@@ -172,6 +172,8 @@ Now, the indexing functions you write for `UniswapV3Factory` will process events
 The `event` and `context` objects are still strictly typed according to the configuration you provide. The `context.network` object contains information about which network the current event is from.
 
 ```ts filename="src/index.ts"
+import { ponder } from "@/generated";
+
 ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
   context.network;
   //      ^? { name: "mainnet", chainId 1 } | { name: "base", chainId 8453 }

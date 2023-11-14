@@ -117,7 +117,7 @@ export function handleTransfer(event) {
 
 With Ponder, database models and contracts are injected as properties of `context`.
 
-The `contract.contracts` objects are [viem Contract Instances](https://viem.sh/docs/contract/getContract.html) that are already connected to the network specified in `ponder.config.ts`. (You don't need to call `Contract.bind(address)`.
+The `contract.contracts` objects are [Viem Contract Instances](https://viem.sh/docs/contract/getContract.html) that are already connected to the network specified in `ponder.config.ts`. (You don't need to call `Contract.bind(address)`.
 
 ```ts filename="src/MyNftContract.ts"
 import { ponder } from "@/generated";
