@@ -149,7 +149,7 @@ importers:
         version: 5.2.2
       viem:
         specifier: ^1.18.9
-        version: 1.19.0(typescript@5.2.2)
+        version: 1.19.1(typescript@5.2.2)
 
   examples/ethfs:
     dependencies:
@@ -171,7 +171,7 @@ importers:
         version: 5.2.2
       viem:
         specifier: ^1.18.9
-        version: 1.19.0(typescript@5.2.2)
+        version: 1.19.1(typescript@5.2.2)
 
   examples/factory-llama:
     dependencies:
@@ -193,7 +193,7 @@ importers:
         version: 5.2.2
       viem:
         specifier: ^1.18.9
-        version: 1.19.0(typescript@5.2.2)
+        version: 1.19.1(typescript@5.2.2)
 
   examples/friendtech:
     dependencies:
@@ -215,7 +215,7 @@ importers:
         version: 5.2.2
       viem:
         specifier: ^1.18.9
-        version: 1.19.0(typescript@5.2.2)
+        version: 1.19.1(typescript@5.2.2)
 
   examples/reference-erc20:
     dependencies:
@@ -284,7 +284,7 @@ importers:
         version: 5.2.2
       viem:
         specifier: ^1.2.6
-        version: 1.19.0(typescript@5.2.2)
+        version: 1.19.1(typescript@5.2.2)
 
   examples/token-erc721:
     dependencies:
@@ -306,7 +306,7 @@ importers:
         version: 5.2.2
       viem:
         specifier: ^1.18.9
-        version: 1.19.0(typescript@5.2.2)
+        version: 1.19.1(typescript@5.2.2)
 
   examples/token-reth:
     dependencies:
@@ -328,7 +328,7 @@ importers:
         version: 5.2.2
       viem:
         specifier: ^1.18.9
-        version: 1.19.0(typescript@5.2.2)
+        version: 1.19.1(typescript@5.2.2)
 
   examples/with-docker:
     dependencies:
@@ -350,7 +350,7 @@ importers:
         version: 5.2.2
       viem:
         specifier: ^1.2.6
-        version: 1.19.0(typescript@5.2.2)
+        version: 1.19.1(typescript@5.2.2)
 
   packages/core:
     dependencies:
@@ -498,7 +498,7 @@ importers:
         version: 5.2.2
       viem:
         specifier: ^1.19.0
-        version: 1.19.0(typescript@5.2.2)
+        version: 1.19.1(typescript@5.2.2)
       vitest:
         specifier: ^0.34.6
         version: 0.34.6
@@ -3177,7 +3177,6 @@ packages:
     dependencies:
       is-glob: 4.0.3
       micromatch: 4.0.5
-      napi-wasm: 1.1.0
     dev: true
     bundledDependencies:
       - napi-wasm
@@ -11085,10 +11084,6 @@ packages:
     resolution: {integrity: sha512-ONmRUqK7zj7DWX0D9ADe03wbwOBZxNAfF20PlGfCWQcD3+/MakShIHrMqx9YwPTfxDdF1zLeL+RGZiR9kGMLdg==}
     dev: false
 
-  /napi-wasm@1.1.0:
-    resolution: {integrity: sha512-lHwIAJbmLSjF9VDRm9GoVOy9AGp3aIvkjv+Kvz9h16QR3uSVYH78PNQUnT2U4X53mhlnV2M7wrhibQ3GHicDmg==}
-    dev: true
-
   /native-abort-controller@1.0.4(abort-controller@3.0.0):
     resolution: {integrity: sha512-zp8yev7nxczDJMoP6pDxyD20IU0T22eX8VwN2ztDccKvSZhRaV33yP1BGwKSZfXuqWUzsXopVFjBdau9OOAwMQ==}
     peerDependencies:
@@ -14665,29 +14660,6 @@ packages:
     transitivePeerDependencies:
       - bufferutil
       - typescript
-      - utf-8-validate
-      - zod
-    dev: true
-
-  /viem@1.19.0(typescript@5.2.2):
-    resolution: {integrity: sha512-Q4gU7D5KMZDK2rarQqjeqW7KmZRdfbDyP+bDlsu0Ia+IWR4Aali+dMbis1s3rC12OWdNfSR5MNmPCHoqoQa5ew==}
-    peerDependencies:
-      typescript: '>=5.0.4'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-    dependencies:
-      '@adraffy/ens-normalize': 1.9.4
-      '@noble/curves': 1.2.0
-      '@noble/hashes': 1.3.2
-      '@scure/bip32': 1.3.2
-      '@scure/bip39': 1.2.1
-      abitype: 0.9.8(typescript@5.2.2)
-      isows: 1.0.3(ws@8.13.0)
-      typescript: 5.2.2
-      ws: 8.13.0
-    transitivePeerDependencies:
-      - bufferutil
       - utf-8-validate
       - zod
     dev: true
