@@ -73,28 +73,27 @@ test("PonderApp multiple contracts", () => {
   assertType<never>("" as name);
 });
 
-test("PonderApp event type"),
-  () => {
-    type p = PonderApp<
-      {
-        // ^?
-        networks: any;
-        contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
-      },
-      any
-    >;
+test("PonderApp event type", () => {
+  type p = PonderApp<
+    {
+      // ^?
+      networks: any;
+      contracts: readonly [{ name: "One"; network: any; abi: OneAbi }];
+    },
+    any
+  >;
 
-    type name = Parameters<Parameters<p["on"]>[1]>[0]["event"]["name"];
-    //   ^?
+  type name = Parameters<Parameters<p["on"]>[1]>[0]["event"]["name"];
+  //   ^?
 
-    assertType<name>("" as "Event0" | "Event1");
+  assertType<name>("" as "Event0" | "Event1");
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    (({}) as p).on("One:Event1", ({ event }) => {});
-    //                              ^?
-  };
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  (({}) as p).on("One:Event1", ({ event }) => {});
+  //                              ^?
+});
 
 test("PonderApp context network type", () => {
   type p = PonderApp<

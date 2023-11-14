@@ -13,7 +13,7 @@ export default createConfig({
   contracts: [
     {
       name: "AdventureGold",
-      network: { mainnet: {} },
+      network: "mainnet",
       abi: AdventureGoldAbi,
       address: "0x32353A6C91143bfd6C7d363B546e62a9A2489A20",
       startBlock: 13142655,

@@ -77,7 +77,9 @@ export type ContractRequired<
    * Any filter information overrides the values in the higher level "contracts" property.
    * Factories cannot override an address and vice versa.
    */
-  network: Record<TNetworkNames, Partial<ContractFilter<TAbi, TEventName>>>;
+  network:
+    | Record<TNetworkNames, Partial<ContractFilter<TAbi, TEventName>>>
+    | TNetworkNames;
 };
 
 /** Fields for a contract used to filter down which events indexed. */
@@ -250,26 +252,39 @@ export const createConfig = <
   >[];
 
   contracts.forEach((contract) => {
-    Object.entries(contract.network).forEach(
-      ([networkName, contractOverride]) => {
-        // Make sure network matches an element in config.networks
-        const network = config.networks[networkName];
-        if (!network)
-          throw Error(
-            'Contract network does not match a network in "networks"',
-          );
+    if (typeof contract.network === "string") {
+      // shortcut
+      const network = config.networks[contract.network];
+      if (!network)
+        throw Error('Contract network does not match a network in "networks"');
 
-        // Validate the address / factory data
-        const resolvedFactory =
-          ("factory" in contractOverride && contractOverride.factory) ||
-          ("factory" in contract && contract.factory);
-        const resolvedAddress =
-          ("address" in contractOverride && contractOverride.address) ||
-          ("address" in contract && contract.address);
-        if (resolvedFactory && resolvedAddress)
-          throw Error("Factory and address cannot both be defined");
-      },
-    );
+      // Validate the address / factory data
+      const resolvedFactory = "factory" in contract && contract.factory;
+      const resolvedAddress = "address" in contract && contract.address;
+      if (resolvedFactory && resolvedAddress)
+        throw Error("Factory and address cannot both be defined");
+    } else {
+      Object.entries(contract.network).forEach(
+        ([networkName, contractOverride]) => {
+          // Make sure network matches an element in config.networks
+          const network = config.networks[networkName];
+          if (!network)
+            throw Error(
+              'Contract network does not match a network in "networks"',
+            );
+
+          // Validate the address / factory data
+          const resolvedFactory =
+            ("factory" in contractOverride && contractOverride.factory) ||
+            ("factory" in contract && contract.factory);
+          const resolvedAddress =
+            ("address" in contractOverride && contractOverride.address) ||
+            ("address" in contract && contract.address);
+          if (resolvedFactory && resolvedAddress)
+            throw Error("Factory and address cannot both be defined");
+        },
+      );
+    }
   });
 
   return config;

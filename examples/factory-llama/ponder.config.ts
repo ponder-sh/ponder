@@ -19,7 +19,7 @@ export default createConfig({
   contracts: [
     {
       name: "LlamaCore",
-      network: { sepolia: {} },
+      network: "sepolia",
       abi: LlamaCoreAbi,
       factory: {
         address: "0xFf5d4E226D9A3496EECE31083a8F493edd79AbEB",
@@ -30,7 +30,7 @@ export default createConfig({
     },
     {
       name: "LlamaPolicy",
-      network: { sepolia: {} },
+      network: "sepolia",
       abi: LlamaPolicyAbi,
       factory: {
         address: "0xFf5d4E226D9A3496EECE31083a8F493edd79AbEB",

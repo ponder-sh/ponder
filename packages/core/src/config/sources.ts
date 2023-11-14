@@ -80,65 +80,120 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
       const events = getEvents({ abi: contract.abi });
 
       // Resolve the contract per network, filling in default values where applicable
-      return Object.entries(contract.network)
-        .map(([networkName, networkContract]) => {
-          const network = config.networks[networkName]!;
+      if (typeof contract.network === "string") {
+        // shortcut network name
+        const network = config.networks[contract.network]!;
 
-          const resolvedFilter = networkContract.filter ?? contract.filter;
+        const resolvedFilter = contract.filter;
 
-          const topics = resolvedFilter
-            ? buildTopics(contract.abi, resolvedFilter)
-            : undefined;
+        const topics = resolvedFilter
+          ? buildTopics(contract.abi, resolvedFilter)
+          : undefined;
 
-          const sharedSource = {
-            name: contract.name,
-            abi: contract.abi,
-            network: networkName,
-            chainId: network.chainId,
-            events,
-            startBlock: networkContract.startBlock ?? contract.startBlock ?? 0,
-            endBlock: networkContract.endBlock ?? contract.endBlock,
-            maxBlockRange:
-              networkContract.maxBlockRange ?? contract.maxBlockRange,
-          } as const;
+        const sharedSource = {
+          name: contract.name,
+          abi: contract.abi,
+          network: contract.network,
+          chainId: network.chainId,
+          events,
+          startBlock: contract.startBlock ?? 0,
+          endBlock: contract.endBlock,
+          maxBlockRange: contract.maxBlockRange,
+        } as const;
 
-          // Check that factory and address are not both defined
-          const resolvedFactory =
-            ("factory" in networkContract && networkContract.factory) ||
-            ("factory" in contract && contract.factory);
-          const resolvedAddress =
-            ("address" in networkContract && networkContract.address) ||
-            ("address" in contract && contract.address);
+        // Check that factory and address are not both defined
+        const resolvedFactory = "factory" in contract && contract.factory;
+        const resolvedAddress = "address" in contract && contract.address;
 
-          if (resolvedFactory) {
-            // factory
+        if (resolvedFactory) {
+          // factory
 
-            return {
-              ...sharedSource,
-              type: "factory",
-              criteria: {
-                ...buildFactoryCriteria(resolvedFactory),
-                topics,
-              },
-            } as const satisfies Factory;
-          } else {
-            // log filter
+          return {
+            ...sharedSource,
+            type: "factory",
+            criteria: {
+              ...buildFactoryCriteria(resolvedFactory),
+              topics,
+            },
+          } as const satisfies Factory;
+        } else {
+          // log filter
 
-            return {
-              ...sharedSource,
-              type: "logFilter",
-              criteria: {
-                address: Array.isArray(resolvedAddress)
-                  ? resolvedAddress.map((r) => toLowerCase(r))
-                  : resolvedAddress
-                    ? toLowerCase(resolvedAddress)
-                    : undefined,
-                topics,
-              },
-            } as const satisfies LogFilter;
-          }
-        })
-        .flat();
+          return {
+            ...sharedSource,
+            type: "logFilter",
+            criteria: {
+              address: Array.isArray(resolvedAddress)
+                ? resolvedAddress.map((r) => toLowerCase(r))
+                : resolvedAddress
+                  ? toLowerCase(resolvedAddress)
+                  : undefined,
+              topics,
+            },
+          } as const satisfies LogFilter;
+        }
+      } else {
+        return Object.entries(contract.network)
+          .map(([networkName, networkContract]) => {
+            const network = config.networks[networkName]!;
+
+            const resolvedFilter = networkContract.filter ?? contract.filter;
+
+            const topics = resolvedFilter
+              ? buildTopics(contract.abi, resolvedFilter)
+              : undefined;
+
+            const sharedSource = {
+              name: contract.name,
+              abi: contract.abi,
+              network: networkName,
+              chainId: network.chainId,
+              events,
+              startBlock:
+                networkContract.startBlock ?? contract.startBlock ?? 0,
+              endBlock: networkContract.endBlock ?? contract.endBlock,
+              maxBlockRange:
+                networkContract.maxBlockRange ?? contract.maxBlockRange,
+            } as const;
+
+            // Check that factory and address are not both defined
+            const resolvedFactory =
+              ("factory" in networkContract && networkContract.factory) ||
+              ("factory" in contract && contract.factory);
+            const resolvedAddress =
+              ("address" in networkContract && networkContract.address) ||
+              ("address" in contract && contract.address);
+
+            if (resolvedFactory) {
+              // factory
+
+              return {
+                ...sharedSource,
+                type: "factory",
+                criteria: {
+                  ...buildFactoryCriteria(resolvedFactory),
+                  topics,
+                },
+              } as const satisfies Factory;
+            } else {
+              // log filter
+
+              return {
+                ...sharedSource,
+                type: "logFilter",
+                criteria: {
+                  address: Array.isArray(resolvedAddress)
+                    ? resolvedAddress.map((r) => toLowerCase(r))
+                    : resolvedAddress
+                      ? toLowerCase(resolvedAddress)
+                      : undefined,
+                  topics,
+                },
+              } as const satisfies LogFilter;
+            }
+          })
+          .flat();
+      }
     })
     .flat();
 };

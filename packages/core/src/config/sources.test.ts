@@ -150,3 +150,30 @@ test("buildSources() overrides default values with network values", () => {
     "0xf39d15cb3910d5e33fb1a2e42d4a2da153ba076b",
   );
 });
+
+test("buildSources() network shortcut", () => {
+  const sources = buildSources({
+    config: createConfig({
+      networks: {
+        mainnet: {
+          chainId: 1,
+          transport: http("http://127.0.0.1:8545"),
+        },
+      },
+      contracts: [
+        {
+          name: "BaseRegistrarImplementation",
+          network: "mainnet",
+          abi: abiSimple,
+          filter: { event: ["Transfer"] },
+          address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+          startBlock: 16370000,
+          endBlock: 16370020,
+          maxBlockRange: 10,
+        },
+      ],
+    }) as unknown as Config,
+  });
+
+  expect(sources[0].network).toBe("mainnet");
+});

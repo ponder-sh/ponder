@@ -14,7 +14,7 @@ export default createConfig({
   contracts: [
     {
       name: "RocketTokenRETH",
-      network: { mainnet: {} },
+      network: "mainnet",
       abi: RocketTokenRETHAbi,
       address: "0xae78736cd615f374d3085123a210448e74fc6393",
       startBlock: 13325304,

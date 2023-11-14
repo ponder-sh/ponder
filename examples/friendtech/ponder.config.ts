@@ -13,7 +13,7 @@ export default createConfig({
   contracts: [
     {
       name: "FriendtechSharesV1",
-      network: { base: {} },
+      network: "base",
       abi: FriendtechSharesV1Abi,
       address: "0xcf205808ed36593aa40a44f10c7f7c2f67d4a4d4",
       startBlock: 2430440,

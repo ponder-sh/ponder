@@ -122,8 +122,15 @@ test("ResolvedConfig default values", () => {
   type a = NonNullable<
     // ^?
     Config["contracts"]
-  >[number]["network"][number]["filter"];
-  assertType<a>({} as { event: string[] } | { event: string } | undefined);
+  >[number]["network"];
+  assertType<a>(
+    {} as
+      | string
+      | Record<
+          string,
+          { filter: { event: string[] } | { event: string } | undefined }
+        >,
+  );
 });
 
 test("RecoverAbiEvent", () => {
@@ -158,6 +165,31 @@ test("createConfig() strict network names", () => {
   });
 
   assertType<{ mainnet: {} }>(config.contracts[0].network);
+  assertType<{ mainnet: { chainId: 1 } }>(config.networks);
+});
+
+test("createConfig() short network name", () => {
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
+      },
+    },
+    contracts: [
+      {
+        name: "BaseRegistrarImplementation",
+        network: "mainnet",
+        abi: [],
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
+      },
+    ],
+  });
+
+  assertType<"mainnet">(config.contracts[0].network);
   assertType<{ mainnet: { chainId: 1 } }>(config.networks);
 });
 
