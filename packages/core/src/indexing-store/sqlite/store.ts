@@ -10,13 +10,8 @@ import {
 } from "@/schema/utils.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 
-import type {
-  IndexingStore,
-  ModelInstance,
-  OrderByInput,
-  WhereInput,
-} from "../store.js";
-import { formatModelFieldValue, formatModelInstance } from "../utils/format.js";
+import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
+import { formatColumnValue, formatRow } from "../utils/format.js";
 import { validateSkip, validateTake } from "../utils/pagination.js";
 import {
   buildSqlOrderByConditions,
@@ -61,9 +56,9 @@ export class SqliteIndexingStore implements IndexingStore {
       // Drop tables from existing schema.
       if (this.schema) {
         await Promise.all(
-          Object.keys(this.schema.tables).map((modelName) => {
-            const tableName = `${modelName}_${this.versionId}`;
-            tx.schema.dropTable(tableName);
+          Object.keys(this.schema.tables).map((tableName) => {
+            const table = `${tableName}_${this.versionId}`;
+            tx.schema.dropTable(table);
           }),
         );
       }
@@ -74,69 +69,72 @@ export class SqliteIndexingStore implements IndexingStore {
 
       // Create tables for new schema.
       await Promise.all(
-        Object.entries(this.schema!.tables).map(async ([modelName, model]) => {
-          const tableName = `${modelName}_${this.versionId}`;
-          let tableBuilder = tx.schema.createTable(tableName);
-          Object.entries(model).forEach(([columnName, column]) => {
-            if (isVirtualColumn(column)) return;
-            else if (isEnumColumn(column)) {
-              // Handle enum types
-              tableBuilder = tableBuilder.addColumn(
-                columnName,
-                "text",
-                (col) => {
-                  if (!column.optional) col = col.notNull();
-                  col = col.check(
-                    sql`${sql.ref(columnName)} in (${sql.join(
-                      schema!.enums[column.type].map((v) => sql.lit(v)),
-                    )})`,
-                  );
-                  return col;
-                },
-              );
-            } else if (column.list) {
-              // Handle scalar list columns
-              tableBuilder = tableBuilder.addColumn(
-                columnName,
-                "text",
-                (col) => {
-                  if (!column.optional) col = col.notNull();
-                  return col;
-                },
-              );
-            } else {
-              // Non-list base columns
-              tableBuilder = tableBuilder.addColumn(
-                columnName,
-                scalarToSqlType[column.type],
-                (col) => {
-                  if (!column.optional) col = col.notNull();
-                  return col;
-                },
-              );
-            }
-          });
+        Object.entries(this.schema!.tables).map(
+          async ([tableName, columns]) => {
+            const table = `${tableName}_${this.versionId}`;
+            let tableBuilder = tx.schema.createTable(table);
 
-          // Add the effective timestamp columns.
-          tableBuilder = tableBuilder.addColumn(
-            "effectiveFrom",
-            "integer",
-            (col) => col.notNull(),
-          );
-          tableBuilder = tableBuilder.addColumn(
-            "effectiveTo",
-            "integer",
-            (col) => col.notNull(),
-          );
-          tableBuilder = tableBuilder.addPrimaryKeyConstraint(
-            `${tableName}_id_effectiveTo_unique`,
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            ["id", "effectiveTo"],
-          );
+            Object.entries(columns).forEach(([columnName, column]) => {
+              if (isVirtualColumn(column)) return;
+              else if (isEnumColumn(column)) {
+                // Handle enum types
+                tableBuilder = tableBuilder.addColumn(
+                  columnName,
+                  "text",
+                  (col) => {
+                    if (!column.optional) col = col.notNull();
+                    col = col.check(
+                      sql`${sql.ref(columnName)} in (${sql.join(
+                        schema!.enums[column.type].map((v) => sql.lit(v)),
+                      )})`,
+                    );
+                    return col;
+                  },
+                );
+              } else if (column.list) {
+                // Handle scalar list columns
+                tableBuilder = tableBuilder.addColumn(
+                  columnName,
+                  "text",
+                  (col) => {
+                    if (!column.optional) col = col.notNull();
+                    return col;
+                  },
+                );
+              } else {
+                // Non-list base columns
+                tableBuilder = tableBuilder.addColumn(
+                  columnName,
+                  scalarToSqlType[column.type],
+                  (col) => {
+                    if (!column.optional) col = col.notNull();
+                    return col;
+                  },
+                );
+              }
+            });
 
-          await tableBuilder.execute();
-        }),
+            // Add the effective timestamp columns.
+            tableBuilder = tableBuilder.addColumn(
+              "effectiveFrom",
+              "integer",
+              (col) => col.notNull(),
+            );
+            tableBuilder = tableBuilder.addColumn(
+              "effectiveTo",
+              "integer",
+              (col) => col.notNull(),
+            );
+            tableBuilder = tableBuilder.addPrimaryKeyConstraint(
+              `${table}_id_effectiveTo_unique`,
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore
+              ["id", "effectiveTo"],
+            );
+
+            await tableBuilder.execute();
+          },
+        ),
       );
     });
   };
@@ -147,9 +145,8 @@ export class SqliteIndexingStore implements IndexingStore {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
           tableNames.map(async (tableName) => {
-            await tx.schema
-              .dropTable(`${tableName}_${this.versionId}`)
-              .execute();
+            const table = `${tableName}_${this.versionId}`;
+            await tx.schema.dropTable(table).execute();
           }),
         );
       });
@@ -159,138 +156,134 @@ export class SqliteIndexingStore implements IndexingStore {
   }
 
   findUnique = async ({
-    modelName,
+    tableName,
     timestamp = MAX_INTEGER,
     id,
   }: {
-    modelName: string;
+    tableName: string;
     timestamp?: number;
     id: string | number | bigint;
   }) => {
-    const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({
+    const table = `${tableName}_${this.versionId}`;
+    const formattedId = formatColumnValue({
       value: id,
       encodeBigInts: true,
     });
 
-    const instances = await this.db
-      .selectFrom(tableName)
+    const rows = await this.db
+      .selectFrom(table)
       .selectAll()
       .where("id", "=", formattedId)
       .where("effectiveFrom", "<=", timestamp)
       .where("effectiveTo", ">=", timestamp)
       .execute();
 
-    if (instances.length > 1) {
-      throw new Error(`Expected 1 instance, found ${instances.length}`);
+    if (rows.length > 1) {
+      throw new Error(`Expected 1 row, found ${rows.length}`);
     }
 
-    return instances[0]
-      ? this.deserializeInstance({ modelName, instance: instances[0] })
-      : null;
+    return rows[0] ? this.deserializeRow({ tableName, row: rows[0] }) : null;
   };
 
   create = async ({
-    modelName,
+    tableName,
     timestamp = MAX_INTEGER,
     id,
     data = {},
   }: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     id: string | number | bigint;
-    data?: Omit<ModelInstance, "id">;
+    data?: Omit<Row, "id">;
   }) => {
-    const tableName = `${modelName}_${this.versionId}`;
-    const createInstance = formatModelInstance({ id, ...data }, true);
+    const table = `${tableName}_${this.versionId}`;
+    const createRow = formatRow({ id, ...data }, true);
 
-    const instance = await this.db
-      .insertInto(tableName)
+    const row = await this.db
+      .insertInto(table)
       .values({
-        ...createInstance,
+        ...createRow,
         effectiveFrom: timestamp,
         effectiveTo: MAX_INTEGER,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    return this.deserializeInstance({ modelName, instance });
+    return this.deserializeRow({ tableName, row });
   };
 
   update = async ({
-    modelName,
+    tableName,
     timestamp = MAX_INTEGER,
     id,
     data = {},
   }: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     id: string | number | bigint;
     data?:
-      | Partial<Omit<ModelInstance, "id">>
-      | ((args: {
-          current: ModelInstance;
-        }) => Partial<Omit<ModelInstance, "id">>);
+      | Partial<Omit<Row, "id">>
+      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({
+    const table = `${tableName}_${this.versionId}`;
+    const formattedId = formatColumnValue({
       value: id,
       encodeBigInts: true,
     });
 
-    const instance = await this.db.transaction().execute(async (tx) => {
+    const row = await this.db.transaction().execute(async (tx) => {
       // Find the latest version of this instance.
-      const latestInstance = await tx
-        .selectFrom(tableName)
+      const latestRow = await tx
+        .selectFrom(table)
         .selectAll()
         .where("id", "=", formattedId)
         .orderBy("effectiveTo", "desc")
         .executeTakeFirstOrThrow();
 
       // If the user passed an update function, call it with the current instance.
-      let updateInstance: ReturnType<typeof formatModelInstance>;
+      let updateRow: ReturnType<typeof formatRow>;
       if (typeof data === "function") {
         const updateObject = data({
-          current: this.deserializeInstance({
-            modelName,
-            instance: latestInstance,
+          current: this.deserializeRow({
+            tableName,
+            row: latestRow,
           }),
         });
-        updateInstance = formatModelInstance({ id, ...updateObject }, true);
+        updateRow = formatRow({ id, ...updateObject }, true);
       } else {
-        updateInstance = formatModelInstance({ id, ...data }, true);
+        updateRow = formatRow({ id, ...data }, true);
       }
 
       // If the latest version has the same effectiveFrom timestamp as the update,
       // this update is occurring within the same block/second. Update in place.
-      if (latestInstance.effectiveFrom === timestamp) {
+      if (latestRow.effectiveFrom === timestamp) {
         return await tx
-          .updateTable(tableName)
-          .set(updateInstance)
+          .updateTable(table)
+          .set(updateRow)
           .where("id", "=", formattedId)
           .where("effectiveFrom", "=", timestamp)
           .returningAll()
           .executeTakeFirstOrThrow();
       }
 
-      if (latestInstance.effectiveFrom > timestamp) {
-        throw new Error(`Cannot update an instance in the past`);
+      if (latestRow.effectiveFrom > timestamp) {
+        throw new Error(`Cannot update a record in the past`);
       }
 
       // If the latest version has an earlier effectiveFrom timestamp than the update,
       // we need to update the latest version AND insert a new version.
       await tx
-        .updateTable(tableName)
+        .updateTable(table)
         .set({ effectiveTo: timestamp - 1 })
         .where("id", "=", formattedId)
         .where("effectiveTo", "=", MAX_INTEGER)
         .execute();
 
       return await tx
-        .insertInto(tableName)
+        .insertInto(table)
         .values({
-          ...latestInstance,
-          ...updateInstance,
+          ...latestRow,
+          ...updateRow,
           effectiveFrom: timestamp,
           effectiveTo: MAX_INTEGER,
         })
@@ -298,48 +291,46 @@ export class SqliteIndexingStore implements IndexingStore {
         .executeTakeFirstOrThrow();
     });
 
-    return this.deserializeInstance({ modelName, instance });
+    return this.deserializeRow({ tableName, row });
   };
 
   upsert = async ({
-    modelName,
+    tableName,
     timestamp = MAX_INTEGER,
     id,
     create = {},
     update = {},
   }: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     id: string | number | bigint;
-    create?: Omit<ModelInstance, "id">;
+    create?: Omit<Row, "id">;
     update?:
-      | Partial<Omit<ModelInstance, "id">>
-      | ((args: {
-          current: ModelInstance;
-        }) => Partial<Omit<ModelInstance, "id">>);
+      | Partial<Omit<Row, "id">>
+      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({
+    const table = `${tableName}_${this.versionId}`;
+    const formattedId = formatColumnValue({
       value: id,
       encodeBigInts: true,
     });
-    const createInstance = formatModelInstance({ id, ...create }, true);
+    const createRow = formatRow({ id, ...create }, true);
 
-    const instance = await this.db.transaction().execute(async (tx) => {
+    const row = await this.db.transaction().execute(async (tx) => {
       // Attempt to find the latest version of this instance.
-      const latestInstance = await tx
-        .selectFrom(tableName)
+      const latestRow = await tx
+        .selectFrom(table)
         .selectAll()
         .where("id", "=", formattedId)
         .orderBy("effectiveTo", "desc")
         .executeTakeFirst();
 
       // If there is no latest version, insert a new version using the create data.
-      if (!latestInstance) {
+      if (!latestRow) {
         return await tx
-          .insertInto(tableName)
+          .insertInto(table)
           .values({
-            ...createInstance,
+            ...createRow,
             effectiveFrom: timestamp,
             effectiveTo: MAX_INTEGER,
           })
@@ -347,50 +338,50 @@ export class SqliteIndexingStore implements IndexingStore {
           .executeTakeFirstOrThrow();
       }
 
-      // If the user passed an update function, call it with the current instance.
-      let updateInstance: ReturnType<typeof formatModelInstance>;
+      // If the user passed an update function, call it with the current row.
+      let updateRow: ReturnType<typeof formatRow>;
       if (typeof update === "function") {
         const updateObject = update({
-          current: this.deserializeInstance({
-            modelName,
-            instance: latestInstance,
+          current: this.deserializeRow({
+            tableName,
+            row: latestRow,
           }),
         });
-        updateInstance = formatModelInstance({ id, ...updateObject }, true);
+        updateRow = formatRow({ id, ...updateObject }, true);
       } else {
-        updateInstance = formatModelInstance({ id, ...update }, true);
+        updateRow = formatRow({ id, ...update }, true);
       }
 
       // If the latest version has the same effectiveFrom timestamp as the update,
       // this update is occurring within the same block/second. Update in place.
-      if (latestInstance.effectiveFrom === timestamp) {
+      if (latestRow.effectiveFrom === timestamp) {
         return await tx
-          .updateTable(tableName)
-          .set(updateInstance)
+          .updateTable(table)
+          .set(updateRow)
           .where("id", "=", formattedId)
           .where("effectiveFrom", "=", timestamp)
           .returningAll()
           .executeTakeFirstOrThrow();
       }
 
-      if (latestInstance.effectiveFrom > timestamp) {
-        throw new Error(`Cannot update an instance in the past`);
+      if (latestRow.effectiveFrom > timestamp) {
+        throw new Error(`Cannot update a record in the past`);
       }
 
       // If the latest version has an earlier effectiveFrom timestamp than the update,
       // we need to update the latest version AND insert a new version.
       await tx
-        .updateTable(tableName)
+        .updateTable(table)
         .set({ effectiveTo: timestamp - 1 })
         .where("id", "=", formattedId)
         .where("effectiveTo", "=", MAX_INTEGER)
         .execute();
 
       return await tx
-        .insertInto(tableName)
+        .insertInto(table)
         .values({
-          ...latestInstance,
-          ...updateInstance,
+          ...latestRow,
+          ...updateRow,
           effectiveFrom: timestamp,
           effectiveTo: MAX_INTEGER,
         })
@@ -398,20 +389,20 @@ export class SqliteIndexingStore implements IndexingStore {
         .executeTakeFirstOrThrow();
     });
 
-    return this.deserializeInstance({ modelName, instance });
+    return this.deserializeRow({ tableName, row });
   };
 
   delete = async ({
-    modelName,
+    tableName,
     timestamp = MAX_INTEGER,
     id,
   }: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     id: string | number | bigint;
   }) => {
-    const tableName = `${modelName}_${this.versionId}`;
-    const formattedId = formatModelFieldValue({
+    const table = `${tableName}_${this.versionId}`;
+    const formattedId = formatColumnValue({
       value: id,
       encodeBigInts: true,
     });
@@ -422,17 +413,17 @@ export class SqliteIndexingStore implements IndexingStore {
       // This needs to be done first, because an update() earlier in the
       // indexing function would have created a new version with the delete timestamp.
       // Attempting to update first would result in a constraint violation.
-      let deletedInstance = await tx
-        .deleteFrom(tableName)
+      let deletedRow = await tx
+        .deleteFrom(table)
         .where("id", "=", formattedId)
         .where("effectiveFrom", "=", timestamp)
         .returning(["id"])
         .executeTakeFirst();
 
       // Update the latest version to be effective until the delete timestamp.
-      if (!deletedInstance) {
-        deletedInstance = await tx
-          .updateTable(tableName)
+      if (!deletedRow) {
+        deletedRow = await tx
+          .updateTable(table)
           .set({ effectiveTo: timestamp - 1 })
           .where("id", "=", formattedId)
           .where("effectiveTo", "=", MAX_INTEGER)
@@ -440,31 +431,31 @@ export class SqliteIndexingStore implements IndexingStore {
           .executeTakeFirst();
       }
 
-      return !!deletedInstance;
+      return !!deletedRow;
     });
 
     return instance;
   };
 
   findMany = async ({
-    modelName,
+    tableName,
     timestamp = MAX_INTEGER,
     where,
     skip,
     take,
     orderBy,
   }: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     where?: WhereInput<any>;
     skip?: number;
     take?: number;
     orderBy?: OrderByInput<any>;
   }) => {
-    const tableName = `${modelName}_${this.versionId}`;
+    const table = `${tableName}_${this.versionId}`;
 
     let query = this.db
-      .selectFrom(tableName)
+      .selectFrom(table)
       .selectAll()
       .where("effectiveFrom", "<=", timestamp)
       .where("effectiveTo", ">=", timestamp);
@@ -498,64 +489,60 @@ export class SqliteIndexingStore implements IndexingStore {
 
     const instances = await query.execute();
 
-    return instances.map((instance) =>
-      this.deserializeInstance({ modelName, instance }),
-    );
+    return instances.map((row) => this.deserializeRow({ tableName, row }));
   };
 
   createMany = async ({
-    modelName,
+    tableName,
     timestamp = MAX_INTEGER,
     data,
   }: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     id: string | number | bigint;
-    data: ModelInstance[];
+    data: Row[];
   }) => {
-    const tableName = `${modelName}_${this.versionId}`;
-    const createInstances = data.map((d) => ({
-      ...formatModelInstance({ ...d }, true),
+    const table = `${tableName}_${this.versionId}`;
+    const createRows = data.map((d) => ({
+      ...formatRow({ ...d }, true),
       effectiveFrom: timestamp,
       effectiveTo: MAX_INTEGER,
     }));
 
-    const chunkedInstances = [];
-    for (let i = 0, len = createInstances.length; i < len; i += MAX_BATCH_SIZE)
-      chunkedInstances.push(createInstances.slice(i, i + MAX_BATCH_SIZE));
+    const chunkedRows = [];
+    for (let i = 0, len = createRows.length; i < len; i += MAX_BATCH_SIZE)
+      chunkedRows.push(createRows.slice(i, i + MAX_BATCH_SIZE));
 
     const instances = await Promise.all(
-      chunkedInstances.map((c) =>
-        this.db.insertInto(tableName).values(c).returningAll().execute(),
+      chunkedRows.map((c) =>
+        this.db.insertInto(table).values(c).returningAll().execute(),
       ),
     );
 
     return instances
       .flat()
-      .map((instance) => this.deserializeInstance({ modelName, instance }));
+      .map((row) => this.deserializeRow({ tableName, row }));
   };
 
   updateMany = async ({
-    modelName,
+    tableName,
     timestamp = MAX_INTEGER,
     where,
     data = {},
   }: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     where: WhereInput<any>;
     data?:
-      | Partial<Omit<ModelInstance, "id">>
-      | ((args: {
-          current: ModelInstance;
-        }) => Partial<Omit<ModelInstance, "id">>);
+      | Partial<Omit<Row, "id">>
+      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const tableName = `${modelName}_${this.versionId}`;
+    const table = `${tableName}_${this.versionId}`;
 
     const instances = await this.db.transaction().execute(async (tx) => {
       // Get all IDs that match the filter.
-      let latestInstancesQuery = tx
-        .selectFrom(tableName)
+      let latestRowsQuery = tx
+        .selectFrom(table)
         .selectAll()
         .where("effectiveFrom", "<=", timestamp)
         .where("effectiveTo", ">=", timestamp);
@@ -566,61 +553,61 @@ export class SqliteIndexingStore implements IndexingStore {
           encodeBigInts: true,
         });
         for (const whereCondition of whereConditions) {
-          latestInstancesQuery = latestInstancesQuery.where(...whereCondition);
+          latestRowsQuery = latestRowsQuery.where(...whereCondition);
         }
       }
 
-      const latestInstances = await latestInstancesQuery.execute();
+      const latestRows = await latestRowsQuery.execute();
 
       // TODO: This is probably incredibly slow. Ideally, we'd do most of this in the database.
       return await Promise.all(
-        latestInstances.map(async (latestInstance) => {
-          const formattedId = latestInstance.id;
+        latestRows.map(async (latestRow) => {
+          const formattedId = latestRow.id;
 
           // If the user passed an update function, call it with the current instance.
-          let updateInstance: ReturnType<typeof formatModelInstance>;
+          let updateRow: ReturnType<typeof formatRow>;
           if (typeof data === "function") {
             const updateObject = data({
-              current: this.deserializeInstance({
-                modelName,
-                instance: latestInstance,
+              current: this.deserializeRow({
+                tableName,
+                row: latestRow,
               }),
             });
-            updateInstance = formatModelInstance(updateObject, true);
+            updateRow = formatRow(updateObject, true);
           } else {
-            updateInstance = formatModelInstance(data, true);
+            updateRow = formatRow(data, true);
           }
 
           // If the latest version has the same effectiveFrom timestamp as the update,
           // this update is occurring within the same block/second. Update in place.
-          if (latestInstance.effectiveFrom === timestamp) {
+          if (latestRow.effectiveFrom === timestamp) {
             return await tx
-              .updateTable(tableName)
-              .set(updateInstance)
+              .updateTable(table)
+              .set(updateRow)
               .where("id", "=", formattedId)
               .where("effectiveFrom", "=", timestamp)
               .returningAll()
               .executeTakeFirstOrThrow();
           }
 
-          if (latestInstance.effectiveFrom > timestamp) {
+          if (latestRow.effectiveFrom > timestamp) {
             throw new Error(`Cannot update an instance in the past`);
           }
 
           // If the latest version has an earlier effectiveFrom timestamp than the update,
           // we need to update the latest version AND insert a new version.
           await tx
-            .updateTable(tableName)
+            .updateTable(table)
             .set({ effectiveTo: timestamp - 1 })
             .where("id", "=", formattedId)
             .where("effectiveTo", "=", MAX_INTEGER)
             .execute();
 
           return await tx
-            .insertInto(tableName)
+            .insertInto(table)
             .values({
-              ...latestInstance,
-              ...updateInstance,
+              ...latestRow,
+              ...updateRow,
               effectiveFrom: timestamp,
               effectiveTo: MAX_INTEGER,
             })
@@ -630,27 +617,25 @@ export class SqliteIndexingStore implements IndexingStore {
       );
     });
 
-    return instances.map((instance) =>
-      this.deserializeInstance({ modelName, instance }),
-    );
+    return instances.map((row) => this.deserializeRow({ tableName, row }));
   };
 
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
-        Object.keys(this.schema?.tables ?? {}).map(async (modelName) => {
-          const tableName = `${modelName}_${this.versionId}`;
+        Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
+          const table = `${tableName}_${this.versionId}`;
 
           // Delete any versions that are newer than the safe timestamp.
           await tx
-            .deleteFrom(tableName)
+            .deleteFrom(table)
             .where("effectiveFrom", ">", safeTimestamp)
             .execute();
 
           // Now, any versions that have effectiveTo greater than or equal
           // to the safe timestamp are the new latest version.
           await tx
-            .updateTable(tableName)
+            .updateTable(table)
             .where("effectiveTo", ">=", safeTimestamp)
             .set({ effectiveTo: MAX_INTEGER })
             .execute();
@@ -659,24 +644,24 @@ export class SqliteIndexingStore implements IndexingStore {
     });
   };
 
-  private deserializeInstance = ({
-    modelName,
-    instance,
+  private deserializeRow = ({
+    tableName,
+    row,
   }: {
-    modelName: string;
-    instance: Record<string, unknown>;
+    tableName: string;
+    row: Record<string, unknown>;
   }) => {
-    const entity = Object.entries(this.schema!.tables).find(
-      ([name]) => name === modelName,
+    const columns = Object.entries(this.schema!.tables).find(
+      ([name]) => name === tableName,
     )![1];
 
-    const deserializedInstance = {} as ModelInstance;
+    const deserializedRow = {} as Row;
 
-    Object.entries(entity).forEach(([columnName, column]) => {
-      const value = instance[columnName] as string | number | null | undefined;
+    Object.entries(columns).forEach(([columnName, column]) => {
+      const value = row[columnName] as string | number | null | undefined;
 
       if (value === null || value === undefined) {
-        deserializedInstance[columnName] = null;
+        deserializedRow[columnName] = null;
         return;
       }
 
@@ -684,25 +669,25 @@ export class SqliteIndexingStore implements IndexingStore {
       if (!isEnumColumn(column) && !isReferenceColumn(column) && column.list) {
         let parsedValue = JSON.parse(value as string);
         if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
-        deserializedInstance[columnName] = parsedValue;
+        deserializedRow[columnName] = parsedValue;
         return;
       }
 
       if ((column.type as Scalar) === "boolean") {
-        deserializedInstance[columnName] = value === 1 ? true : false;
+        deserializedRow[columnName] = value === 1 ? true : false;
         return;
       }
 
       if (column.type === "bigint") {
-        deserializedInstance[columnName] = decodeToBigInt(
+        deserializedRow[columnName] = decodeToBigInt(
           value as unknown as string,
         );
         return;
       }
 
-      deserializedInstance[columnName] = value;
+      deserializedRow[columnName] = value;
     });
 
-    return deserializedInstance;
+    return deserializedRow;
   };
 }

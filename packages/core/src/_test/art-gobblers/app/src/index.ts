@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 
 ponder.on("setup", async ({ context }) => {
-  const { SetupEntity } = context.models;
+  const { SetupEntity } = context.db;
 
   await SetupEntity.upsert({
     id: "setup_id",
@@ -11,7 +11,7 @@ ponder.on("setup", async ({ context }) => {
 });
 
 ponder.on("ArtGobblers:Transfer", async ({ event, context }) => {
-  const { Account, Token } = context.models;
+  const { Account, Token } = context.db;
 
   await Account.upsert({ id: event.args.from, create: {}, update: {} });
 

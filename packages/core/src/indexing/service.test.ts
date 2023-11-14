@@ -40,7 +40,7 @@ const schema = p.createSchema({
 });
 
 const transferIndexingFunction = vi.fn(async ({ event, context }) => {
-  await context.models.TransferEvent.create({
+  await context.db.TransferEvent.create({
     id: event.log.id,
     data: {
       timestamp: Number(event.block.timestamp),
@@ -176,7 +176,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
         name: "Transfer",
       },
       context: expect.objectContaining({
-        models: { TransferEvent: expect.anything() },
+        db: { TransferEvent: expect.anything() },
       }),
     }),
   );
@@ -202,7 +202,7 @@ test("processEvents() model methods insert data into the indexing store", async 
   await service.processEvents();
 
   const transferEvents = await indexingStore.findMany({
-    modelName: "TransferEvent",
+    tableName: "TransferEvent",
   });
   expect(transferEvents.length).toBe(1);
 
@@ -269,7 +269,7 @@ test("reset() reloads the indexing store", async (context) => {
   await service.processEvents();
 
   const transferEvents = await indexingStore.findMany({
-    modelName: "TransferEvent",
+    tableName: "TransferEvent",
   });
   expect(transferEvents.length).toBe(1);
 
@@ -280,7 +280,7 @@ test("reset() reloads the indexing store", async (context) => {
   expect(indexingStore.versionId).not.toBe(versionIdBeforeReset);
 
   const transferEventsAfterReset = await indexingStore.findMany({
-    modelName: "TransferEvent",
+    tableName: "TransferEvent",
   });
   expect(transferEventsAfterReset.length).toBe(0);
 

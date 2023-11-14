@@ -190,7 +190,7 @@ type Option = {
 };
 
 export type Config = {
-  /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
+  /** Database to use for storing raw & indexed data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
   database?: Database;
   networks: Record<string, Network>;
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */

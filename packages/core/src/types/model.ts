@@ -6,7 +6,7 @@ import type {
   Prettify,
 } from "./utils.js";
 
-export type Model<T extends { id: string | number | bigint }> = {
+export type DatabaseModel<T extends { id: string | number | bigint }> = {
   create: (
     options: Prettify<
       {

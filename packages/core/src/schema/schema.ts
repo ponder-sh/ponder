@@ -19,7 +19,7 @@ import {
   isEnumColumn,
   isReferenceColumn,
   isVirtualColumn,
-  referencedEntityName,
+  referencedTableName,
 } from "./utils.js";
 
 /**
@@ -204,7 +204,7 @@ export const createSchema = <
             throw Error("Column doesn't reference a valid table");
 
           const referencingTables = Object.entries(schema).filter(
-            ([name]) => name === referencedEntityName(column.references),
+            ([name]) => name === referencedTableName(column.references),
           );
 
           for (const [, referencingTable] of referencingTables) {
