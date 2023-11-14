@@ -1,7 +1,21 @@
-node_modules/
+# Dependencies
+/node_modules
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Misc
 .DS_Store
 
-.env.local
-.ponder/
-generated/
+# Env files
+.env*.local
+
+# Ponder
+/generated/
+/.ponder/
+
+# TypeScript
 ponder-env.d.ts

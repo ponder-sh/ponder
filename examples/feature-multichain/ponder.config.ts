@@ -20,21 +20,20 @@ export default createConfig({
   },
   contracts: {
     weth9: {
-      network: "mainnet",
       abi: weth9Abi,
       address: "0x4200000000000000000000000000000000000006",
       startBlock: 0,
-      networks: {
+      network: {
         mainnet: {
           address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
           startBlock: 4719568,
           endBlock: 4720568,
         },
         optimism: {
-          endBlock: 1200,
+          endBlock: 12000,
         },
         base: {
-          endBlock: 1500,
+          endBlock: 15000,
         },
       },
     },

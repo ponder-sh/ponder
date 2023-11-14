@@ -72,7 +72,7 @@ export const sourceIsFactory = (source: Source): source is Factory =>
   source.type === "factory";
 
 export const buildSources = ({ config }: { config: Config }): Source[] => {
-  const contracts = config.contracts ?? [];
+  const contracts = config.contracts ?? {};
 
   return Object.entries(contracts)
     .map(([contractName, contract]) => {

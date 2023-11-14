@@ -260,6 +260,7 @@ yarn-error.log*
 # Ponder
 /.next/
 /generated/
+/.ponder/
 
 # TypeScript
 ponder-env.d.ts`,

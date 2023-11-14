@@ -7,3 +7,4 @@ LICENSE
 .prettierignore
 Dockerfile
 *.Dockerfile
+**/.env.example
