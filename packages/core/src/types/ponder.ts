@@ -87,12 +87,15 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
                 >["endBlock"];
           };
         };
-        network: {
-          chainId: number;
-          name: TName extends `${infer ContractName}:${string}`
-            ? keyof TConfig["contracts"][ContractName]["network"]
-            : never;
-        };
+        network: TName extends `${infer ContractName}:${string}`
+          ? {
+              [key in keyof TConfig["contracts"][ContractName]["network"]]: {
+                name: key;
+                chainId: TConfig["networks"][key &
+                  keyof TConfig["networks"]]["chainId"];
+              };
+            }[keyof TConfig["contracts"][ContractName]["network"]]
+          : never;
         client: Prettify<Omit<ReadOnlyClient, "extend">>;
         models: {
           [key in keyof Infer<TSchema>]: Model<Infer<TSchema>[key]>;

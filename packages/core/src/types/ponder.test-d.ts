@@ -89,7 +89,10 @@ test("PonderApp context network type", () => {
   type p = PonderApp<
     // ^?
     {
-      networks: any;
+      networks: {
+        mainnet: { chainId: 1; transport: any };
+        optimism: { chainId: 10; transport: any };
+      };
       contracts: {
         One: {
           network: { mainnet: {}; optimism: {} };
