@@ -1,6 +1,6 @@
 import { p } from "../../../../dist";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   EnsNft: p.createTable({
     id: p.string(),
     labelHash: p.string(),

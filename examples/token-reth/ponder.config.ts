@@ -3,7 +3,7 @@ import { http } from "viem";
 
 import { RocketTokenRETHAbi } from "./abis/RocketTokenRETH.abi";
 
-export const config = createConfig({
+export default createConfig({
   networks: [
     {
       name: "mainnet",
