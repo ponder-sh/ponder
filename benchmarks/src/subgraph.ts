@@ -81,13 +81,13 @@ const waitForSyncComplete = async () => {
     let timeout = undefined;
     const interval = setInterval(async () => {
       const latestSyncedBlockNumber = await fetchSubgraphLatestBlockNumber();
-      console.log(
-        `Latest synced block number: ${latestSyncedBlockNumber}/${END_BLOCK}`,
+      const block = Number(
+        (await fetchSubgraphMetrics()).find(
+          (m) => m?.name === "deployment_head",
+        )?.metrics?.[0]?.value ?? 0,
       );
 
-      for (const m of await fetchSubgraphMetrics()) {
-        if (m["name"] === "deployment_head") console.log(JSON.stringify(m));
-      }
+      console.log(`Latest synced block number: ${block}/${END_BLOCK}`);
 
       if (latestSyncedBlockNumber >= END_BLOCK) {
         duration = endClock();
