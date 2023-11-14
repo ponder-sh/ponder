@@ -77,7 +77,7 @@ export default p.createSchema({
 ```
 
 ```ts filename="src/index.ts"
-const { Account } = context.models;
+const { Account } = context.db;
 
 await Account.create({
   id: "0xabc",
@@ -112,7 +112,7 @@ export default p.createSchema({
 ```
 
 ```ts filename="src/index.ts"
-const { Cat } = context.models;
+const { Cat } = context.db;
 
 await Cat.create({
   id: "Fluffy",
@@ -144,7 +144,7 @@ export default p.createSchema({
 ```
 
 ```ts filename="src/index.ts"
-const { FancyCat } = context.models;
+const { FancyCat } = context.db;
 
 await FancyCat.create({
   id: "Fluffy",
@@ -185,7 +185,7 @@ export default p.createSchema({
 ```
 
 ```ts filename="src/index.ts"
-const { Person, Dog } = context.models;
+const { Person, Dog } = context.db;
 
 await Person.create({
   id: "Bob",
@@ -258,7 +258,7 @@ export default p.createSchema({
 ```
 
 ```ts filename="src/index.ts"
-const { Person, Dog } = context.models;
+const { Person, Dog } = context.db;
 
 await Person.create({
   id: "Bob",
@@ -313,7 +313,7 @@ You can't directly get or set the `dogs` field on a `Person` record. Virtual col
 <div className="code-columns">
 
 ```ts filename="src/index.ts"
-const { Person } = context.models;
+const { Person } = context.db;
 
 await Person.create({
   id: "Bob",
@@ -323,7 +323,7 @@ await Person.create({
 ```
 
 ```ts filename="src/index.ts"
-const { Person } = context.models;
+const { Person } = context.db;
 
 const bob = await Person.get("Bob");
 // `dogs` field is NOT present.
@@ -353,7 +353,7 @@ export default p.createSchema({
 ```
 
 ```ts filename="src/index.ts" {6-7,14}
-const { User } = context.models;
+const { User } = context.db;
 
 await User.create({
   id: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",

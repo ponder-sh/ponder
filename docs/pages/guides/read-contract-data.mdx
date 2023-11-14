@@ -61,7 +61,7 @@ ponder.on("Blitmap:Mint", async ({ event, context }) => {
   });
 
   // Insert a Token record, including the URI.
-  const token = await context.models.Token.create({
+  const token = await context.db.Token.create({
     id: event.params.tokenId,
     data: { uri: tokenUri },
   });
@@ -151,7 +151,7 @@ ponder.on("SudoswapPool:Transfer", async ({ event, context }) => {
 
 To call a factory contract child from an indexing function for a _different_ contract, use your application logic to determine the correct address to enter. For example, the address might come from `event.params`.
 
-```ts filename="src/index.ts" {9}
+```ts filename="src/index.ts" {6}
 import { ponder } from "@/generated";
 
 ponder.on("FancyLendingProtocol:RegisterPool", async ({ event, context }) => {
@@ -305,17 +305,19 @@ ponder.on("ZorbNft:Transfer", async ({ event, context }) => {
       args: [event.params.to],
     });
 
-    await context.models.Zorb.create({
+    await context.db.Zorb.create({
       id: event.params.tokenId,
       data: {
         gradient: gradientData,
         ownerId: event.params.to,
       },
     });
+
+    return;
   }
 
   // If not a mint, just update ownership information.
-  await context.models.Zorb.update({
+  await context.db.Zorb.update({
     id: event.params.tokenId,
     data: {
       ownerId: event.params.to,

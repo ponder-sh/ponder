@@ -100,7 +100,7 @@ Here's a sample indexing function for an ERC721 `Transfer` event.
 import { ponder } from "@/generated";
 
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
-  const { BlitmapToken } = context.models;
+  const { BlitmapToken } = context.db;
 
   await BlitmapToken.create({
     id: event.params.tokenId,

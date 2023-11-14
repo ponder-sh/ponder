@@ -109,29 +109,31 @@ export function handleTransfer(event) {
   const token = Token.load(event.params.id);
 
   // Bind and call a contract
-  const tokenUri = MyNftContract.bind("0x137...01a2").tokenUri(token.id);
+  const tokenUri = MyNftContract.bind("0x137...01a2").tokenURI(token.id);
 
   // ...
 }
 ```
 
-With Ponder, database models and contracts are injected as properties of `context`.
-
-The `contract.contracts` objects are [Viem Contract Instances](https://viem.sh/docs/contract/getContract.html) that are already connected to the network specified in `ponder.config.ts`. (You don't need to call `Contract.bind(address)`.
+With Ponder, these objects are injected as properties of `context`.
 
 ```ts filename="src/MyNftContract.ts"
 import { ponder } from "@/generated";
 
 ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
-  const { Token } = context.models;
-  const { MyNftContract } = context.contracts;
-
   // Get a database record
-  const token = await Token.findUnique({ id: event.params.id });
+  const token = await context.db.Token.findUnique({ id: event.params.id });
 
   // Call a contract read function
-  const tokenUri = await MyNftContract.read.tokenUri(token.id);
+  const tokenUri = await context.client.readContract({
+    abi: context.contracts.MyNftContract.abi,
+    address: context.contracts.MyNftContract.address,
+    functionName: "tokenURI",
+    args: [event.params.tokenId],
+  });
 
   // ...
 });
 ```
+
+See the [Create & update records](/guides/create-update-records) and [Read contract data](/guides/read-contract-data) guides for more details.

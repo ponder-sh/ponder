@@ -50,7 +50,7 @@ export default p.createSchema({
 
 ```ts filename="src/index.ts"
 ponder.on("Blitmap:Mint", async ({ event, context }) => {
-  const { Token } = context.models;
+  const { Token } = context.db;
 
   const token = await Token.create({
     id: event.params.tokenId,
@@ -99,7 +99,7 @@ export default p.createSchema({
 
 ```ts filename="src/index.ts"
 ponder.on("Blitmap:MetadataUpdate", async ({ event, context }) => {
-  const { Token } = context.models;
+  const { Token } = context.db;
 
   const token = await Token.update({
     id: event.params.tokenId,
@@ -132,7 +132,7 @@ export default p.createSchema({
 
 ```ts filename="src/index.ts"
 ponder.on("ERC20:Transfer", async ({ event, context }) => {
-  const { Account } = context.models;
+  const { Account } = context.db;
 
   const recipient = await Account.update({
     id: event.params.to,
@@ -183,7 +183,7 @@ export default p.createSchema({
 
 ```ts filename="src/index.ts"
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
-  const { Token } = context.models;
+  const { Token } = context.db;
 
   const token = await Token.upsert({
     id: event.params.tokenId,
@@ -221,7 +221,7 @@ export default p.createSchema({
 
 ```ts filename="src/index.ts"
 ponder.on("Blitmap:Transfer", async ({ event, context }) => {
-  const { Token } = context.models;
+  const { Token } = context.db;
 
   const token = await Token.upsert({
     id: event.params.tokenId,

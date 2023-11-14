@@ -105,7 +105,7 @@ Indexing functions are TypeScript functions that process a blockchain event and 
 import { ponder } from "@/generated";
 
 ponder.on("BaseRegistrar:NameRegistered", async ({ event, context }) => {
-  const { EnsName } = context.models;
+  const { EnsName } = context.db;
 
   await EnsName.create({
     id: `${name}-${owner}`,

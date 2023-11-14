@@ -23,7 +23,7 @@ import { ponder } from "@/generated";
 
 ponder.on("ContractName:EventName", async ({ event, context }) => {
   const { params, log, block, transaction } = event;
-  const { models, network, client, contracts } = context;
+  const { db, network, client, contracts } = context;
 
   // ...
 });
@@ -45,10 +45,15 @@ type Event = {
 
 ### Params
 
-The `event.params` object contains event log arguments decoded using the contract ABI.
+The `event.params` object contains event log arguments decoded using Viem's [decodeEventLog](https://viem.sh/docs/contract/decodeEventLog.html).
 
 ```ts
-type Params =
+/** Sample `params` type for an ERC20 Transfer event. */
+type Params = {
+  from: `0x${string}`;
+  to: `0x${string}`;
+  value: bigint;
+};
 ```
 
 ### Block, transaction, and log
@@ -151,56 +156,26 @@ The `context` argument passed to each indexing function contains database model 
 
 At runtime, the indexing engine uses a different `context` object depending on the network the current event was emitted on. The TypeScript types for the `context` object reflect this by creating a union of possible types for `context.network` and `context.contracts`.
 
-<div className="code-columns">
-
-```ts filename="ponder.config.ts" {14-23}
-import { createConfig } from "@ponder/core";
-import { http } from "viem";
-
-import { UniswapV3FactoryAbi } from "./abis/UniswapV3Factory";
-
-export default createConfig({
-  networks: {
-    mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
-    base: { chainId: 8453, transport: http(process.env.PONDER_RPC_URL_8453) },
-  },
-  contracts: {
-    UniswapV3Factory: {
-      abi: UniswapV3FactoryAbi,
-      network: {
-        mainnet: {
-          address: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-          startBlock: 12369621,
-        },
-        base: {
-          address: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
-          startBlock: 1371680,
-        },
-      },
-    },
-  },
-});
+```ts
+type Context = {
+  db: Record<string, DatabaseModel>;
+  network: { name: string; chainId: number };
+  client: ReadOnlyClient;
+  contracts: Record<
+    string,
+    {
+      abi: Abi;
+      address?: `0x${string}`;
+      startBlock?: number;
+      endBlock?: number;
+    }
+  >;
+};
 ```
 
-```ts filename="src/index.ts"
-ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
-  context.network;
-  //      ^? { name: "mainnet", chainId 1 } | { name: "base", chainId 8453 }
+### Database
 
-  event.log.address;
-  //        ^? "0x1F98431c8aD98523631AE4a59f267346ea31F984" | "0x33128a8fC17869897dcE68Ed026d694621f6FDfD"
-
-  if (context.network.name === "mainnet") {
-    // Do mainnet-specific stuff!
-  }
-});
-```
-
-</div>
-
-### Models
-
-The `context.models` object contains ORM-style models that can be used to create, read, update, and delete database records.
+The `context.db` object contains ORM-style models that can be used to create, read, update, and delete database records. See [Create & update records](/guides/create-update-records) for a detailed overview.
 
 <div className="code-columns">
 
@@ -223,10 +198,10 @@ export default p.createSchema({
 import { ponder } from "@/generated";
 
 ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
-  context.models.Person;
-  //             ^? Model<{ id: string; age?: number }>;
-  context.models.Dog;
-  //             ^? Model<{ id: bigint; ownerId: string; }>;
+  const { Person } = context.db;
+  //      ^? Model<{ id: string; age?: number }>;
+  const { Dog } = context.db;
+  //      ^? Model<{ id: bigint; ownerId: string; }>;
 });
 ```
 
@@ -256,71 +231,21 @@ ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
 
 ### Contracts
 
-### `Context`
-
-This object contains CRUD objects for the tables defined in `ponder.schema.ts`, and a read-only contract object for each contract specified in `ponder.config.ts`.
-
-```ts
-type Context = {
-  // Keyed by table names from ponder.schema.ts
-  models: Record<string, Model>;
-  // Keyed by contract names from ponder.config.ts
-  contracts: Record<string, ReadOnlyContract>;
-};
-```
-
-#### `Model`
-
-These objects are used to create, read, update, and delete database records. `context.models` contains a `Model` object for each table defined in `schema.ponder.ts`.
-
-See [Create & update records](/guides/create-update-records) for a complete API reference.
-
-#### `ReadOnlyContract`
-
 <Callout type="info">
-  See the [read contract data](/guides/read-contract-data) guide for more
+  See the [Read contract data](/guides/read-contract-data) guide for more
   details.
 </Callout>
 
-`ReadOnlyContract` objects are used to read data directly from a contract. These objects have a method for each read-only function present in the contract's ABI (functions with state mutability of `"pure"` or `"view"`). The `context.contracts` object has a `ReadOnlyContract` for each contract defined in [ponder.config.ts](/api-reference/ponder-config#contracts).
-
-A `ReadOnlyContract` is a [viem Contract Instance](https://viem.sh/docs/contract/getContract.html#contract-instances) that has been modified to cache contract read results. By default, contract reads use the `eth_call` RPC method with `blockNumber` set to the block number of the event being processed (`event.block.number`). You can read the contract at a different block number (e.g. the contract deployment block number or `"latest"`) by passing the `blockNumber` or `blockTag` option, but this will disable caching.
-
-```ts filename="src/index.ts"
-import { ponder } from "@/generated";
-
-ponder.on("MyERC20:Transfer", async ({ event, context }) => {
-  const { MyERC20 } = context.contracts;
-
-  // This read will occur at the block number of the event being
-  // processed (event.block.number) and will be served from the cache
-  // on hot reloads / reployments.
-  const totalSupply = await MyERC20.read.totalSupply();
-
-  // This read will occur at the latest block number when this function
-  // runs, and will not be cached. Avoid this pattern.
-  const currentBalance = await MyERC20.read.balanceOf("0xFa3...", {
-    blockTag: "latest",
-  });
-});
-```
-
 ## The `"setup"` event
 
-You can also define an indexing function for a special event called `"setup"` that runs before all other events.
+You can also define an indexing function for a special event called `"setup"` that runs before all other events. The `"setup"` event does not have an `event` argument, it only receives `context`.
 
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
 
 ponder.on("setup", async ({ context }) => {
-  const { models, contracts } = context;
+  const { db } = context;
 
   // ...
 });
 ```
-
-### Options
-
-| name                                                   | description                                                  |
-| :----------------------------------------------------- | :----------------------------------------------------------- |
-| [`context`](/api-reference/indexing-functions#context) | Global resources (model objects, read-only contract objects) |
