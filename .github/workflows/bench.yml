@@ -36,8 +36,6 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
-      - run: pnpm install
-
       - name: Bench
         run: pnpm bench:ponder:ci
         env:

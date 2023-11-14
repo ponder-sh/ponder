@@ -2,7 +2,7 @@
   "name": "ponder-benchmarks",
   "private": true,
   "scripts": {
-    "bench:ponder": "export $(grep -v '^#' .env.local | xargs) && rm -rf data/ && docker-compose up --detach -p 8545:8545 && tsup-node && (node dist/ponder.mjs|| true) && docker-compose down",
+    "bench:ponder": "export $(grep -v '^#' .env.local | xargs) && rm -rf data/ && docker-compose up --detach && tsup-node && (node dist/ponder.mjs || true) && docker-compose down",
     "bench:ponder:ci": "tsup-node && node dist/ponder.mjs",
     "bench:subgraph": "export $(grep -v '^#' .env.local | xargs) && rm -rf data/ && docker-compose up --detach && tsup-node && (node dist/subgraph.mjs || true) && docker-compose down",
     "bench:subgraph:ci": "tsup-node && node dist/subgraph.mjs"
