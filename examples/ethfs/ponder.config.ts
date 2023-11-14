@@ -3,7 +3,7 @@ import { http } from "viem";
 
 import { FileStoreAbi } from "./abis/FileStore.abi";
 
-export const config = createConfig({
+export default createConfig({
   networks: [
     {
       name: "mainnet",

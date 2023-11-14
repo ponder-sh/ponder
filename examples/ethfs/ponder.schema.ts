@@ -1,6 +1,6 @@
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   File: p.createTable({
     id: p.string(),
     name: p.string(),

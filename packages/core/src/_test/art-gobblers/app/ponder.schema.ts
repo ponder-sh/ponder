@@ -1,6 +1,6 @@
 import { p } from "../../../../dist";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   SetupEntity: p.createTable({
     id: p.string(),
   }),

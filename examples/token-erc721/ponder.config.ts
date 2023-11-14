@@ -3,7 +3,7 @@ import { http } from "viem";
 
 import { SmolBrainAbi } from "./abis/SmolBrain.abi";
 
-export const config = createConfig({
+export default createConfig({
   networks: [
     {
       name: "arbitrum",

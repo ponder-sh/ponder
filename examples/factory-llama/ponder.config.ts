@@ -9,7 +9,7 @@ const llamaFactoryEvent = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",
 );
 
-export const config = createConfig({
+export default createConfig({
   networks: [
     {
       name: "sepolia",

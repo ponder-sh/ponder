@@ -3,7 +3,7 @@ import { http } from "viem";
 
 import { FriendtechSharesV1Abi } from "./abis/FriendtechSharesV1.abi";
 
-export const config = createConfig({
+export default createConfig({
   networks: [
     {
       name: "base",

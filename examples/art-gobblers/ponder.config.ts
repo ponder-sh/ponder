@@ -3,7 +3,7 @@ import { http } from "viem";
 
 import { ArtGobblersAbi } from "./abis/ArtGobblers.abi";
 
-export const config = createConfig({
+export default createConfig({
   networks: [
     {
       name: "mainnet",
