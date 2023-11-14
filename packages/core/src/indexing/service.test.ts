@@ -14,13 +14,12 @@ import { IndexingService } from "./service.js";
 beforeEach((context) => setupIndexingStore(context));
 beforeEach((context) => setupSyncStore(context));
 
-const networks = [
-  {
-    name: "mainnet",
+const networks = {
+  mainnet: {
     chainId: 1,
     transport: http(),
   },
-];
+};
 
 const sources: Source[] = [
   {

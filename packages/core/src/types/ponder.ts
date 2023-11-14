@@ -73,30 +73,15 @@ export type ExtractEndBlock<
 
 /** Extract all address from a list of Contracts. */
 export type ExtractAllAddresses<TContracts extends ContractNetworkOverrides> =
-  TContracts extends readonly [
-    infer First extends ContractNetworkOverrides[number],
-    ...infer Rest extends ContractNetworkOverrides,
-  ]
-    ? readonly [ExtractAddress<First>, ...ExtractAllAddresses<Rest>]
-    : [];
+  Extract<TContracts[keyof TContracts], { address: unknown }>["address"];
 
 /** Extract all startBlocks from a list of Contracts. */
 export type ExtractAllStartBlocks<TContracts extends ContractNetworkOverrides> =
-  TContracts extends readonly [
-    infer First extends ContractNetworkOverrides[number],
-    ...infer Rest extends ContractNetworkOverrides,
-  ]
-    ? readonly [ExtractStartBlock<First>, ...ExtractAllStartBlocks<Rest>]
-    : [];
+  Extract<TContracts[keyof TContracts], { startBlock: unknown }>["startBlock"];
 
 /** Extract all endBlocks from a list of Contracts. */
 export type ExtractAllEndBlocks<TContracts extends ContractNetworkOverrides> =
-  TContracts extends readonly [
-    infer First extends ContractNetworkOverrides[number],
-    ...infer Rest extends ContractNetworkOverrides,
-  ]
-    ? readonly [ExtractEndBlock<First>, ...ExtractAllEndBlocks<Rest>]
-    : [];
+  Extract<TContracts[keyof TContracts], { endBlock: unknown }>["endBlock"];
 
 /** Transform Contracts into the appropriate type for PonderApp. */
 type AppContracts<TContracts extends Config["contracts"]> =
@@ -110,13 +95,13 @@ type AppContracts<TContracts extends Config["contracts"]> =
           abi: First["abi"];
           address:
             | ExtractAddress<First>
-            | ExtractAllAddresses<First["network"]>[number];
+            | ExtractAllAddresses<First["network"]>;
           startBlock:
             | ExtractStartBlock<First>
-            | ExtractAllStartBlocks<First["network"]>[number];
+            | ExtractAllStartBlocks<First["network"]>;
           endBlock:
             | ExtractEndBlock<First>
-            | ExtractAllEndBlocks<First["network"]>[number];
+            | ExtractAllEndBlocks<First["network"]>;
         }
       > &
         AppContracts<Rest>
@@ -159,10 +144,10 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
         network: {
           chainId: number;
           name: TName extends `${infer ContractName}:${string}`
-            ? RecoverContract<
+            ? keyof RecoverContract<
                 TConfig["contracts"],
                 ContractName
-              >["network"][number]["name"]
+              >["network"]
             : never;
         };
         client: Omit<ReadOnlyClient, "extend">;

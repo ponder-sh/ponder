@@ -15,13 +15,15 @@ export type Network = {
 };
 
 export function buildNetwork({
+  networkName,
   network,
   common,
 }: {
-  network: Config["networks"][0];
+  networkName: string;
+  network: Config["networks"][string];
   common: Common;
 }) {
-  const { name, chainId, transport } = network;
+  const { chainId, transport } = network;
 
   const defaultChain =
     Object.values(chains).find((c) => ("id" in c ? c.id === chainId : false)) ??
@@ -31,7 +33,7 @@ export function buildNetwork({
     transport,
     chain: {
       ...defaultChain,
-      name: name,
+      name: networkName,
       id: chainId,
     },
   }) as PublicClient;
@@ -48,7 +50,7 @@ export function buildNetwork({
   });
 
   const resolvedNetwork: Network = {
-    name: name,
+    name: networkName,
     chainId: chainId,
     client,
     pollingInterval: network.pollingInterval ?? 1_000,

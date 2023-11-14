@@ -1,42 +1,21 @@
-import type { AbiEvent, ParseAbi } from "abitype";
+import type { ParseAbi } from "abitype";
 import { assertType, test } from "vitest";
 
-import type {
-  ExtractAddress,
-  ExtractAllAddresses,
-  PonderApp,
-} from "./ponder.js";
+import type { ExtractAllAddresses, PonderApp } from "./ponder.js";
 
 type OneAbi = ParseAbi<
   ["event Event0(bytes32 indexed arg3)", "event Event1(bytes32 indexed)"]
 >;
 type TwoAbi = ParseAbi<["event Event(bytes32 indexed)", "event Event()"]>;
 
-test("ExtractAddress", () => {
-  type a = ExtractAddress<{ address: "0x2" }>;
-  //   ^?
-  assertType<a>("" as "0x2");
-
-  type b = ExtractAddress<{
-    // ^?
-    factory: { address: "0x2"; event: AbiEvent; parameter: string };
-  }>;
-  assertType<b>("" as never);
-});
-
 test("ExtractAllAddress", () => {
-  type a = ExtractAllAddresses<
+  type a = ExtractAllAddresses<{
     // ^?
-    [
-      { name: "optimism"; address: "0x2" },
-      {
-        name: "optimism";
-        factory: { address: "0x2"; event: AbiEvent; parameter: string };
-      },
-    ]
-  >[never];
+    mainnet: { address: "0x2" };
+    optimism: { address: "0x3" };
+  }>;
   //   ^?
-  assertType<a>("" as "0x2");
+  assertType<a>("" as "0x2" | "0x3");
 });
 
 test("PonderApp non intersecting event names", () => {
@@ -125,7 +104,7 @@ test("PonderApp context network type", () => {
       contracts: readonly [
         {
           name: "One";
-          network: [{ name: "mainnet" }, { name: "optimism" }];
+          network: { mainnet: {}; optimism: {} };
           abi: OneAbi;
         },
       ];
@@ -136,8 +115,8 @@ test("PonderApp context network type", () => {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  (({}) as p).on("One:Event1", ({ context }) => {});
-  //                              ^?
+  (({}) as p).on("One:Event1", ({ context: { network } }) => {});
+  //                                         ^?
 });
 
 test("PonderApp context client type", () => {
@@ -148,7 +127,7 @@ test("PonderApp context client type", () => {
       contracts: readonly [
         {
           name: "One";
-          network: [{ name: "mainnet" }, { name: "optimism" }];
+          network: { mainnet: {}; optimism: {} };
           abi: OneAbi;
         },
       ];
@@ -171,7 +150,7 @@ test("PonderApp context contracts type", () => {
       contracts: readonly [
         {
           name: "One";
-          network: [{ name: "mainnet"; address: "0x1" }, { name: "optimism" }];
+          network: { mainnet: { address: "0x1" }; optimism: {} };
           abi: OneAbi;
           address: "0x2";
           startBlock: 1;

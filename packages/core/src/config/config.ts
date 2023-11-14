@@ -77,9 +77,7 @@ export type ContractRequired<
    * Any filter information overrides the values in the higher level "contracts" property.
    * Factories cannot override an address and vice versa.
    */
-  network: readonly ({ name: TNetworkNames } & Partial<
-    ContractFilter<TAbi, TEventName>
-  >)[];
+  network: Record<TNetworkNames, Partial<ContractFilter<TAbi, TEventName>>>;
 };
 
 /** Fields for a contract used to filter down which events indexed. */
@@ -163,8 +161,6 @@ type Database =
 
 /** Network in Ponder config. */
 export type Network = {
-  /** Network name. Must be unique across all networks. */
-  name: string;
   /** Chain ID of the network. */
   chainId: number;
   /** A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html).
@@ -202,8 +198,7 @@ type InternalContracts = readonly Contract<
 export type Config = {
   /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
   database?: Database;
-  /** List of blockchain networks. */
-  networks: readonly Network[];
+  networks: Record<string, Network>;
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
   contracts: readonly Contract<string, readonly AbiEvent[], string>[];
   /** Configuration for Ponder internals. */
@@ -212,14 +207,14 @@ export type Config = {
 
 type InferContracts<
   TContracts extends InternalContracts,
-  TNetworks extends readonly Network[],
+  TNetworkNames extends string,
 > = TContracts extends readonly [
   infer First extends Contract<string, readonly AbiEvent[], string>,
   ...infer Rest extends InternalContracts,
 ]
   ? readonly [
       Contract<
-        TNetworks[number]["name"],
+        TNetworkNames,
         FilterAbiEvents<First["abi"]>,
         First["filter"] extends {
           event: infer _event extends string;
@@ -227,7 +222,7 @@ type InferContracts<
           ? _event
           : string
       >,
-      ...InferContracts<Rest, TNetworks>,
+      ...InferContracts<Rest, TNetworkNames>,
     ]
   : [];
 
@@ -237,10 +232,10 @@ type InferContracts<
 export const createConfig = <
   const TConfig extends {
     database?: Database;
-    networks: readonly Network[];
+    networks: Record<string, Network>;
     contracts: InferContracts<
       Readonly<TConfig["contracts"]>,
-      TConfig["networks"]
+      keyof TConfig["networks"] & string
     >;
     options?: Option;
   },
@@ -255,24 +250,26 @@ export const createConfig = <
   >[];
 
   contracts.forEach((contract) => {
-    contract.network.forEach((contractOverride) => {
-      // Make sure network matches an element in config.networks
-      const network = config.networks.find(
-        (n) => n.name === contractOverride.name,
-      );
-      if (!network)
-        throw Error('Contract network does not match a network in "networks"');
+    Object.entries(contract.network).forEach(
+      ([networkName, contractOverride]) => {
+        // Make sure network matches an element in config.networks
+        const network = config.networks[networkName];
+        if (!network)
+          throw Error(
+            'Contract network does not match a network in "networks"',
+          );
 
-      // Validate the address / factory data
-      const resolvedFactory =
-        ("factory" in contractOverride && contractOverride.factory) ||
-        ("factory" in contract && contract.factory);
-      const resolvedAddress =
-        ("address" in contractOverride && contractOverride.address) ||
-        ("address" in contract && contract.address);
-      if (resolvedFactory && resolvedAddress)
-        throw Error("Factory and address cannot both be defined");
-    });
+        // Validate the address / factory data
+        const resolvedFactory =
+          ("factory" in contractOverride && contractOverride.factory) ||
+          ("factory" in contract && contract.factory);
+        const resolvedAddress =
+          ("address" in contractOverride && contractOverride.address) ||
+          ("address" in contract && contract.address);
+        if (resolvedFactory && resolvedAddress)
+          throw Error("Factory and address cannot both be defined");
+      },
+    );
   });
 
   return config;

@@ -118,8 +118,10 @@ export class Ponder {
 
     this.sources = buildSources({ config });
 
-    const networksToSync = config.networks
-      .map((network) => buildNetwork({ network, common: this.common }))
+    const networksToSync = Object.entries(config.networks)
+      .map(([networkName, network]) =>
+        buildNetwork({ networkName, network, common: this.common }),
+      )
       .filter((network) => {
         const hasEventSources = this.sources.some(
           (eventSource) => eventSource.network === network.name,

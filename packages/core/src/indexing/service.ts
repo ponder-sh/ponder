@@ -564,18 +564,18 @@ const buildContexts = (
     }
   > = {};
 
-  networks.forEach((network) => {
+  Object.entries(networks).forEach(([networkName, network]) => {
     const defaultChain =
       Object.values(chains).find((c) => c.id === network.chainId) ??
       chains.mainnet;
 
     const client = createClient({
       transport: ponderTransport({ transport: network.transport, syncStore }),
-      chain: { ...defaultChain, name: network.name, id: network.chainId },
+      chain: { ...defaultChain, name: networkName, id: network.chainId },
     });
 
     contexts[network.chainId] = {
-      network: { name: network.name, chainId: network.chainId },
+      network: { name: networkName, chainId: network.chainId },
       // Changing the arguments of readContract is not usually allowed,
       // because we have such a limited api we should be good
       client: client.extend(actions as any) as ReadOnlyClient,

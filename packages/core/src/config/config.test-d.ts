@@ -136,15 +136,18 @@ test("RecoverAbiEvent", () => {
   assertType<a>({} as ParseAbiItem<"event Event1(bytes32 indexed)">);
 });
 
-test("createConfig() strict config names", () => {
+test("createConfig() strict network names", () => {
   const config = createConfig({
-    networks: [
-      { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
-    ],
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
+      },
+    },
     contracts: [
       {
         name: "BaseRegistrarImplementation",
-        network: [{ name: "mainnet" }],
+        network: { mainnet: {} },
         abi: [],
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
         startBlock: 16370000,
@@ -154,19 +157,19 @@ test("createConfig() strict config names", () => {
     ],
   });
 
-  assertType<readonly [{ name: "mainnet" }]>(config.contracts[0].network);
-  assertType<readonly [{ name: "mainnet" }]>(config.networks);
+  assertType<{ mainnet: {} }>(config.contracts[0].network);
+  assertType<{ mainnet: { chainId: 1 } }>(config.networks);
 });
 
 test("createConfig() has strict events inferred from abi", () => {
   createConfig({
-    networks: [
-      { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
-    ],
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
     contracts: [
       {
         name: "BaseRegistrarImplementation",
-        network: [{ name: "mainnet" }],
+        network: { mainnet: {} },
         abi: abiWithSameEvent,
         filter: {
           event: [
@@ -185,17 +188,13 @@ test("createConfig() has strict events inferred from abi", () => {
 
 test("createConfig() has strict arg types for event", () => {
   createConfig({
-    networks: [
-      { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
-    ],
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
     contracts: [
       {
         name: "BaseRegistrarImplementation",
-        network: [
-          {
-            name: "mainnet",
-          },
-        ],
+        network: { mainnet: {} },
         abi: abiSimple,
         filter: {
           event: "Approve",

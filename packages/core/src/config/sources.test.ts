@@ -9,17 +9,16 @@ import { buildSources } from "./sources.js";
 test("buildSources() builds topics for multiple events", () => {
   const sources = buildSources({
     config: createConfig({
-      networks: [
-        {
-          name: "mainnet",
+      networks: {
+        mainnet: {
           chainId: 1,
           transport: http("http://127.0.0.1:8545"),
         },
-      ],
+      },
       contracts: [
         {
           name: "BaseRegistrarImplementation",
-          network: [{ name: "mainnet" }],
+          network: { mainnet: {} },
           abi: abiSimple,
           filter: { event: ["Transfer", "Approve"] },
           address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
@@ -45,17 +44,16 @@ test("buildSources() builds topics for multiple events", () => {
 test("buildSources() for duplicate event", () => {
   const sources = buildSources({
     config: createConfig({
-      networks: [
-        {
-          name: "mainnet",
+      networks: {
+        mainnet: {
           chainId: 1,
           transport: http("http://127.0.0.1:8545"),
         },
-      ],
+      },
       contracts: [
         {
           name: "BaseRegistrarImplementation",
-          network: [{ name: "mainnet" }],
+          network: { mainnet: {} },
           abi: abiWithSameEvent,
           filter: {
             event: [
@@ -86,17 +84,16 @@ test("buildSources() for duplicate event", () => {
 test("buildSources() builds topics for event with args", () => {
   const sources = buildSources({
     config: createConfig({
-      networks: [
-        {
-          name: "mainnet",
+      networks: {
+        mainnet: {
           chainId: 1,
           transport: http("http://127.0.0.1:8545"),
         },
-      ],
+      },
       contracts: [
         {
           name: "BaseRegistrarImplementation",
-          network: [{ name: "mainnet" }],
+          network: { mainnet: {} },
           abi: abiSimple,
           filter: {
             event: "Approve",
@@ -124,22 +121,20 @@ test("buildSources() builds topics for event with args", () => {
 test("buildSources() overrides default values with network values", () => {
   const sources = buildSources({
     config: createConfig({
-      networks: [
-        {
-          name: "mainnet",
+      networks: {
+        mainnet: {
           chainId: 1,
           transport: http("http://127.0.0.1:8545"),
         },
-      ],
+      },
       contracts: [
         {
           name: "BaseRegistrarImplementation",
-          network: [
-            {
-              name: "mainnet",
+          network: {
+            mainnet: {
               address: "0xF39d15cB3910d5e33fb1a2E42D4a2da153Ba076B",
             },
-          ],
+          },
           abi: abiSimple,
           filter: { event: ["Transfer"] },
           address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
