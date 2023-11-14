@@ -74,80 +74,133 @@ export const sourceIsFactory = (source: Source): source is Factory =>
 export const buildSources = ({ config }: { config: Config }): Source[] => {
   const contracts = config.contracts ?? [];
 
-  return contracts
-    .map((contract) => {
+  return Object.entries(contracts)
+    .map(([contractName, contract]) => {
       // Note: should we filter down which indexing functions are available based on the filters
       const events = getEvents({ abi: contract.abi });
 
       // Resolve the contract per network, filling in default values where applicable
-      return contract.network
-        .map((networkContract) => {
-          const network = config.networks.find(
-            (n) => n.name === networkContract.name,
-          )!;
+      if (typeof contract.network === "string") {
+        // shortcut network name
+        const network = config.networks[contract.network]!;
 
-          const resolvedFilter = networkContract.filter ?? contract.filter;
+        const resolvedFilter = contract.filter;
 
-          const topics = resolvedFilter
-            ? buildTopics(contract.abi, resolvedFilter)
-            : undefined;
+        const topics = resolvedFilter
+          ? buildTopics(contract.abi, resolvedFilter)
+          : undefined;
 
-          const sharedSource = {
-            name: contract.name,
-            abi: contract.abi,
-            network: network.name,
-            chainId: network.chainId,
-            events,
-            startBlock: networkContract.startBlock ?? contract.startBlock ?? 0,
-            endBlock: networkContract.endBlock ?? contract.endBlock,
-            maxBlockRange:
-              networkContract.maxBlockRange ?? contract.maxBlockRange,
-          } as const;
+        const sharedSource = {
+          name: contractName,
+          abi: contract.abi,
+          network: contract.network,
+          chainId: network.chainId,
+          events,
+          startBlock: contract.startBlock ?? 0,
+          endBlock: contract.endBlock,
+          maxBlockRange: contract.maxBlockRange,
+        } as const;
 
-          // Check that factory and address are not both defined
-          const resolvedFactory =
-            ("factory" in networkContract && networkContract.factory) ||
-            ("factory" in contract && contract.factory);
-          const resolvedAddress =
-            ("address" in networkContract && networkContract.address) ||
-            ("address" in contract && contract.address);
+        // Check that factory and address are not both defined
+        const resolvedFactory = "factory" in contract && contract.factory;
+        const resolvedAddress = "address" in contract && contract.address;
 
-          if (resolvedFactory) {
-            // factory
+        if (resolvedFactory) {
+          // factory
 
-            return {
-              ...sharedSource,
-              type: "factory",
-              criteria: {
-                ...buildFactoryCriteria(resolvedFactory),
-                topics,
-              },
-            } as const satisfies Factory;
-          } else {
-            // log filter
+          return {
+            ...sharedSource,
+            type: "factory",
+            criteria: {
+              ...buildFactoryCriteria(resolvedFactory),
+              topics,
+            },
+          } as const satisfies Factory;
+        } else {
+          // log filter
 
-            return {
-              ...sharedSource,
-              type: "logFilter",
-              criteria: {
-                address: Array.isArray(resolvedAddress)
-                  ? resolvedAddress.map((r) => toLowerCase(r))
-                  : resolvedAddress
-                    ? toLowerCase(resolvedAddress)
-                    : undefined,
-                topics,
-              },
-            } as const satisfies LogFilter;
-          }
-        })
-        .flat();
+          return {
+            ...sharedSource,
+            type: "logFilter",
+            criteria: {
+              address: Array.isArray(resolvedAddress)
+                ? resolvedAddress.map((r) => toLowerCase(r))
+                : resolvedAddress
+                  ? toLowerCase(resolvedAddress)
+                  : undefined,
+              topics,
+            },
+          } as const satisfies LogFilter;
+        }
+      } else {
+        return Object.entries(contract.network)
+          .map(([networkName, networkContract]) => {
+            const network = config.networks[networkName]!;
+
+            const resolvedFilter = networkContract.filter ?? contract.filter;
+
+            const topics = resolvedFilter
+              ? buildTopics(contract.abi, resolvedFilter)
+              : undefined;
+
+            const sharedSource = {
+              name: contractName,
+              abi: contract.abi,
+              network: networkName,
+              chainId: network.chainId,
+              events,
+              startBlock:
+                networkContract.startBlock ?? contract.startBlock ?? 0,
+              endBlock: networkContract.endBlock ?? contract.endBlock,
+              maxBlockRange:
+                networkContract.maxBlockRange ?? contract.maxBlockRange,
+            } as const;
+
+            // Check that factory and address are not both defined
+            const resolvedFactory =
+              ("factory" in networkContract && networkContract.factory) ||
+              ("factory" in contract && contract.factory);
+            const resolvedAddress =
+              ("address" in networkContract && networkContract.address) ||
+              ("address" in contract && contract.address);
+
+            if (resolvedFactory) {
+              // factory
+
+              return {
+                ...sharedSource,
+                type: "factory",
+                criteria: {
+                  ...buildFactoryCriteria(resolvedFactory),
+                  topics,
+                },
+              } as const satisfies Factory;
+            } else {
+              // log filter
+
+              return {
+                ...sharedSource,
+                type: "logFilter",
+                criteria: {
+                  address: Array.isArray(resolvedAddress)
+                    ? resolvedAddress.map((r) => toLowerCase(r))
+                    : resolvedAddress
+                      ? toLowerCase(resolvedAddress)
+                      : undefined,
+                  topics,
+                },
+              } as const satisfies LogFilter;
+            }
+          })
+          .flat();
+      }
     })
     .flat();
 };
 
 const buildTopics = (
   abi: Abi,
-  filter: NonNullable<NonNullable<Config["contracts"]>[number]["filter"]>,
+  filter: NonNullable<Config["contracts"][string]["filter"]>,
 ): Topics => {
   if (Array.isArray(filter.event)) {
     // List of event signatures
