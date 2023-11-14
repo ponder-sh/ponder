@@ -1,4 +1,5 @@
 import { rmSync } from "node:fs";
+import path from "node:path";
 
 import { execa } from "execa";
 
@@ -75,7 +76,13 @@ const waitForSyncComplete = async () => {
 
 const ponder = async () => {
   console.log("Creating Ponder instance...");
-  const subprocess = execa("ponder", ["start", `--root-dir=ponder`], {
+  const ponderBinPathAbs = path.resolve(
+    __dirname,
+    "../packages/core/dist/bin/ponder",
+  );
+  console.log({ ponderBinPathAbs });
+
+  const subprocess = execa(ponderBinPathAbs, ["start"], {
     stdio: "inherit",
     detached: true,
   });
