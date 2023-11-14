@@ -106,7 +106,7 @@ jobs:
           postgres_pass: postgres
           postgres_db: postgres
           ipfs: ipfs:5001
-          ethereum: mainnet:${{ secrets.ANVIL_FORK_URL }}
+          ethereum: mainnet:http://anvil:8545
           ETHEREUM_REORG_THRESHOLD: 0
           GRAPH_LOG: debug
         ports:
