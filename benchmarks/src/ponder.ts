@@ -37,7 +37,7 @@ const waitForSetupComplete = async () => {
 
     timeout = setTimeout(() => {
       clearInterval(interval);
-      reject(new Error("Timed out waiting for subgraph to sync"));
+      reject(new Error("Timed out waiting for ponder to sync"));
     }, 60_000);
   });
 
@@ -66,7 +66,7 @@ const waitForSyncComplete = async () => {
 
     timeout = setTimeout(() => {
       clearInterval(interval);
-      reject(new Error("Timed out waiting for subgraph to sync"));
+      reject(new Error("Timed out waiting for ponder to sync"));
     }, 60_000);
   });
 

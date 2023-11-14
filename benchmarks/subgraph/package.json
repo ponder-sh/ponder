@@ -9,5 +9,9 @@
     "remove-local": "graph remove --node http://localhost:8020/ test/subgraph",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 test/subgraph",
     "test": "graph test"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "0.61.0",
+    "@graphprotocol/graph-ts": "^0.31.0"
   }
 }
