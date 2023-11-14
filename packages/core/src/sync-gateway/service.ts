@@ -15,7 +15,7 @@ import { formatShortDate } from "@/utils/date.js";
 export type LogEvent = {
   eventSourceName: string;
   eventName: string;
-  params: any;
+  args: any;
   log: Log;
   block: Block;
   transaction: Transaction;
@@ -178,7 +178,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
           acc.push({
             eventSourceName: event.eventSourceName,
             eventName: safeName,
-            params: decodedLog.args || {},
+            args: decodedLog.args || {},
             log: event.log,
             block: event.block,
             transaction: event.transaction,

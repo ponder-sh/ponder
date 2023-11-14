@@ -127,7 +127,7 @@ export const buildPluralField = ({
     const { timestamp, where, skip, first, orderBy, orderDirection } = args;
 
     return await store.findMany({
-      modelName: tableName,
+      tableName: tableName,
       timestamp: timestamp ? timestamp : undefined,
       where: where ? buildWhereObject({ where }) : undefined,
       skip: skip,

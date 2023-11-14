@@ -1,27 +1,24 @@
 import { encodeAsText } from "@/utils/encoding.js";
 
-import type { ModelInstance } from "../store.js";
+import type { Row } from "../store.js";
 
 /**
- * Convert a user-land model instance into a database-ready object.
+ * Convert a user-land row into a database-ready object.
  */
-export function formatModelInstance(
-  data: Partial<ModelInstance>,
-  encodeBigInts: boolean,
-) {
+export function formatRow(data: Partial<Row>, encodeBigInts: boolean) {
   const instance: { [key: string]: string | number | null | bigint } = {};
 
   Object.entries(data).forEach(([key, value]) => {
-    instance[key] = formatModelFieldValue({ value, encodeBigInts });
+    instance[key] = formatColumnValue({ value, encodeBigInts });
   });
 
   return instance;
 }
 
 /**
- * Convert a user-land model field value into a database-ready value.
+ * Convert a user-land column value into a database-ready column value.
  */
-export function formatModelFieldValue({
+export function formatColumnValue({
   value,
   encodeBigInts,
 }: {

@@ -14,7 +14,7 @@ import {
   isEnumColumn,
   isReferenceColumn,
   isVirtualColumn,
-  referencedEntityName,
+  referencedTableName,
 } from "@/schema/utils.js";
 
 import type { Context, Source } from "./schema.js";
@@ -54,7 +54,7 @@ export const buildEntityTypes = ({
               const filter = args;
 
               return await store.findMany({
-                modelName: column.referenceTable,
+                tableName: column.referenceTable,
                 timestamp: filter.timestamp ? filter.timestamp : undefined,
                 where: { [column.referenceColumn]: entityId },
                 skip: filter.skip,
@@ -115,13 +115,13 @@ export const buildEntityTypes = ({
               const relatedInstanceId = parent[columnName];
 
               return await store.findUnique({
-                modelName: referencedEntityName(column.references),
+                tableName: referencedTableName(column.references),
                 id: relatedInstanceId,
               });
             };
 
             fieldConfigMap[columnName.slice(0, -2)] = {
-              type: entityGqlTypes[referencedEntityName(column.references)],
+              type: entityGqlTypes[referencedTableName(column.references)],
               resolve: resolver,
             };
           } else if (column.list) {

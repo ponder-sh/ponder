@@ -1,7 +1,7 @@
 import type { Schema } from "@/schema/types.js";
 import type { Prettify } from "@/types/utils.js";
 
-export type ModelDefinition = {
+export type Table = {
   [key: string]:
     | string
     | bigint
@@ -10,7 +10,7 @@ export type ModelDefinition = {
     | (string | bigint | number | boolean)[];
 };
 
-export type ModelInstance = {
+export type Row = {
   id: string | number | bigint;
   [key: string]:
     | string
@@ -59,18 +59,18 @@ type OperatorMap<
       }
     : {});
 
-export type WhereInput<TModel extends ModelDefinition> = {
-  [FieldName in keyof TModel]?:
-    | Prettify<OperatorMap<TModel[FieldName]>>
-    | TModel[FieldName];
+export type WhereInput<TTable extends Table> = {
+  [ColumnName in keyof TTable]?:
+    | Prettify<OperatorMap<TTable[ColumnName]>>
+    | TTable[ColumnName];
 };
 
-export type OrderByInput<TModel extends ModelDefinition> =
+export type OrderByInput<TTable extends Table> =
   | {
-      [FieldName in keyof TModel]?: "asc" | "desc";
+      [ColumnName in keyof TTable]?: "asc" | "desc";
     }
   | {
-      [FieldName in keyof TModel]?: "asc" | "desc";
+      [ColumnName in keyof TTable]?: "asc" | "desc";
     }[];
 
 export interface IndexingStore {
@@ -83,69 +83,63 @@ export interface IndexingStore {
   revert(options: { safeTimestamp: number }): Promise<void>;
 
   findUnique(options: {
-    modelName: string;
+    tableName: string;
     timestamp?: number;
     id: string | number | bigint;
-  }): Promise<ModelInstance | null>;
+  }): Promise<Row | null>;
 
   findMany(options: {
-    modelName: string;
+    tableName: string;
     timestamp?: number;
     where?: WhereInput<any>;
     skip?: number;
     take?: number;
     orderBy?: OrderByInput<any>;
-  }): Promise<ModelInstance[]>;
+  }): Promise<Row[]>;
 
   create(options: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     id: string | number | bigint;
-    data?: Omit<ModelInstance, "id">;
-  }): Promise<ModelInstance>;
+    data?: Omit<Row, "id">;
+  }): Promise<Row>;
 
   createMany(options: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
-    data: ModelInstance[];
-  }): Promise<ModelInstance[]>;
+    data: Row[];
+  }): Promise<Row[]>;
 
   update(options: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     id: string | number | bigint;
     data?:
-      | Partial<Omit<ModelInstance, "id">>
-      | ((args: {
-          current: ModelInstance;
-        }) => Partial<Omit<ModelInstance, "id">>);
-  }): Promise<ModelInstance>;
+      | Partial<Omit<Row, "id">>
+      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+  }): Promise<Row>;
 
   updateMany(options: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     where?: WhereInput<any>;
     data?:
-      | Partial<Omit<ModelInstance, "id">>
-      | ((args: {
-          current: ModelInstance;
-        }) => Partial<Omit<ModelInstance, "id">>);
-  }): Promise<ModelInstance[]>;
+      | Partial<Omit<Row, "id">>
+      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+  }): Promise<Row[]>;
 
   upsert(options: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     id: string | number | bigint;
-    create?: Omit<ModelInstance, "id">;
+    create?: Omit<Row, "id">;
     update?:
-      | Partial<Omit<ModelInstance, "id">>
-      | ((args: {
-          current: ModelInstance;
-        }) => Partial<Omit<ModelInstance, "id">>);
-  }): Promise<ModelInstance>;
+      | Partial<Omit<Row, "id">>
+      | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
+  }): Promise<Row>;
 
   delete(options: {
-    modelName: string;
+    tableName: string;
     timestamp: number;
     id: string | number | bigint;
   }): Promise<boolean>;
