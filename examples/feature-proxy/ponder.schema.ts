@@ -5,8 +5,8 @@ export default p.createSchema({
     id: p.string(),
     liquidator: p.string(),
   }),
-  AdminChanged: p.createTable({
+  OwnershipTransferredEvent: p.createTable({
     id: p.string(),
-    admin: p.string(),
+    newOwner: p.string(),
   }),
 });
