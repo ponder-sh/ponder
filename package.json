@@ -1,8 +1,8 @@
 {
   "private": true,
   "scripts": {
-    "bench": "pnpm --filter \"./benchmarks\" bench",
-    "bench:ci": "pnpm --filter \"./benchmarks\" bench:ci",
+    "bench:ponder": "pnpm --filter \"./benchmarks\" bench:ponder",
+    "bench:ponder:ci:": "pnpm --filter \"./benchmarks\" bench:ponder:ci",
     "build": "pnpm --filter \"@ponder/core\" build && pnpm --filter \"./packages/*\" --filter \"!@ponder/core\" --parallel build",
     "changeset:release": "pnpm build && changeset publish",
     "changeset:version": "changeset version && pnpm install --lockfile-only",

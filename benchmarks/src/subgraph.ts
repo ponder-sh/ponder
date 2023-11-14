@@ -1,3 +1,5 @@
+import { readFileSync, writeFileSync } from "node:fs";
+
 import { execa } from "execa";
 import parsePrometheusTextFormat from "parse-prometheus-text-format";
 
@@ -104,7 +106,7 @@ const waitForSyncComplete = async () => {
   return duration;
 };
 
-export const subgraph = async () => {
+const subgraph = async () => {
   console.log(`Waiting for Graph Node to be ready...`);
   const setupDuration = await waitForGraphNode();
 
@@ -140,3 +142,31 @@ export const subgraph = async () => {
 
   return { setupDuration, duration };
 };
+
+const changeMappingFileDelim = (delim: string) => {
+  let mappingFileContents = readFileSync("./subgraph/src/mapping.ts", {
+    encoding: "utf-8",
+  });
+  mappingFileContents = mappingFileContents.replace(
+    /(kevin:.)/g,
+    `kevin:${delim}`,
+  );
+
+  writeFileSync("./subgraph/src/mapping.ts", mappingFileContents, "utf-8");
+};
+
+const bench = async () => {
+  // Reset handler delimeter
+  changeMappingFileDelim("-");
+
+  const subgraphCold = await subgraph();
+
+  // Force handler cache invalidation
+  changeMappingFileDelim("+");
+
+  const subgraphHot = await subgraph();
+
+  console.log({ subgraphCold, subgraphHot });
+};
+
+await bench();

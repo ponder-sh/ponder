@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/ponder.ts"],
+  entry: ["src/ponder.ts", "src/subgraph.ts"],
   bundle: true,
   format: ["esm"],
   sourcemap: false,

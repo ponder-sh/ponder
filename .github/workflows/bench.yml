@@ -61,7 +61,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Bench
-        run: pnpm bench:ponder-ci
+        run: pnpm bench:ponder:ci
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
