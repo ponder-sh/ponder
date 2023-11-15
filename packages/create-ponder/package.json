@@ -37,7 +37,6 @@
   "devDependencies": {
     "@ponder/core": "workspace:*",
     "@types/node": "^20.9.0",
-    "@types/prettier": "^3.0.0",
     "@types/prompts": "^2.4.8",
     "abitype": "^0.10.2",
     "concurrently": "^8.2.2",
