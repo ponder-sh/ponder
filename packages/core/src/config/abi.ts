@@ -3,7 +3,7 @@ import { getEventSelector, type Hex } from "viem";
 
 import { getDuplicateElements } from "@/utils/duplicates.js";
 
-export type LogEventMetadata = {
+type AbiEventMeta = {
   // Event name (if no overloads) or full event signature (if name is overloaded).
   // This is the event name used when registering indexing functions using `ponder.on("ContractName:EventName", ...)`
   safeName: string;
@@ -12,12 +12,14 @@ export type LogEventMetadata = {
   // Keccak256 hash of the event signature (topic[0]).
   selector: Hex;
   // ABI item used for decoding raw logs.
-  abiItem: AbiEvent;
+  item: AbiEvent;
 };
 
-type SafeEventName = string;
-
-export type AbiEvents = { [key: SafeEventName]: LogEventMetadata | undefined };
+export type AbiEvents = {
+  bySafeName: { [key: string]: AbiEventMeta | undefined };
+  bySignature: { [key: string]: AbiEventMeta | undefined };
+  bySelector: { [key: Hex]: AbiEventMeta | undefined };
+};
 
 export const getEvents = ({ abi }: { abi: Abi }) => {
   const abiEvents = abi
@@ -28,19 +30,22 @@ export const getEvents = ({ abi }: { abi: Abi }) => {
     abiEvents.map((item) => item.name),
   );
 
-  return abiEvents.reduce<AbiEvents>((acc, item) => {
-    const signature = formatAbiItem(item);
+  return abiEvents.reduce<AbiEvents>(
+    (acc, item) => {
+      const signature = formatAbiItem(item);
+      const safeName = overloadedEventNames.has(item.name)
+        ? signature.split("event ")[1]
+        : item.name;
+      const selector = getEventSelector(item);
 
-    const safeName = overloadedEventNames.has(item.name)
-      ? signature.split("event ")[1]
-      : item.name;
+      const abiEventMeta = { safeName, signature, selector, item };
 
-    acc[safeName] = {
-      safeName,
-      signature,
-      selector: getEventSelector(item),
-      abiItem: item,
-    };
-    return acc;
-  }, {});
+      acc.bySafeName[safeName] = abiEventMeta;
+      acc.bySignature[signature] = abiEventMeta;
+      acc.bySelector[selector] = abiEventMeta;
+
+      return acc;
+    },
+    { bySafeName: {}, bySignature: {}, bySelector: {} },
+  );
 };

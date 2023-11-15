@@ -23,7 +23,6 @@ import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
 
-import { hydrateIndexingFunctions } from "./build/functions.js";
 import type { Source } from "./config/sources.js";
 import { buildSources } from "./config/sources.js";
 
@@ -123,22 +122,22 @@ export class Ponder {
         buildNetwork({ networkName, network, common: this.common }),
       )
       .filter((network) => {
-        const hasEventSources = this.sources.some(
-          (eventSource) => eventSource.network === network.name,
+        const hasSources = this.sources.some(
+          (eventSource) => eventSource.networkName === network.name,
         );
-        if (!hasEventSources) {
+        if (!hasSources) {
           this.common.logger.warn({
             service: "app",
             msg: `No contracts found (network=${network.name})`,
           });
         }
-        return hasEventSources;
+        return hasSources;
       });
 
     this.syncServices = [];
     networksToSync.forEach((network) => {
       const sourcesForNetwork = this.sources.filter(
-        (logSource) => logSource.network === network.name,
+        (source) => source.networkName === network.name,
       );
       this.syncServices.push({
         network,
@@ -306,12 +305,7 @@ export class Ponder {
       async ({ indexingFunctions }) => {
         this.common.errors.hasUserError = false;
 
-        // This is jank. Not quite sure where this should go.
-        const hydrated = hydrateIndexingFunctions({
-          rawIndexingFunctions: indexingFunctions,
-          sources: this.sources,
-        });
-        await this.indexingService.reset({ indexingFunctions: hydrated });
+        await this.indexingService.reset({ indexingFunctions });
 
         await this.indexingService.processEvents();
       },

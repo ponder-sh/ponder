@@ -24,15 +24,15 @@ const optimism: Network = {
   ...mainnet,
   name: "optimism",
   chainId: 10,
-};
+} as const;
 
 const networks = [mainnet, optimism];
 
 const usdcLogFilter = {
   ...usdcContractConfig,
-  name: "USDC",
-  network: mainnet.name,
-  chainId: mainnet.chainId,
+  id: `USDC_${mainnet.name}`,
+  contractName: "USDC",
+  networkName: mainnet.name,
   criteria: { address: usdcContractConfig.address },
   startBlock: 16369950,
   type: "logFilter",
@@ -42,8 +42,9 @@ const sources: Source[] = [
   usdcLogFilter,
   {
     ...usdcLogFilter,
-    name: "USDC Optimism",
-    network: optimism.name,
+    id: `USDC_${optimism.name}`,
+    contractName: "USDC",
+    networkName: optimism.name,
     chainId: optimism.chainId,
   },
 ];

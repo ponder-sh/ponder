@@ -43,8 +43,9 @@ export type FactoryCriteria = {
 };
 
 type BaseSource = {
-  name: string;
-  network: string;
+  id: string;
+  contractName: string;
+  networkName: string;
   chainId: number;
   abi: Abi;
   events: AbiEvents;
@@ -79,13 +80,15 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
 
       // If the network field uses the string shortcut, build a single source.
       if (typeof contract.network === "string") {
-        const network = config.networks[contract.network]!;
+        const networkName = contract.network;
+        const network = config.networks[networkName]!;
 
         const sharedSource = {
-          name: `${contractName}_${contract.network}`,
-          abi: contract.abi,
-          network: contract.network,
+          id: `${contractName}_${networkName}`,
+          contractName,
+          networkName,
           chainId: network.chainId,
+          abi: contract.abi,
           events,
           startBlock: contract.startBlock ?? 0,
           endBlock: contract.endBlock,
@@ -135,10 +138,11 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
           const network = config.networks[networkName]!;
 
           const sharedSource = {
-            name: `${contractName}_${networkName}`,
-            abi: contract.abi,
-            network: networkName,
+            id: `${contractName}_${networkName}`,
+            contractName,
+            networkName,
             chainId: network.chainId,
+            abi: contract.abi,
             events,
             startBlock: networkContract.startBlock ?? contract.startBlock ?? 0,
             endBlock: networkContract.endBlock ?? contract.endBlock,

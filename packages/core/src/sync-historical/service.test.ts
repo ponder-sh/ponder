@@ -39,9 +39,10 @@ const blockNumbers = {
 };
 
 const usdcLogFilter = {
-  name: "USDC",
   ...usdcContractConfig,
-  network: network.name,
+  id: `USDC_${network.name}`,
+  contractName: "USDC",
+  networkName: network.name,
   criteria: { address: usdcContractConfig.address },
   startBlock: 16369995, // 5 blocks
   maxBlockRange: 3,
@@ -50,7 +51,9 @@ const usdcLogFilter = {
 
 const uniswapV3Factory = {
   ...uniswapV3PoolFactoryConfig,
-  network: network.name,
+  id: `UniswapV3Pool_${network.name}`,
+  contractName: "UniswapV3Pool",
+  networkName: network.name,
   startBlock: 16369500, // 500 blocks
   type: "factory",
 } satisfies Source;
@@ -159,25 +162,34 @@ test("setup() with log filter and factory contract updates block metrics", async
     await common.metrics.ponder_historical_cached_blocks.get()
   ).values;
   expect(cachedBlocksMetric).toMatchObject([
-    { labels: { network: "mainnet", eventSource: "USDC" }, value: 0 },
+    { labels: { network: "mainnet", eventSource: "USDC_mainnet" }, value: 0 },
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Pool_factory" },
+      labels: {
+        network: "mainnet",
+        eventSource: "UniswapV3Pool_mainnet_factory",
+      },
       value: 0,
     },
-    { labels: { network: "mainnet", eventSource: "UniswapV3Pool" }, value: 0 },
+    {
+      labels: { network: "mainnet", eventSource: "UniswapV3Pool_mainnet" },
+      value: 0,
+    },
   ]);
 
   const totalBlocksMetric = (
     await common.metrics.ponder_historical_total_blocks.get()
   ).values;
   expect(totalBlocksMetric).toMatchObject([
-    { labels: { network: "mainnet", eventSource: "USDC" }, value: 6 },
+    { labels: { network: "mainnet", eventSource: "USDC_mainnet" }, value: 6 },
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Pool_factory" },
+      labels: {
+        network: "mainnet",
+        eventSource: "UniswapV3Pool_mainnet_factory",
+      },
       value: 501,
     },
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Pool" },
+      labels: { network: "mainnet", eventSource: "UniswapV3Pool_mainnet" },
       value: 501,
     },
   ]);
@@ -203,14 +215,17 @@ test("start() with log filter and factory contract updates completed blocks metr
   ).values;
   expect(completedBlocksMetric).toMatchObject([
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Pool_factory" },
+      labels: {
+        network: "mainnet",
+        eventSource: "UniswapV3Pool_mainnet_factory",
+      },
       value: 501,
     },
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Pool" },
+      labels: { network: "mainnet", eventSource: "UniswapV3Pool_mainnet" },
       value: 501,
     },
-    { labels: { network: "mainnet", eventSource: "USDC" }, value: 6 },
+    { labels: { network: "mainnet", eventSource: "USDC_mainnet" }, value: 6 },
   ]);
 
   await service.kill();
@@ -272,7 +287,7 @@ test("start() adds log filter events to sync store", async (context) => {
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [
       {
-        name: "USDC",
+        id: "USDC",
         chainId: network.chainId,
         criteria: usdcLogFilter.criteria,
       },
@@ -326,14 +341,14 @@ test("start() adds log filter and factory contract events to sync store", async 
     toTimestamp: Number.MAX_SAFE_INTEGER,
     logFilters: [
       {
-        name: "USDC",
+        id: "USDC",
         chainId: network.chainId,
         criteria: usdcLogFilter.criteria,
       },
     ],
     factories: [
       {
-        name: "UniswapV3Pool",
+        id: "UniswapV3Pool",
         chainId: network.chainId,
         criteria: uniswapV3Factory.criteria,
       },
@@ -342,10 +357,10 @@ test("start() adds log filter and factory contract events to sync store", async 
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
-  const eventSourceNames = events.map((event) => event.eventSourceName);
+  const sourceIds = events.map((event) => event.sourceId);
 
-  expect(eventSourceNames.includes("USDC")).toBe(true);
-  expect(eventSourceNames.includes("UniswapV3Pool")).toBe(true);
+  expect(sourceIds.includes("USDC")).toBe(true);
+  expect(sourceIds.includes("UniswapV3Pool")).toBe(true);
 
   await service.kill();
 });

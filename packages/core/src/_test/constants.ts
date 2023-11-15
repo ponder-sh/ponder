@@ -897,7 +897,6 @@ const uniswapV3PoolAbi = [
 
 export const uniswapV3PoolFactoryConfig = {
   chainId: 1,
-  name: "UniswapV3Pool",
   criteria: buildFactoryCriteria({
     address: "0x1f98431c8ad98523631ae4a59f267346ea31f984",
     event: parseAbiItem(

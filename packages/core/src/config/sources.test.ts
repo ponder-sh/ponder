@@ -194,5 +194,5 @@ test("buildSources() network shortcut", () => {
 
   const sources = buildSources({ config });
 
-  expect(sources[0].network).toBe("mainnet");
+  expect(sources[0].networkName).toBe("mainnet");
 });

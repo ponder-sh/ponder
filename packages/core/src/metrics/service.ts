@@ -16,15 +16,11 @@ export class MetricsService {
   ponder_historical_rpc_request_duration: prometheus.Histogram<
     "network" | "method"
   >;
-  ponder_historical_total_blocks: prometheus.Gauge<"network" | "eventSource">;
-  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "eventSource">;
-  ponder_historical_completed_blocks: prometheus.Gauge<
-    "network" | "eventSource"
-  >;
-  ponder_historical_completion_rate: prometheus.Gauge<
-    "network" | "eventSource"
-  >;
-  ponder_historical_completion_eta: prometheus.Gauge<"network" | "eventSource">;
+  ponder_historical_total_blocks: prometheus.Gauge<"network" | "contract">;
+  ponder_historical_cached_blocks: prometheus.Gauge<"network" | "contract">;
+  ponder_historical_completed_blocks: prometheus.Gauge<"network" | "contract">;
+  ponder_historical_completion_rate: prometheus.Gauge<"network" | "contract">;
+  ponder_historical_completion_eta: prometheus.Gauge<"network" | "contract">;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
@@ -33,9 +29,15 @@ export class MetricsService {
     "network" | "method"
   >;
 
-  ponder_indexing_matched_events: prometheus.Gauge<"eventName">;
-  ponder_indexing_handled_events: prometheus.Gauge<"eventName">;
-  ponder_indexing_processed_events: prometheus.Gauge<"eventName">;
+  ponder_indexing_matched_events: prometheus.Gauge<
+    "network" | "contract" | "event"
+  >;
+  ponder_indexing_handled_events: prometheus.Gauge<
+    "network" | "contract" | "event"
+  >;
+  ponder_indexing_processed_events: prometheus.Gauge<
+    "network" | "contract" | "event"
+  >;
   ponder_indexing_has_error: prometheus.Gauge;
   ponder_indexing_latest_processed_timestamp: prometheus.Gauge;
 
@@ -68,31 +70,31 @@ export class MetricsService {
     this.ponder_historical_total_blocks = new prometheus.Gauge({
       name: "ponder_historical_total_blocks",
       help: "Number of blocks required for the historical sync",
-      labelNames: ["network", "eventSource"] as const,
+      labelNames: ["network", "contract"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_cached_blocks = new prometheus.Gauge({
       name: "ponder_historical_cached_blocks",
       help: "Number of blocks that were found in the cache for the historical sync",
-      labelNames: ["network", "eventSource"] as const,
+      labelNames: ["network", "contract"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_completed_blocks = new prometheus.Gauge({
       name: "ponder_historical_completed_blocks",
       help: "Number of blocks that have been processed for the historical sync",
-      labelNames: ["network", "eventSource"] as const,
+      labelNames: ["network", "contract"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_completion_rate = new prometheus.Gauge({
       name: "ponder_historical_completion_rate",
       help: "Completion rate (0 to 1) of the historical sync",
-      labelNames: ["network", "eventSource"] as const,
+      labelNames: ["network", "contract"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_completion_eta = new prometheus.Gauge({
       name: "ponder_historical_completion_eta",
       help: "Estimated number of milliseconds remaining to complete the historical sync",
-      labelNames: ["network", "eventSource"] as const,
+      labelNames: ["network", "contract"] as const,
       registers: [this.registry],
     });
 
@@ -125,19 +127,19 @@ export class MetricsService {
     this.ponder_indexing_matched_events = new prometheus.Gauge({
       name: "ponder_indexing_matched_events",
       help: "Number of available events for all log filters",
-      labelNames: ["eventName"] as const,
+      labelNames: ["network", "contract", "event"] as const,
       registers: [this.registry],
     });
     this.ponder_indexing_handled_events = new prometheus.Gauge({
       name: "ponder_indexing_handled_events",
       help: "Number of available events for which there is an indexing function registered",
-      labelNames: ["eventName"] as const,
+      labelNames: ["network", "contract", "event"] as const,
       registers: [this.registry],
     });
     this.ponder_indexing_processed_events = new prometheus.Gauge({
       name: "ponder_indexing_processed_events",
       help: "Number of available events that have been processed",
-      labelNames: ["eventName"] as const,
+      labelNames: ["network", "contract", "event"] as const,
       registers: [this.registry],
     });
     this.ponder_indexing_has_error = new prometheus.Gauge({
