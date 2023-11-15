@@ -8,19 +8,19 @@ import type { LogEventMetadata } from "@/config/abi.js";
 import type { Config } from "@/config/config.js";
 import type { Source } from "@/config/sources.js";
 import { UserError } from "@/errors/user.js";
-import type { IndexingStore, ModelInstance } from "@/indexing-store/store.js";
+import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
 import type { LogEvent, SyncGateway } from "@/sync-gateway/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import type { Model } from "@/types/model.js";
+import type { DatabaseModel } from "@/types/model.js";
 import { chains } from "@/utils/chains.js";
 import { formatShortDate } from "@/utils/date.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
 import { wait } from "@/utils/wait.js";
 
-import { buildModels } from "./model.js";
+import { buildDatabaseModels } from "./model.js";
 import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
 import { getStackTrace } from "./trace.js";
 import { ponderTransport } from "./transport.js";
@@ -58,7 +58,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   > = {};
 
   private schema?: Schema;
-  private models: Record<string, Model<ModelInstance>> = {};
+  private db: Record<string, DatabaseModel<any>> = {};
 
   private indexingFunctions?: IndexingFunctions;
   private indexingMetadata: IndexingFunctions["eventSources"] = {};
@@ -129,7 +129,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
   } = {}) => {
     if (newSchema) {
       this.schema = newSchema;
-      this.models = buildModels({
+      this.db = buildDatabaseModels({
         common: this.common,
         indexingStore: this.indexingStore,
         schema: this.schema,
@@ -400,7 +400,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             });
 
             // Running user code here!
-            await setupFunction({ context: { models: this.models } });
+            await setupFunction({ context: { db: this.db } });
 
             this.common.logger.trace({
               service: "indexing",
@@ -464,7 +464,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             });
 
             const context = {
-              models: this.models,
+              db: this.db,
               ...this.contexts[event.chainId],
             };
 
@@ -500,7 +500,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
               event.eventName
             }" event at block ${Number(event.block.number)}: ${error.message}`;
 
-            const metaMessage = `Event params:\n${prettyPrint(event.params)}`;
+            const metaMessage = `Event args:\n${prettyPrint(event.args)}`;
 
             const userError = new UserError(message, {
               stack: trace,
@@ -564,18 +564,18 @@ const buildContexts = (
     }
   > = {};
 
-  networks.forEach((network) => {
+  Object.entries(networks).forEach(([networkName, network]) => {
     const defaultChain =
       Object.values(chains).find((c) => c.id === network.chainId) ??
       chains.mainnet;
 
     const client = createClient({
       transport: ponderTransport({ transport: network.transport, syncStore }),
-      chain: { ...defaultChain, name: network.name, id: network.chainId },
+      chain: { ...defaultChain, name: networkName, id: network.chainId },
     });
 
     contexts[network.chainId] = {
-      network: { name: network.name, chainId: network.chainId },
+      network: { name: networkName, chainId: network.chainId },
       // Changing the arguments of readContract is not usually allowed,
       // because we have such a limited api we should be good
       client: client.extend(actions as any) as ReadOnlyClient,

@@ -191,16 +191,13 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return;
     }
 
-    const rawConfig = result.exports.config;
-    const resolvedConfig = (
-      typeof rawConfig === "function" ? await rawConfig() : await rawConfig
-    ) as Config;
+    const config = result.exports.default as Config;
 
     // TODO: Validate config lol
 
-    this.emit("newConfig", { config: resolvedConfig });
+    this.emit("newConfig", { config });
 
-    return resolvedConfig;
+    return config;
   }
 
   async loadSchema() {
@@ -210,7 +207,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return;
     }
 
-    const schema = result.exports.schema as Schema;
+    const schema = result.exports.default as Schema;
     const graphqlSchema = buildGqlSchema(schema);
 
     // TODO: Validate schema lol

@@ -14,13 +14,12 @@ import { IndexingService } from "./service.js";
 beforeEach((context) => setupIndexingStore(context));
 beforeEach((context) => setupSyncStore(context));
 
-const networks = [
-  {
-    name: "mainnet",
+const networks = {
+  mainnet: {
     chainId: 1,
     transport: http(),
   },
-];
+};
 
 const sources: Source[] = [
   {
@@ -41,7 +40,7 @@ const schema = p.createSchema({
 });
 
 const transferIndexingFunction = vi.fn(async ({ event, context }) => {
-  await context.models.TransferEvent.create({
+  await context.db.TransferEvent.create({
     id: event.log.id,
     data: {
       timestamp: Number(event.block.timestamp),
@@ -79,7 +78,7 @@ const getEvents = vi.fn(async function* getEvents({
       {
         eventSourceName: "USDC",
         eventName: "Transfer",
-        params: { from: "0x0", to: "0x1", amount: 100n },
+        args: { from: "0x0", to: "0x1", amount: 100n },
         log: { id: String(toTimestamp) },
         block: { timestamp: BigInt(toTimestamp) },
         transaction: {},
@@ -170,14 +169,14 @@ test("processEvents() calls indexing functions with correct arguments", async (c
       event: {
         eventSourceName: "USDC",
         eventName: "Transfer",
-        params: { from: "0x0", to: "0x1", amount: 100n },
+        args: { from: "0x0", to: "0x1", amount: 100n },
         log: { id: "10" },
         block: { timestamp: 10n },
         transaction: {},
         name: "Transfer",
       },
       context: expect.objectContaining({
-        models: { TransferEvent: expect.anything() },
+        db: { TransferEvent: expect.anything() },
       }),
     }),
   );
@@ -203,7 +202,7 @@ test("processEvents() model methods insert data into the indexing store", async 
   await service.processEvents();
 
   const transferEvents = await indexingStore.findMany({
-    modelName: "TransferEvent",
+    tableName: "TransferEvent",
   });
   expect(transferEvents.length).toBe(1);
 
@@ -270,7 +269,7 @@ test("reset() reloads the indexing store", async (context) => {
   await service.processEvents();
 
   const transferEvents = await indexingStore.findMany({
-    modelName: "TransferEvent",
+    tableName: "TransferEvent",
   });
   expect(transferEvents.length).toBe(1);
 
@@ -281,7 +280,7 @@ test("reset() reloads the indexing store", async (context) => {
   expect(indexingStore.versionId).not.toBe(versionIdBeforeReset);
 
   const transferEventsAfterReset = await indexingStore.findMany({
-    modelName: "TransferEvent",
+    tableName: "TransferEvent",
   });
   expect(transferEventsAfterReset.length).toBe(0);
 

@@ -1,7 +1,23 @@
-import { parseAbiItem } from "abitype";
+import { parseAbi, parseAbiItem } from "abitype";
 import { assertType, expect, test } from "vitest";
 
 import { mergeAbis } from "./mergeAbis.js";
+
+test("mergeAbis() removes constructors, receive, fallback", () => {
+  const abi = parseAbi([
+    "constructor()",
+    // "fallback() external",
+    // "receive() external payable",
+  ]);
+
+  const merged = mergeAbis([abi]);
+  //    ^?
+
+  const out = [] as const;
+  expect(merged.length).toBe(0);
+  expect(merged).toMatchObject(out);
+  assertType<typeof out>(merged);
+});
 
 test("mergeAbis() duplicate items", () => {
   const abi = parseAbiItem("function a()");

@@ -1,8 +1,0 @@
-node_modules/
-.DS_Store
-
-.env.local
-.env.production
-.ponder/
-generated/
-dist

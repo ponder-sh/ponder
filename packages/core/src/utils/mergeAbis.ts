@@ -10,7 +10,9 @@ export type MergeAbi<
   ...infer Rest extends Abi,
 ]
   ? Extract<TBase[number], First> extends never
-    ? MergeAbi<readonly [...TBase, First], Rest>
+    ? First["type"] extends "constructor" | "receive" | "fallback"
+      ? MergeAbi<TBase, Rest>
+      : MergeAbi<readonly [...TBase, First], Rest>
     : MergeAbi<TBase, Rest>
   : TBase;
 
@@ -36,8 +38,13 @@ export const mergeAbis = <const TAbis extends readonly Abi[]>(abis: TAbis) => {
   for (const abi of abis) {
     for (const item of abi) {
       // Don't add a duplicate items
-      // if item is already in merged, don't add it
-      if (!merged.some((m) => isAbiItemEqual(m, item))) {
+      // if item is constructor or already in merged, don't add it
+      if (
+        item.type !== "constructor" &&
+        item.type !== "receive" &&
+        item.type !== "fallback" &&
+        !merged.some((m) => isAbiItemEqual(m, item))
+      ) {
         merged = [...merged, item];
       }
     }

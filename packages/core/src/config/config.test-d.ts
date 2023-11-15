@@ -122,8 +122,15 @@ test("ResolvedConfig default values", () => {
   type a = NonNullable<
     // ^?
     Config["contracts"]
-  >[number]["network"][number]["filter"];
-  assertType<a>({} as { event: string[] } | { event: string } | undefined);
+  >[number]["network"];
+  assertType<a>(
+    {} as
+      | string
+      | Record<
+          string,
+          { filter: { event: string[] } | { event: string } | undefined }
+        >,
+  );
 });
 
 test("RecoverAbiEvent", () => {
@@ -136,37 +143,70 @@ test("RecoverAbiEvent", () => {
   assertType<a>({} as ParseAbiItem<"event Event1(bytes32 indexed)">);
 });
 
-test("createConfig() strict config names", () => {
+test("createConfig() strict network names", () => {
   const config = createConfig({
-    networks: [
-      { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
-    ],
-    contracts: [
-      {
-        name: "BaseRegistrarImplementation",
-        network: [{ name: "mainnet" }],
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
+      },
+      optimism: {
+        chainId: 10,
+        transport: http("http://127.0.0.1:8545"),
+      },
+    },
+    contracts: {
+      BaseRegistrarImplementation: {
+        network: { mainnet: {} },
         abi: [],
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
         startBlock: 16370000,
         endBlock: 16370020,
         maxBlockRange: 10,
       },
-    ],
+    },
   });
 
-  assertType<readonly [{ name: "mainnet" }]>(config.contracts[0].network);
-  assertType<readonly [{ name: "mainnet" }]>(config.networks);
+  assertType<{ mainnet: {} }>(
+    config.contracts["BaseRegistrarImplementation"].network,
+  );
+  assertType<{ mainnet: { chainId: 1 } }>(config.networks);
+});
+
+test("createConfig() short network name", () => {
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
+      },
+    },
+    contracts: {
+      BaseRegistrarImplementation: {
+        network: "mainnet",
+        abi: [],
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
+      },
+    },
+  });
+
+  assertType<"mainnet">(
+    config.contracts["BaseRegistrarImplementation"].network,
+  );
+  assertType<{ mainnet: { chainId: 1 } }>(config.networks);
 });
 
 test("createConfig() has strict events inferred from abi", () => {
   createConfig({
-    networks: [
-      { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
-    ],
-    contracts: [
-      {
-        name: "BaseRegistrarImplementation",
-        network: [{ name: "mainnet" }],
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      BaseRegistrarImplementation: {
+        network: "mainnet",
         abi: abiWithSameEvent,
         filter: {
           event: [
@@ -179,33 +219,30 @@ test("createConfig() has strict events inferred from abi", () => {
         endBlock: 16370020,
         maxBlockRange: 10,
       },
-    ],
+    },
   });
 });
 
 test("createConfig() has strict arg types for event", () => {
-  createConfig({
-    networks: [
-      { name: "mainnet", chainId: 1, transport: http("http://127.0.0.1:8545") },
-    ],
-    contracts: [
-      {
-        name: "BaseRegistrarImplementation",
-        network: [
-          {
-            name: "mainnet",
-          },
-        ],
+  const t = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      BaseRegistrarImplementation: {
+        network: "mainnet",
         abi: abiSimple,
         filter: {
-          event: "Approve",
-          args: { to: ["0x2"] },
+          event: "Transfer",
+          args: { to: ["0x00"] },
         },
         address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
         startBlock: 16370000,
         endBlock: 16370020,
         maxBlockRange: 10,
       },
-    ],
+    },
   });
+  t.contracts.BaseRegistrarImplementation.abi;
+  //                                      ^?
 });

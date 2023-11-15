@@ -8,7 +8,7 @@ import type { Transaction } from "@/types/transaction.js";
 
 export interface LogEvent {
   name: string;
-  params: Record<string, any>;
+  args: Record<string, any>;
   log: Log;
   block: Block;
   transaction: Transaction;
