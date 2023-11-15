@@ -9,10 +9,12 @@ import { IndexingBar } from "./IndexingBar.js";
 export type UiState = {
   port: number;
 
-  historicalSyncEventSourceStats: Record<
-    string,
-    { rate: number; eta?: number }
-  >;
+  historicalSyncStats: {
+    network: string;
+    contract: string;
+    rate: number;
+    eta?: number;
+  }[];
   isHistoricalSyncComplete: boolean;
 
   indexingError: boolean;
@@ -28,8 +30,7 @@ export const buildUiState = ({ sources }: { sources: Source[] }) => {
   const ui: UiState = {
     port: 0,
 
-    historicalSyncEventSourceStats: {},
-
+    historicalSyncStats: [],
     isHistoricalSyncComplete: false,
 
     indexingError: false,
@@ -41,12 +42,12 @@ export const buildUiState = ({ sources }: { sources: Source[] }) => {
     networks: [],
   };
 
-  const eventSourceNames = sources.map((s) => s.name);
-
-  eventSourceNames.forEach((name) => {
-    ui.historicalSyncEventSourceStats[name] = {
+  sources.forEach((source) => {
+    ui.historicalSyncStats.push({
+      network: source.networkName,
+      contract: source.contractName,
       rate: 0,
-    };
+    });
   });
 
   return ui;
@@ -55,7 +56,7 @@ export const buildUiState = ({ sources }: { sources: Source[] }) => {
 const App = (ui: UiState) => {
   const {
     port,
-    historicalSyncEventSourceStats,
+    historicalSyncStats,
     isHistoricalSyncComplete,
     processedEventCount,
     indexingError,
@@ -90,15 +91,27 @@ const App = (ui: UiState) => {
       </Box>
       {!isHistoricalSyncComplete && (
         <Box flexDirection="column">
-          {Object.entries(historicalSyncEventSourceStats).map(
-            ([eventSourceName, stat]) => (
-              <HistoricalBar
-                key={eventSourceName}
-                title={eventSourceName}
-                stat={stat}
-              />
-            ),
-          )}
+          {networks.map((network, idx) => {
+            const contracts = historicalSyncStats.filter(
+              (s) => s.network === network,
+            );
+
+            return (
+              <Box flexDirection="column" key={idx}>
+                <Text>{network}</Text>
+                {contracts.length > 0 ? (
+                  contracts.map(({ contract, rate, eta }, idx) => (
+                    <Box flexDirection="column" key={idx}>
+                      {contract}
+                      <HistoricalBar key={idx} rate={rate} eta={eta} />
+                    </Box>
+                  ))
+                ) : (
+                  <Text>No contracts</Text>
+                )}
+              </Box>
+            );
+          })}
           <Text> </Text>
         </Box>
       )}
