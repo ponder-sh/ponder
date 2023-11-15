@@ -79,6 +79,31 @@ test("buildSources() for duplicate event", () => {
   ]);
 });
 
+test("buildSources() multichain", () => {
+  const sources = buildSources({
+    config: createConfig({
+      networks: {
+        mainnet: {
+          chainId: 1,
+          transport: http("http://127.0.0.1:8545"),
+        },
+        optimism: {
+          chainId: 10,
+          transport: http("http://127.0.0.1:8545"),
+        },
+      },
+      contracts: {
+        a: {
+          network: { mainnet: {}, optimism: {} },
+          abi: abiSimple,
+        },
+      },
+    }) as Config,
+  });
+
+  expect(sources.length).toBe(2);
+});
+
 test("buildSources() builds topics for event with args", () => {
   const sources = buildSources({
     config: createConfig({

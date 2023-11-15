@@ -72,9 +72,7 @@ export const sourceIsFactory = (source: Source): source is Factory =>
   source.type === "factory";
 
 export const buildSources = ({ config }: { config: Config }): Source[] => {
-  const contracts = config.contracts ?? [];
-
-  return Object.entries(contracts)
+  return Object.entries(config.contracts)
     .map(([contractName, contract]) => {
       // Note: should we filter down which indexing functions are available based on the filters
       const events = getEvents({ abi: contract.abi });
