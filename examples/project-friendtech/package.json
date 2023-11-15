@@ -11,6 +11,7 @@
     "@ponder/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^20.9.0",
     "abitype": "^0.10.2",
     "eslint": "^8.53.0",
     "eslint-config-ponder": "workspace:*",

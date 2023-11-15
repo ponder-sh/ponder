@@ -260,9 +260,7 @@ yarn-error.log*
 # Ponder
 /generated/
 /.ponder/
-
-# TypeScript
-ponder-env.d.ts`,
+`,
   );
 
   const packageManager = await getPackageManager();
