@@ -16,39 +16,6 @@ export class CodegenService extends Emittery {
     this.common = common;
   }
 
-  generateDeclarationFile() {
-    const getImportPath = (file: string) => {
-      let relative = path.relative(this.common.options.rootDir, file);
-
-      // If the file is in the same directory, prepend with "./"
-      if (!relative.startsWith("..") && !path.isAbsolute(relative))
-        relative = `./${relative}`;
-
-      return relative;
-    };
-
-    const configPath = getImportPath(this.common.options.configFile);
-    const schemaPath = getImportPath(this.common.options.schemaFile);
-
-    const contents = `declare module "@/generated" {
-  import type { PonderApp } from "@ponder/core";
-
-  export const ponder: PonderApp<
-    typeof import("${configPath}").default,
-    typeof import("${schemaPath}").default
-  >;
-}
-`;
-
-    const filePath = path.join(this.common.options.rootDir, "ponder-env.d.ts");
-    writeFileSync(filePath, contents, "utf8");
-
-    this.common.logger.debug({
-      service: "codegen",
-      msg: `Generated ponder-env.d.ts`,
-    });
-  }
-
   generateGraphqlSchemaFile({
     graphqlSchema,
   }: {

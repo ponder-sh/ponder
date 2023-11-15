@@ -1,10 +1,7 @@
 {
   "extends": "../../../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/generated": ["./generated/index.ts"]
-    }
+    "baseUrl": "."
   },
   "include": ["src", "BaseRegistrarImplementation.abi.ts"],
   "exclude": []

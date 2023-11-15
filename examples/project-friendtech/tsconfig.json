@@ -6,10 +6,7 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "strict": true,
-    "rootDir": ".",
-    "paths": {
-      "@/generated": ["./generated/index.ts"]
-    }
+    "rootDir": "."
   },
   "include": ["./**/*.ts"],
   "exclude": ["node_modules"]
