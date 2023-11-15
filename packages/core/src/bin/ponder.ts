@@ -1,14 +1,19 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { cac } from "cac";
 import dotenv from "dotenv";
 
 import { buildOptions } from "@/config/options.js";
 import { Ponder } from "@/Ponder.js";
 
-// NOTE: This is a workaround for tsconfig `rootDir` nonsense.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import packageJson from "../../package.json" assert { type: "json" };
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const packageJsonPath = resolve(__dirname, "../../package.json");
+const packageJson = JSON.parse(
+  readFileSync(packageJsonPath, { encoding: "utf8" }),
+);
 
 dotenv.config({ path: ".env.local" });
 
