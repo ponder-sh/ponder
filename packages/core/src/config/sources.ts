@@ -7,7 +7,7 @@ import { toLowerCase } from "@/utils/lowercase.js";
 
 import type { AbiEvents } from "./abi.js";
 import { getEvents } from "./abi.js";
-import type { Config } from "./config.js";
+import type { Config, ContractFilter } from "./config.js";
 import { buildFactoryCriteria } from "./factories.js";
 
 /**
@@ -132,6 +132,9 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
         }
       } else {
         return Object.entries(contract.network)
+          .filter(
+            (n): n is [string, Partial<ContractFilter<Abi, string>>] => !!n[1],
+          )
           .map(([networkName, networkContract]) => {
             const network = config.networks[networkName]!;
 

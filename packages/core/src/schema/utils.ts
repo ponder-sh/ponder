@@ -6,9 +6,9 @@ import type {
 } from "./types.js";
 
 /**
- * Returns the name of the entity that was referenced by a reference column
+ * Returns the name of the table that was referenced by a reference column
  */
-export const referencedEntityName = (references: unknown) =>
+export const referencedTableName = (references: unknown) =>
   (references as string).split(".")[0];
 
 export const isVirtualColumn = (

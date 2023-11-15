@@ -70,7 +70,7 @@ const setup = async ({
 
   const createTestEntity = async ({ id }: { id: number }) => {
     await indexingStore.create({
-      modelName: "TestEntity",
+      tableName: "TestEntity",
       timestamp: 0,
       id: String(id),
       data: {
@@ -98,7 +98,7 @@ const setup = async ({
     testEntityId: string;
   }) => {
     await indexingStore.create({
-      modelName: "EntityWithBigIntId",
+      tableName: "EntityWithBigIntId",
       timestamp: 0,
       id,
       data: {
@@ -109,7 +109,7 @@ const setup = async ({
 
   const createEntityWithIntId = async ({ id }: { id: number }) => {
     await indexingStore.create({
-      modelName: "EntityWithIntId",
+      tableName: "EntityWithIntId",
       timestamp: 0,
       id,
     });
@@ -1348,7 +1348,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
 
   await createTestEntity({ id: 1 });
   await indexingStore.update({
-    modelName: "TestEntity",
+    tableName: "TestEntity",
     timestamp: 10,
     id: String(1),
     data: {
@@ -1392,7 +1392,7 @@ test("serves plural entities versioned at specified timestamp", async (context) 
   await createTestEntity({ id: 2 });
 
   await indexingStore.update({
-    modelName: "TestEntity",
+    tableName: "TestEntity",
     timestamp: 10,
     id: String(1),
     data: {
@@ -1400,7 +1400,7 @@ test("serves plural entities versioned at specified timestamp", async (context) 
     },
   });
   await indexingStore.update({
-    modelName: "TestEntity",
+    tableName: "TestEntity",
     timestamp: 15,
     id: String(2),
     data: {
@@ -1531,7 +1531,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
 
   await indexingStore.update({
-    modelName: "EntityWithBigIntId",
+    tableName: "EntityWithBigIntId",
     timestamp: 10,
     id: BigInt(0),
     data: {

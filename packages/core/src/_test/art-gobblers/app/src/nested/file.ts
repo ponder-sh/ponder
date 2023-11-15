@@ -1,25 +1,25 @@
 import { ponder } from "@/generated";
 
 ponder.on("ArtGobblers:GobblerClaimed", async ({ event, context }) => {
-  const { Account, Token } = context.models;
+  const { Account, Token } = context.db;
 
-  await Account.upsert({ id: event.params.user, create: {}, update: {} });
+  await Account.upsert({ id: event.args.user, create: {}, update: {} });
 
   await Token.upsert({
-    id: event.params.gobblerId,
+    id: event.args.gobblerId,
     create: {
-      ownerId: event.params.user,
-      claimedById: event.params.user,
+      ownerId: event.args.user,
+      claimedById: event.args.user,
     },
     update: {},
   });
 
   await Token.update({
-    id: event.params.gobblerId,
-    data: { ownerId: event.params.user },
+    id: event.args.gobblerId,
+    data: { ownerId: event.args.user },
   });
 
-  const token = await Token.findUnique({ id: event.params.gobblerId });
+  const token = await Token.findUnique({ id: event.args.gobblerId });
   if (!token) throw new Error(`Token not found!`);
 
   await Token.delete({
@@ -29,8 +29,8 @@ ponder.on("ArtGobblers:GobblerClaimed", async ({ event, context }) => {
   await Token.create({
     id: token.id,
     data: {
-      ownerId: event.params.user,
-      claimedById: event.params.user,
+      ownerId: event.args.user,
+      claimedById: event.args.user,
     },
   });
 });

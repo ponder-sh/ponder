@@ -8,9 +8,9 @@ import { buildGqlSchema } from "./schema.js";
 test("filter type has correct suffixes and types", () => {
   const s = p.createSchema({
     SimpleEnum: p.createEnum(["VALUE", "ANOTHER_VALUE"]),
-    RelatedEntityStringId: p.createTable({ id: p.string() }),
-    RelatedEntityBigIntId: p.createTable({ id: p.bigint() }),
-    Entity: p.createTable({
+    RelatedTableStringId: p.createTable({ id: p.string() }),
+    RelatedTableBigIntId: p.createTable({ id: p.bigint() }),
+    Table: p.createTable({
       id: p.string(),
       int: p.int(),
       float: p.float(),
@@ -20,8 +20,8 @@ test("filter type has correct suffixes and types", () => {
       enum: p.enum("SimpleEnum"),
       listString: p.string().list(),
       listBigInt: p.bigint().list(),
-      relatedEntityStringId: p.string().references("RelatedEntityStringId.id"),
-      relatedEntityBigIntId: p.bigint().references("RelatedEntityBigIntId.id"),
+      relatedTableStringId: p.string().references("RelatedTableStringId.id"),
+      relatedTableBigIntId: p.bigint().references("RelatedTableBigIntId.id"),
     }),
   });
 
@@ -29,8 +29,8 @@ test("filter type has correct suffixes and types", () => {
 
   const typeMap = serverSchema.getTypeMap();
 
-  const entityFilterType = typeMap["EntityFilter"];
-  const fields = (entityFilterType.toConfig() as any).fields as Record<
+  const tableFilterType = typeMap["TableFilter"];
+  const fields = (tableFilterType.toConfig() as any).fields as Record<
     string,
     { name: string; type: GraphQLType }
   >;
@@ -108,23 +108,23 @@ test("filter type has correct suffixes and types", () => {
     // listEnum_not: "[SimpleEnum]",
     // listEnum_has: "SimpleEnum",
     // listEnum_not_has: "SimpleEnum",
-    relatedEntityStringId: "String",
-    relatedEntityStringId_not: "String",
-    relatedEntityStringId_in: "[String]",
-    relatedEntityStringId_not_in: "[String]",
-    relatedEntityStringId_contains: "String",
-    relatedEntityStringId_not_contains: "String",
-    relatedEntityStringId_starts_with: "String",
-    relatedEntityStringId_ends_with: "String",
-    relatedEntityStringId_not_starts_with: "String",
-    relatedEntityStringId_not_ends_with: "String",
-    relatedEntityBigIntId: "BigInt",
-    relatedEntityBigIntId_not: "BigInt",
-    relatedEntityBigIntId_in: "[BigInt]",
-    relatedEntityBigIntId_not_in: "[BigInt]",
-    relatedEntityBigIntId_gt: "BigInt",
-    relatedEntityBigIntId_lt: "BigInt",
-    relatedEntityBigIntId_gte: "BigInt",
-    relatedEntityBigIntId_lte: "BigInt",
+    relatedTableStringId: "String",
+    relatedTableStringId_not: "String",
+    relatedTableStringId_in: "[String]",
+    relatedTableStringId_not_in: "[String]",
+    relatedTableStringId_contains: "String",
+    relatedTableStringId_not_contains: "String",
+    relatedTableStringId_starts_with: "String",
+    relatedTableStringId_ends_with: "String",
+    relatedTableStringId_not_starts_with: "String",
+    relatedTableStringId_not_ends_with: "String",
+    relatedTableBigIntId: "BigInt",
+    relatedTableBigIntId_not: "BigInt",
+    relatedTableBigIntId_in: "[BigInt]",
+    relatedTableBigIntId_not_in: "[BigInt]",
+    relatedTableBigIntId_gt: "BigInt",
+    relatedTableBigIntId_lt: "BigInt",
+    relatedTableBigIntId_gte: "BigInt",
+    relatedTableBigIntId_lte: "BigInt",
   });
 });

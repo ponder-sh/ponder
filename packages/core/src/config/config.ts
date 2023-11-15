@@ -76,7 +76,7 @@ export type ContractRequired<
    * Factories cannot override an address and vice versa.
    */
   network:
-    | Record<TNetworkNames, Partial<ContractFilter<TAbi, TEventName>>>
+    | Partial<Record<TNetworkNames, Partial<ContractFilter<TAbi, TEventName>>>>
     | TNetworkNames;
 };
 
@@ -190,7 +190,7 @@ type Option = {
 };
 
 export type Config = {
-  /** Database to use for storing blockchain & entity data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
+  /** Database to use for storing raw & indexed data. Default: `"postgres"` if `DATABASE_URL` env var is present, otherwise `"sqlite"`. */
   database?: Database;
   networks: Record<string, Network>;
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
@@ -243,6 +243,8 @@ export const createConfig = <
     } else {
       Object.entries(contract.network).forEach(
         ([networkName, contractOverride]) => {
+          if (!contractOverride) return;
+
           // Make sure network matches an element in config.networks
           const network = config.networks[networkName];
           if (!network)

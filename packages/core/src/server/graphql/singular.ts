@@ -33,7 +33,7 @@ const buildSingularField = ({
     if (id === undefined) return null;
 
     const entityInstance = await store.findUnique({
-      modelName: tableName,
+      tableName: tableName,
       id,
       timestamp,
     });

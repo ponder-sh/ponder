@@ -10,7 +10,7 @@ import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 import type { Infer, Schema } from "@/schema/types.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
-import type { Model } from "@/types/model.js";
+import type { DatabaseModel } from "@/types/model.js";
 import type { Transaction } from "@/types/transaction.js";
 
 import type { Prettify } from "./utils.js";
@@ -31,7 +31,7 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
     }: {
       event: {
         name: TName extends `${string}:${infer EventName}` ? EventName : string;
-        params: GetEventArgs<
+        args: GetEventArgs<
           Abi,
           string,
           {
@@ -97,8 +97,8 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
             }[keyof TConfig["contracts"][ContractName]["network"]]
           : never;
         client: Prettify<Omit<ReadOnlyClient, "extend">>;
-        models: {
-          [key in keyof Infer<TSchema>]: Model<Infer<TSchema>[key]>;
+        db: {
+          [key in keyof Infer<TSchema>]: DatabaseModel<Infer<TSchema>[key]>;
         };
       };
     }) => Promise<void> | void,

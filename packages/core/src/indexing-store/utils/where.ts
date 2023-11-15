@@ -2,7 +2,7 @@ import type { ComparisonOperatorExpression } from "kysely";
 
 import { encodeAsText } from "@/utils/encoding.js";
 
-import type { ModelDefinition, OrderByInput, WhereInput } from "../store.js";
+import type { OrderByInput, Table, WhereInput } from "../store.js";
 
 export const sqlOperatorsByCondition = {
   // universal
@@ -62,7 +62,7 @@ export function buildSqlWhereConditions({
   where,
   encodeBigInts,
 }: {
-  where: WhereInput<ModelDefinition>;
+  where: WhereInput<Table>;
   encodeBigInts: boolean;
 }) {
   // If the where clause has multiple conditions, they are combined using AND.
@@ -173,7 +173,7 @@ function getOperatorAndParameter({
 export function buildSqlOrderByConditions({
   orderBy,
 }: {
-  orderBy: OrderByInput<ModelDefinition>;
+  orderBy: OrderByInput<Table>;
 }) {
   const conditions: [fieldName: string, direction: "asc" | "desc"][] = [];
 
