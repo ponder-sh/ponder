@@ -1,2 +1,4 @@
 dist/
 .env.local
+templates/*
+!templates/default
