@@ -14,11 +14,11 @@ const parseJson = (encodedJson: string, defaultValue: any = null) => {
 };
 
 ponder.on("FileStore:FileCreated", async ({ event, context }) => {
-  const { filename, size, metadata: rawMetadata } = event.params;
+  const { filename, size, metadata: rawMetadata } = event.args;
 
   const metadata = parseJson(fromHex(rawMetadata as Hex, "string"));
 
-  await context.models.File.create({
+  await context.db.File.create({
     id: filename,
     data: {
       name: filename,
@@ -38,5 +38,5 @@ ponder.on("FileStore:FileCreated", async ({ event, context }) => {
 });
 
 ponder.on("FileStore:FileDeleted", async ({ event, context }) => {
-  await context.models.File.delete({ id: event.params.filename });
+  await context.db.File.delete({ id: event.args.filename });
 });

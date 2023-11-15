@@ -1,37 +1,36 @@
 import { ponder } from "@/generated";
 
 ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
-  const { Share, Subject, TradeEvent, Trader } = context.models;
+  const { Share, Subject, TradeEvent, Trader } = context.db;
 
   // Skip phantom events
-  if (event.params.shareAmount === 0n) {
+  if (event.args.shareAmount === 0n) {
     return;
   }
 
-  const subjectId = event.params.subject;
-  const traderId = event.params.trader;
-  const shareId = event.params.subject + "-" + event.params.trader;
+  const subjectId = event.args.subject;
+  const traderId = event.args.trader;
+  const shareId = event.args.subject + "-" + event.args.trader;
   const tradeEventId =
     event.transaction.hash + "-" + event.log.logIndex.toString();
 
-  const feeAmount =
-    event.params.protocolEthAmount + event.params.subjectEthAmount;
+  const feeAmount = event.args.protocolEthAmount + event.args.subjectEthAmount;
 
-  const traderAmount = event.params.isBuy
-    ? event.params.ethAmount + feeAmount
-    : event.params.ethAmount - feeAmount;
+  const traderAmount = event.args.isBuy
+    ? event.args.ethAmount + feeAmount
+    : event.args.ethAmount - feeAmount;
 
   const tradeEvent = await TradeEvent.create({
     id: tradeEventId as `0x${string}`,
     data: {
       subjectId: subjectId,
       traderId: traderId,
-      shareAmount: event.params.shareAmount,
-      tradeType: event.params.isBuy ? "BUY" : "SELL",
-      ethAmount: event.params.ethAmount,
-      protocolEthAmount: event.params.protocolEthAmount,
-      subjectEthAmount: event.params.subjectEthAmount,
-      supply: event.params.supply,
+      shareAmount: event.args.shareAmount,
+      tradeType: event.args.isBuy ? "BUY" : "SELL",
+      ethAmount: event.args.ethAmount,
+      protocolEthAmount: event.args.protocolEthAmount,
+      subjectEthAmount: event.args.subjectEthAmount,
+      supply: event.args.supply,
       timestamp: Number(event.block.timestamp),
       traderAmount: traderAmount,
     },

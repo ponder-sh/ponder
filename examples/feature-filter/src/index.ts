@@ -1,13 +1,13 @@
 import { ponder } from "@/generated";
 
 ponder.on("PrimitiveManager:Swap", async ({ event, context }) => {
-  const { SwapEvent } = context.models;
+  const { SwapEvent } = context.db;
 
   await SwapEvent.create({
     id: event.log.id,
     data: {
-      payer: event.params.payer,
-      recipient: event.params.recipient,
+      payer: event.args.payer,
+      recipient: event.args.recipient,
     },
   });
 });
