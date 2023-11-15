@@ -140,7 +140,13 @@ const subgraph = async () => {
 
   const duration = await waitForSyncComplete();
 
-  return { setupDuration, duration };
+  const metrics = await fetchSubgraphMetrics();
+  const rpcRequest = JSON.stringify(
+    metrics.find((m) => m.name === "endpoint_request").metrics,
+  );
+  // .reduce((acc, cur) => acc + Number(cur.value), 0);
+
+  return { setupDuration, duration, rpcRequest };
 };
 
 const changeMappingFileDelim = (delim: string) => {

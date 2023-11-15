@@ -8,20 +8,6 @@ jobs:
     name: Bench:Ponder
     runs-on: ubuntu-22.04
     services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-          POSTGRES_INITDB_ARGS: -E UTF8 --locale=C
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-        ports:
-          - 5432:5432
       anvil:
         image: ghcr.io/0xolias/simple-anvil-image:main
         env:

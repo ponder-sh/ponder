@@ -1,5 +1,5 @@
 import { rmSync } from "node:fs";
-import path from "node:path";
+import os from "node:os";
 
 import { execa } from "execa";
 
@@ -68,7 +68,7 @@ const waitForSyncComplete = async () => {
     timeout = setTimeout(() => {
       clearInterval(interval);
       reject(new Error("Timed out waiting for ponder to sync"));
-    }, 60_000);
+    }, 180_000);
   });
 
   return duration;
@@ -85,9 +85,15 @@ const ponder = async () => {
   const setupDuration = await waitForSetupComplete();
   const duration = await waitForSyncComplete();
 
+  const metrics = await fetchPonderMetrics();
+
+  const rpcRequest = metrics.find(
+    (m) => m.name === "ponder_historical_rpc_request_duration",
+  )?.metrics[0]?.buckets["+Inf"];
+
   subprocess.kill();
 
-  return { setupDuration, duration };
+  return { setupDuration, duration, rpcRequest };
 };
 
 const bench = async () => {
@@ -104,6 +110,8 @@ const bench = async () => {
   const ponderHot = await ponder();
 
   console.log({ ponderHot, ponderCold });
+
+  console.log(os.cpus(), os.platform(), os.machine());
 };
 
 await bench();

@@ -26,7 +26,7 @@ services:
     image: ghcr.io/0xolias/simple-anvil-image:main
     environment:
       ANVIL_FORK_URL: "${ANVIL_FORK_URL}"
-      ANVIL_FORK_BLOCK_NUMBER: 17501000
+      ANVIL_FORK_BLOCK_NUMBER: 17500000
     ports:
       - 8545:8545
   graph-node:

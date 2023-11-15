@@ -8,7 +8,7 @@ dataSources:
     source:
       address: "0xae78736cd615f374d3085123a210448e74fc6393"
       abi: RocketTokenRETH
-      startBlock: 17490000
+      startBlock: 17480000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
