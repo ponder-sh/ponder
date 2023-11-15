@@ -77,19 +77,12 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
       // Note: should we filter down which indexing functions are available based on the filters
       const events = getEvents({ abi: contract.abi });
 
-      // Resolve the contract per network, filling in default values where applicable
+      // If the network field uses the string shortcut, build a single source.
       if (typeof contract.network === "string") {
-        // shortcut network name
         const network = config.networks[contract.network]!;
 
-        const resolvedFilter = contract.filter;
-
-        const topics = resolvedFilter
-          ? buildTopics(contract.abi, resolvedFilter)
-          : undefined;
-
         const sharedSource = {
-          name: contractName,
+          name: `${contractName}_${contract.network}`,
           abi: contract.abi,
           network: contract.network,
           chainId: network.chainId,
@@ -99,13 +92,15 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
           maxBlockRange: contract.maxBlockRange,
         } as const;
 
-        // Check that factory and address are not both defined
+        const resolvedFilter = contract.filter;
+        const topics = resolvedFilter
+          ? buildTopics(contract.abi, resolvedFilter)
+          : undefined;
+
         const resolvedFactory = "factory" in contract && contract.factory;
         const resolvedAddress = "address" in contract && contract.address;
 
         if (resolvedFactory) {
-          // factory
-
           return {
             ...sharedSource,
             type: "factory",
@@ -113,10 +108,69 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
               ...buildFactoryCriteria(resolvedFactory),
               topics,
             },
-          } as const satisfies Factory;
-        } else {
-          // log filter
+          } satisfies Factory;
+        }
 
+        return {
+          ...sharedSource,
+          type: "logFilter",
+          criteria: {
+            address: Array.isArray(resolvedAddress)
+              ? resolvedAddress.map((r) => toLowerCase(r))
+              : resolvedAddress
+                ? toLowerCase(resolvedAddress)
+                : undefined,
+            topics,
+          },
+        } satisfies LogFilter;
+      }
+
+      // Build one source per configured network.
+      return Object.entries(contract.network)
+        .filter(
+          // Filter out the case where { network: { mainnet: undefined } }
+          (n): n is [string, Partial<ContractFilter<Abi, string>>] => !!n[1],
+        )
+        .map(([networkName, networkContract]) => {
+          const network = config.networks[networkName]!;
+
+          const sharedSource = {
+            name: `${contractName}_${networkName}`,
+            abi: contract.abi,
+            network: networkName,
+            chainId: network.chainId,
+            events,
+            startBlock: networkContract.startBlock ?? contract.startBlock ?? 0,
+            endBlock: networkContract.endBlock ?? contract.endBlock,
+            maxBlockRange:
+              networkContract.maxBlockRange ?? contract.maxBlockRange,
+          } as const;
+
+          const resolvedFilter = networkContract.filter ?? contract.filter;
+          const topics = resolvedFilter
+            ? buildTopics(contract.abi, resolvedFilter)
+            : undefined;
+
+          const resolvedFactory =
+            ("factory" in networkContract && networkContract.factory) ||
+            ("factory" in contract && contract.factory);
+          const resolvedAddress =
+            ("address" in networkContract && networkContract.address) ||
+            ("address" in contract && contract.address);
+
+          // Resolve the contract as a factory.
+          if (resolvedFactory) {
+            return {
+              ...sharedSource,
+              type: "factory",
+              criteria: {
+                ...buildFactoryCriteria(resolvedFactory),
+                topics,
+              },
+            } satisfies Factory;
+          }
+
+          // Resolve the contract as a normal log filter.
           return {
             ...sharedSource,
             type: "logFilter",
@@ -128,73 +182,9 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
                   : undefined,
               topics,
             },
-          } as const satisfies LogFilter;
-        }
-      } else {
-        return Object.entries(contract.network)
-          .filter(
-            (n): n is [string, Partial<ContractFilter<Abi, string>>] => !!n[1],
-          )
-          .map(([networkName, networkContract]) => {
-            const network = config.networks[networkName]!;
-
-            const resolvedFilter = networkContract.filter ?? contract.filter;
-
-            const topics = resolvedFilter
-              ? buildTopics(contract.abi, resolvedFilter)
-              : undefined;
-
-            const sharedSource = {
-              name: contractName,
-              abi: contract.abi,
-              network: networkName,
-              chainId: network.chainId,
-              events,
-              startBlock:
-                networkContract.startBlock ?? contract.startBlock ?? 0,
-              endBlock: networkContract.endBlock ?? contract.endBlock,
-              maxBlockRange:
-                networkContract.maxBlockRange ?? contract.maxBlockRange,
-            } as const;
-
-            // Check that factory and address are not both defined
-            const resolvedFactory =
-              ("factory" in networkContract && networkContract.factory) ||
-              ("factory" in contract && contract.factory);
-            const resolvedAddress =
-              ("address" in networkContract && networkContract.address) ||
-              ("address" in contract && contract.address);
-
-            if (resolvedFactory) {
-              // factory
-
-              return {
-                ...sharedSource,
-                type: "factory",
-                criteria: {
-                  ...buildFactoryCriteria(resolvedFactory),
-                  topics,
-                },
-              } as const satisfies Factory;
-            } else {
-              // log filter
-
-              return {
-                ...sharedSource,
-                type: "logFilter",
-                criteria: {
-                  address: Array.isArray(resolvedAddress)
-                    ? resolvedAddress.map((r) => toLowerCase(r))
-                    : resolvedAddress
-                      ? toLowerCase(resolvedAddress)
-                      : undefined,
-                  topics,
-                },
-              } as const satisfies LogFilter;
-            }
-          })
-          .flat();
-      }
+          } satisfies LogFilter;
+        })
+        .flat();
     })
     .flat();
 };
