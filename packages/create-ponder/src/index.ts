@@ -258,7 +258,6 @@ yarn-error.log*
 .env*.local
 
 # Ponder
-/.next/
 /generated/
 /.ponder/
 
