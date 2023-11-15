@@ -150,6 +150,10 @@ test("createConfig() strict network names", () => {
         chainId: 1,
         transport: http("http://127.0.0.1:8545"),
       },
+      optimism: {
+        chainId: 10,
+        transport: http("http://127.0.0.1:8545"),
+      },
     },
     contracts: {
       BaseRegistrarImplementation: {

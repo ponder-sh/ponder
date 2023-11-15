@@ -76,7 +76,7 @@ export type ContractRequired<
    * Factories cannot override an address and vice versa.
    */
   network:
-    | Record<TNetworkNames, Partial<ContractFilter<TAbi, TEventName>>>
+    | Partial<Record<TNetworkNames, Partial<ContractFilter<TAbi, TEventName>>>>
     | TNetworkNames;
 };
 
@@ -243,6 +243,8 @@ export const createConfig = <
     } else {
       Object.entries(contract.network).forEach(
         ([networkName, contractOverride]) => {
+          if (!contractOverride) return;
+
           // Make sure network matches an element in config.networks
           const network = config.networks[networkName];
           if (!network)
