@@ -152,7 +152,7 @@ export interface SyncStore {
     fromTimestamp: number;
     toTimestamp: number;
     logFilters?: {
-      name: string;
+      id: string;
       chainId: number;
       criteria: LogFilterCriteria;
       fromBlock?: number;
@@ -160,7 +160,7 @@ export interface SyncStore {
       includeEventSelectors?: Hex[];
     }[];
     factories?: {
-      name: string; // Note that this is the name of the child contract.
+      id: string; // Note that this is the source ID of the child contract.
       chainId: number;
       criteria: FactoryCriteria;
       fromBlock?: number;
@@ -170,16 +170,16 @@ export interface SyncStore {
     pageSize?: number;
   }): AsyncGenerator<{
     events: {
-      eventSourceName: string;
+      sourceId: string;
+      chainId: number;
       log: Log;
       block: Block;
       transaction: Transaction;
-      chainId: number;
     }[];
     metadata: {
       pageEndsAtTimestamp: number;
       counts: {
-        eventSourceName: string;
+        sourceId: string;
         selector: Hex;
         count: number;
       }[];

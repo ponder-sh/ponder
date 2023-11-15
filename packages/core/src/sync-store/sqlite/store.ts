@@ -771,7 +771,7 @@ export class SqliteSyncStore implements SyncStore {
     fromTimestamp: number;
     toTimestamp: number;
     logFilters?: {
-      name: string;
+      id: string;
       chainId: number;
       criteria: LogFilterCriteria;
       fromBlock?: number;
@@ -779,7 +779,7 @@ export class SqliteSyncStore implements SyncStore {
       includeEventSelectors?: Hex[];
     }[];
     factories?: {
-      name: string;
+      id: string;
       chainId: number;
       criteria: FactoryCriteria;
       fromBlock?: number;
@@ -788,25 +788,25 @@ export class SqliteSyncStore implements SyncStore {
     }[];
     pageSize: number;
   }) {
-    const eventSourceNames = [
-      ...logFilters.map((f) => f.name),
-      ...factories.map((f) => f.name),
+    const sourceIds = [
+      ...logFilters.map((f) => f.id),
+      ...factories.map((f) => f.id),
     ];
 
     const baseQuery = this.db
       .with(
-        "eventSources(eventSource_name)",
+        "sources(source_id)",
         () =>
           sql`( values ${sql.join(
-            eventSourceNames.map((name) => sql`( ${sql.val(name)} )`),
+            sourceIds.map((id) => sql`( ${sql.val(id)} )`),
           )} )`,
       )
       .selectFrom("logs")
       .leftJoin("blocks", "blocks.hash", "logs.blockHash")
       .leftJoin("transactions", "transactions.hash", "logs.transactionHash")
-      .innerJoin("eventSources", (join) => join.onTrue())
+      .innerJoin("sources", (join) => join.onTrue())
       .select([
-        "eventSource_name",
+        "source_id",
 
         "logs.address as log_address",
         "logs.blockHash as log_blockHash",
@@ -823,7 +823,6 @@ export class SqliteSyncStore implements SyncStore {
         "logs.transactionIndex as log_transactionIndex",
 
         "blocks.baseFeePerGas as block_baseFeePerGas",
-        // "blocks.chainId as block_chainId",
         "blocks.difficulty as block_difficulty",
         "blocks.extraData as block_extraData",
         "blocks.gasLimit as block_gasLimit",
@@ -846,7 +845,6 @@ export class SqliteSyncStore implements SyncStore {
         "transactions.accessList as tx_accessList",
         "transactions.blockHash as tx_blockHash",
         "transactions.blockNumber as tx_blockNumber",
-        // "transactions.chainId as tx_chainId",
         "transactions.from as tx_from",
         "transactions.gas as tx_gas",
         "transactions.gasPrice as tx_gasPrice",
@@ -871,17 +869,16 @@ export class SqliteSyncStore implements SyncStore {
       .orderBy("logs.logIndex", "asc");
 
     const buildLogFilterCmprs = ({
-      where,
+      eb,
       logFilter,
     }: {
-      where: ExpressionBuilder<any, any>;
+      eb: ExpressionBuilder<any, any>;
       logFilter: (typeof logFilters)[number];
     }) => {
-      const { cmpr, or } = where;
-      const cmprs = [];
+      const exprs = [];
 
-      cmprs.push(cmpr("eventSource_name", "=", logFilter.name));
-      cmprs.push(cmpr("logs.chainId", "=", logFilter.chainId));
+      exprs.push(eb("source_id", "=", logFilter.id));
+      exprs.push(eb("logs.chainId", "=", logFilter.chainId));
 
       if (logFilter.criteria.address) {
         // If it's an array of length 1, collapse it.
@@ -891,9 +888,9 @@ export class SqliteSyncStore implements SyncStore {
             ? logFilter.criteria.address[0]
             : logFilter.criteria.address;
         if (Array.isArray(address)) {
-          cmprs.push(or(address.map((a) => cmpr("logs.address", "=", a))));
+          exprs.push(eb.or(address.map((a) => eb("logs.address", "=", a))));
         } else {
-          cmprs.push(cmpr("logs.address", "=", address));
+          exprs.push(eb("logs.address", "=", address));
         }
       }
 
@@ -905,51 +902,46 @@ export class SqliteSyncStore implements SyncStore {
           if (raw === null) continue;
           const topic = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
           if (Array.isArray(topic)) {
-            cmprs.push(or(topic.map((a) => cmpr(`logs.topic${idx}`, "=", a))));
+            exprs.push(eb.or(topic.map((a) => eb(`logs.topic${idx}`, "=", a))));
           } else {
-            cmprs.push(cmpr(`logs.topic${idx}`, "=", topic));
+            exprs.push(eb(`logs.topic${idx}`, "=", topic));
           }
         }
       }
 
-      if (logFilter.fromBlock) {
-        cmprs.push(
-          cmpr("blocks.number", ">=", encodeAsText(logFilter.fromBlock)),
+      if (logFilter.fromBlock)
+        exprs.push(
+          eb("blocks.number", ">=", encodeAsText(logFilter.fromBlock)),
         );
-      }
+      if (logFilter.toBlock)
+        exprs.push(eb("blocks.number", "<=", encodeAsText(logFilter.toBlock)));
 
-      if (logFilter.toBlock) {
-        cmprs.push(
-          cmpr("blocks.number", "<=", encodeAsText(logFilter.toBlock)),
-        );
-      }
-
-      return cmprs;
+      return exprs;
     };
 
     const buildFactoryCmprs = ({
-      where,
+      eb,
       factory,
     }: {
-      where: ExpressionBuilder<any, any>;
+      eb: ExpressionBuilder<any, any>;
       factory: (typeof factories)[number];
     }) => {
-      const { cmpr, selectFrom } = where;
-      const cmprs = [];
+      const exprs = [];
 
-      cmprs.push(cmpr("eventSource_name", "=", factory.name));
-      cmprs.push(cmpr("logs.chainId", "=", factory.chainId));
+      exprs.push(eb("source_id", "=", factory.id));
+      exprs.push(eb("logs.chainId", "=", factory.chainId));
 
       const selectChildAddressExpression =
         buildFactoryChildAddressSelectExpression({
           childAddressLocation: factory.criteria.childAddressLocation,
         });
 
-      cmprs.push(
-        cmpr(
+      exprs.push(
+        eb(
           "logs.address",
           "in",
-          selectFrom("logs")
+          eb
+            .selectFrom("logs")
             .select(selectChildAddressExpression.as("childAddress"))
             .where("chainId", "=", factory.chainId)
             .where("address", "=", factory.criteria.address)
@@ -957,52 +949,46 @@ export class SqliteSyncStore implements SyncStore {
         ),
       );
 
-      if (factory.fromBlock) {
-        cmprs.push(
-          cmpr("blocks.number", ">=", encodeAsText(factory.fromBlock)),
-        );
-      }
+      if (factory.fromBlock)
+        exprs.push(eb("blocks.number", ">=", encodeAsText(factory.fromBlock)));
+      if (factory.toBlock)
+        exprs.push(eb("blocks.number", "<=", encodeAsText(factory.toBlock)));
 
-      if (factory.toBlock) {
-        cmprs.push(cmpr("blocks.number", "<=", encodeAsText(factory.toBlock)));
-      }
-
-      return cmprs;
+      return exprs;
     };
 
     // Get full log objects, including the includeEventSelectors clause.
     const includedLogsBaseQuery = baseQuery
-      .where((where) => {
-        const { cmpr, and, or } = where;
+      .where((eb) => {
         const logFilterCmprs = logFilters.map((logFilter) => {
-          const cmprs = buildLogFilterCmprs({ where, logFilter });
+          const exprs = buildLogFilterCmprs({ eb, logFilter });
           if (logFilter.includeEventSelectors) {
-            cmprs.push(
-              or(
+            exprs.push(
+              eb.or(
                 logFilter.includeEventSelectors.map((t) =>
-                  cmpr("logs.topic0", "=", t),
+                  eb("logs.topic0", "=", t),
                 ),
               ),
             );
           }
-          return and(cmprs);
+          return eb.and(exprs);
         });
 
         const factoryCmprs = factories.map((factory) => {
-          const cmprs = buildFactoryCmprs({ where, factory });
+          const exprs = buildFactoryCmprs({ eb, factory });
           if (factory.includeEventSelectors) {
-            cmprs.push(
-              or(
+            exprs.push(
+              eb.or(
                 factory.includeEventSelectors.map((t) =>
-                  cmpr("logs.topic0", "=", t),
+                  eb("logs.topic0", "=", t),
                 ),
               ),
             );
           }
-          return and(cmprs);
+          return eb.and(exprs);
         });
 
-        return or([...logFilterCmprs, ...factoryCmprs]);
+        return eb.or([...logFilterCmprs, ...factoryCmprs]);
       })
       .orderBy("blocks.timestamp", "asc")
       .orderBy("logs.chainId", "asc")
@@ -1013,30 +999,28 @@ export class SqliteSyncStore implements SyncStore {
     const eventCountsQuery = baseQuery
       .clearSelect()
       .select([
-        "eventSource_name",
+        "source_id",
         "logs.topic0",
         this.db.fn.count("logs.id").as("count"),
       ])
-      .where((where) => {
-        const { and, or } = where;
-
+      .where((eb) => {
         // NOTE: Not adding the includeEventSelectors clause here.
         const logFilterCmprs = logFilters.map((logFilter) =>
-          and(buildLogFilterCmprs({ where, logFilter })),
+          eb.and(buildLogFilterCmprs({ eb, logFilter })),
         );
 
         const factoryCmprs = factories.map((factory) =>
-          and(buildFactoryCmprs({ where, factory })),
+          eb.and(buildFactoryCmprs({ eb, factory })),
         );
 
-        return or([...logFilterCmprs, ...factoryCmprs]);
+        return eb.or([...logFilterCmprs, ...factoryCmprs]);
       })
-      .groupBy(["eventSource_name", "logs.topic0"]);
+      .groupBy(["source_id", "logs.topic0"]);
 
     // Fetch the event counts once and include it in every response.
     const eventCountsRaw = await eventCountsQuery.execute();
     const eventCounts = eventCountsRaw.map((c) => ({
-      eventSourceName: String(c.eventSource_name),
+      sourceId: String(c.source_id),
       selector: c.topic0 as Hex,
       count: Number(c.count),
     }));
@@ -1056,21 +1040,21 @@ export class SqliteSyncStore implements SyncStore {
         // See this comment for an explanation of the cursor logic.
         // https://stackoverflow.com/a/38017813
         // This is required to avoid skipping logs that have the same timestamp.
-        query = query.where(({ and, or, cmpr }) => {
+        query = query.where(({ eb, and, or }) => {
           const { timestamp, chainId, blockNumber, logIndex } = cursor!;
           return and([
-            cmpr("blocks.timestamp", ">=", timestamp),
+            eb("blocks.timestamp", ">=", timestamp),
             or([
-              cmpr("blocks.timestamp", ">", timestamp),
+              eb("blocks.timestamp", ">", timestamp),
               and([
-                cmpr("logs.chainId", ">=", chainId),
+                eb("logs.chainId", ">=", chainId),
                 or([
-                  cmpr("logs.chainId", ">", chainId),
+                  eb("logs.chainId", ">", chainId),
                   and([
-                    cmpr("blocks.number", ">=", blockNumber),
+                    eb("blocks.number", ">=", blockNumber),
                     or([
-                      cmpr("blocks.number", ">", blockNumber),
-                      cmpr("logs.logIndex", ">", logIndex),
+                      eb("blocks.number", ">", blockNumber),
+                      eb("logs.logIndex", ">", logIndex),
                     ]),
                   ]),
                 ]),
@@ -1088,7 +1072,8 @@ export class SqliteSyncStore implements SyncStore {
         // that those fields are indeed present before continuing here.
         const row = _row as NonNull<(typeof requestedLogs)[number]>;
         return {
-          eventSourceName: row.eventSource_name,
+          sourceId: row.source_id,
+          chainId: row.log_chainId,
           log: {
             address: row.log_address,
             blockHash: row.log_blockHash,
@@ -1174,13 +1159,12 @@ export class SqliteSyncStore implements SyncStore {
                         type: row.tx_type,
                       }),
           },
-          chainId: row.log_chainId,
         } satisfies {
-          eventSourceName: string;
+          sourceId: string;
+          chainId: number;
           log: Log;
           block: Block;
           transaction: Transaction;
-          chainId: number;
         };
       });
 
