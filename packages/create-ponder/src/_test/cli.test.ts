@@ -32,7 +32,7 @@ test("create default", async () => {
     .sort();
 
   const generatedFiles = fs.readdirSync(genPath).sort();
-  expect(templateFiles).toEqual(generatedFiles);
+  expect(templateFiles).toStrictEqual(generatedFiles);
 });
 
 test("create etherscan", async () => {
@@ -43,7 +43,7 @@ test("create etherscan", async () => {
       skipGit: true,
       etherscanApiKey: process.env.ETHERSCAN_API_KEY!,
       etherscanContractLink:
-        "https://etherscan.io/address/0x42CDc5D4B05E8dACc2FCD181cbe0Cc86Ee14c439",
+        "https://etherscan.io/address/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     },
   });
 
@@ -63,5 +63,5 @@ test("create etherscan", async () => {
     .sort();
 
   const generatedFiles = fs.readdirSync(genPath).sort();
-  expect(templateFiles).toEqual(generatedFiles);
-}, 30_000);
+  expect(templateFiles).toStrictEqual(generatedFiles);
+}, 40_000);
