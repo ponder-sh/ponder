@@ -337,12 +337,6 @@ async function run({
   );
 
   const packageManager = await getPackageManager({ options });
-  if (packageManager === "npm") {
-    await fs.appendFile(
-      path.join(targetPath, ".npmrc"),
-      "\nlegacy-peer-deps = true",
-    );
-  }
 
   // Install in background to not clutter screen
   log(`Using ${pico.bold(packageManager)}.`);
