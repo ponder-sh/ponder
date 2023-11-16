@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdirSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,7 +24,6 @@ import {
   validateTemplateName,
   ValidationError,
 } from "./helpers/validate.js";
-import { fromSubgraphId } from "./subgraph.js";
 
 const log = console.log;
 
@@ -71,11 +70,6 @@ const templates = [
     title: "etherscan",
     description: "Create a Ponder App from Etherscan",
     id: "etherscan",
-  },
-  {
-    title: "subgraph",
-    description: "Create a Ponder App from a Subgraph Id",
-    id: "subgraph",
   },
   {
     title: "feature-factory",
@@ -231,18 +225,6 @@ async function run({
       rootDir: targetPath,
       etherscanLink: link,
     });
-  } else if (templateMeta.id === "subgraph") {
-    const { id } = await prompts({
-      type: "text",
-      name: "id",
-      message: "Enter a subgraph deployment ID",
-      initial: "QmNus...",
-    });
-
-    mkdirSync(path.join(targetPath, "abis"), { recursive: true });
-    mkdirSync(path.join(targetPath, "src"), { recursive: true });
-
-    config = await fromSubgraphId({ rootDir: targetPath, subgraphId: id });
   }
 
   log(`Creating a new ponder app in ${pico.green(targetPath)}.`);
