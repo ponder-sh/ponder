@@ -74,12 +74,17 @@ export class PostgresIndexingStore implements IndexingStore {
     await this.db.transaction().execute(async (tx) => {
       // Drop tables from existing schema.
       if (this.schema) {
-        await Promise.all(
-          Object.keys(this.schema.tables).map((tableName) => {
-            const table = `${tableName}_${this.versionId}`;
-            tx.schema.dropTable(table);
-          }),
-        );
+        const tableNames = Object.keys(this.schema.tables ?? {});
+        if (tableNames.length > 0) {
+          await this.db.transaction().execute(async (tx) => {
+            await Promise.all(
+              tableNames.map(async (tableName) => {
+                const table = `${tableName}_${this.versionId}`;
+                await tx.schema.dropTable(table).execute();
+              }),
+            );
+          });
+        }
       }
 
       if (schema) this.schema = schema;
