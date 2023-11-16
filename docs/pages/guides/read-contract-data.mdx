@@ -118,12 +118,12 @@ export default createConfig({
 ```ts filename="src/index.ts"
 import { ponder } from "@/generated";
 
-ponder.on("UniswapV3Factory:Ownership", async ({ event, context }) => {
-  const gradientData = await context.client.readContract({
-    abi: context.contracts.ZorbNft.abi,
-    address: context.contracts.ZorbNft.address,
-    functionName: "gradientForAddress",
-    args: [event.args.to],
+ponder.on("UniswapV3Factory:FeeAmountEnabled", async ({ event, context }) => {
+  const tickSpacing = await context.client.readContract({
+    abi: context.contracts.UniswapV3Factory.abi,
+    address: context.contracts.UniswapV3Factory.address,
+    functionName: "feeAmountTickSpacing",
+    args: [event.args.fee],
   });
 });
 ```
