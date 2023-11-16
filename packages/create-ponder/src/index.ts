@@ -225,6 +225,7 @@ async function run({
     config = await fromEtherscan({
       rootDir: targetPath,
       etherscanLink: link,
+      etherscanApiKey: options.etherscanApiKey,
     });
   }
 
@@ -323,7 +324,6 @@ async function run({
   }
 
   // TODO: make a copy of .env.local
-  // TODO: Etherscan key
 
   // Create package.json for project
   const packageJson = await fs.readJSON(path.join(targetPath, "package.json"));
@@ -421,6 +421,7 @@ async function run({
         .map(({ id }) => id)
         .join(", ")}`,
     )
+    .option("--etherscan-api-key [key]", "Etherscan API key")
     .option("--npm", "Use npm as your package manager")
     .option("--pnpm", "Use pnpm as your package manager")
     .option("--yarn", "Use yarn as your package manager")
