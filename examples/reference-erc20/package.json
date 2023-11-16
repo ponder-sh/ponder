@@ -1,5 +1,5 @@
 {
-  "name": "ponder-examples-token-erc20",
+  "name": "ponder-examples-reference-erc20",
   "private": true,
   "scripts": {
     "dev": "ponder dev",

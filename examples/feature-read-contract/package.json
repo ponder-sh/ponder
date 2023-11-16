@@ -1,5 +1,5 @@
 {
-  "name": "ponder-examples-ethfs",
+  "name": "ponder-examples-feature-read-contract",
   "private": true,
   "scripts": {
     "dev": "ponder dev",
