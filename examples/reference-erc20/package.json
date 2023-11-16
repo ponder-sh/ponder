@@ -5,18 +5,18 @@
     "dev": "ponder dev",
     "start": "ponder start",
     "codegen": "ponder codegen",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ponder/core": "workspace:*"
+    "@ponder/core": "workspace:*",
+    "viem": "^1.19.3"
   },
   "devDependencies": {
     "@types/node": "^20.9.0",
-    "@wagmi/core": "^1.4.6",
-    "abitype": "^0.10.2",
+    "@wagmi/core": "^1.4.7",
     "eslint": "^8.53.0",
     "eslint-config-ponder": "workspace:*",
-    "typescript": "^5.2.2",
-    "viem": "^1.19.1"
+    "typescript": "^5.2.2"
   }
 }

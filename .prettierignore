@@ -8,3 +8,6 @@ LICENSE
 Dockerfile
 *.Dockerfile
 **/.env.example
+**/_dot_gitignore
+**/_dot_env.example
+**/_dot_env.local

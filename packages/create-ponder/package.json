@@ -11,37 +11,37 @@
   },
   "files": [
     "dist",
-    "src/**/*.ts",
-    "!src/**/*.test.ts"
+    "templates"
   ],
   "bin": {
-    "create-ponder": "./dist/bin/create-ponder.js"
+    "create-ponder": "./dist/index.js"
   },
   "scripts": {
-    "build": "pnpm clean && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
-    "build:watch": "concurrently \"tsc --project tsconfig.build.json --watch\" \"tsc-alias --project tsconfig.build.json --watch\"",
-    "clean": "rimraf ./dist",
-    "test": "vitest --no-threads",
-    "typecheck": "tsc --project tsconfig.json --noEmit"
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "cac": "^6.7.14",
+    "cpy": "^11.0.0",
     "detect-package-manager": "^3.0.1",
     "execa": "^8.0.1",
+    "fs-extra": "^11.1.1",
+    "ora": "^7.0.1",
     "picocolors": "^1.0.0",
     "prettier": "^3.1.0",
     "prompts": "^2.4.2",
-    "rimraf": "^5.0.5",
-    "yaml": "^2.3.4"
+    "update-check": "^1.5.4",
+    "validate-npm-package-name": "^5.0.0"
   },
   "devDependencies": {
-    "@ponder/core": "workspace:*",
+    "@types/fs-extra": "^11.0.4",
     "@types/node": "^20.9.0",
     "@types/prompts": "^2.4.8",
+    "@types/validate-npm-package-name": "^4.0.2",
     "abitype": "^0.10.2",
-    "concurrently": "^8.2.2",
     "dotenv": "^16.3.1",
-    "tsc-alias": "^1.8.8",
+    "tsup": "^7.2.0",
     "typescript": "^5.2.2",
     "vitest": "^0.34.6"
   }

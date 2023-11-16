@@ -1,0 +1,3 @@
+{
+  "ignorePatterns": ["templates/default/src/index.ts"]
+}
