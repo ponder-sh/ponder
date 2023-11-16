@@ -6,7 +6,8 @@
     "dev": "ponder dev",
     "start": "ponder start",
     "codegen": "ponder codegen",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@ponder/core": "^0.0.95"
