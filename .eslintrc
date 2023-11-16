@@ -27,10 +27,5 @@
     "@typescript-eslint/no-non-null-assertion": "off",
     "@typescript-eslint/ban-types": "off"
   },
-  "ignorePatterns": [
-    "dist",
-    "node_modules",
-    "generated",
-    "packages/create-ponder/templates/default/src/index.ts"
-  ]
+  "ignorePatterns": ["dist", "node_modules", "generated"]
 }
