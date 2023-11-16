@@ -38,6 +38,6 @@
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] }
   },
-  "include": ["src", "templates"],
+  "include": ["src"],
   "exclude": ["node_modules"]
 }
