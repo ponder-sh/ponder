@@ -1,18 +1,22 @@
 #!/usr/bin/env node
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { Abi, AbiEvent } from "abitype";
 import { cac } from "cac";
 import cpy from "cpy";
 import { execa } from "execa";
 import fs from "fs-extra";
 import pico from "picocolors";
+import prettier from "prettier";
 import { default as prompts } from "prompts";
 
 // NOTE: This is a workaround for tsconfig `rootDir` nonsense.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import rootPackageJson from "../package.json" assert { type: "json" };
+import { fromEtherscan } from "./etherscan.js";
 import { getPackageManager } from "./helpers/getPackageManager.js";
 import { notifyUpdate } from "./helpers/notifyUpdate.js";
 import {
@@ -20,8 +24,31 @@ import {
   validateTemplateName,
   ValidationError,
 } from "./helpers/validate.js";
+import { fromSubgraphId } from "./subgraph.js";
 
 const log = console.log;
+
+export type SerializableNetwork = {
+  name: string;
+  chainId: number;
+  transport: string;
+};
+
+export type SerializableContract = {
+  name: string;
+  network: Record<string, any> | string;
+  abi:
+    | { abi: Abi; name: string; dir: string }
+    | { abi: Abi; name: string; dir: string }[];
+  address: string;
+  startBlock?: number;
+};
+
+export type SerializableConfig = {
+  database?: { kind: string };
+  networks: SerializableNetwork[];
+  contracts: SerializableContract[];
+};
 
 export type Template = {
   title: string;
@@ -41,49 +68,59 @@ const templates = [
     id: "default",
   },
   {
+    title: "etherscan",
+    description: "Create a Ponder App from Etherscan",
+    id: "etherscan",
+  },
+  {
+    title: "subgraph",
+    description: "Create a Ponder App from a Subgraph Id",
+    id: "subgraph",
+  },
+  {
     title: "feature-factory",
     description: "Ponder app using a factory contract",
-    id: "factory",
+    id: "feature-factory",
   },
   {
     title: "feature-filter",
     description: "Ponder app using an event filter",
-    id: "filter",
+    id: "feature-filter",
   },
   {
     title: "feature-multichain",
     description: "Ponder app using a multichain configuration",
-    id: "multichain",
+    id: "feature-multichain",
   },
   {
     title: "feature-proxy",
     description: "Ponder app using a proxy contract",
-    id: "proxy",
+    id: "feature-proxy",
   },
   {
     title: "feature-read-contract",
     description: "Ponder app using a read contract call",
-    id: "read-contract",
+    id: "rfeature-read-contract",
   },
   {
     title: "project-friendtech",
     description: "",
-    id: "friendtech",
+    id: "project-friendtech",
   },
   {
     title: "project-uniswap-v3-flash",
     description: "",
-    id: "uniswap-v3",
+    id: "project-uniswap-v3-flash",
   },
   {
     title: "reference-erc20",
     description: "Refence ERC20 Ponder app",
-    id: "erc20",
+    id: "reference-erc20",
   },
   {
     title: "reference-erc721",
     description: "Refence ERC721 Ponder app",
-    id: "erc721",
+    id: "reference-erc721",
   },
 ] as const satisfies readonly Template[];
 
@@ -178,17 +215,132 @@ async function run({
   });
   if (!templateValidation.valid) throw new ValidationError(templateValidation);
 
+  let config: SerializableConfig | undefined;
+
   const targetPath = path.join(process.cwd(), projectPath);
+
+  if (templateMeta.id === "etherscan") {
+    const { link } = await prompts({
+      type: "text",
+      name: "link",
+      message: "Enter an Etherscan contract link",
+      initial: "https://etherscan.io/address/0x97...",
+    });
+
+    config = await fromEtherscan({
+      rootDir: targetPath,
+      etherscanLink: link,
+    });
+  } else if (templateMeta.id === "subgraph") {
+    const { id } = await prompts({
+      type: "text",
+      name: "id",
+      message: "Enter a subgraph deployment ID",
+      initial: "QmNus...",
+    });
+
+    mkdirSync(path.join(targetPath, "abis"), { recursive: true });
+    mkdirSync(path.join(targetPath, "src"), { recursive: true });
+
+    config = await fromSubgraphId({ rootDir: targetPath, subgraphId: id });
+  }
+
   log(`Creating a new ponder app in ${pico.green(targetPath)}.`);
   log();
   log(`Using with ${pico.bold(templateMeta.title)}.`);
   log();
 
   // Copy template contents into the target path
-  const templatePath = path.join(templatesPath, templateMeta.title);
+  const templatePath = path.join(templatesPath, templateMeta.id);
   await cpy(path.join(templatePath, "**", "*"), targetPath, {
     rename: (name) => name.replace(/^_dot_/, "."),
   });
+
+  if (config) {
+    // Write the config file.
+    const configContent = `
+    import { createConfig } from "@ponder/core";
+    ${
+      config.contracts.some((c) => Array.isArray(c.abi))
+        ? 'import {mergeAbis} from "@ponder/core"'
+        : ""
+    }
+    import { http } from "viem";
+
+    ${config.contracts
+      .map((c) => c.abi)
+      .flat()
+      .map(
+        (abi) =>
+          `import {${abi.name}} from "${abi.dir.slice(0, abi.dir.length - 3)}"`,
+      )
+      .join("\n")}
+
+    export default createConfig({
+      networks: ${JSON.stringify(config.networks)
+        .replaceAll(
+          /"process.env.PONDER_RPC_URL_(.*?)"/g,
+          "process.env.PONDER_RPC_URL_$1",
+        )
+        .replaceAll(/"http\((.*?)\)"/g, "http($1)")},
+      contracts: ${JSON.stringify(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        config.contracts.map(({ abi, ...c }) => ({
+          abi: Array.isArray(abi)
+            ? `mergeAbis(${abi.map((a) => a.name).join(",")})`
+            : abi.name,
+          ...c,
+        })),
+      ).replaceAll(/"abi":"(.*?)"/g, "abi:$1")},
+    });
+  `;
+
+    writeFileSync(
+      path.join(targetPath, "ponder.config.ts"),
+      await prettier.format(configContent, { parser: "typescript" }),
+    );
+
+    // Write the indexing function files.
+    for (const contract of config.contracts) {
+      // If it's an array of ABIs, use the 2nd one (the implementation ABI).
+      const abi = Array.isArray(contract.abi)
+        ? contract.abi[1].abi!
+        : contract.abi.abi;
+
+      const abiEvents = abi.filter(
+        (item): item is AbiEvent => item.type === "event",
+      );
+
+      const eventNamesToWrite = abiEvents
+        .map((event) => event.name)
+        .slice(0, 2);
+
+      const indexingFunctionFileContents = `
+      import { ponder } from '@/generated'
+
+      ${eventNamesToWrite
+        .map(
+          (eventName) => `
+          ponder.on("${contract.name}:${eventName}", async ({ event, context }) => {
+            console.log(event.params)
+          })`,
+        )
+        .join("\n")}
+    `;
+
+      writeFileSync(
+        path.join(targetPath, `./src/${contract.name}.ts`),
+        await prettier.format(indexingFunctionFileContents, {
+          parser: "typescript",
+        }),
+      );
+    }
+
+    // TODO: customize .env.local to match the chain
+  }
+
+  // TODO: make a copy of .env.local
+  // TODO: Etherscan key
 
   // Create package.json for project
   const packageJson = await fs.readJSON(path.join(targetPath, "package.json"));
@@ -219,7 +371,7 @@ async function run({
         "commit",
         "--no-verify",
         "--message",
-        "Initial commit from create-wagmi",
+        "Initial commit from create-ponder",
       ],
       { cwd: targetPath },
     );
