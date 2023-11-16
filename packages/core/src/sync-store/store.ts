@@ -94,7 +94,7 @@ export interface SyncStore {
 
   /**
    * Inserts a new realtime block and any logs/transactions that match the
-   * event sources. Does NOT insert intervals to mark this data as finalized,
+   * registered sources. Does NOT insert intervals to mark this data as finalized,
    * see insertRealtimeInterval for that.
    */
   insertRealtimeBlock(options: {
@@ -105,7 +105,7 @@ export interface SyncStore {
   }): Promise<void>;
 
   /**
-   * Marks data as finalized by inserting cache intervals for all event sources
+   * Marks data as finalized by inserting cache intervals for all registered sources
    * in real time.
    */
   insertRealtimeInterval(options: {

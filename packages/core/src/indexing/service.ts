@@ -114,8 +114,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
   }
 
-  kill = () => {
+  kill = async () => {
+    this.queue?.pause();
     this.queue?.clear();
+    await this.queue?.onIdle();
+
     this.eventProcessingMutex.cancel();
 
     this.common.logger.debug({
@@ -288,7 +291,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         // If no events have been added yet, add the setup event & associated metrics.
         if (
           this.eventsProcessedToTimestamp === 0 &&
-          this.indexingFunctions?._meta_.setup
+          this.indexingFunctions?._meta_?.setup
         ) {
           const labels = {
             network: "_meta_",

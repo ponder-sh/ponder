@@ -13,14 +13,13 @@ const httpRequestSizeInBytes = [
 export class MetricsService {
   private registry: prometheus.Registry;
 
-  ponder_historical_rpc_request_duration: prometheus.Histogram<
-    "network" | "method"
-  >;
+  ponder_historical_start_timestamp: prometheus.Gauge<"network">;
   ponder_historical_total_blocks: prometheus.Gauge<"network" | "contract">;
   ponder_historical_cached_blocks: prometheus.Gauge<"network" | "contract">;
   ponder_historical_completed_blocks: prometheus.Gauge<"network" | "contract">;
-  ponder_historical_completion_rate: prometheus.Gauge<"network" | "contract">;
-  ponder_historical_completion_eta: prometheus.Gauge<"network" | "contract">;
+  ponder_historical_rpc_request_duration: prometheus.Histogram<
+    "network" | "method"
+  >;
 
   ponder_realtime_is_connected: prometheus.Gauge<"network">;
   ponder_realtime_latest_block_number: prometheus.Gauge<"network">;
@@ -60,11 +59,10 @@ export class MetricsService {
       prefix: "ponder_default_",
     });
 
-    this.ponder_historical_rpc_request_duration = new prometheus.Histogram({
-      name: "ponder_historical_rpc_request_duration",
-      help: "Duration of RPC requests completed during the historical sync",
-      labelNames: ["network", "method"] as const,
-      buckets: httpRequestBucketsInMs,
+    this.ponder_historical_start_timestamp = new prometheus.Gauge({
+      name: "ponder_historical_start_timestamp",
+      help: "Unix timestamp (ms) when the historical sync service started",
+      labelNames: ["network"] as const,
       registers: [this.registry],
     });
     this.ponder_historical_total_blocks = new prometheus.Gauge({
@@ -85,16 +83,11 @@ export class MetricsService {
       labelNames: ["network", "contract"] as const,
       registers: [this.registry],
     });
-    this.ponder_historical_completion_rate = new prometheus.Gauge({
-      name: "ponder_historical_completion_rate",
-      help: "Completion rate (0 to 1) of the historical sync",
-      labelNames: ["network", "contract"] as const,
-      registers: [this.registry],
-    });
-    this.ponder_historical_completion_eta = new prometheus.Gauge({
-      name: "ponder_historical_completion_eta",
-      help: "Estimated number of milliseconds remaining to complete the historical sync",
-      labelNames: ["network", "contract"] as const,
+    this.ponder_historical_rpc_request_duration = new prometheus.Histogram({
+      name: "ponder_historical_rpc_request_duration",
+      help: "Duration of RPC requests completed during the historical sync",
+      labelNames: ["network", "method"] as const,
+      buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
 

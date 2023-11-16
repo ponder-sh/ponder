@@ -162,16 +162,16 @@ test("setup() with log filter and factory contract updates block metrics", async
     await common.metrics.ponder_historical_cached_blocks.get()
   ).values;
   expect(cachedBlocksMetric).toMatchObject([
-    { labels: { network: "mainnet", eventSource: "USDC_mainnet" }, value: 0 },
+    { labels: { network: "mainnet", contract: "USDC" }, value: 0 },
     {
       labels: {
         network: "mainnet",
-        eventSource: "UniswapV3Pool_mainnet_factory",
+        contract: "UniswapV3Pool_factory",
       },
       value: 0,
     },
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Pool_mainnet" },
+      labels: { network: "mainnet", contract: "UniswapV3Pool" },
       value: 0,
     },
   ]);
@@ -180,16 +180,16 @@ test("setup() with log filter and factory contract updates block metrics", async
     await common.metrics.ponder_historical_total_blocks.get()
   ).values;
   expect(totalBlocksMetric).toMatchObject([
-    { labels: { network: "mainnet", eventSource: "USDC_mainnet" }, value: 6 },
+    { labels: { network: "mainnet", contract: "USDC" }, value: 6 },
     {
       labels: {
         network: "mainnet",
-        eventSource: "UniswapV3Pool_mainnet_factory",
+        contract: "UniswapV3Pool_factory",
       },
       value: 501,
     },
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Pool_mainnet" },
+      labels: { network: "mainnet", contract: "UniswapV3Pool" },
       value: 501,
     },
   ]);
@@ -217,15 +217,15 @@ test("start() with log filter and factory contract updates completed blocks metr
     {
       labels: {
         network: "mainnet",
-        eventSource: "UniswapV3Pool_mainnet_factory",
+        contract: "UniswapV3Pool_factory",
       },
       value: 501,
     },
     {
-      labels: { network: "mainnet", eventSource: "UniswapV3Pool_mainnet" },
+      labels: { network: "mainnet", contract: "UniswapV3Pool" },
       value: 501,
     },
-    { labels: { network: "mainnet", eventSource: "USDC_mainnet" }, value: 6 },
+    { labels: { network: "mainnet", contract: "USDC" }, value: 6 },
   ]);
 
   await service.kill();

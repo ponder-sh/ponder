@@ -20,6 +20,7 @@ import {
   type Source,
   sourceIsLogFilter,
 } from "@/config/sources.js";
+import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
@@ -31,7 +32,7 @@ import {
   ProgressTracker,
 } from "@/utils/interval.js";
 import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
-import { hrTimeToMs, startClock } from "@/utils/timer.js";
+import { startClock } from "@/utils/timer.js";
 
 import { validateHistoricalBlockRange } from "./utils.js";
 
@@ -41,9 +42,9 @@ type HistoricalSyncEvents = {
    */
   syncComplete: undefined;
   /**
-   * Emitted when the minimum cached timestamp among all registered event sources moves forward.
+   * Emitted when the minimum cached timestamp among all registered sources moves forward.
    * This indicates to consumers that the connected sync store now contains a complete history
-   * of events for all registered event sources between their start block and this timestamp (inclusive).
+   * of events for all registered sources between their start block and this timestamp (inclusive).
    */
   historicalCheckpoint: { blockNumber: number; blockTimestamp: number };
 };
@@ -123,7 +124,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   private blockTasksEnqueuedCheckpoint = 0;
 
   private queue: Queue<HistoricalSyncTask>;
-  private startTimestamp?: [number, number];
+  private isKilling = false;
   private killFunctions: (() => void | Promise<void>)[] = [];
 
   constructor({
@@ -145,8 +146,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.sources = sources;
 
     this.queue = this.buildQueue();
-
-    this.registerMetricCollectMethods();
   }
 
   async setup({
@@ -220,12 +219,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             const total = intervalSum(requiredLogFilterIntervals);
             this.common.logger.debug({
               service: "historical",
-              msg: `Added LOG_FILTER tasks for ${total}-block range (logFilter=${source.id}, network=${this.network.name})`,
+              msg: `Added LOG_FILTER tasks for ${total}-block range (contract=${source.contractName}, network=${this.network.name})`,
             });
           }
 
           const targetBlockCount = endBlock - startBlock + 1;
-          const cachedBlockCount = intervalSum(completedLogFilterIntervals);
+          const cachedBlockCount =
+            targetBlockCount - intervalSum(requiredLogFilterIntervals);
 
           this.common.metrics.ponder_historical_total_blocks.set(
             { network: this.network.name, contract: source.contractName },
@@ -240,7 +240,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             service: "historical",
             msg: `Started sync with ${formatPercentage(
               Math.min(1, cachedBlockCount / (targetBlockCount || 1)),
-            )} cached (eventSource=${source.id} network=${this.network.name})`,
+            )} cached (contract=${source.contractName} network=${
+              this.network.name
+            })`,
           });
         } else {
           // Factory
@@ -262,7 +264,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             );
             this.common.logger.warn({
               service: "historical",
-              msg: `Start block is in unfinalized range, skipping historical sync (eventSource=${source.id})`,
+              msg: `Start block is in unfinalized range, skipping historical sync (contract=${source.contractName})`,
             });
             return;
           }
@@ -312,9 +314,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           }
 
           const targetFactoryChildAddressBlockCount = endBlock - startBlock + 1;
-          const cachedFactoryChildAddressBlockCount = intervalSum(
-            completedFactoryChildAddressIntervals,
-          );
+          const cachedFactoryChildAddressBlockCount =
+            targetFactoryChildAddressBlockCount -
+            intervalSum(requiredFactoryChildAddressIntervals);
 
           this.common.metrics.ponder_historical_total_blocks.set(
             {
@@ -382,9 +384,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           }
 
           const targetFactoryLogFilterBlockCount = endBlock - startBlock + 1;
-          const cachedFactoryLogFilterBlockCount = intervalSum(
-            completedFactoryLogFilterIntervals,
-          );
+          const cachedFactoryLogFilterBlockCount =
+            targetFactoryLogFilterBlockCount -
+            intervalSum(requiredFactoryLogFilterIntervals);
 
           this.common.metrics.ponder_historical_total_blocks.set(
             { network: this.network.name, contract: source.contractName },
@@ -416,11 +418,14 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }
 
   start() {
-    this.startTimestamp = process.hrtime();
+    this.common.metrics.ponder_historical_start_timestamp.set(Date.now());
 
     // Emit status update logs on an interval for each active log filter.
     const updateLogInterval = setInterval(async () => {
-      const completionStats = await this.getCompletionStats();
+      const completionStats = await getHistoricalSyncStats({
+        metrics: this.common.metrics,
+        sources: this.sources,
+      });
 
       completionStats.forEach(({ contract, rate, eta }) => {
         if (rate === 1) return;
@@ -459,14 +464,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   }
 
   kill = async () => {
+    this.isKilling = true;
     for (const fn of this.killFunctions) {
       await fn();
     }
 
     this.queue.pause();
     this.queue.clear();
-    // TODO: Figure out if it's necessary to wait for the queue to be idle before killing it.
-    // await this.onIdle();
+    await this.onIdle();
+
     this.common.logger.debug({
       service: "historical",
       msg: `Killed historical sync service (network=${this.network.name})`,
@@ -500,10 +506,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
       // If this is not the final task, return.
       if (queue.size > 0 || queue.pending > 1) return;
+      // If this is the final task but the kill() method has been called, do nothing.
+      if (this.isKilling) return;
 
       // If this is the final task, run the cleanup/completion logic.
       this.emit("syncComplete");
-      const duration = hrTimeToMs(process.hrtime(this.startTimestamp));
+      const startTimestamp =
+        (await this.common.metrics.ponder_historical_start_timestamp.get())
+          .values?.[0]?.value ?? Date.now();
+      const duration = Date.now() - startTimestamp;
       this.common.logger.info({
         service: "historical",
         msg: `Completed sync in ${formatEta(duration)} (network=${
@@ -883,17 +894,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   ) => {
     const logs: RpcLog[] = [];
 
-    let error: RpcError | null = null;
+    let error: (Partial<RpcError> & { name: string }) | null = null;
 
     const stopClock = startClock();
     try {
-      const logs_ = await this.network.client.request({
+      return await this.network.client.request({
         method: "eth_getLogs",
         params: [options],
       });
-      logs.push(...logs_);
     } catch (err) {
-      error = err as RpcError;
+      error = err as Partial<RpcError> & { name: string };
     } finally {
       this.common.metrics.ponder_historical_rpc_request_duration.observe(
         { method: "eth_getLogs", network: this.network.name },
@@ -917,7 +927,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       retryRanges.push([toHex(safeEnd + 1), options.toBlock]);
     } else if (
       // Another Alchemy response size error.
-      error.details.includes("Response size is larger than 150MB limit")
+      error.details?.includes("Response size is larger than 150MB limit")
     ) {
       // No hint available, split into 10 equal ranges.
       const from = hexToNumber(options.fromBlock);
@@ -980,100 +990,5 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     }
 
     return logs;
-  };
-
-  private getCompletionStats = async () => {
-    const cachedBlocksMetric = (
-      await this.common.metrics.ponder_historical_cached_blocks.get()
-    ).values;
-    const totalBlocksMetric = (
-      await this.common.metrics.ponder_historical_total_blocks.get()
-    ).values;
-    const completedBlocksMetric = (
-      await this.common.metrics.ponder_historical_completed_blocks.get()
-    ).values;
-
-    return this.sources.map(({ contractName }) => {
-      const totalBlocks = totalBlocksMetric.find(
-        ({ labels }) =>
-          labels.contract === contractName &&
-          labels.network === this.network.name,
-      )?.value;
-      const cachedBlocks = cachedBlocksMetric.find(
-        ({ labels }) =>
-          labels.contract === contractName &&
-          labels.network === this.network.name,
-      )?.value;
-      const completedBlocks =
-        completedBlocksMetric.find(
-          ({ labels }) =>
-            labels.contract === contractName &&
-            labels.network === this.network.name,
-        )?.value ?? 0;
-
-      // If the total_blocks metric is set and equals zero, the sync was skipped and
-      // should be considered complete.
-      if (totalBlocks === 0) {
-        return { contract: contractName, rate: 1, eta: 0 };
-      }
-
-      // Any of these mean setup is not complete.
-      if (
-        totalBlocks === undefined ||
-        cachedBlocks === undefined ||
-        !this.startTimestamp
-      ) {
-        return { contract: contractName, rate: 0 };
-      }
-
-      const rate = (cachedBlocks + completedBlocks) / totalBlocks;
-
-      // If fewer than 3 blocks have been processsed, the ETA will be low quality.
-      if (completedBlocks < 3) return { contract: contractName, rate };
-
-      // If rate is 1, sync is complete, so set the ETA to zero.
-      if (rate === 1) return { contract: contractName, rate, eta: 0 };
-
-      // (time elapsed) / (% completion of remaining block range)
-      const elapsed = hrTimeToMs(process.hrtime(this.startTimestamp));
-      const estimatedTotalDuration =
-        elapsed / (completedBlocks / (totalBlocks - cachedBlocks));
-      const estimatedTimeRemaining = estimatedTotalDuration - elapsed;
-
-      return { contract: contractName, rate, eta: estimatedTimeRemaining };
-    });
-  };
-
-  private registerMetricCollectMethods = async () => {
-    // The `prom-client` base Metric class does allow dynamic assignment
-    // of the `collect()` method, but it's not typed as such.
-
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    this.common.metrics.ponder_historical_completion_rate.collect =
-      async () => {
-        const completionStats = await this.getCompletionStats();
-        completionStats.forEach(({ contract, rate }) => {
-          this.common.metrics.ponder_historical_completion_rate.set(
-            { contract, network: this.network.name },
-            rate,
-          );
-        });
-      };
-
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    this.common.metrics.ponder_historical_completion_eta.collect = async () => {
-      const completionStats = await this.getCompletionStats();
-      completionStats.forEach(({ contract, eta }) => {
-        // If no progress has been made, can't calculate an accurate ETA.
-        if (eta) {
-          this.common.metrics.ponder_historical_completion_eta.set(
-            { contract, network: this.network.name },
-            eta,
-          );
-        }
-      });
-    };
   };
 }

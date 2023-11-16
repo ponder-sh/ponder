@@ -119,7 +119,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     ) {
       this.common.logger.warn({
         service: "realtime",
-        msg: `No realtime event sources found (network=${this.network.name})`,
+        msg: `No realtime contracts (network=${this.network.name})`,
       });
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },

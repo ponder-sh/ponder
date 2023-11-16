@@ -1,4 +1,5 @@
 import type { Source } from "@/config/sources.js";
+import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { Common } from "@/Ponder.js";
 
 import { buildUiState, setupInkApp, type UiState } from "./app.js";
@@ -16,8 +17,6 @@ export class UiService {
     this.common = common;
     this.sources = sources;
 
-    console.log(sources);
-
     this.ui = buildUiState({ sources: this.sources });
 
     if (this.common.options.uiEnabled) {
@@ -30,37 +29,12 @@ export class UiService {
     }
 
     this.renderInterval = setInterval(async () => {
-      // const contractNames = Object.keys(this.ui.historicalSyncStats);
-      // console.log({ eventSourceNames });
-
       // Historical sync
-      const rateMetric = (
-        await this.common.metrics.ponder_historical_completion_rate.get()
-      ).values;
-      const etaMetric = (
-        await this.common.metrics.ponder_historical_completion_eta.get()
-      ).values;
 
-      this.ui.historicalSyncStats = this.sources.map(
-        ({ networkName, contractName }) => {
-          const rate = rateMetric.find(
-            ({ labels }) =>
-              labels.contract === contractName &&
-              labels.network === networkName,
-          )?.value;
-          const eta = etaMetric.find(
-            ({ labels }) =>
-              labels.contract === contractName &&
-              labels.network === networkName,
-          )?.value;
-          return {
-            contract: contractName,
-            network: networkName,
-            rate: rate ?? 0,
-            eta,
-          };
-        },
-      );
+      this.ui.historicalSyncStats = await getHistoricalSyncStats({
+        metrics: this.common.metrics,
+        sources: this.sources,
+      });
 
       const minRate = Math.min(
         ...this.ui.historicalSyncStats.map((s) => s.rate),
@@ -78,7 +52,12 @@ export class UiService {
         .map((m) => m.labels.network)
         .filter((n): n is string => typeof n === "string");
 
-      this.ui.networks = connectedNetworks;
+      this.ui.realtimeSyncNetworks = this.sources
+        .filter((s) => s.endBlock === undefined)
+        .map(({ networkName }) => ({
+          name: networkName,
+          isConnected: connectedNetworks.includes(networkName),
+        }));
 
       // Indexing
       const matchedEventCount = (

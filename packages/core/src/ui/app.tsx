@@ -1,4 +1,4 @@
-import { Box, Newline, render as inkRender, Text } from "ink";
+import { Box, render as inkRender, Text } from "ink";
 import React from "react";
 
 import type { Source } from "@/config/sources.js";
@@ -17,13 +17,16 @@ export type UiState = {
   }[];
   isHistoricalSyncComplete: boolean;
 
+  realtimeSyncNetworks: {
+    name: string;
+    isConnected: boolean;
+  }[];
+
   indexingError: boolean;
   processedEventCount: number;
   handledEventCount: number;
   totalMatchedEventCount: number;
   eventsProcessedToTimestamp: number;
-
-  networks: string[];
 };
 
 export const buildUiState = ({ sources }: { sources: Source[] }) => {
@@ -32,14 +35,13 @@ export const buildUiState = ({ sources }: { sources: Source[] }) => {
 
     historicalSyncStats: [],
     isHistoricalSyncComplete: false,
+    realtimeSyncNetworks: [],
 
     indexingError: false,
     processedEventCount: 0,
     handledEventCount: 0,
     totalMatchedEventCount: 0,
     eventsProcessedToTimestamp: 0,
-
-    networks: [],
   };
 
   sources.forEach((source) => {
@@ -58,15 +60,16 @@ const App = (ui: UiState) => {
     port,
     historicalSyncStats,
     isHistoricalSyncComplete,
+    realtimeSyncNetworks,
     processedEventCount,
     indexingError,
-    networks,
   } = ui;
 
   if (indexingError) {
     return (
       <Box flexDirection="column">
         <Text> </Text>
+
         <Text color="cyan">
           Resolve the error and save your changes to reload the server.
         </Text>
@@ -76,55 +79,41 @@ const App = (ui: UiState) => {
 
   return (
     <Box flexDirection="column">
-      {/* Newline above interface */}
       <Text> </Text>
+
       <Box flexDirection="row">
         <Text bold={true}>Historical sync </Text>
         {isHistoricalSyncComplete ? (
-          <Text color="green">
-            (complete)
-            <Newline />
-          </Text>
+          <Text color="green">(complete)</Text>
         ) : (
           <Text color="yellow">(in progress)</Text>
         )}
       </Box>
       {!isHistoricalSyncComplete && (
         <Box flexDirection="column">
-          {networks.map((network, idx) => {
-            const contracts = historicalSyncStats.filter(
-              (s) => s.network === network,
-            );
-
-            return (
-              <Box flexDirection="column" key={idx}>
-                <Text>{network}</Text>
-                {contracts.length > 0 ? (
-                  contracts.map(({ contract, rate, eta }, idx) => (
-                    <Box flexDirection="column" key={idx}>
-                      {contract}
-                      <HistoricalBar key={idx} rate={rate} eta={eta} />
-                    </Box>
-                  ))
-                ) : (
-                  <Text>No contracts</Text>
-                )}
-              </Box>
-            );
-          })}
-          <Text> </Text>
+          {historicalSyncStats.map(({ contract, network, rate, eta }, idx) => (
+            <Box flexDirection="column" key={idx}>
+              <Text>
+                {contract} <Text color="blueBright">{network}</Text>
+              </Text>
+              <HistoricalBar key={idx} rate={rate} eta={eta} />
+            </Box>
+          ))}
         </Box>
       )}
+      <Text> </Text>
 
       <IndexingBar ui={ui} />
+      <Text> </Text>
 
-      {networks.length > 0 && (
+      {realtimeSyncNetworks.length > 0 && (
         <Box flexDirection="column">
-          <Text bold={true}>Networks</Text>
-          {networks.map((network) => (
-            <Box flexDirection="row" key={network}>
+          <Text bold={true}>Realtime sync </Text>
+          {realtimeSyncNetworks.map(({ name, isConnected }) => (
+            <Box flexDirection="row" key={name}>
               <Text>
-                {network.slice(0, 1).toUpperCase() + network.slice(1)} (live)
+                {name.slice(0, 1).toUpperCase() + name.slice(1)} (
+                {isConnected ? "live" : "disconnected"})
               </Text>
             </Box>
           ))}
@@ -138,6 +127,7 @@ const App = (ui: UiState) => {
           <Box flexDirection="row">
             <Text>Server live at http://localhost:{port}</Text>
           </Box>
+          <Text> </Text>
         </Box>
       )}
     </Box>

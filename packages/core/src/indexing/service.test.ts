@@ -138,7 +138,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     }),
   );
 
-  service.kill();
+  await service.kill();
 });
 
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
@@ -180,7 +180,7 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     }),
   );
 
-  service.kill();
+  await service.kill();
 });
 
 test("processEvents() model methods insert data into the indexing store", async (context) => {
@@ -205,7 +205,7 @@ test("processEvents() model methods insert data into the indexing store", async 
   });
   expect(transferEvents.length).toBe(1);
 
-  service.kill();
+  await service.kill();
 });
 
 test("processEvents() updates event count metrics", async (context) => {
@@ -255,7 +255,7 @@ test("processEvents() updates event count metrics", async (context) => {
     },
   ]);
 
-  service.kill();
+  await service.kill();
 });
 
 test("reset() reloads the indexing store", async (context) => {
@@ -291,7 +291,7 @@ test("reset() reloads the indexing store", async (context) => {
   });
   expect(transferEventsAfterReset.length).toBe(0);
 
-  service.kill();
+  await service.kill();
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
@@ -323,7 +323,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReset).toBe(0);
 
-  service.kill();
+  await service.kill();
 });
 
 test("handleReorg() reverts the indexing store", async (context) => {
@@ -349,7 +349,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
 
   expect(indexingStoreRevertSpy).toHaveBeenLastCalledWith({ safeTimestamp: 6 });
 
-  service.kill();
+  await service.kill();
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
@@ -379,7 +379,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
   expect(indexingStoreRevertSpy).not.toHaveBeenCalled();
 
-  service.kill();
+  await service.kill();
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
@@ -419,7 +419,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     }),
   );
 
-  service.kill();
+  await service.kill();
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
@@ -454,5 +454,5 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReorg).toBe(6);
 
-  service.kill();
+  await service.kill();
 });

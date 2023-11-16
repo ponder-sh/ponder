@@ -123,7 +123,7 @@ export class Ponder {
       )
       .filter((network) => {
         const hasSources = this.sources.some(
-          (eventSource) => eventSource.networkName === network.name,
+          (source) => source.networkName === network.name,
         );
         if (!hasSources) {
           this.common.logger.warn({
@@ -134,12 +134,11 @@ export class Ponder {
         return hasSources;
       });
 
-    this.syncServices = [];
-    networksToSync.forEach((network) => {
+    this.syncServices = networksToSync.map((network) => {
       const sourcesForNetwork = this.sources.filter(
         (source) => source.networkName === network.name,
       );
-      this.syncServices.push({
+      return {
         network,
         sources: sourcesForNetwork,
         historical: new HistoricalSyncService({
@@ -154,8 +153,9 @@ export class Ponder {
           network,
           sources: sourcesForNetwork,
         }),
-      });
+      };
     });
+
     this.syncGatewayService = new SyncGateway({
       common: this.common,
       syncStore: this.syncStore,
@@ -258,18 +258,21 @@ export class Ponder {
       },
     });
 
+    this.uiService.kill();
+
+    await Promise.all([
+      this.indexingService.kill(),
+      this.buildService.kill(),
+      this.serverService.kill(),
+      await this.common.telemetry.kill(),
+    ]);
+
     await Promise.all(
       this.syncServices.map(async ({ realtime, historical }) => {
         await realtime.kill();
         await historical.kill();
       }),
     );
-
-    await this.buildService.kill();
-    this.uiService.kill();
-    this.indexingService.kill();
-    await this.serverService.kill();
-    await this.common.telemetry.kill();
 
     await this.indexingStore.kill();
     await this.syncStore.kill();
