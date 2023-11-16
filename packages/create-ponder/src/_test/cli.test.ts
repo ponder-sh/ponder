@@ -1,6 +1,6 @@
+import fs from "node:fs";
 import { join } from "node:path";
 
-import fs from "fs-extra";
 import { afterEach, beforeAll, expect, test } from "vitest";
 
 import { run } from "@/index.js";
@@ -8,8 +8,8 @@ import { run } from "@/index.js";
 const projectName = "test-app";
 const genPath = join(__dirname, projectName);
 
-beforeAll(async () => await fs.remove(genPath));
-afterEach(async () => await fs.remove(genPath));
+beforeAll(() => fs.rmSync(genPath, { recursive: true, force: true }));
+afterEach(() => fs.rmSync(genPath, { recursive: true, force: true }));
 
 test("create default", async () => {
   await run({
