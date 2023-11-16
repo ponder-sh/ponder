@@ -33,8 +33,8 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "typescript": "^5.2.0",
-    "viem": "^1.19.0"
+    "typescript": ">=5",
+    "viem": ">=1"
   },
   "dependencies": {
     "@babel/code-frame": "^7.22.13",
@@ -86,7 +86,7 @@
     "supertest": "^6.3.3",
     "tsc-alias": "^1.8.8",
     "typescript": "^5.2.2",
-    "viem": "^1.19.0",
+    "viem": "^1.0.0",
     "vitest": "^0.34.6"
   }
 }
