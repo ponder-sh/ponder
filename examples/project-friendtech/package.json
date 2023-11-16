@@ -1,5 +1,5 @@
 {
-  "name": "ponder-examples-friendtech",
+  "name": "ponder-examples-project-friendtech",
   "private": true,
   "scripts": {
     "dev": "ponder dev",

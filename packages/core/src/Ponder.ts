@@ -11,7 +11,7 @@ import { IndexingService } from "@/indexing/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import { type IndexingStore } from "@/indexing-store/store.js";
-import { LoggerService } from "@/logs/service.js";
+import { LoggerService } from "@/logger/service.js";
 import { MetricsService } from "@/metrics/service.js";
 import { ServerService } from "@/server/service.js";
 import { SyncGateway } from "@/sync-gateway/service.js";
@@ -23,7 +23,6 @@ import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
 
-import { hydrateIndexingFunctions } from "./build/functions.js";
 import type { Source } from "./config/sources.js";
 import { buildSources } from "./config/sources.js";
 
@@ -123,24 +122,23 @@ export class Ponder {
         buildNetwork({ networkName, network, common: this.common }),
       )
       .filter((network) => {
-        const hasEventSources = this.sources.some(
-          (eventSource) => eventSource.network === network.name,
+        const hasSources = this.sources.some(
+          (source) => source.networkName === network.name,
         );
-        if (!hasEventSources) {
+        if (!hasSources) {
           this.common.logger.warn({
             service: "app",
             msg: `No contracts found (network=${network.name})`,
           });
         }
-        return hasEventSources;
+        return hasSources;
       });
 
-    this.syncServices = [];
-    networksToSync.forEach((network) => {
+    this.syncServices = networksToSync.map((network) => {
       const sourcesForNetwork = this.sources.filter(
-        (logSource) => logSource.network === network.name,
+        (source) => source.networkName === network.name,
       );
-      this.syncServices.push({
+      return {
         network,
         sources: sourcesForNetwork,
         historical: new HistoricalSyncService({
@@ -155,8 +153,9 @@ export class Ponder {
           network,
           sources: sourcesForNetwork,
         }),
-      });
+      };
     });
+
     this.syncGatewayService = new SyncGateway({
       common: this.common,
       syncStore: this.syncStore,
@@ -259,18 +258,21 @@ export class Ponder {
       },
     });
 
+    this.uiService.kill();
+
+    await Promise.all([
+      this.indexingService.kill(),
+      this.buildService.kill(),
+      this.serverService.kill(),
+      await this.common.telemetry.kill(),
+    ]);
+
     await Promise.all(
       this.syncServices.map(async ({ realtime, historical }) => {
         await realtime.kill();
         await historical.kill();
       }),
     );
-
-    await this.buildService.kill();
-    this.uiService.kill();
-    this.indexingService.kill();
-    await this.serverService.kill();
-    await this.common.telemetry.kill();
 
     await this.indexingStore.kill();
     await this.syncStore.kill();
@@ -306,12 +308,7 @@ export class Ponder {
       async ({ indexingFunctions }) => {
         this.common.errors.hasUserError = false;
 
-        // This is jank. Not quite sure where this should go.
-        const hydrated = hydrateIndexingFunctions({
-          rawIndexingFunctions: indexingFunctions,
-          sources: this.sources,
-        });
-        await this.indexingService.reset({ indexingFunctions: hydrated });
+        await this.indexingService.reset({ indexingFunctions });
 
         await this.indexingService.processEvents();
       },

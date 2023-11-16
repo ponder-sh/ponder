@@ -1,10 +1,9 @@
-import { http } from "viem";
+import { checksumAddress, getEventSelector, http } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants.js";
 import { setupIndexingStore, setupSyncStore } from "@/_test/setup.js";
 import type { IndexingFunctions } from "@/build/functions.js";
-import type { LogEventMetadata } from "@/config/abi.js";
 import type { Source } from "@/config/sources.js";
 import * as p from "@/schema/index.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
@@ -23,9 +22,10 @@ const networks = {
 
 const sources: Source[] = [
   {
-    name: "USDC",
     ...usdcContractConfig,
-    network: "mainnet",
+    id: `USDC_mainnet`,
+    contractName: "USDC",
+    networkName: "mainnet",
     criteria: { address: usdcContractConfig.address },
     startBlock: 16369950,
     type: "logFilter",
@@ -48,25 +48,20 @@ const transferIndexingFunction = vi.fn(async ({ event, context }) => {
   });
 });
 
-const transferEventMetadata = usdcContractConfig.events[
-  "Transfer"
-] as LogEventMetadata;
+const transferSelector = getEventSelector(usdcContractConfig.abi[1]);
 
 const indexingFunctions: IndexingFunctions = {
   _meta_: {},
-  eventSources: {
-    USDC: {
-      bySelector: {
-        [transferEventMetadata.selector]: transferEventMetadata,
-      },
-      bySafeName: {
-        ["Transfer"]: {
-          ...transferEventMetadata,
-          fn: transferIndexingFunction,
-        },
-      },
-    },
-  },
+  USDC: { Transfer: transferIndexingFunction },
+};
+
+const transferLog = {
+  topics: [
+    transferSelector,
+    "0x00000000000000000000000021b5f64fa05c64f84302e8a73198b643774e8e49",
+    "0x000000000000000000000000c908b3848960114091a1bcf9d649e27b25385642",
+  ],
+  data: "0x0000000000000000000000000000000000000000000000000007e9657c20364d",
 };
 
 const getEvents = vi.fn(async function* getEvents({
@@ -76,10 +71,9 @@ const getEvents = vi.fn(async function* getEvents({
   yield {
     events: [
       {
-        eventSourceName: "USDC",
-        eventName: "Transfer",
-        args: { from: "0x0", to: "0x1", amount: 100n },
-        log: { id: String(toTimestamp) },
+        sourceId: "USDC_mainnet",
+        chainId: 1,
+        log: { id: String(toTimestamp), ...transferLog },
         block: { timestamp: BigInt(toTimestamp) },
         transaction: {},
       },
@@ -88,8 +82,8 @@ const getEvents = vi.fn(async function* getEvents({
       pageEndsAtTimestamp: toTimestamp,
       counts: [
         {
-          eventSourceName: "USDC",
-          selector: transferEventMetadata.selector,
+          sourceId: "USDC_mainnet",
+          selector: transferSelector,
           count: 5,
         },
       ],
@@ -144,7 +138,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     }),
   );
 
-  service.kill();
+  await service.kill();
 });
 
 test("processEvents() calls indexing functions with correct arguments", async (context) => {
@@ -167,21 +161,26 @@ test("processEvents() calls indexing functions with correct arguments", async (c
   expect(transferIndexingFunction).toHaveBeenCalledWith(
     expect.objectContaining({
       event: {
-        eventSourceName: "USDC",
-        eventName: "Transfer",
-        args: { from: "0x0", to: "0x1", amount: 100n },
-        log: { id: "10" },
+        name: "Transfer",
+        args: {
+          from: checksumAddress("0x21b5f64fa05c64f84302e8a73198b643774e8e49"),
+          to: checksumAddress("0xc908b3848960114091a1bcf9d649e27b25385642"),
+          value: 2226946920429133n,
+        },
+        log: { id: "10", ...transferLog },
         block: { timestamp: 10n },
         transaction: {},
-        name: "Transfer",
       },
       context: expect.objectContaining({
         db: { TransferEvent: expect.anything() },
+        network: { name: "mainnet", chainId: 1 },
+        client: expect.anything(),
+        contracts: { USDC: expect.anything() },
       }),
     }),
   );
 
-  service.kill();
+  await service.kill();
 });
 
 test("processEvents() model methods insert data into the indexing store", async (context) => {
@@ -206,7 +205,7 @@ test("processEvents() model methods insert data into the indexing store", async 
   });
   expect(transferEvents.length).toBe(1);
 
-  service.kill();
+  await service.kill();
 });
 
 test("processEvents() updates event count metrics", async (context) => {
@@ -230,25 +229,33 @@ test("processEvents() updates event count metrics", async (context) => {
     await common.metrics.ponder_indexing_matched_events.get()
   ).values;
   expect(matchedEventsMetric).toMatchObject([
-    { labels: { eventName: "setup" }, value: 1 },
-    { labels: { eventName: "USDC:Transfer" }, value: 5 },
+    {
+      labels: { network: "mainnet", contract: "USDC", event: "Transfer" },
+      value: 5,
+    },
   ]);
 
   const handledEventsMetric = (
     await common.metrics.ponder_indexing_handled_events.get()
   ).values;
   expect(handledEventsMetric).toMatchObject([
-    { labels: { eventName: "USDC:Transfer" }, value: 5 },
+    {
+      labels: { network: "mainnet", contract: "USDC", event: "Transfer" },
+      value: 5,
+    },
   ]);
 
   const processedEventsMetric = (
     await common.metrics.ponder_indexing_processed_events.get()
   ).values;
   expect(processedEventsMetric).toMatchObject([
-    { labels: { eventName: "USDC:Transfer" }, value: 1 },
+    {
+      labels: { network: "mainnet", contract: "USDC", event: "Transfer" },
+      value: 1,
+    },
   ]);
 
-  service.kill();
+  await service.kill();
 });
 
 test("reset() reloads the indexing store", async (context) => {
@@ -284,7 +291,7 @@ test("reset() reloads the indexing store", async (context) => {
   });
   expect(transferEventsAfterReset.length).toBe(0);
 
-  service.kill();
+  await service.kill();
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
@@ -316,7 +323,7 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReset).toBe(0);
 
-  service.kill();
+  await service.kill();
 });
 
 test("handleReorg() reverts the indexing store", async (context) => {
@@ -342,7 +349,7 @@ test("handleReorg() reverts the indexing store", async (context) => {
 
   expect(indexingStoreRevertSpy).toHaveBeenLastCalledWith({ safeTimestamp: 6 });
 
-  service.kill();
+  await service.kill();
 });
 
 test("handleReorg() does nothing if there is a user error", async (context) => {
@@ -372,7 +379,7 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
   expect(indexingStoreRevertSpy).not.toHaveBeenCalled();
 
-  service.kill();
+  await service.kill();
 });
 
 test("handleReorg() processes the correct range of events after a reorg", async (context) => {
@@ -412,7 +419,7 @@ test("handleReorg() processes the correct range of events after a reorg", async 
     }),
   );
 
-  service.kill();
+  await service.kill();
 });
 
 test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", async (context) => {
@@ -447,5 +454,5 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
   ).values[0].value;
   expect(latestProcessedTimestampMetricAfterReorg).toBe(6);
 
-  service.kill();
+  await service.kill();
 });

@@ -94,7 +94,7 @@ export interface SyncStore {
 
   /**
    * Inserts a new realtime block and any logs/transactions that match the
-   * event sources. Does NOT insert intervals to mark this data as finalized,
+   * registered sources. Does NOT insert intervals to mark this data as finalized,
    * see insertRealtimeInterval for that.
    */
   insertRealtimeBlock(options: {
@@ -105,7 +105,7 @@ export interface SyncStore {
   }): Promise<void>;
 
   /**
-   * Marks data as finalized by inserting cache intervals for all event sources
+   * Marks data as finalized by inserting cache intervals for all registered sources
    * in real time.
    */
   insertRealtimeInterval(options: {
@@ -152,7 +152,7 @@ export interface SyncStore {
     fromTimestamp: number;
     toTimestamp: number;
     logFilters?: {
-      name: string;
+      id: string;
       chainId: number;
       criteria: LogFilterCriteria;
       fromBlock?: number;
@@ -160,7 +160,7 @@ export interface SyncStore {
       includeEventSelectors?: Hex[];
     }[];
     factories?: {
-      name: string; // Note that this is the name of the child contract.
+      id: string; // Note that this is the source ID of the child contract.
       chainId: number;
       criteria: FactoryCriteria;
       fromBlock?: number;
@@ -170,16 +170,16 @@ export interface SyncStore {
     pageSize?: number;
   }): AsyncGenerator<{
     events: {
-      eventSourceName: string;
+      sourceId: string;
+      chainId: number;
       log: Log;
       block: Block;
       transaction: Transaction;
-      chainId: number;
     }[];
     metadata: {
       pageEndsAtTimestamp: number;
       counts: {
-        eventSourceName: string;
+        sourceId: string;
         selector: Hex;
         count: number;
       }[];

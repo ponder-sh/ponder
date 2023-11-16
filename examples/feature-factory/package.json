@@ -1,5 +1,5 @@
 {
-  "name": "ponder-examples-factory-llama",
+  "name": "ponder-examples-feature-factory",
   "private": true,
   "scripts": {
     "dev": "ponder dev",

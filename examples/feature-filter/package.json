@@ -1,5 +1,5 @@
 {
-  "name": "ponder-examples-proxy",
+  "name": "ponder-examples-feature-filter",
   "private": true,
   "scripts": {
     "dev": "ponder dev",

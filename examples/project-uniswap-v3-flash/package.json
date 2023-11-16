@@ -1,5 +1,5 @@
 {
-  "name": "ponder-examples-factory-llama",
+  "name": "ponder-examples-project-uniswap-v3-flash",
   "private": true,
   "scripts": {
     "dev": "ponder dev",

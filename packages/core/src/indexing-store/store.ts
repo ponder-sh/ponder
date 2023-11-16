@@ -1,3 +1,5 @@
+import type { Kysely } from "kysely";
+
 import type { Schema } from "@/schema/types.js";
 import type { Prettify } from "@/types/utils.js";
 
@@ -74,6 +76,8 @@ export type OrderByInput<TTable extends Table> =
     }[];
 
 export interface IndexingStore {
+  db: Kysely<any>;
+
   schema?: Schema;
   versionId?: string;
 

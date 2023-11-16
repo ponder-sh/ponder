@@ -1,26 +1,12 @@
 import Emittery from "emittery";
-import { decodeEventLog, type Hex } from "viem";
+import type { Hex } from "viem";
 
-import type { LogEventMetadata } from "@/config/abi.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import { sourceIsFactory, sourceIsLogFilter } from "@/config/sources.js";
 import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import type { Block } from "@/types/block.js";
-import type { Log } from "@/types/log.js";
-import type { Transaction } from "@/types/transaction.js";
 import { formatShortDate } from "@/utils/date.js";
-
-export type LogEvent = {
-  eventSourceName: string;
-  eventName: string;
-  args: any;
-  log: Log;
-  block: Block;
-  transaction: Transaction;
-  chainId: number;
-};
 
 type SyncGatewayEvents = {
   /**
@@ -111,92 +97,35 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   async *getEvents({
     fromTimestamp,
     toTimestamp,
-    indexingMetadata,
+    includeEventSelectors,
   }: {
     fromTimestamp: number;
     toTimestamp: number;
-    indexingMetadata: {
-      [eventSourceName: string]:
-        | {
-            bySelector: { [selector: Hex]: LogEventMetadata };
-          }
-        | undefined;
-    };
+    includeEventSelectors: { [sourceId: string]: Hex[] };
   }) {
     const iterator = this.syncStore.getLogEvents({
       fromTimestamp,
       toTimestamp,
       logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
-        name: logFilter.name,
+        id: logFilter.id,
         chainId: logFilter.chainId,
         criteria: logFilter.criteria,
         fromBlock: logFilter.startBlock,
         toBlock: logFilter.endBlock,
-        includeEventSelectors: Object.keys(
-          indexingMetadata[logFilter.name]?.bySelector ?? {},
-        ) as Hex[],
+        includeEventSelectors: includeEventSelectors[logFilter.id],
       })),
       factories: this.sources.filter(sourceIsFactory).map((factory) => ({
-        name: factory.name,
+        id: factory.id,
         chainId: factory.chainId,
         criteria: factory.criteria,
         fromBlock: factory.startBlock,
         toBlock: factory.endBlock,
-        includeEventSelectors: Object.keys(
-          indexingMetadata[factory.name]?.bySelector ?? {},
-        ) as Hex[],
+        includeEventSelectors: includeEventSelectors[factory.id],
       })),
     });
 
     for await (const page of iterator) {
-      const { events, metadata } = page;
-
-      const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
-        const selector = event.log.topics[0];
-        if (!selector) {
-          throw new Error(
-            `Received an event log with no selector: ${event.log}`,
-          );
-        }
-
-        const logEventMetadata =
-          indexingMetadata[event.eventSourceName]?.bySelector[selector];
-        if (!logEventMetadata) {
-          throw new Error(
-            `Metadata for event ${event.eventSourceName}:${selector} not found in includeEvents`,
-          );
-        }
-        const { abiItem, safeName } = logEventMetadata;
-
-        try {
-          const decodedLog = decodeEventLog({
-            abi: [abiItem],
-            data: event.log.data,
-            topics: event.log.topics,
-          });
-
-          acc.push({
-            eventSourceName: event.eventSourceName,
-            eventName: safeName,
-            args: decodedLog.args || {},
-            log: event.log,
-            block: event.block,
-            transaction: event.transaction,
-            chainId: event.chainId,
-          });
-        } catch (err) {
-          // TODO: emit a warning here that a log was not decoded.
-          this.common.logger.error({
-            service: "app",
-            msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
-            error: err as Error,
-          });
-        }
-
-        return acc;
-      }, []);
-
-      yield { events: decodedEvents, metadata };
+      yield page;
     }
   }
 

@@ -8,7 +8,7 @@ import { UserErrorService } from "@/errors/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
-import { LoggerService } from "@/logs/service.js";
+import { LoggerService } from "@/logger/service.js";
 import { MetricsService } from "@/metrics/service.js";
 import type { Common } from "@/Ponder.js";
 import { PostgresSyncStore } from "@/sync-store/postgres/store.js";

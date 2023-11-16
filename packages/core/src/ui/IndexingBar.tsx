@@ -69,9 +69,6 @@ export const IndexingBar = ({ ui }: { ui: UiState }) => {
           {countText()}
         </Text>
       </Box>
-      {/* )} */}
-
-      <Text> </Text>
     </Box>
   );
 };

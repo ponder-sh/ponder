@@ -36,9 +36,10 @@ const rpcRequestSpy = vi.spyOn(
 );
 
 const usdcLogFilter = {
-  name: "USDC",
   ...usdcContractConfig,
-  network: network.name,
+  id: `USDC_${network.name}`,
+  contractName: "USDC",
+  networkName: network.name,
   criteria: { address: usdcContractConfig.address },
   startBlock: 16369995, // 5 blocks
   maxBlockRange: 3,
@@ -57,7 +58,9 @@ const sendUsdcTransferTransaction = async () => {
 
 const uniswapV3Factory = {
   ...uniswapV3PoolFactoryConfig,
-  network: network.name,
+  id: `UniswapV3Factory_${network.name}`,
+  contractName: "UniswapV3Factory",
+  networkName: network.name,
   startBlock: 16369500, // 500 blocks
   type: "factory",
 } satisfies Source;
@@ -566,7 +569,7 @@ test("start() with factory contract inserts new child contracts records and chil
     toTimestamp: Number.MAX_SAFE_INTEGER,
     factories: [
       {
-        name: "UniswapV3Pool",
+        id: "UniswapV3Pool",
         chainId: network.chainId,
         criteria: uniswapV3Factory.criteria,
       },
@@ -578,7 +581,7 @@ test("start() with factory contract inserts new child contracts records and chil
   expect(events).toHaveLength(1);
   expect(events[0]).toMatchObject(
     expect.objectContaining({
-      eventSourceName: "UniswapV3Pool",
+      sourceId: "UniswapV3Pool",
       log: expect.objectContaining({
         address: "0x25e0870d42b6cef90b6dc8216588fad55d5f55c4",
       }),
