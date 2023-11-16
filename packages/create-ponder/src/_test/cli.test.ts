@@ -50,6 +50,8 @@ test("create etherscan", async () => {
   const templateFiles = fs
     .readdirSync(join(__dirname, "..", "..", "templates", "etherscan"))
     .concat("ponder.config.ts")
+    .concat("abis/WETH9Abi.ts")
+    .concat("src/WETH9.ts")
     // _gitignore is renamed to .gitignore
     .map((filePath) =>
       filePath === "_dot_env.local"
@@ -62,6 +64,6 @@ test("create etherscan", async () => {
     )
     .sort();
 
-  const generatedFiles = fs.readdirSync(genPath).sort();
+  const generatedFiles = fs.readdirSync(genPath, { recursive: true }).sort();
   expect(templateFiles).toStrictEqual(generatedFiles);
 }, 40_000);
