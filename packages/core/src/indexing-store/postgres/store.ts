@@ -68,22 +68,20 @@ export class PostgresIndexingStore implements IndexingStore {
    * @param options.schema New schema to be used.
    */
   reload = async ({ schema }: { schema?: Schema } = {}) => {
-    // If there is no existing schema and no schema was provided, do nothing.
+    // If there is no existing schema and no new schema was provided, do nothing.
     if (!this.schema && !schema) return;
 
     await this.db.transaction().execute(async (tx) => {
-      // Drop tables from existing schema.
+      // Drop tables from existing schema if present.
       if (this.schema) {
-        const tableNames = Object.keys(this.schema.tables ?? {});
+        const tableNames = Object.keys(this.schema?.tables ?? {});
         if (tableNames.length > 0) {
-          await this.db.transaction().execute(async (tx) => {
-            await Promise.all(
-              tableNames.map(async (tableName) => {
-                const table = `${tableName}_${this.versionId}`;
-                await tx.schema.dropTable(table).execute();
-              }),
-            );
-          });
+          await Promise.all(
+            tableNames.map(async (tableName) => {
+              const table = `${tableName}_${this.versionId}`;
+              await tx.schema.dropTable(table).execute();
+            }),
+          );
         }
       }
 
