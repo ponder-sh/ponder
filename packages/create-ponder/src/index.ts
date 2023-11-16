@@ -199,7 +199,7 @@ export async function run({
 
   // Get template meta
   const templateMeta = templates.find(({ id }) => id === templateId);
-  if (!templateMeta) return;
+  if (!templateMeta) throw new ValidationError(templateValidation);
 
   // Validate template name
   templateValidation = await validateTemplateName({
