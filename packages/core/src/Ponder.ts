@@ -11,7 +11,7 @@ import { IndexingService } from "@/indexing/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
 import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import { type IndexingStore } from "@/indexing-store/store.js";
-import { LoggerService } from "@/logs/service.js";
+import { LoggerService } from "@/logger/service.js";
 import { MetricsService } from "@/metrics/service.js";
 import { ServerService } from "@/server/service.js";
 import { SyncGateway } from "@/sync-gateway/service.js";
