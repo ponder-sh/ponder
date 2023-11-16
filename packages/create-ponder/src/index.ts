@@ -8,6 +8,7 @@ import { cac } from "cac";
 import cpy from "cpy";
 import { execa } from "execa";
 import fs from "fs-extra";
+import { oraPromise } from "ora";
 import pico from "picocolors";
 import prettier from "prettier";
 import { default as prompts } from "prompts";
@@ -342,6 +343,33 @@ async function run({
       "\nlegacy-peer-deps = true",
     );
   }
+
+  // Install in background to not clutter screen
+  log(`Using ${pico.bold(packageManager)}.`);
+  log();
+  const installArgs = [
+    "install",
+    packageManager === "npm" ? "--quiet" : "--silent",
+  ];
+  await oraPromise(
+    execa(packageManager, installArgs, {
+      cwd: targetPath,
+      env: {
+        ...process.env,
+        ADBLOCK: "1",
+        DISABLE_OPENCOLLECTIVE: "1",
+        // we set NODE_ENV to development as pnpm skips dev
+        // dependencies when production
+        NODE_ENV: "development",
+      },
+    }),
+    {
+      text: "Installing packages. This may take a couple of minutes.",
+      failText: "Failed to install packages.",
+      successText: "Installed packages.",
+    },
+  );
+  log();
 
   // Create git repository
   if (!options.skipGit) {

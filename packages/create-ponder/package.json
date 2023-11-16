@@ -27,12 +27,12 @@
     "detect-package-manager": "^3.0.1",
     "execa": "^8.0.1",
     "fs-extra": "^11.1.1",
+    "ora": "^7.0.1",
     "picocolors": "^1.0.0",
     "prettier": "^3.1.0",
     "prompts": "^2.4.2",
     "update-check": "^1.5.4",
-    "validate-npm-package-name": "^5.0.0",
-    "yaml": "^2.3.4"
+    "validate-npm-package-name": "^5.0.0"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
