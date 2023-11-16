@@ -119,14 +119,12 @@ const templates = [
   },
 ] as const satisfies readonly Template[];
 
-async function run({
+export async function run({
   args,
   options,
-  templates,
 }: {
   args: CLIArgs;
   options: CLIOptions;
-  templates: readonly Template[];
 }) {
   if (options.help) return;
 
@@ -215,12 +213,14 @@ async function run({
   const targetPath = path.join(process.cwd(), projectPath);
 
   if (templateMeta.id === "etherscan") {
-    const { link } = await prompts({
-      type: "text",
-      name: "link",
-      message: "Enter an Etherscan contract link",
-      initial: "https://etherscan.io/address/0x97...",
-    });
+    let link = options.etherscanContractLink;
+    if (!link)
+      link = await prompts({
+        type: "text",
+        name: "link",
+        message: "Enter an Etherscan contract link",
+        initial: "https://etherscan.io/address/0x97...",
+      });
 
     config = await fromEtherscan({
       rootDir: targetPath,
@@ -319,11 +319,7 @@ async function run({
         }),
       );
     }
-
-    // TODO: customize .env.local to match the chain
   }
-
-  // TODO: make a copy of .env.local
 
   // Create package.json for project
   const packageJson = await fs.readJSON(path.join(targetPath, "package.json"));
@@ -415,6 +411,7 @@ async function run({
         .map(({ id }) => id)
         .join(", ")}`,
     )
+    .option("--etherscan-contract-link [link]", "Etherscan contract link")
     .option("--etherscan-api-key [key]", "Etherscan API key")
     .option("--npm", "Use npm as your package manager")
     .option("--pnpm", "Use pnpm as your package manager")
@@ -425,7 +422,7 @@ async function run({
   const { args, options } = cli.parse(process.argv);
 
   try {
-    await run({ args, options, templates });
+    await run({ args, options });
     log();
     await notifyUpdate({ options });
   } catch (error) {
