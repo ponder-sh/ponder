@@ -32,5 +32,9 @@ export default defineConfig({
         rename: (name) => name.replace(/^\./, "_dot_"),
       },
     );
+
+    await cpy(path.join(targetPath, "**", "_dot_env.example"), targetPath, {
+      rename: "_dot_env.local",
+    });
   },
 });
