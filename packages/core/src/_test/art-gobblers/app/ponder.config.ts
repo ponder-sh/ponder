@@ -1,7 +1,7 @@
 import { http } from "viem";
 
-import { createConfig } from "../../../../dist";
-import { ArtGobblersAbi } from "./ArtGobblers.abi";
+import { createConfig } from "../../../../dist/index.js";
+import { ArtGobblersAbi } from "./ArtGobblersAbi.js";
 
 const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
 const transport = http(`http://127.0.0.1:8545/${poolId}`);

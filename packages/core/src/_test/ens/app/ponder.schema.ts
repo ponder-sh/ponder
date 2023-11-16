@@ -1,4 +1,4 @@
-import { p } from "../../../../dist";
+import { p } from "../../../../dist/index.js";
 
 export default p.createSchema({
   EnsNft: p.createTable({
