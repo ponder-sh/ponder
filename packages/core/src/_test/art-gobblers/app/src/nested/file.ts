@@ -1,9 +1,19 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import { ponder } from "@/generated";
 
+declare const ponder: import("@/index.js").PonderApp<
+  typeof import("../../ponder.config.ts").default,
+  typeof import("../../ponder.schema.ts").default
+>;
 ponder.on("ArtGobblers:GobblerClaimed", async ({ event, context }) => {
   const { Account, Token } = context.db;
 
-  await Account.upsert({ id: event.args.user, create: {}, update: {} });
+  await Account.upsert({
+    id: event.args.user,
+    create: undefined,
+    update: undefined,
+  });
 
   await Token.upsert({
     id: event.args.gobblerId,
