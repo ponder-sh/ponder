@@ -95,7 +95,7 @@ const templates = [
   {
     title: "feature-read-contract",
     description: "Ponder app using a read contract call",
-    id: "rfeature-read-contract",
+    id: "feature-read-contract",
   },
   {
     title: "project-friendtech",

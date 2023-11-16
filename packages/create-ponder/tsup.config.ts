@@ -29,12 +29,11 @@ export default defineConfig({
       targetPath,
       {
         filter: (file) => file.name !== ".env.local",
-        rename: (name) => name.replace(/^\./, "_dot_"),
+        rename: (name) =>
+          name === ".env.example"
+            ? "_dot_env.local"
+            : name.replace(/^\./, "_dot_"),
       },
     );
-
-    await cpy(path.join(targetPath, "**", "_dot_env.example"), targetPath, {
-      rename: "_dot_env.local",
-    });
   },
 });
