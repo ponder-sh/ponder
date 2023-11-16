@@ -18,7 +18,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "test": "vitest --no-threads",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

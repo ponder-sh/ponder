@@ -61,7 +61,6 @@ jobs:
   test-create-ponder:
     name: Test [create-ponder]
     runs-on: "ubuntu-latest"
-    if:
     strategy:
       fail-fast: false
       matrix:

@@ -14,7 +14,7 @@ afterEach(async () => await fs.remove(genPath));
 test("create default", async () => {
   await run({
     args: [join("src", "_test", projectName)],
-    options: { template: "default" },
+    options: { template: "default", skipGit: true },
   });
 
   const templateFiles = fs
@@ -29,7 +29,6 @@ test("create default", async () => {
             ? ".gitignore"
             : filePath,
     )
-    .concat(".git")
     .sort();
 
   const generatedFiles = fs.readdirSync(genPath).sort();
@@ -41,6 +40,7 @@ test("create etherscan", async () => {
     args: [join("src", "_test", projectName)],
     options: {
       template: "etherscan",
+      skipGit: true,
       etherscanApiKey: process.env.ETHERSCAN_API_KEY!,
       etherscanContractLink:
         "https://etherscan.io/address/0x42CDc5D4B05E8dACc2FCD181cbe0Cc86Ee14c439",
@@ -60,7 +60,6 @@ test("create etherscan", async () => {
             ? ".gitignore"
             : filePath,
     )
-    .concat(".git")
     .sort();
 
   const generatedFiles = fs.readdirSync(genPath).sort();
