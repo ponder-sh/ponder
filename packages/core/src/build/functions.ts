@@ -14,7 +14,9 @@ export function validateIndexingFunctions(rawIndexingFunctions: {
       let eventName: string;
 
       if (eventKey === "setup") {
-        sourceName = "_meta_";
+        const [sourceName_] = eventKey.split(":");
+
+        sourceName = sourceName_;
         eventName = "setup";
       } else {
         const [sourceName_, eventName_] = eventKey.split(":");

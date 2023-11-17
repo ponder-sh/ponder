@@ -16,11 +16,13 @@ import type { Transaction } from "@/types/transaction.js";
 
 import type { Prettify } from "./utils.js";
 
+type Setup = "setup";
+
 /** "{ContractName}:{EventName}". */
 export type Names<TContracts extends Config["contracts"]> = {
   [key in keyof TContracts]: `${key & string}:${
     | SafeEventNames<FilterAbiEvents<TContracts[key]["abi"]>>[number]
-    | "setup"}`;
+    | Setup}`;
 }[keyof TContracts];
 
 type ExtractEventName<TName extends string> =
@@ -42,7 +44,7 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
   >(
     name: TName,
     indexingFunction: (
-      args: (TEventName extends "setup"
+      args: (TEventName extends Setup
         ? {}
         : {
             event: {
@@ -99,13 +101,18 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
                   >["endBlock"];
             };
           };
-          network: {
-            [key in keyof TConfig["contracts"][TContractName]["network"]]: {
-              name: key;
-              chainId: TConfig["networks"][key &
-                keyof TConfig["networks"]]["chainId"];
-            };
-          }[keyof TConfig["contracts"][TContractName]["network"]];
+          network: TConfig["contracts"][TContractName]["network"] extends string
+            ? {
+                name: TConfig["contracts"][TContractName]["network"];
+                chainId: TConfig["networks"][TConfig["contracts"][TContractName]["network"]]["chainId"];
+              }
+            : {
+                [key in keyof TConfig["contracts"][TContractName]["network"]]: {
+                  name: key;
+                  chainId: TConfig["networks"][key &
+                    keyof TConfig["networks"]]["chainId"];
+                };
+              }[keyof TConfig["contracts"][TContractName]["network"]];
           client: Prettify<Omit<ReadOnlyClient, "extend">>;
           db: {
             [key in keyof Infer<TSchema>]: DatabaseModel<Infer<TSchema>[key]>;
