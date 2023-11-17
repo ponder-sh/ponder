@@ -14,8 +14,6 @@ ponder.on("setup", async ({ context }) => {
 
   await SetupEntity.upsert({
     id: "setup_id",
-    create: undefined,
-    update: undefined,
   });
 });
 
@@ -24,14 +22,10 @@ ponder.on("ArtGobblers:Transfer", async ({ event, context }) => {
 
   await Account.upsert({
     id: event.args.from,
-    create: undefined,
-    update: undefined,
   });
 
   await Account.upsert({
     id: event.args.to,
-    create: undefined,
-    update: undefined,
   });
 
   await Token.upsert({

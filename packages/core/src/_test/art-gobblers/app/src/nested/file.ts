@@ -11,8 +11,6 @@ ponder.on("ArtGobblers:GobblerClaimed", async ({ event, context }) => {
 
   await Account.upsert({
     id: event.args.user,
-    create: undefined,
-    update: undefined,
   });
 
   await Token.upsert({
