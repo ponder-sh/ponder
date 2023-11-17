@@ -532,7 +532,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
           // This enables contract calls occurring within the
           // user code to use the start block number by default.
           this.currentEventBlockNumber = event.blockNumber;
-          // this.currentEventTimestamp = 0; // TODO:KYLE should we have this line?
 
           try {
             this.common.logger.trace({
