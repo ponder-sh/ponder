@@ -6,6 +6,7 @@ declare const ponder: import("@/index.js").PonderApp<
   typeof import("../../ponder.config.ts").default,
   typeof import("../../ponder.schema.ts").default
 >;
+
 ponder.on("ArtGobblers:GobblerClaimed", async ({ event, context }) => {
   const { Account, Token } = context.db;
 

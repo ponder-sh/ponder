@@ -13,6 +13,7 @@
     "dist",
     "src/**/*.ts",
     "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
     "!src/_test/**/*"
   ],
   "bin": {

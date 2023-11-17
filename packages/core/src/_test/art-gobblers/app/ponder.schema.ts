@@ -1,4 +1,4 @@
-import { p } from "../../../../dist/index.js";
+import * as p from "../../../schema/index.js";
 
 export default p.createSchema({
   SetupEntity: p.createTable({

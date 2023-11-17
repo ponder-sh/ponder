@@ -1,6 +1,6 @@
 import { http } from "viem";
 
-import { createConfig } from "../../../../dist/index.js";
+import { createConfig } from "../../../config/config.js";
 import { BaseRegistrarImplementationAbi } from "./BaseRegistrarImplementationAbi.js";
 
 const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
