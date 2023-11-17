@@ -1,7 +1,7 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-import { weth9Abi } from "./abis/weth9Abi";
+import { weth9Abi } from "./abis/weth9Abi.js";
 
 export default createConfig({
   networks: {

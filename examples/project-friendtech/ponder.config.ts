@@ -1,7 +1,7 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-import { FriendtechSharesV1Abi } from "./abis/FriendtechSharesV1Abi";
+import { FriendtechSharesV1Abi } from "./abis/FriendtechSharesV1Abi.js";
 
 export default createConfig({
   networks: {

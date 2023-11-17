@@ -1,6 +1,7 @@
 {
   "name": "ponder-examples-feature-multichain",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "ponder dev",
     "start": "ponder start",

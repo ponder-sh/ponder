@@ -1,8 +1,8 @@
 import { createConfig, mergeAbis } from "@ponder/core";
 import { http } from "viem";
 
-import { RouterImplAbi } from "./abis/RouterImplAbi";
-import { RouterProxyAbi } from "./abis/RouterProxyAbi";
+import { RouterImplAbi } from "./abis/RouterImplAbi.js";
+import { RouterProxyAbi } from "./abis/RouterProxyAbi.js";
 
 export default createConfig({
   networks: {

@@ -1,7 +1,7 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-import { FileStoreAbi } from "./abis/FileStoreAbi";
+import { FileStoreAbi } from "./abis/FileStoreAbi.js";
 
 export default createConfig({
   networks: {

@@ -1,6 +1,7 @@
 {
   "name": "ponder-examples-project-uniswap-v3-flash",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "ponder dev",
     "start": "ponder start",
