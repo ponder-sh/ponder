@@ -303,34 +303,27 @@ export class IndexingService extends Emittery<IndexingEvents> {
           )) {
             if (Object.keys(events).some((e) => e === "setup")) {
               // Get all chains that have the contract "sourceName"
-              const chains = Object.entries(this.contexts)
-                .filter(
-                  ([, { contracts }]) => contracts[sourceName] !== undefined,
-                )
-                .map(([, { contracts, network }]) => ({
-                  chainId: network.chainId,
-                  networkName: network.name,
-                  startBlock: contracts[sourceName].startBlock,
-                }));
-              for (const { networkName, chainId, startBlock } of chains) {
+              Object.values(this.contexts).forEach(({ contracts, network }) => {
+                if (contracts[sourceName] === undefined) return;
+
                 const labels = {
-                  network: networkName,
+                  network: network.name,
                   contract: sourceName,
                   event: "setup",
                 };
 
                 this.common.metrics.ponder_indexing_matched_events.inc(labels);
-                this.queue.addTask({
+                this.queue?.addTask({
                   kind: "SETUP",
                   event: {
-                    chainId,
+                    chainId: network.chainId,
                     contractName: sourceName,
-                    blockNumber: BigInt(startBlock),
-                    networkName,
+                    blockNumber: BigInt(contracts[sourceName].startBlock),
+                    networkName: network.name,
                   },
                 });
                 this.common.metrics.ponder_indexing_handled_events.inc(labels);
-              }
+              });
             }
           }
         }
