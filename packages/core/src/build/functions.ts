@@ -10,21 +10,9 @@ export function validateIndexingFunctions(rawIndexingFunctions: {
   const indexingFunctions: IndexingFunctions = {};
   for (const fileFns of Object.values(rawIndexingFunctions)) {
     for (const [eventKey, fn] of Object.entries(fileFns)) {
-      let sourceName: string;
-      let eventName: string;
-
-      if (eventKey === "setup") {
-        const [sourceName_] = eventKey.split(":");
-
-        sourceName = sourceName_;
-        eventName = "setup";
-      } else {
-        const [sourceName_, eventName_] = eventKey.split(":");
-        if (!sourceName_ || !eventName_)
-          throw new Error(`Invalid event name: ${eventKey}`);
-        sourceName = sourceName_;
-        eventName = eventName_;
-      }
+      const [sourceName, eventName] = eventKey.split(":");
+      if (!sourceName || !eventName)
+        throw new Error(`Invalid event name: ${eventKey}`);
 
       indexingFunctions[sourceName] ||= {};
 
