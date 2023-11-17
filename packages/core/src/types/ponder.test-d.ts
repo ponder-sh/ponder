@@ -21,7 +21,7 @@ test("PonderApp non intersecting event names", () => {
   type name = Parameters<p["on"]>[0];
   //   ^?
 
-  assertType<name>("" as "One:Event0" | "One:Event1");
+  assertType<name>("" as "One:Event0" | "One:Event1" | "One:setup");
 });
 
 test("PonderApp intersecting event names", () => {
@@ -55,9 +55,14 @@ test("PonderApp multiple contracts", () => {
 
   // Events should only correspond to their contract
   type name = Exclude<
-    //   ^?
+    // ^?
     Parameters<p["on"]>[0],
-    "One:Event0" | "One:Event1" | "Two:Event(bytes32 indexed)" | "Two:Event()"
+    | "One:Event0"
+    | "One:Event1"
+    | "Two:Event(bytes32 indexed)"
+    | "Two:Event()"
+    | "One:setup"
+    | "Two:setup"
   >;
 
   assertType<never>("" as name);
@@ -73,8 +78,11 @@ test("PonderApp event type", () => {
     any
   >;
 
-  type name = Parameters<Parameters<p["on"]>[1]>[0]["event"]["name"];
-  //   ^?
+  type name = Extract<
+    // ^?
+    Parameters<Parameters<p["on"]>[1]>[0],
+    { event: unknown }
+  >["event"]["name"];
 
   assertType<name>("" as "Event0" | "Event1");
 
@@ -155,4 +163,29 @@ test("PonderApp context contracts type", () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   (({}) as p).on("One:Event1", ({ context: { contracts } }) => {});
   //                                         ^?
+});
+
+test("PonderApp setup function", () => {
+  type p = PonderApp<
+    // ^?
+    {
+      networks: any;
+      contracts: {
+        One: {
+          network: { mainnet: { address: "0x1" }; optimism: {} };
+          abi: OneAbi;
+          address: "0x2";
+          startBlock: 1;
+          endBlock: 2;
+        };
+      };
+    },
+    any
+  >;
+
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  (({}) as p).on("One:setup", (a) => {});
+  //                           ^?
 });

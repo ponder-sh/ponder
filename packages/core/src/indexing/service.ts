@@ -41,7 +41,15 @@ type LogEvent = {
   block: Block;
   transaction: Transaction;
 };
-type SetupTask = { kind: "SETUP" };
+type SetupTask = {
+  kind: "SETUP";
+  event: {
+    chainId: number;
+    networkName: string;
+    contractName: string;
+    blockNumber: bigint;
+  };
+};
 type LogEventTask = { kind: "LOG"; event: LogEvent };
 type IndexingFunctionTask = SetupTask | LogEventTask;
 type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
@@ -288,19 +296,36 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         const toTimestamp = eventsAvailableTo;
 
-        // If no events have been added yet, add the setup event & associated metrics.
-        if (
-          this.eventsProcessedToTimestamp === 0 &&
-          this.indexingFunctions?._meta_?.setup
-        ) {
-          const labels = {
-            network: "_meta_",
-            contract: "_meta_",
-            event: "setup",
-          };
-          this.common.metrics.ponder_indexing_matched_events.inc(labels);
-          this.queue.addTask({ kind: "SETUP" });
-          this.common.metrics.ponder_indexing_handled_events.inc(labels);
+        // If no events have been added yet, add the setup events for each chain & associated metrics.
+        if (this.eventsProcessedToTimestamp === 0 && this.indexingFunctions) {
+          for (const [sourceName, events] of Object.entries(
+            this.indexingFunctions,
+          )) {
+            if (Object.keys(events).some((e) => e === "setup")) {
+              // Get all chains that have the contract "sourceName"
+              Object.values(this.contexts).forEach(({ contracts, network }) => {
+                if (contracts[sourceName] === undefined) return;
+
+                const labels = {
+                  network: network.name,
+                  contract: sourceName,
+                  event: "setup",
+                };
+
+                this.common.metrics.ponder_indexing_matched_events.inc(labels);
+                this.queue?.addTask({
+                  kind: "SETUP",
+                  event: {
+                    chainId: network.chainId,
+                    contractName: sourceName,
+                    blockNumber: BigInt(contracts[sourceName].startBlock),
+                    networkName: network.name,
+                  },
+                });
+                this.common.metrics.ponder_indexing_handled_events.inc(labels);
+              });
+            }
+          }
         }
 
         const sourcesById: { [sourceId: string]: Source } = {};
@@ -310,7 +335,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           sourcesById[source.id] = source;
           const registeredSafeEventNames = Object.keys(
             this.indexingFunctions![source.contractName],
-          );
+          ).filter((name) => name !== "setup");
           const registeredSelectors = registeredSafeEventNames.map(
             (safeEventName) => {
               const abiItemMeta = source.events.bySafeName[safeEventName];
@@ -486,26 +511,40 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
       switch (task.kind) {
         case "SETUP": {
-          const setupFunction = indexingFunctions._meta_?.setup;
-          if (!setupFunction) return;
+          const event = task.event;
+
+          const fullEventName = `${event.contractName}:setup`;
+
+          const indexingFunction =
+            indexingFunctions?.[event.contractName]?.["setup"];
+          if (!indexingFunction)
+            throw new Error(
+              `Internal: Indexing function not found for ${fullEventName}`,
+            );
+
+          // This enables contract calls occurring within the
+          // user code to use the start block number by default.
+          this.currentEventBlockNumber = event.blockNumber;
 
           try {
             this.common.logger.trace({
               service: "indexing",
-              msg: `Started indexing function (event="setup")`,
+              msg: `Started indexing function (event="${fullEventName}", block=${event.blockNumber})`,
             });
 
             // Running user code here!
-            await setupFunction({ context: { db: this.db } });
+            await indexingFunction({
+              context: { db: this.db, ...this.contexts[event.chainId] },
+            });
 
             this.common.logger.trace({
               service: "indexing",
-              msg: `Completed indexing function (event="setup")`,
+              msg: `Completed indexing function (event="${fullEventName}", block=${event.blockNumber})`,
             });
 
             const labels = {
-              network: "_meta_",
-              contract: "_meta_",
+              network: event.networkName,
+              contract: event.contractName,
               event: "setup",
             };
             this.common.metrics.ponder_indexing_processed_events.inc(labels);
@@ -546,7 +585,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           const fullEventName = `${event.contractName}:${event.eventName}`;
 
           const indexingFunction =
-            this.indexingFunctions?.[event.contractName]?.[event.eventName];
+            indexingFunctions?.[event.contractName]?.[event.eventName];
           if (!indexingFunction)
             throw new Error(
               `Internal: Indexing function not found for ${fullEventName}`,

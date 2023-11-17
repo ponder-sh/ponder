@@ -7,9 +7,7 @@ declare const ponder: import("@/index.js").PonderApp<
   typeof import("../ponder.schema.ts").default
 >;
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-ponder.on("setup", async ({ context }) => {
+ponder.on("ArtGobblers:setup", async ({ context }) => {
   const { SetupEntity } = context.db;
 
   await SetupEntity.upsert({
