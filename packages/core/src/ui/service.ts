@@ -51,13 +51,18 @@ export class UiService {
         .filter((m) => m.value === 1)
         .map((m) => m.labels.network)
         .filter((n): n is string => typeof n === "string");
+      const allNetworks = [
+        ...new Set(
+          this.sources
+            .filter((s) => s.endBlock === undefined)
+            .map((s) => s.networkName),
+        ),
+      ];
 
-      this.ui.realtimeSyncNetworks = this.sources
-        .filter((s) => s.endBlock === undefined)
-        .map(({ networkName }) => ({
-          name: networkName,
-          isConnected: connectedNetworks.includes(networkName),
-        }));
+      this.ui.realtimeSyncNetworks = allNetworks.map((networkName) => ({
+        name: networkName,
+        isConnected: connectedNetworks.includes(networkName),
+      }));
 
       // Indexing
       const matchedEventCount = (
