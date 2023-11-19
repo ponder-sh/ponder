@@ -76,10 +76,10 @@ export type OrderByInput<TTable extends Table> =
     }[];
 
 export interface IndexingStore {
+  kind: "sqlite" | "postgres";
   db: Kysely<any>;
 
   schema?: Schema;
-  versionId?: string;
 
   reload(options?: { schema?: Schema }): Promise<void>;
   kill(): Promise<void>;
