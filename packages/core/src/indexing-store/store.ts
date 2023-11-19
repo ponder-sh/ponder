@@ -79,7 +79,6 @@ export interface IndexingStore {
   db: Kysely<any>;
 
   schema?: Schema;
-  versionId?: string;
 
   reload(options?: { schema?: Schema }): Promise<void>;
   kill(): Promise<void>;

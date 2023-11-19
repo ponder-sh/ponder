@@ -1,5 +1,4 @@
 import type Sqlite from "better-sqlite3";
-import { randomBytes } from "crypto";
 import { Kysely, sql, SqliteDialect } from "kysely";
 
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -34,7 +33,6 @@ export class SqliteIndexingStore implements IndexingStore {
   db: Kysely<any>;
 
   schema?: Schema;
-  versionId?: string;
 
   constructor({ db }: { db: Sqlite.Database }) {
     this.db = new Kysely({
@@ -52,29 +50,19 @@ export class SqliteIndexingStore implements IndexingStore {
     // If there is no existing schema and no new schema was provided, do nothing.
     if (!this.schema && !schema) return;
 
+    // Set the new schema.
+    if (schema) this.schema = schema;
+
     await this.db.transaction().execute(async (tx) => {
-      // Drop tables from existing schema if present.
-      if (this.schema) {
-        const tableNames = Object.keys(this.schema?.tables ?? {});
-        if (tableNames.length > 0) {
-          await Promise.all(
-            tableNames.map(async (tableName) => {
-              const table = `${tableName}_${this.versionId}`;
-              await tx.schema.dropTable(table).execute();
-            }),
-          );
-        }
-      }
-
-      if (schema) this.schema = schema;
-
-      this.versionId = randomBytes(4).toString("hex");
-
       // Create tables for new schema.
       await Promise.all(
         Object.entries(this.schema!.tables).map(
           async ([tableName, columns]) => {
-            const table = `${tableName}_${this.versionId}`;
+            const table = `${tableName}_versioned`;
+
+            // Drop existing table with the same name if it exists.
+            await tx.schema.dropTable(table).ifExists().execute();
+
             let tableBuilder = tx.schema.createTable(table);
 
             Object.entries(columns).forEach(([columnName, column]) => {
@@ -148,7 +136,7 @@ export class SqliteIndexingStore implements IndexingStore {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
           tableNames.map(async (tableName) => {
-            const table = `${tableName}_${this.versionId}`;
+            const table = `${tableName}_versioned`;
             await tx.schema.dropTable(table).execute();
           }),
         );
@@ -167,7 +155,7 @@ export class SqliteIndexingStore implements IndexingStore {
     timestamp?: number;
     id: string | number | bigint;
   }) => {
-    const table = `${tableName}_${this.versionId}`;
+    const table = `${tableName}_versioned`;
     const formattedId = formatColumnValue({
       value: id,
       encodeBigInts: true,
@@ -199,7 +187,7 @@ export class SqliteIndexingStore implements IndexingStore {
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
-    const table = `${tableName}_${this.versionId}`;
+    const table = `${tableName}_versioned`;
     const createRow = formatRow({ id, ...data }, true);
 
     const row = await this.db
@@ -228,7 +216,7 @@ export class SqliteIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const table = `${tableName}_${this.versionId}`;
+    const table = `${tableName}_versioned`;
     const formattedId = formatColumnValue({
       value: id,
       encodeBigInts: true,
@@ -312,7 +300,7 @@ export class SqliteIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const table = `${tableName}_${this.versionId}`;
+    const table = `${tableName}_versioned`;
     const formattedId = formatColumnValue({
       value: id,
       encodeBigInts: true,
@@ -404,7 +392,7 @@ export class SqliteIndexingStore implements IndexingStore {
     timestamp: number;
     id: string | number | bigint;
   }) => {
-    const table = `${tableName}_${this.versionId}`;
+    const table = `${tableName}_versioned`;
     const formattedId = formatColumnValue({
       value: id,
       encodeBigInts: true,
@@ -455,7 +443,7 @@ export class SqliteIndexingStore implements IndexingStore {
     take?: number;
     orderBy?: OrderByInput<any>;
   }) => {
-    const table = `${tableName}_${this.versionId}`;
+    const table = `${tableName}_versioned`;
 
     let query = this.db
       .selectFrom(table)
@@ -505,7 +493,7 @@ export class SqliteIndexingStore implements IndexingStore {
     id: string | number | bigint;
     data: Row[];
   }) => {
-    const table = `${tableName}_${this.versionId}`;
+    const table = `${tableName}_versioned`;
     const createRows = data.map((d) => ({
       ...formatRow({ ...d }, true),
       effectiveFrom: timestamp,
@@ -540,7 +528,7 @@ export class SqliteIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
-    const table = `${tableName}_${this.versionId}`;
+    const table = `${tableName}_versioned`;
 
     const instances = await this.db.transaction().execute(async (tx) => {
       // Get all IDs that match the filter.
@@ -627,7 +615,7 @@ export class SqliteIndexingStore implements IndexingStore {
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
         Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
-          const table = `${tableName}_${this.versionId}`;
+          const table = `${tableName}_versioned`;
 
           // Delete any versions that are newer than the safe timestamp.
           await tx
