@@ -124,6 +124,17 @@ const setup = async ({
   };
 };
 
+test.only("start creates workers", async (context) => {
+  const { common, indexingStore } = context;
+
+  await indexingStore.reload({ schema: s });
+
+  const service = new ServerService({ common, indexingStore });
+  await service.start();
+
+  await service.kill();
+});
+
 test("serves all scalar types correctly", async (context) => {
   const { common, indexingStore } = context;
   const { service, gql, createTestEntity } = await setup({
