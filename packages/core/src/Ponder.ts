@@ -227,6 +227,9 @@ export class Ponder {
       },
     });
 
+    // If not using `dev`, can kill the build service here to avoid hot reloads.
+    await this.buildService.kill();
+
     await Promise.all(
       this.syncServices.map(async ({ historical, realtime }) => {
         const blockNumbers = await realtime.setup();
@@ -260,9 +263,6 @@ export class Ponder {
     // Initialize the Vite server and Vite Node runner.
     await this.buildService.setup();
 
-    // Load the config file so that we can create initial versions of all services.
-    // If `config` is undefined, there was an error loading the config. For now,
-    // we can just exit. No need to call `this.kill()` because no services are set up.
     const config = await this.buildService.loadConfig();
     const schemaResult = await this.buildService.loadSchema();
     if (!config || !schemaResult) {
@@ -270,6 +270,8 @@ export class Ponder {
       // TODO: Better logs/error handling here.
       return;
     }
+    // Kill the build service here to avoid hot reloads.
+    await this.buildService.kill();
 
     const database = buildDatabase({ common: this.common, config });
     this.indexingStore =
