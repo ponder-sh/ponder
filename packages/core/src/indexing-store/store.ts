@@ -76,6 +76,7 @@ export type OrderByInput<TTable extends Table> =
     }[];
 
 export interface IndexingStore {
+  kind: "sqlite" | "postgres";
   db: Kysely<any>;
 
   schema?: Schema;

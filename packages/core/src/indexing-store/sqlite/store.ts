@@ -30,6 +30,7 @@ const scalarToSqlType = {
 } as const;
 
 export class SqliteIndexingStore implements IndexingStore {
+  kind = "sqlite" as const;
   db: Kysely<any>;
 
   schema?: Schema;
@@ -137,7 +138,7 @@ export class SqliteIndexingStore implements IndexingStore {
         await Promise.all(
           tableNames.map(async (tableName) => {
             const table = `${tableName}_versioned`;
-            await tx.schema.dropTable(table).execute();
+            await tx.schema.dropTable(table).ifExists().execute();
           }),
         );
       });

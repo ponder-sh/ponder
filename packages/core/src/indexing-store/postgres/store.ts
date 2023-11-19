@@ -29,6 +29,7 @@ const scalarToSqlType = {
 } as const;
 
 export class PostgresIndexingStore implements IndexingStore {
+  kind = "postgres" as const;
   db: Kysely<any>;
 
   schema?: Schema;
@@ -155,7 +156,8 @@ export class PostgresIndexingStore implements IndexingStore {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
           tableNames.map(async (tableName) => {
-            await tx.schema.dropTable(`${tableName}_versioned`).execute();
+            const table = `${tableName}_versioned`;
+            await tx.schema.dropTable(table).ifExists().execute();
           }),
         );
       });

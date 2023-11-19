@@ -248,6 +248,59 @@ export class Ponder {
     await this.kill();
   }
 
+  async serve() {
+    this.common.logger.debug({
+      service: "app",
+      msg: `Started using config file: ${path.relative(
+        this.common.options.rootDir,
+        this.common.options.configFile,
+      )}`,
+    });
+
+    // Initialize the Vite server and Vite Node runner.
+    await this.buildService.setup();
+
+    // Load the config file so that we can create initial versions of all services.
+    // If `config` is undefined, there was an error loading the config. For now,
+    // we can just exit. No need to call `this.kill()` because no services are set up.
+    const config = await this.buildService.loadConfig();
+    const schemaResult = await this.buildService.loadSchema();
+    if (!config || !schemaResult) {
+      await this.buildService.kill();
+      // TODO: Better logs/error handling here.
+      return;
+    }
+
+    const database = buildDatabase({ common: this.common, config });
+    this.indexingStore =
+      database.kind === "sqlite"
+        ? new SqliteIndexingStore({ db: database.db })
+        : new PostgresIndexingStore({ pool: database.pool });
+
+    this.serverService = new ServerService({
+      common: this.common,
+      indexingStore: this.indexingStore,
+    });
+
+    await this.serverService.start();
+
+    const { schema, graphqlSchema } = schemaResult;
+
+    // TODO: Make this less hacky. This was a quick way to make the schema available
+    // to the findUnique and findMany functions without having to change the API.
+    this.indexingStore.schema = schema;
+
+    this.serverService.reload({ graphqlSchema });
+
+    this.common.telemetry.record({
+      event: "App Started",
+      properties: {
+        command: "ponder serve",
+        databaseKind: this.indexingStore.kind,
+      },
+    });
+  }
+
   async kill() {
     this.syncGatewayService.clearListeners();
 
@@ -309,7 +362,6 @@ export class Ponder {
         this.common.errors.hasUserError = false;
 
         await this.indexingService.reset({ indexingFunctions });
-
         await this.indexingService.processEvents();
       },
     );
