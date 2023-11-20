@@ -1,6 +1,5 @@
 dist/
 .env.local
 templates/*
-!templates/default
+!templates/empty
 !templates/etherscan
-!templates/subgraph
