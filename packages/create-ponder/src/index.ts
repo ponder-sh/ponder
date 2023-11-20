@@ -419,6 +419,14 @@ export async function run({
     .option("--skip-git", "Skips initializing the project as a git repository")
     .help();
 
+  // Check Nodejs version
+  if (Number(process.version.split(".")[0].slice(1)) < 18)
+    throw Error(
+      pico.red(
+        `Node version:${process.version} does not meet the >=18 requirement`,
+      ),
+    );
+
   const { args, options } = cli.parse(process.argv);
 
   try {
