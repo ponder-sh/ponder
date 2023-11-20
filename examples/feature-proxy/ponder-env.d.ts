@@ -5,4 +5,13 @@ declare module "@/generated" {
     typeof import("./ponder.config.ts").default,
     typeof import("./ponder.schema.ts").default
   >;
+
+  export type Context = Parameters<
+    Parameters<
+      PonderApp<
+        typeof import("./ponder.config.ts").default,
+        typeof import("./ponder.schema.ts").default
+      >["on"]
+    >[1]
+  >[0]["context"];
 }
