@@ -27,25 +27,6 @@ test("reload() binds the schema", async (context) => {
   expect(indexingStore.schema).toBe(schema);
 });
 
-test("reload() drops existing tables if present", async (context) => {
-  const { indexingStore } = context;
-
-  await indexingStore.reload({ schema });
-
-  const firstVersionId = indexingStore.versionId;
-  let tables = await indexingStore.db.introspection.getTables();
-  let tableNames = tables.map((t) => t.name);
-  expect(tableNames).toContain(`Person_${firstVersionId}`);
-  expect(tableNames).toContain(`Pet_${firstVersionId}`);
-
-  await indexingStore.reload({ schema });
-
-  tables = await indexingStore.db.introspection.getTables();
-  tableNames = tables.map((t) => t.name);
-  expect(tableNames).not.toContain(`Person_${firstVersionId}`);
-  expect(tableNames).not.toContain(`Pet_${firstVersionId}`);
-});
-
 test("create() inserts a record that is effective after timestamp", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });

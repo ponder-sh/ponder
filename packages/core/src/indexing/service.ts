@@ -181,7 +181,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     });
     this.common.logger.debug({
       service: "indexing",
-      msg: `Paused event queue (versionId=${this.indexingStore.versionId})`,
+      msg: `Paused event queue`,
     });
 
     this.hasError = false;
@@ -194,7 +194,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     await this.indexingStore.reload({ schema: this.schema });
     this.common.logger.debug({
       service: "indexing",
-      msg: `Reset indexing store (versionId=${this.indexingStore.versionId})`,
+      msg: `Reset indexing store`,
     });
 
     // When we call indexingStore.reload() above, the indexing store is dropped.

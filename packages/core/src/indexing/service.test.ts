@@ -280,11 +280,7 @@ test("reset() reloads the indexing store", async (context) => {
   });
   expect(transferEvents.length).toBe(1);
 
-  const versionIdBeforeReset = indexingStore.versionId;
-
   await service.reset({ schema, indexingFunctions });
-
-  expect(indexingStore.versionId).not.toBe(versionIdBeforeReset);
 
   const transferEventsAfterReset = await indexingStore.findMany({
     tableName: "TransferEvent",

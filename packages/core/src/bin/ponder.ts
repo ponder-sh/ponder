@@ -50,7 +50,7 @@ cli
   });
 
 cli
-  .command("start", "Start the production server")
+  .command("start", "Start the production indexing server")
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
@@ -81,6 +81,20 @@ cli
 
     await ponder.setup();
     await ponder.codegen();
+  });
+
+cli
+  .command("serve", "Start the web server")
+  .action(async (cliOptions: CliOptions) => {
+    if (cliOptions.help) process.exit(0);
+
+    const options = buildOptions({ cliOptions });
+    const devOptions = { ...options, uiEnabled: true };
+
+    const ponder = new Ponder({ options: devOptions });
+    registerKilledProcessListener(() => ponder.kill());
+
+    await ponder.serve();
   });
 
 cli.parse();
