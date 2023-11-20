@@ -1,7 +1,7 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-import { ExampleContractAbi } from "./abis/ExampleContractAbi.js";
+import { ExampleContractAbi } from "./abis/ExampleContractAbi";
 
 export default createConfig({
   networks: {

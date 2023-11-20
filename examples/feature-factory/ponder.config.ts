@@ -2,8 +2,8 @@ import { createConfig } from "@ponder/core";
 import { parseAbiItem } from "abitype";
 import { http } from "viem";
 
-import { LlamaCoreAbi } from "./abis/LlamaCoreAbi.js";
-import { LlamaPolicyAbi } from "./abis/LlamaPolicyAbi.js";
+import { LlamaCoreAbi } from "./abis/LlamaCoreAbi";
+import { LlamaPolicyAbi } from "./abis/LlamaPolicyAbi";
 
 const llamaFactoryEvent = parseAbiItem(
   "event LlamaInstanceCreated(address indexed deployer, string indexed name, address llamaCore, address llamaExecutor, address llamaPolicy, uint256 chainId)",

@@ -1,7 +1,7 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-import { PrimitiveManagerAbi } from "./abis/PrimitiveManagerAbi.js";
+import { PrimitiveManagerAbi } from "./abis/PrimitiveManagerAbi";
 
 export default createConfig({
   networks: {

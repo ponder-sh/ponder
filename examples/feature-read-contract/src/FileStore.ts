@@ -3,7 +3,7 @@ import { fromHex } from "viem";
 
 import { ponder } from "@/generated";
 
-import { FileStoreFrontendAbi } from "../abis/FileStoreFrontendAbi.js";
+import { FileStoreFrontendAbi } from "../abis/FileStoreFrontendAbi";
 
 const parseJson = (encodedJson: string, defaultValue: any = null) => {
   try {

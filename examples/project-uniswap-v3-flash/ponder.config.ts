@@ -1,8 +1,8 @@
 import { createConfig } from "@ponder/core";
 import { getAbiItem, http } from "viem";
 
-import { UniswapV3FactoryAbi } from "./abis/UniswapV3FactoryAbi.js";
-import { UniswapV3PoolAbi } from "./abis/UniswapV3PoolAbi.js";
+import { UniswapV3FactoryAbi } from "./abis/UniswapV3FactoryAbi";
+import { UniswapV3PoolAbi } from "./abis/UniswapV3PoolAbi";
 
 export default createConfig({
   networks: {
