@@ -17,5 +17,8 @@
     "eslint": "^8.53.0",
     "eslint-config-ponder": "workspace:*",
     "typescript": "^5.2.2"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
