@@ -72,6 +72,11 @@ export class Ponder {
     this.common = { options, logger, errors, metrics, telemetry };
 
     this.buildService = new BuildService({ common: this.common });
+
+    if (Number(process.version.split(".")[0].slice(1)) < 18)
+      this.common.logger.fatal({
+        msg: `Node version:${process.version} does not meet the >=18 requirement`,
+      });
   }
 
   async setup({
