@@ -63,9 +63,9 @@ export type CLIOptions = {
 
 const templates = [
   {
-    title: "default",
+    title: "empty",
     description: "Empty Ponder project",
-    id: "default",
+    id: "empty",
   },
   {
     title: "etherscan",
