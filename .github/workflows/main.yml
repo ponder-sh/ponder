@@ -28,6 +28,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Vitest typecheck
+        run: cd packages/core && pnpm vitest typecheck
+
       - name: Lint
         run: pnpm lint
 
