@@ -19,6 +19,9 @@
     "eslint-config-ponder": "workspace:*",
     "typescript": "^5.2.2"
   },
+  "trustedDependencies": [
+    "better-sqlite3"
+  ],
   "engines": {
     "node": ">=18"
   }
