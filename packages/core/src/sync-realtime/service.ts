@@ -76,12 +76,13 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   }
 
   setup = async () => {
-    // Fetch the latest block for the network.
-    const latestBlock = await this.getLatestBlock();
+    // Fetch the latest block, and remote chain Id for the network.
+    const [latestBlock, rpcChainId] = await Promise.all([
+      this.getLatestBlock(),
+      this.network.client.getChainId(),
+    ]);
     const latestBlockNumber = hexToNumber(latestBlock.number);
 
-    // Fetch the chainId from the rpc, warn if not matching
-    const rpcChainId = await this.network.client.getChainId();
     if (rpcChainId !== this.network.chainId)
       this.common.logger.warn({
         service: "realtime",
