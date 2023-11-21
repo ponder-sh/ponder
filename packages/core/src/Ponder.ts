@@ -433,5 +433,10 @@ export class Ponder {
         this.serverService.setIsHistoricalIndexingComplete();
       }
     });
+
+    // Server listeners.
+    this.serverService.on("admin:reload", async () => {
+      // TODO: Reload only the specified chainIds.
+    });
   }
 }

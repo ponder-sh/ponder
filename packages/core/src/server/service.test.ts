@@ -1,5 +1,5 @@
 import request from "supertest";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, describe, expect, it, test, vi } from "vitest";
 
 import { setupIndexingStore } from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
@@ -124,6 +124,7 @@ const setup = async ({
   };
 };
 
+// Graphql routes.
 test("serves all scalar types correctly", async (context) => {
   const { common, indexingStore } = context;
   const { service, gql, createTestEntity } = await setup({
@@ -1574,4 +1575,75 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
   });
 
   await service.kill();
+});
+
+// Admin routes.
+
+describe("/admin/reload", async () => {
+  it("emits chainIds in reload event", async (context) => {
+    const { common, indexingStore } = context;
+    const { service } = await setup({
+      common,
+      indexingStore,
+      options: {
+        hasCompletedHistoricalIndexing: false,
+      },
+    });
+    const emitSpy = vi.spyOn(service, "emit");
+
+    await request(service.app)
+      .post("/admin/reload")
+      .query({ chainIds: "1,2,3" })
+      .expect(200);
+
+    expect(emitSpy).toHaveBeenCalledWith("admin:reload", {
+      chainIds: [1, 2, 3],
+    });
+
+    await service.kill();
+  });
+
+  it("emits default chainId in reload event", async (context) => {
+    const { common, indexingStore } = context;
+    const { service } = await setup({
+      common,
+      indexingStore,
+      options: {
+        hasCompletedHistoricalIndexing: false,
+      },
+    });
+    const emitSpy = vi.spyOn(service, "emit");
+
+    await request(service.app)
+      .post("/admin/reload")
+      // No query -- use default chain ID.
+      .expect(200);
+
+    expect(emitSpy).toHaveBeenCalledWith("admin:reload", {
+      chainIds: [31337],
+    });
+
+    await service.kill();
+  });
+
+  it("fails with non-integer chain IDs", async (context) => {
+    const { common, indexingStore } = context;
+    const { service } = await setup({
+      common,
+      indexingStore,
+      options: {
+        hasCompletedHistoricalIndexing: false,
+      },
+    });
+    const emitSpy = vi.spyOn(service, "emit");
+
+    await request(service.app)
+      .post("/admin/reload")
+      .query({ chainIds: "badchainid" })
+      .expect(400);
+
+    expect(emitSpy).not.toHaveBeenCalled();
+
+    await service.kill();
+  });
 });

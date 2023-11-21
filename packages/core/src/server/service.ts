@@ -3,6 +3,8 @@ import { createServer } from "node:http";
 
 import cors from "cors";
 import express, { type Handler } from "express";
+import Emittery from "emittery";
+import express from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { formatError, GraphQLError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
@@ -13,9 +15,11 @@ import type { Common } from "@/Ponder.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
 
-export class ServerService {
-  app: express.Express;
+type ServerEvents = {
+  "admin:reload": { chainIds: number[] };
+};
 
+export class ServerService extends Emittery<ServerEvents> {
   private common: Common;
   private indexingStore: IndexingStore;
 
@@ -32,6 +36,8 @@ export class ServerService {
     common: Common;
     indexingStore: IndexingStore;
   }) {
+    super();
+
     this.common = common;
     this.indexingStore = indexingStore;
     this.port = this.common.options.port;
@@ -214,16 +220,16 @@ export class ServerService {
           data: undefined,
           errors,
         };
-        return response.status(503).json(result);
+        return res.status(503).json(result);
       }
 
-      switch (request.method) {
+      switch (req.method) {
         case "POST":
           return this.graphqlMiddleware(request, response, next);
         case "GET": {
-          const host = request.get("host");
+          const host = req.get("host");
           if (!host) {
-            return response.status(400).send("No host header provided");
+            return res.status(400).send("No host header provided");
           }
           const protocol = [
             `localhost:${this.port}`,
@@ -233,13 +239,13 @@ export class ServerService {
             ? "http"
             : "https";
           const endpoint = `${protocol}://${host}`;
-          return response
+          return res
             .status(200)
             .setHeader("Content-Type", "text/html")
             .send(graphiQLHtml({ endpoint }));
         }
         case "HEAD":
-          return response.status(200).send();
+          return res.status(200).send();
         default:
           return next();
       }
