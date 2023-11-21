@@ -11,14 +11,14 @@ const genPath = join(__dirname, projectName);
 beforeAll(() => fs.rmSync(genPath, { recursive: true, force: true }));
 afterEach(() => fs.rmSync(genPath, { recursive: true, force: true }));
 
-test("create default", async () => {
+test("create empty", async () => {
   await run({
     args: [join("src", "_test", projectName)],
-    options: { template: "default", skipGit: true },
+    options: { template: "empty", skipGit: true },
   });
 
   const templateFiles = fs
-    .readdirSync(join(__dirname, "..", "..", "templates", "default"))
+    .readdirSync(join(__dirname, "..", "..", "templates", "empty"))
     // _gitignore is renamed to .gitignore
     .map((filePath) =>
       filePath === "_dot_env.local"
