@@ -11,13 +11,15 @@ export async function notifyUpdate({ options }: { options: CLIOptions }) {
   try {
     const res = await checkForUpdate.default(packageJson);
     if (res?.latest) {
-      const packageManager = await getPackageManager({ options });
+      const packageManager = getPackageManager({ options });
       const updateMessage =
-        packageManager === "pnpm"
-          ? "pnpm add -g create-ponder"
-          : packageManager === "yarn"
-            ? "yarn global add create-ponder"
-            : "npm i -g create-ponder";
+        packageManager === "bun"
+          ? "bun install --global create-ponder"
+          : packageManager === "pnpm"
+            ? "pnpm add -g create-ponder"
+            : packageManager === "npm"
+              ? "npm install -g create-ponder"
+              : "yarn global add create-ponder";
 
       log(
         pico.bold(

@@ -1,5 +1,4 @@
 {
-  // This tsconfig file contains the shared config for the build (tsconfig.build.json) and type checking (tsconfig.json) config.
   // Adapted from viem (https://github.com/wagmi-dev/viem/blob/ed779e9d5667704fd7cfc5a2af032f7a2c3cae9e/tsconfig.base.json).
   "include": ["src"],
   "compilerOptions": {

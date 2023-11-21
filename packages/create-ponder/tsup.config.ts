@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,5 +37,18 @@ export default defineConfig({
             : name.replace(/^\./, "_dot_"),
       },
     );
+
+    readdirSync(targetPath)
+      .filter((d) => d !== "default" && d !== "etherscan")
+      .map((d) => {
+        const contents = readFileSync(
+          path.join(targetPath, d, "_dot_env.local"),
+          "utf-8",
+        );
+        writeFileSync(
+          path.join(targetPath, d, "_dot_env.local"),
+          contents.replace(/PONDER_RPC_URL_(\d+)=.*/, "PONDER_RPC_URL_$1="),
+        );
+      });
   },
 });
