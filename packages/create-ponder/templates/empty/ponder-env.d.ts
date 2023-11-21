@@ -1,8 +1,10 @@
 declare module "@/generated" {
-  import type { PonderApp } from "@ponder/core";
+  import type { ExtractContext, PonderApp } from "@ponder/core";
 
-  export const ponder: PonderApp<
-    typeof import("./ponder.config.js").default,
-    typeof import("./ponder.schema.js").default
-  >;
+  type Config = typeof import("./ponder.config.ts").default;
+  type Schema = typeof import("./ponder.schema.ts").default;
+
+  export const ponder: PonderApp<Config, Schema>;
+
+  export type Context = ExtractContext<Config, Schema>;
 }

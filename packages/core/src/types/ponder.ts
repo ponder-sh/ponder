@@ -122,3 +122,8 @@ export type PonderApp<TConfig extends Config, TSchema extends Schema> = {
     ) => Promise<void> | void,
   ) => void;
 };
+
+export type ExtractContext<
+  TConfig extends Config,
+  TSchema extends Schema,
+> = Parameters<Parameters<PonderApp<TConfig, TSchema>["on"]>[1]>[0]["context"];
