@@ -86,7 +86,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     if (rpcChainId !== this.network.chainId)
       this.common.logger.warn({
         service: "realtime",
-        msg: `Fetched chainId:${rpcChainId} does not match config chainId:${this.network.chainId}`,
+        msg: `Remote chain ID (${rpcChainId}) does not match configured chain ID (${this.network.chainId}) for network "${this.network.name}"`,
       });
 
     this.common.logger.info({
