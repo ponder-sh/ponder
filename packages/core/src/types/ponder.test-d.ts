@@ -3,7 +3,7 @@ import { assertType, test } from "vitest";
 
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
 
-import type { PonderApp } from "./ponder.js";
+import type { ExtractContext, PonderApp } from "./ponder.js";
 
 type Event0 = ParseAbiItem<"event Event0(bytes32 indexed arg)">;
 type Event1 = ParseAbiItem<"event Event1()">;
@@ -188,6 +188,43 @@ test("PonderApp context.contracts", () => {
     Parameters<Parameters<p["on"]>[1]>[0]["context"]["contracts"];
 
   assertType<contracts>(
+    {} as {
+      Contract: {
+        abi: [Event0];
+        address: "0x1" | "0x2";
+        startBlock: 1;
+        endBlock: 2;
+      };
+    },
+  );
+});
+
+test("ExtractContext", () => {
+  type context = ExtractContext<
+    // ^?
+    {
+      networks: {
+        mainnet: { chainId: 1; transport: any };
+        optimism: { chainId: 10; transport: any };
+      };
+      contracts: {
+        Contract: {
+          network: { mainnet: { address: "0x1" }; optimism: {} };
+          abi: [Event0];
+          address: "0x2";
+          startBlock: 1;
+          endBlock: 2;
+        };
+      };
+    },
+    any
+  >;
+
+  assertType<context["network"]>(
+    {} as { name: "mainnet"; chainId: 1 } | { name: "optimism"; chainId: 10 },
+  );
+  assertType<context["client"]>({} as Omit<ReadOnlyClient, "extend">);
+  assertType<context["contracts"]>(
     {} as {
       Contract: {
         abi: [Event0];
