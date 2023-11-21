@@ -332,7 +332,7 @@ export async function run({
     JSON.stringify(packageJson, null, 2),
   );
 
-  const packageManager = await getPackageManager({ options });
+  const packageManager = getPackageManager({ options });
 
   // Install in background to not clutter screen
   log(`Using ${pico.bold(packageManager)}.`);
@@ -392,7 +392,9 @@ export async function run({
       pico.cyan(`cd ${projectPath}`),
     )}\` and then \`${pico.bold(
       pico.cyan(
-        `${packageManager}${packageManager === "npm" ? " run" : ""} dev`,
+        `${packageManager}${
+          packageManager === "npm" || packageManager === "bun" ? " run" : ""
+        } dev`,
       ),
     )}\``,
   );
