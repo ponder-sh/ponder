@@ -125,7 +125,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   private queue: Queue<HistoricalSyncTask>;
   private isKilling = false;
-  private killFunctions: (() => void | Promise<void>)[] = [];
+  private progressLogInterval?: NodeJS.Timeout;
 
   constructor({
     common,
@@ -421,7 +421,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.common.metrics.ponder_historical_start_timestamp.set(Date.now());
 
     // Emit status update logs on an interval for each active log filter.
-    const updateLogInterval = setInterval(async () => {
+    this.progressLogInterval = setInterval(async () => {
       const completionStats = await getHistoricalSyncStats({
         metrics: this.common.metrics,
         sources: this.sources,
@@ -439,10 +439,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       });
     }, 10_000);
 
-    this.killFunctions.push(() => {
-      clearInterval(updateLogInterval);
-    });
-
     // Edge case: If there are no tasks in the queue, this means the entire
     // requested range was cached, so the sync is complete. However, we still
     // need to emit the historicalCheckpoint event with some timestamp. It should
@@ -452,6 +448,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         blockNumber: this.finalizedBlockNumber,
         blockTimestamp: Math.round(Date.now() / 1000),
       });
+      clearInterval(this.progressLogInterval);
       this.emit("syncComplete");
       this.common.logger.info({
         service: "historical",
@@ -465,9 +462,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
   kill = async () => {
     this.isKilling = true;
-    for (const fn of this.killFunctions) {
-      await fn();
-    }
+    clearInterval(this.progressLogInterval);
 
     this.queue.pause();
     this.queue.clear();
@@ -510,6 +505,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       if (this.isKilling) return;
 
       // If this is the final task, run the cleanup/completion logic.
+      clearInterval(this.progressLogInterval);
       this.emit("syncComplete");
       const startTimestamp =
         (await this.common.metrics.ponder_historical_start_timestamp.get())
