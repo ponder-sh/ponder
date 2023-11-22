@@ -114,14 +114,18 @@ export function intervalDifference(
   initial: [number, number][],
   remove: [number, number][],
 ) {
+  // Create copies to avoid mutating the originals.
+  const initial_ = initial.map((interval) => [...interval] as [number, number]);
+  const remove_ = remove.map((interval) => [...interval] as [number, number]);
+
   const result: [number, number][] = [];
 
   let i = 0;
   let j = 0;
 
   while (i < initial.length && j < remove.length) {
-    const interval1 = initial[i];
-    const interval2 = remove[j];
+    const interval1 = initial_[i];
+    const interval2 = remove_[j];
 
     if (interval1[1] < interval2[0]) {
       // No overlap, add interval1 to the result
@@ -148,8 +152,8 @@ export function intervalDifference(
   }
 
   // Add any remaining intervals from initial
-  while (i < initial.length) {
-    result.push(initial[i]);
+  while (i < initial_.length) {
+    result.push(initial_[i]);
     i++;
   }
 
@@ -236,7 +240,7 @@ export class ProgressTracker {
    * Returns the remaining required intervals.
    */
   getRequired() {
-    if (!this._required) {
+    if (this._required === null) {
       this._required = intervalDifference([this.target], this._completed);
     }
     return this._required;
@@ -249,12 +253,12 @@ export class ProgressTracker {
   getCheckpoint() {
     if (this._checkpoint !== null) return this._checkpoint;
 
-    const completedIntervalIncludingRequiredStart = this._completed
+    const completedIntervalIncludingTargetStart = this._completed
       .sort((a, b) => a[0] - b[0])
       .find((i) => i[0] <= this.target[0] && i[1] >= this.target[0]);
 
-    if (completedIntervalIncludingRequiredStart) {
-      this._checkpoint = completedIntervalIncludingRequiredStart[1];
+    if (completedIntervalIncludingTargetStart) {
+      this._checkpoint = completedIntervalIncludingTargetStart[1];
     } else {
       this._checkpoint = this.target[0] - 1;
     }
@@ -267,66 +271,6 @@ export class ProgressTracker {
     this._checkpoint = null;
   }
 }
-
-// export class BlockProgressTracker {
-//   private pendingBlocks: number[] = [];
-// private completedBlocks: {
-//   blockNumber: number;
-//   blockTimestamp: number;
-// }[] = [];
-
-//   addPendingBlocks({ blockNumbers }: { blockNumbers: number[] }): void {
-//     blockNumbers.forEach((blockNumber) => {
-//       if (
-//         this.pendingBlocks.length > 0 &&
-//         blockNumber < this.pendingBlocks[this.pendingBlocks.length - 1]
-//       ) {
-//         throw new Error(
-//           `Pending block number ${blockNumber} was added out of order. Already added block number ${
-//             this.pendingBlocks[this.pendingBlocks.length - 1]
-//           }.`
-//         );
-//       }
-//       this.pendingBlocks.push(blockNumber);
-//     });
-//   }
-
-//   addCompletedBlock({
-//     blockNumber,
-//     blockTimestamp,
-//   }: {
-//     blockNumber: number;
-//     blockTimestamp: number;
-//   }) {
-//     if (!this.pendingBlocks.includes(blockNumber)) {
-//       throw new Error(
-//         `Block number ${blockNumber} was not pending. Ensure to add blocks as pending before marking them as completed.`
-//       );
-//     }
-
-//     this.completedBlocks.push({ blockNumber, blockTimestamp });
-//     this.completedBlocks.sort((a, b) => a.blockNumber - b.blockNumber);
-
-//     if (this.completedBlocks[0].blockNumber !== this.pendingBlocks[0]) {
-//       return null;
-//     }
-
-//     let checkpoint: {
-//       blockNumber: number;
-//       blockTimestamp: number;
-//     } | null = null;
-
-//     for (let i = 0; i < this.completedBlocks.length; i++) {
-//       if (this.completedBlocks[i].blockNumber === this.pendingBlocks[i]) {
-//         checkpoint = this.completedBlocks[i];
-//       } else {
-//         break;
-//       }
-//     }
-
-//     return checkpoint;
-//   }
-// }
 
 export class BlockProgressTracker {
   private pendingBlocks: number[] = [];

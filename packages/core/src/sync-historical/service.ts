@@ -1,12 +1,12 @@
 import Emittery from "emittery";
-import type { Hex, RpcError } from "viem";
 import {
   type Hash,
+  type Hex,
   hexToNumber,
-  HttpRequestError,
   InvalidParamsRpcError,
   LimitExceededRpcError,
   type RpcBlock,
+  type RpcError,
   type RpcLog,
   type RpcTransaction,
   toHex,
@@ -912,10 +912,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const retryRanges: ([Hex, Hex] | readonly [Hex, Hex])[] = [];
     if (
       // Alchemy response size error.
-      error instanceof InvalidParamsRpcError &&
-      error.details.startsWith("Log response size exceeded.")
+      error.code === InvalidParamsRpcError.code &&
+      error.details!.startsWith("Log response size exceeded.")
     ) {
-      const safe = error.details.split("this block range should work: ")[1];
+      const safe = error.details!.split("this block range should work: ")[1];
       const safeStart = Number(safe.split(", ")[0].slice(1));
       const safeEnd = Number(safe.split(", ")[1].slice(0, -1));
 
@@ -937,10 +937,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       );
     } else if (
       // Infura block range limit error.
-      error instanceof LimitExceededRpcError &&
-      error.details.includes("query returned more than 10000 results")
+      error.code === LimitExceededRpcError.code &&
+      error.details!.includes("query returned more than 10000 results")
     ) {
-      const safe = error.details.split("Try with this block range ")[1];
+      const safe = error.details!.split("Try with this block range ")[1];
       const safeStart = Number(safe.split(", ")[0].slice(1));
       const safeEnd = Number(safe.split(", ")[1].slice(0, -2));
 
@@ -948,8 +948,8 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       retryRanges.push([toHex(safeEnd + 1), options.toBlock]);
     } else if (
       // Thirdweb block range limit error.
-      error instanceof InvalidParamsRpcError &&
-      error.details.includes("block range less than 20000")
+      error.code === InvalidParamsRpcError.code &&
+      error.details!.includes("block range less than 20000")
     ) {
       const midpoint = Math.floor(
         (Number(options.toBlock) - Number(options.fromBlock)) / 2 +
@@ -959,9 +959,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       retryRanges.push([toHex(options.fromBlock), toHex(midpoint)]);
       retryRanges.push([toHex(midpoint + 1), options.toBlock]);
     } else if (
-      // Handle Quicknode block range limit error (should never happen).
-      error instanceof HttpRequestError &&
-      error.details.includes(
+      // Quicknode block range limit error (should never happen).
+      error.name === "HttpRequestError" &&
+      error.details!.includes(
         "eth_getLogs and eth_newFilter are limited to a 10,000 blocks range",
       )
     ) {
