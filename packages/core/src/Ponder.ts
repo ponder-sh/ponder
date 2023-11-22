@@ -106,8 +106,8 @@ export class Ponder {
     this.syncStore =
       syncStore ??
       (database.kind === "sqlite"
-        ? new SqliteSyncStore({ db: database.db })
-        : new PostgresSyncStore({ pool: database.pool }));
+        ? new SqliteSyncStore({ db: database.db, common: this.common })
+        : new PostgresSyncStore({ pool: database.pool, common: this.common }));
 
     this.indexingStore =
       indexingStore ??

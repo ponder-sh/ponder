@@ -66,7 +66,11 @@ export async function setupSyncStore(
   if (process.env.DATABASE_URL) {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
-    context.syncStore = new PostgresSyncStore({ pool, databaseSchema });
+    context.syncStore = new PostgresSyncStore({
+      pool,
+      databaseSchema,
+      common: context.common,
+    });
 
     if (options.migrateUp) await context.syncStore.migrateUp();
 
@@ -83,7 +87,7 @@ export async function setupSyncStore(
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
     const db = patchSqliteDatabase({ db: rawSqliteDb });
-    context.syncStore = new SqliteSyncStore({ db });
+    context.syncStore = new SqliteSyncStore({ db, common: context.common });
 
     if (options.migrateUp) await context.syncStore.migrateUp();
 

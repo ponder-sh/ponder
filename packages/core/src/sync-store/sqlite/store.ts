@@ -14,6 +14,7 @@ import type {
   LogFilterCriteria,
   Topics,
 } from "@/config/sources.js";
+import type { Common } from "@/Ponder.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
@@ -25,6 +26,7 @@ import {
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
+import { startClock } from "@/utils/timer.js";
 
 import type { SyncStore } from "../store.js";
 import type { BigIntText } from "./format.js";
@@ -37,11 +39,13 @@ import {
 import { migrationProvider } from "./migrations.js";
 
 export class SqliteSyncStore implements SyncStore {
+  private common: Common;
   kind = "sqlite" as const;
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({ db }: { db: Sqlite.Database }) {
+  constructor({ db, common }: { db: Sqlite.Database; common: Common }) {
+    this.common = common;
     this.db = new Kysely<SyncStoreTables>({
       dialect: new SqliteDialect({ database: db }),
     });
@@ -76,6 +80,7 @@ export class SqliteSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
+    const stopClock = startClock();
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
@@ -106,6 +111,10 @@ export class SqliteSyncStore implements SyncStore {
         interval,
       });
     });
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "insertLogFilterInterval" },
+      stopClock(),
+    );
   };
 
   getLogFilterIntervals = async ({
@@ -115,6 +124,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     logFilter: LogFilterCriteria;
   }) => {
+    const stopClock = startClock();
     const fragments = buildLogFilterFragments({ ...logFilter, chainId });
 
     // First, attempt to merge overlapping and adjacent intervals.
@@ -221,7 +231,12 @@ export class SqliteSyncStore implements SyncStore {
       );
     });
 
-    return intervalIntersectionMany(fragmentIntervals);
+    const intersectionIntervals = intervalIntersectionMany(fragmentIntervals);
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "getLogFilterIntervals" },
+      stopClock(),
+    );
+    return intersectionIntervals;
   };
 
   insertFactoryChildAddressLogs = async ({
@@ -231,6 +246,8 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     logs: RpcLog[];
   }) => {
+    const stopClock = startClock();
+
     await this.db.transaction().execute(async (tx) => {
       for (const rpcLog of rpcLogs) {
         await tx
@@ -240,6 +257,11 @@ export class SqliteSyncStore implements SyncStore {
           .execute();
       }
     });
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "insertFactoryChildAddressLogs" },
+      stopClock(),
+    );
   };
 
   async *getFactoryChildAddresses({
@@ -253,6 +275,7 @@ export class SqliteSyncStore implements SyncStore {
     factory: FactoryCriteria;
     pageSize?: number;
   }) {
+    const stopClock = startClock();
     const { address, eventSelector, childAddressLocation } = factory;
 
     const selectChildAddressExpression =
@@ -289,6 +312,10 @@ export class SqliteSyncStore implements SyncStore {
 
       if (batch.length < pageSize) break;
     }
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "getFactoryChildAddresses" },
+      stopClock(),
+    );
   }
 
   insertFactoryLogFilterInterval = async ({
@@ -306,6 +333,8 @@ export class SqliteSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
+    const stopClock = startClock();
+
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
@@ -336,6 +365,11 @@ export class SqliteSyncStore implements SyncStore {
         interval,
       });
     });
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "insertFactoryLogFilterInterval" },
+      stopClock(),
+    );
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -345,6 +379,8 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     factory: FactoryCriteria;
   }) => {
+    const stopClock = startClock();
+
     const fragments = buildFactoryFragments({
       ...factory,
       chainId,
@@ -460,7 +496,14 @@ export class SqliteSyncStore implements SyncStore {
       );
     });
 
-    return intervalIntersectionMany(fragmentIntervals);
+    const intersectionIntervals = intervalIntersectionMany(fragmentIntervals);
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "getFactoryLogFilterIntervals" },
+      stopClock(),
+    );
+
+    return intersectionIntervals;
   };
 
   insertRealtimeBlock = async ({
@@ -474,6 +517,8 @@ export class SqliteSyncStore implements SyncStore {
     transactions: RpcTransaction[];
     logs: RpcLog[];
   }) => {
+    const stopClock = startClock();
+
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
@@ -497,6 +542,11 @@ export class SqliteSyncStore implements SyncStore {
           .execute();
       }
     });
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "insertRealtimeBlock" },
+      stopClock(),
+    );
   };
 
   insertRealtimeInterval = async ({
@@ -510,6 +560,8 @@ export class SqliteSyncStore implements SyncStore {
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
+    const stopClock = startClock();
+
     await this.db.transaction().execute(async (tx) => {
       await this._insertLogFilterInterval({
         tx,
@@ -531,6 +583,11 @@ export class SqliteSyncStore implements SyncStore {
         interval,
       });
     });
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "insertRealtimeInterval" },
+      stopClock(),
+    );
   };
 
   deleteRealtimeData = async ({
@@ -540,6 +597,8 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     fromBlock: bigint;
   }) => {
+    const stopClock = startClock();
+
     const fromBlock = encodeAsText(fromBlock_);
 
     await this.db.transaction().execute(async (tx) => {
@@ -635,6 +694,11 @@ export class SqliteSyncStore implements SyncStore {
         .where("endBlock", ">", fromBlock)
         .execute();
     });
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "deleteRealtimeData" },
+      stopClock(),
+    );
   };
 
   /** SYNC HELPER METHODS */

@@ -15,6 +15,7 @@ import type {
   LogFilterCriteria,
   Topics,
 } from "@/config/sources.js";
+import type { Common } from "@/Ponder.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
@@ -25,6 +26,7 @@ import {
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
+import { startClock } from "@/utils/timer.js";
 
 import type { SyncStore } from "../store.js";
 import {
@@ -36,17 +38,21 @@ import {
 import { migrationProvider } from "./migrations.js";
 
 export class PostgresSyncStore implements SyncStore {
+  common: Common;
   kind = "postgres" as const;
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
   constructor({
+    common,
     pool,
     databaseSchema,
   }: {
+    common: Common;
     pool: Pool;
     databaseSchema?: string;
   }) {
+    this.common = common;
     this.db = new Kysely<SyncStoreTables>({
       dialect: new PostgresDialect({
         pool,
@@ -96,6 +102,8 @@ export class PostgresSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
+    const stopClock = startClock();
+
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
@@ -136,6 +144,10 @@ export class PostgresSyncStore implements SyncStore {
         interval,
       });
     });
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "insertLogFilterInterval" },
+      stopClock(),
+    );
   };
 
   getLogFilterIntervals = async ({
@@ -145,6 +157,8 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     logFilter: LogFilterCriteria;
   }) => {
+    const stopClock = startClock();
+
     const fragments = buildLogFilterFragments({ ...logFilter, chainId });
 
     // First, attempt to merge overlapping and adjacent intervals.
@@ -248,7 +262,14 @@ export class PostgresSyncStore implements SyncStore {
       );
     });
 
-    return intervalIntersectionMany(fragmentIntervals);
+    const intersectIntervals = intervalIntersectionMany(fragmentIntervals);
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "getLogFilterIntervals" },
+      stopClock(),
+    );
+
+    return intersectIntervals;
   };
 
   insertFactoryChildAddressLogs = async ({
@@ -258,6 +279,8 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     logs: RpcLog[];
   }) => {
+    const stopClock = startClock();
+
     await this.db.transaction().execute(async (tx) => {
       if (rpcLogs.length > 0) {
         await tx
@@ -272,6 +295,11 @@ export class PostgresSyncStore implements SyncStore {
           .execute();
       }
     });
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "insertFactoryChildAddressLogs" },
+      stopClock(),
+    );
   };
 
   async *getFactoryChildAddresses({
@@ -285,6 +313,8 @@ export class PostgresSyncStore implements SyncStore {
     factory: FactoryCriteria;
     pageSize?: number;
   }) {
+    const stopClock = startClock();
+
     const { address, eventSelector, childAddressLocation } = factory;
 
     const selectChildAddressExpression =
@@ -321,6 +351,11 @@ export class PostgresSyncStore implements SyncStore {
 
       if (batch.length < pageSize) break;
     }
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "getFactoryChildAddresses" },
+      stopClock(),
+    );
   }
 
   insertFactoryLogFilterInterval = async ({
@@ -338,6 +373,8 @@ export class PostgresSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
+    const stopClock = startClock();
+
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
@@ -368,6 +405,11 @@ export class PostgresSyncStore implements SyncStore {
         interval,
       });
     });
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "insertFactoryLogFilterInterval" },
+      stopClock(),
+    );
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -377,6 +419,8 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     factory: FactoryCriteria;
   }) => {
+    const stopClock = startClock();
+
     const fragments = buildFactoryFragments({
       ...factory,
       chainId,
@@ -492,7 +536,14 @@ export class PostgresSyncStore implements SyncStore {
       );
     });
 
-    return intervalIntersectionMany(fragmentIntervals);
+    const intersectIntervals = intervalIntersectionMany(fragmentIntervals);
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "getFactoryLogFilterIntervals" },
+      stopClock(),
+    );
+
+    return intersectIntervals;
   };
 
   insertRealtimeBlock = async ({
@@ -506,6 +557,8 @@ export class PostgresSyncStore implements SyncStore {
     transactions: RpcTransaction[];
     logs: RpcLog[];
   }) => {
+    const stopClock = startClock();
+
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
@@ -529,6 +582,10 @@ export class PostgresSyncStore implements SyncStore {
           .execute();
       }
     });
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "insertRealtimeBlock" },
+      stopClock(),
+    );
   };
 
   insertRealtimeInterval = async ({
@@ -542,6 +599,8 @@ export class PostgresSyncStore implements SyncStore {
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
+    const stopClock = startClock();
+
     await this.db.transaction().execute(async (tx) => {
       await this._insertLogFilterInterval({
         tx,
@@ -563,6 +622,11 @@ export class PostgresSyncStore implements SyncStore {
         interval,
       });
     });
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "insertRealtimeInterval" },
+      stopClock(),
+    );
   };
 
   deleteRealtimeData = async ({
@@ -572,6 +636,8 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     fromBlock: bigint;
   }) => {
+    const stopClock = startClock();
+
     await this.db.transaction().execute(async (tx) => {
       await tx
         .deleteFrom("blocks")
@@ -665,6 +731,11 @@ export class PostgresSyncStore implements SyncStore {
         .where("endBlock", ">", fromBlock)
         .execute();
     });
+
+    this.common.metrics.ponder_sync_db_duration.observe(
+      { method: "deleteRealtimeData" },
+      stopClock(),
+    );
   };
 
   /** SYNC HELPER METHODS */

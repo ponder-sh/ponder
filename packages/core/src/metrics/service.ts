@@ -50,6 +50,7 @@ export class MetricsService {
   ponder_server_response_duration: prometheus.Histogram<
     "method" | "path" | "status"
   >;
+  ponder_sync_db_duration: prometheus.Histogram<"method">;
 
   constructor() {
     this.registry = new prometheus.Registry();
@@ -170,6 +171,13 @@ export class MetricsService {
       help: "Duration of HTTP responses served the server",
       labelNames: ["method", "path", "status"] as const,
       buckets: httpRequestSizeInBytes,
+      registers: [this.registry],
+    });
+    this.ponder_sync_db_duration = new prometheus.Histogram({
+      name: "ponder_sync_db_duration",
+      help: "Duration of database operations in the sync store",
+      labelNames: ["method"] as const,
+      buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
   }
