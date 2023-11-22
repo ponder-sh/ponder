@@ -173,6 +173,18 @@ test("intervalDifference handles full difference", () => {
   expect(result).toEqual([]);
 });
 
+test("intervalDifference does not mutate inputs", () => {
+  const initial = [6, 17] satisfies [number, number];
+  const remove = [
+    [0, 10],
+    [12, 15],
+  ] satisfies [number, number][];
+
+  intervalDifference([initial], remove);
+
+  expect(initial).toStrictEqual([6, 17]);
+});
+
 test("ProgressTracker constructor initializes correctly", () => {
   const tracker = new ProgressTracker({ target: [3, 10], completed: [] });
 
@@ -221,7 +233,7 @@ test("ProgressTracker addCompletedInterval constructor throws if passed an inval
   );
 });
 
-test("ProgressTracker returns correct checkpoint", () => {
+test("ProgressTracker returns correct checkpoint with multiple completed", () => {
   const tracker = new ProgressTracker({
     target: [5, 15],
     completed: [
@@ -230,6 +242,22 @@ test("ProgressTracker returns correct checkpoint", () => {
     ],
   });
   expect(tracker.getCheckpoint()).toEqual(7);
+});
+
+test("ProgressTracker getRequired does not change checkpoint", () => {
+  const tracker = new ProgressTracker({
+    target: [6, 17],
+    completed: [
+      [0, 10],
+      [12, 15],
+    ],
+  });
+  expect(tracker.getCheckpoint()).toEqual(10);
+  expect(tracker.getRequired()).toEqual([
+    [11, 11],
+    [16, 17],
+  ]);
+  expect(tracker.getCheckpoint()).toEqual(10);
 });
 
 test("getChunks splits intervals correctly", () => {
