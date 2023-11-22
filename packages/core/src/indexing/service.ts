@@ -371,10 +371,14 @@ export class IndexingService extends Emittery<IndexingEvents> {
                   `Invariant violation: Source ID not found ${sourceId}`,
                 );
               const abiItemMeta = source.events.bySelector[selector];
-              if (!abiItemMeta)
-                throw new Error(
-                  `Invariant violation: No abiItemMeta found for ${source.contractName}:${selector}`,
-                );
+              if (!abiItemMeta) {
+                this.common.logger.warn({
+                  service: "indexing",
+                  msg: `Invariant violation: No abiItemMeta found for ${source.contractName}:${selector}`,
+                });
+
+                return;
+              }
 
               const isRegistered = registeredSelectorsBySourceId[
                 sourceId
