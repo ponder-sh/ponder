@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { cac } from "cac";
 import dotenv from "dotenv";
+import pc from "picocolors";
 
 import { buildOptions } from "@/config/options.js";
 import { Ponder } from "@/Ponder.js";
@@ -122,9 +123,12 @@ function registerKilledProcessListener(fn: () => Promise<unknown>) {
   process.on("SIGTERM", listener); // `kill` command
 }
 
-const validateNodeVersion = () => {
-  if (Number(process.version.split(".")[0].slice(1)) < 18)
-    throw Error(
-      `Node version:${process.version} does not meet the >=18 requirement`,
+function validateNodeVersion() {
+  if (Number(process.version.split(".")[0].slice(1)) < 18) {
+    console.log(
+      `Ponder requires ${pc.cyan("Node >=18")}, detected ${process.version}.`,
     );
-};
+    console.log("");
+    process.exit(1);
+  }
+}
