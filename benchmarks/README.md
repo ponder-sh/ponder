@@ -16,10 +16,10 @@ The `.github/workflows/bench.yml` workflow runs benchmarks in CI. Instead of usi
 
 | No Cache | Duration (sec) | RPC Requests |
 | -------- | -------------- | ------------ |
-| Ponder   | 43.8           | 790          |
-| TheGraph | 55.0           | 1083         |
+| Ponder   | 29.3           | 2149         |
+| TheGraph | 120.1          | 2304         |
 
 | Cache    | Duration (sec) | RPC Requests |
 | -------- | -------------- | ------------ |
-| Ponder   | 1.98           | 0            |
-| TheGraph | 17.0           | 14           |
+| Ponder   | 9.2            | 0            |
+| TheGraph | 40.1           | 30           |
