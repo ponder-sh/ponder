@@ -51,3 +51,4 @@ services:
       ethereum: mainnet:http://anvil:8545
       ETHEREUM_REORG_THRESHOLD: 0
       GRAPH_LOG: debug
+      ETHEREUM_BLOCK_BATCH_SIZE: 30

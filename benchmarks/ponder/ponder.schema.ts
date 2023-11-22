@@ -1,6 +1,6 @@
 import { p } from "@ponder/core";
 
-export const schema = p.createSchema({
+export default p.createSchema({
   Account: p.createTable({
     id: p.string(),
     balance: p.bigint(),
