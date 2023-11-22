@@ -186,6 +186,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.queue.pause();
     this.queue.clear();
     await this.onIdle();
+    this.blocks = [];
 
     this.common.logger.debug({
       service: "realtime",

@@ -441,25 +441,50 @@ export class Ponder {
       );
       if (!syncServiceForChainId) {
         this.common.logger.warn({
+          service: "server",
           msg: `No network defined for chainId: ${chainId}`,
         });
         return;
       }
 
-      // Reload the sync service by killing, setting up, and then starting again.
-      await syncServiceForChainId.realtime.kill();
-      await syncServiceForChainId.historical.kill();
-
+      console.log("Deleting realtime data");
       await this.syncStore.deleteRealtimeData({
         chainId,
         fromBlock: BigInt(0),
       });
 
-      const blockNumbers = await syncServiceForChainId.realtime.setup();
-      await syncServiceForChainId.historical.setup(blockNumbers);
-      //
-      await syncServiceForChainId.realtime.start();
-      syncServiceForChainId.historical.start();
+      // Clear all the metrics for the sources.
+      syncServiceForChainId.sources.forEach(({ networkName, contractName }) => {
+        this.common.metrics.ponder_historical_total_blocks.set(
+          { network: networkName, contract: contractName },
+          0,
+        );
+        this.common.metrics.ponder_historical_completed_blocks.set(
+          { network: networkName, contract: contractName },
+          0,
+        );
+        this.common.metrics.ponder_historical_cached_blocks.set(
+          { network: networkName, contract: contractName },
+          0,
+        );
+      });
+
+      this.syncGatewayService.reset({ chainId });
+
+      await Promise.all(
+        this.syncServices.map(async ({ historical, realtime }) => {
+          // Reload the sync service by killing, setting up, and then starting again.
+          await realtime.kill();
+          await historical.kill();
+
+          console.log("Not killing the services");
+          const blockNumbers = await realtime.setup();
+          await historical.setup(blockNumbers);
+
+          await realtime.start();
+          historical.start();
+        }),
+      );
 
       // Reload the indexing service with existing schema. We use the exisiting schema as there is
       // alternative resetting behavior for a schema change.

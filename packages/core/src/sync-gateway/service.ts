@@ -205,6 +205,18 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     this.emit("reorg", { commonAncestorTimestamp });
   };
 
+  // Resets the network checkpoint for the specified chain ID.
+  reset = ({ chainId }: { chainId: number }) => {
+    this.checkpoint = 0;
+    this.finalityCheckpoint = 0;
+    this.networkCheckpoints[chainId] = {
+      isHistoricalSyncComplete: false,
+      historicalCheckpoint: 0,
+      realtimeCheckpoint: 0,
+      finalityCheckpoint: 0,
+    };
+  };
+
   private recalculateCheckpoint = () => {
     const checkpoints = Object.values(this.networkCheckpoints).map((n) =>
       n.isHistoricalSyncComplete
