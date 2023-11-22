@@ -16,7 +16,7 @@ import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
 
 type ServerEvents = {
-  "admin:reload": { chainIds: number[] };
+  "admin:reload": { chainId: number };
 };
 
 export class ServerService extends Emittery<ServerEvents> {

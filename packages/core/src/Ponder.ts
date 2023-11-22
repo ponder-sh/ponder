@@ -435,8 +435,36 @@ export class Ponder {
     });
 
     // Server listeners.
-    this.serverService.on("admin:reload", async () => {
-      // TODO: Reload only the specified chainIds.
+    this.serverService.on("admin:reload", async ({ chainId }) => {
+      const syncServiceForChainId = this.syncServices.find(
+        ({ network }) => network.chainId === chainId,
+      );
+      if (!syncServiceForChainId) {
+        this.common.logger.warn({
+          msg: `No network defined for chainId: ${chainId}`,
+        });
+        return;
+      }
+
+      // Reload the sync service by killing, setting up, and then starting again.
+      await syncServiceForChainId.realtime.kill();
+      await syncServiceForChainId.historical.kill();
+
+      await this.syncStore.deleteRealtimeData({
+        chainId,
+        fromBlock: BigInt(0),
+      });
+
+      const blockNumbers = await syncServiceForChainId.realtime.setup();
+      await syncServiceForChainId.historical.setup(blockNumbers);
+      //
+      await syncServiceForChainId.realtime.start();
+      syncServiceForChainId.historical.start();
+
+      // Reload the indexing service with existing schema. We use the exisiting schema as there is
+      // alternative resetting behavior for a schema change.
+      await this.indexingService.reset();
+      await this.indexingService.processEvents();
     });
   }
 }

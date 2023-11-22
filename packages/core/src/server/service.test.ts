@@ -1,5 +1,5 @@
 import request from "supertest";
-import { beforeEach, describe, expect, it, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { setupIndexingStore } from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
@@ -1578,72 +1578,46 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
 });
 
 // Admin routes.
+test("/admin/reload emits chainIds in reload event", async (context) => {
+  const { common, indexingStore } = context;
+  const { service } = await setup({
+    common,
+    indexingStore,
+    options: {
+      hasCompletedHistoricalIndexing: false,
+    },
+  });
+  const emitSpy = vi.spyOn(service, "emit");
 
-describe("/admin/reload", async () => {
-  it("emits chainIds in reload event", async (context) => {
-    const { common, indexingStore } = context;
-    const { service } = await setup({
-      common,
-      indexingStore,
-      options: {
-        hasCompletedHistoricalIndexing: false,
-      },
-    });
-    const emitSpy = vi.spyOn(service, "emit");
+  await request(service.app)
+    .post("/admin/reload")
+    .query({ chainId: "1" })
+    .expect(200);
 
-    await request(service.app)
-      .post("/admin/reload")
-      .query({ chainIds: "1,2,3" })
-      .expect(200);
-
-    expect(emitSpy).toHaveBeenCalledWith("admin:reload", {
-      chainIds: [1, 2, 3],
-    });
-
-    await service.kill();
+  expect(emitSpy).toHaveBeenCalledWith("admin:reload", {
+    chainId: 1,
   });
 
-  it("emits default chainId in reload event", async (context) => {
-    const { common, indexingStore } = context;
-    const { service } = await setup({
-      common,
-      indexingStore,
-      options: {
-        hasCompletedHistoricalIndexing: false,
-      },
-    });
-    const emitSpy = vi.spyOn(service, "emit");
+  await service.kill();
+});
 
-    await request(service.app)
-      .post("/admin/reload")
-      // No query -- use default chain ID.
-      .expect(200);
-
-    expect(emitSpy).toHaveBeenCalledWith("admin:reload", {
-      chainIds: [31337],
-    });
-
-    await service.kill();
+test("/admin/reload fails with non-integer chain IDs", async (context) => {
+  const { common, indexingStore } = context;
+  const { service } = await setup({
+    common,
+    indexingStore,
+    options: {
+      hasCompletedHistoricalIndexing: false,
+    },
   });
+  const emitSpy = vi.spyOn(service, "emit");
 
-  it("fails with non-integer chain IDs", async (context) => {
-    const { common, indexingStore } = context;
-    const { service } = await setup({
-      common,
-      indexingStore,
-      options: {
-        hasCompletedHistoricalIndexing: false,
-      },
-    });
-    const emitSpy = vi.spyOn(service, "emit");
+  await request(service.app)
+    .post("/admin/reload")
+    .query({ chainId: "badchainid" })
+    .expect(400);
 
-    await request(service.app)
-      .post("/admin/reload")
-      .query({ chainIds: "badchainid" })
-      .expect(400);
+  expect(emitSpy).not.toHaveBeenCalled();
 
-    expect(emitSpy).not.toHaveBeenCalled();
-
-    await service.kill();
-  });
+  await service.kill();
 });
