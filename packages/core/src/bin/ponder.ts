@@ -1,14 +1,19 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { cac } from "cac";
 import dotenv from "dotenv";
 
 import { buildOptions } from "@/config/options.js";
 import { Ponder } from "@/Ponder.js";
 
-// NOTE: This is a workaround for tsconfig `rootDir` nonsense.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import packageJson from "../../package.json" assert { type: "json" };
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const packageJsonPath = resolve(__dirname, "../../package.json");
+const packageJson = JSON.parse(
+  readFileSync(packageJsonPath, { encoding: "utf8" }),
+);
 
 dotenv.config({ path: ".env.local" });
 
@@ -34,6 +39,8 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
+    validateNodeVersion();
+
     const options = buildOptions({ cliOptions });
     const devOptions = { ...options, uiEnabled: true };
 
@@ -45,9 +52,11 @@ cli
   });
 
 cli
-  .command("start", "Start the production server")
+  .command("start", "Start the production indexing server")
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
+
+    validateNodeVersion();
 
     const options = buildOptions({ cliOptions });
     const startOptions = { ...options, uiEnabled: false };
@@ -64,6 +73,8 @@ cli
   .action(async (cliOptions: CliOptions) => {
     if (cliOptions.help) process.exit(0);
 
+    validateNodeVersion();
+
     const options = buildOptions({ cliOptions });
     const codegenOptions = {
       ...options,
@@ -76,6 +87,22 @@ cli
 
     await ponder.setup();
     await ponder.codegen();
+  });
+
+cli
+  .command("serve", "Start the web server")
+  .action(async (cliOptions: CliOptions) => {
+    if (cliOptions.help) process.exit(0);
+
+    validateNodeVersion();
+
+    const options = buildOptions({ cliOptions });
+    const devOptions = { ...options, uiEnabled: true };
+
+    const ponder = new Ponder({ options: devOptions });
+    registerKilledProcessListener(() => ponder.kill());
+
+    await ponder.serve();
   });
 
 cli.parse();
@@ -94,3 +121,10 @@ function registerKilledProcessListener(fn: () => Promise<unknown>) {
   process.on("SIGQUIT", listener); // Keyboard quit
   process.on("SIGTERM", listener); // `kill` command
 }
+
+const validateNodeVersion = () => {
+  if (Number(process.version.split(".")[0].slice(1)) < 18)
+    throw Error(
+      `Node version:${process.version} does not meet the >=18 requirement`,
+    );
+};

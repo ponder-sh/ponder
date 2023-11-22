@@ -13,6 +13,7 @@
     "dist",
     "src/**/*.ts",
     "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
     "!src/_test/**/*"
   ],
   "bin": {
@@ -26,15 +27,13 @@
     "types": "./dist/index.d.ts"
   },
   "scripts": {
-    "build": "pnpm clean && tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
-    "build:watch": "concurrently \"tsc --project tsconfig.build.json --watch\" \"tsc-alias --project tsconfig.build.json --watch\"",
-    "clean": "rimraf ./dist",
+    "build": "tsup",
     "test": "vitest",
-    "typecheck": "tsc --project tsconfig.json --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "typescript": "^5.2.0",
-    "viem": "^1.19.0"
+    "typescript": ">=5",
+    "viem": ">=1"
   },
   "dependencies": {
     "@babel/code-frame": "^7.22.13",
@@ -81,12 +80,13 @@
     "@types/retry": "^0.12.5",
     "@types/supertest": "^2.0.16",
     "@viem/anvil": "^0.0.6",
-    "concurrently": "^8.2.2",
-    "rimraf": "^5.0.5",
     "supertest": "^6.3.3",
-    "tsc-alias": "^1.8.8",
+    "tsup": "^7.3.0",
     "typescript": "^5.2.2",
-    "viem": "^1.19.0",
+    "viem": "^1.0.0",
     "vitest": "^0.34.6"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

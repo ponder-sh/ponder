@@ -5,6 +5,12 @@ import { type LevelWithSilent, type Logger, pino } from "pino";
 
 type LogOptions = { msg?: string; service?: string } & { [key: string]: any };
 
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: "numeric",
+  minute: "numeric",
+  second: "numeric",
+});
+
 export class LoggerService {
   private logger: Logger;
 
@@ -88,30 +94,19 @@ const formatMessage = (log: { [key: string]: any }) => {
   let result = "";
 
   const timestamp = log.time as number;
+  const time = timeFormatter.format(new Date(timestamp));
   const level = levels[(log.level as keyof typeof levels) ?? 30];
   const msg = log.msg as string | undefined;
   const errorMessage = log.error?.message as string | undefined;
   const message = msg ?? errorMessage;
   const service = log.service as string | undefined;
 
-  const date = new Date(timestamp);
-  const hours = String(date.getUTCHours()).padStart(2, "0");
-  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
-  const millis = String(date.getUTCMilliseconds()).padStart(3, "0");
-  const time = `${hours}:${minutes}:${seconds}.${millis} `;
-
-  result += pc.isColorSupported ? pc.gray(time) : time;
-
+  result += pc.isColorSupported ? pc.gray(time + " ") : time + " ";
   result += pc.isColorSupported ? level.colorize(level.label) : level.label;
-
-  if (service) {
+  if (service)
     result += pc.isColorSupported
       ? " " + pc.cyan(service.padEnd(10, " "))
       : " " + service.padEnd(10, " ");
-  }
-
   result += pc.reset(` ${message}`);
-
   return result;
 };

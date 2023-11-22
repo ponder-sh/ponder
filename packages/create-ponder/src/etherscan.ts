@@ -1,12 +1,12 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import type { Abi } from "abitype";
 import prettier from "prettier";
 
 import { getNetworkByEtherscanHostname } from "@/helpers/getEtherscanChainId.js";
 import { wait } from "@/helpers/wait.js";
-import type { SerializableConfig } from "@/index.js";
+import type { SerializableConfig, SerializableContract } from "@/index.js";
 
 export const fromEtherscan = async ({
   rootDir,
@@ -56,13 +56,13 @@ export const fromEtherscan = async ({
     console.log("(2/n) Waiting 5 seconds for Etherscan API rate limit");
     await wait(5000);
   }
-  const abis: { abi: string; contractName: string }[] = [];
+  const abis: { abi: Abi; contractName: string }[] = [];
   const { abi, contractName } = await getContractAbiAndName(
     contractAddress,
     apiUrl,
     apiKey,
   );
-  abis.push({ abi, contractName });
+  abis.push({ abi: JSON.parse(abi), contractName });
 
   // If the contract is an EIP-1967 proxy, get the implementation contract ABIs.
   if (
@@ -104,29 +104,51 @@ export const fromEtherscan = async ({
       );
 
       abis.push({
-        abi,
+        abi: JSON.parse(abi) as Abi,
         contractName: `${contractName}_${implAddress.slice(0, 6)}`,
       });
     }
   }
 
+  mkdirSync(path.join(rootDir, "abis"), { recursive: true });
+  mkdirSync(path.join(rootDir, "src"), { recursive: true });
+
   // Write ABI files.
-  let abiConfig: any;
-  abis.forEach(async ({ abi, contractName }) => {
-    const abiRelativePath = `./abis/${contractName}.json`;
-    const abiAbsolutePath = path.join(rootDir, abiRelativePath);
+  let abiConfig: SerializableContract["abi"] | undefined;
+
+  for (const { abi, contractName } of abis) {
+    const abiRelativePath = `./abis/${contractName}Abi.ts`;
+    const abiAbsolutePath = path.join(
+      path.resolve(".", rootDir),
+      abiRelativePath,
+    );
     writeFileSync(
       abiAbsolutePath,
-      await prettier.format(abi, { parser: "json" }),
+      await prettier.format(
+        `export const ${contractName}Abi = ${JSON.stringify(abi)} as const`,
+        {
+          parser: "typescript",
+        },
+      ),
     );
 
     if (abis.length === 1) {
-      abiConfig = abiRelativePath;
+      abiConfig = {
+        abi,
+        dir: abiRelativePath,
+        name: `${contractName}Abi`,
+      };
     } else {
-      abiConfig ||= [];
-      abiConfig.push(abiRelativePath);
+      if (abiConfig === undefined) {
+        abiConfig = [];
+      }
+      (abiConfig as unknown[]).push({
+        abi,
+        name: `${contractName}Abi`,
+        dir: abiRelativePath,
+      });
     }
-  });
+  }
 
   // Build and return the partial ponder config.
   const config: SerializableConfig = {
@@ -141,7 +163,7 @@ export const fromEtherscan = async ({
       {
         name: contractName,
         network: name,
-        abi: abiConfig,
+        abi: abiConfig!,
         address: contractAddress,
         startBlock: blockNumber ?? undefined,
       },
@@ -158,7 +180,7 @@ const fetchEtherscan = async (url: string) => {
   while (retryCount <= maxRetries) {
     try {
       const response = await fetch(url);
-      const data = await response.json();
+      const data: any = await response.json();
       if (data.status === "0") {
         throw new Error(`Etherscan API error: ${data.result}`);
       }

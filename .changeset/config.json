@@ -4,14 +4,15 @@
   "commit": false,
   "fixed": [["@ponder/core", "create-ponder", "eslint-config-ponder"]],
   "ignore": [
-    "ponder-examples-ethfs",
-    "ponder-examples-art-gobblers",
-    "ponder-examples-factory-llama",
-    "ponder-examples-friendtech",
-    "ponder-examples-token-erc20",
-    "ponder-examples-token-erc721",
-    "ponder-examples-token-reth",
-    "ponder-examples-with-docker"
+    "ponder-examples-feature-factory",
+    "ponder-examples-feature-filter",
+    "ponder-examples-feature-multichain",
+    "ponder-examples-feature-proxy",
+    "ponder-examples-feature-read-contract",
+    "ponder-examples-project-friendtech",
+    "ponder-examples-project-uniswap-v3-flash",
+    "ponder-examples-reference-erc20",
+    "ponder-examples-reference-erc721"
   ],
   "linked": [],
   "access": "public",

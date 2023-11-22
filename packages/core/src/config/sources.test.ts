@@ -1,33 +1,32 @@
 import { http } from "viem";
 import { expect, test } from "vitest";
 
-import type { Config } from "./config.js";
 import { createConfig } from "./config.js";
 import { abiSimple, abiWithSameEvent } from "./config.test-d.js";
 import { buildSources } from "./sources.js";
 
 test("buildSources() builds topics for multiple events", () => {
-  const sources = buildSources({
-    config: createConfig({
-      networks: {
-        mainnet: {
-          chainId: 1,
-          transport: http("http://127.0.0.1:8545"),
-        },
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
       },
-      contracts: {
-        BaseRegistrarImplementation: {
-          network: { mainnet: {} },
-          abi: abiSimple,
-          filter: { event: ["Transfer", "Approve"] },
-          address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-          startBlock: 16370000,
-          endBlock: 16370020,
-          maxBlockRange: 10,
-        },
+    },
+    contracts: {
+      BaseRegistrarImplementation: {
+        network: { mainnet: {} },
+        abi: abiSimple,
+        filter: { event: ["Transfer", "Approve"] },
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
       },
-    }) as Config,
+    },
   });
+
+  const sources = buildSources({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     [
@@ -41,32 +40,32 @@ test("buildSources() builds topics for multiple events", () => {
 });
 
 test("buildSources() for duplicate event", () => {
-  const sources = buildSources({
-    config: createConfig({
-      networks: {
-        mainnet: {
-          chainId: 1,
-          transport: http("http://127.0.0.1:8545"),
-        },
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
       },
-      contracts: {
-        BaseRegistrartImplementation: {
-          network: { mainnet: {} },
-          abi: abiWithSameEvent,
-          filter: {
-            event: [
-              "Approve(address indexed from, address indexed to, uint256 amount)",
-              "Approve(address indexed, bytes32 indexed, uint256)",
-            ],
-          },
-          address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-          startBlock: 16370000,
-          endBlock: 16370020,
-          maxBlockRange: 10,
+    },
+    contracts: {
+      BaseRegistrartImplementation: {
+        network: { mainnet: {} },
+        abi: abiWithSameEvent,
+        filter: {
+          event: [
+            "Approve(address indexed from, address indexed to, uint256 amount)",
+            "Approve(address indexed, bytes32 indexed, uint256)",
+          ],
         },
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
       },
-    }) as unknown as Config,
+    },
   });
+
+  const sources = buildSources({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     [
@@ -80,57 +79,57 @@ test("buildSources() for duplicate event", () => {
 });
 
 test("buildSources() multichain", () => {
-  const sources = buildSources({
-    config: createConfig({
-      networks: {
-        mainnet: {
-          chainId: 1,
-          transport: http("http://127.0.0.1:8545"),
-        },
-        optimism: {
-          chainId: 10,
-          transport: http("http://127.0.0.1:8545"),
-        },
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
       },
-      contracts: {
-        a: {
-          network: { mainnet: {}, optimism: {} },
-          abi: abiSimple,
-        },
+      optimism: {
+        chainId: 10,
+        transport: http("http://127.0.0.1:8545"),
       },
-    }) as Config,
+    },
+    contracts: {
+      a: {
+        network: { mainnet: {}, optimism: {} },
+        abi: abiSimple,
+      },
+    },
   });
+
+  const sources = buildSources({ config });
 
   expect(sources.length).toBe(2);
 });
 
 test("buildSources() builds topics for event with args", () => {
-  const sources = buildSources({
-    config: createConfig({
-      networks: {
-        mainnet: {
-          chainId: 1,
-          transport: http("http://127.0.0.1:8545"),
-        },
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
       },
-      contracts: {
-        BaseRegistrarImplmentation: {
-          network: { mainnet: {} },
-          abi: abiSimple,
-          filter: {
-            event: "Approve",
-            args: {
-              to: "0xF39d15cB3910d5e33fb1a2E42D4a2da153Ba076B",
-            },
+    },
+    contracts: {
+      BaseRegistrarImplmentation: {
+        network: { mainnet: {} },
+        abi: abiSimple,
+        filter: {
+          event: "Approve",
+          args: {
+            to: "0xF39d15cB3910d5e33fb1a2E42D4a2da153Ba076B",
           },
-          address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-          startBlock: 16370000,
-          endBlock: 16370020,
-          maxBlockRange: 10,
         },
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
       },
-    }) as unknown as Config,
+    },
   });
+
+  const sources = buildSources({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
     "0x6e11fb1b7f119e3f2fa29896ef5fdf8b8a2d0d4df6fe90ba8668e7d8b2ffa25e",
@@ -141,31 +140,31 @@ test("buildSources() builds topics for event with args", () => {
 });
 
 test("buildSources() overrides default values with network values", () => {
-  const sources = buildSources({
-    config: createConfig({
-      networks: {
-        mainnet: {
-          chainId: 1,
-          transport: http("http://127.0.0.1:8545"),
-        },
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
       },
-      contracts: {
-        BaseRegistrarImplementation: {
-          network: {
-            mainnet: {
-              address: "0xF39d15cB3910d5e33fb1a2E42D4a2da153Ba076B",
-            },
+    },
+    contracts: {
+      BaseRegistrarImplementation: {
+        network: {
+          mainnet: {
+            address: "0xF39d15cB3910d5e33fb1a2E42D4a2da153Ba076B",
           },
-          abi: abiSimple,
-          filter: { event: ["Transfer"] },
-          address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-          startBlock: 16370000,
-          endBlock: 16370020,
-          maxBlockRange: 10,
         },
+        abi: abiSimple,
+        filter: { event: ["Transfer"] },
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
       },
-    }) as unknown as Config,
+    },
   });
+
+  const sources = buildSources({ config });
 
   expect(sources[0].criteria.address).toBe(
     "0xf39d15cb3910d5e33fb1a2e42d4a2da153ba076b",
@@ -173,27 +172,27 @@ test("buildSources() overrides default values with network values", () => {
 });
 
 test("buildSources() network shortcut", () => {
-  const sources = buildSources({
-    config: createConfig({
-      networks: {
-        mainnet: {
-          chainId: 1,
-          transport: http("http://127.0.0.1:8545"),
-        },
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
       },
-      contracts: {
-        BaseRegistrarImplementation: {
-          network: "mainnet",
-          abi: abiSimple,
-          filter: { event: ["Transfer"] },
-          address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-          startBlock: 16370000,
-          endBlock: 16370020,
-          maxBlockRange: 10,
-        },
+    },
+    contracts: {
+      BaseRegistrarImplementation: {
+        network: "mainnet",
+        abi: abiSimple,
+        filter: { event: ["Transfer"] },
+        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
       },
-    }) as unknown as Config,
+    },
   });
 
-  expect(sources[0].network).toBe("mainnet");
+  const sources = buildSources({ config });
+
+  expect(sources[0].networkName).toBe("mainnet");
 });

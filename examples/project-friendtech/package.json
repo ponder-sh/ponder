@@ -1,20 +1,28 @@
 {
-  "name": "ponder-examples-friendtech",
+  "name": "ponder-examples-project-friendtech",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "ponder dev",
     "start": "ponder start",
     "codegen": "ponder codegen",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "typecheck": "tsc"
   },
   "dependencies": {
-    "@ponder/core": "workspace:*"
+    "@ponder/core": "workspace:*",
+    "viem": "^1.19.3"
   },
   "devDependencies": {
-    "abitype": "^0.10.2",
+    "@types/node": "^20.9.0",
     "eslint": "^8.53.0",
     "eslint-config-ponder": "workspace:*",
-    "typescript": "^5.2.2",
-    "viem": "^1.19.1"
+    "typescript": "^5.2.2"
+  },
+  "trustedDependencies": [
+    "better-sqlite3"
+  ],
+  "engines": {
+    "node": ">=18"
   }
 }

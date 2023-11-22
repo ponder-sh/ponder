@@ -5,7 +5,7 @@
     "bench:ponder:ci": "pnpm --filter \"./benchmarks\" bench:ponder:ci",
     "bench:subgraph": "pnpm --filter \"./benchmarks\" bench:subgraph",
     "bench:subgraph:ci": "pnpm --filter \"./benchmarks\" bench:subgraph:ci",
-    "build": "pnpm --filter \"@ponder/core\" build && pnpm --filter \"./packages/*\" --filter \"!@ponder/core\" --parallel build",
+    "build": "pnpm --filter \"./packages/**\" --parallel build",
     "changeset:release": "pnpm build && changeset publish",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
     "install:packages": "pnpm --filter \"./packages/**\" install",
@@ -17,7 +17,7 @@
     "test": "pnpm --parallel --no-bail test",
     "test:core": "pnpm --filter \"@ponder/core\" test",
     "test:create-ponder": "pnpm --filter \"create-ponder\" test",
-    "typecheck": "pnpm --parallel typecheck"
+    "typecheck": "pnpm --filter \"./packages/**\" --parallel typecheck"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.4.8",
@@ -51,5 +51,8 @@
     "patchedDependencies": {
       "graphql@16.8.1": "patches/graphql@16.8.1.patch"
     }
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

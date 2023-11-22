@@ -1,7 +1,7 @@
 import { http } from "viem";
 
-import { createConfig } from "../../../../dist";
-import { BaseRegistrarImplementationAbi } from "./BaseRegistrarImplementation.abi";
+import { createConfig } from "../../../config/config.js";
+import { BaseRegistrarImplementationAbi } from "./BaseRegistrarImplementationAbi.js";
 
 const poolId = Number(process.env.VITEST_POOL_ID ?? 1);
 const transport = http(`http://127.0.0.1:8545/${poolId}`);

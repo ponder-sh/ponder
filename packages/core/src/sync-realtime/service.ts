@@ -76,9 +76,18 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   }
 
   setup = async () => {
-    // Fetch the latest block for the network.
-    const latestBlock = await this.getLatestBlock();
+    // Fetch the latest block, and remote chain Id for the network.
+    const [latestBlock, rpcChainId] = await Promise.all([
+      this.getLatestBlock(),
+      this.network.client.getChainId(),
+    ]);
     const latestBlockNumber = hexToNumber(latestBlock.number);
+
+    if (rpcChainId !== this.network.chainId)
+      this.common.logger.warn({
+        service: "realtime",
+        msg: `Remote chain ID (${rpcChainId}) does not match configured chain ID (${this.network.chainId}) for network "${this.network.name}"`,
+      });
 
     this.common.logger.info({
       service: "realtime",
@@ -119,7 +128,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     ) {
       this.common.logger.warn({
         service: "realtime",
-        msg: `No realtime event sources found (network=${this.network.name})`,
+        msg: `No realtime contracts (network=${this.network.name})`,
       });
       this.common.metrics.ponder_realtime_is_connected.set(
         { network: this.network.name },
@@ -162,7 +171,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.queue.start();
 
     // Add an empty task the queue (the worker will fetch the latest block).
-    // TODO: optimistically optimize latency here using filters or subscriptions.
+    // TODO: optimize latency here using filters or subscriptions.
     this.unpoll = poll(
       async () => {
         await this.addNewLatestBlock();
@@ -172,9 +181,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   kill = async () => {
-    this.unpoll?.();
+    await this.unpoll?.();
+
     this.queue.pause();
     this.queue.clear();
+    await this.onIdle();
+
     this.common.logger.debug({
       service: "realtime",
       msg: `Killed realtime sync service (network=${this.network.name})`,
@@ -375,7 +387,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       this.common.logger.debug({
         service: "realtime",
-        msg: `Found ${logs.length} total and ${matchedLogCountText} in block ${newBlock.number} (network=${this.network.name})`,
+        msg: `Got ${logs.length} total and ${matchedLogCountText} in block ${newBlock.number} (network=${this.network.name})`,
       });
 
       // If there are indeed any matched logs, insert them into the store.
@@ -399,7 +411,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         this.common.logger.info({
           service: "realtime",
-          msg: `Found ${matchedLogCountText} in new head block ${newBlock.number} (network=${this.network.name})`,
+          msg: `Synced ${matchedLogCountText} from block ${newBlock.number} (network=${this.network.name})`,
         });
       }
 
@@ -470,7 +482,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       this.common.logger.debug({
         service: "realtime",
-        msg: `Finished processing new head block ${newBlock.number} (network=${this.network.name})`,
+        msg: `Finished syncing new head block ${newBlock.number} (network=${this.network.name})`,
       });
 
       return;
@@ -517,7 +529,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.queue.addTask(block, { priority });
       }
 
-      this.common.logger.info({
+      this.common.logger.debug({
         service: "realtime",
         msg: `Fetched missing blocks [${missingBlockNumbers[0]}, ${
           missingBlockNumbers[missingBlockNumbers.length - 1]

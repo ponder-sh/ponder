@@ -1,19 +1,21 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
-import type { Abi, Address, Client } from "viem";
-import { createClient } from "viem";
+import type { Abi, Address, Client, Hex } from "viem";
+import { createClient, decodeEventLog } from "viem";
 
 import type { IndexingFunctions } from "@/build/functions.js";
-import type { LogEventMetadata } from "@/config/abi.js";
 import type { Config } from "@/config/config.js";
 import type { Source } from "@/config/sources.js";
 import { UserError } from "@/errors/user.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
-import type { LogEvent, SyncGateway } from "@/sync-gateway/service.js";
+import type { SyncGateway } from "@/sync-gateway/service.js";
 import type { SyncStore } from "@/sync-store/store.js";
+import type { Block } from "@/types/block.js";
+import type { Log } from "@/types/log.js";
 import type { DatabaseModel } from "@/types/model.js";
+import type { Transaction } from "@/types/transaction.js";
 import { chains } from "@/utils/chains.js";
 import { formatShortDate } from "@/utils/date.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -29,7 +31,25 @@ type IndexingEvents = {
   eventsProcessed: { toTimestamp: number };
 };
 
-type SetupTask = { kind: "SETUP" };
+type LogEvent = {
+  networkName: string;
+  contractName: string;
+  eventName: string;
+  chainId: number;
+  args: any;
+  log: Log;
+  block: Block;
+  transaction: Transaction;
+};
+type SetupTask = {
+  kind: "SETUP";
+  event: {
+    chainId: number;
+    networkName: string;
+    contractName: string;
+    blockNumber: bigint;
+  };
+};
 type LogEventTask = { kind: "LOG"; event: LogEvent };
 type IndexingFunctionTask = SetupTask | LogEventTask;
 type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
@@ -61,7 +81,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private db: Record<string, DatabaseModel<any>> = {};
 
   private indexingFunctions?: IndexingFunctions;
-  private indexingMetadata: IndexingFunctions["eventSources"] = {};
 
   private eventProcessingMutex: Mutex;
   private queue?: IndexingFunctionQueue;
@@ -103,8 +122,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
     );
   }
 
-  kill = () => {
+  kill = async () => {
+    this.queue?.pause();
     this.queue?.clear();
+    await this.queue?.onIdle();
+
     this.eventProcessingMutex.cancel();
 
     this.common.logger.debug({
@@ -139,7 +161,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     if (newIndexingFunctions) {
       this.indexingFunctions = newIndexingFunctions;
-      this.indexingMetadata = this.indexingFunctions.eventSources;
     }
 
     // If either the schema or indexing functions have not been provided yet,
@@ -160,7 +181,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     });
     this.common.logger.debug({
       service: "indexing",
-      msg: `Paused event queue (versionId=${this.indexingStore.versionId})`,
+      msg: `Paused event queue`,
     });
 
     this.hasError = false;
@@ -173,7 +194,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     await this.indexingStore.reload({ schema: this.schema });
     this.common.logger.debug({
       service: "indexing",
-      msg: `Reset indexing store (versionId=${this.indexingStore.versionId})`,
+      msg: `Reset indexing store`,
     });
 
     // When we call indexingStore.reload() above, the indexing store is dropped.
@@ -275,23 +296,64 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         const toTimestamp = eventsAvailableTo;
 
-        // If no events have been added yet, add the setup event & associated metrics.
-        if (this.eventsProcessedToTimestamp === 0) {
-          this.common.metrics.ponder_indexing_matched_events.inc({
-            eventName: "setup",
-          });
-          if (this.indexingFunctions?._meta_.setup) {
-            this.queue.addTask({ kind: "SETUP" });
-            this.common.metrics.ponder_indexing_handled_events.inc({
-              eventName: "setup",
-            });
+        // If no events have been added yet, add the setup events for each chain & associated metrics.
+        if (this.eventsProcessedToTimestamp === 0 && this.indexingFunctions) {
+          for (const [sourceName, events] of Object.entries(
+            this.indexingFunctions,
+          )) {
+            if (Object.keys(events).some((e) => e === "setup")) {
+              // Get all chains that have the contract "sourceName"
+              Object.values(this.contexts).forEach(({ contracts, network }) => {
+                if (contracts[sourceName] === undefined) return;
+
+                const labels = {
+                  network: network.name,
+                  contract: sourceName,
+                  event: "setup",
+                };
+
+                this.common.metrics.ponder_indexing_matched_events.inc(labels);
+                this.queue?.addTask({
+                  kind: "SETUP",
+                  event: {
+                    chainId: network.chainId,
+                    contractName: sourceName,
+                    blockNumber: BigInt(contracts[sourceName].startBlock),
+                    networkName: network.name,
+                  },
+                });
+                this.common.metrics.ponder_indexing_handled_events.inc(labels);
+              });
+            }
           }
+        }
+
+        const sourcesById: { [sourceId: string]: Source } = {};
+        const registeredSelectorsBySourceId: { [sourceId: string]: Hex[] } = {};
+
+        for (const source of this.sources) {
+          sourcesById[source.id] = source;
+          const registeredSafeEventNames = Object.keys(
+            this.indexingFunctions![source.contractName],
+          ).filter((name) => name !== "setup");
+          const registeredSelectors = registeredSafeEventNames.map(
+            (safeEventName) => {
+              const abiItemMeta = source.events.bySafeName[safeEventName];
+              if (!abiItemMeta)
+                throw new Error(
+                  `Invariant violation: No abiItemMeta found for ${source.contractName}:${safeEventName}`,
+                );
+              return abiItemMeta.selector;
+            },
+          );
+
+          registeredSelectorsBySourceId[source.id] = registeredSelectors;
         }
 
         const iterator = this.syncGatewayService.getEvents({
           fromTimestamp,
           toTimestamp,
-          indexingMetadata: this.indexingMetadata,
+          includeEventSelectors: registeredSelectorsBySourceId,
         });
 
         let pageIndex = 0;
@@ -300,36 +362,95 @@ export class IndexingService extends Emittery<IndexingEvents> {
           const { events, metadata } = page;
 
           // Increment the metrics for the total number of matching & indexed events in this timestamp range.
+          // The metadata comes with every page, but is the same for all pages, so do this on the first page.
           if (pageIndex === 0) {
-            metadata.counts.forEach(({ eventSourceName, selector, count }) => {
-              const safeName = Object.values(
-                this.sources.find((s) => s.name === eventSourceName)?.events ||
-                  {},
-              )
-                .filter((m): m is LogEventMetadata => !!m)
-                .find((m) => m.selector === selector)?.safeName;
+            metadata.counts.forEach(({ sourceId, selector, count }) => {
+              const source = sourcesById[sourceId];
+              if (!source)
+                throw new Error(
+                  `Invariant violation: Source ID not found ${sourceId}`,
+                );
+              const abiItemMeta = source.events.bySelector[selector];
+              if (!abiItemMeta)
+                throw new Error(
+                  `Invariant violation: No abiItemMeta found for ${source.contractName}:${selector}`,
+                );
 
-              if (!safeName) return;
+              const isRegistered = registeredSelectorsBySourceId[
+                sourceId
+              ].includes(abiItemMeta.selector);
 
-              const isHandled =
-                !!this.indexingFunctions?.eventSources[eventSourceName]
-                  ?.bySelector?.[selector];
-
+              const labels = {
+                network: source.networkName,
+                contract: source.contractName,
+                event: abiItemMeta.safeName,
+              };
               this.common.metrics.ponder_indexing_matched_events.inc(
-                { eventName: `${eventSourceName}:${safeName}` },
+                labels,
                 count,
               );
-              if (isHandled) {
+              if (isRegistered) {
                 this.common.metrics.ponder_indexing_handled_events.inc(
-                  { eventName: `${eventSourceName}:${safeName}` },
+                  labels,
                   count,
                 );
               }
             });
           }
 
+          // Decode events, dropping any that cannot be decoded using the provided ABI item.
+          const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
+            const selector = event.log.topics[0];
+            if (!selector) {
+              // TODO: Log warning. This is an invariant violation.
+              this.common.logger.warn({
+                service: "app",
+                msg: `Received log missing topic0: ${event.log.id}`,
+              });
+              return acc;
+            }
+
+            const source = sourcesById[event.sourceId];
+            if (!source)
+              throw new Error(
+                `Invariant violation: Source ID not found ${event.sourceId}`,
+              );
+            const abiItemMeta = source.events.bySelector[selector];
+            if (!abiItemMeta)
+              throw new Error(
+                `Invariant violation: No abiItemMeta found for ${event.sourceId}:${selector}`,
+              );
+
+            try {
+              const decodedLog = decodeEventLog({
+                abi: [abiItemMeta.item],
+                data: event.log.data,
+                topics: event.log.topics,
+              });
+
+              acc.push({
+                networkName: source.networkName,
+                contractName: source.contractName,
+                eventName: abiItemMeta.safeName,
+                chainId: event.chainId,
+                args: decodedLog.args ?? {},
+                log: event.log,
+                block: event.block,
+                transaction: event.transaction,
+              });
+            } catch (err) {
+              // TODO: emit a warning here that a log was not decoded.
+              this.common.logger.debug({
+                service: "app",
+                msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
+              });
+            }
+
+            return acc;
+          }, []);
+
           // Add new events to the queue.
-          for (const event of events) {
+          for (const event of decodedEvents) {
             this.queue.addTask({
               kind: "LOG",
               event,
@@ -390,26 +511,43 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
       switch (task.kind) {
         case "SETUP": {
-          const setupFunction = indexingFunctions._meta_.setup?.fn;
-          if (!setupFunction) return;
+          const event = task.event;
+
+          const fullEventName = `${event.contractName}:setup`;
+
+          const indexingFunction =
+            indexingFunctions?.[event.contractName]?.["setup"];
+          if (!indexingFunction)
+            throw new Error(
+              `Internal: Indexing function not found for ${fullEventName}`,
+            );
+
+          // This enables contract calls occurring within the
+          // user code to use the start block number by default.
+          this.currentEventBlockNumber = event.blockNumber;
 
           try {
             this.common.logger.trace({
               service: "indexing",
-              msg: `Started indexing function (event="setup")`,
+              msg: `Started indexing function (event="${fullEventName}", block=${event.blockNumber})`,
             });
 
             // Running user code here!
-            await setupFunction({ context: { db: this.db } });
+            await indexingFunction({
+              context: { db: this.db, ...this.contexts[event.chainId] },
+            });
 
             this.common.logger.trace({
               service: "indexing",
-              msg: `Completed indexing function (event="setup")`,
+              msg: `Completed indexing function (event="${fullEventName}", block=${event.blockNumber})`,
             });
 
-            this.common.metrics.ponder_indexing_processed_events.inc({
-              eventName: "setup",
-            });
+            const labels = {
+              network: event.networkName,
+              contract: event.contractName,
+              event: "setup",
+            };
+            this.common.metrics.ponder_indexing_processed_events.inc(labels);
           } catch (error_) {
             // Remove all remaining tasks from the queue.
             queue.clear();
@@ -444,12 +582,13 @@ export class IndexingService extends Emittery<IndexingEvents> {
         case "LOG": {
           const event = task.event;
 
-          const indexingMetadata =
-            this.indexingFunctions?.eventSources[event.eventSourceName]
-              .bySafeName[event.eventName];
-          if (!indexingMetadata)
+          const fullEventName = `${event.contractName}:${event.eventName}`;
+
+          const indexingFunction =
+            indexingFunctions?.[event.contractName]?.[event.eventName];
+          if (!indexingFunction)
             throw new Error(
-              `Internal: Indexing function not found for event source ${event.eventSourceName}`,
+              `Internal: Indexing function not found for ${fullEventName}`,
             );
 
           // This enables contract calls occurring within the
@@ -460,26 +599,24 @@ export class IndexingService extends Emittery<IndexingEvents> {
           try {
             this.common.logger.trace({
               service: "indexing",
-              msg: `Started indexing function (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
+              msg: `Started indexing function (event="${fullEventName}", block=${event.block.number})`,
             });
 
-            const context = {
-              db: this.db,
-              ...this.contexts[event.chainId],
-            };
-
             // Running user code here!
-            await indexingMetadata.fn({
+            await indexingFunction({
               event: {
-                ...event,
                 name: event.eventName,
+                args: event.args,
+                log: event.log,
+                transaction: event.transaction,
+                block: event.block,
               },
-              context,
+              context: { db: this.db, ...this.contexts[event.chainId] },
             });
 
             this.common.logger.trace({
               service: "indexing",
-              msg: `Completed indexing function (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
+              msg: `Completed indexing function (event="${fullEventName}", block=${event.block.number})`,
             });
           } catch (error_) {
             // Remove all remaining tasks from the queue.
@@ -490,15 +627,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
             this.common.logger.trace({
               service: "indexing",
-              msg: `Failed while running indexing function (event="${event.eventSourceName}:${event.eventName}", block=${event.block.number})`,
+              msg: `Failed while running indexing function (event="${fullEventName}", block=${event.block.number})`,
             });
 
             const error = error_ as Error;
             const trace = getStackTrace(error, this.common.options);
 
-            const message = `Error while processing "${event.eventSourceName}:${
-              event.eventName
-            }" event at block ${Number(event.block.number)}: ${error.message}`;
+            const message = `Error while processing "${fullEventName}" event at block ${Number(
+              event.block.number,
+            )}: ${error.message}`;
 
             const metaMessage = `Event args:\n${prettyPrint(event.args)}`;
 
@@ -515,9 +652,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
             this.common.errors.submitUserError({ error: userError });
           }
 
-          this.common.metrics.ponder_indexing_processed_events.inc({
-            eventName: `${event.eventSourceName}:${event.eventName}`,
-          });
+          const labels = {
+            network: event.networkName,
+            contract: event.contractName,
+            event: event.eventName,
+          };
+          this.common.metrics.ponder_indexing_processed_events.inc(labels);
           this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
             this.currentEventTimestamp,
           );
@@ -584,14 +724,17 @@ const buildContexts = (
   });
 
   sources.forEach((source) => {
+    // Only include the address if it's singular and  static.
     const address =
-      source.type === "logFilter" ? source.criteria.address : undefined;
+      typeof source.criteria.address === "string"
+        ? source.criteria.address
+        : undefined;
 
     contexts[source.chainId] = {
       ...contexts[source.chainId],
       contracts: {
         ...contexts[source.chainId].contracts,
-        [source.name]: {
+        [source.contractName]: {
           abi: source.abi,
           address,
           startBlock: source.startBlock,

@@ -16,13 +16,16 @@ import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
 import { buildGqlSchema } from "@/server/graphql/schema.js";
 
-import type { RawIndexingFunctions } from "./functions.js";
+import {
+  type IndexingFunctions,
+  validateIndexingFunctions,
+} from "./functions.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 type BuildServiceEvents = {
   newConfig: { config: Config };
-  newIndexingFunctions: { indexingFunctions: RawIndexingFunctions };
+  newIndexingFunctions: { indexingFunctions: IndexingFunctions };
   newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
 };
 
@@ -33,7 +36,10 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   private viteNodeServer: ViteNodeServer = undefined!;
   private viteNodeRunner: ViteNodeRunner = undefined!;
 
-  private indexingFunctions: Record<string, Record<string, any>> = {};
+  // Mapping of file name -> event name -> function.
+  private indexingFunctions: {
+    [fileName: string]: { [eventName: string]: (...args: any) => any };
+  } = {};
 
   constructor({ common }: { common: Common }) {
     super();
@@ -252,21 +258,11 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       this.indexingFunctions[file] = fnsForFile;
     }
 
-    // After adding all new indexing functions, validate that the user
-    // has not registered two functions for the same event.
-    const eventNameSet = new Set<string>();
-    for (const file of Object.keys(this.indexingFunctions)) {
-      for (const eventName of Object.keys(this.indexingFunctions[file])) {
-        if (eventNameSet.has(eventName)) {
-          throw new Error(
-            `Cannot register two indexing functions for one event '${eventName}' in '${file}'`,
-          );
-        }
-        eventNameSet.add(eventName);
-      }
-    }
+    // TODO: validate indexing functions against latest sources.
+    const result = validateIndexingFunctions(this.indexingFunctions);
+    if (result.error) throw result.error;
 
-    if (eventNameSet.size === 0) {
+    if (Object.keys(result.indexingFunctions).length === 0) {
       this.common.logger.warn({
         service: "build",
         msg: `No indexing functions were registered`,
@@ -274,31 +270,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       return;
     }
 
-    // TODO: Update this to be less awful.
-    const rawIndexingFunctions: RawIndexingFunctions = { eventSources: {} };
-    for (const file of Object.keys(this.indexingFunctions)) {
-      for (const [fullName, fn] of Object.entries(
-        this.indexingFunctions[file],
-      )) {
-        if (fullName === "setup") {
-          rawIndexingFunctions._meta_ ||= {};
-          rawIndexingFunctions._meta_.setup = fn;
-        } else {
-          const [eventSourceName, eventName] = fullName.split(":");
-          if (!eventSourceName || !eventName)
-            throw new Error(`Invalid event name: ${fullName}`);
-          rawIndexingFunctions.eventSources[eventSourceName] ||= {};
-          if (rawIndexingFunctions.eventSources[eventSourceName][eventName])
-            throw new Error(
-              `Cannot add multiple handler functions for event: ${name}`,
-            );
-          rawIndexingFunctions.eventSources[eventSourceName][eventName] = fn;
-        }
-      }
-    }
-
     this.emit("newIndexingFunctions", {
-      indexingFunctions: rawIndexingFunctions,
+      indexingFunctions: result.indexingFunctions,
     });
   }
 
