@@ -19,6 +19,8 @@ type ServerEvents = {
   "admin:reload": { chainId: number };
 };
 
+type Mode = "development" | "production";
+
 export class ServerService extends Emittery<ServerEvents> {
   private common: Common;
   private indexingStore: IndexingStore;

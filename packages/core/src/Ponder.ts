@@ -179,6 +179,7 @@ export class Ponder {
       common: this.common,
       indexingStore: this.indexingStore,
     });
+
     this.codegenService = new CodegenService({ common: this.common });
     this.uiService = new UiService({
       common: this.common,
@@ -191,7 +192,6 @@ export class Ponder {
 
     // One-time setup for some services.
     await this.syncStore.migrateUp();
-    await this.serverService.start();
 
     // Finally, load the schema + indexing functions which will trigger
     // the indexing service to reload (for the first time).
@@ -208,6 +208,7 @@ export class Ponder {
         databaseKind: this.syncStore.kind,
       },
     });
+    await this.serverService.start({ mode: "development" });
 
     await Promise.all(
       this.syncServices.map(async ({ historical, realtime }) => {
@@ -230,6 +231,7 @@ export class Ponder {
       },
     });
 
+    await this.serverService.start({ mode: "production" });
     // If not using `dev`, can kill the build service here to avoid hot reloads.
     await this.buildService.kill();
 
@@ -290,7 +292,7 @@ export class Ponder {
       indexingStore: this.indexingStore,
     });
 
-    await this.serverService.start();
+    await this.serverService.start({ mode: "production" });
 
     const { schema, graphqlSchema } = schemaResult;
 
