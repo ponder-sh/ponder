@@ -447,7 +447,6 @@ export class Ponder {
         return;
       }
 
-      console.log("Deleting realtime data");
       await this.syncStore.deleteRealtimeData({
         chainId,
         fromBlock: BigInt(0),
@@ -477,7 +476,6 @@ export class Ponder {
           await realtime.kill();
           await historical.kill();
 
-          console.log("Not killing the services");
           const blockNumbers = await realtime.setup();
           await historical.setup(blockNumbers);
 
@@ -485,6 +483,8 @@ export class Ponder {
           historical.start();
         }),
       );
+
+      this.uiService.resetHistoricalState();
 
       // Reload the indexing service with existing schema. We use the exisiting schema as there is
       // alternative resetting behavior for a schema change.

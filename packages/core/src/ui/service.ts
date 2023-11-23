@@ -96,6 +96,10 @@ export class UiService {
     }, 17);
   }
 
+  resetHistoricalState() {
+    this.ui.isHistoricalSyncComplete = false;
+  }
+
   kill() {
     clearInterval(this.renderInterval);
     this.unmount();

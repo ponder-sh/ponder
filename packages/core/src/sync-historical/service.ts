@@ -155,6 +155,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     latestBlockNumber: number;
     finalizedBlockNumber: number;
   }) {
+    this.isKilling = false;
     this.finalizedBlockNumber = finalizedBlockNumber;
 
     await Promise.all(
