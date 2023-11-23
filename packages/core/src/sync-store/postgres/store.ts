@@ -26,7 +26,6 @@ import {
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
-import { startClock } from "@/utils/timer.js";
 
 import type { SyncStore } from "../store.js";
 import {
@@ -78,14 +77,18 @@ export class PostgresSyncStore implements SyncStore {
     });
   }
 
-  migrateUp = async () => {
-    const { error } = await this.migrator.migrateToLatest();
-    if (error) throw error;
-  };
-
   async kill() {
     await this.db.destroy();
   }
+
+  migrateUp = async () => {
+    const start = performance.now();
+
+    const { error } = await this.migrator.migrateToLatest();
+    if (error) throw error;
+
+    this.record("migrateUp", start);
+  };
 
   insertLogFilterInterval = async ({
     chainId,
@@ -102,7 +105,7 @@ export class PostgresSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const stopClock = startClock();
+    const start = performance.now();
 
     await this.db.transaction().execute(async (tx) => {
       await tx
@@ -144,10 +147,8 @@ export class PostgresSyncStore implements SyncStore {
         interval,
       });
     });
-    this.common.metrics.ponder_sync_db_duration.observe(
-      { method: "insertLogFilterInterval" },
-      stopClock(),
-    );
+
+    this.record("insertLogFilterInterval", start);
   };
 
   getLogFilterIntervals = async ({
@@ -157,7 +158,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     logFilter: LogFilterCriteria;
   }) => {
-    const stopClock = startClock();
+    const start = performance.now();
 
     const fragments = buildLogFilterFragments({ ...logFilter, chainId });
 
@@ -264,10 +265,7 @@ export class PostgresSyncStore implements SyncStore {
 
     const intersectIntervals = intervalIntersectionMany(fragmentIntervals);
 
-    this.common.metrics.ponder_sync_db_duration.observe(
-      { method: "getLogFilterIntervals" },
-      stopClock(),
-    );
+    this.record("getLogFilterIntervals", start);
 
     return intersectIntervals;
   };
@@ -279,7 +277,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     logs: RpcLog[];
   }) => {
-    const stopClock = startClock();
+    const start = performance.now();
 
     await this.db.transaction().execute(async (tx) => {
       if (rpcLogs.length > 0) {
@@ -296,10 +294,7 @@ export class PostgresSyncStore implements SyncStore {
       }
     });
 
-    this.common.metrics.ponder_sync_db_duration.observe(
-      { method: "insertFactoryChildAddressLogs" },
-      stopClock(),
-    );
+    this.record("insertFactoryChildAddressLogs", start);
   };
 
   async *getFactoryChildAddresses({
@@ -313,7 +308,7 @@ export class PostgresSyncStore implements SyncStore {
     factory: FactoryCriteria;
     pageSize?: number;
   }) {
-    const stopClock = startClock();
+    const start = performance.now();
 
     const { address, eventSelector, childAddressLocation } = factory;
 
@@ -352,10 +347,7 @@ export class PostgresSyncStore implements SyncStore {
       if (batch.length < pageSize) break;
     }
 
-    this.common.metrics.ponder_sync_db_duration.observe(
-      { method: "getFactoryChildAddresses" },
-      stopClock(),
-    );
+    this.record("getFactoryChildAddresses", start);
   }
 
   insertFactoryLogFilterInterval = async ({
@@ -373,7 +365,7 @@ export class PostgresSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const stopClock = startClock();
+    const start = performance.now();
 
     await this.db.transaction().execute(async (tx) => {
       await tx
@@ -406,10 +398,7 @@ export class PostgresSyncStore implements SyncStore {
       });
     });
 
-    this.common.metrics.ponder_sync_db_duration.observe(
-      { method: "insertFactoryLogFilterInterval" },
-      stopClock(),
-    );
+    this.record("insertFactoryLogFilterInterval", start);
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -419,7 +408,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     factory: FactoryCriteria;
   }) => {
-    const stopClock = startClock();
+    const start = performance.now();
 
     const fragments = buildFactoryFragments({
       ...factory,
@@ -538,10 +527,7 @@ export class PostgresSyncStore implements SyncStore {
 
     const intersectIntervals = intervalIntersectionMany(fragmentIntervals);
 
-    this.common.metrics.ponder_sync_db_duration.observe(
-      { method: "getFactoryLogFilterIntervals" },
-      stopClock(),
-    );
+    this.record("getFactoryLogFilterIntervals", start);
 
     return intersectIntervals;
   };
@@ -557,7 +543,7 @@ export class PostgresSyncStore implements SyncStore {
     transactions: RpcTransaction[];
     logs: RpcLog[];
   }) => {
-    const stopClock = startClock();
+    const start = performance.now();
 
     await this.db.transaction().execute(async (tx) => {
       await tx
@@ -582,10 +568,8 @@ export class PostgresSyncStore implements SyncStore {
           .execute();
       }
     });
-    this.common.metrics.ponder_sync_db_duration.observe(
-      { method: "insertRealtimeBlock" },
-      stopClock(),
-    );
+
+    this.record("insertRealtimeBlock", start);
   };
 
   insertRealtimeInterval = async ({
@@ -599,7 +583,7 @@ export class PostgresSyncStore implements SyncStore {
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
-    const stopClock = startClock();
+    const start = performance.now();
 
     await this.db.transaction().execute(async (tx) => {
       await this._insertLogFilterInterval({
@@ -623,10 +607,7 @@ export class PostgresSyncStore implements SyncStore {
       });
     });
 
-    this.common.metrics.ponder_sync_db_duration.observe(
-      { method: "insertRealtimeInterval" },
-      stopClock(),
-    );
+    this.record("insertRealtimeInterval", start);
   };
 
   deleteRealtimeData = async ({
@@ -636,7 +617,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     fromBlock: bigint;
   }) => {
-    const stopClock = startClock();
+    const start = performance.now();
 
     await this.db.transaction().execute(async (tx) => {
       await tx
@@ -732,10 +713,7 @@ export class PostgresSyncStore implements SyncStore {
         .execute();
     });
 
-    this.common.metrics.ponder_sync_db_duration.observe(
-      { method: "deleteRealtimeData" },
-      stopClock(),
-    );
+    this.record("deleteRealtimeData", start);
   };
 
   /** SYNC HELPER METHODS */
@@ -815,6 +793,8 @@ export class PostgresSyncStore implements SyncStore {
     chainId: number;
     result: string;
   }) => {
+    const start = performance.now();
+
     await this.db
       .insertInto("rpcRequestResults")
       .values({ request, blockNumber, chainId, result })
@@ -822,6 +802,8 @@ export class PostgresSyncStore implements SyncStore {
         oc.constraint("rpcRequestResultPrimaryKey").doUpdateSet({ result }),
       )
       .execute();
+
+    this.record("insertRpcRequestResult", start);
   };
 
   getRpcRequestResult = async ({
@@ -833,6 +815,8 @@ export class PostgresSyncStore implements SyncStore {
     blockNumber: bigint;
     chainId: number;
   }) => {
+    const start = performance.now();
+
     const contractReadResult = await this.db
       .selectFrom("rpcRequestResults")
       .selectAll()
@@ -841,7 +825,11 @@ export class PostgresSyncStore implements SyncStore {
       .where("chainId", "=", chainId)
       .executeTakeFirst();
 
-    return contractReadResult ?? null;
+    const result = contractReadResult ?? null;
+
+    this.record("getRpcRequestResult", start);
+
+    return result;
   };
 
   async *getLogEvents({
@@ -871,6 +859,8 @@ export class PostgresSyncStore implements SyncStore {
     }[];
     pageSize: number;
   }) {
+    const start = performance.now();
+
     const sourceIds = [
       ...logFilters.map((f) => f.id),
       ...factories.map((f) => f.id),
@@ -1272,6 +1262,15 @@ export class PostgresSyncStore implements SyncStore {
 
       if (events.length < pageSize) break;
     }
+
+    this.record("getLogEvents", start);
+  }
+
+  private record(methodName: string, start: number) {
+    this.common.metrics.ponder_sync_store_method_duration.observe(
+      { method: methodName },
+      performance.now() - start,
+    );
   }
 }
 

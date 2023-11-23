@@ -76,11 +76,14 @@ test("insertLogFilterInterval updates sync db metrics", async (context) => {
     },
   });
 
-  const dbMetrics = (await common.metrics.ponder_sync_db_duration.get()).values;
-  expect(dbMetrics[0]).toMatchObject({
-    value: 1,
-    labels: { method: "insertLogFilterInterval" },
-  });
+  const metrics = (await common.metrics.ponder_sync_store_method_duration.get())
+    .values;
+  const countMetric = metrics
+    .filter((m) => m.labels.method === "insertLogFilterInterval")
+    .find((m) => m.metricName === "ponder_sync_store_method_duration_count");
+
+  expect(countMetric).toBeTruthy();
+  expect(countMetric?.value).toBe(1);
 });
 
 test("insertLogFilterInterval inserts log filter intervals", async (context) => {
