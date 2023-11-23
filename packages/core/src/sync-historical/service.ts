@@ -155,7 +155,10 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     latestBlockNumber: number;
     finalizedBlockNumber: number;
   }) {
+    // Initialize state variables. Required when restarting the service.
     this.isKilling = false;
+    this.blockTasksEnqueuedCheckpoint = 0;
+
     this.finalizedBlockNumber = finalizedBlockNumber;
 
     await Promise.all(

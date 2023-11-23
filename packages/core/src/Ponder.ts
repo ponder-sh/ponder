@@ -447,11 +447,6 @@ export class Ponder {
         return;
       }
 
-      await this.syncStore.deleteRealtimeData({
-        chainId,
-        fromBlock: BigInt(0),
-      });
-
       // Clear all the metrics for the sources.
       syncServiceForChainId.sources.forEach(({ networkName, contractName }) => {
         this.common.metrics.ponder_historical_total_blocks.set(
@@ -468,22 +463,25 @@ export class Ponder {
         );
       });
 
+      await this.syncStore.deleteRealtimeData({
+        chainId,
+        fromBlock: BigInt(0),
+      });
+
       this.syncGatewayService.resetCheckpoints({ chainId });
 
-      await Promise.all(
-        this.syncServices.map(async ({ historical, realtime }) => {
-          // Reload the sync service by killing, setting up, and then starting again.
-          await realtime.kill();
-          await historical.kill();
+      // Reload the sync services for the specific chain by killing, setting up, and then starting again.
+      await syncServiceForChainId.realtime.kill();
+      await syncServiceForChainId.historical.kill();
 
-          const blockNumbers = await realtime.setup();
-          await historical.setup(blockNumbers);
+      const blockNumbers = await syncServiceForChainId.realtime.setup();
+      await syncServiceForChainId.historical.setup(blockNumbers);
 
-          await realtime.start();
-          historical.start();
-        }),
-      );
+      await syncServiceForChainId.realtime.start();
+      syncServiceForChainId.historical.start();
 
+      // NOTE: We have to reset the historical state after restarting the sync services
+      // otherwise the state will be out of sync.
       this.uiService.resetHistoricalState();
 
       // Reload the indexing service with existing schema. We use the exisiting schema as there is
