@@ -75,7 +75,7 @@ const networkByEtherscanHostname: Record<
   "goerli.basescan.org": {
     name: "base-goerli",
     chainId: 84531,
-    apiUrl: "https://api.goerli.basescan.org/api",
+    apiUrl: "https://api-goerli.basescan.org/api",
   },
 };
 
