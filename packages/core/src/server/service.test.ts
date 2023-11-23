@@ -1587,6 +1587,8 @@ test("/admin/reload emits chainIds in reload event", async (context) => {
       hasCompletedHistoricalIndexing: false,
     },
   });
+  service.registerDevRoutes();
+
   const emitSpy = vi.spyOn(service, "emit");
 
   await request(service.app)
@@ -1610,12 +1612,36 @@ test("/admin/reload fails with non-integer chain IDs", async (context) => {
       hasCompletedHistoricalIndexing: false,
     },
   });
+  service.registerDevRoutes();
+
   const emitSpy = vi.spyOn(service, "emit");
 
   await request(service.app)
     .post("/admin/reload")
     .query({ chainId: "badchainid" })
     .expect(400);
+
+  expect(emitSpy).not.toHaveBeenCalled();
+
+  await service.kill();
+});
+
+test("/admin/reload does not exist if dev routes aren't registered", async (context) => {
+  const { common, indexingStore } = context;
+  const { service } = await setup({
+    common,
+    indexingStore,
+    options: {
+      hasCompletedHistoricalIndexing: false,
+    },
+  });
+
+  const emitSpy = vi.spyOn(service, "emit");
+
+  await request(service.app)
+    .post("/admin/reload")
+    .query({ chainId: "badchainid" })
+    .expect(404);
 
   expect(emitSpy).not.toHaveBeenCalled();
 
