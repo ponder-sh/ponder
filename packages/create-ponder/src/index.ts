@@ -29,25 +29,22 @@ import {
 const log = console.log;
 
 export type SerializableNetwork = {
-  name: string;
   chainId: number;
   transport: string;
 };
 
 export type SerializableContract = {
-  name: string;
-  network: Record<string, any> | string;
   abi:
     | { abi: Abi; name: string; dir: string }
     | { abi: Abi; name: string; dir: string }[];
   address: string;
+  network: Record<string, any> | string;
   startBlock?: number;
 };
 
 export type SerializableConfig = {
-  database?: { kind: string };
-  networks: SerializableNetwork[];
-  contracts: SerializableContract[];
+  networks: Record<string, SerializableNetwork>;
+  contracts: Record<string, SerializableContract>;
 };
 
 export type Template = {
@@ -214,13 +211,15 @@ export async function run({
 
   if (templateMeta.id === "etherscan") {
     let link = options.etherscanContractLink;
-    if (!link)
-      link = await prompts({
+    if (!link) {
+      const result = await prompts({
         type: "text",
         name: "link",
         message: "Enter an Etherscan contract link",
         initial: "https://etherscan.io/address/0x97...",
       });
+      link = result.link;
+    }
 
     config = await fromEtherscan({
       rootDir: targetPath,
@@ -243,41 +242,48 @@ export async function run({
   if (config) {
     // Write the config file.
     const configContent = `
-    import { createConfig } from "@ponder/core";
-    ${
-      config.contracts.some((c) => Array.isArray(c.abi))
-        ? 'import {mergeAbis} from "@ponder/core"'
-        : ""
-    }
-    import { http } from "viem";
+      import { createConfig${
+        Object.values(config.contracts).some((c) => Array.isArray(c.abi))
+          ? ", mergeAbis"
+          : ""
+      } } from "@ponder/core";
+      import { http } from "viem";
 
-    ${config.contracts
-      .map((c) => c.abi)
-      .flat()
-      .map(
-        (abi) =>
-          `import {${abi.name}} from "${abi.dir.slice(0, abi.dir.length - 3)}"`,
-      )
-      .join("\n")}
-
-    export default createConfig({
-      networks: ${JSON.stringify(config.networks)
-        .replaceAll(
-          /"process.env.PONDER_RPC_URL_(.*?)"/g,
-          "process.env.PONDER_RPC_URL_$1",
+      ${Object.values(config.contracts)
+        .map((c) => c.abi)
+        .flat()
+        .map(
+          (abi) =>
+            `import {${abi.name}} from "${abi.dir.slice(
+              0,
+              abi.dir.length - 3,
+            )}"`,
         )
-        .replaceAll(/"http\((.*?)\)"/g, "http($1)")},
-      contracts: ${JSON.stringify(
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        config.contracts.map(({ abi, ...c }) => ({
-          abi: Array.isArray(abi)
-            ? `mergeAbis(${abi.map((a) => a.name).join(",")})`
-            : abi.name,
-          ...c,
-        })),
-      ).replaceAll(/"abi":"(.*?)"/g, "abi:$1")},
-    });
-  `;
+        .join("\n")}
+
+      export default createConfig({
+        networks: ${JSON.stringify(config.networks)
+          .replaceAll(
+            /"process.env.PONDER_RPC_URL_(.*?)"/g,
+            "process.env.PONDER_RPC_URL_$1",
+          )
+          .replaceAll(/"http\((.*?)\)"/g, "http($1)")},
+        contracts: ${JSON.stringify(
+          Object.entries(config.contracts).reduce<Record<string, any>>(
+            (acc, [name, c]) => {
+              acc[name] = {
+                ...c,
+                abi: Array.isArray(c.abi)
+                  ? `mergeAbis(${c.abi.map((a) => a.name).join(",")})`
+                  : c.abi.name,
+              };
+              return acc;
+            },
+            {},
+          ),
+        ).replaceAll(/"abi":"(.*?)"/g, "abi:$1")},
+      });
+    `;
 
     writeFileSync(
       path.join(targetPath, "ponder.config.ts"),
@@ -285,7 +291,7 @@ export async function run({
     );
 
     // Write the indexing function files.
-    for (const contract of config.contracts) {
+    for (const [name, contract] of Object.entries(config.contracts)) {
       // If it's an array of ABIs, use the 2nd one (the implementation ABI).
       const abi = Array.isArray(contract.abi)
         ? contract.abi[1].abi!
@@ -305,7 +311,7 @@ export async function run({
       ${eventNamesToWrite
         .map(
           (eventName) => `
-          ponder.on("${contract.name}:${eventName}", async ({ event, context }) => {
+          ponder.on("${name}:${eventName}", async ({ event, context }) => {
             console.log(event.params)
           })`,
         )
@@ -313,7 +319,7 @@ export async function run({
     `;
 
       writeFileSync(
-        path.join(targetPath, `./src/${contract.name}.ts`),
+        path.join(targetPath, `./src/${name}.ts`),
         await prettier.format(indexingFunctionFileContents, {
           parser: "typescript",
         }),
