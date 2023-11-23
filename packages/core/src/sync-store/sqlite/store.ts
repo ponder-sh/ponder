@@ -14,6 +14,7 @@ import type {
   LogFilterCriteria,
   Topics,
 } from "@/config/sources.js";
+import type { Common } from "@/Ponder.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
@@ -38,10 +39,13 @@ import { migrationProvider } from "./migrations.js";
 
 export class SqliteSyncStore implements SyncStore {
   kind = "sqlite" as const;
+  private common: Common;
+
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({ db }: { db: Sqlite.Database }) {
+  constructor({ common, db }: { common: Common; db: Sqlite.Database }) {
+    this.common = common;
     this.db = new Kysely<SyncStoreTables>({
       dialect: new SqliteDialect({ database: db }),
     });
@@ -52,14 +56,18 @@ export class SqliteSyncStore implements SyncStore {
     });
   }
 
-  migrateUp = async () => {
-    const { error } = await this.migrator.migrateToLatest();
-    if (error) throw error;
-  };
-
   async kill() {
     await this.db.destroy();
   }
+
+  migrateUp = async () => {
+    const start = performance.now();
+
+    const { error } = await this.migrator.migrateToLatest();
+    if (error) throw error;
+
+    this.record("migrateUp", start);
+  };
 
   insertLogFilterInterval = async ({
     chainId,
@@ -76,6 +84,7 @@ export class SqliteSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
+    const start = performance.now();
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
@@ -106,6 +115,8 @@ export class SqliteSyncStore implements SyncStore {
         interval,
       });
     });
+
+    this.record("insertLogFilterInterval", start);
   };
 
   getLogFilterIntervals = async ({
@@ -115,6 +126,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     logFilter: LogFilterCriteria;
   }) => {
+    const start = performance.now();
     const fragments = buildLogFilterFragments({ ...logFilter, chainId });
 
     // First, attempt to merge overlapping and adjacent intervals.
@@ -221,7 +233,9 @@ export class SqliteSyncStore implements SyncStore {
       );
     });
 
-    return intervalIntersectionMany(fragmentIntervals);
+    const intersectionIntervals = intervalIntersectionMany(fragmentIntervals);
+    this.record("getLogFilterIntervals", start);
+    return intersectionIntervals;
   };
 
   insertFactoryChildAddressLogs = async ({
@@ -231,6 +245,8 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     logs: RpcLog[];
   }) => {
+    const start = performance.now();
+
     await this.db.transaction().execute(async (tx) => {
       for (const rpcLog of rpcLogs) {
         await tx
@@ -240,6 +256,8 @@ export class SqliteSyncStore implements SyncStore {
           .execute();
       }
     });
+
+    this.record("insertFactoryChildAddressLogs", start);
   };
 
   async *getFactoryChildAddresses({
@@ -253,6 +271,7 @@ export class SqliteSyncStore implements SyncStore {
     factory: FactoryCriteria;
     pageSize?: number;
   }) {
+    const start = performance.now();
     const { address, eventSelector, childAddressLocation } = factory;
 
     const selectChildAddressExpression =
@@ -289,6 +308,8 @@ export class SqliteSyncStore implements SyncStore {
 
       if (batch.length < pageSize) break;
     }
+
+    this.record("getFactoryChildAddresses", start);
   }
 
   insertFactoryLogFilterInterval = async ({
@@ -306,6 +327,8 @@ export class SqliteSyncStore implements SyncStore {
     logs: RpcLog[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
+    const start = performance.now();
+
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
@@ -336,6 +359,8 @@ export class SqliteSyncStore implements SyncStore {
         interval,
       });
     });
+
+    this.record("insertFactoryLogFilterInterval", start);
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -345,6 +370,8 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     factory: FactoryCriteria;
   }) => {
+    const start = performance.now();
+
     const fragments = buildFactoryFragments({
       ...factory,
       chainId,
@@ -460,7 +487,11 @@ export class SqliteSyncStore implements SyncStore {
       );
     });
 
-    return intervalIntersectionMany(fragmentIntervals);
+    const intersectionIntervals = intervalIntersectionMany(fragmentIntervals);
+
+    this.record("getFactoryLogFilterIntervals", start);
+
+    return intersectionIntervals;
   };
 
   insertRealtimeBlock = async ({
@@ -474,6 +505,8 @@ export class SqliteSyncStore implements SyncStore {
     transactions: RpcTransaction[];
     logs: RpcLog[];
   }) => {
+    const start = performance.now();
+
     await this.db.transaction().execute(async (tx) => {
       await tx
         .insertInto("blocks")
@@ -497,6 +530,8 @@ export class SqliteSyncStore implements SyncStore {
           .execute();
       }
     });
+
+    this.record("insertRealtimeBlock", start);
   };
 
   insertRealtimeInterval = async ({
@@ -510,6 +545,8 @@ export class SqliteSyncStore implements SyncStore {
     factories: FactoryCriteria[];
     interval: { startBlock: bigint; endBlock: bigint };
   }) => {
+    const start = performance.now();
+
     await this.db.transaction().execute(async (tx) => {
       await this._insertLogFilterInterval({
         tx,
@@ -531,6 +568,8 @@ export class SqliteSyncStore implements SyncStore {
         interval,
       });
     });
+
+    this.record("insertRealtimeInterval", start);
   };
 
   deleteRealtimeData = async ({
@@ -540,6 +579,8 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     fromBlock: bigint;
   }) => {
+    const start = performance.now();
+
     const fromBlock = encodeAsText(fromBlock_);
 
     await this.db.transaction().execute(async (tx) => {
@@ -635,6 +676,8 @@ export class SqliteSyncStore implements SyncStore {
         .where("endBlock", ">", fromBlock)
         .execute();
     });
+
+    this.record("deleteRealtimeData", start);
   };
 
   /** SYNC HELPER METHODS */
@@ -724,6 +767,8 @@ export class SqliteSyncStore implements SyncStore {
     request: string;
     result: string;
   }) => {
+    const start = performance.now();
+
     await this.db
       .insertInto("rpcRequestResults")
       .values({
@@ -734,6 +779,8 @@ export class SqliteSyncStore implements SyncStore {
       })
       .onConflict((oc) => oc.doUpdateSet({ result }))
       .execute();
+
+    this.record("insertRpcRequestResult", start);
   };
 
   getRpcRequestResult = async ({
@@ -745,6 +792,8 @@ export class SqliteSyncStore implements SyncStore {
     chainId: number;
     request: string;
   }) => {
+    const start = performance.now();
+
     const rpcRequestResult = await this.db
       .selectFrom("rpcRequestResults")
       .selectAll()
@@ -753,12 +802,16 @@ export class SqliteSyncStore implements SyncStore {
       .where("request", "=", request)
       .executeTakeFirst();
 
-    return rpcRequestResult
+    const result = rpcRequestResult
       ? {
           ...rpcRequestResult,
           blockNumber: decodeToBigInt(rpcRequestResult.blockNumber),
         }
       : null;
+
+    this.record("getRpcRequestResult", start);
+
+    return result;
   };
 
   async *getLogEvents({
@@ -788,6 +841,8 @@ export class SqliteSyncStore implements SyncStore {
     }[];
     pageSize: number;
   }) {
+    const start = performance.now();
+
     const sourceIds = [
       ...logFilters.map((f) => f.id),
       ...factories.map((f) => f.id),
@@ -1193,6 +1248,15 @@ export class SqliteSyncStore implements SyncStore {
 
       if (events.length < pageSize) break;
     }
+
+    this.record("getLogEvents", start);
+  }
+
+  private record(methodName: string, start: number) {
+    this.common.metrics.ponder_sync_store_method_duration.observe(
+      { method: methodName },
+      performance.now() - start,
+    );
   }
 }
 

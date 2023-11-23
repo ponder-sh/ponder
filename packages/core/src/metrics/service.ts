@@ -1,8 +1,8 @@
 import prometheus from "prom-client";
 
 const httpRequestBucketsInMs = [
-  5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450,
-  500, 750, 1_000, 2_000, 10_000,
+  0.1, 0.25, 0.5, 0.75, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1_000, 2_000,
+  4_000, 8_000, 16_000, 32_000,
 ];
 
 const httpRequestSizeInBytes = [
@@ -49,6 +49,11 @@ export class MetricsService {
   >;
   ponder_server_response_duration: prometheus.Histogram<
     "method" | "path" | "status"
+  >;
+
+  ponder_sync_store_method_duration: prometheus.Histogram<"method">;
+  ponder_indexing_store_method_duration: prometheus.Histogram<
+    "table" | "method"
   >;
 
   constructor() {
@@ -170,6 +175,21 @@ export class MetricsService {
       help: "Duration of HTTP responses served the server",
       labelNames: ["method", "path", "status"] as const,
       buckets: httpRequestSizeInBytes,
+      registers: [this.registry],
+    });
+
+    this.ponder_sync_store_method_duration = new prometheus.Histogram({
+      name: "ponder_sync_store_method_duration",
+      help: "Duration of database operations in the sync store",
+      labelNames: ["method"] as const,
+      buckets: httpRequestBucketsInMs,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_store_method_duration = new prometheus.Histogram({
+      name: "ponder_indexing_store_method_duration",
+      help: "Duration of database operations in the sync store",
+      labelNames: ["table", "method"] as const,
+      buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
   }
