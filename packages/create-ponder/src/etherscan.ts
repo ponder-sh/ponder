@@ -57,11 +57,14 @@ export const fromEtherscan = async ({
     await wait(5000);
   }
   const abis: { abi: Abi; contractName: string }[] = [];
-  const { abi, contractName } = await getContractAbiAndName(
+  const abiAndName = await getContractAbiAndName(
     contractAddress,
     apiUrl,
     apiKey,
   );
+  const { abi } = abiAndName;
+  let contractName = abiAndName.contractName;
+
   abis.push({ abi: JSON.parse(abi), contractName });
 
   // If the contract is an EIP-1967 proxy, get the implementation contract ABIs.
@@ -97,11 +100,10 @@ export const fromEtherscan = async ({
         );
         await wait(5000);
       }
-      const { abi, contractName } = await getContractAbiAndName(
-        implAddress,
-        apiUrl,
-        apiKey,
-      );
+      const { abi, contractName: implContractName } =
+        await getContractAbiAndName(implAddress, apiUrl, apiKey);
+      // Update the top-level contract name to the impl contract name.
+      contractName = implContractName;
 
       abis.push({
         abi: JSON.parse(abi) as Abi,
@@ -152,22 +154,20 @@ export const fromEtherscan = async ({
 
   // Build and return the partial ponder config.
   const config: SerializableConfig = {
-    networks: [
-      {
-        name: name,
+    networks: {
+      [name]: {
         chainId: chainId,
         transport: `http(process.env.PONDER_RPC_URL_${chainId})`,
       },
-    ],
-    contracts: [
-      {
-        name: contractName,
-        network: name,
+    },
+    contracts: {
+      [contractName]: {
         abi: abiConfig!,
         address: contractAddress,
+        network: name,
         startBlock: blockNumber ?? undefined,
       },
-    ],
+    },
   };
 
   return config;
