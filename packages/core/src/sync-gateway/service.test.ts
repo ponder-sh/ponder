@@ -330,5 +330,6 @@ test("resetCheckpoints resets the checkpoint states", async (context) => {
 
   // Global checkpoints should be reset to 0.
   expect(service.checkpoint).toBe(0);
+  expect(service.finalityCheckpoint).toBe(0);
   expect(service.historicalSyncCompletedAt).toBe(0);
 });

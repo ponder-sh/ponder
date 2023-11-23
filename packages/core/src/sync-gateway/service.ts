@@ -213,6 +213,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   resetCheckpoints = ({ chainId }: { chainId: number }) => {
     this.checkpoint = 0;
     this.finalityCheckpoint = 0;
+    this.historicalSyncCompletedAt = 0;
     this.networkCheckpoints[chainId] = {
       isHistoricalSyncComplete: false,
       historicalCheckpoint: 0,
