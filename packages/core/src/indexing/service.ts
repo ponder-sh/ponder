@@ -333,21 +333,18 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         for (const source of this.sources) {
           sourcesById[source.id] = source;
-          const registeredSafeEventNames = Object.keys(
+          registeredSelectorsBySourceId[source.id] = Object.keys(
             this.indexingFunctions![source.contractName],
-          ).filter((name) => name !== "setup");
-          const registeredSelectors = registeredSafeEventNames.map(
-            (safeEventName) => {
+          )
+            .filter((name) => name !== "setup")
+            .map((safeEventName) => {
               const abiItemMeta = source.events.bySafeName[safeEventName];
               if (!abiItemMeta)
                 throw new Error(
                   `Invariant violation: No abiItemMeta found for ${source.contractName}:${safeEventName}`,
                 );
               return abiItemMeta.selector;
-            },
-          );
-
-          registeredSelectorsBySourceId[source.id] = registeredSelectors;
+            });
         }
 
         const iterator = this.syncGatewayService.getEvents({
@@ -371,14 +368,21 @@ export class IndexingService extends Emittery<IndexingEvents> {
                   `Invariant violation: Source ID not found ${sourceId}`,
                 );
               const abiItemMeta = source.events.bySelector[selector];
-              if (!abiItemMeta)
-                throw new Error(
-                  `Invariant violation: No abiItemMeta found for ${source.contractName}:${selector}`,
-                );
 
-              const isRegistered = registeredSelectorsBySourceId[
-                sourceId
-              ].includes(abiItemMeta.selector);
+              // This means that the contract has emitted events that are not present in the ABI
+              // that the user has provided. Use the raw selector as the event name for the metric.
+              if (!abiItemMeta) {
+                const labels = {
+                  network: source.networkName,
+                  contract: source.contractName,
+                  event: selector,
+                };
+                this.common.metrics.ponder_indexing_matched_events.inc(
+                  labels,
+                  count,
+                );
+                return;
+              }
 
               const labels = {
                 network: source.networkName,
@@ -389,6 +393,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 labels,
                 count,
               );
+              const isRegistered =
+                registeredSelectorsBySourceId[sourceId].includes(selector);
               if (isRegistered) {
                 this.common.metrics.ponder_indexing_handled_events.inc(
                   labels,
@@ -401,15 +407,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
           // Decode events, dropping any that cannot be decoded using the provided ABI item.
           const decodedEvents = events.reduce<LogEvent[]>((acc, event) => {
             const selector = event.log.topics[0];
-            if (!selector) {
-              // TODO: Log warning. This is an invariant violation.
-              this.common.logger.warn({
-                service: "app",
-                msg: `Received log missing topic0: ${event.log.id}`,
-              });
-              return acc;
-            }
-
+            // Should always have a selector because of the includeEventSelectors pattern.
+            if (!selector)
+              throw new Error(
+                `Invariant violation: Log is missing topics ${event.log.id}`,
+              );
             const source = sourcesById[event.sourceId];
             if (!source)
               throw new Error(
@@ -418,7 +420,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             const abiItemMeta = source.events.bySelector[selector];
             if (!abiItemMeta)
               throw new Error(
-                `Invariant violation: No abiItemMeta found for ${event.sourceId}:${selector}`,
+                `Invariant violation: No abiItemMeta found for ${source.contractName}:${selector}`,
               );
 
             try {
@@ -439,7 +441,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
                 transaction: event.transaction,
               });
             } catch (err) {
-              // TODO: emit a warning here that a log was not decoded.
+              // Sometimes, logs match a selector but cannot be decoded using the provided ABI.
+              // This happens often when using custom event filters, because the indexed-ness
+              // of an event parameter is not taken into account when generating the selector.
               this.common.logger.debug({
                 service: "app",
                 msg: `Unable to decode log, skipping it. id: ${event.log.id}, data: ${event.log.data}, topics: ${event.log.topics}`,
