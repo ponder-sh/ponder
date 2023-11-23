@@ -1,6 +1,7 @@
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
 import type { Pool } from "pg";
 
+import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
 import {
   isEnumColumn,
@@ -30,17 +31,22 @@ const scalarToSqlType = {
 
 export class PostgresIndexingStore implements IndexingStore {
   kind = "postgres" as const;
+  private common: Common;
+
   db: Kysely<any>;
 
   schema?: Schema;
 
   constructor({
+    common,
     pool,
     databaseSchema,
   }: {
+    common: Common;
     pool: Pool;
     databaseSchema?: string;
   }) {
+    this.common = common;
     this.db = new Kysely({
       dialect: new PostgresDialect({
         pool,
@@ -60,6 +66,26 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   }
 
+  async kill() {
+    const start = performance.now();
+
+    const tableNames = Object.keys(this.schema?.tables ?? {});
+    if (tableNames.length > 0) {
+      await this.db.transaction().execute(async (tx) => {
+        await Promise.all(
+          tableNames.map(async (tableName) => {
+            const table = `${tableName}_versioned`;
+            await tx.schema.dropTable(table).ifExists().execute();
+          }),
+        );
+      });
+    }
+
+    await this.db.destroy();
+
+    this.record("kill", start);
+  }
+
   /**
    * Resets the database by dropping existing tables and creating new tables.
    * If no new schema is provided, the existing schema is used.
@@ -67,6 +93,8 @@ export class PostgresIndexingStore implements IndexingStore {
    * @param options.schema New schema to be used.
    */
   reload = async ({ schema }: { schema?: Schema } = {}) => {
+    const start = performance.now();
+
     // If there is no existing schema and no new schema was provided, do nothing.
     if (!this.schema && !schema) return;
 
@@ -148,23 +176,9 @@ export class PostgresIndexingStore implements IndexingStore {
         ),
       );
     });
+
+    this.record("reload", start);
   };
-
-  async kill() {
-    const tableNames = Object.keys(this.schema?.tables ?? {});
-    if (tableNames.length > 0) {
-      await this.db.transaction().execute(async (tx) => {
-        await Promise.all(
-          tableNames.map(async (tableName) => {
-            const table = `${tableName}_versioned`;
-            await tx.schema.dropTable(table).ifExists().execute();
-          }),
-        );
-      });
-    }
-
-    await this.db.destroy();
-  }
 
   findUnique = async ({
     tableName,
@@ -175,6 +189,8 @@ export class PostgresIndexingStore implements IndexingStore {
     timestamp?: number;
     id: string | number | bigint;
   }) => {
+    const start = performance.now();
+
     const table = `${tableName}_versioned`;
     const formattedId = formatColumnValue({
       value: id,
@@ -193,7 +209,13 @@ export class PostgresIndexingStore implements IndexingStore {
       throw new Error(`Expected 1 row, found ${rows.length}`);
     }
 
-    return rows[0] ? this.deserializeRow({ tableName, row: rows[0] }) : null;
+    const result = rows[0]
+      ? this.deserializeRow({ tableName, row: rows[0] })
+      : null;
+
+    this.record("findUnique", start, tableName);
+
+    return result;
   };
 
   create = async ({
@@ -207,6 +229,8 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
+    const start = performance.now();
+
     const table = `${tableName}_versioned`;
     const createRow = formatRow({ id, ...data }, false);
 
@@ -220,7 +244,11 @@ export class PostgresIndexingStore implements IndexingStore {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    return this.deserializeRow({ tableName, row });
+    const result = this.deserializeRow({ tableName, row });
+
+    this.record("create", start, tableName);
+
+    return result;
   };
 
   update = async ({
@@ -236,6 +264,8 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
+    const start = performance.now();
+
     const table = `${tableName}_versioned`;
     const formattedId = formatColumnValue({
       value: id,
@@ -302,7 +332,11 @@ export class PostgresIndexingStore implements IndexingStore {
         .executeTakeFirstOrThrow();
     });
 
-    return this.deserializeRow({ tableName, row });
+    const result = this.deserializeRow({ tableName, row });
+
+    this.record("update", start, tableName);
+
+    return result;
   };
 
   upsert = async ({
@@ -320,6 +354,8 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
+    const start = performance.now();
+
     const table = `${tableName}_versioned`;
     const formattedId = formatColumnValue({
       value: id,
@@ -400,7 +436,11 @@ export class PostgresIndexingStore implements IndexingStore {
         .executeTakeFirstOrThrow();
     });
 
-    return this.deserializeRow({ tableName, row });
+    const result = this.deserializeRow({ tableName, row });
+
+    this.record("upsert", start, tableName);
+
+    return result;
   };
 
   delete = async ({
@@ -412,13 +452,15 @@ export class PostgresIndexingStore implements IndexingStore {
     timestamp: number;
     id: string | number | bigint;
   }) => {
+    const start = performance.now();
+
     const table = `${tableName}_versioned`;
     const formattedId = formatColumnValue({
       value: id,
       encodeBigInts: false,
     });
 
-    const row = await this.db.transaction().execute(async (tx) => {
+    const isDeleted = await this.db.transaction().execute(async (tx) => {
       // If the latest version is effective from the delete timestamp,
       // then delete the row in place. It "never existed".
       // This needs to be done first, because an update() earlier in the
@@ -445,7 +487,9 @@ export class PostgresIndexingStore implements IndexingStore {
       return !!deletedRow;
     });
 
-    return row;
+    this.record("delete", start, tableName);
+
+    return isDeleted;
   };
 
   findMany = async ({
@@ -463,6 +507,8 @@ export class PostgresIndexingStore implements IndexingStore {
     take?: number;
     orderBy?: OrderByInput<any>;
   }) => {
+    const start = performance.now();
+
     const table = `${tableName}_versioned`;
 
     let query = this.db
@@ -504,8 +550,11 @@ export class PostgresIndexingStore implements IndexingStore {
     }
 
     const rows = await query.execute();
+    const result = rows.map((row) => this.deserializeRow({ tableName, row }));
 
-    return rows.map((row) => this.deserializeRow({ tableName, row }));
+    this.record("findMany", start, tableName);
+
+    return result;
   };
 
   createMany = async ({
@@ -518,6 +567,8 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
     data: Row[];
   }) => {
+    const start = performance.now();
+
     const table = `${tableName}_versioned`;
     const createRows = data.map((d) => ({
       ...formatRow({ ...d }, false),
@@ -535,7 +586,13 @@ export class PostgresIndexingStore implements IndexingStore {
       ),
     );
 
-    return rows.flat().map((row) => this.deserializeRow({ tableName, row }));
+    const result = rows
+      .flat()
+      .map((row) => this.deserializeRow({ tableName, row }));
+
+    this.record("createMany", start, tableName);
+
+    return result;
   };
 
   updateMany = async ({
@@ -551,6 +608,8 @@ export class PostgresIndexingStore implements IndexingStore {
       | Partial<Omit<Row, "id">>
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
+    const start = performance.now();
+
     const table = `${tableName}_versioned`;
 
     const rows = await this.db.transaction().execute(async (tx) => {
@@ -631,10 +690,16 @@ export class PostgresIndexingStore implements IndexingStore {
       );
     });
 
-    return rows.map((row) => this.deserializeRow({ tableName, row }));
+    const result = rows.map((row) => this.deserializeRow({ tableName, row }));
+
+    this.record("updateMany", start, tableName);
+
+    return result;
   };
 
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
+    const start = performance.now();
+
     await this.db.transaction().execute(async (tx) => {
       await Promise.all(
         Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
@@ -655,6 +720,8 @@ export class PostgresIndexingStore implements IndexingStore {
         }),
       );
     });
+
+    this.record("revert", start);
   };
 
   private deserializeRow = ({
@@ -709,4 +776,11 @@ export class PostgresIndexingStore implements IndexingStore {
 
     return deserializedRow;
   };
+
+  private record(methodName: string, start: number, tableName?: string) {
+    this.common.metrics.ponder_indexing_store_method_duration.observe(
+      { method: methodName, table: tableName },
+      performance.now() - start,
+    );
+  }
 }

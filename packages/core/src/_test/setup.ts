@@ -109,11 +109,18 @@ export async function setupIndexingStore(context: TestContext) {
   if (process.env.DATABASE_URL) {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
-    context.indexingStore = new PostgresIndexingStore({ pool, databaseSchema });
+    context.indexingStore = new PostgresIndexingStore({
+      pool,
+      databaseSchema,
+      common: context.common,
+    });
   } else {
     const rawSqliteDb = new SqliteDatabase(":memory:");
     const db = patchSqliteDatabase({ db: rawSqliteDb });
-    context.indexingStore = new SqliteIndexingStore({ db });
+    context.indexingStore = new SqliteIndexingStore({
+      db,
+      common: context.common,
+    });
   }
 
   return async () => {

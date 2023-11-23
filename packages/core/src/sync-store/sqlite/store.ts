@@ -38,12 +38,13 @@ import {
 import { migrationProvider } from "./migrations.js";
 
 export class SqliteSyncStore implements SyncStore {
-  private common: Common;
   kind = "sqlite" as const;
+  private common: Common;
+
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({ db, common }: { db: Sqlite.Database; common: Common }) {
+  constructor({ common, db }: { common: Common; db: Sqlite.Database }) {
     this.common = common;
     this.db = new Kysely<SyncStoreTables>({
       dialect: new SqliteDialect({ database: db }),

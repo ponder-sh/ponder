@@ -50,7 +50,11 @@ export class MetricsService {
   ponder_server_response_duration: prometheus.Histogram<
     "method" | "path" | "status"
   >;
+
   ponder_sync_store_method_duration: prometheus.Histogram<"method">;
+  ponder_indexing_store_method_duration: prometheus.Histogram<
+    "table" | "method"
+  >;
 
   constructor() {
     this.registry = new prometheus.Registry();
@@ -173,10 +177,18 @@ export class MetricsService {
       buckets: httpRequestSizeInBytes,
       registers: [this.registry],
     });
+
     this.ponder_sync_store_method_duration = new prometheus.Histogram({
       name: "ponder_sync_store_method_duration",
       help: "Duration of database operations in the sync store",
       labelNames: ["method"] as const,
+      buckets: httpRequestBucketsInMs,
+      registers: [this.registry],
+    });
+    this.ponder_indexing_store_method_duration = new prometheus.Histogram({
+      name: "ponder_indexing_store_method_duration",
+      help: "Duration of database operations in the sync store",
+      labelNames: ["table", "method"] as const,
       buckets: httpRequestBucketsInMs,
       registers: [this.registry],
     });
