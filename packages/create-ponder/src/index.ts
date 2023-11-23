@@ -214,13 +214,15 @@ export async function run({
 
   if (templateMeta.id === "etherscan") {
     let link = options.etherscanContractLink;
-    if (!link)
-      link = await prompts({
+    if (!link) {
+      const result = await prompts({
         type: "text",
         name: "link",
         message: "Enter an Etherscan contract link",
         initial: "https://etherscan.io/address/0x97...",
       });
+      link = result.link;
+    }
 
     config = await fromEtherscan({
       rootDir: targetPath,
