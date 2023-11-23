@@ -468,7 +468,7 @@ export class Ponder {
         );
       });
 
-      this.syncGatewayService.reset({ chainId });
+      this.syncGatewayService.resetCheckpoints({ chainId });
 
       await Promise.all(
         this.syncServices.map(async ({ historical, realtime }) => {

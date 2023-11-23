@@ -286,3 +286,49 @@ test("handleNewFinalityCheckpoint emits newFinalityCheckpoint if subsequent even
   });
   expect(emitSpy).toHaveBeenCalledTimes(2);
 });
+
+test("resetCheckpoints resets the checkpoint states", async (context) => {
+  const { common, syncStore } = context;
+
+  const service = new SyncGateway({
+    common,
+    syncStore,
+    sources,
+    networks,
+  });
+
+  // Sets a historical checkpoint, realtime checkpoint, and sets the historical sync complete for mainnet.
+  service.handleNewRealtimeCheckpoint({
+    chainId: mainnet.chainId,
+    timestamp: 2,
+  });
+
+  service.handleNewHistoricalCheckpoint({
+    chainId: mainnet.chainId,
+    timestamp: 3,
+  });
+
+  service.handleHistoricalSyncComplete({ chainId: mainnet.chainId });
+
+  // Sets checkpoints for optimism to assert it has not changed.
+  service.handleNewRealtimeCheckpoint({
+    chainId: optimism.chainId,
+    timestamp: 4,
+  });
+
+  service.handleNewHistoricalCheckpoint({
+    chainId: optimism.chainId,
+    timestamp: 5,
+  });
+
+  service.handleHistoricalSyncComplete({ chainId: optimism.chainId });
+
+  expect(service.checkpoint).toBe(3);
+  expect(service.historicalSyncCompletedAt).toBe(5);
+
+  service.resetCheckpoints({ chainId: mainnet.chainId });
+
+  // Global checkpoints should be reset to 0.
+  expect(service.checkpoint).toBe(0);
+  expect(service.historicalSyncCompletedAt).toBe(0);
+});
