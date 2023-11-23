@@ -76,6 +76,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   }
 
   setup = async () => {
+    // Initialize state variables. Required when restarting the service.
+    this.blocks = [];
+
     // Fetch the latest block, and remote chain Id for the network.
     const [latestBlock, rpcChainId] = await Promise.all([
       this.getLatestBlock(),
