@@ -318,66 +318,121 @@ test("BlockProgressTracker returns null until first pending block is completed",
   expect(checkpoint).toBe(null);
 });
 
-test("BlockProgressTracker returns minimum continuous completed checkpoint", () => {
+test("BlockProgressTracker tracks minimum continuous completed checkpoint", () => {
   const tracker = new BlockProgressTracker();
   tracker.addPendingBlocks({ blockNumbers: [5, 6, 9, 10] });
 
-  let checkpoint = tracker.addCompletedBlock({
+  let newCheckpoint = tracker.addCompletedBlock({
     blockNumber: 6,
     blockTimestamp: 100,
   });
-  expect(checkpoint).toBe(null);
+  expect(newCheckpoint).toBe(null);
 
-  checkpoint = tracker.addCompletedBlock({
+  newCheckpoint = tracker.addCompletedBlock({
     blockNumber: 5,
     blockTimestamp: 98,
   });
-  expect(checkpoint).toMatchObject({ blockNumber: 6, blockTimestamp: 100 });
+  expect(newCheckpoint).toMatchObject({ blockNumber: 6, blockTimestamp: 100 });
 
-  checkpoint = tracker.addCompletedBlock({
+  newCheckpoint = tracker.addCompletedBlock({
     blockNumber: 10,
     blockTimestamp: 120,
   });
-  expect(checkpoint).toMatchObject({ blockNumber: 6, blockTimestamp: 100 });
+  expect(newCheckpoint).toBe(null); // Null because the checkpoint has not progressed.
 
-  checkpoint = tracker.addCompletedBlock({
+  newCheckpoint = tracker.addCompletedBlock({
     blockNumber: 9,
     blockTimestamp: 110,
   });
-  expect(checkpoint).toMatchObject({ blockNumber: 10, blockTimestamp: 120 });
+  expect(newCheckpoint).toMatchObject({ blockNumber: 10, blockTimestamp: 120 });
+});
+
+test("BlockProgressTracker returns null if there is no new checkpoint", () => {
+  const tracker = new BlockProgressTracker();
+  tracker.addPendingBlocks({ blockNumbers: [5, 6, 9, 10] });
+
+  let newCheckpoint = tracker.addCompletedBlock({
+    blockNumber: 6,
+    blockTimestamp: 100,
+  });
+  expect(newCheckpoint).toBe(null);
+
+  newCheckpoint = tracker.addCompletedBlock({
+    blockNumber: 9,
+    blockTimestamp: 110,
+  });
+  expect(newCheckpoint).toBe(null);
+
+  newCheckpoint = tracker.addCompletedBlock({
+    blockNumber: 5,
+    blockTimestamp: 98,
+  });
+  expect(newCheckpoint).toMatchObject({ blockNumber: 9, blockTimestamp: 110 });
+});
+
+test("BlockProgressTracker returns new checkpoint if first completed block is first pending block", () => {
+  const tracker = new BlockProgressTracker();
+  tracker.addPendingBlocks({ blockNumbers: [5, 6, 9, 10] });
+
+  const newCheckpoint = tracker.addCompletedBlock({
+    blockNumber: 5,
+    blockTimestamp: 98,
+  });
+  expect(newCheckpoint).toMatchObject({ blockNumber: 5, blockTimestamp: 98 });
 });
 
 test("BlockProgressTracker handles multiple batches of pending blocks", () => {
   const tracker = new BlockProgressTracker();
   tracker.addPendingBlocks({ blockNumbers: [5, 6, 10] });
 
-  let checkpoint = tracker.addCompletedBlock({
+  let newCheckpoint = tracker.addCompletedBlock({
     blockNumber: 6,
     blockTimestamp: 100,
   });
-  expect(checkpoint).toBe(null);
+  expect(newCheckpoint).toBe(null);
+  expect(tracker.checkpoint).toBe(null);
 
-  checkpoint = tracker.addCompletedBlock({
+  newCheckpoint = tracker.addCompletedBlock({
     blockNumber: 5,
     blockTimestamp: 98,
   });
-  expect(checkpoint).toMatchObject({ blockNumber: 6, blockTimestamp: 100 });
+  expect(newCheckpoint).toMatchObject({ blockNumber: 6, blockTimestamp: 100 });
+  expect(tracker.checkpoint).toMatchObject({
+    blockNumber: 6,
+    blockTimestamp: 100,
+  });
 
   tracker.addPendingBlocks({ blockNumbers: [11, 12, 15] });
 
-  checkpoint = tracker.addCompletedBlock({
+  newCheckpoint = tracker.addCompletedBlock({
     blockNumber: 11,
     blockTimestamp: 115,
   });
-  expect(checkpoint).toMatchObject({ blockNumber: 6, blockTimestamp: 100 });
+  expect(newCheckpoint).toBe(null);
+  expect(tracker.checkpoint).toMatchObject({
+    blockNumber: 6,
+    blockTimestamp: 100,
+  });
 
-  tracker.addCompletedBlock({ blockNumber: 12, blockTimestamp: 120 });
+  newCheckpoint = tracker.addCompletedBlock({
+    blockNumber: 12,
+    blockTimestamp: 120,
+  });
+  expect(newCheckpoint).toBe(null);
+  expect(tracker.checkpoint).toMatchObject({
+    blockNumber: 6,
+    blockTimestamp: 100,
+  });
 
-  checkpoint = tracker.addCompletedBlock({
+  newCheckpoint = tracker.addCompletedBlock({
     blockNumber: 10,
     blockTimestamp: 120,
   });
-  expect(checkpoint).toMatchObject({ blockNumber: 12, blockTimestamp: 120 });
+  expect(newCheckpoint).toMatchObject({ blockNumber: 12, blockTimestamp: 120 });
+  expect(tracker.checkpoint).toMatchObject({
+    blockNumber: 12,
+    blockTimestamp: 120,
+  });
 });
 
 test("BlockProgressTracker throws if pending blocks are added out of order", () => {
