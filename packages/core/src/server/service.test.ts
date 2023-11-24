@@ -56,8 +56,8 @@ const setup = async ({
   await indexingStore.reload({ schema: s });
 
   const service = new ServerService({ common, indexingStore });
+  service.reloadGraphqlSchema({ graphqlSchema });
   await service.start();
-  service.reload({ graphqlSchema });
 
   if (options.hasCompletedHistoricalIndexing) {
     service.setIsHistoricalIndexingComplete();
