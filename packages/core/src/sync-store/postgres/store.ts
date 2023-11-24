@@ -26,6 +26,7 @@ import {
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
+import { wait } from "@/utils/wait.js";
 
 import type { SyncStore } from "../store.js";
 import {
@@ -78,7 +79,14 @@ export class PostgresSyncStore implements SyncStore {
   }
 
   async kill() {
-    await this.db.destroy();
+    try {
+      await this.db.destroy();
+    } catch (e) {
+      const error = e as Error;
+      if (error.message !== "Called end on pool more than once") {
+        throw error;
+      }
+    }
   }
 
   migrateUp = async () => {
@@ -107,7 +115,7 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     const start = performance.now();
 
-    await this.db.transaction().execute(async (tx) => {
+    await this.transaction(async (tx) => {
       await tx
         .insertInto("blocks")
         .values({ ...rpcToPostgresBlock(rpcBlock), chainId })
@@ -128,7 +136,7 @@ export class PostgresSyncStore implements SyncStore {
       }
 
       if (rpcLogs.length > 0) {
-        await this.db
+        await tx
           .insertInto("logs")
           .values(
             rpcLogs.map((log) => ({
@@ -165,7 +173,7 @@ export class PostgresSyncStore implements SyncStore {
     // First, attempt to merge overlapping and adjacent intervals.
     await Promise.all(
       fragments.map(async (fragment) => {
-        return await this.db.transaction().execute(async (tx) => {
+        return await this.transaction(async (tx) => {
           const { id: logFilterId } = await tx
             .insertInto("logFilters")
             .values(fragment)
@@ -279,7 +287,7 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     const start = performance.now();
 
-    await this.db.transaction().execute(async (tx) => {
+    await this.transaction(async (tx) => {
       if (rpcLogs.length > 0) {
         await tx
           .insertInto("logs")
@@ -367,7 +375,7 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     const start = performance.now();
 
-    await this.db.transaction().execute(async (tx) => {
+    await this.transaction(async (tx) => {
       await tx
         .insertInto("blocks")
         .values({ ...rpcToPostgresBlock(rpcBlock), chainId })
@@ -417,7 +425,7 @@ export class PostgresSyncStore implements SyncStore {
 
     await Promise.all(
       fragments.map(async (fragment) => {
-        await this.db.transaction().execute(async (tx) => {
+        await this.transaction(async (tx) => {
           const { id: factoryId } = await tx
             .insertInto("factories")
             .values(fragment)
@@ -545,7 +553,7 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     const start = performance.now();
 
-    await this.db.transaction().execute(async (tx) => {
+    await this.transaction(async (tx) => {
       await tx
         .insertInto("blocks")
         .values({ ...rpcToPostgresBlock(rpcBlock), chainId })
@@ -585,7 +593,7 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     const start = performance.now();
 
-    await this.db.transaction().execute(async (tx) => {
+    await this.transaction(async (tx) => {
       await this._insertLogFilterInterval({
         tx,
         chainId,
@@ -619,7 +627,7 @@ export class PostgresSyncStore implements SyncStore {
   }) => {
     const start = performance.now();
 
-    await this.db.transaction().execute(async (tx) => {
+    await this.transaction(async (tx) => {
       await tx
         .deleteFrom("blocks")
         .where("chainId", "=", chainId)
@@ -1265,6 +1273,19 @@ export class PostgresSyncStore implements SyncStore {
 
     this.record("getLogEvents", start);
   }
+
+  private transaction = async <U>(
+    callback: (tx: KyselyTransaction<SyncStoreTables>) => Promise<U>,
+  ) => {
+    return await this.db.transaction().execute(async (tx) => {
+      return await Promise.race([
+        callback(tx),
+        wait(15_000).then(() => {
+          throw new Error("Postgres transaction timed out after 15 seconds.");
+        }),
+      ]);
+    });
+  };
 
   private record(methodName: string, start: number) {
     this.common.metrics.ponder_sync_store_method_duration.observe(

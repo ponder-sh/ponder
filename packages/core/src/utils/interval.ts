@@ -274,11 +274,12 @@ export class ProgressTracker {
 
 export class BlockProgressTracker {
   private pendingBlocks: number[] = [];
-
   private completedBlocks: {
     blockNumber: number;
     blockTimestamp: number;
   }[] = [];
+
+  checkpoint: { blockNumber: number; blockTimestamp: number } | null = null;
 
   addPendingBlocks({ blockNumbers }: { blockNumbers: number[] }): void {
     if (blockNumbers.length === 0) return;
@@ -302,6 +303,10 @@ export class BlockProgressTracker {
     });
   }
 
+  /**
+   * Add a new completed block. If adding this block moves the checkpoint, returns the
+   * new checkpoint. Otherwise, returns null.
+   */
   addCompletedBlock({
     blockNumber,
     blockTimestamp,
@@ -322,16 +327,14 @@ export class BlockProgressTracker {
 
     // Add the new completed block to the completed block list, and maintain the sort order.
     // Note that this could be optimized using a for loop with a break.
-    this.completedBlocks.push({
-      blockNumber,
-      blockTimestamp,
-    });
+    this.completedBlocks.push({ blockNumber, blockTimestamp });
     this.completedBlocks.sort((a, b) => a.blockNumber - b.blockNumber);
 
     // If the pending blocks list is now empty, return the max block present in
     // the list of completed blocks. This happens at the end of the sync.
     if (this.pendingBlocks.length === 0) {
-      return this.completedBlocks[this.completedBlocks.length - 1];
+      this.checkpoint = this.completedBlocks[this.completedBlocks.length - 1];
+      return this.checkpoint;
     }
 
     // Find all completed blocks that are less than the minimum pending block.
@@ -352,6 +355,17 @@ export class BlockProgressTracker {
       ({ blockNumber }) => blockNumber >= maximumSafeCompletedBlock.blockNumber,
     );
 
-    return maximumSafeCompletedBlock;
+    // If this is the first checkpoint OR this checkpoint is greater than
+    // the previous checkpoint, store and return it as updated.
+    if (
+      !this.checkpoint ||
+      maximumSafeCompletedBlock.blockNumber > this.checkpoint.blockNumber
+    ) {
+      this.checkpoint = maximumSafeCompletedBlock;
+      return this.checkpoint;
+    }
+
+    // Otherwise, the checkpoint is not updated.
+    return null;
   }
 }

@@ -236,7 +236,7 @@ export class ServerService {
     await this.terminate?.();
     this.common.logger.debug({
       service: "server",
-      msg: `Stopped listening on port ${this.port}`,
+      msg: `Killed server, stopped listening on port ${this.port}`,
     });
   }
 

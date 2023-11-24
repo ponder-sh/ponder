@@ -618,7 +618,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     this.common.logger.trace({
       service: "historical",
-      msg: `Completed LOG_FILTER task [${task.fromBlock}, ${task.toBlock}] (contract=${logFilter.contractName}, network=${this.network.name})`,
+      msg: `Completed LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${task.fromBlock}, ${task.toBlock}] (contract=${logFilter.contractName}, network=${this.network.name})`,
     });
   };
 
@@ -760,7 +760,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     this.common.logger.trace({
       service: "historical",
-      msg: `Completed FACTORY_LOG_FILTER task [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
+      msg: `Completed FACTORY_LOG_FILTER task adding ${logIntervals.length} BLOCK tasks [${fromBlock}, ${toBlock}] (contract=${factory.contractName}, network=${this.network.name})`,
     });
   };
 
@@ -880,6 +880,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         );
         delete this.blockCallbacks[blockNumber];
       }
+
+      this.common.logger.trace({
+        service: "historical",
+        msg: `Enqueued ${newBlocks.length} BLOCK tasks [${
+          this.blockTasksEnqueuedCheckpoint + 1
+        }, ${blockTasksCanBeEnqueuedTo}] (network=${this.network.name})`,
+      });
 
       this.blockTasksEnqueuedCheckpoint = blockTasksCanBeEnqueuedTo;
     }
