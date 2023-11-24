@@ -57,7 +57,14 @@ export class SqliteSyncStore implements SyncStore {
   }
 
   async kill() {
-    await this.db.destroy();
+    try {
+      await this.db.destroy();
+    } catch (e) {
+      const error = e as Error;
+      if (error.message !== "Called end on pool more than once") {
+        throw error;
+      }
+    }
   }
 
   migrateUp = async () => {
