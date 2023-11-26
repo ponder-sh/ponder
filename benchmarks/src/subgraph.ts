@@ -153,10 +153,7 @@ const changeMappingFileDelim = (delim: string) => {
   let mappingFileContents = readFileSync("./subgraph/src/mapping.ts", {
     encoding: "utf-8",
   });
-  mappingFileContents = mappingFileContents.replace(
-    /(kevin:.)/g,
-    `kevin:${delim}`,
-  );
+  mappingFileContents = mappingFileContents.replace(/(dif:.)/g, `dif:${delim}`);
 
   writeFileSync("./subgraph/src/mapping.ts", mappingFileContents, "utf-8");
 };

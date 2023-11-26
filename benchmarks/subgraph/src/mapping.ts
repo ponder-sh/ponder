@@ -12,7 +12,7 @@ import {
   TransferEvent,
 } from "../generated/schema";
 
-const delim = "kevin:+";
+const delim = "dif:+";
 
 export function handleTransfer(event: TTransferEvent): void {
   // Create an Account for the sender, or update the balance if it already exists.
