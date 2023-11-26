@@ -2,7 +2,7 @@ import type { Hex } from "viem";
 import { assertType, test } from "vitest";
 
 import * as p from "./index.js";
-import type { EnumColumn, VirtualColumn } from "./types.js";
+import type { EnumColumn, ManyColumn } from "./types.js";
 import { type BaseColumn, type RecoverColumnType } from "./types.js";
 
 test("string", () => {
@@ -88,7 +88,7 @@ test("many", () => {
   const c = p.many("OtherTable.OtherColumn");
   //    ^?
 
-  assertType<VirtualColumn<"OtherTable.OtherColumn">>(c);
+  assertType<ManyColumn<"OtherTable.OtherColumn">>(c);
 });
 
 test("optional", () => {

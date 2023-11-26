@@ -8,12 +8,12 @@ import type {
   IDColumn,
   InternalColumn,
   InternalEnum,
+  ManyColumn,
   NonReferenceColumn,
   ReferenceColumn,
   Scalar,
   Schema,
   Table,
-  VirtualColumn,
 } from "./types.js";
 import {
   isEnumColumn,
@@ -39,11 +39,11 @@ export const createTable = <
   TColumns extends
     | ({
         id: { [" column"]: IDColumn };
-      } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
+      } & Record<string, InternalEnum | InternalColumn | ManyColumn>)
     | unknown =
     | ({
         id: { [" column"]: IDColumn };
-      } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
+      } & Record<string, InternalEnum | InternalColumn | ManyColumn>)
     | unknown,
 >(
   columns: TColumns,
@@ -57,12 +57,12 @@ export const createTable = <
   Object.entries(
     columns as {
       id: { [" column"]: IDColumn };
-    } & Record<string, InternalEnum | InternalColumn | VirtualColumn>,
+    } & Record<string, InternalEnum | InternalColumn | ManyColumn>,
   ).reduce(
     (
       acc: Record<
         string,
-        NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+        NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn
       >,
       cur,
     ) => ({
@@ -99,7 +99,7 @@ export const createSchema = <
                 `${keyof FilterTables<TSchema> & string}.id`
               >
             | EnumColumn<keyof FilterEnums<TSchema>, boolean>
-            | VirtualColumn<ExtractAllNames<tableName & string, TSchema>>;
+            | ManyColumn<ExtractAllNames<tableName & string, TSchema>>;
         })
       | Enum<readonly string[]>;
   },
