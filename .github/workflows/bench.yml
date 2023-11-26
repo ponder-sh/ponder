@@ -4,8 +4,33 @@ on:
   workflow_dispatch:
 
 jobs:
-  bench:
-    name: Bench
+  bench-ponder:
+    name: Bench:Ponder
+    runs-on: ubuntu-22.04
+    services:
+      anvil:
+        image: ghcr.io/0xolias/simple-anvil-image:main
+        env:
+          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
+          ANVIL_FORK_BLOCK_NUMBER: 17501000
+        ports:
+          - 8545:8545
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v3
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - run: pnpm install
+
+      - name: Bench
+        run: pnpm bench:ponder:ci
+        env:
+          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
+
+  bench-subgraph:
+    name: Bench:Subgraph
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -22,19 +47,19 @@ jobs:
           --health-retries 10
         ports:
           - 5432:5432
-      ipfs:
-        image: ipfs/go-ipfs:v0.10.0
-        ports:
-          - 5001:5001
       anvil:
         image: ghcr.io/0xolias/simple-anvil-image:main
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-          ANVIL_FORK_BLOCK_NUMBER: 17500010
+          ANVIL_FORK_BLOCK_NUMBER: 17500000
         ports:
           - 8545:8545
+      ipfs:
+        image: ipfs/go-ipfs:v0.10.0
+        ports:
+          - 5001:5001
       graph-node:
-        image: graphprotocol/graph-node
+        image: graphprotocol/graph-node:latest
         # Would be best to get this health check working, but so far it hasn't been an issue.
         # options: >-
         #   --health-cmd "curl --fail http://graph-node:8040"
@@ -60,9 +85,11 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
+      - name: Codegen
+        run: cd benchmarks && pnpm graph codegen subgraph/subgraph.yaml
+
       - name: Bench
-        run: pnpm bench:ci
+        run: pnpm bench:subgraph:ci
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-          ANVIL_FORK_BLOCK_NUMBER: 17500010
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres

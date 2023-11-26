@@ -27,5 +27,5 @@
     "@typescript-eslint/no-non-null-assertion": "off",
     "@typescript-eslint/ban-types": "off"
   },
-  "ignorePatterns": ["dist", "node_modules", "generated"]
+  "ignorePatterns": ["dist", "node_modules", "generated", "patches"]
 }

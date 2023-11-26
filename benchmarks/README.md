@@ -1,13 +1,55 @@
-## Benchmarks (WIP)
+# Benchmarks
 
 This directory contains tooling to benchmark Ponder against the Graph Protocol's [Graph Node](https://github.com/graphprotocol/graph-node).
 
-### Run benchmarks locally
+## Methodology
 
-> Due to an issue with the Graph Node, the benchmark script fails on M1 Macs ([graphprotocol/graph-node#4740](https://github.com/graphprotocol/graph-node/issues/4740)). For now, run the benchmarks in CI instead.
+The benchmarks are run by sequentially running each indexer. Indexers must be run against Anvil in order to effectively notify TheGraph when to stop running. All dbs are cleared before the run. TheGraph indexing cache is busted by programmatically changing the hander function before each run. Ponder doesn't cache indexing function results so no actions are necessary.
 
-To run benchmarks locally, just run `pnpm bench` in this directory or at the workspace root. This command uses `docker-compose` to start a Graph Node instance, then runs `src/bench.ts` to run the benchmarks. The script builds and deploys a subgraph to the Graph Node and records how long it takes for the subgraph to sync, as well as how many RPC requests were made. Then, it does the same for a Ponder app.
+## Run Benchmarks
 
-### Run benchmarks in CI
+### Ponder
 
-The `.github/workflows/bench.yml` workflow runs benchmarks in CI. Instead of using `docker-compose`, it sets up a Graph Node using GitHub Action services. Other than that, it's the same as local. _Note: the benchmarks workflow is currently only triggered manually through the GitHub Actions UI (must have write access to the repo)._
+Ponder should be runnable out of the box with [Bun](https://bun.sh) by first starting an Anvil node
+
+```sh
+anvil --fork-url $ANVIL_FORK_URL --fork-block-number 17501000
+```
+
+and then, in a separate terminal running,
+
+```sh
+bun run src/ponder.ts
+```
+
+Ponder runs against a local build of Ponder, ensure it is built with `pnpm build` at the top level.
+
+### TheGraph
+
+First, the required TypeScript helpers must be generated:
+
+```sh
+pnpm graph codegen subgraph/subgraph.yaml
+```
+
+Docker is required. TheGraph benchmarks can be run with
+
+```sh
+pnpm bench:subgraph
+```
+
+It is important to note that the default `graph-node` binary cannot be run on Apple silicon. Instead, `graph-node` must be built from source, following [these instructions](https://github.com/graphprotocol/graph-node/tree/master/docker#running-graph-node-on-an-macbook-m1).
+
+## Results
+
+These results are from indexing Rocket Pool ETH from block range 17,480,000 to 17,500,000 on a M1 MacBook Pro with 8 cores and 16GB of RAM against an Alchemy node with the Growth plan.
+
+| No Cache | Duration (sec) | RPC Requests |
+| -------- | -------------- | ------------ |
+| Ponder   | 29.3           | 2149         |
+| TheGraph | 120.1          | 2304         |
+
+| Cache    | Duration (sec) | RPC Requests |
+| -------- | -------------- | ------------ |
+| Ponder   | 9.2            | 0            |
+| TheGraph | 40.1           | 30           |

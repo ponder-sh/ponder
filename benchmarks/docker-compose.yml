@@ -26,11 +26,11 @@ services:
     image: ghcr.io/0xolias/simple-anvil-image:main
     environment:
       ANVIL_FORK_URL: "${ANVIL_FORK_URL}"
-      ANVIL_FORK_BLOCK_NUMBER: "${ANVIL_FORK_BLOCK_NUMBER}"
+      ANVIL_FORK_BLOCK_NUMBER: 17500000
     ports:
       - 8545:8545
   graph-node:
-    image: graphprotocol/graph-node
+    image: graphprotocol/graph-node:latest
     ports:
       - 8000:8000
       - 8001:8001
@@ -40,7 +40,6 @@ services:
     depends_on:
       - ipfs
       - postgres
-      - anvil
     extra_hosts:
       - host.docker.internal:host-gateway
     environment:
@@ -52,3 +51,4 @@ services:
       ethereum: mainnet:http://anvil:8545
       ETHEREUM_REORG_THRESHOLD: 0
       GRAPH_LOG: debug
+      ETHEREUM_BLOCK_BATCH_SIZE: 30
