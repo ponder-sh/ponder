@@ -5,8 +5,9 @@ import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
 import {
   isEnumColumn,
+  isManyColumn,
+  isOneColumn,
   isReferenceColumn,
-  isVirtualColumn,
 } from "@/schema/utils.js";
 
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
@@ -122,7 +123,8 @@ export class PostgresIndexingStore implements IndexingStore {
 
             Object.entries(columns).forEach(([columnName, column]) => {
               // Handle scalar list columns
-              if (isVirtualColumn(column)) return;
+              if (isOneColumn(column)) return;
+              else if (isManyColumn(column)) return;
               else if (isEnumColumn(column)) {
                 // Handle enum types
                 tableBuilder = tableBuilder.addColumn(
@@ -756,7 +758,8 @@ export class PostgresIndexingStore implements IndexingStore {
         return;
       }
 
-      if (isVirtualColumn(column)) return;
+      if (isOneColumn(column)) return;
+      else if (isManyColumn(column)) return;
       else if (
         !isEnumColumn(column) &&
         !isReferenceColumn(column) &&

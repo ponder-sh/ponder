@@ -13,5 +13,8 @@ export default p.createSchema({
     id: p.bigint(),
     claimedById: p.string().references("Account.id").optional(),
     ownerId: p.string().references("Account.id"),
+
+    claimedBy: p.one("claimedById"),
+    owner: p.one("ownerId"),
   }),
 });

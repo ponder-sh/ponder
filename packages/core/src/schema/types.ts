@@ -70,21 +70,34 @@ export type ManyColumn<T extends `${string}.${string}` | unknown = unknown> =
   T extends `${infer TTableName extends string}.${infer TColumnName extends
     string}`
     ? {
-        _type: "v";
+        _type: "m";
         referenceTable: TTableName;
         referenceColumn: TColumnName;
       }
-    : { _type: "v" };
+    : { _type: "m" };
+
+export type OneColumn<T extends string | unknown = unknown> = T extends string
+  ? {
+      _type: "o";
+      referenceColumn: T;
+    }
+  : { _type: "o" };
 
 export type Table<
   TColumns extends
     | ({
         id: { [" column"]: IDColumn };
-      } & Record<string, InternalEnum | InternalColumn | ManyColumn>)
+      } & Record<
+        string,
+        InternalEnum | InternalColumn | ManyColumn | OneColumn
+      >)
     | unknown =
     | ({
         id: { [" column"]: IDColumn };
-      } & Record<string, InternalEnum | InternalColumn | ManyColumn>)
+      } & Record<
+        string,
+        InternalEnum | InternalColumn | ManyColumn | OneColumn
+      >)
     | unknown,
 > = TColumns;
 
@@ -102,6 +115,7 @@ export type Schema = {
         | ReferenceColumn<Scalar, `${string}.id`, boolean>
         | EnumColumn<string, boolean>
         | ManyColumn<`${string}.${string}`>
+        | OneColumn<string>
       >
     >
   >;
@@ -129,7 +143,11 @@ export type FilterTables<TSchema extends Record<string, Enum | Table>> = Pick<
     [key in keyof TSchema]: TSchema[key] extends Table<
       Record<
         string,
-        NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn
+        | NonReferenceColumn
+        | ReferenceColumn
+        | EnumColumn
+        | ManyColumn
+        | OneColumn
       >
     >
       ? key
@@ -145,7 +163,11 @@ export type FilterReferenceColumns<
   TColumns extends
     | Record<
         string,
-        NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn
+        | NonReferenceColumn
+        | ReferenceColumn
+        | EnumColumn
+        | ManyColumn
+        | OneColumn
       >
     | Enum,
 > = Pick<
@@ -166,7 +188,11 @@ export type ExtractAllNames<
     string,
     | Record<
         string,
-        NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn
+        | NonReferenceColumn
+        | ReferenceColumn
+        | EnumColumn
+        | ManyColumn
+        | OneColumn
       >
     | Enum
   >,
@@ -198,7 +224,8 @@ export type RecoverColumnType<
     | NonReferenceColumn
     | ReferenceColumn
     | EnumColumn
-    | ManyColumn,
+    | ManyColumn
+    | OneColumn,
 > = TColumn extends {
   type: infer _type extends Scalar;
   list: infer _list extends boolean;
@@ -211,7 +238,7 @@ export type RecoverColumnType<
 export type RecoverOptionalColumns<
   TColumns extends Record<
     string,
-    NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn
+    NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn | OneColumn
   >,
 > = Pick<
   TColumns,
@@ -229,7 +256,7 @@ export type RecoverOptionalColumns<
 export type RecoverRequiredColumns<
   TColumns extends Record<
     string,
-    NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn
+    NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn | OneColumn
   >,
 > = Pick<
   TColumns,
@@ -247,7 +274,7 @@ export type RecoverRequiredColumns<
 export type RecoverEnumColumns<
   TColumns extends Record<
     string,
-    NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn
+    NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn | OneColumn
   >,
 > = Pick<
   TColumns,
@@ -262,7 +289,8 @@ export type RecoverEnumType<
     | NonReferenceColumn
     | ReferenceColumn
     | EnumColumn
-    | ManyColumn,
+    | ManyColumn
+    | OneColumn,
 > = TColumn extends EnumColumn
   ? TEnums[TColumn["type"] & keyof TEnums] extends infer _enum extends
       readonly string[]
@@ -275,7 +303,7 @@ export type RecoverTableType<
   TTable extends Table,
 > = TTable extends infer _columns extends Record<
   string,
-  ReferenceColumn | NonReferenceColumn | EnumColumn | ManyColumn
+  ReferenceColumn | NonReferenceColumn | EnumColumn | ManyColumn | OneColumn
 >
   ? Prettify<
       { id: RecoverColumnType<_columns["id"]> } & {

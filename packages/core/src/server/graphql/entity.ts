@@ -9,11 +9,11 @@ import {
   GraphQLString,
 } from "graphql";
 
-import type { Schema } from "@/schema/types.js";
+import type { ReferenceColumn, Schema } from "@/schema/types.js";
 import {
   isEnumColumn,
-  isReferenceColumn,
-  isVirtualColumn,
+  isManyColumn,
+  isOneColumn,
   referencedTableName,
 } from "@/schema/utils.js";
 
@@ -34,7 +34,43 @@ export const buildEntityTypes = ({
         const fieldConfigMap: GraphQLFieldConfigMap<Source, Context> = {};
 
         Object.entries(table).forEach(([columnName, column]) => {
-          if (isVirtualColumn(column)) {
+          if (isOneColumn(column)) {
+            // Column must resolve the secondary key of the referenced column
+            // Note: this relies on the fact that reference columns can't be lists
+
+            const referencedTable = referencedTableName(
+              (table[column.referenceColumn] as ReferenceColumn).references,
+            );
+
+            const resolver: GraphQLFieldResolver<Source, Context> = async (
+              parent,
+              _args,
+              context,
+            ) => {
+              const { store } = context;
+
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore
+              const relatedInstanceId = parent[column.referenceColumn];
+
+              console.log({
+                parent,
+                columnName,
+                referencedTable,
+                relatedInstanceId,
+              });
+
+              return await store.findUnique({
+                tableName: referencedTable,
+                id: relatedInstanceId,
+              });
+            };
+
+            fieldConfigMap[columnName] = {
+              type: entityGqlTypes[referencedTable],
+              resolve: resolver,
+            };
+          } else if (isManyColumn(column)) {
             // Column is virtual meant to tell graphQL to make a field
 
             const resolver: GraphQLFieldResolver<Source, Context> = async (
@@ -95,34 +131,6 @@ export const buildEntityTypes = ({
 
             fieldConfigMap[columnName] = {
               type: column.optional ? new GraphQLNonNull(enumType) : enumType,
-            };
-          } else if (isReferenceColumn(column)) {
-            // Column is a reference to another table
-            // Note: this relies on the fact that reference columns can't be lists
-
-            const resolver: GraphQLFieldResolver<Source, Context> = async (
-              parent,
-              _args,
-              context,
-            ) => {
-              const { store } = context;
-
-              // The parent object gets passed in here with relationship fields defined as the
-              // string ID of the related entity. Here, we get the ID and query for that entity.
-              // Then, the GraphQL server serves the resolved object here instead of the ID.
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-              // @ts-ignore
-              const relatedInstanceId = parent[columnName];
-
-              return await store.findUnique({
-                tableName: referencedTableName(column.references),
-                id: relatedInstanceId,
-              });
-            };
-
-            fieldConfigMap[columnName.slice(0, -2)] = {
-              type: entityGqlTypes[referencedTableName(column.references)],
-              resolve: resolver,
             };
           } else if (column.list) {
             const listType = new GraphQLList(

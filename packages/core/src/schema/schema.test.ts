@@ -56,7 +56,23 @@ test("schema references", () => {
   expect(s.tables.a).toBeTruthy();
 });
 
-test("schema virtual", () => {
+test("schema one", () => {
+  const s = p.createSchema({
+    a: p.createTable({
+      id: p.int(),
+    }),
+    t: p.createTable({
+      id: p.string(),
+      ageId: p.int().references("a.id"),
+      age: p.one("ageId"),
+    }),
+  });
+  expect(s.enums).toStrictEqual({});
+  expect(s.tables.t).toBeTruthy();
+  expect(s.tables.a).toBeTruthy();
+});
+
+test("schema many", () => {
   const s = p.createSchema({
     a: p.createTable({
       id: p.int(),

@@ -10,6 +10,7 @@ import type {
   InternalEnum,
   ManyColumn,
   NonReferenceColumn,
+  OneColumn,
   ReferenceColumn,
   Scalar,
   Schema,
@@ -17,8 +18,9 @@ import type {
 } from "./types.js";
 import {
   isEnumColumn,
+  isManyColumn,
+  isOneColumn,
   isReferenceColumn,
-  isVirtualColumn,
   referencedTableName,
 } from "./utils.js";
 
@@ -39,11 +41,17 @@ export const createTable = <
   TColumns extends
     | ({
         id: { [" column"]: IDColumn };
-      } & Record<string, InternalEnum | InternalColumn | ManyColumn>)
+      } & Record<
+        string,
+        InternalEnum | InternalColumn | ManyColumn | OneColumn
+      >)
     | unknown =
     | ({
         id: { [" column"]: IDColumn };
-      } & Record<string, InternalEnum | InternalColumn | ManyColumn>)
+      } & Record<
+        string,
+        InternalEnum | InternalColumn | ManyColumn | OneColumn
+      >)
     | unknown,
 >(
   columns: TColumns,
@@ -57,12 +65,16 @@ export const createTable = <
   Object.entries(
     columns as {
       id: { [" column"]: IDColumn };
-    } & Record<string, InternalEnum | InternalColumn | ManyColumn>,
+    } & Record<string, InternalEnum | InternalColumn | ManyColumn | OneColumn>,
   ).reduce(
     (
       acc: Record<
         string,
-        NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn
+        | NonReferenceColumn
+        | ReferenceColumn
+        | EnumColumn
+        | ManyColumn
+        | OneColumn
       >,
       cur,
     ) => ({
@@ -99,7 +111,8 @@ export const createSchema = <
                 `${keyof FilterTables<TSchema> & string}.id`
               >
             | EnumColumn<keyof FilterEnums<TSchema>, boolean>
-            | ManyColumn<ExtractAllNames<tableName & string, TSchema>>;
+            | ManyColumn<ExtractAllNames<tableName & string, TSchema>>
+            | OneColumn<Exclude<keyof TSchema[tableName], columnName>>;
         })
       | Enum<readonly string[]>;
   },
@@ -145,7 +158,8 @@ export const createSchema = <
       const type = tableOrEnum.id.type;
       if (
         isEnumColumn(tableOrEnum.id) ||
-        isVirtualColumn(tableOrEnum.id) ||
+        isOneColumn(tableOrEnum.id) ||
+        isManyColumn(tableOrEnum.id) ||
         isReferenceColumn(tableOrEnum.id) ||
         (type !== "bigint" &&
           type !== "string" &&
@@ -172,13 +186,20 @@ export const createSchema = <
 
         validateTableOrColumnName(columnName);
 
-        if (isVirtualColumn(column)) {
+        if (isOneColumn(column)) {
+          if (
+            Object.keys(tableOrEnum)
+              .filter((c) => c !== columnName)
+              .every((c) => c !== column.referenceColumn) === undefined
+          )
+            throw Error("One column doesn't reference a valid column");
+        } else if (isManyColumn(column)) {
           if (
             Object.keys(schema)
               .filter((_name) => _name !== name)
               .every((_name) => _name !== column.referenceTable)
           )
-            throw Error("Virtual column doesn't reference a valid table");
+            throw Error("Many column doesn't reference a valid table");
 
           if (
             (
@@ -187,7 +208,7 @@ export const createSchema = <
               )![1] as Record<string, unknown>
             )[column.referenceColumn as string] === undefined
           )
-            throw Error("Virtual column doesn't reference a valid column");
+            throw Error("Many column doesn't reference a valid column");
         } else if (isEnumColumn(column)) {
           if (Object.entries(schema).every(([_name]) => _name !== column.type))
             throw Error("Column doesn't reference a valid enum");

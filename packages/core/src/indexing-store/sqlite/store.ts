@@ -5,8 +5,9 @@ import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
 import {
   isEnumColumn,
+  isManyColumn,
+  isOneColumn,
   isReferenceColumn,
-  isVirtualColumn,
 } from "@/schema/utils.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 
@@ -100,7 +101,8 @@ export class SqliteIndexingStore implements IndexingStore {
             let tableBuilder = tx.schema.createTable(table);
 
             Object.entries(columns).forEach(([columnName, column]) => {
-              if (isVirtualColumn(column)) return;
+              if (isOneColumn(column)) return;
+              else if (isManyColumn(column)) return;
               else if (isEnumColumn(column)) {
                 // Handle enum types
                 tableBuilder = tableBuilder.addColumn(
@@ -727,7 +729,8 @@ export class SqliteIndexingStore implements IndexingStore {
         return;
       }
 
-      if (isVirtualColumn(column)) return;
+      if (isOneColumn(column)) return;
+      if (isManyColumn(column)) return;
       if (!isEnumColumn(column) && !isReferenceColumn(column) && column.list) {
         let parsedValue = JSON.parse(value as string);
         if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);

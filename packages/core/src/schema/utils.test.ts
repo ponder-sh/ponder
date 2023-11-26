@@ -1,12 +1,23 @@
 import { expect, test } from "vitest";
 
 import * as p from "./index.js";
-import { isEnumColumn, isReferenceColumn, isVirtualColumn } from "./utils.js";
+import {
+  isEnumColumn,
+  isManyColumn,
+  isOneColumn,
+  isReferenceColumn,
+} from "./utils.js";
 
-test("virtual column", () => {
-  expect(isVirtualColumn(p.string()[" column"])).toBe(false);
+test("one column", () => {
+  expect(isManyColumn(p.string()[" column"])).toBe(false);
 
-  expect(isVirtualColumn(p.many("a.b"))).toBe(true);
+  expect(isOneColumn(p.one("a"))).toBe(true);
+});
+
+test("many column", () => {
+  expect(isManyColumn(p.string()[" column"])).toBe(false);
+
+  expect(isManyColumn(p.many("a.b"))).toBe(true);
 });
 
 test("enum column", () => {

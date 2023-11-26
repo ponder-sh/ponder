@@ -5,6 +5,7 @@ export default p.createSchema({
     id: p.string(),
     labelHash: p.string(),
     ownerId: p.string().references("Account.id"),
+    owner: p.one("ownerId"),
     transferredAt: p.int(),
     stringArray: p.string().list(),
     intArray: p.int().list(),

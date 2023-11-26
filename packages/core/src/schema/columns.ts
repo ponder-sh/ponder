@@ -3,6 +3,7 @@ import type {
   InternalColumn,
   InternalEnum,
   ManyColumn,
+  OneColumn,
   Scalar,
 } from "./types.js";
 
@@ -166,9 +167,15 @@ const bigint = emptyColumn("bigint");
 
 const many = <T extends `${string}.${string}`>(derived: T): ManyColumn<T> =>
   ({
-    _type: "v",
+    _type: "m",
     referenceTable: derived.split(".")[0],
     referenceColumn: derived.split(".")[1],
   }) as ManyColumn<T>;
 
-export { _enum, bigint, boolean, bytes, float, int, many, string };
+const one = <T extends string>(derivedColumn: T): OneColumn<T> =>
+  ({
+    _type: "o",
+    referenceColumn: derivedColumn,
+  }) as OneColumn<T>;
+
+export { _enum, bigint, boolean, bytes, float, int, many, one, string };

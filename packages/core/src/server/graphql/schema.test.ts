@@ -22,6 +22,7 @@ test("filter type has correct suffixes and types", () => {
       listBigInt: p.bigint().list(),
       relatedTableStringId: p.string().references("RelatedTableStringId.id"),
       relatedTableBigIntId: p.bigint().references("RelatedTableBigIntId.id"),
+      relatedTableString: p.one("relatedTableStringId"),
     }),
   });
 
@@ -104,10 +105,6 @@ test("filter type has correct suffixes and types", () => {
     listBigInt_not: "[BigInt]",
     listBigInt_has: "BigInt",
     listBigInt_not_has: "BigInt",
-    // listEnum: "[SimpleEnum]",
-    // listEnum_not: "[SimpleEnum]",
-    // listEnum_has: "SimpleEnum",
-    // listEnum_not_has: "SimpleEnum",
     relatedTableStringId: "String",
     relatedTableStringId_not: "String",
     relatedTableStringId_in: "[String]",
