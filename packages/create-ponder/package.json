@@ -35,13 +35,13 @@
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^20.9.0",
-    "@types/prompts": "^2.4.8",
+    "@types/node": "^20.10.0",
+    "@types/prompts": "^2.4.9",
     "@types/validate-npm-package-name": "^4.0.2",
     "abitype": "^0.10.2",
     "dotenv": "^16.3.1",
-    "tsup": "^7.2.0",
-    "typescript": "^5.2.2",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.2",
     "vitest": "^0.34.6"
   },
   "engines": {

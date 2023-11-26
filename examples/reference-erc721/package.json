@@ -11,14 +11,14 @@
   },
   "dependencies": {
     "@ponder/core": "workspace:*",
-    "viem": "^1.19.3"
+    "viem": "^1.19.9"
   },
   "devDependencies": {
-    "@types/node": "^20.9.0",
-    "@wagmi/core": "^1.4.6",
-    "eslint": "^8.53.0",
+    "@types/node": "^20.10.0",
+    "@wagmi/core": "^1.4.7",
+    "eslint": "^8.54.0",
     "eslint-config-ponder": "workspace:*",
-    "typescript": "^5.2.2"
+    "typescript": "^5.3.2"
   },
   "trustedDependencies": [
     "better-sqlite3"
