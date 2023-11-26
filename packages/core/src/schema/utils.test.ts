@@ -6,7 +6,7 @@ import { isEnumColumn, isReferenceColumn, isVirtualColumn } from "./utils.js";
 test("virtual column", () => {
   expect(isVirtualColumn(p.string()[" column"])).toBe(false);
 
-  expect(isVirtualColumn(p.virtual("a.b"))).toBe(true);
+  expect(isVirtualColumn(p.many("a.b"))).toBe(true);
 });
 
 test("enum column", () => {

@@ -84,8 +84,8 @@ test("enum", () => {
   assertType<EnumColumn<"ENUM", false>>(c[" enum"]);
 });
 
-test("virtual", () => {
-  const c = p.virtual("OtherTable.OtherColumn");
+test("many", () => {
+  const c = p.many("OtherTable.OtherColumn");
   //    ^?
 
   assertType<VirtualColumn<"OtherTable.OtherColumn">>(c);

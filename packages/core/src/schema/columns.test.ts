@@ -63,8 +63,8 @@ test("enum", () => {
   expect(c[" enum"].optional).toBe(false);
 });
 
-test("virtual", () => {
-  const c = p.virtual("OtherTable.OtherColumn");
+test("many", () => {
+  const c = p.many("OtherTable.OtherColumn");
 
   expect(c.referenceTable).toBe("OtherTable");
   expect(c.referenceColumn).toBe("OtherColumn");

@@ -164,13 +164,11 @@ const boolean = emptyColumn("boolean");
 const bytes = emptyColumn("bytes");
 const bigint = emptyColumn("bigint");
 
-const virtual = <T extends `${string}.${string}`>(
-  derived: T,
-): VirtualColumn<T> =>
+const many = <T extends `${string}.${string}`>(derived: T): VirtualColumn<T> =>
   ({
     _type: "v",
     referenceTable: derived.split(".")[0],
     referenceColumn: derived.split(".")[1],
   }) as VirtualColumn<T>;
 
-export { _enum, bigint, boolean, bytes, float, int, string, virtual };
+export { _enum, bigint, boolean, bytes, float, int, many, string };

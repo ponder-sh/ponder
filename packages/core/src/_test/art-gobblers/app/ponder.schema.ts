@@ -6,7 +6,7 @@ export default p.createSchema({
   }),
   Account: p.createTable({
     id: p.string(),
-    tokens: p.virtual("Token.ownerId"),
+    tokens: p.many("Token.ownerId"),
   }),
 
   Token: p.createTable({

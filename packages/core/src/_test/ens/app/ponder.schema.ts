@@ -12,6 +12,6 @@ export default p.createSchema({
   Account: p.createTable({
     id: p.string(),
     lastActive: p.int(),
-    tokens: p.virtual("EnsNft.ownerId"),
+    tokens: p.many("EnsNft.ownerId"),
   }),
 });

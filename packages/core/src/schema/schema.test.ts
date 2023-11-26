@@ -60,7 +60,7 @@ test("schema virtual", () => {
   const s = p.createSchema({
     a: p.createTable({
       id: p.int(),
-      b: p.virtual("t.ageId"),
+      b: p.many("t.ageId"),
     }),
     t: p.createTable({
       id: p.string(),

@@ -28,7 +28,7 @@ const s = p.createSchema({
     booleanList: p.boolean().list(),
     bytesList: p.bytes().list(),
     enum: p.enum("TestEnum"),
-    derived: p.virtual("EntityWithBigIntId.testEntityId"),
+    derived: p.many("EntityWithBigIntId.testEntityId"),
   }),
   EntityWithIntId: p.createTable({ id: p.int() }),
 
