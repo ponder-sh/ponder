@@ -42,7 +42,7 @@ export class ServerService {
   private registerRoutes() {
     // Middleware.
     this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
-    this.app.use(this.middlewareRequestTiming());
+    this.app.use(this.middlewareMetrics());
 
     // Observability routes.
     this.app.all("/metrics", this.handleMetrics());
@@ -118,7 +118,7 @@ export class ServerService {
   }
 
   // Middleware handlers.
-  private middlewareRequestTiming(): Handler {
+  private middlewareMetrics(): Handler {
     return (req, res, next) => {
       const endClock = startClock();
       res.on("finish", () => {
