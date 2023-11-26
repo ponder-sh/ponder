@@ -2,7 +2,7 @@ import type { Server } from "node:http";
 import { createServer } from "node:http";
 
 import cors from "cors";
-import express from "express";
+import express, { type Handler } from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { formatError, GraphQLError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
@@ -14,13 +14,14 @@ import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
 
 export class ServerService {
+  app: express.Express;
+
   private common: Common;
   private indexingStore: IndexingStore;
 
   private port: number;
-  app?: express.Express;
-
   private terminate?: () => Promise<void>;
+  private graphqlMiddleware?: Handler;
 
   isHistoricalIndexingComplete = false;
 
@@ -34,12 +35,91 @@ export class ServerService {
     this.common = common;
     this.indexingStore = indexingStore;
     this.port = this.common.options.port;
+    this.app = express();
+    this.registerRoutes();
+  }
+
+  private registerRoutes() {
+    // Middleware.
+    this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
+    this.app.use(this.middlewareMetrics());
+
+    // Observability routes.
+    this.app.all("/metrics", this.handleMetrics());
+    this.app.get("/health", this.handleHealthGet());
+
+    // GraphQL routes.
+    this.app?.all(
+      "/graphql",
+      this.handleGraphql({ shouldWaitForHistoricalSync: true }),
+    );
+    this.app?.all(
+      "/",
+      this.handleGraphql({ shouldWaitForHistoricalSync: false }),
+    );
   }
 
   async start() {
-    this.app = express();
-    this.app.use(cors({ methods: ["GET", "POST", "OPTIONS", "HEAD"] }));
-    this.app.use((req, res, next) => {
+    const server = await new Promise<Server>((resolve, reject) => {
+      const server = createServer(this.app)
+        .on("error", (error) => {
+          if ((error as any).code === "EADDRINUSE") {
+            this.common.logger.warn({
+              service: "server",
+              msg: `Port ${this.port} was in use, trying port ${this.port + 1}`,
+            });
+            this.port += 1;
+            setTimeout(() => {
+              server.close();
+              server.listen(this.port);
+            }, 5);
+          } else {
+            reject(error);
+          }
+        })
+        .on("listening", () => {
+          this.common.metrics.ponder_server_port.set(this.port);
+          resolve(server);
+        })
+        .listen(this.port);
+    });
+
+    const terminator = createHttpTerminator({ server });
+    this.terminate = () => terminator.terminate();
+
+    this.common.logger.info({
+      service: "server",
+      msg: `Started listening on port ${this.port}`,
+    });
+  }
+
+  async kill() {
+    await this.terminate?.();
+    this.common.logger.debug({
+      service: "server",
+      msg: `Killed server, stopped listening on port ${this.port}`,
+    });
+  }
+
+  reloadGraphqlSchema({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
+    this.graphqlMiddleware = createHandler({
+      schema: graphqlSchema,
+      context: { store: this.indexingStore },
+    });
+  }
+
+  setIsHistoricalIndexingComplete() {
+    this.isHistoricalIndexingComplete = true;
+
+    this.common.logger.info({
+      service: "server",
+      msg: `Started responding as healthy`,
+    });
+  }
+
+  // Middleware handlers.
+  private middlewareMetrics(): Handler {
+    return (req, res, next) => {
       const endClock = startClock();
       res.on("finish", () => {
         const responseDuration = endClock();
@@ -72,63 +152,27 @@ export class ServerService {
         );
       });
       next();
-    });
+    };
+  }
 
-    const server = await new Promise<Server>((resolve, reject) => {
-      const server = createServer(this.app)
-        .on("error", (error) => {
-          if ((error as any).code === "EADDRINUSE") {
-            this.common.logger.warn({
-              service: "server",
-              msg: `Port ${this.port} was in use, trying port ${this.port + 1}`,
-            });
-            this.port += 1;
-            setTimeout(() => {
-              server.close();
-              server.listen(this.port);
-            }, 5);
-          } else {
-            reject(error);
-          }
-        })
-        .on("listening", () => {
-          this.common.metrics.ponder_server_port.set(this.port);
-          resolve(server);
-        })
-        .listen(this.port);
-    });
+  // Route handlers.
+  private handleMetrics(): Handler {
+    return async (req, res) => {
+      if (req.method !== "GET" && req.method !== "POST") {
+        res.status(404).end();
+      }
 
-    const terminator = createHttpTerminator({ server });
-    this.terminate = () => terminator.terminate();
-
-    this.common.logger.info({
-      service: "server",
-      msg: `Started listening on port ${this.port}`,
-    });
-
-    this.app.post("/metrics", async (_, res) => {
       try {
         res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
         res.end(await this.common.metrics.getMetrics());
       } catch (error) {
         res.status(500).end(error);
       }
-    });
+    };
+  }
 
-    this.app.get("/metrics", async (_, res) => {
-      try {
-        res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-        res.end(await this.common.metrics.getMetrics());
-      } catch (error) {
-        res.status(500).end(error);
-      }
-    });
-
-    // By default, the server will respond as unhealthy until historical index has
-    // been processed OR 4.5 minutes have passed since the app was created. This
-    // enables zero-downtime deployments on PaaS platforms like Railway and Render.
-    // Also see https://github.com/0xOlias/ponder/issues/24
-    this.app.get("/health", (_, res) => {
+  private handleHealthGet(): Handler {
+    return (_, res) => {
       if (this.isHistoricalIndexingComplete) {
         return res.status(200).send();
       }
@@ -145,23 +189,22 @@ export class ServerService {
       }
 
       return res.status(503).send();
-    });
+    };
   }
 
-  reload({ graphqlSchema }: { graphqlSchema: GraphQLSchema }) {
-    const graphqlMiddleware = createHandler({
-      schema: graphqlSchema,
-      context: { store: this.indexingStore },
-    });
+  private handleGraphql({
+    shouldWaitForHistoricalSync,
+  }: {
+    shouldWaitForHistoricalSync: boolean;
+  }): Handler {
+    return (request, response, next) => {
+      if (!this.graphqlMiddleware) {
+        return next();
+      }
 
-    /**
-     * GET /graphql -> returns graphiql page html
-     * POST /graphql -> returns query result
-     */
-    this.app?.use("/graphql", (request, response, next) => {
       // While waiting for historical indexing to complete, we want to respond back
       // with an error to prevent the requester from accepting incomplete data.
-      if (!this.isHistoricalIndexingComplete) {
+      if (shouldWaitForHistoricalSync && !this.isHistoricalIndexingComplete) {
         // Respond back with a similar runtime query error as the GraphQL package.
         // https://github.com/graphql/express-graphql/blob/3fab4b1e016cd27655f3b013f65a6b1344520d01/src/index.ts#L397-L400
         const errors = [
@@ -176,36 +219,7 @@ export class ServerService {
 
       switch (request.method) {
         case "POST":
-          return graphqlMiddleware(request, response, next);
-        case "GET": {
-          const host = request.get("host");
-          if (!host) {
-            return response.status(400).send("No host header provided");
-          }
-          const protocol = ["localhost", "0.0.0.0", "127.0.0.1"].includes(host)
-            ? "http"
-            : "https";
-          const endpoint = `${protocol}://${host}`;
-          return response
-            .status(200)
-            .setHeader("Content-Type", "text/html")
-            .send(graphiQLHtml({ endpoint }));
-        }
-        case "HEAD":
-          return response.status(200).send();
-        default:
-          return next();
-      }
-    });
-
-    /**
-     * GET / -> returns graphiql page html
-     * POST / -> expects returns query result
-     */
-    this.app?.use("/", (request, response, next) => {
-      switch (request.method) {
-        case "POST":
-          return graphqlMiddleware(request, response, next);
+          return this.graphqlMiddleware(request, response, next);
         case "GET": {
           const host = request.get("host");
           if (!host) {
@@ -229,23 +243,6 @@ export class ServerService {
         default:
           return next();
       }
-    });
-  }
-
-  async kill() {
-    await this.terminate?.();
-    this.common.logger.debug({
-      service: "server",
-      msg: `Killed server, stopped listening on port ${this.port}`,
-    });
-  }
-
-  setIsHistoricalIndexingComplete() {
-    this.isHistoricalIndexingComplete = true;
-
-    this.common.logger.info({
-      service: "server",
-      msg: `Started responding as healthy`,
-    });
+    };
   }
 }

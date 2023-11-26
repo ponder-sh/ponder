@@ -298,7 +298,7 @@ export class Ponder {
     // to the findUnique and findMany functions without having to change the API.
     this.indexingStore.schema = schema;
 
-    this.serverService.reload({ graphqlSchema });
+    this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
     this.common.telemetry.record({
       event: "App Started",
@@ -358,7 +358,7 @@ export class Ponder {
 
       this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
 
-      this.serverService.reload({ graphqlSchema });
+      this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
       await this.indexingService.reset({ schema });
       await this.indexingService.processEvents();
