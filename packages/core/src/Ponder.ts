@@ -179,6 +179,7 @@ export class Ponder {
       common: this.common,
       indexingStore: this.indexingStore,
     });
+
     this.codegenService = new CodegenService({ common: this.common });
     this.uiService = new UiService({
       common: this.common,
@@ -208,6 +209,7 @@ export class Ponder {
         databaseKind: this.syncStore.kind,
       },
     });
+    this.serverService.registerDevRoutes();
 
     await Promise.all(
       this.syncServices.map(async ({ historical, realtime }) => {
@@ -432,6 +434,62 @@ export class Ponder {
       ) {
         this.serverService.setIsHistoricalIndexingComplete();
       }
+    });
+
+    // Server listeners.
+    this.serverService.on("admin:reload", async ({ chainId }) => {
+      const syncServiceForChainId = this.syncServices.find(
+        ({ network }) => network.chainId === chainId,
+      );
+      if (!syncServiceForChainId) {
+        this.common.logger.warn({
+          service: "server",
+          msg: `No network defined for chainId: ${chainId}`,
+        });
+        return;
+      }
+
+      // Clear all the metrics for the sources.
+      syncServiceForChainId.sources.forEach(({ networkName, contractName }) => {
+        this.common.metrics.ponder_historical_total_blocks.set(
+          { network: networkName, contract: contractName },
+          0,
+        );
+        this.common.metrics.ponder_historical_completed_blocks.set(
+          { network: networkName, contract: contractName },
+          0,
+        );
+        this.common.metrics.ponder_historical_cached_blocks.set(
+          { network: networkName, contract: contractName },
+          0,
+        );
+      });
+
+      await this.syncStore.deleteRealtimeData({
+        chainId,
+        fromBlock: BigInt(0),
+      });
+
+      this.syncGatewayService.resetCheckpoints({ chainId });
+
+      // Reload the sync services for the specific chain by killing, setting up, and then starting again.
+      await syncServiceForChainId.realtime.kill();
+      await syncServiceForChainId.historical.kill();
+
+      const blockNumbers = await syncServiceForChainId.realtime.setup();
+      await syncServiceForChainId.historical.setup(blockNumbers);
+
+      await syncServiceForChainId.realtime.start();
+      syncServiceForChainId.historical.start();
+
+      // NOTE: We have to reset the historical state after restarting the sync services
+      // otherwise the state will be out of sync.
+      this.uiService.resetHistoricalState();
+
+      // Reload the indexing service with existing schema. We use the exisiting schema as there is
+      // alternative resetting behavior for a schema change.
+      await this.indexingService.reset();
+      await this.indexingService.processEvents();
     });
   }
 }

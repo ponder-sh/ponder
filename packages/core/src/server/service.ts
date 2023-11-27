@@ -2,6 +2,7 @@ import type { Server } from "node:http";
 import { createServer } from "node:http";
 
 import cors from "cors";
+import Emittery from "emittery";
 import express, { type Handler } from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { formatError, GraphQLError } from "graphql";
@@ -13,7 +14,11 @@ import type { Common } from "@/Ponder.js";
 import { graphiQLHtml } from "@/ui/graphiql.html.js";
 import { startClock } from "@/utils/timer.js";
 
-export class ServerService {
+type ServerEvents = {
+  "admin:reload": { chainId: number };
+};
+
+export class ServerService extends Emittery<ServerEvents> {
   app: express.Express;
 
   private common: Common;
@@ -32,6 +37,8 @@ export class ServerService {
     common: Common;
     indexingStore: IndexingStore;
   }) {
+    super();
+
     this.common = common;
     this.indexingStore = indexingStore;
     this.port = this.common.options.port;
@@ -57,6 +64,10 @@ export class ServerService {
       "/",
       this.handleGraphql({ shouldWaitForHistoricalSync: false }),
     );
+  }
+
+  public registerDevRoutes() {
+    this.app.post("/admin/reload", this.handleAdminReload());
   }
 
   async start() {
@@ -197,7 +208,7 @@ export class ServerService {
   }: {
     shouldWaitForHistoricalSync: boolean;
   }): Handler {
-    return (request, response, next) => {
+    return (req, res, next) => {
       if (!this.graphqlMiddleware) {
         return next();
       }
@@ -214,16 +225,16 @@ export class ServerService {
           data: undefined,
           errors,
         };
-        return response.status(503).json(result);
+        return res.status(503).json(result);
       }
 
-      switch (request.method) {
+      switch (req.method) {
         case "POST":
-          return this.graphqlMiddleware(request, response, next);
+          return this.graphqlMiddleware(req, res, next);
         case "GET": {
-          const host = request.get("host");
+          const host = req.get("host");
           if (!host) {
-            return response.status(400).send("No host header provided");
+            return res.status(400).send("No host header provided");
           }
           const protocol = [
             `localhost:${this.port}`,
@@ -233,15 +244,31 @@ export class ServerService {
             ? "http"
             : "https";
           const endpoint = `${protocol}://${host}`;
-          return response
+          return res
             .status(200)
             .setHeader("Content-Type", "text/html")
             .send(graphiQLHtml({ endpoint }));
         }
         case "HEAD":
-          return response.status(200).send();
+          return res.status(200).send();
         default:
           return next();
+      }
+    };
+  }
+
+  private handleAdminReload(): Handler {
+    return async (req, res) => {
+      try {
+        const chainId = parseInt(req.query.chainId as string, 10);
+        if (isNaN(chainId)) {
+          res.status(400).end("chainId must exist and be a valid integer");
+          return;
+        }
+        this.emit("admin:reload", { chainId });
+        res.status(200).end();
+      } catch (error) {
+        res.status(500).end(error);
       }
     };
   }
