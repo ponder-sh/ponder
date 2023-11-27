@@ -1,6 +1,6 @@
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Account: p.createTable({
     id: p.string(),
     tokens: p.many("Token.ownerId"),
@@ -26,4 +26,4 @@ export default p.createSchema({
     to: p.one("toId"),
     token: p.one("tokenId"),
   }),
-});
+}));

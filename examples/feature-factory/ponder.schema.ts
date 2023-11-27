@@ -1,7 +1,7 @@
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   LlamaCoreInstance: p.createTable({
     id: p.string(),
   }),
-});
+}));

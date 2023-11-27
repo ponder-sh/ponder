@@ -1,6 +1,6 @@
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   File: p.createTable({
     id: p.string(),
     name: p.string(),
@@ -11,4 +11,4 @@ export default p.createSchema({
     encoding: p.string().optional(),
     compression: p.string().optional(),
   }),
-});
+}));

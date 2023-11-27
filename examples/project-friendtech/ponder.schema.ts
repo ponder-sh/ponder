@@ -1,6 +1,6 @@
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   TradeType: p.createEnum(["BUY", "SELL"]),
   Share: p.createTable({
     id: p.bytes(),
@@ -59,4 +59,4 @@ export default p.createSchema({
     id: p.int(),
     earnings: p.bigint(),
   }),
-});
+}));

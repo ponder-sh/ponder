@@ -1,6 +1,6 @@
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Account: p.createTable({
     id: p.string(),
     balance: p.bigint(),
@@ -44,4 +44,4 @@ export default p.createSchema({
     owner: p.one("ownerId"),
     spender: p.one("spenderId"),
   }),
-});
+}));
