@@ -122,7 +122,6 @@ export class PostgresIndexingStore implements IndexingStore {
             let tableBuilder = tx.schema.createTable(table);
 
             Object.entries(columns).forEach(([columnName, column]) => {
-              // Handle scalar list columns
               if (isOneColumn(column)) return;
               else if (isManyColumn(column)) return;
               else if (isEnumColumn(column)) {

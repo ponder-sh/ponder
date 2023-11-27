@@ -225,6 +225,15 @@ export const createSchema = <
               .every((c) => c !== column.referenceColumn) === undefined
           )
             throw Error("One column doesn't reference a valid column");
+
+          if (
+            !isReferenceColumn(
+              Object.entries(tableOrEnum).find(
+                ([c]) => c === column.referenceColumn,
+              )![1],
+            )
+          )
+            throw Error("One column doesn't reference a reference column");
         } else if (isManyColumn(column)) {
           if (
             Object.keys(schema)
