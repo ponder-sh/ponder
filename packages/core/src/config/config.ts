@@ -107,7 +107,7 @@ export type ContractFilter<
         /** Name of the factory event parameter that contains the new child contract address. */
         parameter: TFactoryEvent extends AbiEvent
           ? TFactoryEvent["inputs"][number]["name"]
-          : never; // TODO: Narrow type to known parameter names from `event`.
+          : string;
       };
     }
 ) & {

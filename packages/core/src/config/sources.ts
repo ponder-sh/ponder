@@ -132,7 +132,8 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
       return Object.entries(contract.network)
         .filter(
           // Filter out the case where { network: { mainnet: undefined } }
-          (n): n is [string, Partial<ContractFilter<Abi, string>>] => !!n[1],
+          (n): n is [string, Partial<ContractFilter<Abi, string, undefined>>] =>
+            !!n[1],
         )
         .map(([networkName, networkContract]) => {
           const network = config.networks[networkName]!;
