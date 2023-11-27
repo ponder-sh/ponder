@@ -1,12 +1,12 @@
 import { type GraphQLType } from "graphql";
 import { expect, test } from "vitest";
 
-import * as p from "@/schema/index.js";
+import { createSchema } from "@/schema/schema.js";
 
 import { buildGqlSchema } from "./schema.js";
 
 test("filter type has correct suffixes and types", () => {
-  const s = p.createSchema({
+  const s = createSchema((p) => ({
     SimpleEnum: p.createEnum(["VALUE", "ANOTHER_VALUE"]),
     RelatedTableStringId: p.createTable({ id: p.string() }),
     RelatedTableBigIntId: p.createTable({ id: p.bigint() }),
@@ -25,7 +25,7 @@ test("filter type has correct suffixes and types", () => {
       relatedTableBigIntId: p.bigint().references("RelatedTableBigIntId.id"),
       relatedTableString: p.one("relatedTableStringId"),
     }),
-  });
+  }));
 
   const serverSchema = buildGqlSchema(s);
 

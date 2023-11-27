@@ -310,7 +310,7 @@ type Enum<
  *   })
  * })
  */
-const _enum = <TType extends string>(
+export const _enum = <TType extends string>(
   type: TType,
 ): Enum<TType, false, false> => ({
   [" enum"]: {
@@ -368,7 +368,7 @@ const _enum = <TType extends string>(
  *   })
  * })
  */
-const string = emptyColumn("string");
+export const string = emptyColumn("string");
 
 /**
  * Primitive `int` column type.
@@ -384,7 +384,7 @@ const string = emptyColumn("string");
  *   })
  * })
  */
-const int = emptyColumn("int");
+export const int = emptyColumn("int");
 
 /**
  * Primitive `float` column type.
@@ -401,7 +401,7 @@ const int = emptyColumn("int");
  *   })
  * })
  */
-const float = emptyColumn("float");
+export const float = emptyColumn("float");
 
 /**
  * Primitive `boolean` column type.
@@ -418,7 +418,7 @@ const float = emptyColumn("float");
  *   })
  * })
  */
-const boolean = emptyColumn("boolean");
+export const boolean = emptyColumn("boolean");
 
 /**
  * Primitive `bytes` column type.
@@ -434,7 +434,7 @@ const boolean = emptyColumn("boolean");
  *   })
  * })
  */
-const bytes = emptyColumn("bytes");
+export const bytes = emptyColumn("bytes");
 
 /**
  * Primitive `bigint` column type.
@@ -450,7 +450,7 @@ const bytes = emptyColumn("bytes");
  *   })
  * })
  */
-const bigint = emptyColumn("bigint");
+export const bigint = emptyColumn("bigint");
 
 /**
  * Many-to-one column type. `many` columns don't exist in the database. They are only present when querying data from the GraphQL API.
@@ -473,7 +473,9 @@ const bigint = emptyColumn("bigint");
  *   })
  * })
  */
-const many = <T extends `${string}.${string}`>(derived: T): ManyColumn<T> =>
+export const many = <T extends `${string}.${string}`>(
+  derived: T,
+): ManyColumn<T> =>
   ({
     _type: "m",
     referenceTable: derived.split(".")[0],
@@ -501,10 +503,19 @@ const many = <T extends `${string}.${string}`>(derived: T): ManyColumn<T> =>
  *   })
  * })
  */
-const one = <T extends string>(derivedColumn: T): OneColumn<T> =>
+export const one = <T extends string>(derivedColumn: T): OneColumn<T> =>
   ({
     _type: "o",
     referenceColumn: derivedColumn,
   }) as OneColumn<T>;
 
-export { _enum, bigint, boolean, bytes, float, int, many, one, string };
+export type pColumns = {
+  one: <T extends string>(derivedColumn: T) => OneColumn<T>;
+  many: <T extends `${string}.${string}`>(derived: T) => ManyColumn<T>;
+  string: typeof string;
+  int: typeof int;
+  float: typeof float;
+  bytes: typeof bytes;
+  boolean: typeof boolean;
+  bigint: typeof bigint;
+};

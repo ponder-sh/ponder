@@ -4,7 +4,7 @@ import { beforeEach, expect, test } from "vitest";
 import { setupIndexingStore } from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
-import * as p from "@/schema/index.js";
+import { createSchema } from "@/schema/schema.js";
 import { range } from "@/utils/range.js";
 
 import { buildGqlSchema } from "./graphql/schema.js";
@@ -12,7 +12,7 @@ import { ServerService } from "./service.js";
 
 beforeEach((context) => setupIndexingStore(context));
 
-const s = p.createSchema({
+const s = createSchema((p) => ({
   TestEnum: p.createEnum(["ZERO", "ONE", "TWO"]),
   TestEntity: p.createTable({
     id: p.string(),
@@ -37,7 +37,7 @@ const s = p.createSchema({
     testEntityId: p.string().references("TestEntity.id"),
     testEntity: p.one("testEntityId"),
   }),
-});
+}));
 
 const graphqlSchema = buildGqlSchema(s);
 

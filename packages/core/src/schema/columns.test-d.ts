@@ -1,7 +1,17 @@
 import type { Hex } from "viem";
 import { assertType, test } from "vitest";
 
-import * as p from "./index.js";
+import {
+  _enum,
+  bigint,
+  boolean,
+  bytes,
+  float,
+  int,
+  many,
+  one,
+  string,
+} from "./columns.js";
 import type {
   EnumColumn,
   ManyColumn,
@@ -11,7 +21,7 @@ import type {
 import { type BaseColumn, type RecoverColumnType } from "./types.js";
 
 test("string", () => {
-  const c = p.string();
+  const c = string();
   //    ^?
 
   assertType<BaseColumn<"string", undefined, false, false>>(c[" column"]);
@@ -23,7 +33,7 @@ test("string", () => {
 });
 
 test("int", () => {
-  const c = p.int();
+  const c = int();
   //    ^?
 
   assertType<BaseColumn<"int", undefined, false, false>>(c[" column"]);
@@ -35,7 +45,7 @@ test("int", () => {
 });
 
 test("float", () => {
-  const c = p.float();
+  const c = float();
   //    ^?
 
   assertType<BaseColumn<"float", undefined, false, false>>(c[" column"]);
@@ -47,7 +57,7 @@ test("float", () => {
 });
 
 test("boolean", () => {
-  const c = p.boolean();
+  const c = boolean();
   //    ^?
 
   assertType<BaseColumn<"boolean", undefined, false, false>>(c[" column"]);
@@ -59,7 +69,7 @@ test("boolean", () => {
 });
 
 test("bytes", () => {
-  const c = p.bytes();
+  const c = bytes();
   //    ^?
 
   assertType<BaseColumn<"bytes", undefined, false, false>>(c[" column"]);
@@ -71,7 +81,7 @@ test("bytes", () => {
 });
 
 test("bigint", () => {
-  const c = p.bigint();
+  const c = bigint();
   //    ^?
 
   assertType<BaseColumn<"bigint", undefined, false, false>>(c[" column"]);
@@ -83,28 +93,28 @@ test("bigint", () => {
 });
 
 test("enum", () => {
-  const c = p.enum("ENUM");
+  const c = _enum("ENUM");
   //    ^?
 
   assertType<EnumColumn<"ENUM", false>>(c[" enum"]);
 });
 
 test("one", () => {
-  const c = p.one("OtherColumn");
+  const c = one("OtherColumn");
   //    ^?
 
   assertType<OneColumn<"OtherColumn">>(c);
 });
 
 test("many", () => {
-  const c = p.many("OtherTable.OtherColumn");
+  const c = many("OtherTable.OtherColumn");
   //    ^?
 
   assertType<ManyColumn<"OtherTable.OtherColumn">>(c);
 });
 
 test("optional", () => {
-  const c = p.string().optional();
+  const c = string().optional();
   //    ^?
 
   assertType<BaseColumn<"string", undefined, true, false>>(c[" column"]);
@@ -116,7 +126,7 @@ test("optional", () => {
 });
 
 test("list", () => {
-  const c = p.string().list();
+  const c = string().list();
   //    ^?
 
   assertType<BaseColumn<"string", undefined, false, true>>(c[" column"]);
@@ -128,7 +138,7 @@ test("list", () => {
 });
 
 test("references", () => {
-  const c = p.string().references("OtherTable.id");
+  const c = string().references("OtherTable.id");
 
   assertType<BaseColumn<"string", "OtherTable.id", false, false>>(c[" column"]);
 
@@ -139,7 +149,7 @@ test("references", () => {
 });
 
 test("chaining modifiers 1", () => {
-  const c = p.string().list().optional();
+  const c = string().list().optional();
   //    ^?
 
   assertType<BaseColumn<"string", undefined, true, true>>(c[" column"]);
@@ -151,7 +161,7 @@ test("chaining modifiers 1", () => {
 });
 
 test("chaining modifiers 2", () => {
-  const c = p.string().optional().list();
+  const c = string().optional().list();
   //    ^?
 
   assertType<BaseColumn<"string", undefined, true, true>>(c[" column"]);
@@ -163,7 +173,7 @@ test("chaining modifiers 2", () => {
 });
 
 test("chaining modifiers 3", () => {
-  const c = p.string().optional().references("OtherTable.id");
+  const c = string().optional().references("OtherTable.id");
   //    ^?
 
   assertType<BaseColumn<"string", "OtherTable.id", true, false>>(c[" column"]);
@@ -175,7 +185,7 @@ test("chaining modifiers 3", () => {
 });
 
 test("chaining modifiers 4", () => {
-  const c = p.string().references("OtherTable.id").optional();
+  const c = string().references("OtherTable.id").optional();
   //    ^?
 
   assertType<BaseColumn<"string", "OtherTable.id", true, false>>(c[" column"]);
@@ -187,7 +197,7 @@ test("chaining modifiers 4", () => {
 });
 
 test("chaining modifiers 5", () => {
-  const e = p.enum("ENUM").list().optional();
+  const e = _enum("ENUM").list().optional();
   //    ^?
 
   assertType<EnumColumn<"ENUM", true, true>>(e[" enum"]);

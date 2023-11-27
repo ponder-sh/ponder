@@ -5,7 +5,7 @@ import { usdcContractConfig } from "@/_test/constants.js";
 import { setupIndexingStore, setupSyncStore } from "@/_test/setup.js";
 import type { IndexingFunctions } from "@/build/functions.js";
 import type { Source } from "@/config/sources.js";
-import * as p from "@/schema/index.js";
+import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
 
 import { IndexingService } from "./service.js";
@@ -32,12 +32,12 @@ const sources: Source[] = [
   },
 ];
 
-const schema = p.createSchema({
+const schema = createSchema((p) => ({
   TransferEvent: p.createTable({
     id: p.string(),
     timestamp: p.int(),
   }),
-});
+}));
 
 const transferIndexingFunction = vi.fn(async ({ event, context }) => {
   await context.db.TransferEvent.create({

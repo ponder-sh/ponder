@@ -274,7 +274,7 @@ export type RecoverRequiredColumns<
   }[keyof TColumns]
 >;
 
-export type RecoverRequiredEnumColumns<
+export type RecoverOptionalEnumColumns<
   TColumns extends Record<
     string,
     NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn | OneColumn
@@ -290,7 +290,7 @@ export type RecoverRequiredEnumColumns<
   }[keyof TColumns]
 >;
 
-export type RecoverOptionalEnumColumns<
+export type RecoverRequiredEnumColumns<
   TColumns extends Record<
     string,
     NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn | OneColumn

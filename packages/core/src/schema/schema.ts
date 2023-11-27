@@ -1,3 +1,14 @@
+import {
+  _enum,
+  bigint,
+  boolean,
+  bytes,
+  float,
+  int,
+  many,
+  one,
+  string,
+} from "./columns.js";
 import type {
   Enum,
   EnumColumn,
@@ -120,6 +131,20 @@ export const createTable = <
  */
 export const createEnum = <const TEnum extends Enum>(_enum: TEnum) => _enum;
 
+const P = {
+  createEnum,
+  createTable,
+  string,
+  bigint,
+  int,
+  float,
+  bytes,
+  boolean,
+  one,
+  many,
+  enum: _enum,
+};
+
 /**
  * Create a database schema.
  *
@@ -149,7 +174,7 @@ export const createSchema = <
       | Enum<readonly string[]>;
   },
 >(
-  _schema: TSchema,
+  _schema: (p: typeof P) => TSchema,
 ): {
   tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
   enums: {
@@ -157,7 +182,7 @@ export const createSchema = <
   };
 } => {
   // Convert to an easier type to work with
-  const schema = _schema as Record<
+  const schema = _schema(P) as Record<
     string,
     | Schema["tables"][keyof Schema["tables"]]
     | Schema["enums"][keyof Schema["enums"]]

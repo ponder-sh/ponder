@@ -1,6 +1,6 @@
-import * as p from "../../../schema/index.js";
+import { createSchema } from "../../../schema/schema.js";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   SetupEntity: p.createTable({
     id: p.string(),
   }),
@@ -17,4 +17,4 @@ export default p.createSchema({
     claimedBy: p.one("claimedById"),
     owner: p.one("ownerId"),
   }),
-});
+}));
