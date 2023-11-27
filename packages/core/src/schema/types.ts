@@ -53,17 +53,20 @@ export type IDColumn<TType extends ID = ID> = {
 export type InternalEnum<
   TType extends string | unknown = unknown,
   TOptional extends boolean | unknown = unknown,
+  TList extends boolean | unknown = unknown,
 > = {
-  [" enum"]: EnumColumn<TType, TOptional>;
+  [" enum"]: EnumColumn<TType, TOptional, TList>;
 };
 
 export type EnumColumn<
   TType extends string | unknown = unknown,
   TOptional extends boolean | unknown = unknown,
+  TList extends boolean | unknown = unknown,
 > = {
   _type: "e";
   type: TType;
   optional: TOptional;
+  list: TList;
 };
 
 export type ManyColumn<T extends `${string}.${string}` | unknown = unknown> =
@@ -113,7 +116,7 @@ export type Schema = {
         string,
         | NonReferenceColumn<Scalar, boolean, boolean>
         | ReferenceColumn<Scalar, `${string}.id`, boolean>
-        | EnumColumn<string, boolean>
+        | EnumColumn<string, boolean, boolean>
         | ManyColumn<`${string}.${string}`>
         | OneColumn<string>
       >
@@ -271,7 +274,7 @@ export type RecoverRequiredColumns<
   }[keyof TColumns]
 >;
 
-export type RecoverEnumColumns<
+export type RecoverRequiredEnumColumns<
   TColumns extends Record<
     string,
     NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn | OneColumn
@@ -279,7 +282,27 @@ export type RecoverEnumColumns<
 > = Pick<
   TColumns,
   {
-    [key in keyof TColumns]: TColumns[key] extends EnumColumn ? key : never;
+    [key in keyof TColumns]: TColumns[key] extends EnumColumn
+      ? TColumns[key]["optional"] extends true
+        ? key
+        : never
+      : never;
+  }[keyof TColumns]
+>;
+
+export type RecoverOptionalEnumColumns<
+  TColumns extends Record<
+    string,
+    NonReferenceColumn | ReferenceColumn | EnumColumn | ManyColumn | OneColumn
+  >,
+> = Pick<
+  TColumns,
+  {
+    [key in keyof TColumns]: TColumns[key] extends EnumColumn
+      ? TColumns[key]["optional"] extends false
+        ? key
+        : never
+      : never;
   }[keyof TColumns]
 >;
 
@@ -294,7 +317,9 @@ export type RecoverEnumType<
 > = TColumn extends EnumColumn
   ? TEnums[TColumn["type"] & keyof TEnums] extends infer _enum extends
       readonly string[]
-    ? _enum[number]
+    ? TColumn["list"] extends false
+      ? _enum[number]
+      : _enum[number][]
     : never
   : never;
 
@@ -315,7 +340,12 @@ export type RecoverTableType<
           _columns[key]
         >;
       } & {
-        [key in keyof RecoverEnumColumns<_columns>]: RecoverEnumType<
+        [key in keyof RecoverRequiredEnumColumns<_columns>]: RecoverEnumType<
+          TEnums,
+          _columns[key]
+        >;
+      } & {
+        [key in keyof RecoverOptionalEnumColumns<_columns>]?: RecoverEnumType<
           TEnums,
           _columns[key]
         >;

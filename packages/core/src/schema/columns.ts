@@ -249,27 +249,50 @@ const emptyColumn =
 type Enum<
   TType extends string,
   TOptional extends boolean,
-> = TOptional extends true
-  ? InternalEnum<TType, TOptional>
-  : InternalEnum<TType, TOptional> & {
-      /**
-       * Mark the column as optional.
-       *
-       * - Docs: [TODO:KYLE]
-       *
-       * @example
-       * import { p } from '@ponder/core'
-       *
-       * export default p.createSchema({
-       *   e: p.createEnum(["ONE", "TWO"])
-       *   t: p.createTable({
-       *     id: p.string(),
-       *     a: p.enum("e").optional(),
-       *   })
-       * })
-       */
-      optional: () => Enum<TType, true>;
-    };
+  TList extends boolean,
+> = InternalEnum<TType, TOptional, TList> &
+  (TOptional extends true
+    ? {}
+    : {
+        /**
+         * Mark the column as optional.
+         *
+         * - Docs: [TODO:KYLE]
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   e: p.createEnum(["ONE", "TWO"])
+         *   t: p.createTable({
+         *     id: p.string(),
+         *     a: p.enum("e").optional(),
+         *   })
+         * })
+         */
+        optional: () => Enum<TType, true, TList>;
+      }) &
+  (TList extends true
+    ? {}
+    : {
+        /**
+         * Mark the column as a list.
+         *
+         * - Docs: [TODO:KYLE]
+         *
+         * @example
+         * import { p } from '@ponder/core'
+         *
+         * export default p.createSchema({
+         *   e: p.createEnum(["ONE", "TWO"])
+         *   t: p.createTable({
+         *     id: p.string(),
+         *     a: p.enum("e").list(),
+         *   })
+         * })
+         */
+        list: () => Enum<TType, TOptional, true>;
+      });
 
 /**
  * Custom defined allowable value column type.
@@ -287,18 +310,47 @@ type Enum<
  *   })
  * })
  */
-const _enum = <TType extends string>(type: TType): Enum<TType, false> => ({
+const _enum = <TType extends string>(
+  type: TType,
+): Enum<TType, false, false> => ({
   [" enum"]: {
     _type: "e",
     type,
     optional: false,
+    list: false,
   },
   optional: () => ({
     [" enum"]: {
       _type: "e",
       type,
       optional: true,
+      list: false,
     },
+    list: () => ({
+      [" enum"]: {
+        _type: "e",
+        type,
+        optional: true,
+        list: true,
+      },
+    }),
+  }),
+
+  list: () => ({
+    [" enum"]: {
+      _type: "e",
+      type,
+      list: true,
+      optional: false,
+    },
+    optional: () => ({
+      [" enum"]: {
+        _type: "e",
+        type,
+        optional: true,
+        list: true,
+      },
+    }),
   }),
 });
 

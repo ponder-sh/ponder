@@ -138,3 +138,11 @@ test("chaining modifiers 4", () => {
   expect(c[" column"].optional).toBe(true);
   expect(c[" column"].list).toBe(false);
 });
+
+test("chaining modifiers 5", () => {
+  const e = p.enum("ENUM").optional().list();
+
+  expect(e[" enum"].type).toBe("ENUM");
+  expect(e[" enum"].optional).toBe(true);
+  expect(e[" enum"].list).toBe(true);
+});

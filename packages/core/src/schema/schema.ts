@@ -142,7 +142,7 @@ export const createSchema = <
                 Scalar,
                 `${keyof FilterTables<TSchema> & string}.id`
               >
-            | EnumColumn<keyof FilterEnums<TSchema>, boolean>
+            | EnumColumn<keyof FilterEnums<TSchema>, boolean, boolean>
             | ManyColumn<ExtractAllNames<tableName & string, TSchema>>
             | OneColumn<Exclude<keyof TSchema[tableName], columnName>>;
         })

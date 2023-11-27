@@ -2,7 +2,12 @@ import type { Hex } from "viem";
 import { assertType, test } from "vitest";
 
 import * as p from "./index.js";
-import type { EnumColumn, ManyColumn, OneColumn } from "./types.js";
+import type {
+  EnumColumn,
+  ManyColumn,
+  OneColumn,
+  RecoverEnumType,
+} from "./types.js";
 import { type BaseColumn, type RecoverColumnType } from "./types.js";
 
 test("string", () => {
@@ -179,4 +184,16 @@ test("chaining modifiers 4", () => {
   //   ^?
 
   assertType<t>({} as string);
+});
+
+test("chaining modifiers 5", () => {
+  const e = p.enum("ENUM").list().optional();
+  //    ^?
+
+  assertType<EnumColumn<"ENUM", true, true>>(e[" enum"]);
+
+  type t = RecoverEnumType<{ ENUM: ["ONE", "TWO"] }, (typeof e)[" enum"]>;
+  //   ^?
+
+  assertType<t>([] as ("ONE" | "TWO")[]);
 });

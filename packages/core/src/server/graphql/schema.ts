@@ -49,7 +49,7 @@ export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
 
   // First build the entity types. These have resolvers defined for any
   // relationship or derived fields. This is also important for the thunk nonsense.
-  const entityGqlTypes = buildEntityTypes({
+  const { entityGqlTypes, enumGqlTypes } = buildEntityTypes({
     schema,
   });
 
@@ -69,6 +69,7 @@ export const buildGqlSchema = (schema: Schema): GraphQLSchema => {
       table,
       tableName,
       entityGqlType,
+      enumGqlTypes,
     });
   }
 

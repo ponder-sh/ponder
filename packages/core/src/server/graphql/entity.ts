@@ -20,12 +20,20 @@ import {
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
 
-export const buildEntityTypes = ({
-  schema,
-}: {
-  schema: Schema;
-}): Record<string, GraphQLObjectType<Source, Context>> => {
+export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
   const entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
+
+  const enumGqlTypes: Record<string, GraphQLEnumType> = {};
+
+  for (const [enumName, _enum] of Object.entries(schema.enums)) {
+    enumGqlTypes[enumName] = new GraphQLEnumType({
+      name: enumName,
+      values: _enum.reduce(
+        (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
+        {},
+      ),
+    });
+  }
 
   for (const [tableName, table] of Object.entries(schema.tables)) {
     entityGqlTypes[tableName] = new GraphQLObjectType({
@@ -111,35 +119,20 @@ export const buildEntityTypes = ({
               },
               resolve: resolver,
             };
-          } else if (isEnumColumn(column)) {
-            // Note: this relies on the fact that there are no list enums
-            const enumName = column.type;
-            const enumType = new GraphQLEnumType({
-              name: enumName,
-              values: schema.enums[enumName].reduce(
-                (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
-                {},
-              ),
-            });
-
-            fieldConfigMap[columnName] = {
-              type: column.optional ? new GraphQLNonNull(enumType) : enumType,
-            };
-          } else if (column.list) {
-            const listType = new GraphQLList(
-              new GraphQLNonNull(tsTypeToGqlScalar[column.type]),
-            );
-            fieldConfigMap[columnName] = {
-              type: column.optional ? listType : new GraphQLNonNull(listType),
-            };
           } else {
-            // Normal scalar
-
-            fieldConfigMap[columnName] = {
-              type: column.optional
-                ? tsTypeToGqlScalar[column.type]
-                : new GraphQLNonNull(tsTypeToGqlScalar[column.type]),
-            };
+            const type = isEnumColumn(column)
+              ? enumGqlTypes[column.type]
+              : tsTypeToGqlScalar[column.type];
+            if (column.list) {
+              const listType = new GraphQLList(new GraphQLNonNull(type));
+              fieldConfigMap[columnName] = {
+                type: column.optional ? listType : new GraphQLNonNull(listType),
+              };
+            } else {
+              fieldConfigMap[columnName] = {
+                type: column.optional ? type : new GraphQLNonNull(type),
+              };
+            }
           }
         });
 
@@ -148,5 +141,5 @@ export const buildEntityTypes = ({
     });
   }
 
-  return entityGqlTypes;
+  return { entityGqlTypes, enumGqlTypes };
 };
