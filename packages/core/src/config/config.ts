@@ -69,7 +69,7 @@ export type ContractRequired<
   TEventName extends string,
 > = {
   /** Contract application byte interface. */
-  abi: TAbi;
+  abi: Abi;
   /**
    * Network that this contract is deployed to. Must match a network name in `networks`.
    * Any filter information overrides the values in the higher level "contracts" property.
@@ -87,10 +87,12 @@ export type ContractFilter<
 > = (
   | {
       address?: `0x${string}` | readonly `0x${string}`[];
+      factory?: never;
     }
   | {
+      address?: never;
       /** Factory contract configuration. */
-      factory: {
+      factory?: {
         /** Address of the factory contract that creates this contract. */
         address: `0x${string}`;
         /** ABI event that announces the creation of a new instance of this contract. */
