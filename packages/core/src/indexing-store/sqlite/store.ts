@@ -102,8 +102,8 @@ export class SqliteIndexingStore implements IndexingStore {
 
             Object.entries(columns).forEach(([columnName, column]) => {
               if (isOneColumn(column)) return;
-              else if (isManyColumn(column)) return;
-              else if (isEnumColumn(column)) {
+              if (isManyColumn(column)) return;
+              if (isEnumColumn(column)) {
                 // Handle enum types
                 tableBuilder = tableBuilder.addColumn(
                   columnName,

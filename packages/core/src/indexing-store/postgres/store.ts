@@ -123,8 +123,8 @@ export class PostgresIndexingStore implements IndexingStore {
 
             Object.entries(columns).forEach(([columnName, column]) => {
               if (isOneColumn(column)) return;
-              else if (isManyColumn(column)) return;
-              else if (isEnumColumn(column)) {
+              if (isManyColumn(column)) return;
+              if (isEnumColumn(column)) {
                 // Handle enum types
                 tableBuilder = tableBuilder.addColumn(
                   columnName,
@@ -758,12 +758,8 @@ export class PostgresIndexingStore implements IndexingStore {
       }
 
       if (isOneColumn(column)) return;
-      else if (isManyColumn(column)) return;
-      else if (
-        !isEnumColumn(column) &&
-        !isReferenceColumn(column) &&
-        column.list
-      ) {
+      if (isManyColumn(column)) return;
+      if (!isEnumColumn(column) && !isReferenceColumn(column) && column.list) {
         let parsedValue = JSON.parse(value as string);
         if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
         deserializedRow[columnName] = parsedValue;

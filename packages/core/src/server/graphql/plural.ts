@@ -55,8 +55,8 @@ export const buildPluralField = ({
   Object.entries(table).forEach(([columnName, column]) => {
     // Note: Only include non-virtual columns in plural fields
     if (isOneColumn(column)) return;
-    else if (isManyColumn(column)) return;
-    else if (isEnumColumn(column)) {
+    if (isManyColumn(column)) return;
+    if (isEnumColumn(column)) {
       const enumType = entityGqlType.getFields()[columnName].type;
 
       operators.universal.forEach((suffix) => {

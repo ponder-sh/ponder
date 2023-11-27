@@ -35,7 +35,7 @@ export const buildEntityTypes = ({
 
         Object.entries(table).forEach(([columnName, column]) => {
           if (isOneColumn(column)) {
-            // Column must resolve the secondary key of the referenced column
+            // Column must resolve the foreign key of the referenced column
             // Note: this relies on the fact that reference columns can't be lists
 
             const referencedTable = referencedTableName(
@@ -51,11 +51,11 @@ export const buildEntityTypes = ({
 
               // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-ignore
-              const relatedInstanceId = parent[column.referenceColumn];
+              const relatedRecordId = parent[column.referenceColumn];
 
               return await store.findUnique({
                 tableName: referencedTable,
-                id: relatedInstanceId,
+                id: relatedRecordId,
               });
             };
 

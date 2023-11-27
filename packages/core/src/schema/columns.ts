@@ -32,7 +32,7 @@ type Optional<
          */
         list: List<TScalar, true>;
         /**
-         * Mark the column as a secondary key.
+         * Mark the column as a foreign key.
          *
          * - Docs: [TODO:KYLE]
          *
@@ -209,7 +209,7 @@ const emptyColumn =
      */
     list: List<TScalar, false>;
     /**
-     * Mark the column as a secondary key.
+     * Mark the column as a foreign key.
      *
      * - Docs: [TODO:KYLE]
      *
