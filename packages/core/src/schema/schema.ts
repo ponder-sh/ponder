@@ -35,7 +35,16 @@ declare global {
 }
 
 /**
- * Extract the data from column types, removing the modifier functions
+ * Create a database table.
+ *
+ * - Docs: [TODO:KYLE]
+ *
+ * @example
+ * export default p.createSchema({
+ *   t: p.createTable({
+ *     id: p.string(),
+ *   })
+ * })
  */
 export const createTable = <
   TColumns extends
@@ -95,10 +104,33 @@ export const createTable = <
         : TColumns[key];
   };
 
+/**
+ * Create an Enum type for the database.
+ *
+ * - Docs: [TODO:KYLE]
+ *
+ * @example
+ * export default p.createSchema({
+ *   e: p.createEnum(["ONE", "TWO"])
+ *   t: p.createTable({
+ *     id: p.string(),
+ *     a: p.enum("e"),
+ *   })
+ * })
+ */
 export const createEnum = <const TEnum extends Enum>(_enum: TEnum) => _enum;
 
 /**
- * Type inference and runtime validation
+ * Create a database schema.
+ *
+ * - Docs: [TODO:KYLE]
+ *
+ * @example
+ * export default p.createSchema({
+ *   t: p.createTable({
+ *     id: p.string(),
+ *   })
+ * })
  */
 export const createSchema = <
   TSchema extends {
