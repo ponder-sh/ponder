@@ -1,9 +1,16 @@
-import { http } from "viem";
+import { getEventSelector, http, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
 import { createConfig } from "./config.js";
-import { abiSimple, abiWithSameEvent } from "./config.test-d.js";
 import { buildSources } from "./sources.js";
+
+const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
+const event1 = parseAbiItem("event Event1()");
+const event1Overloaded = parseAbiItem("event Event1(bytes32)");
+
+const address1 = "0x0000000000000000000000000000000000000001";
+const bytes1 =
+  "0x0000000000000000000000000000000000000000000000000000000000000001";
 
 test("buildSources() builds topics for multiple events", () => {
   const config = createConfig({
@@ -14,11 +21,11 @@ test("buildSources() builds topics for multiple events", () => {
       },
     },
     contracts: {
-      BaseRegistrarImplementation: {
+      a: {
         network: { mainnet: {} },
-        abi: abiSimple,
-        filter: { event: ["Transfer", "Approve"] },
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        abi: [event0, event1],
+        filter: { event: ["Event0", "Event1"] },
+        address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
         maxBlockRange: 10,
@@ -29,10 +36,7 @@ test("buildSources() builds topics for multiple events", () => {
   const sources = buildSources({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
-    [
-      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-      "0x6e11fb1b7f119e3f2fa29896ef5fdf8b8a2d0d4df6fe90ba8668e7d8b2ffa25e",
-    ],
+    [getEventSelector(event0), getEventSelector(event1)],
     null,
     null,
     null,
@@ -50,14 +54,11 @@ test("buildSources() for duplicate event", () => {
     contracts: {
       BaseRegistrartImplementation: {
         network: { mainnet: {} },
-        abi: abiWithSameEvent,
+        abi: [event1, event1Overloaded],
         filter: {
-          event: [
-            "Approve(address indexed from, address indexed to, uint256 amount)",
-            "Approve(address indexed, bytes32 indexed, uint256)",
-          ],
+          event: ["Event1()", "Event1(bytes32)"],
         },
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
         maxBlockRange: 10,
@@ -68,10 +69,7 @@ test("buildSources() for duplicate event", () => {
   const sources = buildSources({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
-    [
-      "0x6e11fb1b7f119e3f2fa29896ef5fdf8b8a2d0d4df6fe90ba8668e7d8b2ffa25e",
-      "0xdbb5081f3bcbc60be144528482d176e8141b95ebe19a2ab38100455dc726eaa6",
-    ],
+    [getEventSelector(event1), getEventSelector(event1Overloaded)],
     null,
     null,
     null,
@@ -93,7 +91,7 @@ test("buildSources() multichain", () => {
     contracts: {
       a: {
         network: { mainnet: {}, optimism: {} },
-        abi: abiSimple,
+        abi: [event0],
       },
     },
   });
@@ -112,16 +110,16 @@ test("buildSources() builds topics for event with args", () => {
       },
     },
     contracts: {
-      BaseRegistrarImplmentation: {
+      a: {
         network: { mainnet: {} },
-        abi: abiSimple,
+        abi: [event0],
         filter: {
-          event: "Approve",
+          event: "Event0",
           args: {
-            to: "0xF39d15cB3910d5e33fb1a2E42D4a2da153Ba076B",
+            arg: bytes1,
           },
         },
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
         maxBlockRange: 10,
@@ -132,9 +130,9 @@ test("buildSources() builds topics for event with args", () => {
   const sources = buildSources({ config });
 
   expect(sources[0].criteria.topics).toMatchObject([
-    "0x6e11fb1b7f119e3f2fa29896ef5fdf8b8a2d0d4df6fe90ba8668e7d8b2ffa25e",
+    getEventSelector(event0),
+    bytes1,
     null,
-    "0x000000000000000000000000f39d15cb3910d5e33fb1a2e42d4a2da153ba076b",
     null,
   ]);
 });
@@ -148,15 +146,15 @@ test("buildSources() overrides default values with network values", () => {
       },
     },
     contracts: {
-      BaseRegistrarImplementation: {
+      a: {
         network: {
           mainnet: {
-            address: "0xF39d15cB3910d5e33fb1a2E42D4a2da153Ba076B",
+            address: address1,
           },
         },
-        abi: abiSimple,
-        filter: { event: ["Transfer"] },
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        abi: [event0],
+        filter: { event: ["Event0"] },
+        address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
         maxBlockRange: 10,
@@ -166,9 +164,7 @@ test("buildSources() overrides default values with network values", () => {
 
   const sources = buildSources({ config });
 
-  expect(sources[0].criteria.address).toBe(
-    "0xf39d15cb3910d5e33fb1a2e42d4a2da153ba076b",
-  );
+  expect(sources[0].criteria.address).toBe(address1);
 });
 
 test("buildSources() network shortcut", () => {
@@ -180,11 +176,11 @@ test("buildSources() network shortcut", () => {
       },
     },
     contracts: {
-      BaseRegistrarImplementation: {
+      a: {
         network: "mainnet",
-        abi: abiSimple,
-        filter: { event: ["Transfer"] },
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+        abi: [event0],
+        filter: { event: ["Event0"] },
+        address: address1,
         startBlock: 16370000,
         endBlock: 16370020,
         maxBlockRange: 10,

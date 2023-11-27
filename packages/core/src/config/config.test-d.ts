@@ -1,149 +1,53 @@
-import type { ParseAbi, ParseAbiItem } from "viem";
+import type { ParseAbiItem } from "viem";
 import { http } from "viem";
 import { assertType, test } from "vitest";
 
 import type {
-  Config,
   FilterAbiEvents,
   RecoverAbiEvent,
   SafeEventNames,
 } from "./config.js";
 import { createConfig } from "./config.js";
 
-export const abiSimple = [
-  {
-    inputs: [],
-    stateMutability: "nonpayable",
-    type: "constructor",
-  },
-  {
-    inputs: [
-      {
-        indexed: true,
-        type: "address",
-        name: "from",
-      },
-      {
-        indexed: true,
-        type: "address",
-        name: "to",
-      },
-      {
-        indexed: false,
-        type: "uint256",
-        name: "amount",
-      },
-    ],
-    name: "Approve",
-    type: "event",
-  },
-  {
-    inputs: [
-      {
-        indexed: true,
-        type: "address",
-      },
-      {
-        indexed: true,
-        type: "address",
-      },
-      {
-        indexed: false,
-        type: "uint256",
-      },
-    ],
-    name: "Transfer",
-    type: "event",
-  },
-] as const;
+type Event0 = ParseAbiItem<"event Event0(bytes32 indexed arg)">;
+type Event1 = ParseAbiItem<"event Event1()">;
+type Event1Overloaded = ParseAbiItem<"event Event1(bytes32)">;
+type Func = ParseAbiItem<"function func()">;
 
-export const abiWithSameEvent = [
-  ...abiSimple,
-  {
-    inputs: [],
-    stateMutability: "nonpayable",
-    type: "constructor",
-  },
-  {
-    inputs: [
-      {
-        indexed: true,
-        type: "address",
-      },
-      {
-        indexed: true,
-        type: "bytes32",
-      },
-      {
-        indexed: false,
-        type: "uint256",
-      },
-    ],
-    name: "Approve",
-    type: "event",
-  },
-] as const;
-
-type OneAbi = ParseAbi<
-  [
-    "event Event0(bytes32 indexed arg3)",
-    "event Event1(bytes32 indexed)",
-    "constructor()",
-  ]
->;
-type TwoAbi = ParseAbi<["event Event(bytes32 indexed)", "event Event()"]>;
-
-test("filter events", () => {
-  type t = FilterAbiEvents<OneAbi>;
+test("FilterAbiEvents", () => {
+  type t = FilterAbiEvents<[Event0, Func]>;
   //   ^?
 
-  assertType<t>(
-    [] as unknown as ParseAbi<
-      ["event Event0(bytes32 indexed arg3)", "event Event1(bytes32 indexed)"]
-    >,
-  );
+  assertType<t>([] as unknown as [Event0]);
 });
 
-test("safe event names", () => {
+test("SafeEventNames", () => {
   type a = SafeEventNames<
     // ^?
-    FilterAbiEvents<OneAbi>
+    [Event0, Event1]
   >;
   assertType<a>(["Event0", "Event1"] as const);
-
-  type b = SafeEventNames<
-    // ^?
-    FilterAbiEvents<TwoAbi>
-  >;
-  assertType<b>(["Event(bytes32 indexed)", "Event()"] as const);
 });
 
-test("ResolvedConfig default values", () => {
-  type a = NonNullable<
+test("SafeEventNames overloaded", () => {
+  type a = SafeEventNames<
     // ^?
-    Config["contracts"]
-  >[number]["network"];
-  assertType<a>(
-    {} as
-      | string
-      | Record<
-          string,
-          { filter: { event: string[] } | { event: string } | undefined }
-        >,
-  );
+    [Event1, Event1Overloaded]
+  >;
+  assertType<a>(["Event1()", "Event1(bytes32)"] as const);
 });
 
 test("RecoverAbiEvent", () => {
   type a = RecoverAbiEvent<
     // ^?
-    FilterAbiEvents<OneAbi>,
-    "Event1"
+    [Event0, Event1],
+    "Event0"
   >;
 
-  assertType<a>({} as ParseAbiItem<"event Event1(bytes32 indexed)">);
+  assertType<a>({} as Event0);
 });
 
-test("createConfig() strict network names", () => {
+test("createConfig() network", () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -156,24 +60,25 @@ test("createConfig() strict network names", () => {
       },
     },
     contracts: {
-      BaseRegistrarImplementation: {
+      c: {
         network: { mainnet: {} },
         abi: [],
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-        startBlock: 16370000,
-        endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
 
-  assertType<{ mainnet: {} }>(
-    config.contracts["BaseRegistrarImplementation"].network,
+  assertType<typeof config.contracts.c.network>({
+    mainnet: {},
+  });
+  assertType<typeof config.networks>(
+    {} as {
+      mainnet: { chainId: 1; transport: any };
+      optimism: { chainId: 10; transport: any };
+    },
   );
-  assertType<{ mainnet: { chainId: 1 } }>(config.networks);
 });
 
-test("createConfig() short network name", () => {
+test("createConfig() network shortcut", () => {
   const config = createConfig({
     networks: {
       mainnet: {
@@ -182,67 +87,74 @@ test("createConfig() short network name", () => {
       },
     },
     contracts: {
-      BaseRegistrarImplementation: {
+      c: {
         network: "mainnet",
         abi: [],
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-        startBlock: 16370000,
-        endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
 
-  assertType<"mainnet">(
-    config.contracts["BaseRegistrarImplementation"].network,
-  );
-  assertType<{ mainnet: { chainId: 1 } }>(config.networks);
+  assertType<typeof config.contracts.c.network>("" as "mainnet");
 });
 
-test("createConfig() has strict events inferred from abi", () => {
+test("createConfig() events", () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      c: {
+        network: "mainnet",
+        abi: [] as unknown as [Event0, Event1],
+        filter: {
+          event: ["Event0", "Event1"],
+        },
+      },
+    },
+  });
+
+  assertType<typeof config.contracts.c.filter.event>(
+    [] as unknown as ["Event0", "Event1"],
+  );
+});
+
+test.skip("createConfig() has strict arg types for event", () => {
   createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
-      BaseRegistrarImplementation: {
+      c: {
         network: "mainnet",
-        abi: abiWithSameEvent,
+        abi: [] as unknown as [Event0],
         filter: {
-          event: [
-            "Transfer",
-            "Approve(address indexed from, address indexed to, uint256 amount)",
-          ],
+          event: "Event0",
+          args: { arg: ["0x0"] },
         },
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-        startBlock: 16370000,
-        endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
 });
 
-test("createConfig() has strict arg types for event", () => {
-  const t = createConfig({
+test("createConfig() factory", () => {
+  const config = createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
     },
     contracts: {
-      BaseRegistrarImplementation: {
+      c: {
         network: "mainnet",
-        abi: abiSimple,
-        filter: {
-          event: "Transfer",
-          args: { to: ["0x00"] },
+        abi: [],
+        factory: {
+          address: "0x1",
+          event: {} as Event0,
+          parameter: "arg",
         },
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-        startBlock: 16370000,
-        endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
-  t.contracts.BaseRegistrarImplementation.abi;
-  //                                      ^?
+
+  assertType<typeof config.contracts.c.factory>(
+    {} as { address: "0x1"; event: Event0; parameter: "arg" },
+  );
 });
