@@ -146,12 +146,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       });
 
       // Note that the order execution here is intentional.
-      if (invalidated.some((fileName) => fileName.includes("abis/"))) {
-        this.common.logger.warn({
-          service: "build",
-          msg: `ABI(s) have been modified. Recommend reloading the data for the affected chain`,
-        });
-      }
       if (invalidated.includes(this.common.options.configFile)) {
         await this.loadConfig();
       }
