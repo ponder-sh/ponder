@@ -1,3 +1,7 @@
+import fs from "fs";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import inspector from "inspector/promises";
 import {
   type EIP1193RequestFn,
   HttpRequestError,
@@ -493,6 +497,35 @@ test("start() emits sync completed event", async (context) => {
 
   await service.onIdle();
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
+
+  await service.kill();
+});
+
+test.skip("profile", async (context) => {
+  const { common, syncStore } = context;
+
+  const service = new HistoricalSyncService({
+    common,
+    syncStore,
+    network,
+    sources: [usdcLogFilter],
+  });
+  await service.setup({
+    latestBlockNumber: 16370105,
+    finalizedBlockNumber: 16370100,
+  });
+
+  const session = new inspector.Session();
+  session.connect();
+
+  await session.post("Profiler.enable");
+  await session.post("Profiler.start");
+
+  service.start();
+  await service.onIdle();
+
+  const { profile } = await session.post("Profiler.stop");
+  fs.writeFileSync("./profile.cpuprofile", JSON.stringify(profile));
 
   await service.kill();
 });
