@@ -2,6 +2,7 @@ import fs from "fs";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import inspector from "inspector/promises";
+import path from "path";
 import {
   type EIP1193RequestFn,
   HttpRequestError,
@@ -501,34 +502,41 @@ test("start() emits sync completed event", async (context) => {
   await service.kill();
 });
 
-test.skip("profile", async (context) => {
-  const { common, syncStore } = context;
+test.runIf(process.env.PROFILE)(
+  "profile",
+  async (context) => {
+    const { common, syncStore } = context;
 
-  const service = new HistoricalSyncService({
-    common,
-    syncStore,
-    network,
-    sources: [usdcLogFilter],
-  });
-  await service.setup({
-    latestBlockNumber: 16370105,
-    finalizedBlockNumber: 16370100,
-  });
+    const service = new HistoricalSyncService({
+      common,
+      syncStore,
+      network,
+      sources: [usdcLogFilter],
+    });
+    await service.setup({
+      latestBlockNumber: 16370205,
+      finalizedBlockNumber: 16370200,
+    });
 
-  const session = new inspector.Session();
-  session.connect();
+    const session = new inspector.Session();
+    session.connect();
 
-  await session.post("Profiler.enable");
-  await session.post("Profiler.start");
+    await session.post("Profiler.enable");
+    await session.post("Profiler.start");
 
-  service.start();
-  await service.onIdle();
+    service.start();
+    await service.onIdle();
 
-  const { profile } = await session.post("Profiler.stop");
-  fs.writeFileSync("./profile.cpuprofile", JSON.stringify(profile));
+    const { profile } = await session.post("Profiler.stop");
+    fs.writeFileSync(
+      path.join(__dirname, "./profile.cpuprofile"),
+      JSON.stringify(profile),
+    );
 
-  await service.kill();
-});
+    await service.kill();
+  },
+  10_000,
+);
 
 test("start() emits checkpoint and sync completed event if 100% cached", async (context) => {
   const { common, syncStore } = context;
