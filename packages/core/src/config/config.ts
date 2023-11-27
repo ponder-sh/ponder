@@ -67,6 +67,7 @@ export type ContractRequired<
   TNetworkNames extends string,
   TAbi extends Abi | unknown,
   TEventName extends string,
+  TFactoryEvent extends AbiEvent | undefined,
 > = {
   /** Contract application byte interface. */
   abi: Abi;
@@ -76,7 +77,12 @@ export type ContractRequired<
    * Factories cannot override an address and vice versa.
    */
   network:
-    | Partial<Record<TNetworkNames, Partial<ContractFilter<TAbi, TEventName>>>>
+    | Partial<
+        Record<
+          TNetworkNames,
+          Partial<ContractFilter<TAbi, TEventName, TFactoryEvent>>
+        >
+      >
     | TNetworkNames;
 };
 
@@ -84,6 +90,7 @@ export type ContractRequired<
 export type ContractFilter<
   TAbi extends Abi | unknown,
   TEventName extends string,
+  TFactoryEvent extends AbiEvent | undefined,
 > = (
   | {
       address?: `0x${string}` | readonly `0x${string}`[];
@@ -98,7 +105,9 @@ export type ContractFilter<
         /** ABI event that announces the creation of a new instance of this contract. */
         event: AbiEvent;
         /** Name of the factory event parameter that contains the new child contract address. */
-        parameter: string; // TODO: Narrow type to known parameter names from `event`.
+        parameter: TFactoryEvent extends AbiEvent
+          ? TFactoryEvent["inputs"][number]["name"]
+          : never; // TODO: Narrow type to known parameter names from `event`.
       };
     }
 ) & {
@@ -146,8 +155,9 @@ export type Contract<
   TNetworkNames extends string,
   TAbi extends Abi | unknown,
   TEventName extends string,
-> = ContractRequired<TNetworkNames, TAbi, TEventName> &
-  ContractFilter<TAbi, TEventName>;
+  TFactoryEvent extends AbiEvent | undefined,
+> = ContractRequired<TNetworkNames, TAbi, TEventName, TFactoryEvent> &
+  ContractFilter<TAbi, TEventName, TFactoryEvent>;
 
 type Database =
   | {
@@ -196,7 +206,7 @@ export type Config = {
   database?: Database;
   networks: Record<string, Network>;
   /** List of contracts to sync & index events from. Contracts defined here will be present in `context.contracts`. */
-  contracts: Record<string, Contract<string, Abi, string>>;
+  contracts: Record<string, Contract<string, Abi, string, undefined>>;
   /** Configuration for Ponder internals. */
   options?: Option;
 };
@@ -216,7 +226,14 @@ export const createConfig = <
           event: infer _event extends string;
         }
           ? _event
-          : string
+          : string,
+        TConfig["contracts"][ContractName] extends {
+          factory: {
+            event: infer _event extends AbiEvent;
+          };
+        }
+          ? _event
+          : undefined
       >;
     };
     options?: Option;
@@ -227,7 +244,7 @@ export const createConfig = <
   // convert to an easier type to use
   const contracts = config.contracts as Record<
     string,
-    Contract<string, AbiEvent[], string>
+    Contract<string, AbiEvent[], string, AbiEvent>
   >;
 
   Object.values(contracts).forEach((contract) => {
