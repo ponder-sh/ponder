@@ -53,13 +53,6 @@ export const buildEntityTypes = ({
               // @ts-ignore
               const relatedInstanceId = parent[column.referenceColumn];
 
-              console.log({
-                parent,
-                columnName,
-                referencedTable,
-                relatedInstanceId,
-              });
-
               return await store.findUnique({
                 tableName: referencedTable,
                 id: relatedInstanceId,

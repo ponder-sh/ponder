@@ -314,11 +314,8 @@ test("serves relationship types correctly", async (context) => {
   const { service, gql, createTestEntity, createEntityWithBigIntId } =
     await setup({ common, indexingStore });
 
-  console.log("1");
   await createTestEntity({ id: 0 });
-  console.log(3);
   await createEntityWithBigIntId({ id: BigInt(0), testEntityId: "0" });
-  console.log(4);
 
   const response = await gql(`
     entityWithBigIntIds {
