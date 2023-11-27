@@ -2,9 +2,8 @@ import type { Server } from "node:http";
 import { createServer } from "node:http";
 
 import cors from "cors";
-import express, { type Handler } from "express";
 import Emittery from "emittery";
-import express from "express";
+import express, { type Handler } from "express";
 import type { FormattedExecutionResult, GraphQLSchema } from "graphql";
 import { formatError, GraphQLError } from "graphql";
 import { createHandler } from "graphql-http/lib/use/express";
@@ -20,6 +19,8 @@ type ServerEvents = {
 };
 
 export class ServerService extends Emittery<ServerEvents> {
+  app: express.Express;
+
   private common: Common;
   private indexingStore: IndexingStore;
 
@@ -63,6 +64,10 @@ export class ServerService extends Emittery<ServerEvents> {
       "/",
       this.handleGraphql({ shouldWaitForHistoricalSync: false }),
     );
+  }
+
+  public registerDevRoutes() {
+    this.app.post("/admin/reload", this.handleAdminReload());
   }
 
   async start() {
@@ -203,7 +208,7 @@ export class ServerService extends Emittery<ServerEvents> {
   }: {
     shouldWaitForHistoricalSync: boolean;
   }): Handler {
-    return (request, response, next) => {
+    return (req, res, next) => {
       if (!this.graphqlMiddleware) {
         return next();
       }
@@ -225,7 +230,7 @@ export class ServerService extends Emittery<ServerEvents> {
 
       switch (req.method) {
         case "POST":
-          return this.graphqlMiddleware(request, response, next);
+          return this.graphqlMiddleware(req, res, next);
         case "GET": {
           const host = req.get("host");
           if (!host) {
@@ -248,6 +253,22 @@ export class ServerService extends Emittery<ServerEvents> {
           return res.status(200).send();
         default:
           return next();
+      }
+    };
+  }
+
+  private handleAdminReload(): Handler {
+    return async (req, res) => {
+      try {
+        const chainId = parseInt(req.query.chainId as string, 10);
+        if (isNaN(chainId)) {
+          res.status(400).end("chainId must exist and be a valid integer");
+          return;
+        }
+        this.emit("admin:reload", { chainId });
+        res.status(200).end();
+      } catch (error) {
+        res.status(500).end(error);
       }
     };
   }
