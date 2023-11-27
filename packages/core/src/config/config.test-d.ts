@@ -63,10 +63,6 @@ test("createConfig() network", () => {
       c: {
         network: { mainnet: {} },
         abi: [],
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-        startBlock: 16370000,
-        endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -94,10 +90,6 @@ test("createConfig() network shortcut", () => {
       c: {
         network: "mainnet",
         abi: [],
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-        startBlock: 16370000,
-        endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -117,10 +109,6 @@ test("createConfig() events", () => {
         filter: {
           event: ["Event0", "Event1"],
         },
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-        startBlock: 16370000,
-        endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
@@ -143,11 +131,30 @@ test.skip("createConfig() has strict arg types for event", () => {
           event: "Event0",
           args: { arg: ["0x0"] },
         },
-        address: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
-        startBlock: 16370000,
-        endBlock: 16370020,
-        maxBlockRange: 10,
       },
     },
   });
+});
+
+test("createConfig() factory", () => {
+  const config = createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      c: {
+        network: "mainnet",
+        abi: [],
+        factory: {
+          address: "0x1",
+          event: {} as Event0,
+          parameter: "arg",
+        },
+      },
+    },
+  });
+
+  assertType<typeof config.contracts.c.factory>(
+    {} as { address: "0x1"; event: Event0; parameter: "arg" },
+  );
 });
