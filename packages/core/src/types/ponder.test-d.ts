@@ -110,6 +110,31 @@ test("PonderApp event name", () => {
   assertType<name>("" as "Event0");
 });
 
+test("PonderApp event name filtering", () => {
+  type p = PonderApp<
+    // ^?
+    {
+      networks: any;
+      contracts: {
+        Contract: {
+          network: any;
+          abi: [Event0, Event1];
+          filter: { event: ["Event0"] };
+        };
+      };
+    },
+    any
+  >;
+
+  type name = Extract<
+    // ^?
+    Parameters<Parameters<p["on"]>[1]>[0],
+    { event: unknown }
+  >["event"]["name"];
+
+  assertType<name>("" as "Event0");
+});
+
 test("PonderApp context.network", () => {
   type p = PonderApp<
     // ^?

@@ -21,7 +21,20 @@ type Setup = "setup";
 /** "{ContractName}:{EventName}". */
 export type Names<TContracts extends Config["contracts"]> = {
   [key in keyof TContracts]: `${key & string}:${
-    | SafeEventNames<FilterAbiEvents<TContracts[key]["abi"]>>[number]
+    | (SafeEventNames<
+        FilterAbiEvents<TContracts[key]["abi"]>
+      >[number] extends infer events extends string
+        ? TContracts[key]["filter"] extends {
+            event: infer filterEvents extends string | string[];
+          }
+          ? Extract<
+              events,
+              filterEvents extends string[]
+                ? filterEvents[number]
+                : filterEvents
+            >
+          : events
+        : never)
     | Setup}`;
 }[keyof TContracts];
 
