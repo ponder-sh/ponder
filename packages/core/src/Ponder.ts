@@ -389,10 +389,10 @@ export class Ponder {
     this.syncServices.forEach(({ network, historical, realtime }) => {
       const { chainId } = network;
 
-      historical.on("historicalCheckpoint", ({ blockTimestamp }) => {
+      historical.on("historicalCheckpoint", (checkpoint) => {
         this.syncGatewayService.handleNewHistoricalCheckpoint({
           chainId,
-          timestamp: blockTimestamp,
+          ...checkpoint,
         });
       });
 
@@ -402,23 +402,24 @@ export class Ponder {
         });
       });
 
-      realtime.on("realtimeCheckpoint", ({ blockTimestamp }) => {
+      realtime.on("realtimeCheckpoint", (checkpoint) => {
         this.syncGatewayService.handleNewRealtimeCheckpoint({
           chainId,
-          timestamp: blockTimestamp,
+          ...checkpoint,
         });
       });
 
-      realtime.on("finalityCheckpoint", ({ blockTimestamp }) => {
+      realtime.on("finalityCheckpoint", (checkpoint) => {
         this.syncGatewayService.handleNewFinalityCheckpoint({
           chainId,
-          timestamp: blockTimestamp,
+          ...checkpoint,
         });
       });
 
-      realtime.on("shallowReorg", ({ commonAncestorBlockTimestamp }) => {
+      realtime.on("shallowReorg", (checkpoint) => {
         this.syncGatewayService.handleReorg({
-          commonAncestorTimestamp: commonAncestorBlockTimestamp,
+          chainId,
+          ...checkpoint,
         });
       });
     });
@@ -427,8 +428,8 @@ export class Ponder {
       await this.indexingService.processEvents();
     });
 
-    this.syncGatewayService.on("reorg", async ({ commonAncestorTimestamp }) => {
-      await this.indexingService.handleReorg({ commonAncestorTimestamp });
+    this.syncGatewayService.on("reorg", async (checkpoint) => {
+      await this.indexingService.handleReorg(checkpoint);
       await this.indexingService.processEvents();
     });
 

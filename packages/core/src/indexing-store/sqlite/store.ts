@@ -1,4 +1,11 @@
-import { Kysely, sql, SqliteDialect } from "kysely";
+import type Sqlite from "better-sqlite3";
+import {
+  type ComparisonOperatorExpression,
+  type ExpressionBuilder,
+  Kysely,
+  sql,
+  SqliteDialect,
+} from "kysely";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -8,6 +15,10 @@ import {
   isOneColumn,
   isReferenceColumn,
 } from "@/schema/utils.js";
+import {
+  checkpointToString,
+  type EventCheckpoint,
+} from "@/utils/checkpoint.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import { ensureDirExists } from "@/utils/exists.js";
 import { BetterSqlite3, improveSqliteErrors } from "@/utils/sqlite.js";
@@ -21,6 +32,12 @@ import {
 } from "../utils/where.js";
 
 const MAX_INTEGER = 2_147_483_647 as const;
+const MAX_CHECKPOINT: EventCheckpoint = {
+  blockTimestamp: MAX_INTEGER,
+  chainId: 0,
+  blockNumber: 0,
+};
+
 const MAX_BATCH_SIZE = 1_000 as const;
 
 const scalarToSqlType = {
@@ -143,31 +160,68 @@ export class SqliteIndexingStore implements IndexingStore {
                 }
               });
 
-              // Add the effective timestamp columns.
-              tableBuilder = tableBuilder.addColumn(
-                "effectiveFrom",
-                "integer",
-                (col) => col.notNull(),
-              );
-              tableBuilder = tableBuilder.addColumn(
-                "effectiveTo",
-                "integer",
-                (col) => col.notNull(),
-              );
-              tableBuilder = tableBuilder.addPrimaryKeyConstraint(
-                `${table}_id_effectiveTo_unique`,
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore
-                ["id", "effectiveTo"],
-              );
+            // Add the effective checkpoint columns.
+            tableBuilder = tableBuilder.addColumn(
+              "effectiveFromCheckpoint",
+              "varchar(42)",
+              (col) => col.notNull(),
+            );
+            tableBuilder = tableBuilder.addColumn(
+              "effectiveToCheckpoint",
+              "varchar(42)",
+              (col) => col.notNull(),
+            );
+            tableBuilder = tableBuilder.addPrimaryKeyConstraint(
+              `${table}_effectiveTo_unique`,
+              ["id", "effectiveToCheckpoint"] as never[],
+            );
 
-              await tableBuilder.execute();
-            },
-          ),
-        );
-      });
+            // // Add the effective checkpoint columns.
+            // tableBuilder = tableBuilder.addColumn(
+            //   "effectiveFromBlockTimestamp",
+            //   "integer",
+            //   (col) => col.notNull(),
+            // );
+            // tableBuilder = tableBuilder.addColumn(
+            //   "effectiveFromChainId",
+            //   "integer",
+            //   (col) => col.notNull(),
+            // );
+            // tableBuilder = tableBuilder.addColumn(
+            //   "effectiveFromBlockNumber",
+            //   "integer",
+            //   (col) => col.notNull(),
+            // );
+            // tableBuilder = tableBuilder.addColumn(
+            //   "effectiveToBlockTimestamp",
+            //   "integer",
+            //   (col) => col.notNull(),
+            // );
+            // tableBuilder = tableBuilder.addColumn(
+            //   "effectiveToChainId",
+            //   "integer",
+            //   (col) => col.notNull(),
+            // );
+            // tableBuilder = tableBuilder.addColumn(
+            //   "effectiveToBlockNumber",
+            //   "integer",
+            //   (col) => col.notNull(),
+            // );
+            // tableBuilder = tableBuilder.addPrimaryKeyConstraint(
+            //   `${table}_effectiveTo_unique`,
+            //   [
+            //     "id",
+            //     "effectiveToBlockTimestamp",
+            //     "effectiveToChainId",
+            //     "effectiveToBlockNumber",
+            //   ] as never[],
+            // );
+
+            await tableBuilder.execute();
+          },
+        ),
+      );
     });
-  };
 
   revert = async ({ safeTimestamp }: { safeTimestamp: number }) => {
     return this.wrap({ method: "revert" }, async () => {
@@ -197,11 +251,11 @@ export class SqliteIndexingStore implements IndexingStore {
 
   findUnique = async ({
     tableName,
-    timestamp = MAX_INTEGER,
+    checkpoint = MAX_CHECKPOINT,
     id,
   }: {
     tableName: string;
-    timestamp?: number;
+    checkpoint?: EventCheckpoint;
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
@@ -211,13 +265,13 @@ export class SqliteIndexingStore implements IndexingStore {
         encodeBigInts: true,
       });
 
-      const rows = await this.db
-        .selectFrom(table)
-        .selectAll()
-        .where("id", "=", formattedId)
-        .where("effectiveFrom", "<=", timestamp)
-        .where("effectiveTo", ">=", timestamp)
-        .execute();
+    const rows = await this.db
+      .selectFrom(table)
+      .selectAll()
+      .where("id", "=", formattedId)
+      .where(checkpointExprBuilder("effectiveFrom", "<=", checkpoint))
+      .where(checkpointExprBuilder("effectiveTo", ">=", checkpoint))
+      .execute();
 
       if (rows.length > 1) {
         throw new Error(`Expected 1 row, found ${rows.length}`);
@@ -233,12 +287,12 @@ export class SqliteIndexingStore implements IndexingStore {
 
   create = async ({
     tableName,
-    timestamp = MAX_INTEGER,
+    checkpoint = MAX_CHECKPOINT,
     id,
     data = {},
   }: {
     tableName: string;
-    timestamp: number;
+    checkpoint: EventCheckpoint;
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
@@ -246,15 +300,15 @@ export class SqliteIndexingStore implements IndexingStore {
       const table = `${tableName}_versioned`;
       const createRow = formatRow({ id, ...data }, true);
 
-      const row = await this.db
-        .insertInto(table)
-        .values({
-          ...createRow,
-          effectiveFrom: timestamp,
-          effectiveTo: MAX_INTEGER,
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+    const row = await this.db
+      .insertInto(table)
+      .values({
+        ...createRow,
+        effectiveFromCheckpoint: checkpointToString(checkpoint),
+        effectiveToCheckpoint: checkpointToString(MAX_CHECKPOINT),
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
 
       const result = this.deserializeRow({ tableName, row });
 
@@ -264,12 +318,12 @@ export class SqliteIndexingStore implements IndexingStore {
 
   update = async ({
     tableName,
-    timestamp = MAX_INTEGER,
+    checkpoint = MAX_CHECKPOINT,
     id,
     data = {},
   }: {
     tableName: string;
-    timestamp: number;
+    checkpoint: EventCheckpoint;
     id: string | number | bigint;
     data?:
       | Partial<Omit<Row, "id">>
@@ -350,13 +404,13 @@ export class SqliteIndexingStore implements IndexingStore {
 
   upsert = async ({
     tableName,
-    timestamp = MAX_INTEGER,
+    checkpoint = MAX_CHECKPOINT,
     id,
     create = {},
     update = {},
   }: {
     tableName: string;
-    timestamp: number;
+    checkpoint: EventCheckpoint;
     id: string | number | bigint;
     create?: Omit<Row, "id">;
     update?:
@@ -450,11 +504,11 @@ export class SqliteIndexingStore implements IndexingStore {
 
   delete = async ({
     tableName,
-    timestamp = MAX_INTEGER,
+    checkpoint = MAX_CHECKPOINT,
     id,
   }: {
     tableName: string;
-    timestamp: number;
+    checkpoint: EventCheckpoint;
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "delete", tableName }, async () => {
@@ -497,14 +551,14 @@ export class SqliteIndexingStore implements IndexingStore {
 
   findMany = async ({
     tableName,
-    timestamp = MAX_INTEGER,
+    checkpoint = MAX_CHECKPOINT,
     where,
     skip,
     take,
     orderBy,
   }: {
     tableName: string;
-    timestamp: number;
+    checkpoint: EventCheckpoint;
     where?: WhereInput<any>;
     skip?: number;
     take?: number;
@@ -553,11 +607,11 @@ export class SqliteIndexingStore implements IndexingStore {
 
   createMany = async ({
     tableName,
-    timestamp = MAX_INTEGER,
+    checkpoint = MAX_CHECKPOINT,
     data,
   }: {
     tableName: string;
-    timestamp: number;
+    checkpoint: EventCheckpoint;
     id: string | number | bigint;
     data: Row[];
   }) => {
@@ -585,12 +639,12 @@ export class SqliteIndexingStore implements IndexingStore {
 
   updateMany = async ({
     tableName,
-    timestamp = MAX_INTEGER,
+    checkpoint = MAX_CHECKPOINT,
     where,
     data = {},
   }: {
     tableName: string;
-    timestamp: number;
+    checkpoint: EventCheckpoint;
     where: WhereInput<any>;
     data?:
       | Partial<Omit<Row, "id">>
@@ -748,3 +802,17 @@ export class SqliteIndexingStore implements IndexingStore {
     }
   };
 }
+
+const checkpointExprBuilder =
+  (
+    fromOrTo: "effectiveFrom" | "effectiveTo",
+    op: ComparisonOperatorExpression,
+    checkpoint: EventCheckpoint,
+  ) =>
+  (expr: ExpressionBuilder<any, string>) => {
+    return expr.and([
+      expr.eb(`${fromOrTo}BlockTimestamp`, op, checkpoint.blockTimestamp),
+      expr.eb(`${fromOrTo}ChainId`, op, checkpoint.chainId),
+      expr.eb(`${fromOrTo}BlockTimestamp`, op, checkpoint.blockTimestamp),
+    ]);
+  };
