@@ -13,8 +13,7 @@ const fetchPonderMetrics = async () => {
       "http://localhost:42069/metrics",
     );
     const metricsRaw = await metricsResponse.text();
-    const metrics = parsePrometheusText(metricsRaw);
-    return metrics;
+    return metricsRaw.split("\n");
   } catch (err) {
     return [];
   }
@@ -52,10 +51,13 @@ const waitForSyncComplete = async () => {
     let timeout = undefined;
     const interval = setInterval(async () => {
       const metrics = await fetchPonderMetrics();
-      const latestProcessedTimestamp =
-        metrics.find(
-          (m) => m.name === "ponder_indexing_latest_processed_timestamp",
-        )?.metrics[0].value ?? 0;
+      const latestProcessedTimestamp = Number(
+        metrics
+          .filter((m) =>
+            m.includes("ponder_indexing_latest_processed_timestamp"),
+          )[2]
+          .slice(42),
+      );
 
       if (latestProcessedTimestamp >= END_BLOCK_TIMESTAMP) {
         duration = endClock();
@@ -89,15 +91,12 @@ const ponder = async () => {
   const setupDuration = await waitForSetupComplete();
   const duration = await waitForSyncComplete();
 
-  const metrics = await fetchPonderMetrics();
-
-  const rpcRequest = metrics.find(
-    (m) => m.name === "ponder_historical_rpc_request_duration",
-  )?.metrics[0]?.buckets["+Inf"];
-
+  const metrics = (await fetchPonderMetrics()).filter((m) =>
+    m.includes("ponder_historical_rpc_request_duration"),
+  );
   subprocess.kill();
 
-  return { setupDuration, duration, rpcRequest };
+  return { setupDuration, duration, metrics };
 };
 
 const bench = async () => {
