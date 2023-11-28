@@ -3,7 +3,7 @@ import os from "node:os";
 
 import { execa } from "execa";
 
-import { fetchWithTimeout, parsePrometheusText, startClock } from "./utils";
+import { fetchWithTimeout, startClock } from "./utils";
 
 const fetchPonderMetrics = async () => {
   try {
@@ -22,8 +22,12 @@ const fetchPonderGraphql = async () => {
     const graphqlResponse = await fetchWithTimeout(
       "http://localhost:42069/graphql",
     );
-    const graphql = JSON.parse(await graphqlResponse.text());
-    return !("errors" in graphql);
+    try {
+      JSON.parse(await graphqlResponse.text());
+      return false;
+    } catch (err) {
+      return true;
+    }
   } catch (err) {
     return false;
   }
@@ -31,9 +35,9 @@ const fetchPonderGraphql = async () => {
 
 const waitForSetupComplete = async () => {
   const endClock = startClock();
-  let duration: number;
+  let duration: number = 0;
   await new Promise((resolve, reject) => {
-    let timeout = undefined;
+    let timeout: undefined | NodeJS.Timeout = undefined;
     const interval = setInterval(async () => {
       const metrics = await fetchPonderMetrics();
 
@@ -47,7 +51,7 @@ const waitForSetupComplete = async () => {
 
     timeout = setTimeout(() => {
       clearInterval(interval);
-      reject(new Error("Timed out waiting for ponder to sync"));
+      reject(new Error("Timed out waiting for ponder to setup"));
     }, 60_000);
   });
 
@@ -56,32 +60,15 @@ const waitForSetupComplete = async () => {
 
 const waitForSyncComplete = async () => {
   const endClock = startClock();
-  let duration: number;
-  await new Promise((resolve, reject) => {
-    let timeout = undefined;
+  let duration: number = 0;
+  await new Promise((resolve) => {
     const interval = setInterval(async () => {
-      // const metrics = await fetchPonderMetrics();
-      console.log(await fetchPonderGraphql());
-      // const latestProcessedTimestamp = Number(
-      //   metrics
-      //     .filter((m) =>
-      //       m.includes("ponder_indexing_latest_processed_timestamp"),
-      //     )[2]
-      //     .slice(42),
-      // );
-
-      // if (latestProcessedTimestamp >= END_BLOCK_TIMESTAMP) {
-      //   duration = endClock();
-      //   clearInterval(interval);
-      //   clearTimeout(timeout);
-      //   resolve(undefined);
-      // }
-    }, 50);
-
-    timeout = setTimeout(() => {
-      clearInterval(interval);
-      reject(new Error("Timed out waiting for ponder to sync"));
-    }, 180_000);
+      if (await fetchPonderGraphql()) {
+        duration = endClock();
+        clearInterval(interval);
+        resolve(undefined);
+      }
+    }, 100);
   });
 
   return duration;
@@ -92,7 +79,7 @@ const ponder = async () => {
 
   const subprocess = execa(
     "../packages/core/dist/bin/ponder.js",
-    ["dev", `--root-dir=ponder`],
+    ["start", `--root-dir=ponder`],
     {
       stdio: "inherit",
       detached: true,

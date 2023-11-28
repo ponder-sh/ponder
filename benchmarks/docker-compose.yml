@@ -41,7 +41,7 @@ services:
       postgres_pass: postgres
       postgres_db: postgres
       ipfs: ipfs:5001
-      ethereum: mainnet:http://host.docker.internal:8545
+      ethereum: mainnet:${ANVIL_FORK_URL}
       ETHEREUM_REORG_THRESHOLD: 0
       GRAPH_LOG: debug
       ETHEREUM_BLOCK_BATCH_SIZE: 30
