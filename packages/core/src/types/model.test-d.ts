@@ -1,16 +1,16 @@
 import { test } from "vitest";
 
-import * as p from "@/schema/index.js";
+import { createSchema } from "@/schema/schema.js";
 import type { RecoverTableType } from "@/schema/types.js";
 
 import type { DatabaseModel } from "./model.js";
 
 test("model", () => {
-  const schema = p.createSchema({
+  const schema = createSchema((p) => ({
     name: p.createTable({
       id: p.bigint(),
     }),
-  });
+  }));
 
   type t = RecoverTableType<{}, (typeof schema)["tables"]["name"]>;
 

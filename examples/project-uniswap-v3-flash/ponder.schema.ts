@@ -1,6 +1,6 @@
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   PoolTokens: p.createTable({
     id: p.string(),
     token0: p.string(),
@@ -14,4 +14,4 @@ export default p.createSchema({
     id: p.string(),
     amount: p.bigint(),
   }),
-});
+}));

@@ -1,10 +1,11 @@
-import * as p from "../../../schema/index.js";
+import { createSchema } from "../../../schema/schema.js";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   EnsNft: p.createTable({
     id: p.string(),
     labelHash: p.string(),
     ownerId: p.string().references("Account.id"),
+    owner: p.one("ownerId"),
     transferredAt: p.int(),
     stringArray: p.string().list(),
     intArray: p.int().list(),
@@ -12,6 +13,6 @@ export default p.createSchema({
   Account: p.createTable({
     id: p.string(),
     lastActive: p.int(),
-    tokens: p.virtual("EnsNft.ownerId"),
+    tokens: p.many("EnsNft.ownerId"),
   }),
-});
+}));

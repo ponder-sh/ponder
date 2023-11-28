@@ -1,8 +1,9 @@
 import type {
   EnumColumn,
+  ManyColumn,
   NonReferenceColumn,
+  OneColumn,
   ReferenceColumn,
-  VirtualColumn,
 } from "./types.js";
 
 /**
@@ -11,15 +12,39 @@ import type {
 export const referencedTableName = (references: unknown) =>
   (references as string).split(".")[0];
 
-export const isVirtualColumn = (
-  column: EnumColumn | NonReferenceColumn | ReferenceColumn | VirtualColumn,
-): column is VirtualColumn => column._type === "v";
+export const isOneColumn = (
+  column:
+    | EnumColumn
+    | NonReferenceColumn
+    | ReferenceColumn
+    | ManyColumn
+    | OneColumn,
+): column is OneColumn => column._type === "o";
+
+export const isManyColumn = (
+  column:
+    | EnumColumn
+    | NonReferenceColumn
+    | ReferenceColumn
+    | ManyColumn
+    | OneColumn,
+): column is ManyColumn => column._type === "m";
 
 export const isEnumColumn = (
-  column: EnumColumn | NonReferenceColumn | ReferenceColumn | VirtualColumn,
+  column:
+    | EnumColumn
+    | NonReferenceColumn
+    | ReferenceColumn
+    | ManyColumn
+    | OneColumn,
 ): column is EnumColumn => column._type === "e";
 
 export const isReferenceColumn = (
-  column: EnumColumn | NonReferenceColumn | ReferenceColumn | VirtualColumn,
+  column:
+    | EnumColumn
+    | NonReferenceColumn
+    | ReferenceColumn
+    | ManyColumn
+    | OneColumn,
 ): column is ReferenceColumn =>
   column._type === "b" && column.references !== undefined;

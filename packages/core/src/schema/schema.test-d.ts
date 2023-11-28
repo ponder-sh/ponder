@@ -1,19 +1,21 @@
 import { assertType, test } from "vitest";
 
-import * as p from "./index.js";
+import { int, string } from "./columns.js";
+import { createEnum, createSchema, createTable } from "./schema.js";
 import type {
   BaseColumn,
   ExtractAllNames,
   FilterEnums,
   FilterTables,
+  Infer,
   RecoverTableType,
   Schema,
 } from "./types.js";
 
 test("table", () => {
-  const a = p.createTable({
-    id: p.string(),
-    age: p.int(),
+  const a = createTable({
+    id: string(),
+    age: int(),
   });
 
   type t = RecoverTableType<{}, typeof a>;
@@ -23,9 +25,9 @@ test("table", () => {
 });
 
 test("table optional", () => {
-  const t = p.createTable({
-    id: p.string(),
-    age: p.int().optional(),
+  const t = createTable({
+    id: string(),
+    age: int().optional(),
   });
 
   type t = RecoverTableType<{}, typeof t>;
@@ -37,10 +39,10 @@ test("table optional", () => {
 test("filter enums", () => {
   const a = {
     //  ^?
-    t: p.createTable({
-      id: p.string(),
+    t: createTable({
+      id: string(),
     }),
-    e: p.createEnum(["ONE", "TWO"]),
+    e: createEnum(["ONE", "TWO"]),
   };
 
   type t = FilterEnums<typeof a>;
@@ -52,10 +54,10 @@ test("filter enums", () => {
 test("filter tables", () => {
   const a = {
     //  ^?
-    t: p.createTable({
-      id: p.string(),
+    t: createTable({
+      id: string(),
     }),
-    e: p.createEnum(["ONE", "TWO"]),
+    e: createEnum(["ONE", "TWO"]),
   };
 
   type t = FilterTables<typeof a>;
@@ -67,12 +69,12 @@ test("filter tables", () => {
 test("extract all names", () => {
   const a = {
     //  ^?
-    t: p.createTable({
-      id: p.string(),
-      ref: p.string().references("OtherTable.id"),
-      ref2: p.string().references("OtherTable.id"),
+    t: createTable({
+      id: string(),
+      ref: string().references("OtherTable.id"),
+      ref2: string().references("OtherTable.id"),
     }),
-    e: p.createEnum(["ONE", "TWO"]),
+    e: createEnum(["ONE", "TWO"]),
   };
 
   type t = ExtractAllNames<"OtherTable", typeof a>;
@@ -82,18 +84,18 @@ test("extract all names", () => {
 });
 
 test("schema", () => {
-  const s = p.createSchema({
+  const s = createSchema((p) => ({
     //  ^?
     e: p.createEnum(["ONE", "TWO"]),
     t: p.createTable({
       id: p.string(),
       e: p.enum("e"),
     }),
-  });
+  }));
 
   assertType<Schema>(s);
 
-  type t = p.Infer<typeof s>;
+  type t = Infer<typeof s>;
   //   ^?
 
   assertType<t>({} as { t: { id: string; e: "ONE" | "TWO" } });

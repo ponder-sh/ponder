@@ -1,11 +1,11 @@
 import { beforeEach, expect, test } from "vitest";
 
 import { setupIndexingStore } from "@/_test/setup.js";
-import * as p from "@/schema/index.js";
+import { createSchema } from "@/schema/schema.js";
 
 beforeEach((context) => setupIndexingStore(context));
 
-const schema = p.createSchema({
+const schema = createSchema((p) => ({
   PetKind: p.createEnum(["CAT", "DOG"]),
   Pet: p.createTable({
     id: p.string(),
@@ -18,7 +18,7 @@ const schema = p.createSchema({
     id: p.string(),
     name: p.string(),
   }),
-});
+}));
 
 test("reload() binds the schema", async (context) => {
   const { indexingStore } = context;

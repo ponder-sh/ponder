@@ -51,6 +51,7 @@ jobs:
   test:
     name: Test [core]
     runs-on: "ubuntu-latest"
+    timeout-minutes: 3
     strategy:
       fail-fast: false
       matrix:
@@ -78,6 +79,7 @@ jobs:
   test-create-ponder:
     name: Test [create-ponder]
     runs-on: "ubuntu-latest"
+    timeout-minutes: 3
     strategy:
       fail-fast: false
       matrix:

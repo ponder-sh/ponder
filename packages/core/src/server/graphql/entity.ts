@@ -9,23 +9,31 @@ import {
   GraphQLString,
 } from "graphql";
 
-import type { Schema } from "@/schema/types.js";
+import type { ReferenceColumn, Schema } from "@/schema/types.js";
 import {
   isEnumColumn,
-  isReferenceColumn,
-  isVirtualColumn,
+  isManyColumn,
+  isOneColumn,
   referencedTableName,
 } from "@/schema/utils.js";
 
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
 
-export const buildEntityTypes = ({
-  schema,
-}: {
-  schema: Schema;
-}): Record<string, GraphQLObjectType<Source, Context>> => {
+export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
   const entityGqlTypes: Record<string, GraphQLObjectType<Source, Context>> = {};
+
+  const enumGqlTypes: Record<string, GraphQLEnumType> = {};
+
+  for (const [enumName, _enum] of Object.entries(schema.enums)) {
+    enumGqlTypes[enumName] = new GraphQLEnumType({
+      name: enumName,
+      values: _enum.reduce(
+        (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
+        {},
+      ),
+    });
+  }
 
   for (const [tableName, table] of Object.entries(schema.tables)) {
     entityGqlTypes[tableName] = new GraphQLObjectType({
@@ -34,7 +42,36 @@ export const buildEntityTypes = ({
         const fieldConfigMap: GraphQLFieldConfigMap<Source, Context> = {};
 
         Object.entries(table).forEach(([columnName, column]) => {
-          if (isVirtualColumn(column)) {
+          if (isOneColumn(column)) {
+            // Column must resolve the foreign key of the referenced column
+            // Note: this relies on the fact that reference columns can't be lists
+
+            const referencedTable = referencedTableName(
+              (table[column.referenceColumn] as ReferenceColumn).references,
+            );
+
+            const resolver: GraphQLFieldResolver<Source, Context> = async (
+              parent,
+              _args,
+              context,
+            ) => {
+              const { store } = context;
+
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore
+              const relatedRecordId = parent[column.referenceColumn];
+
+              return await store.findUnique({
+                tableName: referencedTable,
+                id: relatedRecordId,
+              });
+            };
+
+            fieldConfigMap[columnName] = {
+              type: entityGqlTypes[referencedTable],
+              resolve: resolver,
+            };
+          } else if (isManyColumn(column)) {
             // Column is virtual meant to tell graphQL to make a field
 
             const resolver: GraphQLFieldResolver<Source, Context> = async (
@@ -82,63 +119,20 @@ export const buildEntityTypes = ({
               },
               resolve: resolver,
             };
-          } else if (isEnumColumn(column)) {
-            // Note: this relies on the fact that there are no list enums
-            const enumName = column.type;
-            const enumType = new GraphQLEnumType({
-              name: enumName,
-              values: schema.enums[enumName].reduce(
-                (acc: Record<string, {}>, cur) => ({ ...acc, [cur]: {} }),
-                {},
-              ),
-            });
-
-            fieldConfigMap[columnName] = {
-              type: column.optional ? new GraphQLNonNull(enumType) : enumType,
-            };
-          } else if (isReferenceColumn(column)) {
-            // Column is a reference to another table
-            // Note: this relies on the fact that reference columns can't be lists
-
-            const resolver: GraphQLFieldResolver<Source, Context> = async (
-              parent,
-              _args,
-              context,
-            ) => {
-              const { store } = context;
-
-              // The parent object gets passed in here with relationship fields defined as the
-              // string ID of the related entity. Here, we get the ID and query for that entity.
-              // Then, the GraphQL server serves the resolved object here instead of the ID.
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-              // @ts-ignore
-              const relatedInstanceId = parent[columnName];
-
-              return await store.findUnique({
-                tableName: referencedTableName(column.references),
-                id: relatedInstanceId,
-              });
-            };
-
-            fieldConfigMap[columnName.slice(0, -2)] = {
-              type: entityGqlTypes[referencedTableName(column.references)],
-              resolve: resolver,
-            };
-          } else if (column.list) {
-            const listType = new GraphQLList(
-              new GraphQLNonNull(tsTypeToGqlScalar[column.type]),
-            );
-            fieldConfigMap[columnName] = {
-              type: column.optional ? listType : new GraphQLNonNull(listType),
-            };
           } else {
-            // Normal scalar
-
-            fieldConfigMap[columnName] = {
-              type: column.optional
-                ? tsTypeToGqlScalar[column.type]
-                : new GraphQLNonNull(tsTypeToGqlScalar[column.type]),
-            };
+            const type = isEnumColumn(column)
+              ? enumGqlTypes[column.type]
+              : tsTypeToGqlScalar[column.type];
+            if (column.list) {
+              const listType = new GraphQLList(new GraphQLNonNull(type));
+              fieldConfigMap[columnName] = {
+                type: column.optional ? listType : new GraphQLNonNull(listType),
+              };
+            } else {
+              fieldConfigMap[columnName] = {
+                type: column.optional ? type : new GraphQLNonNull(type),
+              };
+            }
           }
         });
 
@@ -147,5 +141,5 @@ export const buildEntityTypes = ({
     });
   }
 
-  return entityGqlTypes;
+  return { entityGqlTypes, enumGqlTypes };
 };

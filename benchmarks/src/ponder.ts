@@ -5,8 +5,6 @@ import { execa } from "execa";
 
 import { fetchWithTimeout, parsePrometheusText, startClock } from "./utils";
 
-const END_BLOCK_TIMESTAMP = 1687010591; // unix timestamp at end block
-
 const fetchPonderMetrics = async () => {
   try {
     const metricsResponse = await fetchWithTimeout(
@@ -16,6 +14,18 @@ const fetchPonderMetrics = async () => {
     return metricsRaw.split("\n");
   } catch (err) {
     return [];
+  }
+};
+
+const fetchPonderGraphql = async () => {
+  try {
+    const graphqlResponse = await fetchWithTimeout(
+      "http://localhost:42069/graphql",
+    );
+    const graphql = JSON.parse(await graphqlResponse.text());
+    return !("errors" in graphql);
+  } catch (err) {
+    return false;
   }
 };
 
@@ -50,21 +60,22 @@ const waitForSyncComplete = async () => {
   await new Promise((resolve, reject) => {
     let timeout = undefined;
     const interval = setInterval(async () => {
-      const metrics = await fetchPonderMetrics();
-      const latestProcessedTimestamp = Number(
-        metrics
-          .filter((m) =>
-            m.includes("ponder_indexing_latest_processed_timestamp"),
-          )[2]
-          .slice(42),
-      );
+      // const metrics = await fetchPonderMetrics();
+      console.log(await fetchPonderGraphql());
+      // const latestProcessedTimestamp = Number(
+      //   metrics
+      //     .filter((m) =>
+      //       m.includes("ponder_indexing_latest_processed_timestamp"),
+      //     )[2]
+      //     .slice(42),
+      // );
 
-      if (latestProcessedTimestamp >= END_BLOCK_TIMESTAMP) {
-        duration = endClock();
-        clearInterval(interval);
-        clearTimeout(timeout);
-        resolve(undefined);
-      }
+      // if (latestProcessedTimestamp >= END_BLOCK_TIMESTAMP) {
+      //   duration = endClock();
+      //   clearInterval(interval);
+      //   clearTimeout(timeout);
+      //   resolve(undefined);
+      // }
     }, 50);
 
     timeout = setTimeout(() => {
@@ -81,7 +92,7 @@ const ponder = async () => {
 
   const subprocess = execa(
     "../packages/core/dist/bin/ponder.js",
-    ["start", `--root-dir=ponder`],
+    ["dev", `--root-dir=ponder`],
     {
       stdio: "inherit",
       detached: true,

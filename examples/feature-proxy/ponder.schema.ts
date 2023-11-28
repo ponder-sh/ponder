@@ -1,6 +1,6 @@
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   LiquidationEvent: p.createTable({
     id: p.string(),
     liquidator: p.string(),
@@ -9,4 +9,4 @@ export default p.createSchema({
     id: p.string(),
     newOwner: p.string(),
   }),
-});
+}));
