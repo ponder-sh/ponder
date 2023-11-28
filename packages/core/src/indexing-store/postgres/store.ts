@@ -5,8 +5,9 @@ import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
 import {
   isEnumColumn,
+  isManyColumn,
+  isOneColumn,
   isReferenceColumn,
-  isVirtualColumn,
 } from "@/schema/utils.js";
 
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
@@ -121,9 +122,9 @@ export class PostgresIndexingStore implements IndexingStore {
             let tableBuilder = tx.schema.createTable(table);
 
             Object.entries(columns).forEach(([columnName, column]) => {
-              // Handle scalar list columns
-              if (isVirtualColumn(column)) return;
-              else if (isEnumColumn(column)) {
+              if (isOneColumn(column)) return;
+              if (isManyColumn(column)) return;
+              if (isEnumColumn(column)) {
                 // Handle enum types
                 tableBuilder = tableBuilder.addColumn(
                   columnName,
@@ -756,12 +757,9 @@ export class PostgresIndexingStore implements IndexingStore {
         return;
       }
 
-      if (isVirtualColumn(column)) return;
-      else if (
-        !isEnumColumn(column) &&
-        !isReferenceColumn(column) &&
-        column.list
-      ) {
+      if (isOneColumn(column)) return;
+      if (isManyColumn(column)) return;
+      if (!isEnumColumn(column) && !isReferenceColumn(column) && column.list) {
         let parsedValue = JSON.parse(value as string);
         if (column.type === "bigint") parsedValue = parsedValue.map(BigInt);
         deserializedRow[columnName] = parsedValue;

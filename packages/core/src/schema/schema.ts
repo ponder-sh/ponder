@@ -1,3 +1,16 @@
+import {
+  type _Enum,
+  _enum,
+  bigint,
+  boolean,
+  bytes,
+  type EmptyModifier,
+  float,
+  int,
+  many,
+  one,
+  string,
+} from "./columns.js";
 import type {
   Enum,
   EnumColumn,
@@ -8,17 +21,19 @@ import type {
   IDColumn,
   InternalColumn,
   InternalEnum,
+  ManyColumn,
   NonReferenceColumn,
+  OneColumn,
   ReferenceColumn,
   Scalar,
   Schema,
   Table,
-  VirtualColumn,
 } from "./types.js";
 import {
   isEnumColumn,
+  isManyColumn,
+  isOneColumn,
   isReferenceColumn,
-  isVirtualColumn,
   referencedTableName,
 } from "./utils.js";
 
@@ -32,18 +47,21 @@ declare global {
   }
 }
 
-/**
- * Extract the data from column types, removing the modifier functions
- */
 export const createTable = <
   TColumns extends
     | ({
         id: { [" column"]: IDColumn };
-      } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
+      } & Record<
+        string,
+        InternalEnum | InternalColumn | ManyColumn | OneColumn
+      >)
     | unknown =
     | ({
         id: { [" column"]: IDColumn };
-      } & Record<string, InternalEnum | InternalColumn | VirtualColumn>)
+      } & Record<
+        string,
+        InternalEnum | InternalColumn | ManyColumn | OneColumn
+      >)
     | unknown,
 >(
   columns: TColumns,
@@ -57,12 +75,16 @@ export const createTable = <
   Object.entries(
     columns as {
       id: { [" column"]: IDColumn };
-    } & Record<string, InternalEnum | InternalColumn | VirtualColumn>,
+    } & Record<string, InternalEnum | InternalColumn | ManyColumn | OneColumn>,
   ).reduce(
     (
       acc: Record<
         string,
-        NonReferenceColumn | ReferenceColumn | EnumColumn | VirtualColumn
+        | NonReferenceColumn
+        | ReferenceColumn
+        | EnumColumn
+        | ManyColumn
+        | OneColumn
       >,
       cur,
     ) => ({
@@ -85,8 +107,215 @@ export const createTable = <
 
 export const createEnum = <const TEnum extends Enum>(_enum: TEnum) => _enum;
 
+const P = {
+  createEnum,
+  createTable,
+  string,
+  bigint,
+  int,
+  float,
+  bytes,
+  boolean,
+  one,
+  many,
+  enum: _enum,
+};
+
+type P = {
+  /**
+   * Primitive `string` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *   })
+   * })
+   */
+  string: () => EmptyModifier<"string">;
+  /**
+   * Primitive `int` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.int(),
+   *   })
+   * })
+   */
+  int: () => EmptyModifier<"int">;
+  /**
+   * Primitive `float` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     f: p.float(),
+   *   })
+   * })
+   */
+  float: () => EmptyModifier<"float">;
+  /**
+   * Primitive `bytes` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.bytes(),
+   *   })
+   * })
+   */
+  bytes: () => EmptyModifier<"bytes">;
+  /**
+   * Primitive `boolean` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     b: p.boolean(),
+   *   })
+   * })
+   */
+  boolean: () => EmptyModifier<"boolean">;
+  /**
+   * Primitive `bigint` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.bigint(),
+   *   })
+   * })
+   */
+  bigint: () => EmptyModifier<"bigint">;
+  /**
+   * Custom defined allowable value column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @param type Enum defined elsewhere in the schema with `p.createEnum()`.
+   *
+   * @example
+   * export default p.createSchema({
+   *   e: p.createEnum(["ONE", "TWO"])
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     a: p.enum("e"),
+   *   })
+   * })
+   */
+  enum: <TType extends string>(type: TType) => _Enum<TType, false, false>;
+  /**
+   * One-to-one column type.`one` columns don't exist in the database. They are only present when querying data from the GraphQL API.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @param reference Reference column to be resolved.
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   a: p.createTable({
+   *     id: p.string(),
+   *     b_id: p.string.references("b.id"),
+   *     b: p.one("b_id"),
+   *   })
+   *   b: p.createTable({
+   *     id: p.string(),
+   *   })
+   * })
+   */
+  one: <T extends string>(derivedColumn: T) => OneColumn<T>;
+  /**
+   * Many-to-one column type. `many` columns don't exist in the database. They are only present when querying data from the GraphQL API.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @param reference Reference column that references the `id` column of the current table.
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   a: p.createTable({
+   *     id: p.string(),
+   *     ref: p.string.references("b.id"),
+   *   })
+   *   b: p.createTable({
+   *     id: p.string(),
+   *     m: p.many("a.ref"),
+   *   })
+   * })
+   */
+  many: <T extends `${string}.${string}`>(derived: T) => ManyColumn<T>;
+  /**
+   * Create an Enum type for the database.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * export default p.createSchema({
+   *   e: p.createEnum(["ONE", "TWO"])
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     a: p.enum("e"),
+   *   })
+   * })
+   */
+  createEnum: typeof createEnum;
+  /**
+   * Create a database table.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *   })
+   * })
+   */
+  createTable: typeof createTable;
+};
+
 /**
- * Type inference and runtime validation
+ * Create a database schema.
+ *
+ * - Docs: [TODO:KYLE]
+ *
+ * @example
+ * export default p.createSchema({
+ *   t: p.createTable({
+ *     id: p.string(),
+ *   })
+ * })
  */
 export const createSchema = <
   TSchema extends {
@@ -98,13 +327,14 @@ export const createSchema = <
                 Scalar,
                 `${keyof FilterTables<TSchema> & string}.id`
               >
-            | EnumColumn<keyof FilterEnums<TSchema>, boolean>
-            | VirtualColumn<ExtractAllNames<tableName & string, TSchema>>;
+            | EnumColumn<keyof FilterEnums<TSchema>, boolean, boolean>
+            | ManyColumn<ExtractAllNames<tableName & string, TSchema>>
+            | OneColumn<Exclude<keyof TSchema[tableName], columnName>>;
         })
       | Enum<readonly string[]>;
   },
 >(
-  _schema: TSchema,
+  _schema: (p: P) => TSchema,
 ): {
   tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
   enums: {
@@ -112,7 +342,7 @@ export const createSchema = <
   };
 } => {
   // Convert to an easier type to work with
-  const schema = _schema as Record<
+  const schema = _schema(P) as Record<
     string,
     | Schema["tables"][keyof Schema["tables"]]
     | Schema["enums"][keyof Schema["enums"]]
@@ -145,7 +375,8 @@ export const createSchema = <
       const type = tableOrEnum.id.type;
       if (
         isEnumColumn(tableOrEnum.id) ||
-        isVirtualColumn(tableOrEnum.id) ||
+        isOneColumn(tableOrEnum.id) ||
+        isManyColumn(tableOrEnum.id) ||
         isReferenceColumn(tableOrEnum.id) ||
         (type !== "bigint" &&
           type !== "string" &&
@@ -172,13 +403,29 @@ export const createSchema = <
 
         validateTableOrColumnName(columnName);
 
-        if (isVirtualColumn(column)) {
+        if (isOneColumn(column)) {
+          if (
+            Object.keys(tableOrEnum)
+              .filter((c) => c !== columnName)
+              .every((c) => c !== column.referenceColumn) === undefined
+          )
+            throw Error("One column doesn't reference a valid column");
+
+          if (
+            !isReferenceColumn(
+              Object.entries(tableOrEnum).find(
+                ([c]) => c === column.referenceColumn,
+              )![1],
+            )
+          )
+            throw Error("One column doesn't reference a reference column");
+        } else if (isManyColumn(column)) {
           if (
             Object.keys(schema)
               .filter((_name) => _name !== name)
               .every((_name) => _name !== column.referenceTable)
           )
-            throw Error("Virtual column doesn't reference a valid table");
+            throw Error("Many column doesn't reference a valid table");
 
           if (
             (
@@ -187,7 +434,7 @@ export const createSchema = <
               )![1] as Record<string, unknown>
             )[column.referenceColumn as string] === undefined
           )
-            throw Error("Virtual column doesn't reference a valid column");
+            throw Error("Many column doesn't reference a valid column");
         } else if (isEnumColumn(column)) {
           if (Object.entries(schema).every(([_name]) => _name !== column.type))
             throw Error("Column doesn't reference a valid enum");

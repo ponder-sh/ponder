@@ -1,12 +1,12 @@
 import { type GraphQLType } from "graphql";
 import { expect, test } from "vitest";
 
-import * as p from "@/schema/index.js";
+import { createSchema } from "@/schema/schema.js";
 
 import { buildGqlSchema } from "./schema.js";
 
 test("filter type has correct suffixes and types", () => {
-  const s = p.createSchema({
+  const s = createSchema((p) => ({
     SimpleEnum: p.createEnum(["VALUE", "ANOTHER_VALUE"]),
     RelatedTableStringId: p.createTable({ id: p.string() }),
     RelatedTableBigIntId: p.createTable({ id: p.bigint() }),
@@ -20,10 +20,12 @@ test("filter type has correct suffixes and types", () => {
       enum: p.enum("SimpleEnum"),
       listString: p.string().list(),
       listBigInt: p.bigint().list(),
+      listEnum: p.enum("SimpleEnum").list(),
       relatedTableStringId: p.string().references("RelatedTableStringId.id"),
       relatedTableBigIntId: p.bigint().references("RelatedTableBigIntId.id"),
+      relatedTableString: p.one("relatedTableStringId"),
     }),
-  });
+  }));
 
   const serverSchema = buildGqlSchema(s);
 
@@ -104,10 +106,10 @@ test("filter type has correct suffixes and types", () => {
     listBigInt_not: "[BigInt]",
     listBigInt_has: "BigInt",
     listBigInt_not_has: "BigInt",
-    // listEnum: "[SimpleEnum]",
-    // listEnum_not: "[SimpleEnum]",
-    // listEnum_has: "SimpleEnum",
-    // listEnum_not_has: "SimpleEnum",
+    listEnum: "[SimpleEnum]",
+    listEnum_not: "[SimpleEnum]",
+    listEnum_has: "SimpleEnum",
+    listEnum_not_has: "SimpleEnum",
     relatedTableStringId: "String",
     relatedTableStringId_not: "String",
     relatedTableStringId_in: "[String]",

@@ -1,22 +1,33 @@
 import { expect, test } from "vitest";
 
-import * as p from "./index.js";
-import { isEnumColumn, isReferenceColumn, isVirtualColumn } from "./utils.js";
+import { _enum, many, one, string } from "./columns.js";
+import {
+  isEnumColumn,
+  isManyColumn,
+  isOneColumn,
+  isReferenceColumn,
+} from "./utils.js";
 
-test("virtual column", () => {
-  expect(isVirtualColumn(p.string()[" column"])).toBe(false);
+test("one column", () => {
+  expect(isManyColumn(string()[" column"])).toBe(false);
 
-  expect(isVirtualColumn(p.virtual("a.b"))).toBe(true);
+  expect(isOneColumn(one("a"))).toBe(true);
+});
+
+test("many column", () => {
+  expect(isManyColumn(string()[" column"])).toBe(false);
+
+  expect(isManyColumn(many("a.b"))).toBe(true);
 });
 
 test("enum column", () => {
-  expect(isEnumColumn(p.string()[" column"])).toBe(false);
+  expect(isEnumColumn(string()[" column"])).toBe(false);
 
-  expect(isEnumColumn(p.enum("ENUM")[" enum"])).toBe(true);
+  expect(isEnumColumn(_enum("ENUM")[" enum"])).toBe(true);
 });
 
 test("reference column", () => {
-  expect(isReferenceColumn(p.string()[" column"])).toBe(false);
+  expect(isReferenceColumn(string()[" column"])).toBe(false);
 
-  expect(isReferenceColumn(p.string().references(".id")[" column"])).toBe(true);
+  expect(isReferenceColumn(string().references(".id")[" column"])).toBe(true);
 });

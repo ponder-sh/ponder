@@ -1,5 +1,6 @@
 export { createConfig } from "@/config/config.js";
-export * as p from "@/schema/index.js";
+export { createSchema } from "@/schema/schema.js";
+export type { Infer } from "@/schema/types.js";
 export type { Block } from "@/types/block.js";
 export type { Log } from "@/types/log.js";
 export type { DatabaseModel } from "@/types/model.js";

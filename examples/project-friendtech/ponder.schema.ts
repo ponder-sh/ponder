@@ -1,17 +1,27 @@
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   TradeType: p.createEnum(["BUY", "SELL"]),
   Share: p.createTable({
     id: p.bytes(),
+
     subjectId: p.bytes().references("Subject.id"),
     traderId: p.bytes().references("Trader.id"),
+
+    subject: p.one("subjectId"),
+    trader: p.one("traderId"),
+
     shareAmount: p.bigint(),
   }),
   TradeEvent: p.createTable({
     id: p.bytes(),
+
     subjectId: p.bytes().references("Subject.id"),
     traderId: p.bytes().references("Trader.id"),
+
+    subject: p.one("subjectId"),
+    trader: p.one("traderId"),
+
     shareAmount: p.bigint(),
     tradeType: p.enum("TradeType"),
     ethAmount: p.bigint(),
@@ -29,8 +39,9 @@ export default p.createSchema({
     earnings: p.bigint(),
     traderVolume: p.bigint(),
     protocolFeesGenerated: p.bigint(),
-    shares: p.virtual("Share.subjectId"),
-    trades: p.virtual("TradeEvent.subjectId"),
+
+    shares: p.many("Share.subjectId"),
+    trades: p.many("TradeEvent.subjectId"),
   }),
   Trader: p.createTable({
     id: p.bytes(),
@@ -40,11 +51,12 @@ export default p.createSchema({
     profit: p.bigint(),
     subjectFeesPaid: p.bigint(),
     protocolFeesPaid: p.bigint(),
-    shares: p.virtual("Share.traderId"),
-    trades: p.virtual("TradeEvent.traderId"),
+
+    shares: p.many("Share.traderId"),
+    trades: p.many("TradeEvent.traderId"),
   }),
   Protocol: p.createTable({
     id: p.int(),
     earnings: p.bigint(),
   }),
-});
+}));
