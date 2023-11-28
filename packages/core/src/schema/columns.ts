@@ -173,63 +173,70 @@ const references = <TScalar extends Scalar, TOptional extends boolean>(
         };
   }) as References<TScalar, TOptional>;
 
+export type EmptyModifier<TScalar extends Scalar> = InternalColumn<
+  TScalar,
+  undefined,
+  false,
+  false
+> & {
+  /**
+   * Mark the column as optional.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     o: p.int().optional(),
+   *   })
+   * })
+   */
+  optional: Optional<TScalar, undefined, false>;
+  /**
+   * Mark the column as a list.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     l: p.int().list(),
+   *   })
+   * })
+   */
+  list: List<TScalar, false>;
+  /**
+   * Mark the column as a foreign key.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @param references Table that this column is a key of.
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   a: p.createTable({
+   *     id: p.string(),
+   *     b_id: p.string.references("b.id"),
+   *   })
+   *   b: p.createTable({
+   *     id: p.string(),
+   *   })
+   * })
+   */
+  references: References<TScalar, false>;
+};
+
 const emptyColumn =
   <TScalar extends Scalar>(scalar: TScalar) =>
-  (): InternalColumn<TScalar, undefined, false, false> & {
-    /**
-     * Mark the column as optional.
-     *
-     * - Docs: [TODO:KYLE]
-     *
-     * @example
-     * import { p } from '@ponder/core'
-     *
-     * export default p.createSchema({
-     *   t: p.createTable({
-     *     id: p.string(),
-     *     o: p.int().optional(),
-     *   })
-     * })
-     */
-    optional: Optional<TScalar, undefined, false>;
-    /**
-     * Mark the column as a list.
-     *
-     * - Docs: [TODO:KYLE]
-     *
-     * @example
-     * import { p } from '@ponder/core'
-     *
-     * export default p.createSchema({
-     *   t: p.createTable({
-     *     id: p.string(),
-     *     l: p.int().list(),
-     *   })
-     * })
-     */
-    list: List<TScalar, false>;
-    /**
-     * Mark the column as a foreign key.
-     *
-     * - Docs: [TODO:KYLE]
-     *
-     * @param references Table that this column is a key of.
-     *
-     * @example
-     * import { p } from '@ponder/core'
-     *
-     * export default p.createSchema({
-     *   a: p.createTable({
-     *     id: p.string(),
-     *     b_id: p.string.references("b.id"),
-     *   })
-     *   b: p.createTable({
-     *     id: p.string(),
-     *   })
-     * })
-     */
-    references: References<TScalar, false>;
-  } => {
+  (): EmptyModifier<TScalar> => {
     const column = {
       _type: "b",
       type: scalar,
@@ -246,7 +253,7 @@ const emptyColumn =
     };
   };
 
-type Enum<
+export type _Enum<
   TType extends string,
   TOptional extends boolean,
   TList extends boolean,
@@ -270,7 +277,7 @@ type Enum<
          *   })
          * })
          */
-        optional: () => Enum<TType, true, TList>;
+        optional: () => _Enum<TType, true, TList>;
       }) &
   (TList extends true
     ? {}
@@ -291,28 +298,12 @@ type Enum<
          *   })
          * })
          */
-        list: () => Enum<TType, TOptional, true>;
+        list: () => _Enum<TType, TOptional, true>;
       });
 
-/**
- * Custom defined allowable value column type.
- *
- * - Docs: [TODO:KYLE]
- *
- * @param type Enum defined elsewhere in the schema with `p.createEnum()`.
- *
- * @example
- * export default p.createSchema({
- *   e: p.createEnum(["ONE", "TWO"])
- *   t: p.createTable({
- *     id: p.string(),
- *     a: p.enum("e"),
- *   })
- * })
- */
 export const _enum = <TType extends string>(
   type: TType,
-): Enum<TType, false, false> => ({
+): _Enum<TType, false, false> => ({
   [" enum"]: {
     _type: "e",
     type,
@@ -354,125 +345,19 @@ export const _enum = <TType extends string>(
   }),
 });
 
-/**
- * Primitive `string` column type.
- *
- * - Docs: [TODO:KYLE]
- *
- * @example
- * import { p } from '@ponder/core'
- *
- * export default p.createSchema({
- *   t: p.createTable({
- *     id: p.string(),
- *   })
- * })
- */
 export const string = emptyColumn("string");
-
-/**
- * Primitive `int` column type.
- *
- * - Docs: [TODO:KYLE]
- *
- * @example
- * import { p } from '@ponder/core'
- *
- * export default p.createSchema({
- *   t: p.createTable({
- *     id: p.int(),
- *   })
- * })
- */
 export const int = emptyColumn("int");
-
-/**
- * Primitive `float` column type.
- *
- * - Docs: [TODO:KYLE]
- *
- * @example
- * import { p } from '@ponder/core'
- *
- * export default p.createSchema({
- *   t: p.createTable({
- *     id: p.string(),
- *     f: p.float(),
- *   })
- * })
- */
 export const float = emptyColumn("float");
-
-/**
- * Primitive `boolean` column type.
- *
- * - Docs: [TODO:KYLE]
- *
- * @example
- * import { p } from '@ponder/core'
- *
- * export default p.createSchema({
- *   t: p.createTable({
- *     id: p.string(),
- *     b: p.boolean(),
- *   })
- * })
- */
 export const boolean = emptyColumn("boolean");
-
-/**
- * Primitive `bytes` column type.
- *
- * - Docs: [TODO:KYLE]
- *
- * @example
- * import { p } from '@ponder/core'
- *
- * export default p.createSchema({
- *   t: p.createTable({
- *     id: p.bytes(),
- *   })
- * })
- */
 export const bytes = emptyColumn("bytes");
-
-/**
- * Primitive `bigint` column type.
- *
- * - Docs: [TODO:KYLE]
- *
- * @example
- * import { p } from '@ponder/core'
- *
- * export default p.createSchema({
- *   t: p.createTable({
- *     id: p.bigint(),
- *   })
- * })
- */
 export const bigint = emptyColumn("bigint");
 
-/**
- * Many-to-one column type. `many` columns don't exist in the database. They are only present when querying data from the GraphQL API.
- *
- * - Docs: [TODO:KYLE]
- *
- * @param reference Reference column that references the `id` column of the current table.
- *
- * @example
- * import { p } from '@ponder/core'
- *
- * export default p.createSchema({
- *   a: p.createTable({
- *     id: p.string(),
- *     ref: p.string.references("b.id"),
- *   })
- *   b: p.createTable({
- *     id: p.string(),
- *     m: p.many("a.ref"),
- *   })
- * })
- */
+export const one = <T extends string>(derivedColumn: T): OneColumn<T> =>
+  ({
+    _type: "o",
+    referenceColumn: derivedColumn,
+  }) as OneColumn<T>;
+
 export const many = <T extends `${string}.${string}`>(
   derived: T,
 ): ManyColumn<T> =>
@@ -481,41 +366,3 @@ export const many = <T extends `${string}.${string}`>(
     referenceTable: derived.split(".")[0],
     referenceColumn: derived.split(".")[1],
   }) as ManyColumn<T>;
-
-/**
- * One-to-one column type.`one` columns don't exist in the database. They are only present when querying data from the GraphQL API.
- *
- * - Docs: [TODO:KYLE]
- *
- * @param reference Reference column to be resolved.
- *
- * @example
- * import { p } from '@ponder/core'
- *
- * export default p.createSchema({
- *   a: p.createTable({
- *     id: p.string(),
- *     b_id: p.string.references("b.id"),
- *     b: p.one("b_id"),
- *   })
- *   b: p.createTable({
- *     id: p.string(),
- *   })
- * })
- */
-export const one = <T extends string>(derivedColumn: T): OneColumn<T> =>
-  ({
-    _type: "o",
-    referenceColumn: derivedColumn,
-  }) as OneColumn<T>;
-
-export type pColumns = {
-  one: <T extends string>(derivedColumn: T) => OneColumn<T>;
-  many: <T extends `${string}.${string}`>(derived: T) => ManyColumn<T>;
-  string: typeof string;
-  int: typeof int;
-  float: typeof float;
-  bytes: typeof bytes;
-  boolean: typeof boolean;
-  bigint: typeof bigint;
-};

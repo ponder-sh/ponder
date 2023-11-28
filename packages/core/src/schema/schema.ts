@@ -1,8 +1,10 @@
 import {
+  type _Enum,
   _enum,
   bigint,
   boolean,
   bytes,
+  type EmptyModifier,
   float,
   int,
   many,
@@ -45,18 +47,6 @@ declare global {
   }
 }
 
-/**
- * Create a database table.
- *
- * - Docs: [TODO:KYLE]
- *
- * @example
- * export default p.createSchema({
- *   t: p.createTable({
- *     id: p.string(),
- *   })
- * })
- */
 export const createTable = <
   TColumns extends
     | ({
@@ -115,20 +105,6 @@ export const createTable = <
         : TColumns[key];
   };
 
-/**
- * Create an Enum type for the database.
- *
- * - Docs: [TODO:KYLE]
- *
- * @example
- * export default p.createSchema({
- *   e: p.createEnum(["ONE", "TWO"])
- *   t: p.createTable({
- *     id: p.string(),
- *     a: p.enum("e"),
- *   })
- * })
- */
 export const createEnum = <const TEnum extends Enum>(_enum: TEnum) => _enum;
 
 const P = {
@@ -143,6 +119,190 @@ const P = {
   one,
   many,
   enum: _enum,
+};
+
+type P = {
+  /**
+   * Primitive `string` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *   })
+   * })
+   */
+  string: () => EmptyModifier<"string">;
+  /**
+   * Primitive `int` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.int(),
+   *   })
+   * })
+   */
+  int: () => EmptyModifier<"int">;
+  /**
+   * Primitive `float` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     f: p.float(),
+   *   })
+   * })
+   */
+  float: () => EmptyModifier<"float">;
+  /**
+   * Primitive `bytes` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.bytes(),
+   *   })
+   * })
+   */
+  bytes: () => EmptyModifier<"bytes">;
+  /**
+   * Primitive `boolean` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     b: p.boolean(),
+   *   })
+   * })
+   */
+  boolean: () => EmptyModifier<"boolean">;
+  /**
+   * Primitive `bigint` column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.bigint(),
+   *   })
+   * })
+   */
+  bigint: () => EmptyModifier<"bigint">;
+  /**
+   * Custom defined allowable value column type.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @param type Enum defined elsewhere in the schema with `p.createEnum()`.
+   *
+   * @example
+   * export default p.createSchema({
+   *   e: p.createEnum(["ONE", "TWO"])
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     a: p.enum("e"),
+   *   })
+   * })
+   */
+  enum: <TType extends string>(type: TType) => _Enum<TType, false, false>;
+  /**
+   * One-to-one column type.`one` columns don't exist in the database. They are only present when querying data from the GraphQL API.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @param reference Reference column to be resolved.
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   a: p.createTable({
+   *     id: p.string(),
+   *     b_id: p.string.references("b.id"),
+   *     b: p.one("b_id"),
+   *   })
+   *   b: p.createTable({
+   *     id: p.string(),
+   *   })
+   * })
+   */
+  one: <T extends string>(derivedColumn: T) => OneColumn<T>;
+  /**
+   * Many-to-one column type. `many` columns don't exist in the database. They are only present when querying data from the GraphQL API.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @param reference Reference column that references the `id` column of the current table.
+   *
+   * @example
+   * import { p } from '@ponder/core'
+   *
+   * export default p.createSchema({
+   *   a: p.createTable({
+   *     id: p.string(),
+   *     ref: p.string.references("b.id"),
+   *   })
+   *   b: p.createTable({
+   *     id: p.string(),
+   *     m: p.many("a.ref"),
+   *   })
+   * })
+   */
+  many: <T extends `${string}.${string}`>(derived: T) => ManyColumn<T>;
+  /**
+   * Create an Enum type for the database.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * export default p.createSchema({
+   *   e: p.createEnum(["ONE", "TWO"])
+   *   t: p.createTable({
+   *     id: p.string(),
+   *     a: p.enum("e"),
+   *   })
+   * })
+   */
+  createEnum: typeof createEnum;
+  /**
+   * Create a database table.
+   *
+   * - Docs: [TODO:KYLE]
+   *
+   * @example
+   * export default p.createSchema({
+   *   t: p.createTable({
+   *     id: p.string(),
+   *   })
+   * })
+   */
+  createTable: typeof createTable;
 };
 
 /**
@@ -174,7 +334,7 @@ export const createSchema = <
       | Enum<readonly string[]>;
   },
 >(
-  _schema: (p: typeof P) => TSchema,
+  _schema: (p: P) => TSchema,
 ): {
   tables: { [key in keyof FilterTables<TSchema>]: TSchema[key] };
   enums: {
