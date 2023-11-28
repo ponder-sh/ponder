@@ -3,10 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bench:ponder": "tsup-node && anvil --fork-url $ANVIL_FORK_URL --fork-block-number $ANVIL_FORK_BLOCK_NUMBER && node dist/ponder.mjs",
-    "bench:ponder:ci": "tsup-node && node dist/ponder.mjs",
-    "bench:subgraph": "export $(grep -v '^#' .env.local | xargs) && rm -rf data/ && docker-compose up --detach && tsup-node && (node dist/subgraph.js || true) && docker-compose down",
-    "bench:subgraph:ci": "tsup-node && node dist/subgraph.mjs"
+    "bench:ponder": "bun src/ponder.ts",
+    "bench:subgraph": "export $(grep -v '^#' .env.local | xargs) && rm -rf data/ && docker-compose up --detach && tsup-node && (node dist/subgraph.js || true) && docker-compose down"
   },
   "devDependencies": {
     "@graphprotocol/graph-cli": "0.61.0",
