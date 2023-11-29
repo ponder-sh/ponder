@@ -1,10 +1,9 @@
 import path from "node:path";
 
-import pg from "pg";
-
 import type { Config } from "@/config/config.js";
 import type { Common } from "@/Ponder.js";
 import { ensureDirExists } from "@/utils/exists.js";
+import pg from "@/utils/pg.js";
 
 type StoreConfig =
   | {

@@ -279,6 +279,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     });
 
     // TODO: Fix this error handling approach.
-    this.common.errors.submitUserError({ error });
+    this.common.errors.submitUserError();
   }
 }

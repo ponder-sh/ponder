@@ -5,7 +5,7 @@ import { parse as parseStackTrace, type StackFrame } from "stacktrace-parser";
 
 import type { Options } from "@/config/options.js";
 
-export const getStackTrace = (error: Error, options: Options) => {
+export const addUserStackTrace = (error: Error, options: Options) => {
   if (!error.stack) return undefined;
 
   const stackTrace = parseStackTrace(error.stack);
@@ -19,7 +19,9 @@ export const getStackTrace = (error: Error, options: Options) => {
   );
 
   if (firstUserFrameIndex >= 0) {
-    userStackTrace = stackTrace.filter((_, idx) => idx >= firstUserFrameIndex);
+    userStackTrace = stackTrace.filter(
+      (frame) => frame.file?.includes(options.srcDir),
+    );
 
     const firstUserFrame = stackTrace[firstUserFrameIndex];
     if (firstUserFrame?.file && firstUserFrame?.lineNumber) {
@@ -46,21 +48,20 @@ export const getStackTrace = (error: Error, options: Options) => {
   }
 
   const formattedStackTrace = [
-    ...userStackTrace.map((frame) => {
-      let result = "  at";
-
-      result += ` ${
-        frame.methodName === "<unknown>" ? "(anonymous)" : frame.methodName
+    `${error.name}: ${error.message}`,
+    ...userStackTrace.map(({ file, lineNumber, column, methodName }) => {
+      const prefix = `    at`;
+      const path = `${file}${lineNumber !== null ? `:${lineNumber}` : ""}${
+        column !== null ? `:${column}` : ""
       }`;
-
-      result += ` (${frame.file}:${frame.lineNumber}${
-        frame.column !== null ? `:${frame.column}` : ""
-      })`;
-
-      return result;
+      if (methodName === null || methodName === "<unknown>") {
+        return `${prefix} ${path}`;
+      } else {
+        return `${prefix} ${methodName} (${path})`;
+      }
     }),
     codeFrame,
   ].join("\n");
 
-  return formattedStackTrace;
+  error.stack = formattedStackTrace;
 };

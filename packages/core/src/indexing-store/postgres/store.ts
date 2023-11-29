@@ -1,6 +1,4 @@
 import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
-import type { Pool } from "pg";
-import pg from "pg";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -10,6 +8,7 @@ import {
   isOneColumn,
   isReferenceColumn,
 } from "@/schema/utils.js";
+import type { Pool } from "@/utils/pg.js";
 
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
 import { formatColumnValue, formatRow } from "../utils/format.js";
@@ -30,10 +29,6 @@ const scalarToSqlType = {
   bigint: "numeric(78, 0)",
   bytes: "text",
 } as const;
-
-// Set pg protocol to use BigInt for `numeric` types.
-// See https://github.com/brianc/node-pg-types for details.
-pg.types.setTypeParser(1700, BigInt);
 
 export class PostgresIndexingStore implements IndexingStore {
   kind = "postgres" as const;

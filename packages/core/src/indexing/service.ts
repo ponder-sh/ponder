@@ -6,7 +6,6 @@ import { createClient, decodeEventLog } from "viem";
 import type { IndexingFunctions } from "@/build/functions.js";
 import type { Config } from "@/config/config.js";
 import type { Source } from "@/config/sources.js";
-import { UserError } from "@/errors/user.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
@@ -24,7 +23,7 @@ import { wait } from "@/utils/wait.js";
 
 import { buildDatabaseModels } from "./model.js";
 import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
-import { getStackTrace } from "./trace.js";
+import { addUserStackTrace } from "./trace.js";
 import { ponderTransport } from "./transport.js";
 
 type IndexingEvents = {
@@ -564,21 +563,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
               msg: `Failed while running indexing function (event="setup")`,
             });
 
-            const error = error_ as Error;
-            const trace = getStackTrace(error, this.common.options);
-
-            const message = `Error while processing "setup" event: ${error.message}`;
-
-            const userError = new UserError(message, {
-              stack: trace,
-              cause: error,
-            });
+            const error = error_ as Error & { meta: string };
+            addUserStackTrace(error, this.common.options);
 
             this.common.logger.error({
               service: "indexing",
-              error: userError,
+              msg: `Error while processing "setup" event: ${error.message}`,
+              error,
             });
-            this.common.errors.submitUserError({ error: userError });
+            this.common.errors.submitUserError();
           }
 
           break;
@@ -634,26 +627,22 @@ export class IndexingService extends Emittery<IndexingEvents> {
               msg: `Failed while running indexing function (event="${fullEventName}", block=${event.block.number})`,
             });
 
-            const error = error_ as Error;
-            const trace = getStackTrace(error, this.common.options);
-
-            const message = `Error while processing "${fullEventName}" event at block ${Number(
-              event.block.number,
-            )}: ${error.message}`;
-
-            const metaMessage = `Event args:\n${prettyPrint(event.args)}`;
-
-            const userError = new UserError(message, {
-              stack: trace,
-              meta: metaMessage,
-              cause: error,
-            });
+            const error = error_ as Error & { meta?: string };
+            addUserStackTrace(error, this.common.options);
+            if (error.meta) {
+              error.meta += `\nEvent args:\n${prettyPrint(event.args)}`;
+            } else {
+              error.meta = `Event args:\n${prettyPrint(event.args)}`;
+            }
 
             this.common.logger.error({
               service: "indexing",
-              error: userError,
+              msg: `Error while processing "${fullEventName}" event at block ${Number(
+                event.block.number,
+              )}:`,
+              error,
             });
-            this.common.errors.submitUserError({ error: userError });
+            this.common.errors.submitUserError();
           }
 
           const labels = {

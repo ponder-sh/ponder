@@ -1,4 +1,3 @@
-import { Pool } from "pg";
 import { beforeEach, type TestContext } from "vitest";
 
 import { buildOptions } from "@/config/options.js";
@@ -13,6 +12,7 @@ import { PostgresSyncStore } from "@/sync-store/postgres/store.js";
 import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
+import pg from "@/utils/pg.js";
 
 import { FORK_BLOCK_NUMBER, vitalik } from "./constants.js";
 import { poolId, testClient } from "./utils.js";
@@ -62,7 +62,7 @@ export async function setupSyncStore(
   options = { migrateUp: true },
 ) {
   if (process.env.DATABASE_URL) {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
     const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
     context.syncStore = new PostgresSyncStore({
       common: context.common,
@@ -106,7 +106,7 @@ export async function setupSyncStore(
  */
 export async function setupIndexingStore(context: TestContext) {
   if (process.env.DATABASE_URL) {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
     const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
     context.indexingStore = new PostgresIndexingStore({
       common: context.common,

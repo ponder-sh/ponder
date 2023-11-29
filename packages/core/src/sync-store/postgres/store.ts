@@ -7,8 +7,6 @@ import {
   sql,
   type Transaction as KyselyTransaction,
 } from "kysely";
-import type { Pool } from "pg";
-import pg from "pg";
 import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type {
@@ -26,6 +24,7 @@ import {
   buildLogFilterFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
+import type pg from "@/utils/pg.js";
 import { range } from "@/utils/range.js";
 import { wait } from "@/utils/wait.js";
 
@@ -37,10 +36,6 @@ import {
   type SyncStoreTables,
 } from "./format.js";
 import { migrationProvider } from "./migrations.js";
-
-// Set pg protocol to use BigInt for `numeric` types.
-// See https://github.com/brianc/node-pg-types for details.
-pg.types.setTypeParser(1700, BigInt);
 
 export class PostgresSyncStore implements SyncStore {
   common: Common;
@@ -54,7 +49,7 @@ export class PostgresSyncStore implements SyncStore {
     databaseSchema,
   }: {
     common: Common;
-    pool: Pool;
+    pool: pg.Pool;
     databaseSchema?: string;
   }) {
     this.common = common;
