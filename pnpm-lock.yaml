@@ -398,6 +398,9 @@ importers:
       kysely:
         specifier: ^0.26.3
         version: 0.26.3
+      kysely-sqlite-worker:
+        specifier: ^0.5.3
+        version: 0.5.3(better-sqlite3@9.1.1)(kysely@0.26.3)
       p-limit:
         specifier: ^5.0.0
         version: 5.0.0
@@ -10233,6 +10236,16 @@ packages:
   /kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
+
+  /kysely-sqlite-worker@0.5.3(better-sqlite3@9.1.1)(kysely@0.26.3):
+    resolution: {integrity: sha512-E0C9kERJhqBad/xONNVHUr+Uzi5xazWEgQkAiLxgps/SYjI1SM6SU1sbOTCyKz2mMCHGSFjptBu06CFFsfmtnw==}
+    peerDependencies:
+      better-sqlite3: '*'
+      kysely: ^0.26
+    dependencies:
+      better-sqlite3: 9.1.1
+      kysely: 0.26.3
+    dev: false
 
   /kysely@0.26.3:
     resolution: {integrity: sha512-yWSgGi9bY13b/W06DD2OCDDHQmq1kwTGYlQ4wpZkMOJqMGCstVCFIvxCCVG4KfY1/3G0MhDAcZsip/Lw8/vJWw==}

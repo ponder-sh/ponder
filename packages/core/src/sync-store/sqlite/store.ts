@@ -1,12 +1,11 @@
-import type Sqlite from "better-sqlite3";
 import {
   type ExpressionBuilder,
   Kysely,
   Migrator,
   sql,
-  SqliteDialect,
   type Transaction as KyselyTransaction,
 } from "kysely";
+import { SqliteWorkerDialect } from "kysely-sqlite-worker";
 import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type {
@@ -45,10 +44,11 @@ export class SqliteSyncStore implements SyncStore {
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({ common, db }: { common: Common; db: Sqlite.Database }) {
+  constructor({ common, file }: { common: Common; file: string }) {
     this.common = common;
+
     this.db = new Kysely<SyncStoreTables>({
-      dialect: new SqliteDialect({ database: db }),
+      dialect: new SqliteWorkerDialect({ source: file }),
     });
 
     this.migrator = new Migrator({

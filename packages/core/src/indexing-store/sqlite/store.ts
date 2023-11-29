@@ -1,5 +1,5 @@
-import type Sqlite from "better-sqlite3";
-import { Kysely, sql, SqliteDialect } from "kysely";
+import { Kysely, sql } from "kysely";
+import { SqliteWorkerDialect } from "kysely-sqlite-worker";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -39,10 +39,13 @@ export class SqliteIndexingStore implements IndexingStore {
 
   schema?: Schema;
 
-  constructor({ common, db }: { common: Common; db: Sqlite.Database }) {
+  constructor({ common, file }: { common: Common; file: string }) {
     this.common = common;
     this.db = new Kysely({
-      dialect: new SqliteDialect({ database: db }),
+      dialect: new SqliteWorkerDialect({ source: file }),
+      log(msg) {
+        console.log({ msg });
+      },
     });
   }
 
