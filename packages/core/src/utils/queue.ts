@@ -1,6 +1,5 @@
 import type { DefaultAddOptions, Options, Queue as TPQueue } from "p-queue";
 import PQueue from "p-queue";
-import retry, { type CreateTimeoutOptions } from "retry";
 import { setTimeout } from "timers/promises";
 
 import type { Prettify } from "@/types/utils.js";
@@ -19,16 +18,14 @@ export type Queue<TTask> = PQueue & {
 };
 
 type QueueOptions = Prettify<
-  Options<
-    TPQueue<() => Promise<unknown>, DefaultAddOptions>,
-    DefaultAddOptions
-  > & { retryTimeoutOptions?: CreateTimeoutOptions }
+  Options<TPQueue<() => Promise<unknown>, DefaultAddOptions>, DefaultAddOptions>
 >;
 
 export type Worker<TTask, TContext = undefined, TReturn = void> = (arg: {
   task: TTask;
   context: TContext | undefined;
   queue: Queue<TTask>;
+  signal: AbortSignal;
 }) => Promise<TReturn>;
 
 type OnAdd<TTask, TContext = undefined> = (arg: {
@@ -93,24 +90,18 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
     superClear();
   };
 
-  const retryTimeouts: number[] = retry.timeouts(
-    options?.retryTimeoutOptions ?? {
-      retries: 3,
-      factor: 2,
-      minTimeout: 100, // 100 ms
-    },
-  );
+  const retryTimeouts: number[] = [150, 300, 600, 1_200];
 
   queue.addTask = async (task, taskOptions) => {
     const priority = taskOptions?.priority ?? 0;
+    const taskController = new AbortController();
 
     let retryTimeout: number | undefined = undefined;
     if (taskOptions?.retry) {
       task._retryCount ||= 0;
       task._retryCount += 1;
-      if (task._retryCount > retryTimeouts.length) {
-        console.log("too many retries!!!");
-        return;
+      if (task._retryCount >= retryTimeouts.length) {
+        retryTimeout = retryTimeouts[task._retryCount - 1];
       } else {
         retryTimeout = retryTimeouts[task._retryCount];
       }
@@ -118,57 +109,33 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
 
     onAdd?.({ task, context, queue });
 
-    await queue.add(
-      async () => {
-        let result: TReturn;
-        if (retryTimeout) await setTimeout(retryTimeout, false, { signal });
-        try {
-          result = await worker({ task, context, queue });
-        } catch (error_) {
-          await onError?.({ error: error_ as Error, task, context, queue });
-          return;
-        }
-        await onComplete?.({ result, task, context, queue });
-      },
-      { priority },
-    );
-  };
+    if (retryTimeout) {
+      await setTimeout(retryTimeout, null, { signal });
+    }
 
-  queue.addTasks = async (tasks, taskOptions) => {
-    await Promise.all(
-      tasks.map(async (task) => {
-        const priority = taskOptions?.priority ?? 0;
-
-        let retryTimeout: number | undefined = undefined;
-        if (taskOptions?.retry) {
-          task._retryCount ||= 0;
-          task._retryCount += 1;
-          if (task._retryCount > retryTimeouts.length) {
-            console.log("too many retries!!!");
-            return;
-          } else {
-            retryTimeout = retryTimeouts[task._retryCount];
-          }
-        }
-
-        onAdd?.({ task, context, queue });
-
-        await queue.add(
-          async () => {
-            let result: TReturn;
-            if (retryTimeout) await setTimeout(retryTimeout, false, { signal });
-            try {
-              result = await worker({ task, context, queue });
-            } catch (error_) {
-              await onError?.({ error: error_ as Error, task, context, queue });
-              return;
-            }
-            await onComplete?.({ result, task, context, queue });
-          },
-          { priority },
-        );
-      }),
-    );
+    try {
+      await queue.add(
+        async ({ signal }) => {
+          // Note:KYLE What happens when the worker throws an error
+          const result = await worker({
+            task,
+            context,
+            queue,
+            signal: signal!,
+          });
+          await onComplete?.({ result, task, context, queue });
+        },
+        {
+          priority,
+          timeout: 8_000,
+          throwOnTimeout: true,
+          signal: taskController.signal,
+        },
+      );
+    } catch (error_) {
+      taskController.abort();
+      await onError?.({ error: error_ as Error, task, context, queue });
+    }
   };
 
   return queue;

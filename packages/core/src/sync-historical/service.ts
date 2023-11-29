@@ -483,22 +483,26 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
   };
 
   private buildQueue = () => {
-    const worker: Worker<HistoricalSyncTask> = async ({ task, queue }) => {
+    const worker: Worker<HistoricalSyncTask> = async ({
+      task,
+      queue,
+      signal,
+    }) => {
       switch (task.kind) {
         case "LOG_FILTER": {
-          await this.logFilterTaskWorker({ task });
+          await this.logFilterTaskWorker({ task, signal });
           break;
         }
         case "FACTORY_CHILD_ADDRESS": {
-          await this.factoryChildAddressTaskWorker({ task });
+          await this.factoryChildAddressTaskWorker({ task, signal });
           break;
         }
         case "FACTORY_LOG_FILTER": {
-          await this.factoryLogFilterTaskWorker({ task });
+          await this.factoryLogFilterTaskWorker({ task, signal });
           break;
         }
         case "BLOCK": {
-          await this.blockTaskWorker({ task });
+          await this.blockTaskWorker({ task, signal });
           break;
         }
       }
@@ -532,7 +536,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       onError: ({ error, task, queue }) => {
         switch (task.kind) {
           case "LOG_FILTER": {
-            this.common.logger.error({
+            this.common.logger.warn({
               service: "historical",
               msg: `Log filter task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.logFilter.contractName}, network=${this.network.name})`,
               error,
@@ -542,7 +546,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             break;
           }
           case "FACTORY_CHILD_ADDRESS": {
-            this.common.logger.error({
+            this.common.logger.warn({
               service: "historical",
               msg: `Factory child address task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.factory.contractName}, network=${this.network.name})`,
               error,
@@ -552,7 +556,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             break;
           }
           case "FACTORY_LOG_FILTER": {
-            this.common.logger.error({
+            this.common.logger.warn({
               service: "historical",
               msg: `Factory log filter task failed, retrying... [${task.fromBlock}, ${task.toBlock}] (contract=${task.factory.contractName}, network=${this.network.name})`,
               error,
@@ -562,7 +566,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
             break;
           }
           case "BLOCK": {
-            this.common.logger.error({
+            this.common.logger.warn({
               service: "historical",
               msg: `Block task failed, retrying... [${task.blockNumber}] (network=${this.network.name})`,
               error,
@@ -578,7 +582,12 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     return queue;
   };
 
-  private logFilterTaskWorker = async ({ task }: { task: LogFilterTask }) => {
+  private logFilterTaskWorker = async ({
+    task,
+  }: {
+    task: LogFilterTask;
+    signal: AbortSignal;
+  }) => {
     const { logFilter, fromBlock, toBlock } = task;
 
     const logs = await this._eth_getLogs({
@@ -630,6 +639,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     task,
   }: {
     task: FactoryChildAddressTask;
+    signal: AbortSignal;
   }) => {
     const { factory, fromBlock, toBlock } = task;
 
@@ -709,6 +719,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     task: { factory, fromBlock, toBlock },
   }: {
     task: FactoryLogFilterTask;
+    signal: AbortSignal;
   }) => {
     const iterator = this.syncStore.getFactoryChildAddresses({
       chainId: factory.chainId,
@@ -768,14 +779,29 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
   };
 
-  private blockTaskWorker = async ({ task }: { task: BlockTask }) => {
+  private blockTaskWorker = async ({
+    task,
+    signal,
+  }: {
+    task: BlockTask;
+    signal: AbortSignal;
+  }) => {
     const { blockNumber, callbacks } = task;
 
     const stopClock = startClock();
-    const block = (await this.network.client.request({
-      method: "eth_getBlockByNumber",
-      params: [toHex(blockNumber), true],
-    })) as RpcBlock & { transactions: RpcTransaction[] };
+
+    const rawRequest = await this.network.request({
+      body: {
+        method: "eth_getBlockByNumber",
+        params: [toHex(blockNumber), true],
+      },
+      fetchOptions: { signal },
+    });
+
+    const block = rawRequest.result as RpcBlock & {
+      transactions: RpcTransaction[];
+    };
+
     this.common.metrics.ponder_historical_rpc_request_duration.observe(
       { method: "eth_getBlockByNumber", network: this.network.name },
       stopClock(),
