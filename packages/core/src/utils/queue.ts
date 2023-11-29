@@ -6,6 +6,11 @@ import type { Prettify } from "@/types/utils.js";
 
 type TaskOptions = { priority?: number; retry?: boolean };
 
+/* How long to wait before aborting a task. */
+export const TASK_TIMEOUT = 8000;
+/* How long to wait before retrying a task. */
+export const TASK_RETRY_TIMEOUT = [150, 300, 600, 1_200];
+
 export type Queue<TTask> = PQueue & {
   addTask: (
     task: TTask & { _retryCount?: number },
@@ -90,8 +95,6 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
     superClear();
   };
 
-  const retryTimeouts: number[] = [150, 300, 600, 1_200];
-
   queue.addTask = async (task, taskOptions) => {
     const priority = taskOptions?.priority ?? 0;
     const taskController = new AbortController();
@@ -100,23 +103,20 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
     if (taskOptions?.retry) {
       task._retryCount ||= 0;
       task._retryCount += 1;
-      if (task._retryCount >= retryTimeouts.length) {
-        retryTimeout = retryTimeouts[task._retryCount - 1];
+      if (task._retryCount >= TASK_RETRY_TIMEOUT.length) {
+        retryTimeout = TASK_RETRY_TIMEOUT[task._retryCount - 1];
       } else {
-        retryTimeout = retryTimeouts[task._retryCount];
+        retryTimeout = TASK_RETRY_TIMEOUT[task._retryCount];
       }
     }
 
     onAdd?.({ task, context, queue });
 
-    if (retryTimeout) {
-      await setTimeout(retryTimeout, null, { signal });
-    }
+    if (retryTimeout) await setTimeout(retryTimeout, null, { signal });
 
     try {
       await queue.add(
         async ({ signal }) => {
-          // Note:KYLE What happens when the worker throws an error
           const result = await worker({
             task,
             context,
@@ -127,7 +127,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
         },
         {
           priority,
-          timeout: 8_000,
+          timeout: TASK_TIMEOUT,
           throwOnTimeout: true,
           signal: taskController.signal,
         },
