@@ -37,15 +37,15 @@ Insert a new records into the store.
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Token: p.createTable({
     id: p.int(),
     mintedBy: p.string(),
     mintedAt: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -86,15 +86,15 @@ Update an record that already exists.
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Token: p.createTable({
     id: p.int(),
     mintedBy: p.string(),
     metadataUpdatedAt: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -120,14 +120,14 @@ You can optionally pass a function to the `data` field that receives the current
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Account: p.createTable({
     id: p.int(),
     balance: p.bigint(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -170,15 +170,15 @@ Upsert can be useful for events like the ERC721 `Transfer` event, which is emitt
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Token: p.createTable({
     id: p.int(),
     mintedBy: p.string().references("Account.id")
     ownedBy: p.string().references("Account.id")
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -208,15 +208,15 @@ You can optionally pass a function to the `update` field that receives the curre
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Token: p.createTable({
     id: p.int(),
     ownedBy: p.string().references("Account.id"),
     transferCount: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -259,14 +259,14 @@ ponder.on("Blitmap:Transfer", async ({ event, context }) => {
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -300,14 +300,14 @@ const jim = await Player.findUnique({ id: "Jim" });
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -348,14 +348,14 @@ Filter the result list by passing a `where` option containing a field name, filt
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -390,14 +390,14 @@ If you provide multiple filters, they will be combined with a logical `AND`.
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -425,14 +425,14 @@ Sort the result list by passing an `orderBy` option containing a field name and 
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -466,14 +466,14 @@ Paginate through the result list using the `skip` and `take` options.
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -514,14 +514,14 @@ const players = await Player.findMany({
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -564,14 +564,14 @@ const players = await Player.findMany();
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Player: p.createTable({
     id: p.string(),
     age: p.int(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"

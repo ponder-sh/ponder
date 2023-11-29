@@ -11,9 +11,9 @@ The `ponder.schema.ts` file defines your application's database schema, _and_ th
 Here's an example `ponder.schema.ts` file for a simple ERC20 app.
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Account: p.createTable({
     id: p.string(),
     balance: p.bigint(),
@@ -35,7 +35,7 @@ export default p.createSchema({
     toId: p.string().references("Account.id"),
     timestamp: p.int(),
   }),
-});
+}));
 ```
 
 ## Column types
@@ -62,9 +62,9 @@ Here's an example `Account` table that has a column of every type, and a functio
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Account: p.createTable({
     id: p.bytes(),
     daiBalance: p.bigint(),
@@ -73,7 +73,7 @@ export default p.createSchema({
     isAdmin: p.boolean(),
     graffiti: p.string(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -100,15 +100,15 @@ To define a enum, pass a list of allowable values to `p.createEnum(){:ts}` (simi
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Color: p.createEnum(["ORANGE", "BLACK"]),
   Cat: p.createTable({
     id: p.string(),
     color: p.enum("Color"),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -131,16 +131,16 @@ To define a list, add `.list(){:ts}` to any primitive or enum column. Lists shou
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Color: p.createEnum(["ORANGE", "BLACK"]),
   FancyCat: p.createTable({
     id: p.string(),
     colors: p.enum("Color").list(),
     favoriteNumbers: p.int().list(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -170,9 +170,9 @@ Suppose every `Dog` belongs to a `Person`. When you insert a `Dog` record, set t
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts" {5,10}
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Person: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -181,7 +181,7 @@ export default p.createSchema({
     id: p.string(),
     ownerId: p.string().references("Person.id"),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -242,9 +242,9 @@ To create a virtual column, use `p.virtual()` as the column type passing the nam
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts" {7}
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Person: p.createTable({
     id: p.string(),
     age: p.int(),
@@ -254,7 +254,7 @@ export default p.createSchema({
     id: p.string(),
     ownerId: p.string().references("Person.id"),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"
@@ -341,15 +341,15 @@ All columns are **required**, e.g. `NOT NULL{:sql}` by default. To mark a column
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts" {7}
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   User: p.createTable({
     id: p.bytes(),
     ens: p.string(),
     github: p.string().optional(),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts" {6-7,14}

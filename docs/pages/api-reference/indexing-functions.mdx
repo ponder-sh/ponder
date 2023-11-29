@@ -180,9 +180,9 @@ The `context.db` object contains ORM-style models that can be used to create, re
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Person: p.createTable({
     id: p.string(),
     age: p.int().optional(),
@@ -191,7 +191,7 @@ export default p.createSchema({
     id: p.bigint(),
     ownerId: p.string().references("Person.id"),
   }),
-});
+}));
 ```
 
 ```ts filename="src/index.ts"

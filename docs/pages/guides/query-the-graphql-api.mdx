@@ -21,15 +21,15 @@ Ponder creates a **singular** and a **plural** query field for each table in you
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Person: p.createTable({
     id: p.int(),
     name: p.string(),
     age: p.int().optional(),
   }),
-});
+}));
 ```
 
 {/* prettier-ignore */}
@@ -267,9 +267,9 @@ Virtual fields return the list of child records that "belong" to the parent. The
 <div className="code-columns">
 
 ```ts filename="ponder.schema.ts"
-import { p } from "@ponder/core";
+import { createSchema } from "@ponder/core";
 
-export default p.createSchema({
+export default createSchema((p) => ({
   Person: p.createTable({
     id: p.int(),
     dogs: p.virtual("Pet.ownerId"),
@@ -279,7 +279,7 @@ export default p.createSchema({
     name: p.string(),
     ownerId: p.int().references("Person.id"),
   }),
-});
+}));
 ```
 
 {/* prettier-ignore */}
