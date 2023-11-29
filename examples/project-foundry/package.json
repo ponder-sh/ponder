@@ -1,0 +1,33 @@
+{
+  "name": "ponder-examples-project-foundry",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen": "ponder codegen",
+    "deploy": "cd foundry && forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+    "dev": "ponder dev",
+    "generate:abi": "wagmi generate",
+    "increment": "cd foundry &&  cast send 0x5FbDB2315678afecb367f032d93F642f64180aa3 \"increment()\" --rpc-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+    "lint": "eslint .",
+    "start": "ponder start",
+    "start:anvil": "anvil --block-time 10",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@ponder/core": "workspace:*",
+    "viem": "^1.19.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "@wagmi/cli": "^1.5.2",
+    "eslint": "^8.53.0",
+    "eslint-config-ponder": "workspace:*",
+    "typescript": "^5.2.2"
+  },
+  "trustedDependencies": [
+    "better-sqlite3"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

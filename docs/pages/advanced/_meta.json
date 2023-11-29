@@ -1,5 +1,6 @@
 {
   "factory-contracts": "Factory contracts",
+  "foundry-development": "Developing with Foundry",
   "custom-filters": "Custom log filters",
   "proxy-contracts": "Proxy contracts",
   "logging": "Logging",
