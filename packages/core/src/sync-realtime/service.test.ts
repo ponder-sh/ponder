@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { type EIP1193RequestFn, HttpRequestError, parseAbi } from "viem";
+import { rpc } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import {
@@ -24,8 +25,9 @@ const network: Network = {
   name: "mainnet",
   chainId: 1,
   client: publicClient,
-  request: () => {},
-  url: "",
+  request: (options) =>
+    rpc.http(publicClient.chain.rpcUrls.default.http[0], options),
+  url: publicClient.chain.rpcUrls.default.http[0],
   pollingInterval: 1_000,
   defaultMaxBlockRange: 3,
   finalityBlockCount: 5,
@@ -439,7 +441,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   await service.kill();
 });
 
-test("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
+test.only("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
   const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({

@@ -105,8 +105,8 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
 
     let retryTimeout: number | undefined = undefined;
     if (taskOptions?.retry) {
-      task._retryCount ||= 0;
-      task._retryCount += 1;
+      task._retryCount = !task._retryCount ? 0 : task._retryCount + 1;
+
       if (task._retryCount >= TASK_RETRY_TIMEOUT.length) {
         retryTimeout = TASK_RETRY_TIMEOUT[task._retryCount - 1];
       } else {
@@ -116,12 +116,12 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
 
     onAdd?.({ task, context, queue });
 
-    if (retryTimeout)
-      await setTimeout(retryTimeout, null, { signal: queueSignal });
-
     try {
       await queue.add(
         async ({ signal }) => {
+          if (retryTimeout)
+            await setTimeout(retryTimeout, false, { signal: queueSignal });
+
           const result = await worker({
             task,
             context,
@@ -132,7 +132,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
         },
         {
           priority,
-          timeout: TASK_TIMEOUT,
+          timeout: TASK_TIMEOUT + (retryTimeout ?? 0),
           throwOnTimeout: true,
           signal: taskController.signal,
         },
@@ -143,7 +143,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
         await onError?.({ error: error_ as Error, task, context, queue });
       }
     }
-    taskControllers.add(taskController);
+    taskControllers.delete(taskController);
   };
 
   return queue;

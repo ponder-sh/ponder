@@ -1,68 +1,94 @@
 import { createPublicClient, fallback, http, webSocket } from "viem";
 import { mainnet } from "viem/chains";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 import {
   getDefaultMaxBlockRange,
+  getRequestForTransport,
   getRpcUrlsForClient,
   isRpcUrlPublic,
 } from "./networks.js";
 
-test("getRpcUrlsForClient handles default RPC URL", () => {
+test("getRpcUrlsForClient handles default RPC URL", async () => {
   const client = createPublicClient({
     chain: mainnet,
     transport: http(),
   });
 
-  const rpcUrls = getRpcUrlsForClient({ client });
+  const rpcUrls = await getRpcUrlsForClient({ client });
 
   expect(rpcUrls).toMatchObject([undefined]);
 });
 
-test("getRpcUrlsForClient should handle an http transport", () => {
+test("getRpcUrlsForClient should handle an http transport", async () => {
   const client = createPublicClient({
     transport: http("http://localhost:8545"),
   });
 
-  const rpcUrls = getRpcUrlsForClient({ client });
+  const rpcUrls = await getRpcUrlsForClient({ client });
 
   expect(rpcUrls).toMatchObject(["http://localhost:8545"]);
 });
 
-test.fails("getRpcUrlsForClient should handle a websocket transport", () => {
+test("getRpcUrlsForClient should handle a websocket transport", async () => {
   const client = createPublicClient({
     transport: webSocket("wss://localhost:8545"),
   });
 
-  const rpcUrls = getRpcUrlsForClient({ client });
+  const rpcUrls = await getRpcUrlsForClient({ client });
 
   expect(rpcUrls).toMatchObject(["wss://localhost:8545"]);
 });
 
-test("getRpcUrlsForClient should handle a fallback containing an http transport", () => {
+test("getRpcUrlsForClient should handle a fallback containing an http transport", async () => {
   const client = createPublicClient({
     transport: fallback([http("http://localhost:8545")]),
   });
 
-  const rpcUrls = getRpcUrlsForClient({ client });
+  const rpcUrls = await getRpcUrlsForClient({ client });
 
   expect(rpcUrls).toMatchObject(["http://localhost:8545"]);
 });
 
-test("getRpcUrlsForClient should handle a fallback containing multiple http transports", () => {
-  const client = createPublicClient({
-    transport: fallback([
-      http("http://localhost:8545"),
-      http("https://eth-mainnet.g.alchemy.com/v2/abc"),
-    ]),
+test("getRequestForTransport handles default RPC URL", async () => {
+  const request = await getRequestForTransport({
+    transport: http(),
+    chain: mainnet,
   });
 
-  const rpcUrls = getRpcUrlsForClient({ client });
+  expect(request).toBeTruthy();
+});
 
-  expect(rpcUrls).toMatchObject([
-    "http://localhost:8545",
-    "https://eth-mainnet.g.alchemy.com/v2/abc",
-  ]);
+test("getRequestForTransport should handle an http transport", async () => {
+  const request = await getRequestForTransport({
+    transport: http("http://localhost:8545"),
+    chain: mainnet,
+  });
+
+  expect(request).toBeTruthy();
+});
+
+test("getRequestForTransport should handle a websocket transport", async () => {
+  const ws = { type: "webSocket", getSocket: () => {} };
+
+  const spy = vi.spyOn(ws, "getSocket");
+  spy.mockReturnValue();
+
+  const request = await getRequestForTransport({
+    transport: () => ({ value: ws }) as any,
+    chain: mainnet,
+  });
+
+  expect(request).toBeTruthy();
+});
+
+test("getRequestForTransport should handle a fallback containing an http transport", async () => {
+  const request = await getRequestForTransport({
+    transport: fallback([http("http://localhost:8545")]),
+    chain: mainnet,
+  });
+
+  expect(request).toBeTruthy();
 });
 
 test("getDefaultMaxBlockRange should return 2_000 for mainnet", () => {

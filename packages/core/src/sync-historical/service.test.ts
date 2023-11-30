@@ -3,6 +3,7 @@ import {
   HttpRequestError,
   InvalidParamsRpcError,
 } from "viem";
+import { rpc } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import {
@@ -22,8 +23,9 @@ const network: Network = {
   name: "mainnet",
   chainId: 1,
   client: publicClient,
-  request: () => {},
-  url: "",
+  request: (options) =>
+    rpc.http(publicClient.chain.rpcUrls.default.http[0], options),
+  url: publicClient.chain.rpcUrls.default.http[0],
   pollingInterval: 1_000,
   defaultMaxBlockRange: 100,
   finalityBlockCount: 10,

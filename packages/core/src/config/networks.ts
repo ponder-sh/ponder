@@ -1,4 +1,5 @@
 import {
+  type Chain,
   type Client,
   createPublicClient,
   type PublicClient,
@@ -42,18 +43,20 @@ export async function buildNetwork({
     Object.values(chains).find((c) => ("id" in c ? c.id === chainId : false)) ??
     chains.mainnet;
 
+  const chain = {
+    ...defaultChain,
+    name: networkName,
+    id: chainId,
+  };
+
   const client = createPublicClient({
     transport,
-    chain: {
-      ...defaultChain,
-      name: networkName,
-      id: chainId,
-    },
+    chain,
   }) as PublicClient;
 
   const rpcUrls = await getRpcUrlsForClient({ client });
 
-  const request = await getRequestForTransport({ transport });
+  const request = await getRequestForTransport({ transport, chain });
 
   rpcUrls.forEach((rpcUrl) => {
     if (isRpcUrlPublic(rpcUrl)) {
@@ -225,9 +228,13 @@ export async function getRpcUrlsForClient({ client }: { client: Client }) {
 
 export async function getRequestForTransport(parameters: {
   transport: Transport;
+  chain: Chain;
 }): Promise<Request> {
   // This is how viem converts a Transport into the Client.transport type.
-  const { config, value } = parameters.transport({});
+  const { config, value } = parameters.transport({
+    chain: parameters.chain,
+    pollingInterval: 4_000, // default viem value
+  });
   const transport = { ...config, ...value } as Client["transport"];
 
   switch (transport.type) {
@@ -240,7 +247,8 @@ export async function getRequestForTransport(parameters: {
     }
     case "fallback": {
       return await getRequestForTransport({
-        transport: transport.transports[0],
+        transport: () => transport.transports[0],
+        chain: parameters.chain,
       });
     }
     default: {
