@@ -1,12 +1,6 @@
 {
   "index": {
-    "title": "Home",
-    "display": "hidden",
-    "theme": {
-      "layout": "raw",
-      "sidebar": false,
-      "toc": false
-    }
+    "title": "Introduction"
   },
   "migration-guide": "Migration guide",
   "compared-to-subgraphs": "Compared to subgraphs",

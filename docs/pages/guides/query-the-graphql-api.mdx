@@ -260,19 +260,27 @@ query {
 
 </div>
 
-## Virtual fields
+## Relationship fields
 
-Virtual fields return the list of child records that "belong" to the parent. They're very similar to the plural query field that, except derived fields are automatically filtered by the parent's ID.
+<Callout type="info">
+  See the [Define your
+  schema](/guides/design-your-schema#one-to-many-relationships) guide for a
+  detailed overview of how to define relationships in your schema.
+</Callout>
+
+When you define a column in your schema using `p.one(){:ts}` and `p.many(){:ts}`, Ponder automatically creates a .
+
+Fields created by `p.many(){:ts}` are very similar to the top-level plural query field, except they are automatically filtered by the parent entity ID.
 
 <div className="code-columns">
 
-```ts filename="ponder.schema.ts"
+```ts filename="ponder.schema.ts" {6}
 import { createSchema } from "@ponder/core";
 
 export default createSchema((p) => ({
   Person: p.createTable({
     id: p.int(),
-    dogs: p.virtual("Pet.ownerId"),
+    dogs: p.many("Pet.ownerId"),
   }),
   Pet: p.createTable({
     id: p.string(),
