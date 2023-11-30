@@ -441,7 +441,7 @@ test("start() deletes data from the store after 3 block shallow reorg", async (c
   await service.kill();
 });
 
-test.only("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
+test("start() emits shallowReorg event after 3 block shallow reorg", async (context) => {
   const { common, syncStore } = context;
 
   const service = new RealtimeSyncService({
