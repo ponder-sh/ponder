@@ -1,9 +1,12 @@
-import { checksumAddress, getEventSelector, http } from "viem";
+import { checksumAddress, getEventSelector } from "viem";
+import { rpc } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants.js";
 import { setupIndexingStore, setupSyncStore } from "@/_test/setup.js";
+import { anvil } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions.js";
+import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
@@ -13,12 +16,14 @@ import { IndexingService } from "./service.js";
 beforeEach((context) => setupIndexingStore(context));
 beforeEach((context) => setupSyncStore(context));
 
-const networks = {
-  mainnet: {
+const networks: Pick<Network, "url" | "request" | "chainId" | "name">[] = [
+  {
+    request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
+    url: anvil.rpcUrls.default.http[0],
     chainId: 1,
-    transport: http(),
+    name: "mainnet",
   },
-};
+];
 
 const sources: Source[] = [
   {
@@ -141,7 +146,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
   await service.kill();
 });
 
-test("processEvents() calls indexing functions with correct arguments", async (context) => {
+test.only("processEvents() calls indexing functions with correct arguments", async (context) => {
   const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({

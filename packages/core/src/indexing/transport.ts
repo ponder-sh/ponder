@@ -1,19 +1,19 @@
 import type { Address, Hex, Transport } from "viem";
 import { custom } from "viem";
 
+import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { toLowerCase } from "@/utils/lowercase.js";
+import { request as requestHelper } from "@/utils/request.js";
 
 export const ponderTransport = ({
-  transport,
+  network,
   syncStore,
 }: {
-  transport: Transport;
+  network: Pick<Network, "url" | "request">;
   syncStore: SyncStore;
 }): Transport => {
   return ({ chain }) => {
-    const underlyingTransport = transport({ chain });
-
     const c = custom({
       async request({ method, params }) {
         const body = { method, params };
@@ -58,7 +58,7 @@ export const ponderTransport = ({
 
           if (cachedResult?.result) return cachedResult.result;
           else {
-            const response = await underlyingTransport.request(body);
+            const response = await requestHelper(network, { body });
             await syncStore.insertRpcRequestResult({
               blockNumber: BigInt(blockNumber),
               chainId: chain!.id,
@@ -68,7 +68,7 @@ export const ponderTransport = ({
             return response;
           }
         } else {
-          return await underlyingTransport.request(body);
+          return await requestHelper(network, { body });
         }
       },
     });

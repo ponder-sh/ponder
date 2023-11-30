@@ -1,5 +1,6 @@
 import type { Transport } from "viem";
-import { getFunctionSelector, http, toHex } from "viem";
+import { getFunctionSelector, toHex } from "viem";
+import { rpc } from "viem/utils";
 import { assertType, beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants.js";
@@ -12,7 +13,10 @@ beforeEach((context) => setupSyncStore(context));
 
 test("default", ({ syncStore }) => {
   const transport = ponderTransport({
-    transport: http("https://mockapi.com/rpc"),
+    network: {
+      request: (options) => rpc.http("https://mockapi.com/rpc", options),
+      url: "https://mockapi.com/rpc",
+    },
     syncStore,
   });
 
@@ -37,7 +41,10 @@ test("default", ({ syncStore }) => {
 
 test("eth_call", async ({ syncStore }) => {
   const transport = ponderTransport({
-    transport: http(),
+    network: {
+      request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
+      url: anvil.rpcUrls.default.http[0],
+    },
     syncStore,
   })({
     chain: anvil,
@@ -76,7 +83,10 @@ test("eth_call", async ({ syncStore }) => {
 
 test("eth_getBalance", async ({ syncStore }) => {
   const transport = ponderTransport({
-    transport: http(),
+    network: {
+      request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
+      url: anvil.rpcUrls.default.http[0],
+    },
     syncStore,
   })({
     chain: anvil,
@@ -103,7 +113,10 @@ test("eth_getBalance", async ({ syncStore }) => {
 
 test("eth_getStorageAt", async ({ syncStore }) => {
   const transport = ponderTransport({
-    transport: http(),
+    network: {
+      request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
+      url: anvil.rpcUrls.default.http[0],
+    },
     syncStore,
   })({
     chain: anvil,
@@ -130,7 +143,10 @@ test("eth_getStorageAt", async ({ syncStore }) => {
 
 test("eth_getCode", async ({ syncStore }) => {
   const transport = ponderTransport({
-    transport: http(),
+    network: {
+      request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
+      url: anvil.rpcUrls.default.http[0],
+    },
     syncStore,
   })({
     chain: anvil,
@@ -157,7 +173,10 @@ test("eth_getCode", async ({ syncStore }) => {
 
 test("fallback method", async ({ syncStore }) => {
   const transport = ponderTransport({
-    transport: http(),
+    network: {
+      request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
+      url: anvil.rpcUrls.default.http[0],
+    },
     syncStore,
   })({
     chain: anvil,
