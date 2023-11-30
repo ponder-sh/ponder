@@ -1,10 +1,4 @@
-import {
-  type Chain,
-  type Client,
-  createPublicClient,
-  type PublicClient,
-  type Transport,
-} from "viem";
+import { type Chain, type Client, type Transport } from "viem";
 import { rpc } from "viem/utils";
 
 import type { Config } from "@/config/config.js";
@@ -19,7 +13,6 @@ type Request = (
 export type Network = {
   name: string;
   chainId: number;
-  client: PublicClient;
   request: Request;
   url: string;
   pollingInterval: number;
@@ -49,12 +42,7 @@ export async function buildNetwork({
     id: chainId,
   };
 
-  const client = createPublicClient({
-    transport,
-    chain,
-  }) as PublicClient;
-
-  const rpcUrls = await getRpcUrlsForClient({ client });
+  const rpcUrls = await getRpcUrlsForClient({ transport, chain });
 
   const request = await getRequestForTransport({ transport, chain });
 
@@ -70,7 +58,6 @@ export async function buildNetwork({
   const resolvedNetwork: Network = {
     name: networkName,
     chainId: chainId,
-    client,
     request,
     url: rpcUrls[0],
     pollingInterval: network.pollingInterval ?? 1_000,
@@ -176,12 +163,21 @@ function getFinalityBlockCount({ chainId }: { chainId: number }) {
 }
 
 /**
- * Returns the list of RPC URLs backing a Client.
+ * Returns the list of RPC URLs backing a Transport.
  *
- * @param client A viem Client.
+ * @param transport A viem Transport.
  * @returns Array of RPC URLs.
  */
-export async function getRpcUrlsForClient({ client }: { client: Client }) {
+export async function getRpcUrlsForClient(parameters: {
+  transport: Transport;
+  chain: Chain;
+}) {
+  // This is how viem converts a Transport into the Client.transport type.
+  const { config, value } = parameters.transport({
+    chain: parameters.chain,
+    pollingInterval: 4_000, // default viem value
+  });
+  const transport = { ...config, ...value } as Client["transport"];
   async function getRpcUrlsForTransport(transport: Client["transport"]) {
     switch (transport.type) {
       case "http": {
@@ -223,7 +219,7 @@ export async function getRpcUrlsForClient({ client }: { client: Client }) {
     }
   }
 
-  return getRpcUrlsForTransport(client.transport);
+  return getRpcUrlsForTransport(transport);
 }
 
 export async function getRequestForTransport(parameters: {

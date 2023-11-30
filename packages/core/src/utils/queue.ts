@@ -138,7 +138,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
       );
     } catch (error_) {
       taskController.abort();
-      if (!(error_ instanceof AbortError)) {
+      if (!(error_ instanceof AbortError) && !queueSignal.aborted) {
         await onError?.({ error: error_ as Error, task, context, queue });
       }
     }
