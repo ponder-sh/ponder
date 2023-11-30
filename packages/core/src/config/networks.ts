@@ -1,20 +1,34 @@
-import { type Client, createPublicClient, type PublicClient } from "viem";
+import {
+  type Chain,
+  type Client,
+  createPublicClient,
+  type PublicClient,
+  type Transport,
+} from "viem";
+import { rpc } from "viem/utils";
 
 import type { Config } from "@/config/config.js";
 import type { Common } from "@/Ponder.js";
 import { chains } from "@/utils/chains.js";
 
+type Request = (
+  options: Parameters<typeof rpc.webSocketAsync>[1] &
+    Parameters<typeof rpc.http>[1],
+) => any;
+
 export type Network = {
   name: string;
   chainId: number;
   client: PublicClient;
+  request: Request;
+  url: string;
   pollingInterval: number;
   defaultMaxBlockRange: number;
   maxRpcRequestConcurrency: number;
   finalityBlockCount: number;
 };
 
-export function buildNetwork({
+export async function buildNetwork({
   networkName,
   network,
   common,
@@ -29,16 +43,20 @@ export function buildNetwork({
     Object.values(chains).find((c) => ("id" in c ? c.id === chainId : false)) ??
     chains.mainnet;
 
+  const chain = {
+    ...defaultChain,
+    name: networkName,
+    id: chainId,
+  };
+
   const client = createPublicClient({
     transport,
-    chain: {
-      ...defaultChain,
-      name: networkName,
-      id: chainId,
-    },
+    chain,
   }) as PublicClient;
 
-  const rpcUrls = getRpcUrlsForClient({ client });
+  const rpcUrls = await getRpcUrlsForClient({ client });
+
+  const request = await getRequestForTransport({ transport, chain });
 
   rpcUrls.forEach((rpcUrl) => {
     if (isRpcUrlPublic(rpcUrl)) {
@@ -53,6 +71,8 @@ export function buildNetwork({
     name: networkName,
     chainId: chainId,
     client,
+    request,
+    url: rpcUrls[0],
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
     maxRpcRequestConcurrency: network.maxRpcRequestConcurrency ?? 10,
@@ -161,29 +181,25 @@ function getFinalityBlockCount({ chainId }: { chainId: number }) {
  * @param client A viem Client.
  * @returns Array of RPC URLs.
  */
-export function getRpcUrlsForClient({ client }: { client: Client }) {
-  function getRpcUrlsForTransport(transport: Client["transport"]) {
+export async function getRpcUrlsForClient({ client }: { client: Client }) {
+  async function getRpcUrlsForTransport(transport: Client["transport"]) {
     switch (transport.type) {
       case "http": {
         return [transport.url as string | undefined];
       }
       case "webSocket": {
-        // TODO: Enable this codepath once we can make this function async.
-        // This will happen when we make the config file reloadable during
-        // https://github.com/0xOlias/ponder/issues/322.
-        // try {
-        //   const socket = await transport.getSocket();
-        //   return [socket.url];
-        // } catch (e) {
-        //   const symbol = Object.getOwnPropertySymbols(e).find(
-        //     (symbol) => symbol.toString() === "Symbol(kTarget)"
-        //   );
-        //   if (!symbol) return [];
-        //   const url = (e as any)[symbol]?._url;
-        //   if (!url) return [];
-        //   return [url.replace(/\/$/, "")];
-        // }
-        return [];
+        try {
+          const socket = await transport.getSocket();
+          return [socket.url];
+        } catch (e) {
+          const symbol = Object.getOwnPropertySymbols(e).find(
+            (symbol) => symbol.toString() === "Symbol(kTarget)",
+          );
+          if (!symbol) return [];
+          const url = (e as any)[symbol]?._url;
+          if (!url) return [];
+          return [url.replace(/\/$/, "")];
+        }
       }
       case "fallback": {
         // This is how viem converts a TransportConfig into the Client.transport type.
@@ -194,7 +210,7 @@ export function getRpcUrlsForClient({ client }: { client: Client }) {
 
         const urls: (string | undefined)[] = [];
         for (const fallbackTransport of fallbackTransports) {
-          urls.push(...getRpcUrlsForTransport(fallbackTransport));
+          urls.push(...(await getRpcUrlsForTransport(fallbackTransport)));
         }
 
         return urls;
@@ -208,6 +224,39 @@ export function getRpcUrlsForClient({ client }: { client: Client }) {
   }
 
   return getRpcUrlsForTransport(client.transport);
+}
+
+export async function getRequestForTransport(parameters: {
+  transport: Transport;
+  chain: Chain;
+}): Promise<Request> {
+  // This is how viem converts a Transport into the Client.transport type.
+  const { config, value } = parameters.transport({
+    chain: parameters.chain,
+    pollingInterval: 4_000, // default viem value
+  });
+  const transport = { ...config, ...value } as Client["transport"];
+
+  switch (transport.type) {
+    case "http": {
+      return (options) => rpc.http(transport.url, options);
+    }
+    case "webSocket": {
+      const socket = await transport.getSocket();
+      return (options) => rpc.webSocketAsync(socket, options);
+    }
+    case "fallback": {
+      return await getRequestForTransport({
+        transport: () => transport.transports[0],
+        chain: parameters.chain,
+      });
+    }
+    default: {
+      throw Error(
+        `Unknown transport "${transport.type}" used. Please use "http", "websocket", or "fallback"`,
+      );
+    }
+  }
 }
 
 let publicRpcUrls: Set<string> | undefined = undefined;

@@ -1,3 +1,4 @@
+import { rpc } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants.js";
@@ -14,6 +15,9 @@ const mainnet: Network = {
   name: "mainnet",
   chainId: 1,
   client: publicClient,
+  request: (options) =>
+    rpc.http(publicClient.chain.rpcUrls.default.http[0], options),
+  url: publicClient.chain.rpcUrls.default.http[0],
   pollingInterval: 1_000,
   defaultMaxBlockRange: 3,
   finalityBlockCount: 10,

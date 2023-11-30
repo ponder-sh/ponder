@@ -120,23 +120,25 @@ export class Ponder {
 
     this.sources = buildSources({ config });
 
-    const networksToSync = Object.entries(config.networks)
-      .map(([networkName, network]) =>
-        buildNetwork({ networkName, network, common: this.common }),
+    const networksToSync = (
+      await Promise.all(
+        Object.entries(config.networks).map(
+          async ([networkName, network]) =>
+            await buildNetwork({ networkName, network, common: this.common }),
+        ),
       )
-      .filter((network) => {
-        const hasSources = this.sources.some(
-          (source) => source.networkName === network.name,
-        );
-        if (!hasSources) {
-          this.common.logger.warn({
-            service: "app",
-            msg: `No contracts found (network=${network.name})`,
-          });
-        }
-        return hasSources;
-      });
-
+    ).filter((network) => {
+      const hasSources = this.sources.some(
+        (source) => source.networkName === network.name,
+      );
+      if (!hasSources) {
+        this.common.logger.warn({
+          service: "app",
+          msg: `No contracts found (network=${network.name})`,
+        });
+      }
+      return hasSources;
+    });
     this.syncServices = networksToSync.map((network) => {
       const sourcesForNetwork = this.sources.filter(
         (source) => source.networkName === network.name,
