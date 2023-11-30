@@ -118,7 +118,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
 
     try {
       await queue.add(
-        async ({ signal }) => {
+        async () => {
           if (retryTimeout)
             await setTimeout(retryTimeout, false, { signal: queueSignal });
 
@@ -126,7 +126,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
             task,
             context,
             queue,
-            signal: signal!,
+            signal: taskController.signal!,
           });
           await onComplete?.({ result, task, context, queue });
         },
@@ -134,7 +134,6 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
           priority,
           timeout: TASK_TIMEOUT + (retryTimeout ?? 0),
           throwOnTimeout: true,
-          signal: taskController.signal,
         },
       );
     } catch (error_) {
