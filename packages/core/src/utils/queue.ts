@@ -91,14 +91,17 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
     superClear();
   };
 
+  const taskControllers: Set<AbortController> = new Set();
+
+  // propogate the queue-level abort down to all tasks
+  queueSignal.addEventListener("abort", () => {
+    taskControllers.forEach((t) => t.abort());
+  });
+
   queue.addTask = async (task, taskOptions) => {
     const priority = taskOptions?.priority ?? 0;
     const taskController = new AbortController();
-
-    // propogate the queue-level abort down to all tasks
-    queueSignal.addEventListener("abort", () => {
-      taskController.abort();
-    });
+    taskControllers.add(taskController);
 
     let retryTimeout: number | undefined = undefined;
     if (taskOptions?.retry) {
@@ -140,6 +143,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
         await onError?.({ error: error_ as Error, task, context, queue });
       }
     }
+    taskControllers.add(taskController);
   };
 
   return queue;
