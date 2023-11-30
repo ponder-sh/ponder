@@ -64,7 +64,7 @@ ponder.on("RocketTokenRETH:Approval", async ({ event, context }) => {
     id: approvalId,
     create: {
       ownerId: event.args.owner,
-      spender: event.args.spender,
+      spenderId: event.args.spender,
       amount: event.args.value,
     },
     update: {

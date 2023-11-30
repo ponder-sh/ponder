@@ -19,7 +19,7 @@ anvil --fork-url $ANVIL_FORK_URL --fork-block-number 17501000
 and then, in a separate terminal running,
 
 ```sh
-bun run src/ponder.ts
+bun src/ponder.ts
 ```
 
 Ponder runs against a local build of Ponder, ensure it is built with `pnpm build` at the top level.
@@ -44,12 +44,12 @@ It is important to note that the default `graph-node` binary cannot be run on Ap
 
 These results are from indexing Rocket Pool ETH from block range 17,480,000 to 17,500,000 on a M1 MacBook Pro with 8 cores and 16GB of RAM against an Alchemy node with the Growth plan.
 
-| No Cache | Duration (sec) | RPC Requests |
-| -------- | -------------- | ------------ |
-| Ponder   | 29.3           | 2149         |
-| TheGraph | 120.1          | 2304         |
+| No Cache | Duration (sec) | eth_getBlockByNumber | eth_getLogs | eth_getTransactionReceipt | Alchemy CU |
+| -------- | -------------- | -------------------- | ----------- | ------------------------- | ---------- |
+| Ponder   | 19.2           | 2149                 | 11          | 0                         | 35209      |
+| TheGraph | 118.1          | 1980                 | 30          | 294                       | 48240      |
 
-| Cache    | Duration (sec) | RPC Requests |
-| -------- | -------------- | ------------ |
-| Ponder   | 9.2            | 0            |
-| TheGraph | 40.1           | 30           |
+| Cache    | Duration (sec) | eth_getBlockByNumber | eth_getLogs | eth_getTransactionReceipt | Alchemy CU |
+| -------- | -------------- | -------------------- | ----------- | ------------------------- | ---------- |
+| Ponder   | 9.3            | 0                    | 0           | 0                         | 0          |
+| TheGraph | 55.1           | 0                    | 30          | 0                         | 2250       |

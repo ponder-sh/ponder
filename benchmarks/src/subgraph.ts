@@ -1,21 +1,16 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 import { execa } from "execa";
-import parsePrometheusTextFormat from "parse-prometheus-text-format";
 
 import { fetchGraphql, fetchWithTimeout, startClock } from "./utils";
 
-const END_BLOCK = 17500000;
-
-const fetchSubgraphLatestBlockNumber = async () => {
+const fetchSubgraphSynced = async () => {
   try {
     const response = await fetchGraphql(
-      "http://localhost:8000/subgraphs/name/ponder-benchmarks/subgraph",
+      "http://localhost:8030/graphql",
       `{
-        _meta {
-          block {
-            number
-          }
+        indexingStatusForCurrentVersion(subgraphName:"ponder-benchmarks/subgraph") {
+          synced
         }
       }`,
     );
@@ -34,9 +29,9 @@ const fetchSubgraphLatestBlockNumber = async () => {
       }
     }
 
-    const blockNumber = response.data?._meta?.block?.number;
+    const synced = response.data?.indexingStatusForCurrentVersion?.synced;
 
-    return blockNumber as number;
+    return synced;
   } catch (err) {
     return 0;
   }
@@ -45,14 +40,13 @@ const fetchSubgraphLatestBlockNumber = async () => {
 const fetchSubgraphMetrics = async () => {
   const metricsResponse = await fetchWithTimeout("http://localhost:8040");
   const metricsRaw = await metricsResponse.text();
-  const metrics = parsePrometheusTextFormat(metricsRaw) as any[];
-  return metrics;
+  return metricsRaw.split("\n");
 };
 
 const waitForGraphNode = async () => {
   const endClock = startClock();
   return new Promise<number>((resolve, reject) => {
-    let timeout = undefined;
+    let timeout: NodeJS.Timeout | undefined = undefined;
     const interval = setInterval(async () => {
       try {
         const metrics = await fetchSubgraphMetrics();
@@ -75,32 +69,16 @@ const waitForGraphNode = async () => {
 
 const waitForSyncComplete = async () => {
   const endClock = startClock();
-  let duration: number;
+  let duration: number = 0;
 
-  await new Promise((resolve, reject) => {
-    let timeout = undefined;
+  await new Promise((resolve) => {
     const interval = setInterval(async () => {
-      const latestSyncedBlockNumber = await fetchSubgraphLatestBlockNumber();
-      const block = Number(
-        (await fetchSubgraphMetrics()).find(
-          (m) => m?.name === "deployment_head",
-        )?.metrics?.[0]?.value ?? 0,
-      );
-
-      console.log(`Latest synced block number: ${block}/${END_BLOCK}`);
-
-      if (latestSyncedBlockNumber >= END_BLOCK) {
+      if (await fetchSubgraphSynced()) {
         duration = endClock();
         clearInterval(interval);
-        clearTimeout(timeout);
         resolve(undefined);
       }
     }, 1_000);
-
-    timeout = setTimeout(() => {
-      clearInterval(interval);
-      reject(new Error("Timed out waiting for subgraph to sync"));
-    }, 180_000);
   });
 
   return duration;
@@ -140,13 +118,11 @@ const subgraph = async () => {
 
   const duration = await waitForSyncComplete();
 
-  const metrics = await fetchSubgraphMetrics();
-  const rpcRequest = JSON.stringify(
-    metrics.find((m) => m.name === "endpoint_request").metrics,
+  const metrics = (await fetchSubgraphMetrics()).filter((m) =>
+    m.includes("endpoint_request"),
   );
-  // .reduce((acc, cur) => acc + Number(cur.value), 0);
 
-  return { setupDuration, duration, rpcRequest };
+  return { setupDuration, duration, metrics };
 };
 
 const changeMappingFileDelim = (delim: string) => {

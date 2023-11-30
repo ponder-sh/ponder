@@ -1,5 +1,3 @@
-import parsePrometheusTextFormat from "parse-prometheus-text-format";
-
 export const startClock = () => {
   const start = process.hrtime();
 
@@ -10,7 +8,7 @@ export const startClock = () => {
 };
 
 export const fetchWithTimeout = async (
-  input: RequestInfo | URL,
+  input: string,
   options: RequestInit & { timeout?: number } = {},
 ) => {
   const { timeout = 2_000 } = options;
@@ -27,7 +25,10 @@ export const fetchWithTimeout = async (
   return response;
 };
 
-export const fetchGraphql = async (input: RequestInfo | URL, query: string) => {
+export const fetchGraphql = async (
+  input: string,
+  query: string,
+): Promise<any> => {
   const response = await fetchWithTimeout(input, {
     method: "POST",
     headers: {
@@ -37,15 +38,4 @@ export const fetchGraphql = async (input: RequestInfo | URL, query: string) => {
   });
   const body = await response.json();
   return body;
-};
-
-export const parsePrometheusText = (text: string) => {
-  const metrics = parsePrometheusTextFormat(text) as {
-    name: string;
-    help: string;
-    type: "COUNTER" | "GAUGE" | "HISTOGRAM";
-    metrics: ({ value: number } & { [key: string]: any })[];
-  }[];
-
-  return metrics;
 };

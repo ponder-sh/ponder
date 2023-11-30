@@ -22,13 +22,6 @@ services:
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
-  anvil:
-    image: ghcr.io/0xolias/simple-anvil-image:main
-    environment:
-      ANVIL_FORK_URL: "${ANVIL_FORK_URL}"
-      ANVIL_FORK_BLOCK_NUMBER: 17500000
-    ports:
-      - 8545:8545
   graph-node:
     image: graphprotocol/graph-node:latest
     ports:
@@ -48,7 +41,7 @@ services:
       postgres_pass: postgres
       postgres_db: postgres
       ipfs: ipfs:5001
-      ethereum: mainnet:http://anvil:8545
+      ethereum: mainnet:${PONDER_RPC_URL_1}
       ETHEREUM_REORG_THRESHOLD: 0
       GRAPH_LOG: debug
-      ETHEREUM_BLOCK_BATCH_SIZE: 30
+      ETHEREUM_BLOCK_BATCH_SIZE: 10
