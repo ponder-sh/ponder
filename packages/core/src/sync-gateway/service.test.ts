@@ -14,7 +14,6 @@ beforeEach((context) => setupSyncStore(context));
 const mainnet: Network = {
   name: "mainnet",
   chainId: 1,
-  client: publicClient,
   request: (options) =>
     rpc.http(publicClient.chain.rpcUrls.default.http[0], options),
   url: publicClient.chain.rpcUrls.default.http[0],

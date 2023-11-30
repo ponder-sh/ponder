@@ -22,7 +22,6 @@ beforeEach((context) => setupSyncStore(context));
 const network: Network = {
   name: "mainnet",
   chainId: 1,
-  client: publicClient,
   request: (options) =>
     rpc.http(publicClient.chain.rpcUrls.default.http[0], options),
   url: publicClient.chain.rpcUrls.default.http[0],
@@ -33,7 +32,7 @@ const network: Network = {
 };
 
 const rpcRequestSpy = vi.spyOn(
-  network.client as { request: EIP1193RequestFn },
+  network as { request: EIP1193RequestFn },
   "request",
 );
 

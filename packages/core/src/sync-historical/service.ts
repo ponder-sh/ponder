@@ -8,7 +8,6 @@ import {
   type RpcBlock,
   type RpcError,
   type RpcLog,
-  RpcRequestError,
   type RpcTransaction,
   toHex,
 } from "viem";
@@ -32,12 +31,8 @@ import {
   intervalSum,
   ProgressTracker,
 } from "@/utils/interval.js";
-import {
-  createQueue,
-  type Queue,
-  TASK_TIMEOUT,
-  type Worker,
-} from "@/utils/queue.js";
+import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
+import { getErrorMessage, request } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
 
 import { validateHistoricalBlockRange } from "./utils.js";
@@ -540,10 +535,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         autoStart: false,
       },
       onError: ({ error, task, queue }) => {
-        const message =
-          error.name === "TimeoutError"
-            ? `Timed out after ${TASK_TIMEOUT} ms`
-            : `${error.name}: ${error.message}`;
+        const message = getErrorMessage(error);
         switch (task.kind) {
           case "LOG_FILTER": {
             this.common.logger.warn({
@@ -808,25 +800,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     const stopClock = startClock();
 
-    const rawRequest = await this.network.request({
+    const block = (await request(this.network, {
       body: {
         method: "eth_getBlockByNumber",
         params: [toHex(blockNumber), true],
       },
       fetchOptions: { signal },
-    });
-
-    if (rawRequest.error)
-      throw new RpcRequestError({
-        body: {
-          method: "eth_getBlockByNumber",
-          params: [toHex(blockNumber), true],
-        },
-        error: rawRequest.error,
-        url: this.network.url,
-      });
-
-    const block = rawRequest.result as RpcBlock & {
+    })) as RpcBlock & {
       transactions: RpcTransaction[];
     };
 
@@ -960,25 +940,13 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     const stopClock = startClock();
     try {
-      const rawRequest = await this.network.request({
+      return await request(this.network, {
         body: {
           method: "eth_getLogs",
           params: [options],
         },
         fetchOptions: { signal },
       });
-
-      if (rawRequest.error)
-        throw new RpcRequestError({
-          body: {
-            method: "eth_getLogs",
-            params: [options],
-          },
-          error: rawRequest.error,
-          url: this.network.url,
-        });
-
-      return rawRequest.result;
     } catch (err) {
       error = err as Partial<RpcError> & { name: string };
     } finally {

@@ -1,4 +1,4 @@
-import { createPublicClient, fallback, http, webSocket } from "viem";
+import { fallback, http, webSocket } from "viem";
 import { mainnet } from "viem/chains";
 import { expect, test, vi } from "vitest";
 
@@ -10,42 +10,37 @@ import {
 } from "./networks.js";
 
 test("getRpcUrlsForClient handles default RPC URL", async () => {
-  const client = createPublicClient({
+  const rpcUrls = await getRpcUrlsForClient({
+    transport: http("http://localhost:8545"),
     chain: mainnet,
-    transport: http(),
   });
 
-  const rpcUrls = await getRpcUrlsForClient({ client });
-
-  expect(rpcUrls).toMatchObject([undefined]);
+  expect(rpcUrls).toMatchObject(["http://localhost:8545"]);
 });
 
 test("getRpcUrlsForClient should handle an http transport", async () => {
-  const client = createPublicClient({
+  const rpcUrls = await getRpcUrlsForClient({
     transport: http("http://localhost:8545"),
+    chain: mainnet,
   });
-
-  const rpcUrls = await getRpcUrlsForClient({ client });
 
   expect(rpcUrls).toMatchObject(["http://localhost:8545"]);
 });
 
 test("getRpcUrlsForClient should handle a websocket transport", async () => {
-  const client = createPublicClient({
+  const rpcUrls = await getRpcUrlsForClient({
     transport: webSocket("wss://localhost:8545"),
+    chain: mainnet,
   });
-
-  const rpcUrls = await getRpcUrlsForClient({ client });
 
   expect(rpcUrls).toMatchObject(["wss://localhost:8545"]);
 });
 
 test("getRpcUrlsForClient should handle a fallback containing an http transport", async () => {
-  const client = createPublicClient({
+  const rpcUrls = await getRpcUrlsForClient({
     transport: fallback([http("http://localhost:8545")]),
+    chain: mainnet,
   });
-
-  const rpcUrls = await getRpcUrlsForClient({ client });
 
   expect(rpcUrls).toMatchObject(["http://localhost:8545"]);
 });
