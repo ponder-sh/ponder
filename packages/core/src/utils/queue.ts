@@ -1,5 +1,5 @@
 import type { DefaultAddOptions, Options, Queue as TPQueue } from "p-queue";
-import PQueue from "p-queue";
+import PQueue, { AbortError } from "p-queue";
 import { setTimeout } from "timers/promises";
 
 import type { Prettify } from "@/types/utils.js";
@@ -14,10 +14,6 @@ export const TASK_RETRY_TIMEOUT = [150, 300, 600, 1_200];
 export type Queue<TTask> = PQueue & {
   addTask: (
     task: TTask & { _retryCount?: number },
-    options?: TaskOptions,
-  ) => Promise<void>;
-  addTasks: (
-    tasks: (TTask & { _retryCount?: number })[],
     options?: TaskOptions,
   ) => Promise<void>;
 };
@@ -86,7 +82,7 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
   }
 
   const controller = new AbortController();
-  const signal = controller.signal;
+  const queueSignal = controller.signal;
 
   // Override clear to also abort any pending tasks.
   const superClear = queue.clear.bind(queue);
@@ -98,6 +94,11 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
   queue.addTask = async (task, taskOptions) => {
     const priority = taskOptions?.priority ?? 0;
     const taskController = new AbortController();
+
+    // propogate the queue-level abort down to all tasks
+    queueSignal.addEventListener("abort", () => {
+      taskController.abort();
+    });
 
     let retryTimeout: number | undefined = undefined;
     if (taskOptions?.retry) {
@@ -112,7 +113,8 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
 
     onAdd?.({ task, context, queue });
 
-    if (retryTimeout) await setTimeout(retryTimeout, null, { signal });
+    if (retryTimeout)
+      await setTimeout(retryTimeout, null, { signal: queueSignal });
 
     try {
       await queue.add(
@@ -134,7 +136,9 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
       );
     } catch (error_) {
       taskController.abort();
-      await onError?.({ error: error_ as Error, task, context, queue });
+      if (!(error_ instanceof AbortError)) {
+        await onError?.({ error: error_ as Error, task, context, queue });
+      }
     }
   };
 

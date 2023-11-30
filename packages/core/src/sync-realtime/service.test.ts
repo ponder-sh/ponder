@@ -24,6 +24,8 @@ const network: Network = {
   name: "mainnet",
   chainId: 1,
   client: publicClient,
+  request: () => {},
+  url: "",
   pollingInterval: 1_000,
   defaultMaxBlockRange: 3,
   finalityBlockCount: 5,

@@ -8,6 +8,7 @@ import {
   type RpcBlock,
   type RpcError,
   type RpcLog,
+  RpcRequestError,
   type RpcTransaction,
   toHex,
 } from "viem";
@@ -815,6 +816,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       fetchOptions: { signal },
     });
 
+    if (rawRequest.error)
+      throw new RpcRequestError({
+        body: {
+          method: "eth_getBlockByNumber",
+          params: [toHex(blockNumber), true],
+        },
+        error: rawRequest.error,
+        url: this.network.url,
+      });
+
     const block = rawRequest.result as RpcBlock & {
       transactions: RpcTransaction[];
     };
@@ -956,6 +967,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         },
         fetchOptions: { signal },
       });
+
+      if (rawRequest.error)
+        throw new RpcRequestError({
+          body: {
+            method: "eth_getLogs",
+            params: [options],
+          },
+          error: rawRequest.error,
+          url: this.network.url,
+        });
 
       return rawRequest.result;
     } catch (err) {
