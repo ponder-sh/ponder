@@ -105,17 +105,22 @@ export class Ponder {
     const database = buildDatabase({ common: this.common, config });
     this.syncStore =
       syncStore ??
-      (database.kind === "sqlite"
-        ? new SqliteSyncStore({ common: this.common, db: database.db })
-        : new PostgresSyncStore({ common: this.common, pool: database.pool }));
-
+      (database.sync.kind === "sqlite"
+        ? new SqliteSyncStore({ common: this.common, file: database.sync.file })
+        : new PostgresSyncStore({
+            common: this.common,
+            pool: database.sync.pool,
+          }));
     this.indexingStore =
       indexingStore ??
-      (database.kind === "sqlite"
-        ? new SqliteIndexingStore({ common: this.common, db: database.db })
+      (database.indexing.kind === "sqlite"
+        ? new SqliteIndexingStore({
+            common: this.common,
+            file: database.indexing.file,
+          })
         : new PostgresIndexingStore({
             common: this.common,
-            pool: database.pool,
+            pool: database.indexing.pool,
           }));
 
     this.sources = buildSources({ config });
@@ -282,11 +287,14 @@ export class Ponder {
 
     const database = buildDatabase({ common: this.common, config });
     this.indexingStore =
-      database.kind === "sqlite"
-        ? new SqliteIndexingStore({ common: this.common, db: database.db })
+      database.indexing.kind === "sqlite"
+        ? new SqliteIndexingStore({
+            common: this.common,
+            file: database.indexing.file,
+          })
         : new PostgresIndexingStore({
             common: this.common,
-            pool: database.pool,
+            pool: database.indexing.pool,
           });
 
     this.serverService = new ServerService({

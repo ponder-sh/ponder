@@ -7,7 +7,6 @@ import {
   sql,
   type Transaction as KyselyTransaction,
 } from "kysely";
-import type { Pool } from "pg";
 import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type {
@@ -25,6 +24,7 @@ import {
   buildLogFilterFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
+import type pg from "@/utils/pg.js";
 import { range } from "@/utils/range.js";
 import { wait } from "@/utils/wait.js";
 
@@ -49,7 +49,7 @@ export class PostgresSyncStore implements SyncStore {
     databaseSchema,
   }: {
     common: Common;
-    pool: Pool;
+    pool: pg.Pool;
     databaseSchema?: string;
   }) {
     this.common = common;

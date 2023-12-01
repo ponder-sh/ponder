@@ -1,4 +1,3 @@
-import type Sqlite from "better-sqlite3";
 import {
   type ExpressionBuilder,
   Kysely,
@@ -20,12 +19,14 @@ import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
 import type { NonNull } from "@/types/utils.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
+import { ensureDirExists } from "@/utils/exists.js";
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
+import { BetterSqlite3, improveSqliteErrors } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 
 import type { SyncStore } from "../store.js";
@@ -45,10 +46,14 @@ export class SqliteSyncStore implements SyncStore {
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({ common, db }: { common: Common; db: Sqlite.Database }) {
+  constructor({ common, file }: { common: Common; file: string }) {
     this.common = common;
+    ensureDirExists(file);
+    const database = new BetterSqlite3(file);
+    improveSqliteErrors(database);
+    database.pragma("journal_mode = WAL");
     this.db = new Kysely<SyncStoreTables>({
-      dialect: new SqliteDialect({ database: db }),
+      dialect: new SqliteDialect({ database }),
     });
 
     this.migrator = new Migrator({

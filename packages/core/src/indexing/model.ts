@@ -17,23 +17,23 @@ export function buildDatabaseModels({
   return Object.keys(schema.tables).reduce<Record<string, DatabaseModel<Row>>>(
     (acc, tableName) => {
       acc[tableName] = {
-        findUnique: ({ id }) => {
+        findUnique: async ({ id }) => {
           common.logger.trace({
             service: "store",
-            msg: `findUnique (table=${tableName}, id=${id})`,
+            msg: `${tableName}.findUnique(id=${id})`,
           });
-          return indexingStore.findUnique({
+          return await indexingStore.findUnique({
             tableName,
             timestamp: getCurrentEventTimestamp(),
             id,
           });
         },
-        findMany: ({ where, skip, take, orderBy } = {}) => {
+        findMany: async ({ where, skip, take, orderBy } = {}) => {
           common.logger.trace({
             service: "store",
-            msg: `findMany (table=${tableName})`,
+            msg: `${tableName}.findMany`,
           });
-          return indexingStore.findMany({
+          return await indexingStore.findMany({
             tableName,
             timestamp: getCurrentEventTimestamp(),
             where,
@@ -42,59 +42,59 @@ export function buildDatabaseModels({
             orderBy,
           });
         },
-        create: ({ id, data }) => {
+        create: async ({ id, data }) => {
           common.logger.trace({
             service: "store",
-            msg: `create (table=${tableName}, id=${id})`,
+            msg: `${tableName}.create(id=${id})`,
           });
-          return indexingStore.create({
+          return await indexingStore.create({
             tableName,
             timestamp: getCurrentEventTimestamp(),
             id,
             data,
           });
         },
-        createMany: ({ data }) => {
+        createMany: async ({ data }) => {
           common.logger.trace({
             service: "store",
-            msg: `createMany (table=${tableName}, count=${data.length})`,
+            msg: `${tableName}.createMany(count=${data.length})`,
           });
-          return indexingStore.createMany({
+          return await indexingStore.createMany({
             tableName,
             timestamp: getCurrentEventTimestamp(),
             data,
           });
         },
-        update: ({ id, data }) => {
+        update: async ({ id, data }) => {
           common.logger.trace({
             service: "store",
-            msg: `update (table=${tableName}, id=${id})`,
+            msg: `${tableName}.update(id=${id})`,
           });
-          return indexingStore.update({
+          return await indexingStore.update({
             tableName,
             timestamp: getCurrentEventTimestamp(),
             id,
             data,
           });
         },
-        updateMany: ({ where, data }) => {
+        updateMany: async ({ where, data }) => {
           common.logger.trace({
             service: "store",
-            msg: `updateMany (table=${tableName})`,
+            msg: `${tableName}.updateMany`,
           });
-          return indexingStore.updateMany({
+          return await indexingStore.updateMany({
             tableName,
             timestamp: getCurrentEventTimestamp(),
             where,
             data,
           });
         },
-        upsert: ({ id, create, update }) => {
+        upsert: async ({ id, create, update }) => {
           common.logger.trace({
             service: "store",
-            msg: `upsert (table=${tableName}, id=${id})`,
+            msg: `${tableName}.upsert(id=${id})`,
           });
-          return indexingStore.upsert({
+          return await indexingStore.upsert({
             tableName,
             timestamp: getCurrentEventTimestamp(),
             id,
@@ -102,12 +102,12 @@ export function buildDatabaseModels({
             update,
           });
         },
-        delete: ({ id }) => {
+        delete: async ({ id }) => {
           common.logger.trace({
             service: "store",
-            msg: `delete (table=${tableName}, id=${id})`,
+            msg: `${tableName}.delete(id=${id})`,
           });
-          return indexingStore.delete({
+          return await indexingStore.delete({
             tableName,
             timestamp: getCurrentEventTimestamp(),
             id,

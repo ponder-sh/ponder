@@ -4,12 +4,11 @@ import path from "node:path";
 import Emittery from "emittery";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
-// @ts-ignore
-import type { ViteDevServer } from "vite";
-// @ts-ignore
-import type { ViteNodeRunner } from "vite-node/client";
-// @ts-ignore
-import type { ViteNodeServer } from "vite-node/server";
+import { createServer, type ViteDevServer } from "vite";
+import { ViteNodeRunner } from "vite-node/client";
+import { ViteNodeServer } from "vite-node/server";
+import { installSourcemapsSupport } from "vite-node/source-map";
+import { normalizeModuleId, toFilePath } from "vite-node/utils";
 
 import type { Config } from "@/config/config.js";
 import type { Common } from "@/Ponder.js";
@@ -20,6 +19,7 @@ import {
   type IndexingFunctions,
   validateIndexingFunctions,
 } from "./functions.js";
+import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
@@ -47,12 +47,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async setup() {
-    const { createServer } = await import("vite");
-    const { ViteNodeServer } = await import("vite-node/server");
-    const { installSourcemapsSupport } = await import("vite-node/source-map");
-    const { ViteNodeRunner } = await import("vite-node/client");
-    const { toFilePath, normalizeModuleId } = await import("vite-node/utils");
-
     const viteLogger = {
       warnedMessages: new Set<string>(),
       loggedErrors: new WeakSet<Error>(),
@@ -84,32 +78,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       publicDir: false,
       customLogger: viteLogger,
       server: { hmr: false },
-      plugins: [
-        {
-          name: "ponder:hmr",
-          transform: (code_) => {
-            let code = code_;
-
-            // Matches `import { ponder } from "@/generated";` with whitespaces and newlines.
-            const regex =
-              /import\s+\{\s*ponder\s*\}\s+from\s+(['"])@\/generated\1\s*;?/g;
-            if (regex.test(code)) {
-              // Add shim object to collect user functions.
-              const shimHeader = `
-                export let ponder = {
-                  fns: [],
-                  on(name, fn) {
-                    this.fns.push({ name, fn });
-                  },
-                };
-              `;
-              code = `${shimHeader}\n${code.replace(regex, "")}`;
-            }
-
-            return code;
-          },
-        },
-      ],
+      plugins: [vitePluginPonder()],
     });
 
     // This is Vite boilerplate (initializes the Rollup container).
@@ -310,6 +279,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     });
 
     // TODO: Fix this error handling approach.
-    this.common.errors.submitUserError({ error });
+    this.common.errors.submitUserError();
   }
 }
