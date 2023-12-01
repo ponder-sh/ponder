@@ -1,5 +1,4 @@
-import { Kysely, sql } from "kysely";
-import { SqliteWorkerDialect } from "kysely-sqlite-worker";
+import { Kysely, sql, SqliteDialect } from "kysely";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -10,6 +9,7 @@ import {
   isReferenceColumn,
 } from "@/schema/utils.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
+import { BetterSqlite3, improveSqliteErrors } from "@/utils/sqlite.js";
 
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
 import { formatColumnValue, formatRow } from "../utils/format.js";
@@ -41,8 +41,11 @@ export class SqliteIndexingStore implements IndexingStore {
 
   constructor({ common, file }: { common: Common; file: string }) {
     this.common = common;
+    const database = new BetterSqlite3(file);
+    improveSqliteErrors(database);
+    database.pragma("journal_mode = WAL");
     this.db = new Kysely({
-      dialect: new SqliteWorkerDialect({ source: file }),
+      dialect: new SqliteDialect({ database }),
     });
   }
 

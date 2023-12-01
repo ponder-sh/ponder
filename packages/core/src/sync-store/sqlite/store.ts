@@ -3,9 +3,9 @@ import {
   Kysely,
   Migrator,
   sql,
+  SqliteDialect,
   type Transaction as KyselyTransaction,
 } from "kysely";
-import { SqliteWorkerDialect } from "kysely-sqlite-worker";
 import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type {
@@ -25,6 +25,7 @@ import {
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
+import { BetterSqlite3, improveSqliteErrors } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 
 import type { SyncStore } from "../store.js";
@@ -46,9 +47,11 @@ export class SqliteSyncStore implements SyncStore {
 
   constructor({ common, file }: { common: Common; file: string }) {
     this.common = common;
-
+    const database = new BetterSqlite3(file);
+    improveSqliteErrors(database);
+    database.pragma("journal_mode = WAL");
     this.db = new Kysely<SyncStoreTables>({
-      dialect: new SqliteWorkerDialect({ source: file }),
+      dialect: new SqliteDialect({ database }),
     });
 
     this.migrator = new Migrator({
