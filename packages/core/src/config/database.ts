@@ -2,7 +2,6 @@ import path from "node:path";
 
 import type { Config } from "@/config/config.js";
 import type { Common } from "@/Ponder.js";
-import { ensureDirExists } from "@/utils/exists.js";
 import pg from "@/utils/pg.js";
 
 type StoreConfig =
@@ -40,18 +39,12 @@ export const buildDatabase = ({
       "store",
       "sync.db",
     );
-    ensureDirExists(syncFilePath);
-    // const syncDb = Sqlite(syncFilePath);
-    // syncDb.pragma("journal_mode = WAL");
 
     const indexingFilePath = path.join(
       common.options.ponderDir,
       "store",
       "indexing.db",
     );
-    ensureDirExists(indexingFilePath);
-    // const indexingDb = Sqlite(indexingFilePath, {});
-    // indexingDb.pragma("journal_mode = WAL");
 
     return {
       sync: { kind: "sqlite", file: syncFilePath },

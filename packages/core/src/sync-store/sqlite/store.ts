@@ -19,6 +19,7 @@ import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
 import type { NonNull } from "@/types/utils.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
+import { ensureDirExists } from "@/utils/exists.js";
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
@@ -47,6 +48,7 @@ export class SqliteSyncStore implements SyncStore {
 
   constructor({ common, file }: { common: Common; file: string }) {
     this.common = common;
+    ensureDirExists(file);
     const database = new BetterSqlite3(file);
     improveSqliteErrors(database);
     database.pragma("journal_mode = WAL");

@@ -9,6 +9,7 @@ import {
   isReferenceColumn,
 } from "@/schema/utils.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
+import { ensureDirExists } from "@/utils/exists.js";
 import { BetterSqlite3, improveSqliteErrors } from "@/utils/sqlite.js";
 
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
@@ -41,6 +42,7 @@ export class SqliteIndexingStore implements IndexingStore {
 
   constructor({ common, file }: { common: Common; file: string }) {
     this.common = common;
+    ensureDirExists(file);
     const database = new BetterSqlite3(file);
     improveSqliteErrors(database);
     database.pragma("journal_mode = WAL");
