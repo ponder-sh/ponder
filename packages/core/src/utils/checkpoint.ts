@@ -4,7 +4,7 @@ export type EventCheckpoint = {
   blockNumber: number;
   // Execution index of the event within the block. For logs, this is the log index.
   // If null, the checkpoint includes all events in the block.
-  // executionIndex: number | null;
+  executionIndex: number | null;
 };
 
 // 10 digits for unix timestamp gets us to the year 2277.
@@ -14,17 +14,25 @@ const TIMESTAMP_DIGITS = 10;
 const CHAIN_ID_DIGITS = 16;
 // Same logic as chain ID.
 const BLOCK_NUMBER_DIGITS = 16;
+// Same logic as chain ID.
+const EXECUTION_INDEX_DIGITS = 16;
 
-export const checkpointToString = (checkpoint: EventCheckpoint) => {
-  const { blockTimestamp, chainId, blockNumber } = checkpoint;
+export const encodeCheckpoint = (checkpoint: EventCheckpoint) => {
+  const { blockTimestamp, chainId, blockNumber, executionIndex } = checkpoint;
   const result =
     blockTimestamp.toString().padStart(TIMESTAMP_DIGITS, "0") +
     chainId.toString().padStart(CHAIN_ID_DIGITS, "0") +
-    blockNumber.toString().padStart(BLOCK_NUMBER_DIGITS, "0");
+    blockNumber.toString().padStart(BLOCK_NUMBER_DIGITS, "0") +
+    (executionIndex !== null
+      ? executionIndex.toString().padStart(EXECUTION_INDEX_DIGITS, "0")
+      : "9".repeat(EXECUTION_INDEX_DIGITS));
 
   if (
     result.length !==
-    TIMESTAMP_DIGITS + CHAIN_ID_DIGITS + BLOCK_NUMBER_DIGITS
+    TIMESTAMP_DIGITS +
+      CHAIN_ID_DIGITS +
+      BLOCK_NUMBER_DIGITS +
+      EXECUTION_INDEX_DIGITS
   )
     throw new Error(`Invalid stringified checkpoint: ${result}`);
 
@@ -35,6 +43,7 @@ export const zeroCheckpoint: EventCheckpoint = {
   blockTimestamp: 0,
   chainId: 0,
   blockNumber: 0,
+  executionIndex: 0,
 };
 
 export const checkpointGreaterThanOrEqualTo = (

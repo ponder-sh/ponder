@@ -85,17 +85,17 @@ export interface IndexingStore {
   reload(options?: { schema?: Schema }): Promise<void>;
   kill(): Promise<void>;
 
-  revert(options: { safeTimestamp: number }): Promise<void>;
+  revert(options: { safeCheckpoint: EventCheckpoint }): Promise<void>;
 
   findUnique(options: {
     tableName: string;
-    timestamp?: number;
+    checkpoint?: EventCheckpoint;
     id: string | number | bigint;
   }): Promise<Row | null>;
 
   findMany(options: {
     tableName: string;
-    timestamp?: number;
+    checkpoint?: EventCheckpoint;
     where?: WhereInput<any>;
     skip?: number;
     take?: number;

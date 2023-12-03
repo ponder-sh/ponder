@@ -2,6 +2,7 @@ import { beforeEach, expect, test } from "vitest";
 
 import { setupIndexingStore } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
+import type { EventCheckpoint } from "@/utils/checkpoint.js";
 
 beforeEach((context) => setupIndexingStore(context));
 
@@ -20,6 +21,15 @@ const schema = createSchema((p) => ({
   }),
 }));
 
+function createCheckpoint(index: number): EventCheckpoint {
+  return {
+    blockTimestamp: 1,
+    chainId: 1,
+    blockNumber: 1,
+    executionIndex: index,
+  };
+}
+
 test("reload() binds the schema", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
@@ -27,20 +37,20 @@ test("reload() binds the schema", async (context) => {
   expect(indexingStore.schema).toBe(schema);
 });
 
-test("create() inserts a record that is effective after timestamp", async (context) => {
+test("create() inserts a record that is effective after specified checkpoint", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
   const instance = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 25,
+    checkpoint: createCheckpoint(25),
     id: "id1",
   });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
@@ -52,14 +62,14 @@ test("create() inserts a record that is effective at timestamp", async (context)
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
   const instance = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
   });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
@@ -71,26 +81,26 @@ test("create() inserts a record that is not effective before timestamp", async (
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
   const instance = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 8,
+    checkpoint: createCheckpoint(8),
     id: "id1",
   });
   expect(instance).toBeNull();
 });
 
-test("create() throws on unique constraint violation", async (context) => {
+test("create() throws on unique constraint violation even if checkpoint is different", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -98,7 +108,7 @@ test("create() throws on unique constraint violation", async (context) => {
   await expect(() =>
     indexingStore.create({
       tableName: "Pet",
-      timestamp: 15,
+      checkpoint: createCheckpoint(15),
       id: "id1",
       data: { name: "Skip", age: 13 },
     }),
@@ -111,14 +121,14 @@ test("create() respects optional fields", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip" },
   });
 
   const instance = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 11,
+    checkpoint: createCheckpoint(11),
     id: "id1",
   });
 
@@ -131,14 +141,14 @@ test("create() accepts enums", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", kind: "CAT" },
   });
 
   const instance = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 11,
+    checkpoint: createCheckpoint(11),
     id: "id1",
   });
 
@@ -152,7 +162,7 @@ test("create() throws on invalid enum value", async (context) => {
   await expect(() =>
     indexingStore.create({
       tableName: "Pet",
-      timestamp: 10,
+      checkpoint: createCheckpoint(10),
       id: "id1",
       data: { name: "Skip", kind: "NOTACAT" },
     }),
@@ -165,14 +175,14 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
 
   const instance = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
   });
 
@@ -185,7 +195,7 @@ test("update() updates a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
@@ -198,7 +208,7 @@ test("update() updates a record", async (context) => {
 
   await indexingStore.update({
     tableName: "Pet",
-    timestamp: 11,
+    checkpoint: createCheckpoint(11),
     id: "id1",
     data: { name: "Peanut Butter" },
   });
@@ -216,7 +226,7 @@ test("update() updates a record using an update function", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
@@ -229,7 +239,7 @@ test("update() updates a record using an update function", async (context) => {
 
   await indexingStore.update({
     tableName: "Pet",
-    timestamp: 11,
+    checkpoint: createCheckpoint(11),
     id: "id1",
     data: ({ current }) => ({
       name: current.name + " and Skipper",
@@ -252,21 +262,21 @@ test("update() updates a record and maintains older version", async (context) =>
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", bigAge: 100n },
   });
 
   await indexingStore.update({
     tableName: "Pet",
-    timestamp: 11,
+    checkpoint: createCheckpoint(11),
     id: "id1",
     data: { name: "Peanut Butter" },
   });
 
   const originalInstance = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
   });
   expect(originalInstance).toMatchObject({
@@ -282,7 +292,7 @@ test("update() throws if trying to update an instance in the past", async (conte
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip" },
   });
@@ -290,7 +300,7 @@ test("update() throws if trying to update an instance in the past", async (conte
   await expect(() =>
     indexingStore.update({
       tableName: "Pet",
-      timestamp: 8,
+      checkpoint: createCheckpoint(8),
       id: "id1",
       data: { name: "Peanut Butter" },
     }),
@@ -303,14 +313,14 @@ test("update() updates a record in-place within the same timestamp", async (cont
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip" },
   });
 
   await indexingStore.update({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Peanut Butter" },
   });
@@ -328,7 +338,7 @@ test("upsert() inserts a new record", async (context) => {
 
   await indexingStore.upsert({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     create: { name: "Skip", age: 12 },
   });
@@ -346,7 +356,7 @@ test("upsert() updates a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -358,7 +368,7 @@ test("upsert() updates a record", async (context) => {
 
   await indexingStore.upsert({
     tableName: "Pet",
-    timestamp: 12,
+    checkpoint: createCheckpoint(12),
     id: "id1",
     create: { name: "Skip", age: 24 },
     update: { name: "Jelly" },
@@ -377,7 +387,7 @@ test("upsert() updates a record using an update function", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -389,7 +399,7 @@ test("upsert() updates a record using an update function", async (context) => {
 
   await indexingStore.upsert({
     tableName: "Pet",
-    timestamp: 12,
+    checkpoint: createCheckpoint(12),
     id: "id1",
     create: { name: "Skip", age: 24 },
     update: ({ current }) => ({
@@ -410,7 +420,7 @@ test("upsert() throws if trying to update an instance in the past", async (conte
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip" },
   });
@@ -418,7 +428,7 @@ test("upsert() throws if trying to update an instance in the past", async (conte
   await expect(() =>
     indexingStore.upsert({
       tableName: "Pet",
-      timestamp: 8,
+      checkpoint: createCheckpoint(8),
       id: "id1",
       create: { name: "Jelly" },
       update: { name: "Peanut Butter" },
@@ -432,14 +442,14 @@ test("upsert() updates a record in-place within the same timestamp", async (cont
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip" },
   });
 
   await indexingStore.upsert({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     create: { name: "Jelly" },
     update: { name: "Peanut Butter" },
@@ -458,7 +468,7 @@ test("delete() removes a record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -468,7 +478,11 @@ test("delete() removes a record", async (context) => {
   });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
-  await indexingStore.delete({ tableName: "Pet", timestamp: 15, id: "id1" });
+  await indexingStore.delete({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(15),
+    id: "id1",
+  });
 
   const deletedInstance = await indexingStore.findUnique({
     tableName: "Pet",
@@ -483,16 +497,20 @@ test("delete() retains older version of record", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
-  await indexingStore.delete({ tableName: "Pet", timestamp: 15, id: "id1" });
+  await indexingStore.delete({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(15),
+    id: "id1",
+  });
 
   const deletedInstance = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 12,
+    checkpoint: createCheckpoint(12),
     id: "id1",
   });
   expect(deletedInstance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
@@ -504,7 +522,7 @@ test("delete() removes a record entirely if only present for one timestamp", asy
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -514,11 +532,15 @@ test("delete() removes a record entirely if only present for one timestamp", asy
   });
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
-  await indexingStore.delete({ tableName: "Pet", timestamp: 10, id: "id1" });
+  await indexingStore.delete({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(10),
+    id: "id1",
+  });
 
   const deletedInstance = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
   });
   expect(deletedInstance).toBe(null);
@@ -530,7 +552,7 @@ test("delete() removes a record entirely if only present for one timestamp after
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
@@ -542,7 +564,7 @@ test("delete() removes a record entirely if only present for one timestamp after
 
   await indexingStore.update({
     tableName: "Pet",
-    timestamp: 12,
+    checkpoint: createCheckpoint(12),
     id: "id1",
     data: { name: "Skipper", age: 12 },
   });
@@ -556,11 +578,15 @@ test("delete() removes a record entirely if only present for one timestamp after
     age: 12,
   });
 
-  await indexingStore.delete({ tableName: "Pet", timestamp: 12, id: "id1" });
+  await indexingStore.delete({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(12),
+    id: "id1",
+  });
 
   const deletedInstance = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 12,
+    checkpoint: createCheckpoint(12),
     id: "id1",
   });
   expect(deletedInstance).toBe(null);
@@ -572,25 +598,30 @@ test("delete() deletes versions effective in the delete timestamp", async (conte
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
 
-  await indexingStore.delete({ tableName: "Pet", timestamp: 15, id: "id1" });
+  await indexingStore.delete({
+    tableName: "Pet",
+    checkpoint: createCheckpoint(15),
+    id: "id1",
+  });
 
   const instanceDuringDeleteTimestamp = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 15,
+    checkpoint: createCheckpoint(15),
     id: "id1",
   });
   expect(instanceDuringDeleteTimestamp).toBe(null);
 
   const instancePriorToDelete = await indexingStore.findUnique({
     tableName: "Pet",
-    timestamp: 14,
+    checkpoint: createCheckpoint(14),
     id: "id1",
   });
+  expect(instancePriorToDelete).toBeTruthy();
   expect(instancePriorToDelete!.name).toBe("Skip");
 });
 
@@ -600,25 +631,25 @@ test("findMany() returns current versions of all records", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 8,
+    checkpoint: createCheckpoint(8),
     id: "id1",
     data: { name: "Skip", age: 12 },
   });
   await indexingStore.update({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "SkipUpdated" },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id2",
     data: { name: "Foo" },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id3",
     data: { name: "Bar", bigAge: 100n },
   });
@@ -638,25 +669,25 @@ test("findMany() sorts on bigint field", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", bigAge: 105n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id2",
     data: { name: "Foo", bigAge: 10n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id3",
     data: { name: "Bar", bigAge: 190n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id4",
     data: { name: "Patch" },
   });
@@ -674,25 +705,25 @@ test("findMany() filters on bigint gt", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", bigAge: 105n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id2",
     data: { name: "Foo", bigAge: 10n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id3",
     data: { name: "Bar", bigAge: 190n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id4",
     data: { name: "Patch" },
   });
@@ -711,25 +742,25 @@ test("findMany() sorts and filters together", async (context) => {
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip", bigAge: 105n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id2",
     data: { name: "Foo", bigAge: 10n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id3",
     data: { name: "Bar", bigAge: 190n },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id4",
     data: { name: "Zarbar" },
   });
@@ -773,7 +804,7 @@ test("createMany() inserts multiple entities", async (context) => {
 
   const createdInstances = await indexingStore.createMany({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -794,7 +825,7 @@ test("createMany() inserts a large number of entities", async (context) => {
 
   const createdInstances = await indexingStore.createMany({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     data: [...Array(ENTITY_COUNT).keys()].map((i) => ({
       id: `id${i}`,
       name: "Alice",
@@ -813,7 +844,7 @@ test("updateMany() updates multiple entities", async (context) => {
 
   await indexingStore.createMany({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     data: [
       { id: "id1", name: "Skip", bigAge: 105n },
       { id: "id2", name: "Foo", bigAge: 10n },
@@ -823,7 +854,7 @@ test("updateMany() updates multiple entities", async (context) => {
 
   const updatedInstances = await indexingStore.updateMany({
     tableName: "Pet",
-    timestamp: 11,
+    checkpoint: createCheckpoint(11),
     where: { bigAge: { gt: 50n } },
     data: { bigAge: 300n },
   });
@@ -841,36 +872,36 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip" },
   });
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 13,
+    checkpoint: createCheckpoint(13),
     id: "id2",
     data: { name: "Foo" },
   });
   await indexingStore.update({
     tableName: "Pet",
-    timestamp: 15,
+    checkpoint: createCheckpoint(15),
     id: "id1",
     data: { name: "SkipUpdated" },
   });
   await indexingStore.create({
     tableName: "Person",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Bob" },
   });
   await indexingStore.update({
     tableName: "Person",
-    timestamp: 11,
+    checkpoint: createCheckpoint(11),
     id: "id1",
     data: { name: "Bobby" },
   });
 
-  await indexingStore.revert({ safeTimestamp: 12 });
+  await indexingStore.revert({ safeCheckpoint: createCheckpoint(12) });
 
   const pets = await indexingStore.findMany({ tableName: "Pet" });
   expect(pets.length).toBe(1);
@@ -887,17 +918,17 @@ test("revert() updates versions that only existed during the safe timestamp to l
 
   await indexingStore.create({
     tableName: "Pet",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: "id1",
     data: { name: "Skip" },
   });
   await indexingStore.delete({
     tableName: "Pet",
-    timestamp: 11,
+    checkpoint: createCheckpoint(11),
     id: "id1",
   });
 
-  await indexingStore.revert({ safeTimestamp: 10 });
+  await indexingStore.revert({ safeCheckpoint: createCheckpoint(10) });
 
   const pets = await indexingStore.findMany({ tableName: "Pet" });
   expect(pets.length).toBe(1);
