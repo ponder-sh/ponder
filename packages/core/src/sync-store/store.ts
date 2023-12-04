@@ -2,10 +2,10 @@ import type { Kysely, Migrator } from "kysely";
 import type { Address, Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
 
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import type { EventCheckpoint } from "@/sync-gateway/service.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
+import type { EventCheckpoint } from "@/utils/checkpoint.js";
 
 export interface SyncStore {
   kind: "sqlite" | "postgres";
@@ -178,12 +178,12 @@ export interface SyncStore {
       transaction: Transaction;
     }[];
     metadata: {
-      pageEndsAtTimestamp: number;
       counts: {
         sourceId: string;
         selector: Hex;
         count: number;
       }[];
+      pageEndCheckpoint: EventCheckpoint;
     };
   }>;
 }

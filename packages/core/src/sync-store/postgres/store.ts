@@ -19,6 +19,7 @@ import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
 import type { NonNull } from "@/types/utils.js";
+import { type EventCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
@@ -841,14 +842,14 @@ export class PostgresSyncStore implements SyncStore {
   };
 
   async *getLogEvents({
-    fromTimestamp,
-    toTimestamp,
+    fromCheckpoint,
+    toCheckpoint,
     logFilters = [],
     factories = [],
     pageSize = 10_000,
   }: {
-    fromTimestamp: number;
-    toTimestamp: number;
+    fromCheckpoint: EventCheckpoint;
+    toCheckpoint: EventCheckpoint;
     logFilters?: {
       id: string;
       chainId: number;
@@ -942,8 +943,17 @@ export class PostgresSyncStore implements SyncStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
-      .where("blocks.timestamp", ">=", BigInt(fromTimestamp))
-      .where("blocks.timestamp", "<=", BigInt(toTimestamp));
+      .where("blocks.timestamp", ">=", BigInt(fromCheckpoint.blockTimestamp))
+      .where("logs.chainId", ">=", fromCheckpoint.chainId)
+      .where("blocks.number", ">=", BigInt(fromCheckpoint.blockNumber))
+      .where("logs.logIndex", ">=", fromCheckpoint.executionIndex)
+      .where("blocks.timestamp", "<=", BigInt(toCheckpoint.blockTimestamp))
+      .where("logs.chainId", "<=", toCheckpoint.chainId)
+      .where("blocks.number", "<=", BigInt(toCheckpoint.blockNumber))
+      .where("logs.logIndex", "<=", toCheckpoint.executionIndex);
+
+    console.log(fromCheckpoint);
+    console.log(toCheckpoint);
 
     const buildLogFilterCmprs = ({
       eb,
@@ -1255,16 +1265,18 @@ export class PostgresSyncStore implements SyncStore {
         };
       }
 
-      const lastEventBlockTimestamp = lastRow?.block_timestamp;
-      const pageEndsAtTimestamp = lastEventBlockTimestamp
-        ? Number(lastEventBlockTimestamp)
-        : toTimestamp;
-
       yield {
         events,
         metadata: {
-          pageEndsAtTimestamp,
           counts: eventCounts,
+          pageEndCheckpoint: cursor
+            ? {
+                blockTimestamp: Number(cursor.timestamp),
+                chainId: cursor.chainId,
+                blockNumber: Number(cursor.blockNumber),
+                executionIndex: cursor.logIndex,
+              }
+            : zeroCheckpoint,
         },
       };
 

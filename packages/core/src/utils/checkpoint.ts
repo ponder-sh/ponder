@@ -8,7 +8,7 @@ export type EventCheckpoint = {
 };
 
 // 10 digits for unix timestamp gets us to the year 2277.
-const TIMESTAMP_DIGITS = 10;
+const BLOCK_TIMESTAMP_DIGITS = 10;
 // Chain IDs are uint256. As of writing the largest Chain ID on https://chainlist.org
 // is 13 digits. 16 digits should be enough (JavaScript's max safe integer).
 const CHAIN_ID_DIGITS = 16;
@@ -20,7 +20,7 @@ const EXECUTION_INDEX_DIGITS = 16;
 export const encodeCheckpoint = (checkpoint: EventCheckpoint) => {
   const { blockTimestamp, chainId, blockNumber, executionIndex } = checkpoint;
   const result =
-    blockTimestamp.toString().padStart(TIMESTAMP_DIGITS, "0") +
+    blockTimestamp.toString().padStart(BLOCK_TIMESTAMP_DIGITS, "0") +
     chainId.toString().padStart(CHAIN_ID_DIGITS, "0") +
     blockNumber.toString().padStart(BLOCK_NUMBER_DIGITS, "0") +
     (executionIndex !== null
@@ -29,7 +29,7 @@ export const encodeCheckpoint = (checkpoint: EventCheckpoint) => {
 
   if (
     result.length !==
-    TIMESTAMP_DIGITS +
+    BLOCK_TIMESTAMP_DIGITS +
       CHAIN_ID_DIGITS +
       BLOCK_NUMBER_DIGITS +
       EXECUTION_INDEX_DIGITS
@@ -44,6 +44,15 @@ export const zeroCheckpoint: EventCheckpoint = {
   chainId: 0,
   blockNumber: 0,
   executionIndex: 0,
+};
+
+// TODO: Consider changing block timestamps and numbers to bigints
+// so that we can accurately represent EVM max values.
+export const maxCheckpoint: EventCheckpoint = {
+  blockTimestamp: 9999999999,
+  chainId: 2147483647,
+  blockNumber: 9999999999,
+  executionIndex: 2147483647,
 };
 
 export const checkpointGreaterThanOrEqualTo = (

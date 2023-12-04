@@ -18,6 +18,7 @@ import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
 import type { NonNull } from "@/types/utils.js";
+import { type EventCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
 import { ensureDirExists } from "@/utils/exists.js";
 import {
@@ -828,14 +829,14 @@ export class SqliteSyncStore implements SyncStore {
   };
 
   async *getLogEvents({
-    fromTimestamp,
-    toTimestamp,
+    fromCheckpoint,
+    toCheckpoint,
     logFilters = [],
     factories = [],
     pageSize = 10_000,
   }: {
-    fromTimestamp: number;
-    toTimestamp: number;
+    fromCheckpoint: EventCheckpoint;
+    toCheckpoint: EventCheckpoint;
     logFilters?: {
       id: string;
       chainId: number;
@@ -929,12 +930,22 @@ export class SqliteSyncStore implements SyncStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
-      .where("blocks.timestamp", ">=", encodeAsText(fromTimestamp))
-      .where("blocks.timestamp", "<=", encodeAsText(toTimestamp))
-      .orderBy("blocks.timestamp", "asc")
-      .orderBy("logs.chainId", "asc")
-      .orderBy("blocks.number", "asc")
-      .orderBy("logs.logIndex", "asc");
+      .where(
+        "blocks.timestamp",
+        ">=",
+        encodeAsText(fromCheckpoint.blockTimestamp),
+      )
+      .where("logs.chainId", ">=", fromCheckpoint.chainId)
+      .where("blocks.number", ">=", encodeAsText(fromCheckpoint.blockNumber))
+      .where("logs.logIndex", ">=", fromCheckpoint.executionIndex)
+      .where(
+        "blocks.timestamp",
+        "<=",
+        encodeAsText(toCheckpoint.blockTimestamp),
+      )
+      .where("logs.chainId", "<=", toCheckpoint.chainId)
+      .where("blocks.number", "<=", encodeAsText(toCheckpoint.blockNumber))
+      .where("logs.logIndex", "<=", toCheckpoint.executionIndex);
 
     const buildLogFilterCmprs = ({
       eb,
@@ -1246,16 +1257,18 @@ export class SqliteSyncStore implements SyncStore {
         };
       }
 
-      const lastEventBlockTimestamp = lastRow?.block_timestamp;
-      const pageEndsAtTimestamp = lastEventBlockTimestamp
-        ? Number(decodeToBigInt(lastEventBlockTimestamp))
-        : toTimestamp;
-
       yield {
         events,
         metadata: {
-          pageEndsAtTimestamp,
           counts: eventCounts,
+          pageEndCheckpoint: cursor
+            ? {
+                blockTimestamp: Number(decodeToBigInt(cursor.timestamp)),
+                chainId: cursor.chainId,
+                blockNumber: Number(decodeToBigInt(cursor.blockNumber)),
+                executionIndex: cursor.logIndex,
+              }
+            : zeroCheckpoint,
         },
       };
 
