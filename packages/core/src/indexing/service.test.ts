@@ -42,6 +42,10 @@ const schema = createSchema((p) => ({
     id: p.string(),
     timestamp: p.int(),
   }),
+  Supply: p.createTable({
+    id: p.string(),
+    supply: p.bigint(),
+  }),
 }));
 
 const transferIndexingFunction = vi.fn(async ({ event, context }) => {
@@ -53,11 +57,37 @@ const transferIndexingFunction = vi.fn(async ({ event, context }) => {
   });
 });
 
+const readContractTransferIndexingFunction = vi.fn(
+  async ({ event, context }) => {
+    try {
+      const totalSupply = await context.client.readContract({
+        abi: usdcContractConfig.abi,
+        functionName: "totalSupply",
+        address: usdcContractConfig.address,
+      });
+
+      await context.db.Supply.create({
+        id: event.log.id,
+        data: {
+          supply: totalSupply,
+        },
+      });
+    } catch (err) {
+      console.log(err);
+    }
+  },
+);
+
 const transferSelector = getEventSelector(usdcContractConfig.abi[1]);
 
 const indexingFunctions: IndexingFunctions = {
   _meta_: {},
   USDC: { Transfer: transferIndexingFunction },
+};
+
+const readContractIndexingFunctions: IndexingFunctions = {
+  _meta_: {},
+  USDC: { Transfer: readContractTransferIndexingFunction },
 };
 
 const transferLog = {
@@ -79,7 +109,7 @@ const getEvents = vi.fn(async function* getEvents({
         sourceId: "USDC_mainnet",
         chainId: 1,
         log: { id: String(toTimestamp), ...transferLog },
-        block: { timestamp: BigInt(toTimestamp) },
+        block: { timestamp: BigInt(toTimestamp), number: 16375000n },
         transaction: {},
       },
     ],
@@ -173,11 +203,11 @@ test("processEvents() calls indexing functions with correct arguments", async (c
           value: 2226946920429133n,
         },
         log: { id: "10", ...transferLog },
-        block: { timestamp: 10n },
+        block: { timestamp: 10n, number: 16375000n },
         transaction: {},
       },
       context: expect.objectContaining({
-        db: { TransferEvent: expect.anything() },
+        db: { TransferEvent: expect.anything(), Supply: expect.anything() },
         network: { name: "mainnet", chainId: 1 },
         client: expect.anything(),
         contracts: { USDC: expect.anything() },
@@ -259,6 +289,65 @@ test("processEvents() updates event count metrics", async (context) => {
       value: 1,
     },
   ]);
+
+  await service.kill();
+});
+
+test("processEvents() client.readContract", async (context) => {
+  const { common, syncStore, indexingStore } = context;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+  });
+
+  await service.reset({
+    schema,
+    indexingFunctions: readContractIndexingFunctions,
+  });
+
+  syncGatewayService.checkpoint = 10;
+  await service.processEvents();
+
+  const supplyEvents = await indexingStore.findMany({
+    tableName: "Supply",
+  });
+  expect(supplyEvents.length).toBe(1);
+
+  await service.kill();
+});
+
+test("processEvents() client.readContract handles errors", async (context) => {
+  const { common, syncStore, indexingStore } = context;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+  });
+
+  const spy = vi.spyOn(networks[0], "request");
+  spy.mockRejectedValueOnce(new Error("Unexpected error!"));
+
+  await service.reset({
+    schema,
+    indexingFunctions: readContractIndexingFunctions,
+  });
+
+  syncGatewayService.checkpoint = 10;
+  await service.processEvents();
+
+  const supplyEvents = await indexingStore.findMany({
+    tableName: "Supply",
+  });
+  expect(supplyEvents.length).toBe(1);
 
   await service.kill();
 });
