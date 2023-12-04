@@ -59,22 +59,18 @@ const transferIndexingFunction = vi.fn(async ({ event, context }) => {
 
 const readContractTransferIndexingFunction = vi.fn(
   async ({ event, context }) => {
-    try {
-      const totalSupply = await context.client.readContract({
-        abi: usdcContractConfig.abi,
-        functionName: "totalSupply",
-        address: usdcContractConfig.address,
-      });
+    const totalSupply = await context.client.readContract({
+      abi: usdcContractConfig.abi,
+      functionName: "totalSupply",
+      address: usdcContractConfig.address,
+    });
 
-      await context.db.Supply.create({
-        id: event.log.id,
-        data: {
-          supply: totalSupply,
-        },
-      });
-    } catch (err) {
-      console.log(err);
-    }
+    await context.db.Supply.create({
+      id: event.log.id,
+      data: {
+        supply: totalSupply,
+      },
+    });
   },
 );
 
