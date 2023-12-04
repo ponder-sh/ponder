@@ -146,7 +146,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
   await service.kill();
 });
 
-test.only("processEvents() calls indexing functions with correct arguments", async (context) => {
+test("processEvents() calls indexing functions with correct arguments", async (context) => {
   const { common, syncStore, indexingStore } = context;
 
   const service = new IndexingService({
