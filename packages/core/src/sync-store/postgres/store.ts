@@ -952,9 +952,6 @@ export class PostgresSyncStore implements SyncStore {
       .where("blocks.number", "<=", BigInt(toCheckpoint.blockNumber))
       .where("logs.logIndex", "<=", toCheckpoint.executionIndex);
 
-    console.log(fromCheckpoint);
-    console.log(toCheckpoint);
-
     const buildLogFilterCmprs = ({
       eb,
       logFilter,

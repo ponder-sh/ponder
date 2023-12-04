@@ -47,7 +47,11 @@ type HistoricalSyncEvents = {
    * This indicates to consumers that the connected sync store now contains a complete history
    * of events for all registered sources between their start block and this timestamp (inclusive).
    */
-  historicalCheckpoint: { blockNumber: number; blockTimestamp: number };
+  historicalCheckpoint: {
+    blockTimestamp: number;
+    chainId: number;
+    blockNumber: number;
+  };
 };
 
 type LogFilterTask = {
@@ -450,8 +454,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     // be safe to use the current timestamp.
     if (this.queue.size === 0) {
       this.emit("historicalCheckpoint", {
-        blockNumber: this.finalizedBlockNumber,
         blockTimestamp: Math.round(Date.now() / 1000),
+        chainId: this.network.chainId,
+        blockNumber: this.finalizedBlockNumber,
       });
       clearInterval(this.progressLogInterval);
       this.emit("syncComplete");
@@ -825,7 +830,11 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     });
 
     if (newBlockCheckpoint) {
-      this.emit("historicalCheckpoint", newBlockCheckpoint);
+      this.emit("historicalCheckpoint", {
+        blockTimestamp: newBlockCheckpoint.blockTimestamp,
+        chainId: this.network.chainId,
+        blockNumber: newBlockCheckpoint.blockNumber,
+      });
     }
 
     this.common.logger.trace({
