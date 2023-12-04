@@ -9,7 +9,9 @@ import type { SyncStore } from "@/sync-store/store.js";
 import {
   checkpointMax,
   checkpointMin,
-  type EventCheckpoint,
+  type IndexingCheckpoint,
+  indexingCheckpointZero,
+  type SyncCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatShortDate } from "@/utils/date.js";
 
@@ -18,17 +20,17 @@ type SyncGatewayEvents = {
    * Emitted when a new event checkpoint is reached. This is the minimum timestamp
    * at which events are available across all registered networks.
    */
-  newCheckpoint: EventCheckpoint;
+  newCheckpoint: SyncCheckpoint;
   /**
    * Emitted when a new finality checkpoint is reached. This is the minimum timestamp
    * at which events are finalized across all registered networks.
    */
-  newFinalityCheckpoint: EventCheckpoint;
+  newFinalityCheckpoint: SyncCheckpoint;
   /**
    * Emitted when a reorg has been detected on any registered network. The value
    * is the safe/"common ancestor" checkpoint.
    */
-  reorg: EventCheckpoint;
+  reorg: SyncCheckpoint;
 };
 
 type SyncGatewayMetrics = {};
@@ -40,18 +42,18 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   private sources: Source[];
 
   // Minimum timestamp at which events are available (across all networks).
-  checkpoint: EventCheckpoint;
+  checkpoint: SyncCheckpoint;
   // Minimum finalized timestamp (across all networks).
-  finalityCheckpoint: EventCheckpoint;
+  finalityCheckpoint: SyncCheckpoint;
 
   // Per-network event timestamp checkpoints.
   private networkCheckpoints: Record<
     number,
     {
       isHistoricalSyncComplete: boolean;
-      historicalCheckpoint: EventCheckpoint;
-      realtimeCheckpoint: EventCheckpoint;
-      finalityCheckpoint: EventCheckpoint;
+      historicalCheckpoint: SyncCheckpoint;
+      realtimeCheckpoint: SyncCheckpoint;
+      finalityCheckpoint: SyncCheckpoint;
     }
   >;
 
@@ -79,17 +81,17 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     this.sources = sources;
     this.metrics = {};
 
-    this.checkpoint = { blockTimestamp: 0, chainId: 0, blockNumber: 0 };
-    this.finalityCheckpoint = { blockTimestamp: 0, chainId: 0, blockNumber: 0 };
+    this.checkpoint = indexingCheckpointZero;
+    this.finalityCheckpoint = indexingCheckpointZero;
 
     this.networkCheckpoints = {};
     this.networks.forEach((network) => {
       const { chainId } = network;
       this.networkCheckpoints[chainId] = {
         isHistoricalSyncComplete: false,
-        historicalCheckpoint: { blockTimestamp: 0, chainId, blockNumber: 0 },
-        realtimeCheckpoint: { blockTimestamp: 0, chainId, blockNumber: 0 },
-        finalityCheckpoint: { blockTimestamp: 0, chainId, blockNumber: 0 },
+        historicalCheckpoint: indexingCheckpointZero,
+        realtimeCheckpoint: indexingCheckpointZero,
+        finalityCheckpoint: indexingCheckpointZero,
       };
     });
   }
@@ -106,8 +108,8 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     toCheckpoint,
     includeEventSelectors,
   }: {
-    fromCheckpoint: EventCheckpoint;
-    toCheckpoint: EventCheckpoint;
+    fromCheckpoint: IndexingCheckpoint;
+    toCheckpoint: IndexingCheckpoint;
     includeEventSelectors: { [sourceId: string]: Hex[] };
   }) {
     const iterator = this.syncStore.getLogEvents({
@@ -136,7 +138,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     }
   }
 
-  handleNewHistoricalCheckpoint = (checkpoint: EventCheckpoint) => {
+  handleNewHistoricalCheckpoint = (checkpoint: SyncCheckpoint) => {
     const { blockTimestamp, chainId } = checkpoint;
 
     this.networkCheckpoints[chainId].historicalCheckpoint = checkpoint;
@@ -170,7 +172,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     }
   };
 
-  handleNewRealtimeCheckpoint = (checkpoint: EventCheckpoint) => {
+  handleNewRealtimeCheckpoint = (checkpoint: SyncCheckpoint) => {
     const { blockTimestamp, chainId } = checkpoint;
 
     this.networkCheckpoints[chainId].realtimeCheckpoint = checkpoint;
@@ -185,14 +187,14 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     this.recalculateCheckpoint();
   };
 
-  handleNewFinalityCheckpoint = (checkpoint: EventCheckpoint) => {
+  handleNewFinalityCheckpoint = (checkpoint: SyncCheckpoint) => {
     const { chainId } = checkpoint;
 
     this.networkCheckpoints[chainId].finalityCheckpoint = checkpoint;
     this.recalculateFinalityCheckpoint();
   };
 
-  handleReorg = (checkpoint: EventCheckpoint) => {
+  handleReorg = (checkpoint: SyncCheckpoint) => {
     this.emit("reorg", checkpoint);
   };
 
@@ -202,14 +204,14 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
    * @param options.chainId Chain ID for which to reset the checkpoint.
    */
   resetCheckpoints = ({ chainId }: { chainId: number }) => {
-    this.checkpoint = 0;
-    this.finalityCheckpoint = 0;
+    this.checkpoint = indexingCheckpointZero;
+    this.finalityCheckpoint = indexingCheckpointZero;
     this.historicalSyncCompletedAt = 0;
     this.networkCheckpoints[chainId] = {
       isHistoricalSyncComplete: false,
-      historicalCheckpoint: 0,
-      realtimeCheckpoint: 0,
-      finalityCheckpoint: 0,
+      historicalCheckpoint: indexingCheckpointZero,
+      realtimeCheckpoint: indexingCheckpointZero,
+      finalityCheckpoint: indexingCheckpointZero,
     };
   };
 

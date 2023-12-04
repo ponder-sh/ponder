@@ -2,18 +2,18 @@ import type { IndexingStore, Row } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
 import type { DatabaseModel } from "@/types/model.js";
-import type { EventCheckpoint } from "@/utils/checkpoint.js";
+import type { IndexingCheckpoint } from "@/utils/checkpoint.js";
 
 export function buildDatabaseModels({
   common,
   indexingStore,
   schema,
-  getCurrentEventCheckpoint,
+  getCurrentIndexingCheckpoint,
 }: {
   common: Common;
   indexingStore: IndexingStore;
   schema: Schema;
-  getCurrentEventCheckpoint: () => EventCheckpoint;
+  getCurrentIndexingCheckpoint: () => IndexingCheckpoint;
 }) {
   return Object.keys(schema.tables).reduce<Record<string, DatabaseModel<Row>>>(
     (acc, tableName) => {
@@ -25,7 +25,7 @@ export function buildDatabaseModels({
           });
           return await indexingStore.findUnique({
             tableName,
-            checkpoint: getCurrentEventCheckpoint(),
+            checkpoint: getCurrentIndexingCheckpoint(),
             id,
           });
         },
@@ -36,7 +36,7 @@ export function buildDatabaseModels({
           });
           return await indexingStore.findMany({
             tableName,
-            checkpoint: getCurrentEventCheckpoint(),
+            checkpoint: getCurrentIndexingCheckpoint(),
             where,
             skip,
             take,
@@ -50,7 +50,7 @@ export function buildDatabaseModels({
           });
           return await indexingStore.create({
             tableName,
-            checkpoint: getCurrentEventCheckpoint(),
+            checkpoint: getCurrentIndexingCheckpoint(),
             id,
             data,
           });
@@ -62,7 +62,7 @@ export function buildDatabaseModels({
           });
           return await indexingStore.createMany({
             tableName,
-            checkpoint: getCurrentEventCheckpoint(),
+            checkpoint: getCurrentIndexingCheckpoint(),
             data,
           });
         },
@@ -73,7 +73,7 @@ export function buildDatabaseModels({
           });
           return await indexingStore.update({
             tableName,
-            checkpoint: getCurrentEventCheckpoint(),
+            checkpoint: getCurrentIndexingCheckpoint(),
             id,
             data,
           });
@@ -85,7 +85,7 @@ export function buildDatabaseModels({
           });
           return await indexingStore.updateMany({
             tableName,
-            checkpoint: getCurrentEventCheckpoint(),
+            checkpoint: getCurrentIndexingCheckpoint(),
             where,
             data,
           });
@@ -97,7 +97,7 @@ export function buildDatabaseModels({
           });
           return await indexingStore.upsert({
             tableName,
-            checkpoint: getCurrentEventCheckpoint(),
+            checkpoint: getCurrentIndexingCheckpoint(),
             id,
             create,
             update,
@@ -110,7 +110,7 @@ export function buildDatabaseModels({
           });
           return await indexingStore.delete({
             tableName,
-            checkpoint: getCurrentEventCheckpoint(),
+            checkpoint: getCurrentIndexingCheckpoint(),
             id,
           });
         },

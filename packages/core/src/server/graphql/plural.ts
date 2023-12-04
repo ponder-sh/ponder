@@ -15,7 +15,7 @@ import {
 
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
-import { maxCheckpoint } from "@/utils/checkpoint.js";
+import { indexingCheckpointMax } from "@/utils/checkpoint.js";
 
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
@@ -124,7 +124,7 @@ export const buildPluralField = ({
     const { timestamp, where, skip, first, orderBy, orderDirection } = args;
 
     const checkpoint = timestamp
-      ? { ...maxCheckpoint, blockTimestamp: timestamp }
+      ? { ...indexingCheckpointMax, blockTimestamp: timestamp }
       : undefined; // Latest.
 
     return await store.findMany({

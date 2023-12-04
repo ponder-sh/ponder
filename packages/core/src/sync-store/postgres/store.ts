@@ -19,7 +19,10 @@ import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
 import type { NonNull } from "@/types/utils.js";
-import { type EventCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
+import {
+  type IndexingCheckpoint,
+  indexingCheckpointZero,
+} from "@/utils/checkpoint.js";
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
@@ -848,8 +851,8 @@ export class PostgresSyncStore implements SyncStore {
     factories = [],
     pageSize = 10_000,
   }: {
-    fromCheckpoint: EventCheckpoint;
-    toCheckpoint: EventCheckpoint;
+    fromCheckpoint: IndexingCheckpoint;
+    toCheckpoint: IndexingCheckpoint;
     logFilters?: {
       id: string;
       chainId: number;
@@ -1273,7 +1276,7 @@ export class PostgresSyncStore implements SyncStore {
                 blockNumber: Number(cursor.blockNumber),
                 executionIndex: cursor.logIndex,
               }
-            : zeroCheckpoint,
+            : indexingCheckpointZero,
         },
       };
 

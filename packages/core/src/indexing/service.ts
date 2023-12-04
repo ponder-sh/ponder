@@ -18,8 +18,8 @@ import type { Transaction } from "@/types/transaction.js";
 import { chains } from "@/utils/chains.js";
 import {
   checkpointGreaterThanOrEqualTo,
-  type EventCheckpoint,
-  zeroCheckpoint,
+  type IndexingCheckpoint,
+  indexingCheckpointZero,
 } from "@/utils/checkpoint.js";
 import { formatShortDate } from "@/utils/date.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -32,7 +32,7 @@ import { addUserStackTrace } from "./trace.js";
 import { ponderTransport } from "./transport.js";
 
 type IndexingEvents = {
-  eventsProcessed: { toCheckpoint: EventCheckpoint };
+  eventsProcessed: { toCheckpoint: IndexingCheckpoint };
 };
 
 type LogEvent = {
@@ -89,10 +89,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private eventProcessingMutex: Mutex;
   private queue?: IndexingFunctionQueue;
 
-  private eventsProcessedToCheckpoint: EventCheckpoint | null = null;
+  private eventsProcessedToCheckpoint: IndexingCheckpoint =
+    indexingCheckpointZero;
   private hasError = false;
 
-  private currentEventCheckpoint: EventCheckpoint | null = null;
+  private currentIndexingCheckpoint: IndexingCheckpoint =
+    indexingCheckpointZero;
 
   constructor({
     common,
@@ -122,7 +124,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
       networks,
       syncStore,
       ponderActions(() =>
-        BigInt((this.currentEventCheckpoint ?? zeroCheckpoint).blockNumber),
+        BigInt(
+          (this.currentIndexingCheckpoint ?? indexingCheckpointZero)
+            .blockNumber,
+        ),
       ),
     );
   }
@@ -160,8 +165,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
         common: this.common,
         indexingStore: this.indexingStore,
         schema: this.schema,
-        getCurrentEventCheckpoint: () =>
-          this.currentEventCheckpoint ?? zeroCheckpoint,
+        getCurrentIndexingCheckpoint: () =>
+          this.currentIndexingCheckpoint ?? indexingCheckpointZero,
       });
     }
 
@@ -205,7 +210,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     // When we call indexingStore.reload() above, the indexing store is dropped.
     // Set the latest processed timestamp to zero accordingly.
-    this.currentEventCheckpoint = null;
+    this.currentIndexingCheckpoint = indexingCheckpointZero;
     this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
   };
 
@@ -226,7 +231,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
-  handleReorg = async (checkpoint: EventCheckpoint) => {
+  handleReorg = async (checkpoint: IndexingCheckpoint) => {
     try {
       await this.eventProcessingMutex.runExclusive(async () => {
         // If there is a user error, the queue & indexing store will be wiped on reload (case 4).
@@ -249,7 +254,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         // Unsafe events have been processed, must revert the indexing store and update
         // eventsProcessedToTimestamp accordingly (case 3).
-        await this.indexingStore.revert(checkpoint);
+        await this.indexingStore.revert({ safeCheckpoint: checkpoint });
 
         this.eventsProcessedToCheckpoint = checkpoint;
         this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
@@ -299,7 +304,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         // The getEvents method is inclusive on both sides, so we need to add 1 here
         // to avoid fetching the same event twice.
         const fromCheckpoint =
-          this.eventsProcessedToCheckpoint ?? zeroCheckpoint;
+          this.eventsProcessedToCheckpoint ?? indexingCheckpointZero;
         const toCheckpoint = this.syncGatewayService.checkpoint;
 
         // If no events have been added yet, add the setup events for each chain & associated metrics.
@@ -530,11 +535,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           // The "setup" event should use the contract start block number for contract calls.
           // TODO: Consider implications of using 0 as the timestamp here.
-          this.currentEventCheckpoint = {
-            blockTimestamp: 0,
-            chainId: event.chainId,
-            blockNumber: event.blockNumber,
-          };
+          this.currentIndexingCheckpoint = indexingCheckpointZero;
 
           try {
             this.common.logger.trace({
@@ -595,10 +596,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
               `Internal: Indexing function not found for ${fullEventName}`,
             );
 
-          this.currentEventCheckpoint = {
+          this.currentIndexingCheckpoint = {
             blockTimestamp: Number(event.block.timestamp),
             chainId: event.chainId,
             blockNumber: Number(event.block.number),
+            executionIndex: event.log.logIndex,
           };
 
           try {
@@ -660,7 +662,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
           };
           this.common.metrics.ponder_indexing_processed_events.inc(labels);
           this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-            this.currentEventCheckpoint.blockTimestamp,
+            this.currentIndexingCheckpoint.blockTimestamp,
           );
 
           break;

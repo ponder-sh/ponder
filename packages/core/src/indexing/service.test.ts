@@ -99,7 +99,7 @@ const syncGatewayService = {
 beforeEach(() => {
   // Restore getEvents to the initial implementation.
   vi.restoreAllMocks();
-  syncGatewayService.checkpoint = 0;
+  syncGatewayService.resetCheckpoints({ chainId: networks.mainnet.chainId });
 });
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {

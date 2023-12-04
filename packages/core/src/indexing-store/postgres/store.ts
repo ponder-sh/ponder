@@ -8,7 +8,10 @@ import {
   isOneColumn,
   isReferenceColumn,
 } from "@/schema/utils.js";
-import { encodeCheckpoint, type EventCheckpoint } from "@/utils/checkpoint.js";
+import {
+  encodeCheckpoint,
+  type IndexingCheckpoint,
+} from "@/utils/checkpoint.js";
 import type { Pool } from "@/utils/pg.js";
 
 import type { IndexingStore, OrderByInput, Row, WhereInput } from "../store.js";
@@ -181,7 +184,11 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   };
 
-  revert = async ({ safeCheckpoint }: { safeCheckpoint: EventCheckpoint }) => {
+  revert = async ({
+    safeCheckpoint,
+  }: {
+    safeCheckpoint: IndexingCheckpoint;
+  }) => {
     return this.wrap({ method: "revert" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
@@ -214,7 +221,7 @@ export class PostgresIndexingStore implements IndexingStore {
     id,
   }: {
     tableName: string;
-    checkpoint?: EventCheckpoint | "latest";
+    checkpoint?: IndexingCheckpoint | "latest";
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
@@ -259,7 +266,7 @@ export class PostgresIndexingStore implements IndexingStore {
     orderBy,
   }: {
     tableName: string;
-    checkpoint?: EventCheckpoint | "latest";
+    checkpoint?: IndexingCheckpoint | "latest";
     where?: WhereInput<any>;
     skip?: number;
     take?: number;
@@ -328,7 +335,7 @@ export class PostgresIndexingStore implements IndexingStore {
     data = {},
   }: {
     tableName: string;
-    checkpoint: EventCheckpoint;
+    checkpoint: IndexingCheckpoint;
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
@@ -357,7 +364,7 @@ export class PostgresIndexingStore implements IndexingStore {
     data,
   }: {
     tableName: string;
-    checkpoint: EventCheckpoint;
+    checkpoint: IndexingCheckpoint;
     id: string | number | bigint;
     data: Row[];
   }) => {
@@ -391,7 +398,7 @@ export class PostgresIndexingStore implements IndexingStore {
     data = {},
   }: {
     tableName: string;
-    checkpoint: EventCheckpoint;
+    checkpoint: IndexingCheckpoint;
     id: string | number | bigint;
     data?:
       | Partial<Omit<Row, "id">>
@@ -479,7 +486,7 @@ export class PostgresIndexingStore implements IndexingStore {
     data = {},
   }: {
     tableName: string;
-    checkpoint: EventCheckpoint;
+    checkpoint: IndexingCheckpoint;
     where: WhereInput<any>;
     data?:
       | Partial<Omit<Row, "id">>
@@ -582,7 +589,7 @@ export class PostgresIndexingStore implements IndexingStore {
     update = {},
   }: {
     tableName: string;
-    checkpoint: EventCheckpoint;
+    checkpoint: IndexingCheckpoint;
     id: string | number | bigint;
     create?: Omit<Row, "id">;
     update?:
@@ -682,7 +689,7 @@ export class PostgresIndexingStore implements IndexingStore {
     id,
   }: {
     tableName: string;
-    checkpoint: EventCheckpoint;
+    checkpoint: IndexingCheckpoint;
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "delete", tableName }, async () => {

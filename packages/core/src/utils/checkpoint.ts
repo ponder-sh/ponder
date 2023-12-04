@@ -1,7 +1,10 @@
-export type EventCheckpoint = {
+export type SyncCheckpoint = {
   blockTimestamp: number;
   chainId: number;
   blockNumber: number;
+};
+
+export type IndexingCheckpoint = SyncCheckpoint & {
   // Execution index of the event within the block. For logs, this is the log index.
   // If null, the checkpoint includes all events in the block.
   executionIndex: number | null;
@@ -17,7 +20,7 @@ const BLOCK_NUMBER_DIGITS = 16;
 // Same logic as chain ID.
 const EXECUTION_INDEX_DIGITS = 16;
 
-export const encodeCheckpoint = (checkpoint: EventCheckpoint) => {
+export const encodeCheckpoint = (checkpoint: IndexingCheckpoint) => {
   const { blockTimestamp, chainId, blockNumber, executionIndex } = checkpoint;
   const result =
     blockTimestamp.toString().padStart(BLOCK_TIMESTAMP_DIGITS, "0") +
@@ -39,7 +42,7 @@ export const encodeCheckpoint = (checkpoint: EventCheckpoint) => {
   return result;
 };
 
-export const zeroCheckpoint: EventCheckpoint = {
+export const indexingCheckpointZero: IndexingCheckpoint = {
   blockTimestamp: 0,
   chainId: 0,
   blockNumber: 0,
@@ -48,7 +51,7 @@ export const zeroCheckpoint: EventCheckpoint = {
 
 // TODO: Consider changing block timestamps and numbers to bigints
 // so that we can accurately represent EVM max values.
-export const maxCheckpoint: EventCheckpoint = {
+export const indexingCheckpointMax: IndexingCheckpoint = {
   blockTimestamp: 9999999999,
   chainId: 2147483647,
   blockNumber: 9999999999,
@@ -56,8 +59,8 @@ export const maxCheckpoint: EventCheckpoint = {
 };
 
 export const checkpointGreaterThanOrEqualTo = (
-  a: EventCheckpoint,
-  b: EventCheckpoint,
+  a: SyncCheckpoint,
+  b: SyncCheckpoint,
 ) => {
   if (a.blockTimestamp !== b.blockTimestamp)
     return a.blockTimestamp > b.blockTimestamp;
@@ -66,7 +69,7 @@ export const checkpointGreaterThanOrEqualTo = (
   return true;
 };
 
-export const checkpointMax = (...checkpoints: EventCheckpoint[]) =>
+export const checkpointMax = (...checkpoints: SyncCheckpoint[]) =>
   checkpoints.reduce((max, checkpoint) => {
     if (checkpoint.blockTimestamp > max.blockTimestamp) return checkpoint;
     if (checkpoint.chainId > max.chainId) return checkpoint;
@@ -74,7 +77,7 @@ export const checkpointMax = (...checkpoints: EventCheckpoint[]) =>
     return max;
   });
 
-export const checkpointMin = (...checkpoints: EventCheckpoint[]) =>
+export const checkpointMin = (...checkpoints: SyncCheckpoint[]) =>
   checkpoints.reduce((min, checkpoint) => {
     if (checkpoint.blockTimestamp < min.blockTimestamp) return checkpoint;
     if (checkpoint.chainId < min.chainId) return checkpoint;

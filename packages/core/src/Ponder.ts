@@ -387,40 +387,26 @@ export class Ponder {
     );
 
     this.syncServices.forEach(({ network, historical, realtime }) => {
-      const { chainId } = network;
-
       historical.on("historicalCheckpoint", (checkpoint) => {
-        this.syncGatewayService.handleNewHistoricalCheckpoint({
-          chainId,
-          ...checkpoint,
-        });
+        this.syncGatewayService.handleNewHistoricalCheckpoint(checkpoint);
       });
 
       historical.on("syncComplete", () => {
         this.syncGatewayService.handleHistoricalSyncComplete({
-          chainId,
+          chainId: network.chainId,
         });
       });
 
       realtime.on("realtimeCheckpoint", (checkpoint) => {
-        this.syncGatewayService.handleNewRealtimeCheckpoint({
-          chainId,
-          ...checkpoint,
-        });
+        this.syncGatewayService.handleNewRealtimeCheckpoint(checkpoint);
       });
 
       realtime.on("finalityCheckpoint", (checkpoint) => {
-        this.syncGatewayService.handleNewFinalityCheckpoint({
-          chainId,
-          ...checkpoint,
-        });
+        this.syncGatewayService.handleNewFinalityCheckpoint(checkpoint);
       });
 
       realtime.on("shallowReorg", (checkpoint) => {
-        this.syncGatewayService.handleReorg({
-          chainId,
-          ...checkpoint,
-        });
+        this.syncGatewayService.handleReorg(checkpoint);
       });
     });
 
@@ -433,7 +419,7 @@ export class Ponder {
       await this.indexingService.processEvents();
     });
 
-    this.indexingService.on("eventsProcessed", ({ toTimestamp }) => {
+    this.indexingService.on("eventsProcessed", ({ toCheckpoint }) => {
       if (this.serverService.isHistoricalIndexingComplete) return;
 
       // If a batch of events are processed AND the historical sync is complete AND
@@ -441,7 +427,8 @@ export class Ponder {
       // historical event processing is complete, and the server should begin responding as healthy.
       if (
         this.syncGatewayService.historicalSyncCompletedAt &&
-        toTimestamp >= this.syncGatewayService.historicalSyncCompletedAt
+        toCheckpoint.blockTimestamp >=
+          this.syncGatewayService.historicalSyncCompletedAt
       ) {
         this.serverService.setIsHistoricalIndexingComplete();
       }
