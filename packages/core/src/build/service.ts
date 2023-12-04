@@ -171,7 +171,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     // TODO: Validate config lol
 
     this.emit("newConfig", { config });
-
     return config;
   }
 

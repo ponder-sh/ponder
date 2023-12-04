@@ -43,6 +43,9 @@ export class ServerService extends Emittery<ServerEvents> {
     this.indexingStore = indexingStore;
     this.port = this.common.options.port;
     this.app = express();
+  }
+
+  setup() {
     this.registerRoutes();
   }
 

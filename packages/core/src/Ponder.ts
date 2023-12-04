@@ -199,7 +199,7 @@ export class Ponder {
 
     // One-time setup for some services.
     await this.syncStore.migrateUp();
-    await this.serverService.start();
+    this.serverService.setup();
 
     // Finally, load the schema + indexing functions which will trigger
     // the indexing service to reload (for the first time).
@@ -217,6 +217,7 @@ export class Ponder {
       },
     });
     this.serverService.registerDevRoutes();
+    await this.serverService.start();
 
     await Promise.all(
       this.syncServices.map(async ({ historical, realtime }) => {
@@ -241,6 +242,7 @@ export class Ponder {
 
     // If not using `dev`, can kill the build service here to avoid hot reloads.
     await this.buildService.kill();
+    await this.serverService.start();
 
     await Promise.all(
       this.syncServices.map(async ({ historical, realtime }) => {
@@ -302,6 +304,7 @@ export class Ponder {
       indexingStore: this.indexingStore,
     });
 
+    this.serverService.setup();
     await this.serverService.start();
 
     const { schema, graphqlSchema } = schemaResult;
@@ -358,11 +361,30 @@ export class Ponder {
 
   private registerServiceDependencies() {
     this.buildService.on("newConfig", async () => {
-      this.common.logger.fatal({
+      this.common.logger.info({
         service: "build",
         msg: "Detected change in ponder.config.ts",
       });
+      this.common.logger.info({
+        service: "app",
+        msg: "Reloading ponder, killing and restarting services",
+      });
       await this.kill();
+
+      // Clear all listeners. Will be added back in setup.
+      this.buildService.clearListeners();
+      this.syncServices.forEach(({ historical, realtime }) => {
+        historical.clearListeners();
+        realtime.clearListeners();
+      });
+      this.syncGatewayService.clearListeners();
+      this.serverService.clearListeners();
+      this.indexingService.clearListeners();
+      this.common.metrics.resetMetrics();
+
+      await this.setup();
+      // NOTE: We know we are in dev mode if the build service is receiving events. Build events are disabled in production.
+      await this.dev();
     });
 
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
