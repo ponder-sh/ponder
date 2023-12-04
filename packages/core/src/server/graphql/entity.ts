@@ -16,6 +16,7 @@ import {
   isOneColumn,
   referencedTableName,
 } from "@/schema/utils.js";
+import { maxCheckpoint } from "@/utils/checkpoint.js";
 
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
@@ -90,9 +91,13 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
 
               const filter = args;
 
+              const checkpoint = filter.timestamp
+                ? { ...maxCheckpoint, blockTimestamp: Number(filter.timestamp) }
+                : undefined; // Latest.
+
               return await store.findMany({
                 tableName: column.referenceTable,
-                timestamp: filter.timestamp ? filter.timestamp : undefined,
+                checkpoint,
                 where: { [column.referenceColumn]: entityId },
                 skip: filter.skip,
                 take: filter.first,
