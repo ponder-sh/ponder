@@ -439,10 +439,6 @@ export const createSchema = <
           if (Object.entries(schema).every(([_name]) => _name !== column.type))
             throw Error("Column doesn't reference a valid enum");
         } else if (isReferenceColumn(column)) {
-          if (!columnName.endsWith("Id")) {
-            throw Error('Reference column name must end with "Id"');
-          }
-
           if (
             Object.keys(schema).every(
               (_name) => `${_name}.id` !== column.references,
