@@ -42,14 +42,12 @@ It is important to note that the default `graph-node` binary cannot be run on Ap
 
 ## Results
 
-These results are from indexing Rocket Pool ETH from block range 17,480,000 to 17,500,000 on a M1 MacBook Pro with 8 cores and 16GB of RAM against an Alchemy node with the Growth plan.
+These results are from indexing Rocket Pool ETH from block range 18,600,000 to 18,718,056 on a M1 MacBook Pro with 8 cores and 16GB of RAM against an Alchemy node with the Growth plan. 950 MB/s wired internet.
 
-| No Cache | Duration (sec) | eth_getBlockByNumber | eth_getLogs | eth_getTransactionReceipt | Alchemy CU |
-| -------- | -------------- | -------------------- | ----------- | ------------------------- | ---------- |
-| Ponder   | 19.2           | 2149                 | 11          | 0                         | 35209      |
-| TheGraph | 118.1          | 1980                 | 30          | 294                       | 48240      |
+Ponder █████ 31.1s
+The Graph ███████████████████████████████████████████████████████ 328s (10.5x)
 
-| Cache    | Duration (sec) | eth_getBlockByNumber | eth_getLogs | eth_getTransactionReceipt | Alchemy CU |
-| -------- | -------------- | -------------------- | ----------- | ------------------------- | ---------- |
-| Ponder   | 9.3            | 0                    | 0           | 0                         | 0          |
-| TheGraph | 55.1           | 0                    | 30          | 0                         | 2250       |
+| Benchmarks | Sync time (w/o cache) | Sync time (w/ cache) | Database size | Alchemy CU |
+| ---------- | --------------------- | -------------------- | ------------- | ---------- |
+| Ponder     | 31.1s                 | 18.2s                | 31 mB         | 107668     |
+| The Graph  | 328s                  | 75.0s                | 1107 mB       | 166918     |
