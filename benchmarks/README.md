@@ -44,7 +44,7 @@ It is important to note that the default `graph-node` binary cannot be run on Ap
 
 These results are from indexing Rocket Pool ETH from block range 18,600,000 to 18,718,056 on a M1 MacBook Pro with 8 cores and 16GB of RAM against an Alchemy node with the Growth plan. 950 MB/s wired internet.
 
-Ponder █████ 31.1s
+Ponder    █████ 31.1s
 The Graph ███████████████████████████████████████████████████████ 328s (10.5x)
 
 | Benchmarks | Sync time (w/o cache) | Sync time (w/ cache) | Database size | Alchemy CU |
