@@ -35,7 +35,7 @@ export const FactoryAbi = [
       {
         indexed: false,
         internalType: "uint256",
-        name: "",
+        name: "totalPairs",
         type: "uint256",
       },
     ],

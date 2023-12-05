@@ -6,16 +6,12 @@ import {
   Swap as SwapEvent,
   UniswapFactory,
 } from "../../generated/schema";
-import type {
-  Burn,
-  Mint,
-  Swap,
-  Sync,
-} from "../../generated/templates/Pair/Pair";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { Burn, Mint, Swap, Sync } from "../../generated/templates/Pair/Pair";
 import { FACTORY_ADDRESS } from "./helpers";
 
 export function handleSync(event: Sync): void {
-  let pair = Pair.load(event.address.toHex());
+  let pair = Pair.load(event.address.toHex())!;
 
   pair.reserve0 = event.params.reserve0;
   pair.reserve1 = event.params.reserve1;
@@ -31,8 +27,8 @@ export function handleMint(event: Mint): void {
       .concat(event.logIndex.toHexString()),
   );
 
-  let pair = Pair.load(event.address.toHex());
-  let uniswap = UniswapFactory.load(FACTORY_ADDRESS);
+  let pair = Pair.load(event.address.toHex())!;
+  let uniswap = UniswapFactory.load(FACTORY_ADDRESS)!;
 
   // update exchange info (except balances, sync will cover that)
   let token0Amount = event.params.amount0;
@@ -62,8 +58,8 @@ export function handleBurn(event: Burn): void {
       .concat(event.logIndex.toHexString()),
   );
 
-  let pair = Pair.load(event.address.toHex());
-  let uniswap = UniswapFactory.load(FACTORY_ADDRESS);
+  let pair = Pair.load(event.address.toHex())!;
+  let uniswap = UniswapFactory.load(FACTORY_ADDRESS)!;
 
   //update token info
   let token0Amount = event.params.amount0;
@@ -88,7 +84,7 @@ export function handleBurn(event: Burn): void {
 }
 
 export function handleSwap(event: Swap): void {
-  let pair = Pair.load(event.address.toHexString());
+  let pair = Pair.load(event.address.toHexString())!;
   let amount0In = event.params.amount0In;
   let amount1In = event.params.amount1In;
   let amount0Out = event.params.amount0Out;
@@ -97,7 +93,7 @@ export function handleSwap(event: Swap): void {
   pair.txCount = pair.txCount + 1;
 
   // update global values, only used tracked amounts for volume
-  let uniswap = UniswapFactory.load(FACTORY_ADDRESS);
+  let uniswap = UniswapFactory.load(FACTORY_ADDRESS)!;
   uniswap.txCount = uniswap.txCount + 1;
 
   // save entities

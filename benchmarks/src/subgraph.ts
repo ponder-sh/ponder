@@ -104,8 +104,8 @@ const subgraph = async () => {
     [
       "deploy",
       "ponder-benchmarks/subgraph",
-      "./subgraph/subgraph.yaml",
-      "--output-dir=./subgraph/build",
+      "./subgraph-univ2/subgraph.yaml",
+      "--output-dir=./subgraph-univ2/build",
       "--ipfs=http://localhost:5001",
       "--node=http://localhost:8020",
       "--version-label=v0.0.1",
@@ -126,12 +126,12 @@ const subgraph = async () => {
 };
 
 const changeMappingFileDelim = (delim: string) => {
-  let mappingFileContents = readFileSync("./subgraph/src/mapping.ts", {
+  let mappingFileContents = readFileSync("./subgraph-reth/src/mapping.ts", {
     encoding: "utf-8",
   });
   mappingFileContents = mappingFileContents.replace(/(dif:.)/g, `dif:${delim}`);
 
-  writeFileSync("./subgraph/src/mapping.ts", mappingFileContents, "utf-8");
+  writeFileSync("./subgraph-reth/src/mapping.ts", mappingFileContents, "utf-8");
 };
 
 const bench = async () => {
