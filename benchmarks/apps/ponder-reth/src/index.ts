@@ -3,8 +3,8 @@
 import { ponder } from "@/generated";
 
 declare const ponder: import("@ponder/core").PonderApp<
-  typeof import("../ponder.config.ts").default,
-  typeof import("../ponder.schema.ts").default
+  typeof import("../ponder.config.js").default,
+  typeof import("../ponder.schema.js").default
 >;
 
 ponder.on("RocketTokenRETH:Transfer", async ({ event, context }) => {
