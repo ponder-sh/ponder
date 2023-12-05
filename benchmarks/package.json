@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bench:ponder": "bun src/ponder.ts $1",
-    "bench:subgraph": "export $(grep -v '^#' .env.local | xargs) && rm -rf data/ && docker-compose up --detach && tsup-node && (node dist/subgraph.js $1 || true) && docker-compose down"
+    "bench:ponder": "bun src/ponder.ts",
+    "bench:subgraph": "./run-subgraph.sh"
   },
   "devDependencies": {
     "@graphprotocol/graph-cli": "0.61.0",

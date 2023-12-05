@@ -88,6 +88,8 @@ const subgraph = async () => {
   console.log(`Waiting for Graph Node to be ready...`);
   const setupDuration = await waitForGraphNode();
 
+  console.log(process.argv[2]);
+
   console.log("Registering subgraph...");
   await execa(
     "graph",
