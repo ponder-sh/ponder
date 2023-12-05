@@ -4,7 +4,7 @@ import { BigInt } from "@graphprotocol/graph-ts";
 import {
   Approval as TApprovalEvent,
   Transfer as TTransferEvent,
-} from "../../generated/RocketTokenRETH/RocketTokenRETH";
+} from "../generated/RocketTokenRETH/RocketTokenRETH";
 import {
   Account,
   Approval,
