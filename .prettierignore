@@ -4,6 +4,7 @@ LICENSE
 **/.next
 **/dist
 .gitignore
+.gitmodules
 .prettierignore
 Dockerfile
 *.Dockerfile
