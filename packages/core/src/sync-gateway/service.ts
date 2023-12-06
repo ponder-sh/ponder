@@ -8,7 +8,6 @@ import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import {
   type Checkpoint,
-  type Checkpoint,
   checkpointMax,
   checkpointMin,
   zeroCheckpoint,

@@ -7,6 +7,7 @@ import type { IndexingFunctions } from "@/build/functions.js";
 import type { Source } from "@/config/sources.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
+import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 import { IndexingService } from "./service.js";
 
@@ -96,6 +97,10 @@ const syncGatewayService = {
   checkpoint: 0,
 } as unknown as SyncGateway;
 
+function createCheckpoint(index: number): Checkpoint {
+  return { ...zeroCheckpoint, blockTimestamp: index, blockNumber: index };
+}
+
 beforeEach(() => {
   // Restore getEvents to the initial implementation.
   vi.restoreAllMocks();
@@ -118,23 +123,25 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 
   expect(getEvents).not.toHaveBeenCalled();
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 0,
-      toTimestamp: 10,
+      fromCheckpoint: zeroCheckpoint,
+      toCheckpoint: checkpoint10,
     }),
   );
 
-  syncGatewayService.checkpoint = 50;
+  const checkpoint50 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint50;
   await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 11,
-      toTimestamp: 50,
+      fromCheckpoint: checkpoint10,
+      toCheckpoint: checkpoint50,
     }),
   );
 
@@ -155,7 +162,8 @@ test("processEvents() calls indexing functions with correct arguments", async (c
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   expect(transferIndexingFunction).toHaveBeenCalledWith(
@@ -197,7 +205,8 @@ test("processEvents() model methods insert data into the indexing store", async 
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const transferEvents = await indexingStore.findMany({
@@ -222,7 +231,8 @@ test("processEvents() updates event count metrics", async (context) => {
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const matchedEventsMetric = (
@@ -272,7 +282,8 @@ test("reset() reloads the indexing store", async (context) => {
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const transferEvents = await indexingStore.findMany({
@@ -304,7 +315,8 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const latestProcessedTimestampMetric = (
@@ -338,12 +350,16 @@ test("handleReorg() reverts the indexing store", async (context) => {
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  const checkpoint6 = createCheckpoint(6);
+  await service.handleReorg(checkpoint6);
 
-  expect(indexingStoreRevertSpy).toHaveBeenLastCalledWith({ safeTimestamp: 6 });
+  expect(indexingStoreRevertSpy).toHaveBeenLastCalledWith({
+    safeCheckpoint: checkpoint6,
+  });
 
   await service.kill();
 });
@@ -368,10 +384,12 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
     throw new Error("User error!");
   });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  const checkpoint6 = createCheckpoint(6);
+  await service.handleReorg(checkpoint6);
 
   expect(indexingStoreRevertSpy).not.toHaveBeenCalled();
 
@@ -392,7 +410,8 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith(
@@ -404,14 +423,17 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 
   // This simulates a scenario where there was a reorg back to 6
   // and the new latest block is 9.
-  syncGatewayService.checkpoint = 9;
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  const checkpoint9 = createCheckpoint(9);
+  syncGatewayService.checkpoint = checkpoint9;
+
+  const checkpoint6 = createCheckpoint(6);
+  await service.handleReorg(checkpoint6);
   await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 7,
-      toTimestamp: 9,
+      fromCheckpoint: checkpoint6,
+      toCheckpoint: checkpoint9,
     }),
   );
 
@@ -432,7 +454,8 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const latestProcessedTimestampMetric = (
@@ -442,8 +465,11 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 
   // This simulates a scenario where there was a reorg back to 6
   // and the new latest block is 9.
-  syncGatewayService.checkpoint = 9;
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  const checkpoint9 = createCheckpoint(9);
+  syncGatewayService.checkpoint = checkpoint9;
+
+  const checkpoint6 = createCheckpoint(6);
+  await service.handleReorg(checkpoint6);
 
   const latestProcessedTimestampMetricAfterReorg = (
     await common.metrics.ponder_indexing_latest_processed_timestamp.get()
