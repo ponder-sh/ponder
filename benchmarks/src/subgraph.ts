@@ -88,6 +88,8 @@ const subgraph = async () => {
   console.log(`Waiting for Graph Node to be ready...`);
   const setupDuration = await waitForGraphNode();
 
+  console.log(process.argv[2]);
+
   console.log("Registering subgraph...");
   await execa(
     "graph",
@@ -104,8 +106,8 @@ const subgraph = async () => {
     [
       "deploy",
       "ponder-benchmarks/subgraph",
-      "./subgraph/subgraph.yaml",
-      "--output-dir=./subgraph/build",
+      `./${process.argv[2]}/subgraph.yaml`,
+      `--output-dir=./${process.argv[2]}/build`,
       "--ipfs=http://localhost:5001",
       "--node=http://localhost:8020",
       "--version-label=v0.0.1",
@@ -126,12 +128,19 @@ const subgraph = async () => {
 };
 
 const changeMappingFileDelim = (delim: string) => {
-  let mappingFileContents = readFileSync("./subgraph/src/mapping.ts", {
-    encoding: "utf-8",
-  });
+  let mappingFileContents = readFileSync(
+    "./apps/subgraph-reth/src/mapping.ts",
+    {
+      encoding: "utf-8",
+    },
+  );
   mappingFileContents = mappingFileContents.replace(/(dif:.)/g, `dif:${delim}`);
 
-  writeFileSync("./subgraph/src/mapping.ts", mappingFileContents, "utf-8");
+  writeFileSync(
+    "./apps/subgraph-reth/src/mapping.ts",
+    mappingFileContents,
+    "utf-8",
+  );
 };
 
 const bench = async () => {
