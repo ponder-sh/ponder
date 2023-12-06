@@ -2,10 +2,7 @@ import { beforeEach, expect, test } from "vitest";
 
 import { setupIndexingStore } from "@/_test/setup.js";
 import { createSchema } from "@/schema/schema.js";
-import {
-  type IndexingCheckpoint,
-  indexingCheckpointZero,
-} from "@/utils/checkpoint.js";
+import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 beforeEach((context) => setupIndexingStore(context));
 
@@ -24,8 +21,8 @@ const schema = createSchema((p) => ({
   }),
 }));
 
-function createCheckpoint(index: number): IndexingCheckpoint {
-  return { ...indexingCheckpointZero, blockTimestamp: index };
+function createCheckpoint(index: number): Checkpoint {
+  return { ...zeroCheckpoint, blockTimestamp: index };
 }
 
 test("reload() binds the schema", async (context) => {

@@ -5,10 +5,7 @@ import { setupIndexingStore } from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
 import { createSchema } from "@/schema/schema.js";
-import {
-  type IndexingCheckpoint,
-  indexingCheckpointZero,
-} from "@/utils/checkpoint.js";
+import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 
 import { buildGqlSchema } from "./graphql/schema.js";
@@ -76,7 +73,7 @@ const setup = async ({
   const createTestEntity = async ({ id }: { id: number }) => {
     await indexingStore.create({
       tableName: "TestEntity",
-      checkpoint: indexingCheckpointZero,
+      checkpoint: zeroCheckpoint,
       id: String(id),
       data: {
         string: String(id),
@@ -104,7 +101,7 @@ const setup = async ({
   }) => {
     await indexingStore.create({
       tableName: "EntityWithBigIntId",
-      checkpoint: indexingCheckpointZero,
+      checkpoint: zeroCheckpoint,
       id,
       data: {
         testEntityId,
@@ -115,7 +112,7 @@ const setup = async ({
   const createEntityWithIntId = async ({ id }: { id: number }) => {
     await indexingStore.create({
       tableName: "EntityWithIntId",
-      checkpoint: indexingCheckpointZero,
+      checkpoint: zeroCheckpoint,
       id,
     });
   };
@@ -129,8 +126,8 @@ const setup = async ({
   };
 };
 
-function createCheckpoint(index: number): IndexingCheckpoint {
-  return { ...indexingCheckpointZero, blockTimestamp: index };
+function createCheckpoint(index: number): Checkpoint {
+  return { ...zeroCheckpoint, blockTimestamp: index };
 }
 
 // Graphql routes.

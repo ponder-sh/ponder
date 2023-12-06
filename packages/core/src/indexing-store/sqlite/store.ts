@@ -8,10 +8,7 @@ import {
   isOneColumn,
   isReferenceColumn,
 } from "@/schema/utils.js";
-import {
-  encodeCheckpoint,
-  type IndexingCheckpoint,
-} from "@/utils/checkpoint.js";
+import { type Checkpoint, encodeCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import { ensureDirExists } from "@/utils/exists.js";
 import { BetterSqlite3, improveSqliteErrors } from "@/utils/sqlite.js";
@@ -172,11 +169,7 @@ export class SqliteIndexingStore implements IndexingStore {
     });
   };
 
-  revert = async ({
-    safeCheckpoint,
-  }: {
-    safeCheckpoint: IndexingCheckpoint;
-  }) => {
+  revert = async ({ safeCheckpoint }: { safeCheckpoint: Checkpoint }) => {
     return this.wrap({ method: "revert" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
@@ -209,7 +202,7 @@ export class SqliteIndexingStore implements IndexingStore {
     id,
   }: {
     tableName: string;
-    checkpoint?: IndexingCheckpoint | "latest";
+    checkpoint?: Checkpoint | "latest";
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
@@ -254,7 +247,7 @@ export class SqliteIndexingStore implements IndexingStore {
     orderBy,
   }: {
     tableName: string;
-    checkpoint?: IndexingCheckpoint | "latest";
+    checkpoint?: Checkpoint | "latest";
     where?: WhereInput<any>;
     skip?: number;
     take?: number;
@@ -318,7 +311,7 @@ export class SqliteIndexingStore implements IndexingStore {
     data = {},
   }: {
     tableName: string;
-    checkpoint: IndexingCheckpoint;
+    checkpoint: Checkpoint;
     id: string | number | bigint;
     data?: Omit<Row, "id">;
   }) => {
@@ -347,7 +340,7 @@ export class SqliteIndexingStore implements IndexingStore {
     data,
   }: {
     tableName: string;
-    checkpoint: IndexingCheckpoint;
+    checkpoint: Checkpoint;
     id: string | number | bigint;
     data: Row[];
   }) => {
@@ -381,7 +374,7 @@ export class SqliteIndexingStore implements IndexingStore {
     data = {},
   }: {
     tableName: string;
-    checkpoint: IndexingCheckpoint;
+    checkpoint: Checkpoint;
     id: string | number | bigint;
     data?:
       | Partial<Omit<Row, "id">>
@@ -469,7 +462,7 @@ export class SqliteIndexingStore implements IndexingStore {
     data = {},
   }: {
     tableName: string;
-    checkpoint: IndexingCheckpoint;
+    checkpoint: Checkpoint;
     where: WhereInput<any>;
     data?:
       | Partial<Omit<Row, "id">>
@@ -572,7 +565,7 @@ export class SqliteIndexingStore implements IndexingStore {
     update = {},
   }: {
     tableName: string;
-    checkpoint: IndexingCheckpoint;
+    checkpoint: Checkpoint;
     id: string | number | bigint;
     create?: Omit<Row, "id">;
     update?:
@@ -672,7 +665,7 @@ export class SqliteIndexingStore implements IndexingStore {
     id,
   }: {
     tableName: string;
-    checkpoint: IndexingCheckpoint;
+    checkpoint: Checkpoint;
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "delete", tableName }, async () => {

@@ -13,10 +13,7 @@ import { resetTestClient, setupSyncStore } from "@/_test/setup.js";
 import { publicClient, testClient, walletClient } from "@/_test/utils.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
-import {
-  indexingCheckpointMax,
-  indexingCheckpointZero,
-} from "@/utils/checkpoint.js";
+import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import { range } from "@/utils/range.js";
 
@@ -579,8 +576,8 @@ test("start() with factory contract inserts new child contracts records and chil
   ]);
 
   const eventIterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     factories: [
       {
         id: "UniswapV3Pool",

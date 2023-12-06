@@ -16,6 +16,7 @@ import {
 } from "@/config/sources.js";
 import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
 import { poll } from "@/utils/poll.js";
 import { createQueue, type Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
@@ -31,21 +32,9 @@ import {
 } from "./format.js";
 
 type RealtimeSyncEvents = {
-  realtimeCheckpoint: {
-    blockTimestamp: number;
-    chainId: number;
-    blockNumber: number;
-  };
-  finalityCheckpoint: {
-    blockTimestamp: number;
-    chainId: number;
-    blockNumber: number;
-  };
-  shallowReorg: {
-    blockTimestamp: number;
-    chainId: number;
-    blockNumber: number;
-  };
+  realtimeCheckpoint: Checkpoint;
+  finalityCheckpoint: Checkpoint;
+  shallowReorg: Checkpoint;
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
 };
 

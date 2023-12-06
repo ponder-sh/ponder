@@ -16,8 +16,9 @@ import {
   isOneColumn,
   referencedTableName,
 } from "@/schema/utils.js";
-import { indexingCheckpointMax } from "@/utils/checkpoint.js";
+import { maxCheckpoint } from "@/utils/checkpoint.js";
 
+import type { PluralResolver } from "./plural.js";
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
 
@@ -75,11 +76,7 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
           } else if (isManyColumn(column)) {
             // Column is virtual meant to tell graphQL to make a field
 
-            const resolver: GraphQLFieldResolver<Source, Context> = async (
-              parent,
-              args,
-              context,
-            ) => {
+            const resolver: PluralResolver = async (parent, args, context) => {
               const { store } = context;
 
               // The parent object gets passed in here with relationship fields defined as the
@@ -92,10 +89,7 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
               const filter = args;
 
               const checkpoint = filter.timestamp
-                ? {
-                    ...indexingCheckpointMax,
-                    blockTimestamp: Number(filter.timestamp),
-                  }
+                ? { ...maxCheckpoint, blockTimestamp: filter.timestamp }
                 : undefined; // Latest.
 
               return await store.findMany({

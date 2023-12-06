@@ -17,9 +17,10 @@ import type { DatabaseModel } from "@/types/model.js";
 import type { Transaction } from "@/types/transaction.js";
 import { chains } from "@/utils/chains.js";
 import {
-  checkpointGreaterThanOrEqualTo,
-  type IndexingCheckpoint,
-  indexingCheckpointZero,
+  type Checkpoint,
+  isCheckpointEqual,
+  isCheckpointGreaterThan,
+  zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatShortDate } from "@/utils/date.js";
 import { prettyPrint } from "@/utils/print.js";
@@ -32,7 +33,7 @@ import { addUserStackTrace } from "./trace.js";
 import { ponderTransport } from "./transport.js";
 
 type IndexingEvents = {
-  eventsProcessed: { toCheckpoint: IndexingCheckpoint };
+  eventsProcessed: { toCheckpoint: Checkpoint };
 };
 
 type LogEvent = {
@@ -89,12 +90,10 @@ export class IndexingService extends Emittery<IndexingEvents> {
   private eventProcessingMutex: Mutex;
   private queue?: IndexingFunctionQueue;
 
-  private eventsProcessedToCheckpoint: IndexingCheckpoint =
-    indexingCheckpointZero;
-  private hasError = false;
+  private eventsProcessedToCheckpoint: Checkpoint = zeroCheckpoint;
 
-  private currentIndexingCheckpoint: IndexingCheckpoint =
-    indexingCheckpointZero;
+  private currentIndexingCheckpoint: Checkpoint = zeroCheckpoint;
+  private hasError = false;
 
   constructor({
     common,
@@ -123,12 +122,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
       sources,
       networks,
       syncStore,
-      ponderActions(() =>
-        BigInt(
-          (this.currentIndexingCheckpoint ?? indexingCheckpointZero)
-            .blockNumber,
-        ),
-      ),
+      ponderActions(() => BigInt(this.currentIndexingCheckpoint.blockNumber)),
     );
   }
 
@@ -165,8 +159,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
         common: this.common,
         indexingStore: this.indexingStore,
         schema: this.schema,
-        getCurrentIndexingCheckpoint: () =>
-          this.currentIndexingCheckpoint ?? indexingCheckpointZero,
+        getCurrentIndexingCheckpoint: () => this.currentIndexingCheckpoint,
       });
     }
 
@@ -210,7 +203,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
     // When we call indexingStore.reload() above, the indexing store is dropped.
     // Set the latest processed timestamp to zero accordingly.
-    this.currentIndexingCheckpoint = indexingCheckpointZero;
+    this.eventsProcessedToCheckpoint = zeroCheckpoint;
+    this.currentIndexingCheckpoint = zeroCheckpoint;
     this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
   };
 
@@ -231,19 +225,17 @@ export class IndexingService extends Emittery<IndexingEvents> {
    *
    * Note: Caller should (probably) immediately call processEvents after this method.
    */
-  handleReorg = async (checkpoint: IndexingCheckpoint) => {
+  handleReorg = async (safeCheckpoint: Checkpoint) => {
     try {
       await this.eventProcessingMutex.runExclusive(async () => {
         // If there is a user error, the queue & indexing store will be wiped on reload (case 4).
         if (this.hasError) return;
-        // If no events have been processed to the queue yet, there's nothing to do.
-        if (this.eventsProcessedToCheckpoint === null) return;
 
-        const hasProcessedInvalidEvents = checkpointGreaterThanOrEqualTo(
-          checkpoint,
+        const hasProcessedInvalidEvents = isCheckpointGreaterThan(
+          safeCheckpoint,
           this.eventsProcessedToCheckpoint,
         );
-        if (hasProcessedInvalidEvents) {
+        if (!hasProcessedInvalidEvents) {
           // No unsafe events have been processed, so no need to revert (case 1 & case 2).
           this.common.logger.debug({
             service: "indexing",
@@ -254,11 +246,11 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         // Unsafe events have been processed, must revert the indexing store and update
         // eventsProcessedToTimestamp accordingly (case 3).
-        await this.indexingStore.revert({ safeCheckpoint: checkpoint });
+        await this.indexingStore.revert({ safeCheckpoint });
 
-        this.eventsProcessedToCheckpoint = checkpoint;
+        this.eventsProcessedToCheckpoint = safeCheckpoint;
         this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-          checkpoint.blockTimestamp,
+          safeCheckpoint.blockTimestamp,
         );
 
         // Note: There's currently no way to know how many events are "thrown out"
@@ -267,7 +259,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         this.common.logger.debug({
           service: "indexing",
-          msg: `Reverted indexing store to safe timestamp ${checkpoint.blockTimestamp}`,
+          msg: `Reverted indexing store to safe timestamp ${safeCheckpoint.blockTimestamp}`,
         });
       });
     } catch (error) {
@@ -289,26 +281,17 @@ export class IndexingService extends Emittery<IndexingEvents> {
       await this.eventProcessingMutex.runExclusive(async () => {
         if (this.hasError || !this.queue || !this.indexingFunctions) return;
 
+        const fromCheckpoint = this.eventsProcessedToCheckpoint;
+        const toCheckpoint = this.syncGatewayService.checkpoint;
+
         // If we have already added events to the queue for the current checkpoint,
         // do nothing and return. This can happen if a number of calls to processEvents
         // "stack up" while one is being processed, and then they all run sequentially
         // but the sync gateway service checkpoint has not moved.
-        const shouldProcessNewEvents =
-          this.eventsProcessedToCheckpoint !== null &&
-          checkpointGreaterThanOrEqualTo(
-            this.eventsProcessedToCheckpoint,
-            this.syncGatewayService.checkpoint,
-          );
-        if (!shouldProcessNewEvents) return;
-
-        // The getEvents method is inclusive on both sides, so we need to add 1 here
-        // to avoid fetching the same event twice.
-        const fromCheckpoint =
-          this.eventsProcessedToCheckpoint ?? indexingCheckpointZero;
-        const toCheckpoint = this.syncGatewayService.checkpoint;
+        if (!isCheckpointGreaterThan(toCheckpoint, fromCheckpoint)) return;
 
         // If no events have been added yet, add the setup events for each chain & associated metrics.
-        if (this.eventsProcessedToCheckpoint === null) {
+        if (isCheckpointEqual(fromCheckpoint, zeroCheckpoint)) {
           Object.entries(this.indexingFunctions)
             .filter(([, events]) =>
               Object.keys(events).some((e) => e === "setup"),
@@ -483,7 +466,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
               service: "indexing",
               msg: `Processed ${
                 events.length === 1 ? "1 event" : `${events.length} events`
-              } (up to ${formatShortDate(metadata.pageEndsAtTimestamp)})`,
+              } (up to ${formatShortDate(
+                metadata.pageEndCheckpoint.blockTimestamp,
+              )})`,
             });
           }
 
@@ -535,7 +520,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           // The "setup" event should use the contract start block number for contract calls.
           // TODO: Consider implications of using 0 as the timestamp here.
-          this.currentIndexingCheckpoint = indexingCheckpointZero;
+          this.currentIndexingCheckpoint = zeroCheckpoint;
 
           try {
             this.common.logger.trace({
@@ -600,7 +585,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             blockTimestamp: Number(event.block.timestamp),
             chainId: event.chainId,
             blockNumber: Number(event.block.number),
-            executionIndex: event.log.logIndex,
+            logIndex: event.log.logIndex,
           };
 
           try {

@@ -13,10 +13,7 @@ import {
 } from "@/_test/constants.js";
 import { setupSyncStore } from "@/_test/setup.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
-import {
-  indexingCheckpointMax,
-  indexingCheckpointZero,
-} from "@/utils/checkpoint.js";
+import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 beforeEach((context) => setupSyncStore(context));
 
@@ -1045,8 +1042,8 @@ test("getLogEvents returns log events", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
   });
   const events = [];
@@ -1196,8 +1193,8 @@ test("getLogEvents filters on log filter with one address", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "singleAddress",
@@ -1231,8 +1228,8 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
   });
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "multipleAddress",
@@ -1279,8 +1276,8 @@ test("getLogEvents filters on log filter with single topic", async (context) => 
   });
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "singleTopic",
@@ -1327,8 +1324,8 @@ test("getLogEvents filters on log filter with multiple topics", async (context) 
   });
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "multipleTopics",
@@ -1385,8 +1382,8 @@ test("getLogEvents filters on simple factory", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     factories: [
       {
         id: "simple",
@@ -1428,8 +1425,8 @@ test("getLogEvents filters on fromBlock", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "fromBlock",
@@ -1469,8 +1466,8 @@ test("getLogEvents filters on multiple filters", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "singleAddress", // This should match blockOneLogs[0]
@@ -1509,7 +1506,7 @@ test("getLogEvents filters on multiple filters", async (context) => {
   });
 });
 
-test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
+test("getLogEvents filters on fromCheckpoint (inclusive)", async (context) => {
   const { syncStore } = context;
 
   await syncStore.insertRealtimeBlock({
@@ -1528,10 +1525,10 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
 
   const iterator = syncStore.getLogEvents({
     fromCheckpoint: {
-      ...indexingCheckpointZero,
+      ...zeroCheckpoint,
       blockTimestamp: hexToNumber(blockTwo.timestamp!),
     },
-    toCheckpoint: indexingCheckpointMax,
+    toCheckpoint: maxCheckpoint,
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
   });
   const events = [];
@@ -1541,7 +1538,7 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
   expect(events).toHaveLength(1);
 });
 
-test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
+test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
   const { syncStore } = context;
 
   await syncStore.insertRealtimeBlock({
@@ -1559,9 +1556,9 @@ test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
+    fromCheckpoint: zeroCheckpoint,
     toCheckpoint: {
-      ...indexingCheckpointMax,
+      ...maxCheckpoint,
       blockTimestamp: hexToNumber(blockOne.timestamp!),
     },
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
@@ -1594,8 +1591,8 @@ test("getLogEvents returns no events if includeEventSelectors is an empty array"
   });
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       { id: "noFilter", chainId: 1, criteria: {}, includeEventSelectors: [] },
     ],

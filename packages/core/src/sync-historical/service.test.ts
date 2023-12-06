@@ -14,10 +14,7 @@ import { setupSyncStore } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
-import {
-  indexingCheckpointMax,
-  indexingCheckpointZero,
-} from "@/utils/checkpoint.js";
+import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 import { HistoricalSyncService } from "./service.js";
 
@@ -290,8 +287,8 @@ test("start() adds log filter events to sync store", async (context) => {
   await service.onIdle();
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "USDC",
@@ -344,8 +341,8 @@ test("start() adds log filter and factory contract events to sync store", async 
   await service.onIdle();
 
   const iterator = syncStore.getLogEvents({
-    fromCheckpoint: indexingCheckpointZero,
-    toCheckpoint: indexingCheckpointMax,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "USDC",

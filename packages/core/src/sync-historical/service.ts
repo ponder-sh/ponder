@@ -23,6 +23,7 @@ import {
 import { getHistoricalSyncStats } from "@/metrics/utils.js";
 import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
 import { formatEta, formatPercentage } from "@/utils/format.js";
 import {
   BlockProgressTracker,
@@ -47,11 +48,7 @@ type HistoricalSyncEvents = {
    * This indicates to consumers that the connected sync store now contains a complete history
    * of events for all registered sources between their start block and this timestamp (inclusive).
    */
-  historicalCheckpoint: {
-    blockTimestamp: number;
-    chainId: number;
-    blockNumber: number;
-  };
+  historicalCheckpoint: Checkpoint;
 };
 
 type LogFilterTask = {
