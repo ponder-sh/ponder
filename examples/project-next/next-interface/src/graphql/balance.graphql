@@ -1,0 +1,7 @@
+query BalanceQuery($address: String!) {
+  account(
+    id: $address
+  ) {
+    balance
+  }
+}
