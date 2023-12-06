@@ -79,7 +79,7 @@ export class SqliteSyncStore implements SyncStore {
     const { error } = await this.migrator.migrateToLatest();
     if (error) throw error;
 
-    this.record("migrateUp", start);
+    this.record("migrateUp", performance.now() - start);
   };
 
   insertLogFilterInterval = async ({
@@ -129,7 +129,7 @@ export class SqliteSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertLogFilterInterval", start);
+    this.record("insertLogFilterInterval", performance.now() - start);
   };
 
   getLogFilterIntervals = async ({
@@ -247,7 +247,7 @@ export class SqliteSyncStore implements SyncStore {
     });
 
     const intersectionIntervals = intervalIntersectionMany(fragmentIntervals);
-    this.record("getLogFilterIntervals", start);
+    this.record("getLogFilterIntervals", performance.now() - start);
     return intersectionIntervals;
   };
 
@@ -270,7 +270,7 @@ export class SqliteSyncStore implements SyncStore {
       }
     });
 
-    this.record("insertFactoryChildAddressLogs", start);
+    this.record("insertFactoryChildAddressLogs", performance.now() - start);
   };
 
   async *getFactoryChildAddresses({
@@ -284,7 +284,8 @@ export class SqliteSyncStore implements SyncStore {
     factory: FactoryCriteria;
     pageSize?: number;
   }) {
-    const start = performance.now();
+    let queryExecutionTime = 0;
+
     const { address, eventSelector, childAddressLocation } = factory;
 
     const selectChildAddressExpression =
@@ -308,7 +309,9 @@ export class SqliteSyncStore implements SyncStore {
         query = query.where("blockNumber", ">", cursor);
       }
 
+      const start = performance.now();
       const batch = await query.execute();
+      queryExecutionTime += performance.now() - start;
 
       const lastRow = batch[batch.length - 1];
       if (lastRow) {
@@ -322,7 +325,7 @@ export class SqliteSyncStore implements SyncStore {
       if (batch.length < pageSize) break;
     }
 
-    this.record("getFactoryChildAddresses", start);
+    this.record("getFactoryChildAddresses", queryExecutionTime);
   }
 
   insertFactoryLogFilterInterval = async ({
@@ -373,7 +376,7 @@ export class SqliteSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertFactoryLogFilterInterval", start);
+    this.record("insertFactoryLogFilterInterval", performance.now() - start);
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -502,7 +505,7 @@ export class SqliteSyncStore implements SyncStore {
 
     const intersectionIntervals = intervalIntersectionMany(fragmentIntervals);
 
-    this.record("getFactoryLogFilterIntervals", start);
+    this.record("getFactoryLogFilterIntervals", performance.now() - start);
 
     return intersectionIntervals;
   };
@@ -544,7 +547,7 @@ export class SqliteSyncStore implements SyncStore {
       }
     });
 
-    this.record("insertRealtimeBlock", start);
+    this.record("insertRealtimeBlock", performance.now() - start);
   };
 
   insertRealtimeInterval = async ({
@@ -582,7 +585,7 @@ export class SqliteSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertRealtimeInterval", start);
+    this.record("insertRealtimeInterval", performance.now() - start);
   };
 
   deleteRealtimeData = async ({
@@ -690,7 +693,7 @@ export class SqliteSyncStore implements SyncStore {
         .execute();
     });
 
-    this.record("deleteRealtimeData", start);
+    this.record("deleteRealtimeData", performance.now() - start);
   };
 
   /** SYNC HELPER METHODS */
@@ -793,7 +796,7 @@ export class SqliteSyncStore implements SyncStore {
       .onConflict((oc) => oc.doUpdateSet({ result }))
       .execute();
 
-    this.record("insertRpcRequestResult", start);
+    this.record("insertRpcRequestResult", performance.now() - start);
   };
 
   getRpcRequestResult = async ({
@@ -822,7 +825,7 @@ export class SqliteSyncStore implements SyncStore {
         }
       : null;
 
-    this.record("getRpcRequestResult", start);
+    this.record("getRpcRequestResult", performance.now() - start);
 
     return result;
   };
@@ -854,7 +857,7 @@ export class SqliteSyncStore implements SyncStore {
     }[];
     pageSize: number;
   }) {
-    const start = performance.now();
+    let queryExecutionTime = 0;
 
     const sourceIds = [
       ...logFilters.map((f) => f.id),
@@ -1086,12 +1089,14 @@ export class SqliteSyncStore implements SyncStore {
       .groupBy(["source_id", "logs.topic0"]);
 
     // Fetch the event counts once and include it in every response.
+    const start = performance.now();
     const eventCountsRaw = await eventCountsQuery.execute();
     const eventCounts = eventCountsRaw.map((c) => ({
       sourceId: String(c.source_id),
       selector: c.topic0 as Hex,
       count: Number(c.count),
     }));
+    queryExecutionTime += performance.now() - start;
 
     let cursor:
       | {
@@ -1103,6 +1108,7 @@ export class SqliteSyncStore implements SyncStore {
       | undefined = undefined;
 
     while (true) {
+      const start = performance.now();
       let query = includedLogsBaseQuery.limit(pageSize);
       if (cursor) {
         // See this comment for an explanation of the cursor logic.
@@ -1251,6 +1257,7 @@ export class SqliteSyncStore implements SyncStore {
         ? Number(decodeToBigInt(lastEventBlockTimestamp))
         : toTimestamp;
 
+      queryExecutionTime += performance.now() - start;
       yield {
         events,
         metadata: {
@@ -1262,7 +1269,7 @@ export class SqliteSyncStore implements SyncStore {
       if (events.length < pageSize) break;
     }
 
-    this.record("getLogEvents", start);
+    this.record("getLogEvents", queryExecutionTime);
   }
 
   private transaction = async <U>(
@@ -1278,10 +1285,10 @@ export class SqliteSyncStore implements SyncStore {
     });
   };
 
-  private record(methodName: string, start: number) {
+  private record(methodName: string, duration: number) {
     this.common.metrics.ponder_sync_store_method_duration.observe(
       { method: methodName },
-      performance.now() - start,
+      duration,
     );
   }
 }
