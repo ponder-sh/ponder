@@ -509,8 +509,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }) => {
       // This is a hack to ensure that the eventsProcessed method is called and updates
       // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
-      // It does, however, slow down event processing a bit.
-      await wait(0);
+      // It does, however, slow down event processing a bit. Too frequent waits cause massive performance loses.
+      if (Math.floor(Math.random() * 100) === 69) await wait(0);
 
       switch (task.kind) {
         case "SETUP": {
