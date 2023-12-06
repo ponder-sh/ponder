@@ -25,7 +25,7 @@ ponder.on("Factory:PairCreated", async ({ event, context }) => {
   });
 
   await Pair.create({
-    id: event.args.pair,
+    id: getAddress(event.args.pair),
     data: {
       token0: event.args.token0,
       token1: event.args.token1,
