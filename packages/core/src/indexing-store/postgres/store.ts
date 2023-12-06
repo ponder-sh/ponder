@@ -1,4 +1,10 @@
-import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
+import {
+  CompiledQuery,
+  Kysely,
+  PostgresDialect,
+  sql,
+  WithSchemaPlugin,
+} from "kysely";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -37,48 +43,83 @@ export class PostgresIndexingStore implements IndexingStore {
   db: Kysely<any>;
 
   schema?: Schema;
+  indexNamespace: string;
+  hasConnected: boolean = false;
+  isReadOnly: boolean = false;
 
   constructor({
     common,
     pool,
-    databaseSchema,
+    isReadOnly = false,
   }: {
     common: Common;
     pool: Pool;
-    databaseSchema?: string;
+    isReadOnly?: boolean;
   }) {
+    this.indexNamespace = `ponder_index_${new Date().getTime()}`;
     this.common = common;
+    this.isReadOnly = isReadOnly;
     this.db = new Kysely({
       dialect: new PostgresDialect({
         pool,
-        onCreateConnection: databaseSchema
-          ? async (connection) => {
-              await connection.executeQuery(
-                CompiledQuery.raw(
-                  `CREATE SCHEMA IF NOT EXISTS ${databaseSchema}`,
-                ),
-              );
-              await connection.executeQuery(
-                CompiledQuery.raw(`SET search_path = ${databaseSchema}`),
-              );
+        onCreateConnection: async (connection) => {
+          if (this.hasConnected) {
+            return;
+          }
+
+          if (isReadOnly) {
+            const result = await connection.executeQuery(
+              // Finds the latest namespace which should have been created by the indexer writer.
+              CompiledQuery.raw(
+                `SELECT nspname FROM pg_namespace WHERE nspname LIKE 'ponder_index_%' ORDER BY nspname DESC LIMIT 1`,
+              ),
+            );
+            if (result.rows.length === 0) {
+              throw new Error("No namespace found");
             }
-          : undefined,
+            const namespace = (result.rows as { nspname: string }[])[0]
+              .nspname as string;
+
+            this.indexNamespace = namespace;
+            // This is only safe in a readonly context. Setting this modifies the session's search path which can
+            // modify the behavior of non-indexing queries.
+            await connection.executeQuery(
+              CompiledQuery.raw(`SET search_path = ${this.indexNamespace}`),
+            );
+          } else {
+            await connection.executeQuery(
+              CompiledQuery.raw(
+                `CREATE SCHEMA IF NOT EXISTS ${this.indexNamespace}`,
+              ),
+            );
+          }
+
+          this.common.logger.debug({
+            msg: `Connected to namespace: ${this.indexNamespace}`,
+            service: "indexing",
+          });
+          this.hasConnected = true;
+        },
       }),
     });
+    if (isReadOnly) {
+      // This is a hack to stop readonly connections from connecting to a namespace using the Kysely plugin as readonly
+      // connections set their namespace using the search_path setter in the onCreateConnection hook.
+      return;
+    }
+
+    this.db = this.db.withPlugin(new WithSchemaPlugin(this.indexNamespace));
   }
 
   async kill() {
     return this.wrap({ method: "kill" }, async () => {
-      const tableNames = Object.keys(this.schema?.tables ?? {});
-      if (tableNames.length > 0) {
-        await this.db.transaction().execute(async (tx) => {
-          await Promise.all(
-            tableNames.map(async (tableName) => {
-              const table = `${tableName}_versioned`;
-              await tx.schema.dropTable(table).ifExists().execute();
-            }),
-          );
-        });
+      if (!this.isReadOnly) {
+        // Clean up all the tables and data created by this instance by dropping the schema that was created.
+        await this.db.executeQuery(
+          CompiledQuery.raw(
+            `DROP SCHEMA IF EXISTS ${this.indexNamespace} CASCADE`,
+          ),
+        );
       }
 
       try {
@@ -111,12 +152,10 @@ export class PostgresIndexingStore implements IndexingStore {
         await Promise.all(
           Object.entries(this.schema!.tables).map(
             async ([tableName, columns]) => {
-              const table = `${tableName}_versioned`;
+              // Drop existing tableName with the same name if it exists.
+              await tx.schema.dropTable(tableName).ifExists().execute();
 
-              // Drop existing table with the same name if it exists.
-              await tx.schema.dropTable(table).ifExists().execute();
-
-              let tableBuilder = tx.schema.createTable(table);
+              let tableBuilder = tx.schema.createTable(tableName);
 
               Object.entries(columns).forEach(([columnName, column]) => {
                 if (isOneColumn(column)) return;
@@ -169,7 +208,7 @@ export class PostgresIndexingStore implements IndexingStore {
                 (col) => col.notNull(),
               );
               tableBuilder = tableBuilder.addPrimaryKeyConstraint(
-                `${table}_effectiveToCheckpoint_unique`,
+                `${tableName}_effectiveToCheckpoint_unique`,
                 ["id", "effectiveToCheckpoint"] as never[],
               );
 
@@ -186,19 +225,18 @@ export class PostgresIndexingStore implements IndexingStore {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
           Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
-            const table = `${tableName}_versioned`;
             const encodedCheckpoint = encodeCheckpoint(safeCheckpoint);
 
             // Delete any versions that are newer than the safe checkpoint.
             await tx
-              .deleteFrom(table)
+              .deleteFrom(tableName)
               .where("effectiveFromCheckpoint", ">", encodedCheckpoint)
               .execute();
 
             // Now, any versions with effectiveToCheckpoint greater than or equal
             // to the safe checkpoint are the new latest version.
             await tx
-              .updateTable(table)
+              .updateTable(tableName)
               .where("effectiveToCheckpoint", ">=", encodedCheckpoint)
               .set({ effectiveToCheckpoint: "latest" })
               .execute();
@@ -218,14 +256,13 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
-      const table = `${tableName}_versioned`;
       const formattedId = formatColumnValue({
         value: id,
         encodeBigInts: false,
       });
 
       let query = this.db
-        .selectFrom(table)
+        .selectFrom(tableName)
         .selectAll()
         .where("id", "=", formattedId);
 
@@ -266,9 +303,7 @@ export class PostgresIndexingStore implements IndexingStore {
     orderBy?: OrderByInput<any>;
   }) => {
     return this.wrap({ method: "findMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
-
-      let query = this.db.selectFrom(table).selectAll();
+      let query = this.db.selectFrom(tableName).selectAll();
 
       if (checkpoint === "latest") {
         query = query.where("effectiveToCheckpoint", "=", "latest");
@@ -333,12 +368,11 @@ export class PostgresIndexingStore implements IndexingStore {
     data?: Omit<Row, "id">;
   }) => {
     return this.wrap({ method: "create", tableName }, async () => {
-      const table = `${tableName}_versioned`;
       const createRow = formatRow({ id, ...data }, false);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const row = await this.db
-        .insertInto(table)
+        .insertInto(tableName)
         .values({
           ...createRow,
           effectiveFromCheckpoint: encodedCheckpoint,
@@ -362,7 +396,6 @@ export class PostgresIndexingStore implements IndexingStore {
     data: Row[];
   }) => {
     return this.wrap({ method: "createMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
       const createRows = data.map((d) => ({
         ...formatRow({ ...d }, false),
@@ -376,7 +409,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
       const rows = await Promise.all(
         chunkedRows.map((c) =>
-          this.db.insertInto(table).values(c).returningAll().execute(),
+          this.db.insertInto(tableName).values(c).returningAll().execute(),
         ),
       );
 
@@ -398,7 +431,6 @@ export class PostgresIndexingStore implements IndexingStore {
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
     return this.wrap({ method: "update", tableName }, async () => {
-      const table = `${tableName}_versioned`;
       const formattedId = formatColumnValue({
         value: id,
         encodeBigInts: false,
@@ -408,7 +440,7 @@ export class PostgresIndexingStore implements IndexingStore {
       const row = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRow = await tx
-          .selectFrom(table)
+          .selectFrom(tableName)
           .selectAll()
           .where("id", "=", formattedId)
           .where("effectiveToCheckpoint", "=", "latest")
@@ -434,7 +466,7 @@ export class PostgresIndexingStore implements IndexingStore {
         // this update is occurring within the same indexing function. Update in place.
         if (latestRow.effectiveFromCheckpoint === encodedCheckpoint) {
           return await tx
-            .updateTable(table)
+            .updateTable(tableName)
             .set(updateRow)
             .where("id", "=", formattedId)
             .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
@@ -446,13 +478,13 @@ export class PostgresIndexingStore implements IndexingStore {
         // we need to update the latest version AND insert a new version.
         const [, row] = await Promise.all([
           tx
-            .updateTable(table)
+            .updateTable(tableName)
             .where("id", "=", formattedId)
             .where("effectiveToCheckpoint", "=", "latest")
             .set({ effectiveToCheckpoint: encodedCheckpoint })
             .execute(),
           tx
-            .insertInto(table)
+            .insertInto(tableName)
             .values({
               ...latestRow,
               ...updateRow,
@@ -486,13 +518,12 @@ export class PostgresIndexingStore implements IndexingStore {
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
     return this.wrap({ method: "updateMany", tableName }, async () => {
-      const table = `${tableName}_versioned`;
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
       const rows = await this.db.transaction().execute(async (tx) => {
         // Get all IDs that match the filter.
         let latestRowsQuery = tx
-          .selectFrom(table)
+          .selectFrom(tableName)
           .selectAll()
           .where("effectiveToCheckpoint", "=", "latest");
 
@@ -536,7 +567,7 @@ export class PostgresIndexingStore implements IndexingStore {
             // this update is occurring within the same block/second. Update in place.
             if (latestRow.effectiveFromCheckpoint === encodedCheckpoint) {
               return await tx
-                .updateTable(table)
+                .updateTable(tableName)
                 .set(updateRow)
                 .where("id", "=", formattedId)
                 .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
@@ -548,13 +579,13 @@ export class PostgresIndexingStore implements IndexingStore {
             // we need to update the latest version AND insert a new version.
             const [, row] = await Promise.all([
               tx
-                .updateTable(table)
+                .updateTable(tableName)
                 .where("id", "=", formattedId)
                 .where("effectiveToCheckpoint", "=", "latest")
                 .set({ effectiveToCheckpoint: encodedCheckpoint })
                 .execute(),
               tx
-                .insertInto(table)
+                .insertInto(tableName)
                 .values({
                   ...latestRow,
                   ...updateRow,
@@ -590,7 +621,6 @@ export class PostgresIndexingStore implements IndexingStore {
       | ((args: { current: Row }) => Partial<Omit<Row, "id">>);
   }) => {
     return this.wrap({ method: "upsert", tableName }, async () => {
-      const table = `${tableName}_versioned`;
       const formattedId = formatColumnValue({
         value: id,
         encodeBigInts: false,
@@ -601,7 +631,7 @@ export class PostgresIndexingStore implements IndexingStore {
       const row = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRow = await tx
-          .selectFrom(table)
+          .selectFrom(tableName)
           .selectAll()
           .where("id", "=", formattedId)
           .where("effectiveToCheckpoint", "=", "latest")
@@ -610,7 +640,7 @@ export class PostgresIndexingStore implements IndexingStore {
         // If there is no latest version, insert a new version using the create data.
         if (latestRow === undefined) {
           return await tx
-            .insertInto(table)
+            .insertInto(tableName)
             .values({
               ...createRow,
               effectiveFromCheckpoint: encodedCheckpoint,
@@ -640,7 +670,7 @@ export class PostgresIndexingStore implements IndexingStore {
         // this update is occurring within the same indexing function. Update in place.
         if (latestRow.effectiveFromCheckpoint === encodedCheckpoint) {
           return await tx
-            .updateTable(table)
+            .updateTable(tableName)
             .set(updateRow)
             .where("id", "=", formattedId)
             .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
@@ -652,13 +682,13 @@ export class PostgresIndexingStore implements IndexingStore {
         // we need to update the latest version AND insert a new version.
         const [, row] = await Promise.all([
           tx
-            .updateTable(table)
+            .updateTable(tableName)
             .where("id", "=", formattedId)
             .where("effectiveToCheckpoint", "=", "latest")
             .set({ effectiveToCheckpoint: encodedCheckpoint })
             .execute(),
           tx
-            .insertInto(table)
+            .insertInto(tableName)
             .values({
               ...latestRow,
               ...updateRow,
@@ -686,7 +716,6 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "delete", tableName }, async () => {
-      const table = `${tableName}_versioned`;
       const formattedId = formatColumnValue({
         value: id,
         encodeBigInts: false,
@@ -697,7 +726,7 @@ export class PostgresIndexingStore implements IndexingStore {
         // If the latest version has effectiveFromCheckpoint equal to current checkpoint,
         // this row was created within the same indexing function, and we can delete it.
         let deletedRow = await tx
-          .deleteFrom(table)
+          .deleteFrom(tableName)
           .where("id", "=", formattedId)
           .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
           .where("effectiveToCheckpoint", "=", "latest")
@@ -708,7 +737,7 @@ export class PostgresIndexingStore implements IndexingStore {
         // setting effectiveToCheckpoint to the current checkpoint.
         if (!deletedRow) {
           deletedRow = await tx
-            .updateTable(table)
+            .updateTable(tableName)
             .set({ effectiveToCheckpoint: encodedCheckpoint })
             .where("id", "=", formattedId)
             .where("effectiveToCheckpoint", "=", "latest")
