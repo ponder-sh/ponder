@@ -21,6 +21,8 @@ import {
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
+const NAMESPACE_QUERY = `SELECT nspname FROM pg_namespace WHERE nspname LIKE 'ponder_index_%' ORDER BY nspname`;
+
 const scalarToSqlType = {
   boolean: "integer",
   int: "integer",
@@ -41,41 +43,56 @@ export class PostgresIndexingStore implements IndexingStore {
   constructor({
     common,
     pool,
+    isReadOnly = false,
     databaseSchema,
   }: {
     common: Common;
     pool: Pool;
+    isReadOnly?: boolean;
     databaseSchema?: string;
   }) {
     this.common = common;
     this.db = new Kysely({
       dialect: new PostgresDialect({
         pool,
-        onCreateConnection: databaseSchema
-          ? async (connection) => {
-              await connection.executeQuery(
-                CompiledQuery.raw(
-                  `CREATE SCHEMA IF NOT EXISTS ${databaseSchema}`,
-                ),
-              );
-              await connection.executeQuery(
-                CompiledQuery.raw(`SET search_path = ${databaseSchema}`),
-              );
+        onCreateConnection: async (connection) => {
+          let namespace: string;
+          if (isReadOnly) {
+            const result = await connection.executeQuery(
+              // Finds the latest namespace by sorting the list of namespaces in descending order and taking the first one.
+              CompiledQuery.raw(NAMESPACE_QUERY + ` DESC LIMIT 1`),
+            );
+            if (result.rows.length === 0) {
+              // do something here.
             }
-          : undefined,
+            namespace = (result.rows as { nspname: string }[])[0]
+              .nspname as string;
+          } else {
+            namespace = databaseSchema
+              ? databaseSchema
+              : `ponder_index_${new Date().getTime()}`;
+          }
+          console.log(namespace);
+          await connection.executeQuery(
+            CompiledQuery.raw(`CREATE SCHEMA IF NOT EXISTS ${namespace}`),
+          );
+          await connection.executeQuery(
+            CompiledQuery.raw(`SET search_path = ${namespace}`),
+          );
+        },
       }),
     });
   }
 
   async kill() {
+    // TODO: Drop the schema versions.
     return this.wrap({ method: "kill" }, async () => {
       const tableNames = Object.keys(this.schema?.tables ?? {});
       if (tableNames.length > 0) {
         await this.db.transaction().execute(async (tx) => {
           await Promise.all(
             tableNames.map(async (tableName) => {
-              const table = `${tableName}_versioned`;
-              await tx.schema.dropTable(table).ifExists().execute();
+              await tx.schema.dropTable(tableName).ifExists().execute();
             }),
           );
         });
@@ -111,12 +128,10 @@ export class PostgresIndexingStore implements IndexingStore {
         await Promise.all(
           Object.entries(this.schema!.tables).map(
             async ([tableName, columns]) => {
-              const table = `${tableName}_versioned`;
+              // Drop existing tableName with the same name if it exists.
+              await tx.schema.dropTable(tableName).ifExists().execute();
 
-              // Drop existing table with the same name if it exists.
-              await tx.schema.dropTable(table).ifExists().execute();
-
-              let tableBuilder = tx.schema.createTable(table);
+              let tableBuilder = tx.schema.createTable(tableName);
 
               Object.entries(columns).forEach(([columnName, column]) => {
                 if (isOneColumn(column)) return;
@@ -218,7 +233,6 @@ export class PostgresIndexingStore implements IndexingStore {
     id: string | number | bigint;
   }) => {
     return this.wrap({ method: "findUnique", tableName }, async () => {
-      const table = `${tableName}_versioned`;
       const formattedId = formatColumnValue({
         value: id,
         encodeBigInts: false,
@@ -376,7 +390,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
       const rows = await Promise.all(
         chunkedRows.map((c) =>
-          this.db.insertInto(table).values(c).returningAll().execute(),
+          this.db.insertInto(tableName).values(c).returningAll().execute(),
         ),
       );
 
@@ -492,7 +506,7 @@ export class PostgresIndexingStore implements IndexingStore {
       const rows = await this.db.transaction().execute(async (tx) => {
         // Get all IDs that match the filter.
         let latestRowsQuery = tx
-          .selectFrom(table)
+          .selectFrom(tableName)
           .selectAll()
           .where("effectiveToCheckpoint", "=", "latest");
 
@@ -536,7 +550,7 @@ export class PostgresIndexingStore implements IndexingStore {
             // this update is occurring within the same block/second. Update in place.
             if (latestRow.effectiveFromCheckpoint === encodedCheckpoint) {
               return await tx
-                .updateTable(table)
+                .updateTable(tableName)
                 .set(updateRow)
                 .where("id", "=", formattedId)
                 .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
