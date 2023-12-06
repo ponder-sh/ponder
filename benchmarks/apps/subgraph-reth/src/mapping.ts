@@ -4,7 +4,7 @@ import { BigInt } from "@graphprotocol/graph-ts";
 import {
   Approval as TApprovalEvent,
   Transfer as TTransferEvent,
-} from "../../generated/RocketTokenRETH/RocketTokenRETH";
+} from "../generated/RocketTokenRETH/RocketTokenRETH";
 import {
   Account,
   Approval,
@@ -12,7 +12,7 @@ import {
   TransferEvent,
 } from "../generated/schema";
 
-const delim = "dif:+";
+const delim = "dif:-";
 
 export function handleTransfer(event: TTransferEvent): void {
   // Create an Account for the sender, or update the balance if it already exists.

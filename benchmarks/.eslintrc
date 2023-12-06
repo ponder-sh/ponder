@@ -1,3 +1,4 @@
 {
-  "extends": "ponder"
+  "extends": "ponder",
+  "ignorePatterns": ["run-subgraph.sh"]
 }
