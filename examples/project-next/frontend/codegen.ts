@@ -9,8 +9,8 @@ const config = {
 const codegenConfig: CodegenConfig = {
   generates: {
     "./src/graphql/generated/": {
-      schema: "../ponder/generated/schema.graphql",
-      documents: "./src/graphql/transfers.graphql",
+      schema: "../backend/generated/schema.graphql",
+      documents: "./src/graphql/deposits.graphql",
       preset: "client",
       config,
       plugins: [],

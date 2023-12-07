@@ -1,3 +1,5 @@
+"use client";
+
 import CountUp from "react-countup";
 import { formatEther } from "viem";
 

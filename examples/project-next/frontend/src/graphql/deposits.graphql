@@ -1,0 +1,12 @@
+query DepositsQuery {
+  depositEvents(
+    orderDirection: "desc"
+    orderBy: "timestamp"
+    first: 10
+  ) {
+    id
+    timestamp
+    account
+    amount
+  }
+}
