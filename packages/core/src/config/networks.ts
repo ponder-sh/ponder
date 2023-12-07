@@ -17,7 +17,7 @@ export type Network = {
   url: string;
   pollingInterval: number;
   defaultMaxBlockRange: number;
-  maxRpcRequestConcurrency: number;
+  maxHistoricalTaskConcurrency: number;
   finalityBlockCount: number;
 };
 
@@ -62,7 +62,7 @@ export async function buildNetwork({
     url: rpcUrls[0],
     pollingInterval: network.pollingInterval ?? 1_000,
     defaultMaxBlockRange: getDefaultMaxBlockRange({ chainId, rpcUrls }),
-    maxRpcRequestConcurrency: network.maxRpcRequestConcurrency ?? 20,
+    maxHistoricalTaskConcurrency: network.maxHistoricalTaskConcurrency ?? 20,
     finalityBlockCount: getFinalityBlockCount({ chainId }),
   };
 
