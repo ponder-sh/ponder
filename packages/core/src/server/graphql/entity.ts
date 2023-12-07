@@ -68,7 +68,7 @@ export const buildEntityTypes = ({ schema }: { schema: Schema }) => {
             };
 
             fieldConfigMap[columnName] = {
-              type: entityGqlTypes[referencedTable],
+              type: new GraphQLNonNull(entityGqlTypes[referencedTable]),
               resolve: resolver,
             };
           } else if (isManyColumn(column)) {
