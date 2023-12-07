@@ -20,7 +20,7 @@ const mainnet: Network = {
   pollingInterval: 1_000,
   defaultMaxBlockRange: 3,
   finalityBlockCount: 10,
-  maxRpcRequestConcurrency: 10,
+  maxHistoricalTaskConcurrency: 20,
 };
 
 const optimism: Network = {
