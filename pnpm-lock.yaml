@@ -242,31 +242,6 @@ importers:
         specifier: ^5.3.2
         version: 5.3.3
 
-  examples/project-foundry:
-    dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      viem:
-        specifier: ^1.19.3
-        version: 1.19.9(typescript@5.3.2)(zod@3.22.4)
-    devDependencies:
-      '@types/node':
-        specifier: ^20.9.0
-        version: 20.10.3
-      '@wagmi/cli':
-        specifier: ^1.5.2
-        version: 1.5.2(typescript@5.3.2)
-      eslint:
-        specifier: ^8.53.0
-        version: 8.55.0
-      eslint-config-ponder:
-        specifier: workspace:*
-        version: link:../../packages/eslint-config-ponder
-      typescript:
-        specifier: ^5.2.2
-        version: 5.3.2
-
   examples/project-friendtech:
     dependencies:
       '@ponder/core':
@@ -439,6 +414,31 @@ importers:
       typescript:
         specifier: ^5.3.2
         version: 5.3.3
+
+  examples/with-foundry:
+    dependencies:
+      '@ponder/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      viem:
+        specifier: ^1.19.9
+        version: 1.19.9(typescript@5.3.2)(zod@3.22.4)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.10.3
+      '@wagmi/cli':
+        specifier: ^1.5.2
+        version: 1.5.2(typescript@5.3.2)
+      eslint:
+        specifier: ^8.54.0
+        version: 8.55.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
+        version: 5.3.2
 
   packages/core:
     dependencies:
@@ -3338,6 +3338,7 @@ packages:
     dependencies:
       is-glob: 4.0.3
       micromatch: 4.0.5
+      napi-wasm: 1.1.0
     dev: true
     bundledDependencies:
       - napi-wasm
@@ -11603,6 +11604,10 @@ packages:
   /napi-build-utils@1.0.2:
     resolution: {integrity: sha512-ONmRUqK7zj7DWX0D9ADe03wbwOBZxNAfF20PlGfCWQcD3+/MakShIHrMqx9YwPTfxDdF1zLeL+RGZiR9kGMLdg==}
     dev: false
+
+  /napi-wasm@1.1.0:
+    resolution: {integrity: sha512-lHwIAJbmLSjF9VDRm9GoVOy9AGp3aIvkjv+Kvz9h16QR3uSVYH78PNQUnT2U4X53mhlnV2M7wrhibQ3GHicDmg==}
+    dev: true
 
   /native-abort-controller@1.0.4(abort-controller@3.0.0):
     resolution: {integrity: sha512-zp8yev7nxczDJMoP6pDxyD20IU0T22eX8VwN2ztDccKvSZhRaV33yP1BGwKSZfXuqWUzsXopVFjBdau9OOAwMQ==}

@@ -10,7 +10,7 @@ export default defineConfig({
   ],
   plugins: [
     foundry({
-      project: "foundry",
+      project: "contracts",
     }),
   ],
 });

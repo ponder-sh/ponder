@@ -1,7 +1,7 @@
 import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
-import { counterABI } from "./abis/Counter";
+import { counterABI } from "../abis/Counter";
 
 export default createConfig({
   networks: {
