@@ -107,11 +107,9 @@ export async function setupSyncStore(
 export async function setupIndexingStore(context: TestContext) {
   if (process.env.DATABASE_URL) {
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
     context.indexingStore = new PostgresIndexingStore({
       common: context.common,
       pool,
-      databaseSchema,
     });
   } else {
     context.indexingStore = new SqliteIndexingStore({

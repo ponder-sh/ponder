@@ -1,4 +1,10 @@
-import { CompiledQuery, Kysely, PostgresDialect, sql } from "kysely";
+import {
+  CompiledQuery,
+  Kysely,
+  PostgresDialect,
+  sql,
+  WithSchemaPlugin,
+} from "kysely";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -39,63 +45,81 @@ export class PostgresIndexingStore implements IndexingStore {
   db: Kysely<any>;
 
   schema?: Schema;
+  indexNamespace: string;
+  hasConnected: boolean = false;
+  isReadOnly: boolean = false;
 
   constructor({
     common,
     pool,
     isReadOnly = false,
-    databaseSchema,
   }: {
     common: Common;
     pool: Pool;
     isReadOnly?: boolean;
-    databaseSchema?: string;
   }) {
+    this.indexNamespace = `ponder_index_${new Date().getTime()}`;
     this.common = common;
+    this.isReadOnly = isReadOnly;
     this.db = new Kysely({
       dialect: new PostgresDialect({
         pool,
         onCreateConnection: async (connection) => {
-          let namespace: string;
+          if (this.hasConnected) {
+            return;
+          }
+
           if (isReadOnly) {
             const result = await connection.executeQuery(
               // Finds the latest namespace by sorting the list of namespaces in descending order and taking the first one.
               CompiledQuery.raw(NAMESPACE_QUERY + ` DESC LIMIT 1`),
             );
             if (result.rows.length === 0) {
-              // do something here.
+              throw new Error("No namespace found");
             }
-            namespace = (result.rows as { nspname: string }[])[0]
+            const namespace = (result.rows as { nspname: string }[])[0]
               .nspname as string;
+
+            this.indexNamespace = namespace;
+            // This is only safe in a readonly context. Setting this modifies the session's search path which can
+            // modify the behavior of non-indexing queries.
+            await connection.executeQuery(
+              CompiledQuery.raw(`SET search_path = ${this.indexNamespace}`),
+            );
           } else {
-            namespace = databaseSchema
-              ? databaseSchema
-              : `ponder_index_${new Date().getTime()}`;
+            await connection.executeQuery(
+              CompiledQuery.raw(
+                `CREATE SCHEMA IF NOT EXISTS ${this.indexNamespace}`,
+              ),
+            );
           }
-          console.log(namespace);
-          await connection.executeQuery(
-            CompiledQuery.raw(`CREATE SCHEMA IF NOT EXISTS ${namespace}`),
-          );
-          await connection.executeQuery(
-            CompiledQuery.raw(`SET search_path = ${namespace}`),
-          );
+
+          this.common.logger.debug({
+            msg: `Connected to namespace: ${this.indexNamespace}`,
+            service: "indexing",
+          });
+          this.hasConnected = true;
         },
       }),
     });
+    if (isReadOnly) {
+      // This is a hack to stop readonly connections from connecting to a schema using the Kysely plugin.
+      //
+      return;
+    }
+
+    this.db = this.db.withPlugin(new WithSchemaPlugin(this.indexNamespace));
   }
 
   async kill() {
-    // TODO: Drop the schema versions.
     return this.wrap({ method: "kill" }, async () => {
-      const tableNames = Object.keys(this.schema?.tables ?? {});
-      if (tableNames.length > 0) {
-        await this.db.transaction().execute(async (tx) => {
-          await Promise.all(
-            tableNames.map(async (tableName) => {
-              await tx.schema.dropTable(tableName).ifExists().execute();
-            }),
-          );
-        });
+      if (!this.isReadOnly) {
+        // Clean up all the tables and data created by this instance by dropping the schema that was created.
+        await this.db.executeQuery(
+          CompiledQuery.raw(
+            `DROP SCHEMA IF EXISTS ${this.indexNamespace} CASCADE`,
+          ),
+        );
       }
 
       try {
