@@ -27,8 +27,6 @@ import {
 
 const MAX_BATCH_SIZE = 1_000 as const;
 
-const NAMESPACE_QUERY = `SELECT nspname FROM pg_namespace WHERE nspname LIKE 'ponder_index_%' ORDER BY nspname`;
-
 const scalarToSqlType = {
   boolean: "integer",
   int: "integer",
@@ -71,8 +69,10 @@ export class PostgresIndexingStore implements IndexingStore {
 
           if (isReadOnly) {
             const result = await connection.executeQuery(
-              // Finds the latest namespace by sorting the list of namespaces in descending order and taking the first one.
-              CompiledQuery.raw(NAMESPACE_QUERY + ` DESC LIMIT 1`),
+              // Finds the latest namespace which should have been created by the indexer writer.
+              CompiledQuery.raw(
+                `SELECT nspname FROM pg_namespace WHERE nspname LIKE 'ponder_index_%' ORDER BY nspname DESC LIMIT 1`,
+              ),
             );
             if (result.rows.length === 0) {
               throw new Error("No namespace found");
