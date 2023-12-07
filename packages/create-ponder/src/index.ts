@@ -312,7 +312,7 @@ export async function run({
         .map(
           (eventName) => `
           ponder.on("${name}:${eventName}", async ({ event, context }) => {
-            console.log(event.params)
+            console.log(event.args)
           })`,
         )
         .join("\n")}
