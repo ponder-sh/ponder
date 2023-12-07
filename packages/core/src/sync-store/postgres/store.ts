@@ -1231,8 +1231,9 @@ export class PostgresSyncStore implements SyncStore {
                   : row.tx_type === "0x7e"
                     ? {
                         type: "deposit",
-                        maxFeePerGas: row.tx_maxFeePerGas,
-                        maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas,
+                        maxFeePerGas: row.tx_maxFeePerGas ?? undefined,
+                        maxPriorityFeePerGas:
+                          row.tx_maxPriorityFeePerGas ?? undefined,
                       }
                     : { type: row.tx_type }),
           },

@@ -1224,10 +1224,12 @@ export class SqliteSyncStore implements SyncStore {
                   : row.tx_type === "0x7e"
                     ? {
                         type: "deposit",
-                        maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
-                        maxPriorityFeePerGas: decodeToBigInt(
-                          row.tx_maxPriorityFeePerGas,
-                        ),
+                        maxFeePerGas: row.tx_maxFeePerGas
+                          ? decodeToBigInt(row.tx_maxFeePerGas)
+                          : undefined,
+                        maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas
+                          ? decodeToBigInt(row.tx_maxPriorityFeePerGas)
+                          : undefined,
                       }
                     : {
                         type: row.tx_type,
