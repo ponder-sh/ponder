@@ -12,6 +12,4 @@ body {
   color: rgb(var(--foreground-rgb));
   color: rgb(var(--foreground-rgb));
   background: #f5f5f4;
-  background-image: url("/background.png");
-  background-size: cover;
 }
