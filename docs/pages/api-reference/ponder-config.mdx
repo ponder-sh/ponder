@@ -29,7 +29,7 @@ Networks are Ethereum-based blockchains like Ethereum mainnet, Goerli, or Foundr
 | **chainId**                  |       `number`        | The [chain ID](https://chainlist.org) for the network.                                                    |
 | **transport**                |      `Transport`      | A viem `http`, `webSocket`, or `fallback` [Transport](https://viem.sh/docs/clients/transports/http.html). |
 | **pollingInterval**          | `number \| undefined` | **Default: `1_000`**. Frequency (in ms) used when polling for new events on this network.                 |
-| **maxRpcRequestConcurrency** | `number \| undefined` | **Default: `10`**. Maximum concurrency of RPC requests during the historical sync.                        |
+| **maxRpcRequestConcurrency** | `number \| undefined` | **Default: `20`**. Maximum concurrency of RPC requests during the historical sync.                        |
 
 ### Contracts
 
