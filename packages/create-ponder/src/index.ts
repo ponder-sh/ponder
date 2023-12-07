@@ -59,60 +59,56 @@ export type CLIOptions = {
 };
 
 const templates = [
+  { id: "empty", title: "Default", description: "A blank-slate Ponder app" },
   {
-    title: "empty",
-    description: "Empty Ponder project",
-    id: "empty",
-  },
-  {
-    title: "etherscan",
-    description: "Create a Ponder App from Etherscan",
     id: "etherscan",
+    title: "Etherscan contract link",
+    description: "Bootstrap from an Etherscan contract link",
   },
   {
-    title: "feature-factory",
-    description: "Ponder app using a factory contract",
     id: "feature-factory",
+    title: "Feature - Factory contract",
+    description: "A Ponder app using a factory contract",
   },
   {
-    title: "feature-filter",
-    description: "Ponder app using an event filter",
     id: "feature-filter",
+    title: "Feature - Custom event filter",
+    description: "A Ponder app using an event filter",
   },
   {
-    title: "feature-multichain",
-    description: "Ponder app using a multichain configuration",
     id: "feature-multichain",
+    title: "Feature - Multichain contract",
+    description: "A Ponder app using multiple chains",
   },
   {
-    title: "feature-proxy",
-    description: "Ponder app using a proxy contract",
     id: "feature-proxy",
+    title: "Feature - Proxy contract",
+    description: "A Ponder app that uses a proxy contract",
   },
   {
-    title: "feature-read-contract",
-    description: "Ponder app using a read contract call",
     id: "feature-read-contract",
+    title: "Feature - Read from a contract",
+    description: "A Ponder app that uses contract calls",
   },
   {
-    title: "project-friendtech",
-    description: "",
     id: "project-friendtech",
+    title: "project-friendtech",
+    description: "A Ponder app for Friendtech",
   },
   {
-    title: "project-uniswap-v3-flash",
-    description: "",
     id: "project-uniswap-v3-flash",
+    title: "Project - Uniswap V3 flash loans",
+    description: "A Ponder app for Uniswap V3 flash loans",
   },
   {
-    title: "reference-erc20",
-    description: "Refence ERC20 Ponder app",
     id: "reference-erc20",
+    title: "Reference - ERC20 token",
+    description: "A Ponder app for an ERC20 token",
   },
   {
-    title: "reference-erc721",
-    description: "Refence ERC721 Ponder app",
     id: "reference-erc721",
+    title: "Reference - ERC721",
+    description: "A Ponder app for an ERC721 token",
   },
 ] as const satisfies readonly Template[];
 
@@ -157,7 +153,7 @@ export async function run({
     const res = await prompts({
       initial: "my-app",
       name: "projectName",
-      message: "What is your project named?",
+      message: "What's the name of your project?",
       type: "text",
       async validate(projectName) {
         const validation = await validateProjectName({
@@ -184,7 +180,7 @@ export async function run({
     templateId = (
       await prompts({
         name: "templateId",
-        message: "What template would you like to use?",
+        message: "Which template would you like to use?",
         type: "select",
         choices: templates.map(({ id, ...t }) => ({
           ...t,
@@ -228,9 +224,9 @@ export async function run({
     });
   }
 
-  log(`Creating a new ponder app in ${pico.green(targetPath)}.`);
+  log(`Creating a repo at: ${pico.green(targetPath)}`);
   log();
-  log(`Using with ${pico.bold(templateMeta.title)}.`);
+  log(`Using template: ${pico.bold(templateMeta.title)}`);
   log();
 
   // Copy template contents into the target path
@@ -341,7 +337,7 @@ export async function run({
   const packageManager = getPackageManager({ options });
 
   // Install in background to not clutter screen
-  log(`Using ${pico.bold(packageManager)}.`);
+  log(`Installing with: ${pico.bold(packageManager)}`);
   log();
   const installArgs = [
     "install",
@@ -360,7 +356,7 @@ export async function run({
       },
     }),
     {
-      text: "Installing packages. This may take a couple of minutes.",
+      text: "Installing packages. This may take a few seconds.",
       failText: "Failed to install packages.",
       successText: "Installed packages.",
     },
@@ -377,7 +373,7 @@ export async function run({
         "commit",
         "--no-verify",
         "--message",
-        "Initial commit from create-ponder",
+        "chore: initial commit from create-ponder",
       ],
       { cwd: targetPath },
     );
