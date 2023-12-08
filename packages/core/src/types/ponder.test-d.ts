@@ -1,4 +1,5 @@
 import type { ParseAbiItem } from "abitype";
+import type { Hex } from "viem";
 import { assertType, test } from "vitest";
 
 import type { ReadOnlyClient } from "@/indexing/ponderActions.js";
@@ -108,6 +109,44 @@ test("PonderApp event name", () => {
   >["event"]["name"];
 
   assertType<name>("" as "Event0");
+});
+
+test("PonderApp event args", () => {
+  type p = PonderApp<
+    // ^?
+    {
+      networks: any;
+      contracts: { Contract: { network: any; abi: [Event0] } };
+    },
+    any
+  >;
+
+  type args = Extract<
+    // ^?
+    Parameters<Parameters<p["on"]>[1]>[0],
+    { event: unknown }
+  >["event"]["args"];
+
+  assertType<args>({} as unknown as { arg: Hex });
+});
+
+test("PonderApp event args with unnamed param", () => {
+  type p = PonderApp<
+    // ^?
+    {
+      networks: any;
+      contracts: { Contract: { network: any; abi: [Event1Overloaded] } };
+    },
+    any
+  >;
+
+  type args = Extract<
+    // ^?
+    Parameters<Parameters<p["on"]>[1]>[0],
+    { event: unknown }
+  >["event"]["args"];
+
+  assertType<args>({} as unknown as [Hex]);
 });
 
 test("PonderApp event name filtering", () => {
