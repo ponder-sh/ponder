@@ -13,6 +13,7 @@ import { resetTestClient, setupSyncStore } from "@/_test/setup.js";
 import { publicClient, testClient, walletClient } from "@/_test/utils.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
+import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt } from "@/utils/encoding.js";
 import { range } from "@/utils/range.js";
 
@@ -318,15 +319,18 @@ test("start() emits realtimeCheckpoint events", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
     blockNumber: 16379996,
     blockTimestamp: 1673397023,
+    chainId: 1,
   });
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
     blockNumber: 16380000,
     blockTimestamp: 1673397071,
+    chainId: 1,
   });
   expect(emitSpy).toHaveBeenCalledWith("realtimeCheckpoint", {
     blockNumber: 16380008,
     // Anvil messes with the block number for blocks mined locally.
     blockTimestamp: expect.any(Number),
+    chainId: 1,
   });
 
   await service.kill();
@@ -365,6 +369,7 @@ test("start() inserts log filter interval records for finalized blocks", async (
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
     blockNumber: 16380000,
     blockTimestamp: expect.any(Number),
+    chainId: 1,
   });
 
   await service.kill();
@@ -476,7 +481,9 @@ test("start() emits shallowReorg event after 3 block shallow reorg", async (cont
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("shallowReorg", {
-    commonAncestorBlockTimestamp: 1673397071, // Timestamp of 16380000
+    blockTimestamp: 1673397071, // Timestamp of 16380000
+    blockNumber: 16380000,
+    chainId: 1,
   });
 
   await service.kill();
@@ -512,6 +519,7 @@ test("emits deepReorg event after deep reorg", async (context) => {
   expect(emitSpy).toHaveBeenCalledWith("finalityCheckpoint", {
     blockNumber: 16380000,
     blockTimestamp: expect.any(Number),
+    chainId: 1,
   });
 
   // Now, revert to the original snapshot and mine 13 blocks, each containing 2 transactions.
@@ -568,8 +576,8 @@ test("start() with factory contract inserts new child contracts records and chil
   ]);
 
   const eventIterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     factories: [
       {
         id: "UniswapV3Pool",
