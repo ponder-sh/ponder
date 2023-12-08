@@ -6,23 +6,30 @@ import type { Source } from "@/config/sources.js";
 import { sourceIsFactory, sourceIsLogFilter } from "@/config/sources.js";
 import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
-import { formatShortDate } from "@/utils/date.js";
+import {
+  type Checkpoint,
+  checkpointMax,
+  checkpointMin,
+  isCheckpointGreaterThan,
+  zeroCheckpoint,
+} from "@/utils/checkpoint.js";
 
 type SyncGatewayEvents = {
   /**
    * Emitted when a new event checkpoint is reached. This is the minimum timestamp
    * at which events are available across all registered networks.
    */
-  newCheckpoint: { timestamp: number };
+  newCheckpoint: Checkpoint;
   /**
    * Emitted when a new finality checkpoint is reached. This is the minimum timestamp
    * at which events are finalized across all registered networks.
    */
-  newFinalityCheckpoint: { timestamp: number };
+  newFinalityCheckpoint: Checkpoint;
   /**
-   * Emitted when a reorg has been detected on any registered network.
+   * Emitted when a reorg has been detected on any registered network. The value
+   * is the safe/"common ancestor" checkpoint.
    */
-  reorg: { commonAncestorTimestamp: number };
+  reorg: Checkpoint;
 };
 
 type SyncGatewayMetrics = {};
@@ -34,23 +41,23 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   private sources: Source[];
 
   // Minimum timestamp at which events are available (across all networks).
-  checkpoint: number;
+  checkpoint: Checkpoint;
   // Minimum finalized timestamp (across all networks).
-  finalityCheckpoint: number;
-
-  // Timestamp at which the historical sync was completed (across all networks).
-  historicalSyncCompletedAt?: number;
+  finalityCheckpoint: Checkpoint;
 
   // Per-network event timestamp checkpoints.
   private networkCheckpoints: Record<
     number,
     {
       isHistoricalSyncComplete: boolean;
-      historicalCheckpoint: number;
-      realtimeCheckpoint: number;
-      finalityCheckpoint: number;
+      historicalCheckpoint: Checkpoint;
+      realtimeCheckpoint: Checkpoint;
+      finalityCheckpoint: Checkpoint;
     }
   >;
+
+  // Timestamp at which the historical sync was completed (across all networks).
+  historicalSyncCompletedAt?: number;
 
   metrics: SyncGatewayMetrics;
 
@@ -73,39 +80,41 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     this.sources = sources;
     this.metrics = {};
 
-    this.checkpoint = 0;
-    this.finalityCheckpoint = 0;
+    this.checkpoint = zeroCheckpoint;
+    this.finalityCheckpoint = zeroCheckpoint;
 
     this.networkCheckpoints = {};
     this.networks.forEach((network) => {
-      this.networkCheckpoints[network.chainId] = {
+      const { chainId } = network;
+      this.networkCheckpoints[chainId] = {
         isHistoricalSyncComplete: false,
-        historicalCheckpoint: 0,
-        realtimeCheckpoint: 0,
-        finalityCheckpoint: 0,
+        historicalCheckpoint: zeroCheckpoint,
+        realtimeCheckpoint: zeroCheckpoint,
+        finalityCheckpoint: zeroCheckpoint,
       };
     });
   }
 
-  /** Fetches events for all registered log filters between the specified timestamps.
+  /** Fetches events for all registered log filters between the specified checkpoints.
    *
-   * @param options.fromTimestamp Timestamp to start including events (inclusive).
-   * @param options.toTimestamp Timestamp to stop including events (inclusive).
-   * @param options.includeLogFilterEvents Map of log filter name -> selector -> ABI event item for which to include full event objects.
-   * @returns A promise resolving to an array of log events.
+   * @param options.fromCheckpoint Checkpoint to include events from (exclusive).
+   * @param options.toCheckpoint Checkpoint to include events to (inclusive).
+   * @param options.includeLogFilterEvents Map of log filter name -> selector -> ABI event
+   * item for which to include full event objects.
+   * @returns An async interator of event pages.
    */
-  async *getEvents({
-    fromTimestamp,
-    toTimestamp,
+  getEvents({
+    fromCheckpoint,
+    toCheckpoint,
     includeEventSelectors,
   }: {
-    fromTimestamp: number;
-    toTimestamp: number;
+    fromCheckpoint: Checkpoint;
+    toCheckpoint: Checkpoint;
     includeEventSelectors: { [sourceId: string]: Hex[] };
   }) {
-    const iterator = this.syncStore.getLogEvents({
-      fromTimestamp,
-      toTimestamp,
+    return this.syncStore.getLogEvents({
+      fromCheckpoint,
+      toCheckpoint,
       logFilters: this.sources.filter(sourceIsLogFilter).map((logFilter) => ({
         id: logFilter.id,
         chainId: logFilter.chainId,
@@ -123,26 +132,16 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
         includeEventSelectors: includeEventSelectors[factory.id],
       })),
     });
-
-    for await (const page of iterator) {
-      yield page;
-    }
   }
 
-  handleNewHistoricalCheckpoint = ({
-    chainId,
-    timestamp,
-  }: {
-    chainId: number;
-    timestamp: number;
-  }) => {
-    this.networkCheckpoints[chainId].historicalCheckpoint = timestamp;
+  handleNewHistoricalCheckpoint = (checkpoint: Checkpoint) => {
+    const { blockTimestamp, chainId, blockNumber } = checkpoint;
+
+    this.networkCheckpoints[chainId].historicalCheckpoint = checkpoint;
 
     this.common.logger.trace({
       service: "gateway",
-      msg: `New historical checkpoint at ${timestamp} [${formatShortDate(
-        timestamp,
-      )}] (chainId=${chainId})`,
+      msg: `New historical checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
     });
 
     this.recalculateCheckpoint();
@@ -155,10 +154,10 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     // If every network has completed the historical sync, set the metric.
     const networkCheckpoints = Object.values(this.networkCheckpoints);
     if (networkCheckpoints.every((n) => n.isHistoricalSyncComplete)) {
-      const maxHistoricalCheckpoint = Math.max(
+      const maxHistoricalCheckpoint = checkpointMax(
         ...networkCheckpoints.map((n) => n.historicalCheckpoint),
       );
-      this.historicalSyncCompletedAt = maxHistoricalCheckpoint;
+      this.historicalSyncCompletedAt = maxHistoricalCheckpoint.blockTimestamp;
 
       this.common.logger.debug({
         service: "gateway",
@@ -167,42 +166,28 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     }
   };
 
-  handleNewRealtimeCheckpoint = ({
-    chainId,
-    timestamp,
-  }: {
-    chainId: number;
-    timestamp: number;
-  }) => {
-    this.networkCheckpoints[chainId].realtimeCheckpoint = timestamp;
+  handleNewRealtimeCheckpoint = (checkpoint: Checkpoint) => {
+    const { blockTimestamp, chainId, blockNumber } = checkpoint;
+
+    this.networkCheckpoints[chainId].realtimeCheckpoint = checkpoint;
 
     this.common.logger.trace({
       service: "gateway",
-      msg: `New realtime checkpoint at ${timestamp} [${formatShortDate(
-        timestamp,
-      )}] (chainId=${chainId})`,
+      msg: `New realtime checkpoint at (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
     });
 
     this.recalculateCheckpoint();
   };
 
-  handleNewFinalityCheckpoint = ({
-    chainId,
-    timestamp,
-  }: {
-    chainId: number;
-    timestamp: number;
-  }) => {
-    this.networkCheckpoints[chainId].finalityCheckpoint = timestamp;
+  handleNewFinalityCheckpoint = (checkpoint: Checkpoint) => {
+    const { chainId } = checkpoint;
+
+    this.networkCheckpoints[chainId].finalityCheckpoint = checkpoint;
     this.recalculateFinalityCheckpoint();
   };
 
-  handleReorg = ({
-    commonAncestorTimestamp,
-  }: {
-    commonAncestorTimestamp: number;
-  }) => {
-    this.emit("reorg", { commonAncestorTimestamp });
+  handleReorg = (checkpoint: Checkpoint) => {
+    this.emit("reorg", checkpoint);
   };
 
   /** Resets global checkpoints as well as the network checkpoint for the specified chain ID.
@@ -211,59 +196,57 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
    * @param options.chainId Chain ID for which to reset the checkpoint.
    */
   resetCheckpoints = ({ chainId }: { chainId: number }) => {
-    this.checkpoint = 0;
-    this.finalityCheckpoint = 0;
+    this.checkpoint = zeroCheckpoint;
+    this.finalityCheckpoint = zeroCheckpoint;
     this.historicalSyncCompletedAt = 0;
     this.networkCheckpoints[chainId] = {
       isHistoricalSyncComplete: false,
-      historicalCheckpoint: 0,
-      realtimeCheckpoint: 0,
-      finalityCheckpoint: 0,
+      historicalCheckpoint: zeroCheckpoint,
+      realtimeCheckpoint: zeroCheckpoint,
+      finalityCheckpoint: zeroCheckpoint,
     };
   };
 
   private recalculateCheckpoint = () => {
     const checkpoints = Object.values(this.networkCheckpoints).map((n) =>
       n.isHistoricalSyncComplete
-        ? Math.max(n.historicalCheckpoint, n.realtimeCheckpoint)
+        ? checkpointMax(n.historicalCheckpoint, n.realtimeCheckpoint)
         : n.historicalCheckpoint,
     );
-    const newCheckpoint = Math.min(...checkpoints);
+    const newCheckpoint = checkpointMin(...checkpoints);
 
-    if (newCheckpoint > this.checkpoint) {
+    if (isCheckpointGreaterThan(newCheckpoint, this.checkpoint)) {
       this.checkpoint = newCheckpoint;
 
+      const { chainId, blockTimestamp, blockNumber } = this.checkpoint;
       this.common.logger.trace({
         service: "gateway",
-        msg: `New event checkpoint at ${this.checkpoint} [${formatShortDate(
-          this.checkpoint,
-        )}]`,
+        msg: `New checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
       });
 
-      this.emit("newCheckpoint", { timestamp: this.checkpoint });
+      this.emit("newCheckpoint", this.checkpoint);
     }
   };
 
   private recalculateFinalityCheckpoint = () => {
-    const newFinalityCheckpoint = Math.min(
+    const newFinalityCheckpoint = checkpointMin(
       ...Object.values(this.networkCheckpoints).map(
         (n) => n.finalityCheckpoint,
       ),
     );
 
-    if (newFinalityCheckpoint > this.finalityCheckpoint) {
+    if (
+      isCheckpointGreaterThan(newFinalityCheckpoint, this.finalityCheckpoint)
+    ) {
       this.finalityCheckpoint = newFinalityCheckpoint;
 
+      const { chainId, blockTimestamp, blockNumber } = this.finalityCheckpoint;
       this.common.logger.trace({
         service: "gateway",
-        msg: `New finality checkpoint at ${
-          this.finalityCheckpoint
-        } [${formatShortDate(this.finalityCheckpoint)}]`,
+        msg: `New finality checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
       });
 
-      this.emit("newFinalityCheckpoint", {
-        timestamp: this.finalityCheckpoint,
-      });
+      this.emit("newFinalityCheckpoint", this.finalityCheckpoint);
     }
   };
 }

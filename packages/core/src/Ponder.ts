@@ -409,39 +409,26 @@ export class Ponder {
     );
 
     this.syncServices.forEach(({ network, historical, realtime }) => {
-      const { chainId } = network;
-
-      historical.on("historicalCheckpoint", ({ blockTimestamp }) => {
-        this.syncGatewayService.handleNewHistoricalCheckpoint({
-          chainId,
-          timestamp: blockTimestamp,
-        });
+      historical.on("historicalCheckpoint", (checkpoint) => {
+        this.syncGatewayService.handleNewHistoricalCheckpoint(checkpoint);
       });
 
       historical.on("syncComplete", () => {
         this.syncGatewayService.handleHistoricalSyncComplete({
-          chainId,
+          chainId: network.chainId,
         });
       });
 
-      realtime.on("realtimeCheckpoint", ({ blockTimestamp }) => {
-        this.syncGatewayService.handleNewRealtimeCheckpoint({
-          chainId,
-          timestamp: blockTimestamp,
-        });
+      realtime.on("realtimeCheckpoint", (checkpoint) => {
+        this.syncGatewayService.handleNewRealtimeCheckpoint(checkpoint);
       });
 
-      realtime.on("finalityCheckpoint", ({ blockTimestamp }) => {
-        this.syncGatewayService.handleNewFinalityCheckpoint({
-          chainId,
-          timestamp: blockTimestamp,
-        });
+      realtime.on("finalityCheckpoint", (checkpoint) => {
+        this.syncGatewayService.handleNewFinalityCheckpoint(checkpoint);
       });
 
-      realtime.on("shallowReorg", ({ commonAncestorBlockTimestamp }) => {
-        this.syncGatewayService.handleReorg({
-          commonAncestorTimestamp: commonAncestorBlockTimestamp,
-        });
+      realtime.on("shallowReorg", (checkpoint) => {
+        this.syncGatewayService.handleReorg(checkpoint);
       });
     });
 
@@ -449,12 +436,12 @@ export class Ponder {
       await this.indexingService.processEvents();
     });
 
-    this.syncGatewayService.on("reorg", async ({ commonAncestorTimestamp }) => {
-      await this.indexingService.handleReorg({ commonAncestorTimestamp });
+    this.syncGatewayService.on("reorg", async (checkpoint) => {
+      await this.indexingService.handleReorg(checkpoint);
       await this.indexingService.processEvents();
     });
 
-    this.indexingService.on("eventsProcessed", ({ toTimestamp }) => {
+    this.indexingService.on("eventsProcessed", ({ toCheckpoint }) => {
       if (this.serverService.isHistoricalIndexingComplete) return;
 
       // If a batch of events are processed AND the historical sync is complete AND
@@ -462,7 +449,8 @@ export class Ponder {
       // historical event processing is complete, and the server should begin responding as healthy.
       if (
         this.syncGatewayService.historicalSyncCompletedAt &&
-        toTimestamp >= this.syncGatewayService.historicalSyncCompletedAt
+        toCheckpoint.blockTimestamp >=
+          this.syncGatewayService.historicalSyncCompletedAt
       ) {
         this.serverService.setIsHistoricalIndexingComplete();
       }

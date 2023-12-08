@@ -16,6 +16,7 @@ import {
 } from "@/config/sources.js";
 import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
 import { poll } from "@/utils/poll.js";
 import { createQueue, type Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
@@ -31,9 +32,9 @@ import {
 } from "./format.js";
 
 type RealtimeSyncEvents = {
-  realtimeCheckpoint: { blockTimestamp: number; blockNumber: number };
-  finalityCheckpoint: { blockTimestamp: number; blockNumber: number };
-  shallowReorg: { commonAncestorBlockTimestamp: number };
+  realtimeCheckpoint: Checkpoint;
+  finalityCheckpoint: Checkpoint;
+  shallowReorg: Checkpoint;
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
 };
 
@@ -440,8 +441,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       }
 
       this.emit("realtimeCheckpoint", {
-        blockNumber: hexToNumber(newBlockWithTransactions.number),
         blockTimestamp: hexToNumber(newBlockWithTransactions.timestamp),
+        chainId: this.network.chainId,
+        blockNumber: hexToNumber(newBlockWithTransactions.number),
       });
 
       // Add this block the local chain.
@@ -494,8 +496,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.finalizedBlockNumber = newFinalizedBlock.number;
 
         this.emit("finalityCheckpoint", {
-          blockNumber: newFinalizedBlock.number,
           blockTimestamp: newFinalizedBlock.timestamp,
+          chainId: this.network.chainId,
+          blockNumber: newFinalizedBlock.number,
         });
 
         this.common.logger.debug({
@@ -623,7 +626,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // start fetching any newer blocks on the canonical chain.
         await this.addNewLatestBlock(signal);
         this.emit("shallowReorg", {
-          commonAncestorBlockTimestamp: commonAncestorBlock.timestamp,
+          blockTimestamp: commonAncestorBlock.timestamp,
+          chainId: this.network.chainId,
+          blockNumber: commonAncestorBlock.number,
         });
 
         this.common.logger.info({

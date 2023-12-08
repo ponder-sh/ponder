@@ -15,6 +15,7 @@ import { setupSyncStore } from "@/_test/setup.js";
 import { publicClient } from "@/_test/utils.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
+import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 import { HistoricalSyncService } from "./service.js";
 
@@ -287,8 +288,8 @@ test("start() adds log filter events to sync store", async (context) => {
   await service.onIdle();
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "USDC",
@@ -341,8 +342,8 @@ test("start() adds log filter and factory contract events to sync store", async 
   await service.onIdle();
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "USDC",
@@ -530,8 +531,9 @@ test("start() emits checkpoint and sync completed event if 100% cached", async (
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
-    blockNumber: expect.any(Number),
     blockTimestamp: expect.any(Number),
+    chainId: 1,
+    blockNumber: expect.any(Number),
   });
   expect(emitSpy).toHaveBeenCalledWith("syncComplete");
   expect(emitSpy).toHaveBeenCalledTimes(2);
@@ -556,8 +558,9 @@ test("start() emits historicalCheckpoint event", async (context) => {
   await service.onIdle();
 
   expect(emitSpy).toHaveBeenCalledWith("historicalCheckpoint", {
-    blockNumber: 16370000,
     blockTimestamp: 1673276423, // Block timestamp of block 16370000
+    chainId: 1,
+    blockNumber: 16370000,
   });
 
   await service.kill();
