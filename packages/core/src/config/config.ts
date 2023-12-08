@@ -93,13 +93,13 @@ export type ContractFilter<
   TFactoryEvent extends AbiEvent | undefined,
 > = (
   | {
-      address?: `0x${string}` | readonly `0x${string}`[];
+      address: `0x${string}` | readonly `0x${string}`[];
       factory?: never;
     }
   | {
       address?: never;
       /** Factory contract configuration. */
-      factory?: {
+      factory: {
         /** Address of the factory contract that creates this contract. */
         address: `0x${string}`;
         /** ABI event that announces the creation of a new instance of this contract. */
@@ -110,6 +110,7 @@ export type ContractFilter<
           : string;
       };
     }
+  | {}
 ) & {
   /** Block number at which to start indexing events (inclusive). Default: `0`. */
   startBlock?: number;
@@ -215,29 +216,29 @@ export type Config = {
  * Validates type of config, and returns a strictly typed, resolved config.
  */
 export const createConfig = <
-  const TConfig extends {
-    database?: Database;
-    networks: Record<string, Network>;
-    contracts: {
-      [ContractName in keyof TConfig["contracts"]]: Contract<
-        keyof TConfig["networks"] & string,
-        TConfig["contracts"][ContractName]["abi"],
-        TConfig["contracts"][ContractName] extends {
-          event: infer _event extends string;
-        }
-          ? _event
-          : string,
-        TConfig["contracts"][ContractName] extends {
-          factory: {
-            event: infer _event extends AbiEvent;
-          };
-        }
-          ? _event
-          : undefined
-      >;
-    };
-    options?: Option;
+  const TNetworks extends Record<string, Network>,
+  const TContracts extends {
+    [ContractName in keyof TContracts]: Contract<
+      keyof TNetworks & string,
+      TContracts[ContractName]["abi"],
+      TContracts[ContractName]["filter"] extends {
+        event: infer _event extends string;
+      }
+        ? _event
+        : string,
+      TContracts[ContractName] extends {
+        factory: {
+          event: infer _event extends AbiEvent;
+        };
+      }
+        ? _event
+        : undefined
+    >;
   },
->(
-  config: TConfig,
-): TConfig => config;
+>(config: {
+  database?: Database;
+  networks: TNetworks;
+  contracts: TContracts &
+    Record<string, Contract<string, Abi, string, AbiEvent>>;
+  options?: Option;
+}) => config;
