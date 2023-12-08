@@ -20,7 +20,7 @@ export default createConfig({
         event: getAbiItem({ abi: UniswapV3FactoryAbi, name: "PoolCreated" }),
         parameter: "pool",
       },
-      startBlock: 18740465,
+      startBlock: 18700465,
       filter: {
         event: "Flash",
       },
