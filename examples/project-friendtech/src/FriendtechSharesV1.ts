@@ -21,7 +21,7 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
     : event.args.ethAmount - feeAmount;
 
   const tradeEvent = await TradeEvent.create({
-    id: tradeEventId as `0x${string}`,
+    id: tradeEventId,
     data: {
       subjectId: subjectId,
       traderId: traderId,
@@ -99,7 +99,7 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
 
   if (tradeEvent.tradeType === "BUY") {
     await Share.upsert({
-      id: shareId as `0x${string}`,
+      id: shareId,
       create: {
         subjectId,
         traderId,
@@ -111,7 +111,7 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
     });
   } else {
     const share = await Share.update({
-      id: shareId as `0x${string}`,
+      id: shareId,
       data: ({ current }) => ({
         shareAmount: current.shareAmount - tradeEvent.shareAmount,
       }),
@@ -119,7 +119,7 @@ ponder.on("FriendtechSharesV1:Trade", async ({ event, context }) => {
 
     if (share.shareAmount === 0n) {
       await Share.delete({
-        id: shareId as `0x${string}`,
+        id: shareId,
       });
     }
   }

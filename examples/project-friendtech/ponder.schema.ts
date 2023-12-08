@@ -3,7 +3,7 @@ import { createSchema } from "@ponder/core";
 export default createSchema((p) => ({
   TradeType: p.createEnum(["BUY", "SELL"]),
   Share: p.createTable({
-    id: p.bytes(),
+    id: p.string(),
 
     subjectId: p.bytes().references("Subject.id"),
     traderId: p.bytes().references("Trader.id"),
@@ -14,7 +14,7 @@ export default createSchema((p) => ({
     shareAmount: p.bigint(),
   }),
   TradeEvent: p.createTable({
-    id: p.bytes(),
+    id: p.string(),
 
     subjectId: p.bytes().references("Subject.id"),
     traderId: p.bytes().references("Trader.id"),
