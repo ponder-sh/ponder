@@ -2,7 +2,7 @@ import { createSchema } from "@ponder/core";
 
 export default createSchema((p) => ({
   Account: p.createTable({
-    id: p.string(),
+    id: p.bytes(),
     tokens: p.many("Token.ownerId"),
 
     transferFromEvents: p.many("TransferEvent.fromId"),
@@ -10,16 +10,16 @@ export default createSchema((p) => ({
   }),
   Token: p.createTable({
     id: p.bigint(),
-    ownerId: p.string().references("Account.id"),
+    ownerId: p.bytes().references("Account.id"),
 
     owner: p.one("ownerId"),
     transferEvents: p.many("TransferEvent.tokenId"),
   }),
   TransferEvent: p.createTable({
-    id: p.string(),
+    id: p.bytes(),
     timestamp: p.int(),
-    fromId: p.string().references("Account.id"),
-    toId: p.string().references("Account.id"),
+    fromId: p.bytes().references("Account.id"),
+    toId: p.bytes().references("Account.id"),
     tokenId: p.bigint().references("Token.id"),
 
     from: p.one("fromId"),
