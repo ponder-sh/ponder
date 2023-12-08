@@ -1046,7 +1046,7 @@ export class PostgresSyncStore implements SyncStore {
             blockHash: row.log_blockHash,
             blockNumber: row.log_blockNumber,
             data: row.log_data,
-            id: row.log_id,
+            id: row.log_id as Log["id"],
             logIndex: Number(row.log_logIndex),
             removed: false,
             topics: [
