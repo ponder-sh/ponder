@@ -103,8 +103,8 @@ export class PostgresIndexingStore implements IndexingStore {
       }),
     });
     if (isReadOnly) {
-      // This is a hack to stop readonly connections from connecting to a schema using the Kysely plugin.
-      //
+      // This is a hack to stop readonly connections from connecting to a namespace using the Kysely plugin as readonly
+      // connections set their namespace using the search_path setter in the onCreateConnection hook.
       return;
     }
 
