@@ -21,6 +21,13 @@ const schema = createSchema((p) => ({
   }),
 }));
 
+const bytesSchema = createSchema((p) => ({
+  table: p.createTable({
+    id: p.bytes(),
+    n: p.int(),
+  }),
+}));
+
 function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index };
 }
@@ -928,4 +935,127 @@ test("revert() updates versions that only existed during the safe timestamp to l
   const pets = await indexingStore.findMany({ tableName: "Pet" });
   expect(pets.length).toBe(1);
   expect(pets[0].name).toBe("Skip");
+});
+
+test("findUnique() works with bytes case sensitivity", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema: bytesSchema });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: createCheckpoint(10),
+    id: "0xa",
+    data: { n: 1 },
+  });
+
+  const instance = await indexingStore.findUnique({
+    tableName: "table",
+    checkpoint: createCheckpoint(25),
+    id: "0xA",
+  });
+  expect(instance).toMatchObject({ id: "0xa", n: 1 });
+});
+
+test("update() works with bytes case sensitivity", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema: bytesSchema });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: createCheckpoint(10),
+    id: "0xa",
+    data: { n: 1 },
+  });
+
+  await indexingStore.update({
+    tableName: "table",
+    checkpoint: createCheckpoint(10),
+    id: "0xA",
+    data: { n: 2 },
+  });
+
+  const instance = await indexingStore.findUnique({
+    tableName: "table",
+    checkpoint: createCheckpoint(25),
+    id: "0xA",
+  });
+  expect(instance).toMatchObject({ id: "0xA", n: 2 });
+});
+
+test("updateMany() works with bytes case sensitivity", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema: bytesSchema });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: createCheckpoint(10),
+    id: "0xa",
+    data: { n: 1 },
+  });
+
+  await indexingStore.updateMany({
+    tableName: "table",
+    checkpoint: createCheckpoint(10),
+    where: { n: { gt: 0 } },
+    data: { n: 2 },
+  });
+
+  const instance = await indexingStore.findUnique({
+    tableName: "table",
+    checkpoint: createCheckpoint(25),
+    id: "0xa",
+  });
+  expect(instance).toMatchObject({ id: "0xa", n: 2 });
+});
+
+test("upsert() works with bytes case sensitivity", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema: bytesSchema });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: createCheckpoint(10),
+    id: "0xa",
+    data: { n: 1 },
+  });
+
+  await indexingStore.upsert({
+    tableName: "table",
+    checkpoint: createCheckpoint(10),
+    id: "0xA",
+    update: { n: 2 },
+  });
+
+  const instance = await indexingStore.findUnique({
+    tableName: "table",
+    checkpoint: createCheckpoint(25),
+    id: "0xA",
+  });
+  expect(instance).toMatchObject({ id: "0xA", n: 2 });
+});
+
+test("delete() works with bytes case sensitivity", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema: bytesSchema });
+
+  await indexingStore.create({
+    tableName: "table",
+    checkpoint: createCheckpoint(10),
+    id: "0xa",
+    data: { n: 1 },
+  });
+
+  await indexingStore.delete({
+    tableName: "table",
+    checkpoint: createCheckpoint(25),
+    id: "0xA",
+  });
+
+  const deletedInstance = await indexingStore.findUnique({
+    tableName: "table",
+    checkpoint: createCheckpoint(25),
+    id: "0xa",
+  });
+
+  expect(deletedInstance).toBe(null);
 });

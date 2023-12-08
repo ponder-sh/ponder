@@ -212,7 +212,11 @@ export class SqliteIndexingStore implements IndexingStore {
       let query = this.db
         .selectFrom(table)
         .selectAll()
-        .where("id", "=", formattedId);
+        .where(
+          "id",
+          this.idColumnComparator({ tableName, schema: this.schema }),
+          formattedId,
+        );
 
       if (checkpoint === "latest") {
         query = query.where("effectiveToCheckpoint", "=", "latest");
@@ -390,7 +394,11 @@ export class SqliteIndexingStore implements IndexingStore {
         const latestRow = await tx
           .selectFrom(table)
           .selectAll()
-          .where("id", "=", formattedId)
+          .where(
+            "id",
+            this.idColumnComparator({ tableName, schema: this.schema }),
+            formattedId,
+          )
           .where("effectiveToCheckpoint", "=", "latest")
           .executeTakeFirstOrThrow();
 
@@ -416,7 +424,11 @@ export class SqliteIndexingStore implements IndexingStore {
           return await tx
             .updateTable(table)
             .set(updateRow)
-            .where("id", "=", formattedId)
+            .where(
+              "id",
+              this.idColumnComparator({ tableName, schema: this.schema }),
+              formattedId,
+            )
             .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -427,7 +439,11 @@ export class SqliteIndexingStore implements IndexingStore {
         const [, row] = await Promise.all([
           tx
             .updateTable(table)
-            .where("id", "=", formattedId)
+            .where(
+              "id",
+              this.idColumnComparator({ tableName, schema: this.schema }),
+              formattedId,
+            )
             .where("effectiveToCheckpoint", "=", "latest")
             .set({ effectiveToCheckpoint: encodedCheckpoint })
             .execute(),
@@ -518,7 +534,11 @@ export class SqliteIndexingStore implements IndexingStore {
               return await tx
                 .updateTable(table)
                 .set(updateRow)
-                .where("id", "=", formattedId)
+                .where(
+                  "id",
+                  this.idColumnComparator({ tableName, schema: this.schema }),
+                  formattedId,
+                )
                 .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
                 .returningAll()
                 .executeTakeFirstOrThrow();
@@ -529,7 +549,11 @@ export class SqliteIndexingStore implements IndexingStore {
             const [, row] = await Promise.all([
               tx
                 .updateTable(table)
-                .where("id", "=", formattedId)
+                .where(
+                  "id",
+                  this.idColumnComparator({ tableName, schema: this.schema }),
+                  formattedId,
+                )
                 .where("effectiveToCheckpoint", "=", "latest")
                 .set({ effectiveToCheckpoint: encodedCheckpoint })
                 .execute(),
@@ -583,7 +607,11 @@ export class SqliteIndexingStore implements IndexingStore {
         const latestRow = await tx
           .selectFrom(table)
           .selectAll()
-          .where("id", "=", formattedId)
+          .where(
+            "id",
+            this.idColumnComparator({ tableName, schema: this.schema }),
+            formattedId,
+          )
           .where("effectiveToCheckpoint", "=", "latest")
           .executeTakeFirst();
 
@@ -622,7 +650,11 @@ export class SqliteIndexingStore implements IndexingStore {
           return await tx
             .updateTable(table)
             .set(updateRow)
-            .where("id", "=", formattedId)
+            .where(
+              "id",
+              this.idColumnComparator({ tableName, schema: this.schema }),
+              formattedId,
+            )
             .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -633,7 +665,11 @@ export class SqliteIndexingStore implements IndexingStore {
         const [, row] = await Promise.all([
           tx
             .updateTable(table)
-            .where("id", "=", formattedId)
+            .where(
+              "id",
+              this.idColumnComparator({ tableName, schema: this.schema }),
+              formattedId,
+            )
             .where("effectiveToCheckpoint", "=", "latest")
             .set({ effectiveToCheckpoint: encodedCheckpoint })
             .execute(),
@@ -678,7 +714,11 @@ export class SqliteIndexingStore implements IndexingStore {
         // this row was created within the same indexing function, and we can delete it.
         let deletedRow = await tx
           .deleteFrom(table)
-          .where("id", "=", formattedId)
+          .where(
+            "id",
+            this.idColumnComparator({ tableName, schema: this.schema }),
+            formattedId,
+          )
           .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
           .where("effectiveToCheckpoint", "=", "latest")
           .returning(["id"])
@@ -690,7 +730,11 @@ export class SqliteIndexingStore implements IndexingStore {
           deletedRow = await tx
             .updateTable(table)
             .set({ effectiveToCheckpoint: encodedCheckpoint })
-            .where("id", "=", formattedId)
+            .where(
+              "id",
+              this.idColumnComparator({ tableName, schema: this.schema }),
+              formattedId,
+            )
             .where("effectiveToCheckpoint", "=", "latest")
             .returning(["id"])
             .executeTakeFirst();
@@ -763,4 +807,12 @@ export class SqliteIndexingStore implements IndexingStore {
     );
     return result;
   };
+
+  private idColumnComparator = ({
+    tableName,
+    schema,
+  }: {
+    tableName: string;
+    schema: Schema | undefined;
+  }) => (schema?.tables[tableName]?.id.type === "bytes" ? "like" : "=");
 }
