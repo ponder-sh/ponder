@@ -11,8 +11,10 @@ import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 
 import type { Config } from "@/config/config.js";
+import { validateConfig } from "@/config/validate.js";
 import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
+import { validateSchema } from "@/schema/validate.js";
 import { buildGqlSchema } from "@/server/graphql/schema.js";
 
 import {
@@ -168,7 +170,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
     const config = result.exports.default as Config;
 
-    // TODO: Validate config lol
+    validateConfig({ config });
 
     this.emit("newConfig", { config });
     return config;
@@ -184,7 +186,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const schema = result.exports.default as Schema;
     const graphqlSchema = buildGqlSchema(schema);
 
-    // TODO: Validate schema lol
+    validateSchema({ schema });
 
     this.emit("newSchema", { schema, graphqlSchema });
 
