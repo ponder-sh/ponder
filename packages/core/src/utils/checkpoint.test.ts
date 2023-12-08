@@ -123,6 +123,19 @@ test("isCheckpointGreaterThan returns false for equal checkpoints", () => {
   expect(isGreater).toBe(false);
 });
 
+test("isCheckpointGreaterThan returns false for equal checkpoints with undefined logIndex ", () => {
+  const checkpointOne = {
+    blockTimestamp: 6,
+    chainId: 5,
+    blockNumber: 9,
+    logIndex: undefined,
+  };
+
+  const isGreater = isCheckpointGreaterThan(checkpointOne, checkpointOne);
+
+  expect(isGreater).toBe(false);
+});
+
 test("checkpointMax returns correct value if only one checkpoint", () => {
   const checkpointOne = {
     blockTimestamp: 1,

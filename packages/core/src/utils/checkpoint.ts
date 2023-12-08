@@ -82,11 +82,14 @@ export const isCheckpointGreaterThan = (a: Checkpoint, b: Checkpoint) => {
   if (a.logIndex !== undefined && b.logIndex !== undefined) {
     return a.logIndex > b.logIndex;
   }
-  // If only one is defined, the one that is undefined is considered greater.
-  if (a.logIndex === undefined) return true;
-  if (b.logIndex === undefined) return false;
   // If both are undefined, the checkpoints are equal, so a is not greater than b.
-  return false;
+  if (a.logIndex === undefined && b.logIndex === undefined) {
+    return false;
+  }
+  // If only a is undefined, it's considered greater.
+  if (a.logIndex === undefined) return true;
+  // Otherwise b is undefined and a is defined, so b is greater.
+  else return false;
 };
 
 export const checkpointMax = (...checkpoints: Checkpoint[]) =>
