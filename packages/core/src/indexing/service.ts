@@ -232,8 +232,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
         if (this.hasError) return;
 
         const hasProcessedInvalidEvents = isCheckpointGreaterThan(
-          safeCheckpoint,
           this.eventsProcessedToCheckpoint,
+          safeCheckpoint,
         );
         if (!hasProcessedInvalidEvents) {
           // No unsafe events have been processed, so no need to revert (case 1 & case 2).

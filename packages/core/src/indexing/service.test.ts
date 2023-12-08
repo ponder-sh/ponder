@@ -97,21 +97,24 @@ const transferLog = {
 };
 
 const getEvents = vi.fn(async function* getEvents({
-  // fromTimestamp,
-  toTimestamp,
+  // fromCheckpoint,
+  toCheckpoint,
 }) {
   yield {
     events: [
       {
         sourceId: "USDC_mainnet",
         chainId: 1,
-        log: { id: String(toTimestamp), ...transferLog },
-        block: { timestamp: BigInt(toTimestamp), number: 16375000n },
+        log: { id: String(toCheckpoint.blockTimestamp), ...transferLog },
+        block: {
+          timestamp: BigInt(toCheckpoint.blockTimestamp),
+          number: 16375000n,
+        },
         transaction: {},
       },
     ],
     metadata: {
-      pageEndsAtTimestamp: toTimestamp,
+      pageEndCheckpoint: toCheckpoint,
       counts: [
         {
           sourceId: "USDC_mainnet",
@@ -125,7 +128,7 @@ const getEvents = vi.fn(async function* getEvents({
 
 const syncGatewayService = {
   getEvents,
-  checkpoint: 0,
+  checkpoint: zeroCheckpoint,
 } as unknown as SyncGateway;
 
 function createCheckpoint(index: number): Checkpoint {
@@ -135,7 +138,7 @@ function createCheckpoint(index: number): Checkpoint {
 beforeEach(() => {
   // Restore getEvents to the initial implementation.
   vi.restoreAllMocks();
-  syncGatewayService.resetCheckpoints({ chainId: networks.mainnet.chainId });
+  syncGatewayService.checkpoint = zeroCheckpoint;
 });
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
@@ -165,7 +168,7 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
     }),
   );
 
-  const checkpoint50 = createCheckpoint(10);
+  const checkpoint50 = createCheckpoint(50);
   syncGatewayService.checkpoint = checkpoint50;
   await service.processEvents();
 
@@ -316,7 +319,8 @@ test("processEvents() client.readContract", async (context) => {
     indexingFunctions: readContractIndexingFunctions,
   });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const supplyEvents = await indexingStore.findMany({
@@ -347,7 +351,8 @@ test("processEvents() client.readContract handles errors", async (context) => {
     indexingFunctions: readContractIndexingFunctions,
   });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const supplyEvents = await indexingStore.findMany({
@@ -506,8 +511,8 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 0,
-      toTimestamp: 10,
+      fromCheckpoint: zeroCheckpoint,
+      toCheckpoint: checkpoint10,
     }),
   );
 
