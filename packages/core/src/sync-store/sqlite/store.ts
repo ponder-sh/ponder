@@ -6,7 +6,13 @@ import {
   SqliteDialect,
   type Transaction as KyselyTransaction,
 } from "kysely";
-import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import {
+  checksumAddress,
+  type Hex,
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+} from "viem";
 
 import type {
   FactoryCriteria,
@@ -319,7 +325,7 @@ export class SqliteSyncStore implements SyncStore {
       }
 
       if (batch.length > 0) {
-        yield batch.map((a) => a.childAddress);
+        yield batch.map((a) => checksumAddress(a.childAddress));
       }
 
       if (batch.length < pageSize) break;
@@ -1010,7 +1016,7 @@ export class SqliteSyncStore implements SyncStore {
       exprs.push(
         eb(
           "logs.address",
-          "in",
+          "like",
           eb
             .selectFrom("logs")
             .select(selectChildAddressExpression.as("childAddress"))

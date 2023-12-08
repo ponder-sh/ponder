@@ -1,4 +1,5 @@
 import {
+  checksumAddress,
   type EIP1193RequestFn,
   HttpRequestError,
   InvalidParamsRpcError,
@@ -140,10 +141,10 @@ test("start() with factory contract inserts child contract addresses", async (co
 
   expect(childContractAddresses).toMatchObject(
     expect.arrayContaining([
-      "0x6e4c301b43b5d6fc47ceac2fb9b6b3209e640eab",
-      "0x8d92afe4ab7f4d0379d37a6da3643763964cb6df",
-      "0x01b2848a0d9ffced595b0df3df10fb32430fa200",
-      "0xd5f83865bf8edb1f02e688dc2ee02d39e28692b3",
+      checksumAddress("0x6e4c301b43b5d6fc47ceac2fb9b6b3209e640eab"),
+      checksumAddress("0x8d92afe4ab7f4d0379d37a6da3643763964cb6df"),
+      checksumAddress("0x01b2848a0d9ffced595b0df3df10fb32430fa200"),
+      checksumAddress("0xd5f83865bf8edb1f02e688dc2ee02d39e28692b3"),
     ]),
   );
 

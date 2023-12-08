@@ -1,4 +1,5 @@
 import {
+  checksumAddress,
   parseAbiItem,
   type RpcBlock,
   type RpcLog,
@@ -247,7 +248,7 @@ const usdcContractAbi = [
 
 export const usdcContractConfig = {
   chainId: 1,
-  address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+  address: checksumAddress("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
   abi: usdcContractAbi,
   events: getEvents({ abi: usdcContractAbi }),
 } as const;
@@ -996,7 +997,7 @@ export const blockOneTransactions: RpcTransaction[] = [
 
 export const blockOneLogs: RpcLog[] = [
   {
-    address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
+    address: "0x15D4c048F83bd7e37d49eA4C83a07267Ec4203dA",
     blockHash:
       "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
     blockNumber: "0xec6fc6",
@@ -1013,7 +1014,7 @@ export const blockOneLogs: RpcLog[] = [
     transactionIndex: "0x45",
   },
   {
-    address: "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
+    address: "0x72D4C048f83bd7E37D49eA4C83a07267ec4203dA",
     blockHash:
       "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
     blockNumber: "0xec6fc6",

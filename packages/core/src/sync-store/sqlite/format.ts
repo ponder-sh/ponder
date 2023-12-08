@@ -1,6 +1,7 @@
 import type { Generated, Insertable } from "kysely";
 import type { Address, Hash, Hex } from "viem";
 import {
+  checksumAddress,
   hexToNumber,
   type RpcBlock,
   type RpcLog,
@@ -8,7 +9,6 @@ import {
 } from "viem";
 
 import { encodeAsText } from "@/utils/encoding.js";
-import { toLowerCase } from "@/utils/lowercase.js";
 
 export type BigIntText = string;
 
@@ -51,7 +51,7 @@ export function rpcToSqliteBlock(
     gasUsed: encodeAsText(block.gasUsed),
     hash: block.hash!,
     logsBloom: block.logsBloom!,
-    miner: toLowerCase(block.miner),
+    miner: checksumAddress(block.miner),
     mixHash: block.mixHash,
     nonce: block.nonce!,
     number: encodeAsText(block.number!),
@@ -101,7 +101,7 @@ export function rpcToSqliteTransaction(
       : undefined,
     blockHash: transaction.blockHash!,
     blockNumber: encodeAsText(transaction.blockNumber!),
-    from: toLowerCase(transaction.from),
+    from: checksumAddress(transaction.from),
     gas: encodeAsText(transaction.gas),
     gasPrice: transaction.gasPrice ? encodeAsText(transaction.gasPrice) : null,
     hash: transaction.hash,
@@ -115,7 +115,7 @@ export function rpcToSqliteTransaction(
     nonce: hexToNumber(transaction.nonce),
     r: transaction.r,
     s: transaction.s,
-    to: transaction.to ? toLowerCase(transaction.to) : null,
+    to: transaction.to ? checksumAddress(transaction.to) : null,
     transactionIndex: Number(transaction.transactionIndex),
     type: transaction.type ?? "0x0",
     value: encodeAsText(transaction.value),
@@ -145,7 +145,7 @@ export type InsertableLog = Insertable<LogsTable>;
 
 export function rpcToSqliteLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
   return {
-    address: toLowerCase(log.address),
+    address: checksumAddress(log.address),
     blockHash: log.blockHash!,
     blockNumber: encodeAsText(log.blockNumber!),
     data: log.data,
