@@ -340,6 +340,7 @@ export class Ponder {
     await Promise.all([
       await this.indexingService.kill(),
       await this.buildService.kill(),
+      await this.serverService.kill(),
       await this.common.telemetry.kill(),
     ]);
 
@@ -353,8 +354,6 @@ export class Ponder {
     await this.indexingStore.kill();
     await this.syncStore.kill();
 
-    // TODO: Test if this causes the service to early shutdown.
-    await this.serverService.kill();
     this.common.logger.debug({
       service: "app",
       msg: `Finished shutdown sequence`,
