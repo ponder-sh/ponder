@@ -33,7 +33,7 @@ pnpm run deploy
 After the contracts are deployed, you can run the following command to generate a single event:
 
 ```shell
-pnpmn run generate:event
+pnpm run generate:event
 ```
 
 ## Developing

@@ -7,7 +7,7 @@ export default createConfig({
   networks: {
     anvil: {
       chainId: 31337,
-      transport: http(process.env.PONDER_RPC_URL_8545),
+      transport: http("http://127.0.0.1:8545"),
     },
   },
   contracts: {
