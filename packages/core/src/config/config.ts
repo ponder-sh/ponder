@@ -127,7 +127,6 @@ export type ContractFilter<
       ?
           | {
               event: readonly SafeEventNames<FilterAbiEvents<TAbi>>[number][];
-              args?: never;
             }
           | {
               event: SafeEventNames<FilterAbiEvents<TAbi>>[number];
@@ -146,7 +145,11 @@ export type ContractFilter<
                 > extends infer _abiEvent extends AbiEvent
                   ? _abiEvent
                   : AbiEvent
-              >;
+              > extends infer e
+                ? e extends readonly []
+                  ? never
+                  : e
+                : never;
             }
       : never;
 };
@@ -213,7 +216,24 @@ export type Config = {
 };
 
 /**
- * Validates type of config, and returns a strictly typed, resolved config.
+ * Create a Ponder config.
+ *
+ * - Docs: [TODO:KYLE]
+ *
+ * @example
+ * export default createConfig({
+ *   networks: {
+ *     mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+ *   },
+ *   contracts: {
+ *     ERC20: {
+ *       abi: ERC20Abi,
+ *       network: "mainnet",
+ *       address: "0x123...",
+ *       startBlock: 1500,
+ *     },
+ *   },
+ * })
  */
 export const createConfig = <
   const TNetworks extends Record<string, Network>,

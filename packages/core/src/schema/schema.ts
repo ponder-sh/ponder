@@ -122,7 +122,7 @@ type P = {
    * @example
    * import { p } from '@ponder/core'
    *
-   * export default p.createSchema({
+   * export default createSchema({
    *   t: p.createTable({
    *     id: p.string(),
    *   })
@@ -137,7 +137,7 @@ type P = {
    * @example
    * import { p } from '@ponder/core'
    *
-   * export default p.createSchema({
+   * export default createSchema({
    *   t: p.createTable({
    *     id: p.int(),
    *   })
@@ -152,7 +152,7 @@ type P = {
    * @example
    * import { p } from '@ponder/core'
    *
-   * export default p.createSchema({
+   * export default createSchema({
    *   t: p.createTable({
    *     id: p.string(),
    *     f: p.float(),
@@ -168,7 +168,7 @@ type P = {
    * @example
    * import { p } from '@ponder/core'
    *
-   * export default p.createSchema({
+   * export default createSchema({
    *   t: p.createTable({
    *     id: p.bytes(),
    *   })
@@ -183,7 +183,7 @@ type P = {
    * @example
    * import { p } from '@ponder/core'
    *
-   * export default p.createSchema({
+   * export default createSchema({
    *   t: p.createTable({
    *     id: p.string(),
    *     b: p.boolean(),
@@ -199,7 +199,7 @@ type P = {
    * @example
    * import { p } from '@ponder/core'
    *
-   * export default p.createSchema({
+   * export default createSchema({
    *   t: p.createTable({
    *     id: p.bigint(),
    *   })
@@ -214,7 +214,7 @@ type P = {
    * @param type Enum defined elsewhere in the schema with `p.createEnum()`.
    *
    * @example
-   * export default p.createSchema({
+   * export default createSchema({
    *   e: p.createEnum(["ONE", "TWO"])
    *   t: p.createTable({
    *     id: p.string(),
@@ -233,7 +233,7 @@ type P = {
    * @example
    * import { p } from '@ponder/core'
    *
-   * export default p.createSchema({
+   * export default createSchema({
    *   a: p.createTable({
    *     id: p.string(),
    *     b_id: p.string.references("b.id"),
@@ -255,7 +255,7 @@ type P = {
    * @example
    * import { p } from '@ponder/core'
    *
-   * export default p.createSchema({
+   * export default createSchema({
    *   a: p.createTable({
    *     id: p.string(),
    *     ref: p.string.references("b.id"),
@@ -273,7 +273,7 @@ type P = {
    * - Docs: [TODO:KYLE]
    *
    * @example
-   * export default p.createSchema({
+   * export default createSchema({
    *   e: p.createEnum(["ONE", "TWO"])
    *   t: p.createTable({
    *     id: p.string(),
@@ -288,7 +288,7 @@ type P = {
    * - Docs: [TODO:KYLE]
    *
    * @example
-   * export default p.createSchema({
+   * export default createSchema({
    *   t: p.createTable({
    *     id: p.string(),
    *   })
@@ -303,7 +303,7 @@ type P = {
  * - Docs: [TODO:KYLE]
  *
  * @example
- * export default p.createSchema({
+ * export default createSchema({
  *   t: p.createTable({
  *     id: p.string(),
  *   })
