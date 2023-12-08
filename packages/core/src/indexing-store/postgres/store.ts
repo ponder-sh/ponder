@@ -609,7 +609,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
         // If there is no latest version, insert a new version using the create data.
         if (latestRow === undefined) {
-          return await this.db
+          return await tx
             .insertInto(table)
             .values({
               ...createRow,

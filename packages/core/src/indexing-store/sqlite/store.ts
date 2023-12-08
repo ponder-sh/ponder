@@ -48,9 +48,6 @@ export class SqliteIndexingStore implements IndexingStore {
     database.pragma("journal_mode = WAL");
     this.db = new Kysely({
       dialect: new SqliteDialect({ database }),
-      // log(msg) {
-      //   console.log(msg);
-      // },
     });
   }
 
@@ -592,7 +589,7 @@ export class SqliteIndexingStore implements IndexingStore {
 
         // If there is no latest version, insert a new version using the create data.
         if (latestRow === undefined) {
-          return await this.db
+          return await tx
             .insertInto(table)
             .values({
               ...createRow,
