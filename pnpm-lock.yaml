@@ -421,6 +421,10 @@ importers:
         specifier: ^1.5.2
         version: 1.5.2(typescript@5.3.2)
 
+  examples/with-foundry/contracts/lib/forge-std: {}
+
+  examples/with-foundry/contracts/lib/forge-std/lib/ds-test: {}
+
   examples/with-foundry/ponder:
     dependencies:
       '@ponder/core':
