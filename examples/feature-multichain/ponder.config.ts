@@ -12,6 +12,9 @@ const latestBlockBase = await createPublicClient({
 const latestBlockOptimism = await createPublicClient({
   transport: http(process.env.PONDER_RPC_URL_10),
 }).getBlock();
+const latestBlockArbitrum = await createPublicClient({
+  transport: http(process.env.PONDER_RPC_URL_42161),
+}).getBlock();
 
 export default createConfig({
   networks: {
@@ -26,6 +29,10 @@ export default createConfig({
     optimism: {
       chainId: 10,
       transport: http(process.env.PONDER_RPC_URL_10),
+    },
+    arbitrum: {
+      chainId: 42161,
+      transport: http(process.env.PONDER_RPC_URL_42161),
     },
   },
   contracts: {
@@ -42,6 +49,10 @@ export default createConfig({
         },
         optimism: {
           startBlock: Number(latestBlockOptimism.number) - 50,
+        },
+        arbitrum: {
+          address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+          startBlock: Number(latestBlockArbitrum.number) - 50,
         },
       },
     },
