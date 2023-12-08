@@ -462,13 +462,16 @@ export class IndexingService extends Emittery<IndexingEvents> {
           this.queue.pause();
 
           if (events.length > 0) {
+            const { blockTimestamp, chainId, blockNumber, logIndex } =
+              metadata.pageEndCheckpoint;
+
             this.common.logger.info({
               service: "indexing",
-              msg: `Processed ${
+              msg: `Indexed ${
                 events.length === 1 ? "1 event" : `${events.length} events`
-              } (up to ${formatShortDate(
-                metadata.pageEndCheckpoint.blockTimestamp,
-              )})`,
+              } up to ${formatShortDate(
+                blockTimestamp,
+              )} (chainId=${chainId} block=${blockNumber} logIndex=${logIndex})`,
             });
           }
 

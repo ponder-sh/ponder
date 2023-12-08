@@ -13,7 +13,6 @@ import {
   isCheckpointGreaterThan,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
-import { formatShortDate } from "@/utils/date.js";
 
 type SyncGatewayEvents = {
   /**
@@ -136,15 +135,13 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   }
 
   handleNewHistoricalCheckpoint = (checkpoint: Checkpoint) => {
-    const { blockTimestamp, chainId } = checkpoint;
+    const { blockTimestamp, chainId, blockNumber } = checkpoint;
 
     this.networkCheckpoints[chainId].historicalCheckpoint = checkpoint;
 
     this.common.logger.trace({
       service: "gateway",
-      msg: `New historical checkpoint at ${blockTimestamp} [${formatShortDate(
-        blockTimestamp,
-      )}] (chainId=${chainId})`,
+      msg: `New historical checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
     });
 
     this.recalculateCheckpoint();
@@ -170,15 +167,13 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
   };
 
   handleNewRealtimeCheckpoint = (checkpoint: Checkpoint) => {
-    const { blockTimestamp, chainId } = checkpoint;
+    const { blockTimestamp, chainId, blockNumber } = checkpoint;
 
     this.networkCheckpoints[chainId].realtimeCheckpoint = checkpoint;
 
     this.common.logger.trace({
       service: "gateway",
-      msg: `New realtime checkpoint at ${blockTimestamp} [${formatShortDate(
-        blockTimestamp,
-      )}] (chainId=${chainId})`,
+      msg: `New realtime checkpoint at (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
     });
 
     this.recalculateCheckpoint();
@@ -223,12 +218,10 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     if (isCheckpointGreaterThan(newCheckpoint, this.checkpoint)) {
       this.checkpoint = newCheckpoint;
 
-      const timestamp = this.checkpoint.blockTimestamp;
+      const { chainId, blockTimestamp, blockNumber } = this.checkpoint;
       this.common.logger.trace({
         service: "gateway",
-        msg: `New event checkpoint at ${timestamp} [${formatShortDate(
-          timestamp,
-        )}]`,
+        msg: `New checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
       });
 
       this.emit("newCheckpoint", this.checkpoint);
@@ -247,12 +240,10 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     ) {
       this.finalityCheckpoint = newFinalityCheckpoint;
 
-      const timestamp = this.finalityCheckpoint.blockTimestamp;
+      const { chainId, blockTimestamp, blockNumber } = this.finalityCheckpoint;
       this.common.logger.trace({
         service: "gateway",
-        msg: `New finality checkpoint at ${timestamp} [${formatShortDate(
-          timestamp,
-        )}]`,
+        msg: `New finality checkpoint (timestamp=${blockTimestamp} chainId=${chainId} blockNumber=${blockNumber})`,
       });
 
       this.emit("newFinalityCheckpoint", this.finalityCheckpoint);
