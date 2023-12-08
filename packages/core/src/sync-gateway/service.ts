@@ -10,6 +10,7 @@ import {
   type Checkpoint,
   checkpointMax,
   checkpointMin,
+  isCheckpointGreaterThan,
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatShortDate } from "@/utils/date.js";
@@ -219,7 +220,7 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
     );
     const newCheckpoint = checkpointMin(...checkpoints);
 
-    if (newCheckpoint > this.checkpoint) {
+    if (isCheckpointGreaterThan(newCheckpoint, this.checkpoint)) {
       this.checkpoint = newCheckpoint;
 
       const timestamp = this.checkpoint.blockTimestamp;
@@ -241,7 +242,9 @@ export class SyncGateway extends Emittery<SyncGatewayEvents> {
       ),
     );
 
-    if (newFinalityCheckpoint > this.finalityCheckpoint) {
+    if (
+      isCheckpointGreaterThan(newFinalityCheckpoint, this.finalityCheckpoint)
+    ) {
       this.finalityCheckpoint = newFinalityCheckpoint;
 
       const timestamp = this.finalityCheckpoint.blockTimestamp;
