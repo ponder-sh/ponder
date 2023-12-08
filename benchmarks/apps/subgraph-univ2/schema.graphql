@@ -1,0 +1,77 @@
+type UniswapFactory @entity {
+  # factory address
+  id: ID!
+
+  # pair info
+  pairCount: Int!
+
+  # transactions
+  txCount: Int!
+}
+
+type Pair @entity {
+  # pair address
+  id: ID!
+
+  # mirrored from the smart contract
+  token0: Bytes!
+  token1: Bytes!
+  reserve0: BigInt!
+  reserve1: BigInt!
+  totalSupply: BigInt!
+
+  txCount: Int!
+
+  # creation stats
+  createdAtTimestamp: BigInt!
+  createdAtBlockNumber: BigInt!
+
+  # Fields used to help derived relationship
+  mints: [Mint!]! @derivedFrom(field: "pair")
+  burns: [Burn!]! @derivedFrom(field: "pair")
+  swaps: [Swap!]! @derivedFrom(field: "pair")
+}
+
+type Mint @entity {
+  # transaction hash + "-" + index in mints Transaction array
+  id: ID!
+  timestamp: BigInt! # need this to pull recent txns for specific token or pair
+  pair: Pair!
+
+  # populated from the Mint event
+  sender: Bytes!
+  amount0: BigInt!
+  amount1: BigInt!
+  logIndex: BigInt!
+}
+
+type Burn @entity {
+  # transaction hash + "-" + index in mints Transaction array
+  id: ID!
+  timestamp: BigInt! # need this to pull recent txns for specific token or pair
+  pair: Pair!
+
+  # populated from the Burn event
+  sender: Bytes!
+  amount0: BigInt!
+  amount1: BigInt!
+  to: Bytes!
+  logIndex: BigInt!
+}
+
+type Swap @entity {
+  # transaction hash + "-" + index in swaps Transaction array
+  id: ID!
+  timestamp: BigInt! # need this to pull recent txns for specific token or pair
+  pair: Pair!
+
+  # populated from the Swap event
+  sender: Bytes!
+  from: Bytes!
+  amount0In: BigInt!
+  amount1In: BigInt!
+  amount0Out: BigInt!
+  amount1Out: BigInt!
+  to: Bytes!
+  logIndex: BigInt!
+}

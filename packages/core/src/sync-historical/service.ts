@@ -533,7 +533,7 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     const queue = createQueue<HistoricalSyncTask>({
       worker,
       options: {
-        concurrency: this.network.maxRpcRequestConcurrency,
+        concurrency: this.network.maxHistoricalTaskConcurrency,
         autoStart: false,
       },
       onError: ({ error, task, queue }) => {

@@ -1,4 +1,11 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import { ponder } from "@/generated";
+
+declare const ponder: import("@ponder/core").PonderApp<
+  typeof import("../ponder.config.js").default,
+  typeof import("../ponder.schema.js").default
+>;
 
 ponder.on("RocketTokenRETH:Transfer", async ({ event, context }) => {
   const { Account, TransferEvent } = context.db;

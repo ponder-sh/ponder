@@ -31,7 +31,7 @@ const network: Network = {
   pollingInterval: 1_000,
   defaultMaxBlockRange: 3,
   finalityBlockCount: 5,
-  maxRpcRequestConcurrency: 10,
+  maxHistoricalTaskConcurrency: 20,
 };
 
 const rpcRequestSpy = vi.spyOn(

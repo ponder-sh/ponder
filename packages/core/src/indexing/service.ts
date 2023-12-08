@@ -4,7 +4,7 @@ import type { Abi, Address, Client, Hex } from "viem";
 import { createClient, decodeEventLog } from "viem";
 
 import type { IndexingFunctions } from "@/build/functions.js";
-import type { Config } from "@/config/config.js";
+import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
@@ -107,7 +107,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     syncStore: SyncStore;
     indexingStore: IndexingStore;
     syncGatewayService: SyncGateway;
-    networks: Config["networks"];
+    networks: Pick<Network, "url" | "request" | "chainId" | "name">[];
     sources: Source[];
   }) {
     super();
@@ -502,8 +502,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
     }) => {
       // This is a hack to ensure that the eventsProcessed method is called and updates
       // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
-      // It does, however, slow down event processing a bit.
-      await wait(0);
+      // It does, however, slow down event processing a bit. Too frequent waits cause massive performance loses.
+      if (Math.floor(Math.random() * 100) === 69) await wait(0);
 
       switch (task.kind) {
         case "SETUP": {
@@ -670,7 +670,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
 const buildContexts = (
   sources: Source[],
-  networks: Config["networks"],
+  networks: Pick<Network, "url" | "request" | "chainId" | "name">[],
   syncStore: SyncStore,
   actions: ReturnType<typeof ponderActions>,
 ) => {
@@ -692,18 +692,18 @@ const buildContexts = (
     }
   > = {};
 
-  Object.entries(networks).forEach(([networkName, network]) => {
+  networks.forEach((network) => {
     const defaultChain =
       Object.values(chains).find((c) => c.id === network.chainId) ??
       chains.mainnet;
 
     const client = createClient({
-      transport: ponderTransport({ transport: network.transport, syncStore }),
-      chain: { ...defaultChain, name: networkName, id: network.chainId },
+      transport: ponderTransport({ network, syncStore }),
+      chain: { ...defaultChain, name: network.name, id: network.chainId },
     });
 
     contexts[network.chainId] = {
-      network: { name: networkName, chainId: network.chainId },
+      network: { name: network.name, chainId: network.chainId },
       // Changing the arguments of readContract is not usually allowed,
       // because we have such a limited api we should be good
       client: client.extend(actions as any) as ReadOnlyClient,

@@ -1,5 +1,6 @@
 import { rmSync } from "node:fs";
 import os from "node:os";
+import path from "node:path";
 
 import { execa } from "execa";
 
@@ -79,7 +80,7 @@ const ponder = async () => {
 
   const subprocess = execa(
     "../packages/core/dist/bin/ponder.js",
-    ["start", `--root-dir=ponder`],
+    ["start", `--root-dir=${process.argv[2]}`],
     {
       stdio: "inherit",
       detached: true,
@@ -98,11 +99,11 @@ const ponder = async () => {
 };
 
 const bench = async () => {
-  rmSync("./ponder/.ponder/", {
+  rmSync(path.join(process.argv[2]!, ".ponder"), {
     recursive: true,
     force: true,
   });
-  rmSync("./ponder/generated/", {
+  rmSync(path.join(process.argv[2]!, "generated"), {
     recursive: true,
     force: true,
   });

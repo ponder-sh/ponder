@@ -58,6 +58,7 @@ const setup = async ({
   await indexingStore.reload({ schema: s });
 
   const service = new ServerService({ common, indexingStore });
+  service.setup();
   await service.start();
   service.reloadGraphqlSchema({ graphqlSchema });
 
