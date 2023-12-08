@@ -7,7 +7,7 @@ import type { Address, Hash, Hex } from "viem";
  */
 export type Log = {
   /** Globally unique identifier for this log (`${blockHash}-${logIndex}`). */
-  id: `${Hash}-${number}`;
+  id: string;
   /** The address from which this log originated */
   address: Address;
   /** Hash of block containing this log */

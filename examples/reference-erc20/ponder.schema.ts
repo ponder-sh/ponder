@@ -23,7 +23,7 @@ export default createSchema((p) => ({
     spender: p.one("spenderId"),
   }),
   TransferEvent: p.createTable({
-    id: p.bytes(),
+    id: p.string(),
     amount: p.bigint(),
     timestamp: p.int(),
 
@@ -34,7 +34,7 @@ export default createSchema((p) => ({
     to: p.one("toId"),
   }),
   ApprovalEvent: p.createTable({
-    id: p.bytes(),
+    id: p.string(),
     amount: p.bigint(),
     timestamp: p.int(),
 

@@ -16,7 +16,7 @@ export default createSchema((p) => ({
     transferEvents: p.many("TransferEvent.tokenId"),
   }),
   TransferEvent: p.createTable({
-    id: p.bytes(),
+    id: p.string(),
     timestamp: p.int(),
     fromId: p.bytes().references("Account.id"),
     toId: p.bytes().references("Account.id"),
