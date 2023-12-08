@@ -264,9 +264,81 @@ importers:
         specifier: ^5.3.2
         version: 5.3.2
 
-  examples/project-next: {}
+  examples/project-uniswap-v3-flash:
+    dependencies:
+      '@ponder/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      viem:
+        specifier: ^1.19.9
+        version: 1.19.11(typescript@5.3.2)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.10.0
+      eslint:
+        specifier: ^8.54.0
+        version: 8.54.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
+        version: 5.3.2
 
-  examples/project-next/backend:
+  examples/reference-erc20:
+    dependencies:
+      '@ponder/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      viem:
+        specifier: ^1.19.9
+        version: 1.19.11(typescript@5.3.2)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.10.0
+      '@wagmi/core':
+        specifier: ^1.4.7
+        version: 1.4.7(react@18.2.0)(typescript@5.3.2)(viem@1.19.11)
+      eslint:
+        specifier: ^8.54.0
+        version: 8.54.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
+        version: 5.3.2
+
+  examples/reference-erc721:
+    dependencies:
+      '@ponder/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      viem:
+        specifier: ^1.19.9
+        version: 1.19.11(typescript@5.3.2)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.10.0
+      '@wagmi/core':
+        specifier: ^1.4.7
+        version: 1.4.7(react@18.2.0)(typescript@5.3.2)(viem@1.19.11)
+      eslint:
+        specifier: ^8.54.0
+        version: 8.54.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
+        version: 5.3.2
+
+  examples/with-nextjs: {}
+
+  examples/with-nextjs/backend:
     dependencies:
       '@ponder/core':
         specifier: workspace:*
@@ -288,7 +360,7 @@ importers:
         specifier: ^5.3.2
         version: 5.3.2
 
-  examples/project-next/frontend:
+  examples/with-nextjs/frontend:
     dependencies:
       '@tanstack/react-query':
         specifier: ^5.12.2
@@ -353,53 +425,6 @@ importers:
         version: 3.3.6
       typescript:
         specifier: ^5
-        version: 5.3.2
-
-  examples/project-uniswap-v3-flash:
-    dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      viem:
-        specifier: ^1.19.9
-        version: 1.19.11(typescript@5.3.2)
-    devDependencies:
-      '@types/node':
-        specifier: ^20.10.0
-        version: 20.10.0
-      eslint:
-        specifier: ^8.54.0
-        version: 8.54.0
-      eslint-config-ponder:
-        specifier: workspace:*
-        version: link:../../packages/eslint-config-ponder
-      typescript:
-        specifier: ^5.3.2
-        version: 5.3.2
-
-  examples/reference-erc721:
-    dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      viem:
-        specifier: ^1.19.9
-        version: 1.19.11(typescript@5.3.2)
-    devDependencies:
-      '@types/node':
-        specifier: ^20.10.0
-        version: 20.10.0
-      '@wagmi/core':
-        specifier: ^1.4.7
-        version: 1.4.7(react@18.2.0)(typescript@5.3.2)(viem@1.19.11)
-      eslint:
-        specifier: ^8.54.0
-        version: 8.54.0
-      eslint-config-ponder:
-        specifier: workspace:*
-        version: link:../../packages/eslint-config-ponder
-      typescript:
-        specifier: ^5.3.2
         version: 5.3.2
 
   packages/core:
