@@ -1,5 +1,4 @@
 import { Inter } from "next/font/google";
-import Link from "next/link";
 
 import Table from "@/components/Table";
 import { useDeposits } from "@/hooks/useDeposits";
@@ -16,12 +15,6 @@ export default function Home() {
       <div className="w-full max-w-2xl flex flex-col p-4 gap-6">
         <h1 className="font-bold text-2xl">10 latest WETH mints</h1>
 
-        <Link href="/pages" className="font-bold text-xl underline">
-          Pages
-        </Link>
-        <Link href="/app" className="font-bold text-xl underline">
-          App
-        </Link>
         <div className="w-full flex gap-1 flex-col justify-between items-center">
           {deposits.status === "pending" ? (
             <p className="font-semibold">Loading...</p>

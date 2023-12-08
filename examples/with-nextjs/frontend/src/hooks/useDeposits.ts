@@ -9,6 +9,7 @@ export const useDeposits = () => {
   return useQuery({
     queryKey: ["weth deposits"],
     queryFn: async () => {
+      // Use generated graphql request
       const r = await client.request(DepositsQueryDocument);
       return r.depositEvents.map((d) => ({
         id: d.id,

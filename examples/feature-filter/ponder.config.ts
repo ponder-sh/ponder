@@ -16,6 +16,7 @@ export default createConfig({
       abi: PrimitiveManagerAbi,
       address: "0x54522dA62a15225C95b01bD61fF58b866C50471f",
       startBlock: 14438081,
+      jkjk: 90,
       filter: {
         event: "Swap",
       },
