@@ -26,9 +26,9 @@ import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 type BuildServiceEvents = {
-  newConfig: { config: Config };
+  newConfig: { config?: Config };
   newIndexingFunctions: { indexingFunctions: IndexingFunctions };
-  newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
+  newSchema: { schema?: Schema; graphqlSchema?: GraphQLSchema };
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
@@ -170,10 +170,22 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
     const config = result.exports.default as Config;
 
-    validateConfig({ config });
+    try {
+      validateConfig({ config });
+      this.emit("newConfig", { config });
+      return config;
+    } catch (error_) {
+      const error = error_ as Error;
+      error.stack = undefined;
+      this.common.logger.error({
+        service: "build",
+        error,
+      });
 
-    this.emit("newConfig", { config });
-    return config;
+      this.common.errors.submitUserError();
+      this.emit("newConfig", {});
+      return undefined;
+    }
   }
 
   async loadSchema() {
@@ -186,11 +198,22 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const schema = result.exports.default as Schema;
     const graphqlSchema = buildGqlSchema(schema);
 
-    validateSchema({ schema });
+    try {
+      validateSchema({ schema });
+      this.emit("newSchema", { schema, graphqlSchema });
+      return { schema, graphqlSchema };
+    } catch (error_) {
+      const error = error_ as Error;
+      error.stack = undefined;
+      this.common.logger.error({
+        service: "build",
+        error,
+      });
 
-    this.emit("newSchema", { schema, graphqlSchema });
-
-    return { schema, graphqlSchema };
+      this.common.errors.submitUserError();
+      this.emit("newSchema", {});
+      return undefined;
+    }
   }
 
   async loadIndexingFunctions({ files: files_ }: { files?: string[] } = {}) {
