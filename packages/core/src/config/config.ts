@@ -261,4 +261,9 @@ export const createConfig = <
   contracts: TContracts &
     Record<string, Contract<string, Abi, string, AbiEvent>>;
   options?: Option;
-}) => config;
+}): {
+  database?: Database;
+  networks: TNetworks;
+  contracts: TContracts;
+  options?: Option;
+} => config;
