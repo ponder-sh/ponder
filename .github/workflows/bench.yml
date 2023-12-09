@@ -7,14 +7,7 @@ jobs:
   bench-ponder:
     name: Bench:Ponder
     runs-on: ubuntu-22.04
-    services:
-      anvil:
-        image: ghcr.io/0xolias/simple-anvil-image:main
-        env:
-          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-          ANVIL_FORK_BLOCK_NUMBER: 17501000
-        ports:
-          - 8545:8545
+
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
@@ -25,9 +18,9 @@ jobs:
       - run: pnpm install
 
       - name: Bench
-        run: pnpm bench:ponder:ci
+        run: pnpm bench:ponder:ci apps/ponder-reth/
         env:
-          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
+          PONDER_RPC_URL_1: ${{ secrets.ANVIL_FORK_URL }}
 
   bench-subgraph:
     name: Bench:Subgraph
@@ -47,13 +40,6 @@ jobs:
           --health-retries 10
         ports:
           - 5432:5432
-      anvil:
-        image: ghcr.io/0xolias/simple-anvil-image:main
-        env:
-          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-          ANVIL_FORK_BLOCK_NUMBER: 17500000
-        ports:
-          - 8545:8545
       ipfs:
         image: ipfs/go-ipfs:v0.10.0
         ports:
@@ -69,7 +55,7 @@ jobs:
           postgres_pass: postgres
           postgres_db: postgres
           ipfs: ipfs:5001
-          ethereum: mainnet:http://anvil:8545
+          ethereum: mainnet:${{ secrets.ANVIL_FORK_URL }}
           ETHEREUM_REORG_THRESHOLD: 0
           GRAPH_LOG: debug
         ports:
@@ -85,11 +71,7 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
-      - name: Codegen
-        run: cd benchmarks && pnpm graph codegen subgraph/subgraph.yaml
-
       - name: Bench
-        run: pnpm bench:subgraph:ci
+        run: pnpm bench:subgraph:ci apps/subgraph-reth/
         env:
-          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres

@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "bench:ponder": "bun src/ponder.ts",
-    "bench:subgraph": "./run-subgraph.sh"
+    "bench:ponder:ci": "tsup-node && node dist/ponder.js",
+    "bench:subgraph": "./run-subgraph.sh",
+    "bench:subgraph:ci": "tsup-node && node dist/subgraph.js"
   },
   "devDependencies": {
     "@graphprotocol/graph-cli": "0.61.0",
