@@ -3,9 +3,12 @@ import process from "node:process";
 
 import { BuildService } from "@/build/service.js";
 import { CodegenService } from "@/codegen/service.js";
+import type { Config } from "@/config/config.js";
 import { buildDatabase } from "@/config/database.js";
 import { buildNetwork, type Network } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
+import type { Source } from "@/config/sources.js";
+import { buildSources } from "@/config/sources.js";
 import { UserErrorService } from "@/errors/service.js";
 import { IndexingService } from "@/indexing/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
@@ -22,9 +25,6 @@ import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
-
-import type { Source } from "./config/sources.js";
-import { buildSources } from "./config/sources.js";
 
 export type Common = {
   options: Options;
@@ -74,14 +74,7 @@ export class Ponder {
     this.buildService = new BuildService({ common: this.common });
   }
 
-  async setup({
-    syncStore,
-    indexingStore,
-  }: {
-    // These options are only used for testing.
-    syncStore?: SyncStore;
-    indexingStore?: IndexingStore;
-  } = {}) {
+  async setupInitial() {
     this.common.logger.debug({
       service: "app",
       msg: `Started using config file: ${path.relative(
@@ -98,10 +91,26 @@ export class Ponder {
     // we can just exit. No need to call `this.kill()` because no services are set up.
     const config = await this.buildService.loadConfig();
     if (!config) {
+      this.common.logger.fatal({
+        service: "app",
+        msg: `Config validation failed, killing app`,
+      });
       await this.buildService.kill();
       return;
     }
+    return config;
+  }
 
+  async setupPrepare({
+    config,
+    syncStore,
+    indexingStore,
+  }: {
+    config: Config;
+    // These options are only used for testing.
+    syncStore?: SyncStore;
+    indexingStore?: IndexingStore;
+  }) {
     const database = buildDatabase({ common: this.common, config });
     this.syncStore =
       syncStore ??
@@ -205,6 +214,24 @@ export class Ponder {
     // the indexing service to reload (for the first time).
     await this.buildService.loadIndexingFunctions();
     await this.buildService.loadSchema();
+  }
+
+  /**
+   * Setup Ponder services
+   * @returns True if setup was successful
+   */
+  async setup({
+    syncStore,
+    indexingStore,
+  }: {
+    // These options are only used for testing.
+    syncStore?: SyncStore;
+    indexingStore?: IndexingStore;
+  } = {}) {
+    const config = await this.setupInitial();
+    if (!config) return false;
+    await this.setupPrepare({ config, syncStore, indexingStore });
+    return true;
   }
 
   async dev() {
@@ -360,42 +387,55 @@ export class Ponder {
   }
 
   private registerServiceDependencies() {
-    this.buildService.on("newConfig", async () => {
-      this.common.logger.info({
-        service: "build",
-        msg: "Detected change in ponder.config.ts",
-      });
-      this.common.logger.info({
-        service: "app",
-        msg: "Reloading ponder, killing and restarting services",
-      });
-      await this.kill();
+    this.buildService.on("newConfig", async ({ config }) => {
+      if (config) {
+        this.common.errors.hasUserError = false;
+        this.common.logger.info({
+          service: "app",
+          msg: "Reloading ponder with new config",
+        });
 
-      // Clear all listeners. Will be added back in setup.
-      this.buildService.clearListeners();
-      this.syncServices.forEach(({ historical, realtime }) => {
-        historical.clearListeners();
-        realtime.clearListeners();
-      });
-      this.syncGatewayService.clearListeners();
-      this.serverService.clearListeners();
-      this.indexingService.clearListeners();
-      this.common.metrics.resetMetrics();
+        // Clear all listeners. Will be added back in setup.
+        this.buildService.clearListeners();
+        this.syncServices.forEach(({ historical, realtime }) => {
+          historical.clearListeners();
+          realtime.clearListeners();
+        });
+        this.syncGatewayService.clearListeners();
+        this.serverService.clearListeners();
+        this.indexingService.clearListeners();
+        this.common.metrics.resetMetrics();
 
-      await this.setup();
-      // NOTE: We know we are in dev mode if the build service is receiving events. Build events are disabled in production.
-      await this.dev();
+        await this.setupPrepare({ config });
+        // NOTE: We know we are in dev mode if the build service is receiving events. Build events are disabled in production.
+        await this.dev();
+      } else {
+        await this.indexingService.kill();
+        await Promise.all(
+          this.syncServices.map(async ({ realtime, historical }) => {
+            await realtime.kill();
+            await historical.kill();
+          }),
+        );
+      }
     });
 
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
-      this.common.errors.hasUserError = false;
+      if (schema && graphqlSchema) {
+        this.common.errors.hasUserError = false;
+        this.common.logger.info({
+          service: "app",
+          msg: "Reloading ponder with new schema",
+        });
 
-      this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
+        this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
+        this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
-      this.serverService.reloadGraphqlSchema({ graphqlSchema });
-
-      await this.indexingService.reset({ schema });
-      await this.indexingService.processEvents();
+        await this.indexingService.reset({ schema });
+        await this.indexingService.processEvents();
+      } else {
+        await this.indexingService.kill();
+      }
     });
 
     this.buildService.on(
