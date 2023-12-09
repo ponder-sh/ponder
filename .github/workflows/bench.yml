@@ -7,6 +7,7 @@ jobs:
   bench-ponder:
     name: Bench:Ponder
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
 
     steps:
       - name: Clone repository
@@ -15,6 +16,7 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
+      - run: pnpm build
       - run: pnpm install
 
       - name: Bench
@@ -25,6 +27,7 @@ jobs:
   bench-subgraph:
     name: Bench:Subgraph
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres
