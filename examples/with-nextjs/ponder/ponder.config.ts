@@ -1,18 +1,11 @@
 import { createConfig } from "@ponder/core";
-import { mainnet } from "@wagmi/core";
-import { createClient, http } from "viem";
-import { getBlockNumber } from "viem/actions";
+import { createPublicClient, http } from "viem";
 
 import { Weth9Abi } from "./abis/Weth9Abi";
 
 const transport = http(process.env.PONDER_RPC_URL_1);
 
-const latestBlock = await getBlockNumber(
-  createClient({
-    chain: mainnet,
-    transport,
-  }),
-);
+const latestBlock = await createPublicClient({ transport }).getBlock();
 
 export default createConfig({
   networks: {
