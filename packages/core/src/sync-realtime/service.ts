@@ -20,7 +20,7 @@ import type { Checkpoint } from "@/utils/checkpoint.js";
 import { poll } from "@/utils/poll.js";
 import { createQueue, type Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
-import { getErrorMessage, request } from "@/utils/request.js";
+import { getErrorMessage, request, requestWithRetry } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
 
 import { isMatchedLogInBloomFilter } from "./bloom.js";
@@ -82,13 +82,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.blocks = [];
 
     // Fetch the latest block, and remote chain Id for the network.
-    const [latestBlock, rpcChainId] = await Promise.all([
-      this.getLatestBlock(undefined),
-      hexToNumber(
-        await request(this.network, { body: { method: "eth_chainId" } }),
+    const [latestBlock, rpcChainId_] = await Promise.all([
+      requestWithRetry(() => this.getLatestBlock(undefined)),
+      requestWithRetry(() =>
+        request(this.network, { body: { method: "eth_chainId" } }),
       ),
     ]);
     const latestBlockNumber = hexToNumber(latestBlock.number);
+    const rpcChainId = hexToNumber(rpcChainId_);
 
     if (rpcChainId !== this.network.chainId)
       this.common.logger.warn({

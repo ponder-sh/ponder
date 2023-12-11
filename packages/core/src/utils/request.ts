@@ -2,7 +2,8 @@ import { RpcRequestError } from "viem";
 
 import type { Network } from "@/config/networks.js";
 
-import { TASK_TIMEOUT } from "./queue.js";
+import { TASK_RETRY_TIMEOUT, TASK_TIMEOUT } from "./queue.js";
+import { wait } from "./wait.js";
 
 export const getErrorMessage = (error: Error) =>
   error.name === "TimeoutError"
@@ -23,4 +24,15 @@ export const request = async (
     });
 
   return rawRequest.result;
+};
+
+export const requestWithRetry = async (request: () => Promise<any>) => {
+  for (let i = 0; i <= TASK_RETRY_TIMEOUT.length; i++) {
+    if (i > 0) await wait(TASK_RETRY_TIMEOUT[i - 1]);
+    try {
+      return await request();
+    } catch (err) {
+      if (i === TASK_RETRY_TIMEOUT.length) throw err;
+    }
+  }
 };

@@ -247,15 +247,7 @@ export class Ponder {
     this.serverService.registerDevRoutes();
     await this.serverService.start();
 
-    await Promise.all(
-      this.syncServices.map(async ({ historical, realtime }) => {
-        const blockNumbers = await realtime.setup();
-        await historical.setup(blockNumbers);
-
-        historical.start();
-        await realtime.start();
-      }),
-    );
+    await this.syncServiceStart();
   }
 
   async start() {
@@ -272,15 +264,30 @@ export class Ponder {
     await this.buildService.kill();
     await this.serverService.start();
 
-    await Promise.all(
-      this.syncServices.map(async ({ historical, realtime }) => {
-        const blockNumbers = await realtime.setup();
-        await historical.setup(blockNumbers);
+    await this.syncServiceStart();
+  }
 
-        historical.start();
-        await realtime.start();
-      }),
-    );
+  private async syncServiceStart() {
+    try {
+      await Promise.all(
+        this.syncServices.map(async ({ historical, realtime }) => {
+          const blockNumbers = await realtime.setup();
+          await historical.setup(blockNumbers);
+
+          historical.start();
+          await realtime.start();
+        }),
+      );
+    } catch (error_) {
+      const error = error_ as Error;
+      error.stack = undefined;
+      this.common.logger.fatal({
+        service: "app",
+        msg: `Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)`,
+        error,
+      });
+      this.kill();
+    }
   }
 
   async codegen() {
@@ -563,8 +570,19 @@ export class Ponder {
       await syncServiceForChainId.realtime.kill();
       await syncServiceForChainId.historical.kill();
 
-      const blockNumbers = await syncServiceForChainId.realtime.setup();
-      await syncServiceForChainId.historical.setup(blockNumbers);
+      try {
+        const blockNumbers = await syncServiceForChainId.realtime.setup();
+        await syncServiceForChainId.historical.setup(blockNumbers);
+      } catch (error_) {
+        const error = error_ as Error;
+        error.stack = undefined;
+        this.common.logger.fatal({
+          service: "app",
+          msg: `Failed to fetch initial realtime data`,
+          error,
+        });
+        this.kill();
+      }
 
       await syncServiceForChainId.realtime.start();
       syncServiceForChainId.historical.start();
