@@ -1,6 +1,31 @@
-import type { Config } from "./config.js";
+import { chains } from "@/utils/chains.js";
 
-export const validateConfig = ({ config }: { config: Config }): void => {
+import type { Config } from "./config.js";
+import { getRequestForTransport } from "./networks.js";
+
+export const validateConfig = async ({
+  config,
+}: {
+  config: Config;
+}): Promise<void> => {
+  Object.entries(config.networks).forEach(async ([networkName, network]) => {
+    const { chainId, transport } = network;
+
+    const defaultChain =
+      Object.values(chains).find((c) =>
+        "id" in c ? c.id === chainId : false,
+      ) ?? chains.mainnet;
+
+    const chain = {
+      ...defaultChain,
+      name: networkName,
+      id: chainId,
+    };
+
+    // This will throw on invalid rpc urls
+    await getRequestForTransport({ transport, chain });
+  });
+
   Object.values(config.contracts).forEach((contract) => {
     if (typeof contract.network === "string") {
       // shortcut

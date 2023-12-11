@@ -153,6 +153,7 @@ export class Ponder {
       }
       return hasSources;
     });
+
     this.syncServices = networksToSync.map((network) => {
       const sourcesForNetwork = this.sources.filter(
         (source) => source.networkName === network.name,
@@ -351,6 +352,9 @@ export class Ponder {
     });
   }
 
+  /**
+   * Shutdown sequence.
+   */
   async kill() {
     this.syncGatewayService.clearListeners();
 
@@ -386,6 +390,37 @@ export class Ponder {
     });
   }
 
+  /**
+   * Very similar to `kill()`, but don't kill the ui service or build service.
+   */
+  private async reload() {
+    this.buildService.clearListeners();
+    this.syncServices.forEach(({ historical, realtime }) => {
+      historical.clearListeners();
+      realtime.clearListeners();
+    });
+    this.serverService.clearListeners();
+    this.indexingService.clearListeners();
+    this.common.metrics.resetMetrics();
+    this.syncGatewayService.clearListeners();
+
+    await Promise.all([
+      await this.indexingService.kill(),
+      await this.serverService.kill(),
+      await this.common.telemetry.kill(),
+    ]);
+
+    await Promise.all(
+      this.syncServices.map(async ({ realtime, historical }) => {
+        await realtime.kill();
+        await historical.kill();
+      }),
+    );
+
+    await this.indexingStore.kill();
+    await this.syncStore.kill();
+  }
+
   private registerServiceDependencies() {
     this.buildService.on("newConfig", async ({ config }) => {
       if (config) {
@@ -396,15 +431,7 @@ export class Ponder {
         });
 
         // Clear all listeners. Will be added back in setup.
-        this.buildService.clearListeners();
-        this.syncServices.forEach(({ historical, realtime }) => {
-          historical.clearListeners();
-          realtime.clearListeners();
-        });
-        this.syncGatewayService.clearListeners();
-        this.serverService.clearListeners();
-        this.indexingService.clearListeners();
-        this.common.metrics.resetMetrics();
+        await this.reload();
 
         await this.setupPrepare({ config });
         // NOTE: We know we are in dev mode if the build service is receiving events. Build events are disabled in production.

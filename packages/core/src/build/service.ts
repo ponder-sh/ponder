@@ -171,7 +171,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const config = result.exports.default as Config;
 
     try {
-      validateConfig({ config });
+      await validateConfig({ config });
       this.emit("newConfig", { config });
       return config;
     } catch (error_) {
