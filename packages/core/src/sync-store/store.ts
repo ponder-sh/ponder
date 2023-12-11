@@ -5,6 +5,7 @@ import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
 import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
 
 export interface SyncStore {
   kind: "sqlite" | "postgres";
@@ -149,8 +150,8 @@ export interface SyncStore {
   /** EVENTS METHOD */
 
   getLogEvents(arg: {
-    fromTimestamp: number;
-    toTimestamp: number;
+    fromCheckpoint: Checkpoint;
+    toCheckpoint: Checkpoint;
     logFilters?: {
       id: string;
       chainId: number;
@@ -177,12 +178,12 @@ export interface SyncStore {
       transaction: Transaction;
     }[];
     metadata: {
-      pageEndsAtTimestamp: number;
       counts: {
         sourceId: string;
         selector: Hex;
         count: number;
       }[];
+      pageEndCheckpoint: Checkpoint;
     };
   }>;
 }

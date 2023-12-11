@@ -71,9 +71,9 @@ export type Transaction = Prettify<
         accessList?: never;
         gasPrice?: never;
         /** Total fee per gas in wei (gasPrice/baseFeePerGas + maxPriorityFeePerGas). Only present in EIP-1559 transactions. */
-        maxFeePerGas: bigint;
+        maxFeePerGas?: bigint;
         /** Max priority fee per gas (in wei). Only present in EIP-1559 transactions. */
-        maxPriorityFeePerGas: bigint;
+        maxPriorityFeePerGas?: bigint;
       }
     | {
         /** Transaction type. */

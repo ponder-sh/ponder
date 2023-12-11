@@ -34,9 +34,8 @@ const setup = async ({ context }: { context: TestContext }) => {
 
   // Wait for historical sync event processing to complete.
   await new Promise<void>((resolve) => {
-    ponder.indexingService.on("eventsProcessed", ({ toTimestamp }) => {
-      // Block 15870405
-      if (toTimestamp >= 1667247815) {
+    ponder.indexingService.on("eventsProcessed", ({ toCheckpoint }) => {
+      if (toCheckpoint.blockNumber >= 15870405) {
         resolve();
       }
     });
