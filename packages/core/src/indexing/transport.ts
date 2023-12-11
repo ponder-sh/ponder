@@ -4,9 +4,7 @@ import { custom } from "viem";
 import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { TASK_RETRY_TIMEOUT } from "@/utils/queue.js";
-import { request as requestHelper } from "@/utils/request.js";
-import { wait } from "@/utils/wait.js";
+import { request as requestHelper, requestWithRetry } from "@/utils/request.js";
 
 export const ponderTransport = ({
   network,
@@ -78,15 +76,4 @@ export const ponderTransport = ({
     });
     return c({ chain });
   };
-};
-
-const requestWithRetry = async (request: () => Promise<any>) => {
-  for (let i = 0; i <= TASK_RETRY_TIMEOUT.length; i++) {
-    if (i > 0) await wait(TASK_RETRY_TIMEOUT[i - 1]);
-    try {
-      return await request();
-    } catch (err) {
-      if (i === TASK_RETRY_TIMEOUT.length) throw err;
-    }
-  }
 };
