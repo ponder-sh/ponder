@@ -1,7 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { GraphQLClient } from "graphql-request";
-
-import { DepositsQueryDocument } from "../graphql/generated/graphql";
+import { gql, GraphQLClient } from "graphql-request";
 
 const client = new GraphQLClient("http://localhost:42069");
 
@@ -16,8 +14,27 @@ export const useDeposits = () => {
   return useQuery<Deposit[]>({
     queryKey: ["weth deposits"],
     queryFn: async () => {
-      // Use generated graphql request
-      const r = await client.request(DepositsQueryDocument);
+      const r = (await client.request(gql`
+        {
+          depositEvents(
+            orderDirection: "desc"
+            orderBy: "timestamp"
+            first: 10
+          ) {
+            id
+            timestamp
+            account
+            amount
+          }
+        }
+      `)) as {
+        depositEvents: {
+          id: string;
+          timestamp: number;
+          account: string;
+          amount: number;
+        }[];
+      };
       return r.depositEvents.map((d) => ({
         id: d.id,
         timestamp: d.timestamp,
