@@ -338,28 +338,6 @@ importers:
 
   examples/with-nextjs: {}
 
-  examples/with-nextjs/backend:
-    dependencies:
-      '@ponder/core':
-        specifier: workspace:*
-        version: link:../../../packages/core
-      viem:
-        specifier: ^1.19.9
-        version: 1.19.11(typescript@5.3.2)
-    devDependencies:
-      '@types/node':
-        specifier: ^20.10.0
-        version: 20.10.0
-      eslint:
-        specifier: ^8.54.0
-        version: 8.54.0
-      eslint-config-ponder:
-        specifier: workspace:*
-        version: link:../../../packages/eslint-config-ponder
-      typescript:
-        specifier: ^5.3.2
-        version: 5.3.2
-
   examples/with-nextjs/frontend:
     dependencies:
       '@tanstack/react-query':
@@ -425,6 +403,28 @@ importers:
         version: 3.3.6
       typescript:
         specifier: ^5
+        version: 5.3.2
+
+  examples/with-nextjs/ponder:
+    dependencies:
+      '@ponder/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      viem:
+        specifier: ^1.19.9
+        version: 1.19.11(typescript@5.3.2)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.10.0
+      eslint:
+        specifier: ^8.54.0
+        version: 8.54.0
+      eslint-config-ponder:
+        specifier: workspace:*
+        version: link:../../../packages/eslint-config-ponder
+      typescript:
+        specifier: ^5.3.2
         version: 5.3.2
 
   packages/core:

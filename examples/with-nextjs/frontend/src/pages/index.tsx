@@ -1,7 +1,8 @@
 import { Inter } from "next/font/google";
+import { formatEther } from "viem";
+import CountUp from "react-countup";
 
-import Table from "@/components/Table";
-import { useDeposits } from "@/hooks/useDeposits";
+import { useDeposits, type Deposit } from "../hooks/useDeposits";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -26,5 +27,42 @@ export default function Home() {
         </div>
       </div>
     </main>
+  );
+}
+
+function Table({ deposits }: { deposits: Deposit[] }) {
+  return (
+    <ul className="w-full">
+      <li className="w-full grid grid-cols-2 font-semibold text-lg sm:grid-cols-3">
+        <p>Account</p>
+        <p>Amount</p>
+        <p className="hidden sm:flex">Timestamp</p>
+      </li>
+      {deposits.map(({ id, account, timestamp, amount }) => (
+        <li
+          className="w-full grid grid-cols-2 sm:grid-cols-3 font-semibold text-lg py-2"
+          key={id}
+        >
+          <a
+            className="text-blue-500 text-sm font-semibold underline"
+            href={`https://etherscan.io/address/${account}`}
+          >
+            {account.slice(0, 6)}...{account.slice(38)}
+          </a>
+          <CountUp
+            start={0}
+            end={Number(formatEther(amount))}
+            duration={2.5}
+            decimals={5}
+            decimal={"."}
+            separator={","}
+            className="text-sm font-semibold"
+          />
+          <p className="text-sm hidden sm:flex">
+            {new Date(timestamp * 1000).toLocaleString()}
+          </p>
+        </li>
+      ))}
+    </ul>
   );
 }
