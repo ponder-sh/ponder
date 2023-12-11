@@ -437,6 +437,10 @@ export class Ponder {
       await this.indexingService.processEvents();
     });
 
+    this.syncGatewayService.on("hasCompletedHistoricalSync", async () => {
+      await this.indexingService.publish();
+    });
+
     this.syncGatewayService.on("reorg", async (checkpoint) => {
       await this.indexingService.handleReorg(checkpoint);
       await this.indexingService.processEvents();

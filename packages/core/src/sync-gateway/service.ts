@@ -30,6 +30,10 @@ type SyncGatewayEvents = {
    * is the safe/"common ancestor" checkpoint.
    */
   reorg: Checkpoint;
+  /**
+   * Emitted when the historical sync has completed across all registered networks.
+   */
+  hasCompletedHistoricalSync: Checkpoint;
 };
 
 type SyncGatewayMetrics = {};

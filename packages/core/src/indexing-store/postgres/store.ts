@@ -1,4 +1,10 @@
-import { Kysely, PostgresDialect, sql, WithSchemaPlugin } from "kysely";
+import {
+  CompiledQuery,
+  Kysely,
+  PostgresDialect,
+  sql,
+  WithSchemaPlugin,
+} from "kysely";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -85,8 +91,22 @@ export class PostgresIndexingStore implements IndexingStore {
       if (!this.schema) return;
 
       await this.readerDB.transaction().execute(async (tx) => {
-        // Drop all previous schemas. This will delete all previous views.
-        // TODO: Test this by creating an older schema and ensure it is removed.
+        // Drop all other schemas. This will delete all previous views that are in the `public` schema.
+        const result = await tx.executeQuery(
+          CompiledQuery.raw(
+            `SELECT nspname FROM pg_namespace WHERE nspname LIKE 'ponder_index_%'`,
+          ),
+        );
+        await Promise.all(
+          (result.rows as { nspname: string }[]).filter(async (r) => {
+            if (r.nspname === this.namespaceVersion) return;
+            await tx.schema
+              .dropSchema(r.nspname)
+              .cascade()
+              .ifExists()
+              .execute();
+          }),
+        );
 
         // Create all the view tables.
         await Promise.all(
@@ -121,7 +141,11 @@ export class PostgresIndexingStore implements IndexingStore {
       if (schema) this.schema = schema;
 
       await this.writerDB.transaction().execute(async (tx) => {
-        await tx.schema.dropSchema(this.namespaceVersion).ifExists().execute();
+        await tx.schema
+          .dropSchema(this.namespaceVersion)
+          .cascade()
+          .ifExists()
+          .execute();
         await tx.schema
           .createSchema(this.namespaceVersion)
           .ifNotExists()
