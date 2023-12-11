@@ -24,6 +24,8 @@ export default defineConfig({
     await cpy(
       [
         path.join(examplesPath, "**", "*"),
+        "!**/with-nextjs/**",
+        "!**/with-foundry/**",
         "!**/node_modules/**",
         "!**/generated/**",
         "!**/.ponder/**",

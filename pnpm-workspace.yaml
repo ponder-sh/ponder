@@ -1,6 +1,6 @@
 packages:
   - benchmarks
   - docs
-  - examples/*
+  - examples/**
   - packages/*
   - tmp/*
