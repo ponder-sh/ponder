@@ -28,6 +28,7 @@ function createCheckpoint(index: number): Checkpoint {
 test("reload() binds the schema", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   expect(indexingStore.schema).toBe(schema);
 });
@@ -35,6 +36,7 @@ test("reload() binds the schema", async (context) => {
 test("create() inserts a record that is effective after specified checkpoint", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -54,6 +56,7 @@ test("create() inserts a record that is effective after specified checkpoint", a
 test("create() inserts a record that is effective at timestamp", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -73,6 +76,7 @@ test("create() inserts a record that is effective at timestamp", async (context)
 test("create() inserts a record that is not effective before timestamp", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -92,6 +96,7 @@ test("create() inserts a record that is not effective before timestamp", async (
 test("create() throws on unique constraint violation even if checkpoint is different", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -113,6 +118,7 @@ test("create() throws on unique constraint violation even if checkpoint is diffe
 test("create() respects optional fields", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -133,6 +139,7 @@ test("create() respects optional fields", async (context) => {
 test("create() accepts enums", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -153,6 +160,7 @@ test("create() accepts enums", async (context) => {
 test("create() throws on invalid enum value", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await expect(() =>
     indexingStore.create({
@@ -167,6 +175,7 @@ test("create() throws on invalid enum value", async (context) => {
 test("create() accepts BigInt fields as bigint and returns as bigint", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -187,6 +196,7 @@ test("create() accepts BigInt fields as bigint and returns as bigint", async (co
 test("update() updates a record", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -218,6 +228,7 @@ test("update() updates a record", async (context) => {
 test("update() updates a record using an update function", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -254,6 +265,7 @@ test("update() updates a record using an update function", async (context) => {
 test("update() updates a record and maintains older version", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -284,6 +296,7 @@ test("update() updates a record and maintains older version", async (context) =>
 test("update() throws if trying to update an instance in the past", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -305,6 +318,7 @@ test("update() throws if trying to update an instance in the past", async (conte
 test("update() updates a record in-place within the same timestamp", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -330,6 +344,7 @@ test("update() updates a record in-place within the same timestamp", async (cont
 test("upsert() inserts a new record", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.upsert({
     tableName: "Pet",
@@ -348,6 +363,7 @@ test("upsert() inserts a new record", async (context) => {
 test("upsert() updates a record", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -379,6 +395,7 @@ test("upsert() updates a record", async (context) => {
 test("upsert() updates a record using an update function", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -412,6 +429,7 @@ test("upsert() updates a record using an update function", async (context) => {
 test("upsert() throws if trying to update an instance in the past", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -434,6 +452,7 @@ test("upsert() throws if trying to update an instance in the past", async (conte
 test("upsert() updates a record in-place within the same timestamp", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -460,6 +479,7 @@ test("upsert() updates a record in-place within the same timestamp", async (cont
 test("delete() removes a record", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -489,6 +509,7 @@ test("delete() removes a record", async (context) => {
 test("delete() retains older version of record", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -514,6 +535,7 @@ test("delete() retains older version of record", async (context) => {
 test("delete() removes a record entirely if only present for one timestamp", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -544,6 +566,7 @@ test("delete() removes a record entirely if only present for one timestamp", asy
 test("delete() removes a record entirely if only present for one timestamp after update()", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -590,6 +613,7 @@ test("delete() removes a record entirely if only present for one timestamp after
 test("delete() deletes versions effective in the delete timestamp", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -623,6 +647,7 @@ test("delete() deletes versions effective in the delete timestamp", async (conte
 test("findMany() returns current versions of all records", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -661,6 +686,7 @@ test("findMany() returns current versions of all records", async (context) => {
 test("findMany() sorts on bigint field", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -697,6 +723,7 @@ test("findMany() sorts on bigint field", async (context) => {
 test("findMany() filters on bigint gt", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -734,6 +761,7 @@ test("findMany() filters on bigint gt", async (context) => {
 test("findMany() sorts and filters together", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -772,6 +800,7 @@ test("findMany() sorts and filters together", async (context) => {
 test("findMany() errors on invalid filter condition", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   expect(() =>
     indexingStore.findMany({
@@ -784,6 +813,7 @@ test("findMany() errors on invalid filter condition", async (context) => {
 test("findMany() errors on orderBy object with multiple keys", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   expect(() =>
     indexingStore.findMany({
@@ -796,6 +826,7 @@ test("findMany() errors on orderBy object with multiple keys", async (context) =
 test("createMany() inserts multiple entities", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   const createdInstances = await indexingStore.createMany({
     tableName: "Pet",
@@ -815,6 +846,7 @@ test("createMany() inserts multiple entities", async (context) => {
 test("createMany() inserts a large number of entities", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   const ENTITY_COUNT = 100_000;
 
@@ -836,6 +868,7 @@ test("createMany() inserts a large number of entities", async (context) => {
 test("updateMany() updates multiple entities", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.createMany({
     tableName: "Pet",
@@ -864,6 +897,7 @@ test("updateMany() updates multiple entities", async (context) => {
 test("revert() deletes versions newer than the safe timestamp", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",
@@ -910,6 +944,7 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
 test("revert() updates versions that only existed during the safe timestamp to latest", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
+  await indexingStore.publish();
 
   await indexingStore.create({
     tableName: "Pet",

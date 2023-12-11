@@ -86,6 +86,7 @@ export interface IndexingStore {
   kill(): Promise<void>;
 
   revert(options: { safeCheckpoint: Checkpoint }): Promise<void>;
+  publish(): Promise<void>;
 
   findUnique(options: {
     tableName: string;
