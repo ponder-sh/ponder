@@ -11,11 +11,11 @@ import {
 
 test("getRpcUrlsForClient handles default RPC URL", async () => {
   const rpcUrls = await getRpcUrlsForClient({
-    transport: http("http://localhost:8545"),
+    transport: http(),
     chain: mainnet,
   });
 
-  expect(rpcUrls).toMatchObject(["http://localhost:8545"]);
+  expect(rpcUrls).toMatchObject(["https://cloudflare-eth.com"]);
 });
 
 test("getRpcUrlsForClient should handle an http transport", async () => {
