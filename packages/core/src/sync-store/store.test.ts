@@ -1201,14 +1201,14 @@ test("getLogEvents filters on log filter with one address", async (context) => {
       {
         id: "singleAddress",
         chainId: 1,
-        criteria: { address: blockOneLogs[0].address },
+        criteria: { address: checksumAddress(blockOneLogs[0].address) },
       },
     ],
   });
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
-  expect(events[0].log.address).toBe(blockOneLogs[0].address);
+  expect(events[0].log.address).toBe(checksumAddress(blockOneLogs[0].address));
   expect(events).toHaveLength(1);
 });
 
@@ -1237,7 +1237,10 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
         id: "multipleAddress",
         chainId: 1,
         criteria: {
-          address: [blockOneLogs[0].address, blockOneLogs[1].address],
+          address: [
+            checksumAddress(blockOneLogs[0].address),
+            checksumAddress(blockOneLogs[1].address),
+          ],
         },
       },
     ],
@@ -1248,13 +1251,13 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
   expect(events[0]).toMatchObject({
     sourceId: "multipleAddress",
     log: {
-      address: blockOneLogs[0].address,
+      address: checksumAddress(blockOneLogs[0].address),
     },
   });
   expect(events[1]).toMatchObject({
     sourceId: "multipleAddress",
     log: {
-      address: blockOneLogs[1].address,
+      address: checksumAddress(blockOneLogs[1].address),
     },
   });
   expect(events).toHaveLength(2);
@@ -1474,7 +1477,7 @@ test("getLogEvents filters on multiple filters", async (context) => {
       {
         id: "singleAddress", // This should match blockOneLogs[0]
         chainId: 1,
-        criteria: { address: blockOneLogs[0].address },
+        criteria: { address: checksumAddress(blockOneLogs[0].address) },
       },
       {
         id: "singleTopic", // This should match blockOneLogs[0] AND blockTwoLogs[0]
@@ -1491,13 +1494,13 @@ test("getLogEvents filters on multiple filters", async (context) => {
   expect(events[0]).toMatchObject({
     sourceId: "singleAddress",
     log: {
-      address: blockOneLogs[0].address,
+      address: checksumAddress(blockOneLogs[0].address),
     },
   });
   expect(events[1]).toMatchObject({
     sourceId: "singleTopic",
     log: {
-      address: blockOneLogs[0].address,
+      address: checksumAddress(blockOneLogs[0].address),
     },
   });
   expect(events[2]).toMatchObject({
