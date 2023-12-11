@@ -1,5 +1,5 @@
 import { createConfig } from "@ponder/core";
-import { getAbiItem, getAddress, http } from "viem";
+import { getAbiItem, http } from "viem";
 
 import { FactoryAbi } from "./abis/FactoryAbi";
 import { PairAbi } from "./abis/PairAbi";
@@ -15,18 +15,20 @@ export default createConfig({
     Factory: {
       network: "mainnet",
       abi: FactoryAbi,
-      address: getAddress("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
+      address: "0x5C69bee701ef814a2B6a3edd4b1652CB9cc5aA6f",
       startBlock: 18700000,
+      endBlock: 18700500,
     },
     Pair: {
       network: "mainnet",
       abi: PairAbi,
       factory: {
-        address: getAddress("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"),
+        address: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
         event: getAbiItem({ abi: FactoryAbi, name: "PairCreated" }),
         parameter: "pair",
       },
       startBlock: 18700000,
+      endBlock: 18700500,
     },
   },
 });

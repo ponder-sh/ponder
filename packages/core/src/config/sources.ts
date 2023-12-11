@@ -1,9 +1,12 @@
 import type { AbiEvent } from "abitype";
 import { parseAbiItem } from "abitype";
 import type { Abi, Address, GetEventArgs, Hex } from "viem";
-import { encodeEventTopics, getAbiItem, getEventSelector } from "viem";
-
-import { toLowerCase } from "@/utils/lowercase.js";
+import {
+  checksumAddress,
+  encodeEventTopics,
+  getAbiItem,
+  getEventSelector,
+} from "viem";
 
 import type { AbiEvents } from "./abi.js";
 import { getEvents } from "./abi.js";
@@ -119,9 +122,9 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
           type: "logFilter",
           criteria: {
             address: Array.isArray(resolvedAddress)
-              ? resolvedAddress.map((r) => toLowerCase(r))
+              ? resolvedAddress.map((r) => checksumAddress(r))
               : resolvedAddress
-                ? toLowerCase(resolvedAddress)
+                ? checksumAddress(resolvedAddress)
                 : undefined,
             topics,
           },
@@ -181,9 +184,9 @@ export const buildSources = ({ config }: { config: Config }): Source[] => {
             type: "logFilter",
             criteria: {
               address: Array.isArray(resolvedAddress)
-                ? resolvedAddress.map((r) => toLowerCase(r))
+                ? resolvedAddress.map((r) => checksumAddress(r))
                 : resolvedAddress
-                  ? toLowerCase(resolvedAddress)
+                  ? checksumAddress(resolvedAddress)
                   : undefined,
               topics,
             },

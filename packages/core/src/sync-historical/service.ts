@@ -32,6 +32,7 @@ import {
   intervalSum,
   ProgressTracker,
 } from "@/utils/interval.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
 import { getErrorMessage, request } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
@@ -949,7 +950,16 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
       return await request(this.network, {
         body: {
           method: "eth_getLogs",
-          params: [options],
+          params: [
+            {
+              ...options,
+              address: options.address
+                ? Array.isArray(options.address)
+                  ? options.address.map((a) => toLowerCase(a))
+                  : toLowerCase(options.address)
+                : undefined,
+            },
+          ],
         },
         fetchOptions: { signal },
       });

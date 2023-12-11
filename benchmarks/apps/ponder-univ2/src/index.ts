@@ -1,5 +1,3 @@
-import { getAddress } from "viem";
-
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { ponder } from "@/generated";
@@ -13,7 +11,7 @@ ponder.on("Factory:PairCreated", async ({ event, context }) => {
   const { UniswapFactory, Pair } = context.db;
 
   await UniswapFactory.upsert({
-    id: getAddress(context.contracts.Factory.address),
+    id: context.contracts.Factory.address,
     create: {
       pairCount: 0,
       txCount: 0,
@@ -25,7 +23,7 @@ ponder.on("Factory:PairCreated", async ({ event, context }) => {
   });
 
   await Pair.create({
-    id: getAddress(event.args.pair),
+    id: event.args.pair,
     data: {
       token0: event.args.token0,
       token1: event.args.token1,
@@ -41,21 +39,21 @@ ponder.on("Factory:PairCreated", async ({ event, context }) => {
 
 ponder.on("Pair:Sync", async ({ event, context }) => {
   await context.db.Pair.update({
-    id: getAddress(event.log.address),
+    id: event.log.address,
     data: { reserve0: event.args.reserve0, reserve1: event.args.reserve1 },
   });
 });
 
 ponder.on("Pair:Mint", async ({ event, context }) => {
   await context.db.UniswapFactory.update({
-    id: getAddress(context.contracts.Factory.address),
+    id: context.contracts.Factory.address,
     data: ({ current }) => ({
       txCount: current.txCount + 1,
     }),
   });
 
   await context.db.Pair.update({
-    id: getAddress(event.log.address),
+    id: event.log.address,
     data: ({ current }) => ({
       txCount: current.txCount + 1,
     }),
@@ -64,7 +62,7 @@ ponder.on("Pair:Mint", async ({ event, context }) => {
   await context.db.Mint.create({
     id: event.log.id,
     data: {
-      pair: getAddress(event.log.address),
+      pair: event.log.address,
       timestamp: event.block.timestamp,
       sender: event.args.sender,
       amount0: event.args.amount0,
@@ -76,14 +74,14 @@ ponder.on("Pair:Mint", async ({ event, context }) => {
 
 ponder.on("Pair:Burn", async ({ event, context }) => {
   await context.db.UniswapFactory.update({
-    id: getAddress(context.contracts.Factory.address),
+    id: context.contracts.Factory.address,
     data: ({ current }) => ({
       txCount: current.txCount + 1,
     }),
   });
 
   await context.db.Pair.update({
-    id: getAddress(event.log.address),
+    id: event.log.address,
     data: ({ current }) => ({
       txCount: current.txCount + 1,
     }),
@@ -92,7 +90,7 @@ ponder.on("Pair:Burn", async ({ event, context }) => {
   await context.db.Burn.create({
     id: event.log.id,
     data: {
-      pair: getAddress(event.log.address),
+      pair: event.log.address,
       timestamp: event.block.timestamp,
       sender: event.args.sender,
       to: event.args.sender,
@@ -105,14 +103,14 @@ ponder.on("Pair:Burn", async ({ event, context }) => {
 
 ponder.on("Pair:Swap", async ({ event, context }) => {
   await context.db.UniswapFactory.update({
-    id: getAddress(context.contracts.Factory.address),
+    id: context.contracts.Factory.address,
     data: ({ current }) => ({
       txCount: current.txCount + 1,
     }),
   });
 
   await context.db.Pair.update({
-    id: getAddress(event.log.address),
+    id: event.log.address,
     data: ({ current }) => ({
       txCount: current.txCount + 1,
     }),
@@ -121,7 +119,7 @@ ponder.on("Pair:Swap", async ({ event, context }) => {
   await context.db.Swap.create({
     id: event.log.id,
     data: {
-      pair: getAddress(event.log.address),
+      pair: event.log.address,
       timestamp: event.block.timestamp,
       sender: event.args.sender,
       from: event.transaction.from,

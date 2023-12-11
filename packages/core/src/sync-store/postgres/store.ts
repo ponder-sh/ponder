@@ -7,7 +7,13 @@ import {
   sql,
   type Transaction as KyselyTransaction,
 } from "kysely";
-import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import {
+  checksumAddress,
+  type Hex,
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+} from "viem";
 
 import type {
   FactoryCriteria,
@@ -350,7 +356,7 @@ export class PostgresSyncStore implements SyncStore {
       }
 
       if (batch.length > 0) {
-        yield batch.map((a) => a.childAddress);
+        yield batch.map((a) => checksumAddress(a.childAddress));
       }
 
       if (batch.length < pageSize) break;
@@ -1040,7 +1046,7 @@ export class PostgresSyncStore implements SyncStore {
             blockHash: row.log_blockHash,
             blockNumber: row.log_blockNumber,
             data: row.log_data,
-            id: row.log_id,
+            id: row.log_id as Log["id"],
             logIndex: Number(row.log_logIndex),
             removed: false,
             topics: [
@@ -1303,7 +1309,7 @@ export class PostgresSyncStore implements SyncStore {
 
     exprs.push(
       eb(
-        "logs.address",
+        sql`lower(logs.address)`,
         "in",
         eb
           .selectFrom("logs")
@@ -1352,12 +1358,12 @@ function buildFactoryChildAddressSelectExpression({
     const childAddressOffset = Number(childAddressLocation.substring(6));
     const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
     const length = 20 * 2;
-    return sql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
+    return sql<Hex>`'0x' || lower(substring(data from ${start}::int for ${length}::int))`;
   } else {
     const start = 2 + 12 * 2 + 1;
     const length = 20 * 2;
-    return sql<Hex>`'0x' || substring(${sql.ref(
+    return sql<Hex>`'0x' || lower(substring(${sql.ref(
       childAddressLocation,
-    )} from ${start}::integer for ${length}::integer)`;
+    )} from ${start}::integer for ${length}::integer))`;
   }
 }

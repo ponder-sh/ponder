@@ -2,7 +2,7 @@ import { createSchema } from "@ponder/core";
 
 export default createSchema((p) => ({
   Account: p.createTable({
-    id: p.string(),
+    id: p.bytes(),
     balance: p.bigint(),
     isOwner: p.boolean(),
 
@@ -16,8 +16,8 @@ export default createSchema((p) => ({
     id: p.bytes(),
     amount: p.bigint(),
 
-    ownerId: p.string().references("Account.id"),
-    spenderId: p.string().references("Account.id"),
+    ownerId: p.bytes().references("Account.id"),
+    spenderId: p.bytes().references("Account.id"),
 
     owner: p.one("ownerId"),
     spender: p.one("spenderId"),
@@ -27,8 +27,8 @@ export default createSchema((p) => ({
     amount: p.bigint(),
     timestamp: p.int(),
 
-    fromId: p.string().references("Account.id"),
-    toId: p.string().references("Account.id"),
+    fromId: p.bytes().references("Account.id"),
+    toId: p.bytes().references("Account.id"),
 
     from: p.one("fromId"),
     to: p.one("toId"),

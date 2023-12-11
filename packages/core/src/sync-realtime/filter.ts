@@ -1,4 +1,4 @@
-import type { Address, Hex, RpcLog } from "viem";
+import { type Address, checksumAddress, type Hex, type RpcLog } from "viem";
 
 import type { Topics } from "@/config/sources.js";
 
@@ -32,11 +32,13 @@ export function isLogMatchedByFilter({
   address?: Address | Address[];
   topics?: Topics;
 }) {
+  const logAddress = checksumAddress(log.address);
+
   if (address !== undefined && address.length > 0) {
     if (Array.isArray(address)) {
-      if (!address.includes(log.address)) return false;
+      if (!address.includes(logAddress)) return false;
     } else {
-      if (log.address !== address) return false;
+      if (logAddress !== address) return false;
     }
   }
 
