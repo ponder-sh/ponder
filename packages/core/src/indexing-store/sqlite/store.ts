@@ -76,6 +76,10 @@ export class SqliteIndexingStore implements IndexingStore {
     });
   }
 
+  async publish() {
+    // Implements the interface.
+  }
+
   /**
    * Resets the database by dropping existing tables and creating new tables.
    * If no new schema is provided, the existing schema is used.

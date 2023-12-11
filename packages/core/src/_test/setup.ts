@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { beforeEach, type TestContext } from "vitest";
 
 import { buildOptions } from "@/config/options.js";
@@ -106,27 +107,53 @@ export async function setupSyncStore(
  */
 export async function setupIndexingStore(context: TestContext) {
   if (process.env.DATABASE_URL) {
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const testClient = new pg.Client({
+      connectionString: process.env.DATABASE_URL,
+    });
+    await testClient.connect();
+    // Create a random database to isolate the tests.
+    const databaseSchema = `vitest_pool_${process.pid}_${randomBytes(
+      10,
+    ).toString("hex")}`;
+
+    const dbURL = new URL(process.env.DATABASE_URL);
+    dbURL.pathname = `/${databaseSchema}`;
+    const pool = new pg.Pool({
+      connectionString: dbURL.toString(),
+    });
+
+    await testClient.query(`CREATE DATABASE "${databaseSchema}"`);
     context.indexingStore = new PostgresIndexingStore({
       common: context.common,
       pool,
     });
+
+    return async () => {
+      try {
+        await context.indexingStore.kill();
+        await testClient.query(`DROP DATABASE "${databaseSchema}"`);
+        await testClient.end();
+      } catch (e) {
+        // This fails in end-to-end tests where the pool has
+        // already been shut down during the Ponder instance kill() method.
+        // It's fine to ignore the error.
+      }
+    };
   } else {
     context.indexingStore = new SqliteIndexingStore({
       common: context.common,
       file: ":memory:",
     });
+    return async () => {
+      try {
+        await context.indexingStore.kill();
+      } catch (e) {
+        // This fails in end-to-end tests where the pool has
+        // already been shut down during the Ponder instance kill() method.
+        // It's fine to ignore the error.
+      }
+    };
   }
-
-  return async () => {
-    try {
-      await context.indexingStore.kill();
-    } catch (e) {
-      // This fails in end-to-end tests where the pool has
-      // already been shut down during the Ponder instance kill() method.
-      // It's fine to ignore the error.
-    }
-  };
 }
 
 /**
