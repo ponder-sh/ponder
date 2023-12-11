@@ -12,6 +12,13 @@ Ensure you have Ponder installed as well as `foundry`. You will also need to ins
 pnpm install && cd ponder && pnpm install
 ```
 
+And then install the foundry packages in the `/contracts`:
+
+```shell
+# In the `/contracts` directory
+forge install
+```
+
 ## Usage
 
 There are some handy scripts in `package.json` to help you get started with this example. Open two terminal windows and run the following commands in each which starts an anvil server and ponder service respectively:
