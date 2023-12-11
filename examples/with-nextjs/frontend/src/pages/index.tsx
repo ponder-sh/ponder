@@ -1,8 +1,8 @@
 import { Inter } from "next/font/google";
-import { formatEther } from "viem";
 import CountUp from "react-countup";
+import { formatEther } from "viem";
 
-import { useDeposits, type Deposit } from "../hooks/useDeposits";
+import { type Deposit, useDeposits } from "../hooks/useDeposits";
 
 const inter = Inter({ subsets: ["latin"] });
 
