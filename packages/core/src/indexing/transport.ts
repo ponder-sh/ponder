@@ -1,5 +1,5 @@
 import type { Address, Hex, Transport } from "viem";
-import { custom } from "viem";
+import { custom, maxUint256 } from "viem";
 
 import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/store.js";
@@ -25,30 +25,38 @@ export const ponderTransport = ({
         if (method === "eth_call") {
           const [{ data, to }, _blockNumber] = params as [
             { data: Hex; to: Hex },
-            Hex,
+            Hex | "latest",
           ];
 
           request = `${method as string}_${toLowerCase(to)}_${toLowerCase(
             data,
           )}`;
-          blockNumber = BigInt(_blockNumber);
+          blockNumber =
+            _blockNumber === "latest" ? maxUint256 : BigInt(_blockNumber);
         } else if (method === "eth_getBalance") {
-          const [address, _blockNumber] = params as [Address, Hex];
+          const [address, _blockNumber] = params as [Address, Hex | "latest"];
 
           request = `${method as string}_${toLowerCase(address)}`;
-          blockNumber = BigInt(_blockNumber);
+          blockNumber =
+            _blockNumber === "latest" ? maxUint256 : BigInt(_blockNumber);
         } else if (method === "eth_getCode") {
-          const [address, _blockNumber] = params as [Address, Hex];
+          const [address, _blockNumber] = params as [Address, Hex | "latest"];
 
           request = `${method as string}_${toLowerCase(address)}`;
-          blockNumber = BigInt(_blockNumber);
+          blockNumber =
+            _blockNumber === "latest" ? maxUint256 : BigInt(_blockNumber);
         } else if (method === "eth_getStorageAt") {
-          const [address, slot, _blockNumber] = params as [Address, Hex, Hex];
+          const [address, slot, _blockNumber] = params as [
+            Address,
+            Hex,
+            Hex | "latest",
+          ];
 
           request = `${method as string}_${toLowerCase(address)}_${toLowerCase(
             slot,
           )}`;
-          blockNumber = BigInt(_blockNumber);
+          blockNumber =
+            _blockNumber === "latest" ? maxUint256 : BigInt(_blockNumber);
         }
 
         if (request !== null && blockNumber !== null) {
@@ -64,7 +72,7 @@ export const ponderTransport = ({
               requestHelper(network, { body }),
             );
             await syncStore.insertRpcRequestResult({
-              blockNumber: BigInt(blockNumber),
+              blockNumber: blockNumber,
               chainId: chain!.id,
               request,
               result: response as string,
