@@ -38,8 +38,8 @@ export default createSchema((p) => ({
     amount: p.bigint(),
     timestamp: p.int(),
 
-    ownerId: p.string().references("Account.id"),
-    spenderId: p.string().references("Account.id"),
+    ownerId: p.bytes().references("Account.id"),
+    spenderId: p.bytes().references("Account.id"),
 
     owner: p.one("ownerId"),
     spender: p.one("spenderId"),
