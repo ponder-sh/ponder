@@ -365,7 +365,7 @@ const migrations: Record<string, Migration> = {
       await db.schema
         .createTable("rpcRequestResults")
         .addColumn("request", "text", (col) => col.notNull())
-        .addColumn("blockNumber", "numeric(78, 0)")
+        .addColumn("blockNumber", "numeric(78, 0)", (col) => col.notNull())
         .addColumn("chainId", "integer", (col) => col.notNull())
         .addColumn("result", "text", (col) => col.notNull())
         .addPrimaryKeyConstraint("rpcRequestResultPrimaryKey", [

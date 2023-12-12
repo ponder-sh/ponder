@@ -804,7 +804,7 @@ export class PostgresSyncStore implements SyncStore {
     result,
   }: {
     request: string;
-    blockNumber: bigint | null;
+    blockNumber: bigint;
     chainId: number;
     result: string;
   }) => {
@@ -827,7 +827,7 @@ export class PostgresSyncStore implements SyncStore {
     chainId,
   }: {
     request: string;
-    blockNumber: bigint | null;
+    blockNumber: bigint;
     chainId: number;
   }) => {
     const start = performance.now();

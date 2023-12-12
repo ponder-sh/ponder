@@ -161,7 +161,7 @@ export function rpcToSqliteLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
 }
 
 type RpcRequestResultsTable = {
-  blockNumber: BigIntText | null;
+  blockNumber: BigIntText;
   chainId: number;
   result: string;
   request: string;

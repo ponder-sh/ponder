@@ -79,6 +79,19 @@ test("eth_call", async ({ syncStore }) => {
   expect(response1).toBe(response2);
 
   expect(callSpy).toHaveBeenCalledTimes(0);
+
+  const response3 = await transport.request({
+    method: "eth_call",
+    params: [
+      {
+        data: getFunctionSelector("totalSupply()"),
+        to: usdcContractConfig.address,
+      },
+      "latest",
+    ],
+  });
+
+  expect(response3).toBeDefined();
 });
 
 test("eth_getBalance", async ({ syncStore }) => {
@@ -109,6 +122,13 @@ test("eth_getBalance", async ({ syncStore }) => {
   expect(response1).toBe(response2);
 
   expect(callSpy).toHaveBeenCalledTimes(0);
+
+  const response3 = await transport.request({
+    method: "eth_getBalance",
+    params: [usdcContractConfig.address, "latest"],
+  });
+
+  expect(response3).toBeDefined();
 });
 
 test("eth_getStorageAt", async ({ syncStore }) => {
@@ -139,6 +159,13 @@ test("eth_getStorageAt", async ({ syncStore }) => {
   expect(response1).toBe(response2);
 
   expect(callSpy).toHaveBeenCalledTimes(0);
+
+  const response3 = await transport.request({
+    method: "eth_getStorageAt",
+    params: [usdcContractConfig.address, toHex(3), "latest"],
+  });
+
+  expect(response3).toBeDefined();
 });
 
 test("eth_getCode", async ({ syncStore }) => {
@@ -169,6 +196,13 @@ test("eth_getCode", async ({ syncStore }) => {
   expect(response1).toBe(response2);
 
   expect(callSpy).toHaveBeenCalledTimes(0);
+
+  const response3 = await transport.request({
+    method: "eth_getCode",
+    params: [usdcContractConfig.address, "latest"],
+  });
+
+  expect(response3).toBeDefined();
 });
 
 test("fallback method", async ({ syncStore }) => {

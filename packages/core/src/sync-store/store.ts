@@ -131,18 +131,18 @@ export interface SyncStore {
 
   insertRpcRequestResult(options: {
     request: string;
-    blockNumber: bigint | null;
+    blockNumber: bigint;
     chainId: number;
     result: string;
   }): Promise<void>;
 
   getRpcRequestResult(options: {
     request: string;
-    blockNumber: bigint | null;
+    blockNumber: bigint;
     chainId: number;
   }): Promise<{
     request: string;
-    blockNumber: bigint | null;
+    blockNumber: bigint;
     chainId: number;
     result: string;
   } | null>;
