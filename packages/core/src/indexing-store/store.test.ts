@@ -32,92 +32,104 @@ function createCheckpoint(index: number): Checkpoint {
   return { ...zeroCheckpoint, blockTimestamp: index };
 }
 
-test("reload() binds the schema", async (context) => {
+test.concurrent("reload() binds the schema", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
   expect(indexingStore.schema).toBe(schema);
 });
 
-test("create() inserts a record that is effective after specified checkpoint", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "create() inserts a record that is effective after specified checkpoint",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
-
-  const instance = await indexingStore.findUnique({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(25),
-    id: "id1",
-  });
-  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
-});
-
-test("create() inserts a record that is effective at timestamp", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
-
-  const instance = await indexingStore.findUnique({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-  });
-  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
-});
-
-test("create() inserts a record that is not effective before timestamp", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
-
-  const instance = await indexingStore.findUnique({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(8),
-    id: "id1",
-  });
-  expect(instance).toBeNull();
-});
-
-test("create() throws on unique constraint violation even if checkpoint is different", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
-
-  await expect(() =>
-    indexingStore.create({
+    await indexingStore.create({
       tableName: "Pet",
-      checkpoint: createCheckpoint(15),
+      checkpoint: createCheckpoint(10),
       id: "id1",
-      data: { name: "Skip", age: 13 },
-    }),
-  ).rejects.toThrow();
-});
+      data: { name: "Skip", age: 12 },
+    });
 
-test("create() respects optional fields", async (context) => {
+    const instance = await indexingStore.findUnique({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(25),
+      id: "id1",
+    });
+    expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+  },
+);
+
+test.concurrent(
+  "create() inserts a record that is effective at timestamp",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
+
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", age: 12 },
+    });
+
+    const instance = await indexingStore.findUnique({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+    });
+    expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+  },
+);
+
+test.concurrent(
+  "create() inserts a record that is not effective before timestamp",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
+
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", age: 12 },
+    });
+
+    const instance = await indexingStore.findUnique({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(8),
+      id: "id1",
+    });
+    expect(instance).toBeNull();
+  },
+);
+
+test.concurrent(
+  "create() throws on unique constraint violation even if checkpoint is different",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
+
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", age: 12 },
+    });
+
+    await expect(() =>
+      indexingStore.create({
+        tableName: "Pet",
+        checkpoint: createCheckpoint(15),
+        id: "id1",
+        data: { name: "Skip", age: 13 },
+      }),
+    ).rejects.toThrow();
+  },
+);
+
+test.concurrent("create() respects optional fields", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -137,7 +149,7 @@ test("create() respects optional fields", async (context) => {
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: null });
 });
 
-test("create() accepts enums", async (context) => {
+test.concurrent("create() accepts enums", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -157,7 +169,7 @@ test("create() accepts enums", async (context) => {
   expect(instance).toMatchObject({ id: "id1", name: "Skip", kind: "CAT" });
 });
 
-test("create() throws on invalid enum value", async (context) => {
+test.concurrent("create() throws on invalid enum value", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -171,27 +183,30 @@ test("create() throws on invalid enum value", async (context) => {
   ).rejects.toThrow();
 });
 
-test("create() accepts BigInt fields as bigint and returns as bigint", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "create() accepts BigInt fields as bigint and returns as bigint",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", bigAge: 100n },
-  });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", bigAge: 100n },
+    });
 
-  const instance = await indexingStore.findUnique({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-  });
+    const instance = await indexingStore.findUnique({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+    });
 
-  expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
-});
+    expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
+  },
+);
 
-test("update() updates a record", async (context) => {
+test.concurrent("update() updates a record", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -222,119 +237,131 @@ test("update() updates a record", async (context) => {
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
 });
 
-test("update() updates a record using an update function", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "update() updates a record using an update function",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", bigAge: 100n },
-  });
-
-  const instance = await indexingStore.findUnique({
-    tableName: "Pet",
-    id: "id1",
-  });
-  expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
-
-  await indexingStore.update({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(11),
-    id: "id1",
-    data: ({ current }) => ({
-      name: current.name + " and Skipper",
-    }),
-  });
-
-  const updatedInstance = await indexingStore.findUnique({
-    tableName: "Pet",
-    id: "id1",
-  });
-  expect(updatedInstance).toMatchObject({
-    id: "id1",
-    name: "Skip and Skipper",
-  });
-});
-
-test("update() updates a record and maintains older version", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", bigAge: 100n },
-  });
-
-  await indexingStore.update({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(11),
-    id: "id1",
-    data: { name: "Peanut Butter" },
-  });
-
-  const originalInstance = await indexingStore.findUnique({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-  });
-  expect(originalInstance).toMatchObject({
-    id: "id1",
-    name: "Skip",
-    bigAge: 100n,
-  });
-});
-
-test("update() throws if trying to update an instance in the past", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip" },
-  });
-
-  await expect(() =>
-    indexingStore.update({
+    await indexingStore.create({
       tableName: "Pet",
-      checkpoint: createCheckpoint(8),
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", bigAge: 100n },
+    });
+
+    const instance = await indexingStore.findUnique({
+      tableName: "Pet",
+      id: "id1",
+    });
+    expect(instance).toMatchObject({ id: "id1", name: "Skip", bigAge: 100n });
+
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(11),
+      id: "id1",
+      data: ({ current }) => ({
+        name: current.name + " and Skipper",
+      }),
+    });
+
+    const updatedInstance = await indexingStore.findUnique({
+      tableName: "Pet",
+      id: "id1",
+    });
+    expect(updatedInstance).toMatchObject({
+      id: "id1",
+      name: "Skip and Skipper",
+    });
+  },
+);
+
+test.concurrent(
+  "update() updates a record and maintains older version",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
+
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", bigAge: 100n },
+    });
+
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(11),
       id: "id1",
       data: { name: "Peanut Butter" },
-    }),
-  ).rejects.toThrow();
-});
+    });
 
-test("update() updates a record in-place within the same timestamp", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+    const originalInstance = await indexingStore.findUnique({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+    });
+    expect(originalInstance).toMatchObject({
+      id: "id1",
+      name: "Skip",
+      bigAge: 100n,
+    });
+  },
+);
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip" },
-  });
+test.concurrent(
+  "update() throws if trying to update an instance in the past",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.update({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Peanut Butter" },
-  });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip" },
+    });
 
-  const updatedInstance = await indexingStore.findUnique({
-    tableName: "Pet",
-    id: "id1",
-  });
-  expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
-});
+    await expect(() =>
+      indexingStore.update({
+        tableName: "Pet",
+        checkpoint: createCheckpoint(8),
+        id: "id1",
+        data: { name: "Peanut Butter" },
+      }),
+    ).rejects.toThrow();
+  },
+);
 
-test("upsert() inserts a new record", async (context) => {
+test.concurrent(
+  "update() updates a record in-place within the same timestamp",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
+
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip" },
+    });
+
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Peanut Butter" },
+    });
+
+    const updatedInstance = await indexingStore.findUnique({
+      tableName: "Pet",
+      id: "id1",
+    });
+    expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
+  },
+);
+
+test.concurrent("upsert() inserts a new record", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -352,7 +379,7 @@ test("upsert() inserts a new record", async (context) => {
   expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 });
 
-test("upsert() updates a record", async (context) => {
+test.concurrent("upsert() updates a record", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -383,88 +410,97 @@ test("upsert() updates a record", async (context) => {
   expect(updatedInstance).toMatchObject({ id: "id1", name: "Jelly", age: 12 });
 });
 
-test("upsert() updates a record using an update function", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "upsert() updates a record using an update function",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
-  const instance = await indexingStore.findUnique({
-    tableName: "Pet",
-    id: "id1",
-  });
-  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
-
-  await indexingStore.upsert({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(12),
-    id: "id1",
-    create: { name: "Skip", age: 24 },
-    update: ({ current }) => ({
-      age: (current.age as number) - 5,
-    }),
-  });
-
-  const updatedInstance = await indexingStore.findUnique({
-    tableName: "Pet",
-    id: "id1",
-  });
-  expect(updatedInstance).toMatchObject({ id: "id1", name: "Skip", age: 7 });
-});
-
-test("upsert() throws if trying to update an instance in the past", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
-
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip" },
-  });
-
-  await expect(() =>
-    indexingStore.upsert({
+    await indexingStore.create({
       tableName: "Pet",
-      checkpoint: createCheckpoint(8),
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", age: 12 },
+    });
+    const instance = await indexingStore.findUnique({
+      tableName: "Pet",
+      id: "id1",
+    });
+    expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+
+    await indexingStore.upsert({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(12),
+      id: "id1",
+      create: { name: "Skip", age: 24 },
+      update: ({ current }) => ({
+        age: (current.age as number) - 5,
+      }),
+    });
+
+    const updatedInstance = await indexingStore.findUnique({
+      tableName: "Pet",
+      id: "id1",
+    });
+    expect(updatedInstance).toMatchObject({ id: "id1", name: "Skip", age: 7 });
+  },
+);
+
+test.concurrent(
+  "upsert() throws if trying to update an instance in the past",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
+
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip" },
+    });
+
+    await expect(() =>
+      indexingStore.upsert({
+        tableName: "Pet",
+        checkpoint: createCheckpoint(8),
+        id: "id1",
+        create: { name: "Jelly" },
+        update: { name: "Peanut Butter" },
+      }),
+    ).rejects.toThrow();
+  },
+);
+
+test.concurrent(
+  "upsert() updates a record in-place within the same timestamp",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
+
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip" },
+    });
+
+    await indexingStore.upsert({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
       id: "id1",
       create: { name: "Jelly" },
       update: { name: "Peanut Butter" },
-    }),
-  ).rejects.toThrow();
-});
+    });
 
-test("upsert() updates a record in-place within the same timestamp", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+    const updatedInstance = await indexingStore.findUnique({
+      tableName: "Pet",
+      id: "id1",
+    });
+    expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
+  },
+);
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip" },
-  });
-
-  await indexingStore.upsert({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    create: { name: "Jelly" },
-    update: { name: "Peanut Butter" },
-  });
-
-  const updatedInstance = await indexingStore.findUnique({
-    tableName: "Pet",
-    id: "id1",
-  });
-  expect(updatedInstance).toMatchObject({ id: "id1", name: "Peanut Butter" });
-});
-
-test("delete() removes a record", async (context) => {
+test.concurrent("delete() removes a record", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -493,7 +529,7 @@ test("delete() removes a record", async (context) => {
   expect(deletedInstance).toBe(null);
 });
 
-test("delete() retains older version of record", async (context) => {
+test.concurrent("delete() retains older version of record", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -518,154 +554,166 @@ test("delete() retains older version of record", async (context) => {
   expect(deletedInstance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 });
 
-test("delete() removes a record entirely if only present for one timestamp", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "delete() removes a record entirely if only present for one timestamp",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
-  const instance = await indexingStore.findUnique({
-    tableName: "Pet",
-    id: "id1",
-  });
-  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", age: 12 },
+    });
+    const instance = await indexingStore.findUnique({
+      tableName: "Pet",
+      id: "id1",
+    });
+    expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
-  await indexingStore.delete({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-  });
+    await indexingStore.delete({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+    });
 
-  const deletedInstance = await indexingStore.findUnique({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-  });
-  expect(deletedInstance).toBe(null);
-});
+    const deletedInstance = await indexingStore.findUnique({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+    });
+    expect(deletedInstance).toBe(null);
+  },
+);
 
-test("delete() removes a record entirely if only present for one timestamp after update()", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "delete() removes a record entirely if only present for one timestamp after update()",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
-  const instance = await indexingStore.findUnique({
-    tableName: "Pet",
-    id: "id1",
-  });
-  expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", age: 12 },
+    });
+    const instance = await indexingStore.findUnique({
+      tableName: "Pet",
+      id: "id1",
+    });
+    expect(instance).toMatchObject({ id: "id1", name: "Skip", age: 12 });
 
-  await indexingStore.update({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(12),
-    id: "id1",
-    data: { name: "Skipper", age: 12 },
-  });
-  const updatedInstance = await indexingStore.findUnique({
-    tableName: "Pet",
-    id: "id1",
-  });
-  expect(updatedInstance).toMatchObject({
-    id: "id1",
-    name: "Skipper",
-    age: 12,
-  });
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(12),
+      id: "id1",
+      data: { name: "Skipper", age: 12 },
+    });
+    const updatedInstance = await indexingStore.findUnique({
+      tableName: "Pet",
+      id: "id1",
+    });
+    expect(updatedInstance).toMatchObject({
+      id: "id1",
+      name: "Skipper",
+      age: 12,
+    });
 
-  await indexingStore.delete({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(12),
-    id: "id1",
-  });
+    await indexingStore.delete({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(12),
+      id: "id1",
+    });
 
-  const deletedInstance = await indexingStore.findUnique({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(12),
-    id: "id1",
-  });
-  expect(deletedInstance).toBe(null);
-});
+    const deletedInstance = await indexingStore.findUnique({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(12),
+      id: "id1",
+    });
+    expect(deletedInstance).toBe(null);
+  },
+);
 
-test("delete() deletes versions effective in the delete timestamp", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "delete() deletes versions effective in the delete timestamp",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip", age: 12 },
+    });
 
-  await indexingStore.delete({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(15),
-    id: "id1",
-  });
+    await indexingStore.delete({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(15),
+      id: "id1",
+    });
 
-  const instanceDuringDeleteTimestamp = await indexingStore.findUnique({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(15),
-    id: "id1",
-  });
-  expect(instanceDuringDeleteTimestamp).toBe(null);
+    const instanceDuringDeleteTimestamp = await indexingStore.findUnique({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(15),
+      id: "id1",
+    });
+    expect(instanceDuringDeleteTimestamp).toBe(null);
 
-  const instancePriorToDelete = await indexingStore.findUnique({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(14),
-    id: "id1",
-  });
-  expect(instancePriorToDelete).toBeTruthy();
-  expect(instancePriorToDelete!.name).toBe("Skip");
-});
+    const instancePriorToDelete = await indexingStore.findUnique({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(14),
+      id: "id1",
+    });
+    expect(instancePriorToDelete).toBeTruthy();
+    expect(instancePriorToDelete!.name).toBe("Skip");
+  },
+);
 
-test("findMany() returns current versions of all records", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "findMany() returns current versions of all records",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(8),
-    id: "id1",
-    data: { name: "Skip", age: 12 },
-  });
-  await indexingStore.update({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "SkipUpdated" },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id2",
-    data: { name: "Foo" },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id3",
-    data: { name: "Bar", bigAge: 100n },
-  });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(8),
+      id: "id1",
+      data: { name: "Skip", age: 12 },
+    });
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "SkipUpdated" },
+    });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id2",
+      data: { name: "Foo" },
+    });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id3",
+      data: { name: "Bar", bigAge: 100n },
+    });
 
-  const instances = await indexingStore.findMany({ tableName: "Pet" });
-  expect(instances).toHaveLength(3);
-  expect(instances.map((i) => i.name)).toMatchObject([
-    "SkipUpdated",
-    "Foo",
-    "Bar",
-  ]);
-});
+    const instances = await indexingStore.findMany({ tableName: "Pet" });
+    expect(instances).toHaveLength(3);
+    expect(instances.map((i) => i.name)).toMatchObject([
+      "SkipUpdated",
+      "Foo",
+      "Bar",
+    ]);
+  },
+);
 
-test("findMany() sorts on bigint field", async (context) => {
+test.concurrent("findMany() sorts on bigint field", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -701,7 +749,7 @@ test("findMany() sorts on bigint field", async (context) => {
   expect(instances.map((i) => i.bigAge)).toMatchObject([null, 10n, 105n, 190n]);
 });
 
-test("findMany() filters on bigint gt", async (context) => {
+test.concurrent("findMany() filters on bigint gt", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -738,7 +786,7 @@ test("findMany() filters on bigint gt", async (context) => {
   expect(instances.map((i) => i.bigAge)).toMatchObject([105n, 190n]);
 });
 
-test("findMany() sorts and filters together", async (context) => {
+test.concurrent("findMany() sorts and filters together", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -776,31 +824,37 @@ test("findMany() sorts and filters together", async (context) => {
   expect(instances.map((i) => i.name)).toMatchObject(["Bar", "Zarbar"]);
 });
 
-test("findMany() errors on invalid filter condition", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "findMany() errors on invalid filter condition",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  expect(() =>
-    indexingStore.findMany({
-      tableName: "Pet",
-      where: { name: { invalidWhereCondition: "ar" } },
-    }),
-  ).rejects.toThrow("Invalid filter condition name: invalidWhereCondition");
-});
+    expect(() =>
+      indexingStore.findMany({
+        tableName: "Pet",
+        where: { name: { invalidWhereCondition: "ar" } },
+      }),
+    ).rejects.toThrow("Invalid filter condition name: invalidWhereCondition");
+  },
+);
 
-test("findMany() errors on orderBy object with multiple keys", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "findMany() errors on orderBy object with multiple keys",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  expect(() =>
-    indexingStore.findMany({
-      tableName: "Pet",
-      orderBy: { name: "asc", bigAge: "desc" },
-    }),
-  ).rejects.toThrow("Invalid sort condition: Must have exactly one property");
-});
+    expect(() =>
+      indexingStore.findMany({
+        tableName: "Pet",
+        orderBy: { name: "asc", bigAge: "desc" },
+      }),
+    ).rejects.toThrow("Invalid sort condition: Must have exactly one property");
+  },
+);
 
-test("createMany() inserts multiple entities", async (context) => {
+test.concurrent("createMany() inserts multiple entities", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -819,28 +873,31 @@ test("createMany() inserts multiple entities", async (context) => {
   expect(instances.length).toBe(3);
 });
 
-test("createMany() inserts a large number of entities", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "createMany() inserts a large number of entities",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  const ENTITY_COUNT = 100_000;
+    const ENTITY_COUNT = 100_000;
 
-  const createdInstances = await indexingStore.createMany({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    data: [...Array(ENTITY_COUNT).keys()].map((i) => ({
-      id: `id${i}`,
-      name: "Alice",
-      bigAge: BigInt(i),
-    })),
-  });
-  expect(createdInstances.length).toBe(ENTITY_COUNT);
+    const createdInstances = await indexingStore.createMany({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      data: [...Array(ENTITY_COUNT).keys()].map((i) => ({
+        id: `id${i}`,
+        name: "Alice",
+        bigAge: BigInt(i),
+      })),
+    });
+    expect(createdInstances.length).toBe(ENTITY_COUNT);
 
-  const instances = await indexingStore.findMany({ tableName: "Pet" });
-  expect(instances.length).toBe(ENTITY_COUNT);
-});
+    const instances = await indexingStore.findMany({ tableName: "Pet" });
+    expect(instances.length).toBe(ENTITY_COUNT);
+  },
+);
 
-test("updateMany() updates multiple entities", async (context) => {
+test.concurrent("updateMany() updates multiple entities", async (context) => {
   const { indexingStore } = context;
   await indexingStore.reload({ schema });
 
@@ -868,194 +925,215 @@ test("updateMany() updates multiple entities", async (context) => {
   expect(instances.map((i) => i.bigAge)).toMatchObject([10n, 300n, 300n]);
 });
 
-test("revert() deletes versions newer than the safe timestamp", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "revert() deletes versions newer than the safe timestamp",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip" },
-  });
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(13),
-    id: "id2",
-    data: { name: "Foo" },
-  });
-  await indexingStore.update({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(15),
-    id: "id1",
-    data: { name: "SkipUpdated" },
-  });
-  await indexingStore.create({
-    tableName: "Person",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Bob" },
-  });
-  await indexingStore.update({
-    tableName: "Person",
-    checkpoint: createCheckpoint(11),
-    id: "id1",
-    data: { name: "Bobby" },
-  });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip" },
+    });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(13),
+      id: "id2",
+      data: { name: "Foo" },
+    });
+    await indexingStore.update({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(15),
+      id: "id1",
+      data: { name: "SkipUpdated" },
+    });
+    await indexingStore.create({
+      tableName: "Person",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Bob" },
+    });
+    await indexingStore.update({
+      tableName: "Person",
+      checkpoint: createCheckpoint(11),
+      id: "id1",
+      data: { name: "Bobby" },
+    });
 
-  await indexingStore.revert({ safeCheckpoint: createCheckpoint(12) });
+    await indexingStore.revert({ safeCheckpoint: createCheckpoint(12) });
 
-  const pets = await indexingStore.findMany({ tableName: "Pet" });
-  expect(pets.length).toBe(1);
-  expect(pets[0].name).toBe("Skip");
+    const pets = await indexingStore.findMany({ tableName: "Pet" });
+    expect(pets.length).toBe(1);
+    expect(pets[0].name).toBe("Skip");
 
-  const persons = await indexingStore.findMany({ tableName: "Person" });
-  expect(persons.length).toBe(1);
-  expect(persons[0].name).toBe("Bobby");
-});
+    const persons = await indexingStore.findMany({ tableName: "Person" });
+    expect(persons.length).toBe(1);
+    expect(persons[0].name).toBe("Bobby");
+  },
+);
 
-test("revert() updates versions that only existed during the safe timestamp to latest", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema });
+test.concurrent(
+  "revert() updates versions that only existed during the safe timestamp to latest",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema });
 
-  await indexingStore.create({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(10),
-    id: "id1",
-    data: { name: "Skip" },
-  });
-  await indexingStore.delete({
-    tableName: "Pet",
-    checkpoint: createCheckpoint(11),
-    id: "id1",
-  });
+    await indexingStore.create({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(10),
+      id: "id1",
+      data: { name: "Skip" },
+    });
+    await indexingStore.delete({
+      tableName: "Pet",
+      checkpoint: createCheckpoint(11),
+      id: "id1",
+    });
 
-  await indexingStore.revert({ safeCheckpoint: createCheckpoint(10) });
+    await indexingStore.revert({ safeCheckpoint: createCheckpoint(10) });
 
-  const pets = await indexingStore.findMany({ tableName: "Pet" });
-  expect(pets.length).toBe(1);
-  expect(pets[0].name).toBe("Skip");
-});
+    const pets = await indexingStore.findMany({ tableName: "Pet" });
+    expect(pets.length).toBe(1);
+    expect(pets[0].name).toBe("Skip");
+  },
+);
 
-test("findUnique() works with bytes case sensitivity", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema: bytesSchema });
+test.concurrent(
+  "findUnique() works with bytes case sensitivity",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema: bytesSchema });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: createCheckpoint(10),
-    id: "0xa",
-    data: { n: 1 },
-  });
+    await indexingStore.create({
+      tableName: "table",
+      checkpoint: createCheckpoint(10),
+      id: "0xa",
+      data: { n: 1 },
+    });
 
-  const instance = await indexingStore.findUnique({
-    tableName: "table",
-    checkpoint: createCheckpoint(25),
-    id: "0xA",
-  });
-  expect(instance).toMatchObject({ id: "0xa", n: 1 });
-});
+    const instance = await indexingStore.findUnique({
+      tableName: "table",
+      checkpoint: createCheckpoint(25),
+      id: "0xA",
+    });
+    expect(instance).toMatchObject({ id: "0xa", n: 1 });
+  },
+);
 
-test("update() works with bytes case sensitivity", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema: bytesSchema });
+test.concurrent(
+  "update() works with bytes case sensitivity",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema: bytesSchema });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: createCheckpoint(10),
-    id: "0xa",
-    data: { n: 1 },
-  });
+    await indexingStore.create({
+      tableName: "table",
+      checkpoint: createCheckpoint(10),
+      id: "0xa",
+      data: { n: 1 },
+    });
 
-  await indexingStore.update({
-    tableName: "table",
-    checkpoint: createCheckpoint(10),
-    id: "0xA",
-    data: { n: 2 },
-  });
+    await indexingStore.update({
+      tableName: "table",
+      checkpoint: createCheckpoint(10),
+      id: "0xA",
+      data: { n: 2 },
+    });
 
-  const instance = await indexingStore.findUnique({
-    tableName: "table",
-    checkpoint: createCheckpoint(25),
-    id: "0xA",
-  });
-  expect(instance).toMatchObject({ id: "0xA", n: 2 });
-});
+    const instance = await indexingStore.findUnique({
+      tableName: "table",
+      checkpoint: createCheckpoint(25),
+      id: "0xA",
+    });
+    expect(instance).toMatchObject({ id: "0xA", n: 2 });
+  },
+);
 
-test("updateMany() works with bytes case sensitivity", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema: bytesSchema });
+test.concurrent(
+  "updateMany() works with bytes case sensitivity",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema: bytesSchema });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: createCheckpoint(10),
-    id: "0xa",
-    data: { n: 1 },
-  });
+    await indexingStore.create({
+      tableName: "table",
+      checkpoint: createCheckpoint(10),
+      id: "0xa",
+      data: { n: 1 },
+    });
 
-  await indexingStore.updateMany({
-    tableName: "table",
-    checkpoint: createCheckpoint(10),
-    where: { n: { gt: 0 } },
-    data: { n: 2 },
-  });
+    await indexingStore.updateMany({
+      tableName: "table",
+      checkpoint: createCheckpoint(10),
+      where: { n: { gt: 0 } },
+      data: { n: 2 },
+    });
 
-  const instance = await indexingStore.findUnique({
-    tableName: "table",
-    checkpoint: createCheckpoint(25),
-    id: "0xa",
-  });
-  expect(instance).toMatchObject({ id: "0xa", n: 2 });
-});
+    const instance = await indexingStore.findUnique({
+      tableName: "table",
+      checkpoint: createCheckpoint(25),
+      id: "0xa",
+    });
+    expect(instance).toMatchObject({ id: "0xa", n: 2 });
+  },
+);
 
-test("upsert() works with bytes case sensitivity", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema: bytesSchema });
+test.concurrent(
+  "upsert() works with bytes case sensitivity",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema: bytesSchema });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: createCheckpoint(10),
-    id: "0xa",
-    data: { n: 1 },
-  });
+    await indexingStore.create({
+      tableName: "table",
+      checkpoint: createCheckpoint(10),
+      id: "0xa",
+      data: { n: 1 },
+    });
 
-  await indexingStore.upsert({
-    tableName: "table",
-    checkpoint: createCheckpoint(10),
-    id: "0xA",
-    update: { n: 2 },
-  });
+    await indexingStore.upsert({
+      tableName: "table",
+      checkpoint: createCheckpoint(10),
+      id: "0xA",
+      update: { n: 2 },
+    });
 
-  const instance = await indexingStore.findUnique({
-    tableName: "table",
-    checkpoint: createCheckpoint(25),
-    id: "0xA",
-  });
-  expect(instance).toMatchObject({ id: "0xA", n: 2 });
-});
+    const instance = await indexingStore.findUnique({
+      tableName: "table",
+      checkpoint: createCheckpoint(25),
+      id: "0xA",
+    });
+    expect(instance).toMatchObject({ id: "0xA", n: 2 });
+  },
+);
 
-test("delete() works with bytes case sensitivity", async (context) => {
-  const { indexingStore } = context;
-  await indexingStore.reload({ schema: bytesSchema });
+test.concurrent(
+  "delete() works with bytes case sensitivity",
+  async (context) => {
+    const { indexingStore } = context;
+    await indexingStore.reload({ schema: bytesSchema });
 
-  await indexingStore.create({
-    tableName: "table",
-    checkpoint: createCheckpoint(10),
-    id: "0xa",
-    data: { n: 1 },
-  });
+    await indexingStore.create({
+      tableName: "table",
+      checkpoint: createCheckpoint(10),
+      id: "0xa",
+      data: { n: 1 },
+    });
 
-  await indexingStore.delete({
-    tableName: "table",
-    checkpoint: createCheckpoint(25),
-    id: "0xA",
-  });
+    await indexingStore.delete({
+      tableName: "table",
+      checkpoint: createCheckpoint(25),
+      id: "0xA",
+    });
 
-  const deletedInstance = await indexingStore.findUnique({
-    tableName: "table",
-    checkpoint: createCheckpoint(25),
-    id: "0xa",
-  });
+    const deletedInstance = await indexingStore.findUnique({
+      tableName: "table",
+      checkpoint: createCheckpoint(25),
+      id: "0xa",
+    });
 
-  expect(deletedInstance).toBe(null);
-});
+    expect(deletedInstance).toBe(null);
+  },
+);
