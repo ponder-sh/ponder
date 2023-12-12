@@ -1,5 +1,5 @@
 import type { RpcLog } from "viem";
-import { checksumAddress, getEventSelector, parseAbiItem } from "viem";
+import { getEventSelector, parseAbiItem } from "viem";
 import { expect, test } from "vitest";
 
 import {
@@ -139,9 +139,7 @@ test("getAddressFromFactoryEventLog gets address from indexed parameter 1", () =
     log: llamaInstanceCreatedLog,
   });
 
-  expect(address).toBe(
-    checksumAddress("0x0aae40c12678f810634ae552f420a46d0d951c30"),
-  );
+  expect(address).toBe("0x0aae40c12678f810634ae552f420a46d0d951c30");
 });
 
 test("getAddressFromFactoryEventLog gets address from nonindexed parameter 1", () => {
@@ -156,9 +154,7 @@ test("getAddressFromFactoryEventLog gets address from nonindexed parameter 1", (
     log: llamaInstanceCreatedLog,
   });
 
-  expect(address).toBe(
-    checksumAddress("0x713fb111d31c494cefd6d12f3208a0cb20e6cbfa"),
-  );
+  expect(address).toBe("0x713fb111d31c494cefd6d12f3208a0cb20e6cbfa");
 });
 
 test("getAddressFromFactoryEventLog gets address from nonindexed parameter 3", () => {
@@ -173,7 +169,5 @@ test("getAddressFromFactoryEventLog gets address from nonindexed parameter 3", (
     log: llamaInstanceCreatedLog,
   });
 
-  expect(address).toBe(
-    checksumAddress("0x5a6480483462533564634b8c81aea01cf87c6ddb"),
-  );
+  expect(address).toBe("0x5a6480483462533564634b8c81aea01cf87c6ddb");
 });

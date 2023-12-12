@@ -1,10 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import {
-  checksumAddress,
-  type EIP1193RequestFn,
-  HttpRequestError,
-  parseAbi,
-} from "viem";
+import { type EIP1193RequestFn, HttpRequestError, parseAbi } from "viem";
 import { rpc } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 
@@ -577,7 +572,7 @@ test("start() with factory contract inserts new child contracts records and chil
   for await (const page of iterator) childContractAddresses.push(...page);
 
   expect(childContractAddresses).toMatchObject([
-    checksumAddress("0x25e0870d42b6cef90b6dc8216588fad55d5f55c4"),
+    "0x25e0870d42b6cef90b6dc8216588fad55d5f55c4",
   ]);
 
   const eventIterator = syncStore.getLogEvents({
@@ -599,7 +594,7 @@ test("start() with factory contract inserts new child contracts records and chil
     expect.objectContaining({
       sourceId: "UniswapV3Pool",
       log: expect.objectContaining({
-        address: checksumAddress("0x25e0870d42b6cef90b6dc8216588fad55d5f55c4"),
+        address: "0x25e0870d42b6cef90b6dc8216588fad55d5f55c4",
       }),
     }),
   );

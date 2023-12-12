@@ -8,7 +8,6 @@ import {
   type Transaction as KyselyTransaction,
 } from "kysely";
 import {
-  checksumAddress,
   type Hex,
   type RpcBlock,
   type RpcLog,
@@ -356,7 +355,7 @@ export class PostgresSyncStore implements SyncStore {
       }
 
       if (batch.length > 0) {
-        yield batch.map((a) => checksumAddress(a.childAddress));
+        yield batch.map((a) => a.childAddress);
       }
 
       if (batch.length < pageSize) break;
@@ -1309,7 +1308,7 @@ export class PostgresSyncStore implements SyncStore {
 
     exprs.push(
       eb(
-        sql`lower(logs.address)`,
+        "logs.address",
         "in",
         eb
           .selectFrom("logs")

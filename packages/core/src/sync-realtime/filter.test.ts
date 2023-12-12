@@ -5,7 +5,7 @@ import { filterLogs } from "./filter.js";
 
 export const logs: RpcLog[] = [
   {
-    address: "0x15D4c048F83bd7e37d49eA4C83a07267Ec4203dA",
+    address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
     blockHash:
       "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
     blockNumber: "0xe6e55f",
@@ -22,7 +22,7 @@ export const logs: RpcLog[] = [
     transactionIndex: "0x45",
   },
   {
-    address: "0x72D4C048f83bd7E37D49eA4C83a07267ec4203dA",
+    address: "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
     blockHash:
       "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
     blockNumber: "0xe6e55f",
@@ -55,12 +55,12 @@ export const logs: RpcLog[] = [
 test("filterLogs handles one logFilter, one address", () => {
   const filteredLogs = filterLogs({
     logs,
-    logFilters: [{ address: "0x15D4c048F83bd7e37d49eA4C83a07267Ec4203dA" }],
+    logFilters: [{ address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da" }],
   });
 
   expect(filteredLogs).toHaveLength(1);
   expect(filteredLogs[0].address).toEqual(
-    "0x15D4c048F83bd7e37d49eA4C83a07267Ec4203dA",
+    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
   );
 });
 
@@ -70,8 +70,8 @@ test("filterLogs handles one logFilter, two addresses", () => {
     logFilters: [
       {
         address: [
-          "0x15D4c048F83bd7e37d49eA4C83a07267Ec4203dA",
-          "0x72D4C048f83bd7E37D49eA4C83a07267ec4203dA",
+          "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
+          "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
         ],
       },
     ],
@@ -79,10 +79,10 @@ test("filterLogs handles one logFilter, two addresses", () => {
 
   expect(filteredLogs).toHaveLength(2);
   expect(filteredLogs[0].address).toEqual(
-    "0x15D4c048F83bd7e37d49eA4C83a07267Ec4203dA",
+    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
   );
   expect(filteredLogs[1].address).toEqual(
-    "0x72D4C048f83bd7E37D49eA4C83a07267ec4203dA",
+    "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
   );
 });
 
@@ -99,17 +99,17 @@ test("filterLogs handles two logFilters, one address each", () => {
   const filteredLogs = filterLogs({
     logs,
     logFilters: [
-      { address: "0x15D4c048F83bd7e37d49eA4C83a07267Ec4203dA" },
-      { address: "0x72D4C048f83bd7E37D49eA4C83a07267ec4203dA" },
+      { address: "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da" },
+      { address: "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da" },
     ],
   });
 
   expect(filteredLogs).toHaveLength(2);
   expect(filteredLogs[0].address).toEqual(
-    "0x15D4c048F83bd7e37d49eA4C83a07267Ec4203dA",
+    "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
   );
   expect(filteredLogs[1].address).toEqual(
-    "0x72D4C048f83bd7E37D49eA4C83a07267ec4203dA",
+    "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
   );
 });
 

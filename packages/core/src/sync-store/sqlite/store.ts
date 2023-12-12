@@ -7,7 +7,6 @@ import {
   type Transaction as KyselyTransaction,
 } from "kysely";
 import {
-  checksumAddress,
   type Hex,
   type RpcBlock,
   type RpcLog,
@@ -326,7 +325,7 @@ export class SqliteSyncStore implements SyncStore {
       }
 
       if (batch.length > 0) {
-        yield batch.map((a) => checksumAddress(a.childAddress));
+        yield batch.map((a) => a.childAddress);
       }
 
       if (batch.length < pageSize) break;
