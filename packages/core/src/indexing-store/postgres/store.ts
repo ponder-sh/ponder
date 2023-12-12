@@ -100,13 +100,8 @@ export class PostgresIndexingStore implements IndexingStore {
       // Set the new schema.
       if (schema) this.schema = schema;
 
-      this.readerDB = this.db.withPlugin(
-        new WithSchemaPlugin(this.namespaceVersion),
-      );
-
       await this.writerDB.transaction().execute(async (tx) => {
         // Drop and create current schema if it exists. This effectively reloads the schema.
-        // Drop all other namespaces. This will delete all previous views that are in the `public` namespace.
         const result = await tx.executeQuery(
           CompiledQuery.raw(
             `SELECT nspname FROM pg_namespace WHERE nspname LIKE 'ponder_index_%'`,
@@ -114,7 +109,6 @@ export class PostgresIndexingStore implements IndexingStore {
         );
         await Promise.all(
           (result.rows as { nspname: string }[]).filter(async (r) => {
-            if (r.nspname === this.namespaceVersion) return;
             await tx.schema
               .dropSchema(r.nspname)
               .ifExists()
