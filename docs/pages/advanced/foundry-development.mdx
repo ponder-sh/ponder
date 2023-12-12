@@ -1,0 +1,50 @@
+---
+description: "A guide on how to develop with foundry"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Developing with Foundry
+
+Ponder makes it convenient to test indexing events when developing your dapp locally. Check out the [foundry example](https://github.com/0xOlias/ponder/tree/main/examples/project-foundry) to see an example on how you can get started working with ponder and foundry.
+
+Before you begin, make sure you have followed the [installation](../guides/installation.mdx) and [getting started](../guides/installation.mdx) guides.
+
+## Creating an `anvil` network
+
+In your `ponder.config.ts` file, add a new network with the name `anvil`. Use the same chain ID as your `anvil` node, and the `http` transport with the URL of your `anvil` node.
+
+```ts filename="ponder.config.ts"
+export const config: Config = {
+  // ...
+  networks: [
+    // ...
+    {
+      name: "anvil",
+      chainId: 31337,
+      transport: http(process.env.PONDER_RPC_URL_8545),
+    },
+  ],
+```
+
+## Generating the ABI
+
+Ponder uses the ABI to generate the typescript types for your contracts. To generate the ABI, we recommend using the [`wagmi` cli](https://wagmi.sh/cli/getting-started) tool with the foundry plugin. Follow the steps in the `wagmi` documentation to set up an ABI generation pipeline. You can see an example of this in the [foundry example](https://github.com/0xOlias/ponder/tree/main/examples/project-foundry)
+
+## Running `anvil`
+
+After generating the ABI and adding the `anvil` network to your `ponder.config.ts` file, you can start your `anvil` node. Then, run `ponder dev` in a separate terminal window. Ponder will automatically detect the `anvil` network and will start listening for events and index them as expected.
+
+### Restarting `anvil` and ponder
+
+If you restart your `anvil` node, you will need to reload ponder's DB to ensure that the indexer is up to date. To make this convenient for you during new deployments to `anvil`, we provided a route available only during development. You can use this URL to reload your DB and start indexing from scratch. To use this URL, run the following command:
+
+```shell
+curl -X POST http://localhost:42069/admin/reload?chainId=31337
+```
+
+<Callout type="info">
+  This assumes you are using the default port of 42069 for ponder and the
+  canonical chain ID for anvil. If you are using a different port or chain ID,
+  change up the variables accordingly.
+</Callout>
