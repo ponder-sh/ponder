@@ -63,7 +63,7 @@ test("eth_call", async ({ syncStore }) => {
 
   expect(response1).toBeDefined();
 
-  const callSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
+  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
 
   const response2 = await transport.request({
     method: "eth_call",
@@ -78,7 +78,9 @@ test("eth_call", async ({ syncStore }) => {
 
   expect(response1).toBe(response2);
 
-  expect(callSpy).toHaveBeenCalledTimes(0);
+  expect(insertSpy).toHaveBeenCalledTimes(0);
+
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
 
   const response3 = await transport.request({
     method: "eth_call",
@@ -92,6 +94,8 @@ test("eth_call", async ({ syncStore }) => {
   });
 
   expect(response3).toBeDefined();
+
+  expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
 test("eth_getBalance", async ({ syncStore }) => {
@@ -112,7 +116,7 @@ test("eth_getBalance", async ({ syncStore }) => {
 
   expect(response1).toBeDefined();
 
-  const callSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
+  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
 
   const response2 = await transport.request({
     method: "eth_getBalance",
@@ -121,7 +125,9 @@ test("eth_getBalance", async ({ syncStore }) => {
 
   expect(response1).toBe(response2);
 
-  expect(callSpy).toHaveBeenCalledTimes(0);
+  expect(insertSpy).toHaveBeenCalledTimes(0);
+
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
 
   const response3 = await transport.request({
     method: "eth_getBalance",
@@ -129,6 +135,8 @@ test("eth_getBalance", async ({ syncStore }) => {
   });
 
   expect(response3).toBeDefined();
+
+  expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
 test("eth_getStorageAt", async ({ syncStore }) => {
@@ -149,7 +157,7 @@ test("eth_getStorageAt", async ({ syncStore }) => {
 
   expect(response1).toBeDefined();
 
-  const callSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
+  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
 
   const response2 = await transport.request({
     method: "eth_getStorageAt",
@@ -158,7 +166,9 @@ test("eth_getStorageAt", async ({ syncStore }) => {
 
   expect(response1).toBe(response2);
 
-  expect(callSpy).toHaveBeenCalledTimes(0);
+  expect(insertSpy).toHaveBeenCalledTimes(0);
+
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
 
   const response3 = await transport.request({
     method: "eth_getStorageAt",
@@ -166,6 +176,8 @@ test("eth_getStorageAt", async ({ syncStore }) => {
   });
 
   expect(response3).toBeDefined();
+
+  expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
 test("eth_getCode", async ({ syncStore }) => {
@@ -186,7 +198,7 @@ test("eth_getCode", async ({ syncStore }) => {
 
   expect(response1).toBeDefined();
 
-  const callSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
+  const insertSpy = vi.spyOn(syncStore, "insertRpcRequestResult");
 
   const response2 = await transport.request({
     method: "eth_getCode",
@@ -195,7 +207,9 @@ test("eth_getCode", async ({ syncStore }) => {
 
   expect(response1).toBe(response2);
 
-  expect(callSpy).toHaveBeenCalledTimes(0);
+  expect(insertSpy).toHaveBeenCalledTimes(0);
+
+  const getSpy = vi.spyOn(syncStore, "getRpcRequestResult");
 
   const response3 = await transport.request({
     method: "eth_getCode",
@@ -203,6 +217,8 @@ test("eth_getCode", async ({ syncStore }) => {
   });
 
   expect(response3).toBeDefined();
+
+  expect(getSpy).toHaveBeenCalledTimes(1);
 });
 
 test("fallback method", async ({ syncStore }) => {
