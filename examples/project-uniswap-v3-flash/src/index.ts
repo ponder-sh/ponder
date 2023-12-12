@@ -9,13 +9,13 @@ ponder.on("UniswapV3Pool:Flash", async ({ event, context }) => {
       abi: context.contracts.UniswapV3Pool.abi,
       functionName: "token0",
       address: poolAddress,
-      blockTag: "ignore",
+      cache: "immutable",
     }),
     context.client.readContract({
       abi: context.contracts.UniswapV3Pool.abi,
       functionName: "token1",
       address: poolAddress,
-      blockTag: "ignore",
+      cache: "immutable",
     }),
   ]);
 

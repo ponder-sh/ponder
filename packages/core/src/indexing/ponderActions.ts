@@ -30,17 +30,17 @@ import type { Prettify } from "@/types/utils.js";
 export type PonderActions = {
   getBalance: (
     args: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> & {
-      blockTag?: "ignore";
+      cache?: "immutable";
     },
   ) => Promise<GetBalanceReturnType>;
   getBytecode: (
     args: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> & {
-      blockTag?: "ignore";
+      cache?: "immutable";
     },
   ) => Promise<GetBytecodeReturnType>;
   getStorageAt: (
     args: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> & {
-      blockTag?: "ignore";
+      cache?: "immutable";
     },
   ) => Promise<GetStorageAtReturnType>;
   multicall: <
@@ -51,7 +51,7 @@ export type PonderActions = {
       MulticallParameters<TContracts, TAllowFailure>,
       "blockTag" | "blockNumber"
     > & {
-      blockTag?: "ignore";
+      cache?: "immutable";
     },
   ) => Promise<MulticallReturnType<TContracts, TAllowFailure>>;
   readContract: <
@@ -62,7 +62,7 @@ export type PonderActions = {
       ReadContractParameters<TAbi, TFunctionName>,
       "blockTag" | "blockNumber"
     > & {
-      blockTag?: "ignore";
+      cache?: "immutable";
     },
   ) => Promise<ReadContractReturnType<TAbi, TFunctionName>>;
 };
@@ -84,38 +84,38 @@ export const ponderActions =
     client: Client<TTransport, TChain, TAccount>,
   ): PonderActions => ({
     getBalance: ({
-      blockTag,
+      cache,
       ...args
     }: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> & {
-      blockTag?: "ignore";
+      cache?: "immutable";
     }): Promise<GetBalanceReturnType> =>
       viemGetBalance(client, {
         ...args,
-        ...(blockTag === "ignore"
+        ...(cache === "immutable"
           ? { blockTag: "latest" }
           : { blockNumber: getCurrentBlockNumber() }),
       }),
     getBytecode: ({
-      blockTag,
+      cache,
       ...args
     }: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> & {
-      blockTag?: "ignore";
+      cache?: "immutable";
     }): Promise<GetBytecodeReturnType> =>
       viemGetBytecode(client, {
         ...args,
-        ...(blockTag === "ignore"
+        ...(cache === "immutable"
           ? { blockTag: "latest" }
           : { blockNumber: getCurrentBlockNumber() }),
       }),
     getStorageAt: ({
-      blockTag,
+      cache,
       ...args
     }: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> & {
-      blockTag?: "ignore";
+      cache?: "immutable";
     }): Promise<GetStorageAtReturnType> =>
       viemGetStorageAt(client, {
         ...args,
-        ...(blockTag === "ignore"
+        ...(cache === "immutable"
           ? { blockTag: "latest" }
           : { blockNumber: getCurrentBlockNumber() }),
       }),
@@ -123,17 +123,17 @@ export const ponderActions =
       TContracts extends ContractFunctionConfig[],
       TAllowFailure extends boolean = true,
     >({
-      blockTag,
+      cache,
       ...args
     }: Omit<
       MulticallParameters<TContracts, TAllowFailure>,
       "blockTag" | "blockNumber"
     > & {
-      blockTag?: "ignore";
+      cache?: "immutable";
     }): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
       viemMulticall(client, {
         ...args,
-        ...(blockTag === "ignore"
+        ...(cache === "immutable"
           ? { blockTag: "latest" }
           : { blockNumber: getCurrentBlockNumber() }),
       }),
@@ -143,17 +143,17 @@ export const ponderActions =
       const TAbi extends Abi | readonly unknown[],
       TFunctionName extends string,
     >({
-      blockTag,
+      cache,
       ...args
     }: Omit<
       ReadContractParameters<TAbi, TFunctionName>,
       "blockTag" | "blockNumber"
     > & {
-      blockTag?: "ignore";
+      cache?: "immutable";
     }): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
       viemReadContract(client, {
         ...args,
-        ...(blockTag === "ignore"
+        ...(cache === "immutable"
           ? { blockTag: "latest" }
           : { blockNumber: getCurrentBlockNumber() }),
       } as ReadContractParameters<TAbi, TFunctionName>),
