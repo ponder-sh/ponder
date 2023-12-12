@@ -1357,12 +1357,12 @@ function buildFactoryChildAddressSelectExpression({
     const childAddressOffset = Number(childAddressLocation.substring(6));
     const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
     const length = 20 * 2;
-    return sql<Hex>`'0x' || lower(substring(data from ${start}::int for ${length}::int))`;
+    return sql<Hex>`'0x' || substring(data from ${start}::int for ${length}::int)`;
   } else {
     const start = 2 + 12 * 2 + 1;
     const length = 20 * 2;
-    return sql<Hex>`'0x' || lower(substring(${sql.ref(
+    return sql<Hex>`'0x' || substring(${sql.ref(
       childAddressLocation,
-    )} from ${start}::integer for ${length}::integer))`;
+    )} from ${start}::integer for ${length}::integer)`;
   }
 }

@@ -1302,7 +1302,7 @@ export class SqliteSyncStore implements SyncStore {
 
     exprs.push(
       eb(
-        sql`lower(logs.address)`,
+        "logs.address",
         "in",
         eb
           .selectFrom("logs")
@@ -1351,12 +1351,12 @@ function buildFactoryChildAddressSelectExpression({
     const childAddressOffset = Number(childAddressLocation.substring(6));
     const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
     const length = 20 * 2;
-    return sql<Hex>`'0x' || lower(substring(data, ${start}, ${length}))`;
+    return sql<Hex>`'0x' || substring(data, ${start}, ${length})`;
   } else {
     const start = 2 + 12 * 2 + 1;
     const length = 20 * 2;
-    return sql<Hex>`'0x' || lower(substring(${sql.ref(
+    return sql<Hex>`'0x' || substring(${sql.ref(
       childAddressLocation,
-    )}, ${start}, ${length}))`;
+    )}, ${start}, ${length})`;
   }
 }
