@@ -577,7 +577,7 @@ test("start() with factory contract inserts new child contracts records and chil
   for await (const page of iterator) childContractAddresses.push(...page);
 
   expect(childContractAddresses).toMatchObject([
-    checksumAddress("0x25e0870d42b6cef90b6dc8216588fad55d5f55c4"),
+    "0x25e0870d42b6cef90b6dc8216588fad55d5f55c4",
   ]);
 
   const eventIterator = syncStore.getLogEvents({

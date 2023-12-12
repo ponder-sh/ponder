@@ -1,7 +1,8 @@
 import type { AbiEvent } from "abitype";
 import type { RpcLog } from "viem";
-import { checksumAddress, getEventSelector } from "viem";
+import { getEventSelector } from "viem";
 
+import { toLowerCase } from "@/utils/lowercase.js";
 import { getBytesConsumedByParam } from "@/utils/offset.js";
 
 import type { FactoryCriteria } from "./sources.js";
@@ -15,7 +16,7 @@ export function buildFactoryCriteria({
   event: AbiEvent;
   parameter: string;
 }) {
-  const address = checksumAddress(_address);
+  const address = toLowerCase(_address);
   const eventSelector = getEventSelector(event);
 
   // Check if the provided parameter is present in the list of indexed inputs.
@@ -79,7 +80,7 @@ export function getAddressFromFactoryEventLog({
     const start = 2 + 12 * 2;
     const end = start + 20 * 2;
 
-    return checksumAddress(("0x" + topic.slice(start, end)) as `0x${string}`);
+    return ("0x" + topic.slice(start, end)) as `0x${string}`;
   }
 
   if (childAddressLocation.startsWith("offset")) {
@@ -94,9 +95,7 @@ export function getAddressFromFactoryEventLog({
       );
     }
 
-    return checksumAddress(
-      ("0x" + log.data.slice(start, end)) as `0x${string}`,
-    );
+    return ("0x" + log.data.slice(start, end)) as `0x${string}`;
   }
 
   throw new Error(

@@ -326,7 +326,7 @@ export class SqliteSyncStore implements SyncStore {
       }
 
       if (batch.length > 0) {
-        yield batch.map((a) => checksumAddress(a.childAddress));
+        yield batch.map((a) => a.childAddress);
       }
 
       if (batch.length < pageSize) break;
@@ -1034,7 +1034,7 @@ export class SqliteSyncStore implements SyncStore {
           sourceId: row.source_id,
           chainId: row.log_chainId,
           log: {
-            address: row.log_address,
+            address: checksumAddress(row.log_address),
             blockHash: row.log_blockHash,
             blockNumber: decodeToBigInt(row.log_blockNumber),
             data: row.log_data,
@@ -1060,7 +1060,7 @@ export class SqliteSyncStore implements SyncStore {
             gasUsed: decodeToBigInt(row.block_gasUsed),
             hash: row.block_hash,
             logsBloom: row.block_logsBloom,
-            miner: row.block_miner,
+            miner: checksumAddress(row.block_miner),
             mixHash: row.block_mixHash,
             nonce: row.block_nonce,
             number: decodeToBigInt(row.block_number),
@@ -1076,14 +1076,14 @@ export class SqliteSyncStore implements SyncStore {
           transaction: {
             blockHash: row.tx_blockHash,
             blockNumber: decodeToBigInt(row.tx_blockNumber),
-            from: row.tx_from,
+            from: checksumAddress(row.tx_from),
             gas: decodeToBigInt(row.tx_gas),
             hash: row.tx_hash,
             input: row.tx_input,
             nonce: Number(row.tx_nonce),
             r: row.tx_r,
             s: row.tx_s,
-            to: row.tx_to,
+            to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
             transactionIndex: Number(row.tx_transactionIndex),
             value: decodeToBigInt(row.tx_value),
             v: decodeToBigInt(row.tx_v),
@@ -1303,7 +1303,7 @@ export class SqliteSyncStore implements SyncStore {
 
     exprs.push(
       eb(
-        sql`lower(logs.address)`,
+        "logs.address",
         "in",
         eb
           .selectFrom("logs")
@@ -1352,12 +1352,12 @@ function buildFactoryChildAddressSelectExpression({
     const childAddressOffset = Number(childAddressLocation.substring(6));
     const start = 2 + 12 * 2 + childAddressOffset * 2 + 1;
     const length = 20 * 2;
-    return sql<Hex>`'0x' || lower(substring(data, ${start}, ${length}))`;
+    return sql<Hex>`'0x' || substring(data, ${start}, ${length})`;
   } else {
     const start = 2 + 12 * 2 + 1;
     const length = 20 * 2;
-    return sql<Hex>`'0x' || lower(substring(${sql.ref(
+    return sql<Hex>`'0x' || substring(${sql.ref(
       childAddressLocation,
-    )}, ${start}, ${length}))`;
+    )}, ${start}, ${length})`;
   }
 }

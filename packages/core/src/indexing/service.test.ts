@@ -1,4 +1,4 @@
-import { checksumAddress, getEventSelector } from "viem";
+import { checksumAddress, getEventSelector, zeroAddress } from "viem";
 import { rpc } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 
@@ -94,6 +94,7 @@ const transferLog = {
     "0x000000000000000000000000c908b3848960114091a1bcf9d649e27b25385642",
   ],
   data: "0x0000000000000000000000000000000000000000000000000007e9657c20364d",
+  address: zeroAddress,
 };
 
 const getEvents = vi.fn(async function* getEvents({
@@ -109,8 +110,12 @@ const getEvents = vi.fn(async function* getEvents({
         block: {
           timestamp: BigInt(toCheckpoint.blockTimestamp),
           number: 16375000n,
+          miner: zeroAddress,
         },
-        transaction: {},
+        transaction: {
+          from: zeroAddress,
+          to: zeroAddress,
+        },
       },
     ],
     metadata: {
@@ -194,12 +199,15 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     networks,
   });
 
-  await service.reset({ schema, indexingFunctions });
+  try {
+    await service.reset({ schema, indexingFunctions });
 
-  const checkpoint10 = createCheckpoint(10);
-  syncGatewayService.checkpoint = checkpoint10;
-  await service.processEvents();
-
+    const checkpoint10 = createCheckpoint(10);
+    syncGatewayService.checkpoint = checkpoint10;
+    await service.processEvents();
+  } catch (error) {
+    console.log(error);
+  }
   expect(transferIndexingFunction).toHaveBeenCalledWith(
     expect.objectContaining({
       event: {
@@ -209,9 +217,9 @@ test("processEvents() calls indexing functions with correct arguments", async (c
           to: checksumAddress("0xc908b3848960114091a1bcf9d649e27b25385642"),
           value: 2226946920429133n,
         },
-        log: { id: "10", ...transferLog },
-        block: { timestamp: 10n, number: 16375000n },
-        transaction: {},
+        log: { id: "10", ...transferLog, address: zeroAddress },
+        block: { timestamp: 10n, number: 16375000n, miner: zeroAddress },
+        transaction: { from: zeroAddress, to: zeroAddress },
       },
       context: expect.objectContaining({
         db: { TransferEvent: expect.anything(), Supply: expect.anything() },

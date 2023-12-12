@@ -142,10 +142,10 @@ test("start() with factory contract inserts child contract addresses", async (co
 
   expect(childContractAddresses).toMatchObject(
     expect.arrayContaining([
-      checksumAddress("0x6e4c301b43b5d6fc47ceac2fb9b6b3209e640eab"),
-      checksumAddress("0x8d92afe4ab7f4d0379d37a6da3643763964cb6df"),
-      checksumAddress("0x01b2848a0d9ffced595b0df3df10fb32430fa200"),
-      checksumAddress("0xd5f83865bf8edb1f02e688dc2ee02d39e28692b3"),
+      "0x6e4c301b43b5d6fc47ceac2fb9b6b3209e640eab",
+      "0x8d92afe4ab7f4d0379d37a6da3643763964cb6df",
+      "0x01b2848a0d9ffced595b0df3df10fb32430fa200",
+      "0xd5f83865bf8edb1f02e688dc2ee02d39e28692b3",
     ]),
   );
 
@@ -315,7 +315,7 @@ test("start() adds log filter events to sync store", async (context) => {
   });
 
   expect(events[0].log).toMatchObject({
-    address: usdcContractConfig.address,
+    address: checksumAddress(usdcContractConfig.address),
     blockHash:
       "0xe16034f7ec28a92cd3ef29401eb0b265767aeb75a335828c1933bfc2d931dd7c",
     blockNumber: 16369995n,

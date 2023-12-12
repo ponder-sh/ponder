@@ -1,7 +1,7 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
 import type { Abi, Address, Client, Hex } from "viem";
-import { createClient, decodeEventLog } from "viem";
+import { checksumAddress, createClient, decodeEventLog } from "viem";
 
 import type { IndexingFunctions } from "@/build/functions.js";
 import type { Network } from "@/config/networks.js";
@@ -727,7 +727,7 @@ const buildContexts = (
         ...contexts[source.chainId].contracts,
         [source.contractName]: {
           abi: source.abi,
-          address,
+          address: address ? checksumAddress(address) : address,
           startBlock: source.startBlock,
           endBlock: source.endBlock,
           maxBlockRange: source.maxBlockRange,
