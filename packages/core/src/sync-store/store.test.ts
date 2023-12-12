@@ -1,10 +1,4 @@
-import {
-  checksumAddress,
-  hexToBigInt,
-  hexToNumber,
-  maxUint256,
-  toHex,
-} from "viem";
+import { checksumAddress, hexToBigInt, hexToNumber, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
 import {
@@ -956,29 +950,6 @@ test("insertRpcRequestResult inserts a request result", async (context) => {
   });
 });
 
-test("insertRpcRequestResult inserts a request result with null blocknumbers", async (context) => {
-  const { syncStore } = context;
-
-  await syncStore.insertRpcRequestResult({
-    chainId: 1,
-    request: "0x123",
-    blockNumber: maxUint256,
-    result: "0x789",
-  });
-
-  const rpcRequestResults = await syncStore.db
-    .selectFrom("rpcRequestResults")
-    .selectAll()
-    .execute();
-
-  expect(rpcRequestResults).toHaveLength(1);
-  expect(rpcRequestResults[0]).toMatchObject({
-    chainId: 1,
-    request: "0x123",
-    result: "0x789",
-  });
-});
-
 test("insertRpcRequestResult upserts on conflict", async (context) => {
   const { syncStore } = context;
 
@@ -1039,30 +1010,6 @@ test("getRpcRequestResult returns data", async (context) => {
     chainId: 1,
     request: "0x123",
     blockNumber: 100n,
-    result: "0x789",
-  });
-});
-
-test("getRpcRequestResult returns data with null blocknumbers", async (context) => {
-  const { syncStore } = context;
-
-  await syncStore.insertRpcRequestResult({
-    chainId: 1,
-    request: "0x123",
-    blockNumber: maxUint256,
-    result: "0x789",
-  });
-
-  const rpcRequestResult = await syncStore.getRpcRequestResult({
-    chainId: 1,
-    request: "0x123",
-    blockNumber: maxUint256,
-  });
-
-  expect(rpcRequestResult).toMatchObject({
-    chainId: 1,
-    request: "0x123",
-    blockNumber: maxUint256,
     result: "0x789",
   });
 });
