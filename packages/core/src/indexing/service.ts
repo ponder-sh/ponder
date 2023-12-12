@@ -549,6 +549,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             this.common.metrics.ponder_indexing_processed_events.inc(labels);
           } catch (error_) {
             // Remove all remaining tasks from the queue.
+            queue.pause();
             queue.clear();
 
             this.hasError = true;
@@ -615,6 +616,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
             });
           } catch (error_) {
             // Remove all remaining tasks from the queue.
+            queue.pause();
             queue.clear();
 
             this.hasError = true;
