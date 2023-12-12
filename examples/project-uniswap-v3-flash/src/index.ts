@@ -1,38 +1,23 @@
-import type { Address } from "viem";
-
 import { ponder } from "@/generated";
 
 ponder.on("UniswapV3Pool:Flash", async ({ event, context }) => {
-  const { PoolTokens, TokenBorrowed, TokenPaid } = context.db;
+  const { TokenBorrowed, TokenPaid } = context.db;
   const poolAddress = event.log.address;
 
-  let token0: Address;
-  let token1: Address;
-
-  const tokens = await PoolTokens.findUnique({ id: poolAddress });
-  if (tokens) {
-    token0 = tokens.token0 as Address;
-    token1 = tokens.token1 as Address;
-  } else {
-    token0 = await context.client.readContract({
+  const [token0, token1] = await Promise.all([
+    context.client.readContract({
       abi: context.contracts.UniswapV3Pool.abi,
       functionName: "token0",
       address: poolAddress,
-    });
-    token1 = await context.client.readContract({
+      blockTag: "ignore",
+    }),
+    context.client.readContract({
       abi: context.contracts.UniswapV3Pool.abi,
       functionName: "token1",
       address: poolAddress,
-    });
-
-    await PoolTokens.create({
-      id: poolAddress,
-      data: {
-        token0,
-        token1,
-      },
-    });
-  }
+      blockTag: "ignore",
+    }),
+  ]);
 
   await TokenBorrowed.upsert({
     id: token0,
