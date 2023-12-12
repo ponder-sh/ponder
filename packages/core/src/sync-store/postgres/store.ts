@@ -8,6 +8,7 @@ import {
   type Transaction as KyselyTransaction,
 } from "kysely";
 import {
+  checksumAddress,
   type Hex,
   type RpcBlock,
   type RpcLog,
@@ -1041,7 +1042,7 @@ export class PostgresSyncStore implements SyncStore {
           sourceId: row.source_id,
           chainId: row.log_chainId,
           log: {
-            address: row.log_address,
+            address: checksumAddress(row.log_address),
             blockHash: row.log_blockHash,
             blockNumber: row.log_blockNumber,
             data: row.log_data,
@@ -1065,7 +1066,7 @@ export class PostgresSyncStore implements SyncStore {
             gasUsed: row.block_gasUsed,
             hash: row.block_hash,
             logsBloom: row.block_logsBloom,
-            miner: row.block_miner,
+            miner: checksumAddress(row.block_miner),
             mixHash: row.block_mixHash,
             nonce: row.block_nonce,
             number: row.block_number,
@@ -1081,14 +1082,14 @@ export class PostgresSyncStore implements SyncStore {
           transaction: {
             blockHash: row.tx_blockHash,
             blockNumber: row.tx_blockNumber,
-            from: row.tx_from,
+            from: checksumAddress(row.tx_from),
             gas: row.tx_gas,
             hash: row.tx_hash,
             input: row.tx_input,
             nonce: Number(row.tx_nonce),
             r: row.tx_r,
             s: row.tx_s,
-            to: row.tx_to,
+            to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
             transactionIndex: Number(row.tx_transactionIndex),
             value: row.tx_value,
             v: row.tx_v,

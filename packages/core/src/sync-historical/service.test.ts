@@ -1,4 +1,5 @@
 import {
+  checksumAddress,
   type EIP1193RequestFn,
   HttpRequestError,
   InvalidParamsRpcError,
@@ -314,7 +315,7 @@ test("start() adds log filter events to sync store", async (context) => {
   });
 
   expect(events[0].log).toMatchObject({
-    address: usdcContractConfig.address,
+    address: checksumAddress(usdcContractConfig.address),
     blockHash:
       "0xe16034f7ec28a92cd3ef29401eb0b265767aeb75a335828c1933bfc2d931dd7c",
     blockNumber: 16369995n,

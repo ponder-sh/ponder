@@ -1,4 +1,4 @@
-import { hexToBigInt, hexToNumber, toHex } from "viem";
+import { checksumAddress, hexToBigInt, hexToNumber, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
 import {
@@ -1053,7 +1053,9 @@ test("getLogEvents returns log events", async (context) => {
 
   expect(events[0].log).toMatchInlineSnapshot(`
     {
-      "address": "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      "address": "${checksumAddress(
+        "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      )}",
       "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
       "blockNumber": 15495110n,
       "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
@@ -1116,7 +1118,9 @@ test("getLogEvents returns log events", async (context) => {
 
   expect(events[1].log).toMatchInlineSnapshot(`
     {
-      "address": "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      "address": "${checksumAddress(
+        "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      )}",
       "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
       "blockNumber": 15495110n,
       "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
@@ -1206,7 +1210,7 @@ test("getLogEvents filters on log filter with one address", async (context) => {
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
-  expect(events[0].log.address).toBe(blockOneLogs[0].address);
+  expect(events[0].log.address).toBe(checksumAddress(blockOneLogs[0].address));
   expect(events).toHaveLength(1);
 });
 
@@ -1246,13 +1250,13 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
   expect(events[0]).toMatchObject({
     sourceId: "multipleAddress",
     log: {
-      address: blockOneLogs[0].address,
+      address: checksumAddress(blockOneLogs[0].address),
     },
   });
   expect(events[1]).toMatchObject({
     sourceId: "multipleAddress",
     log: {
-      address: blockOneLogs[1].address,
+      address: checksumAddress(blockOneLogs[1].address),
     },
   });
   expect(events).toHaveLength(2);
@@ -1489,13 +1493,13 @@ test("getLogEvents filters on multiple filters", async (context) => {
   expect(events[0]).toMatchObject({
     sourceId: "singleAddress",
     log: {
-      address: blockOneLogs[0].address,
+      address: checksumAddress(blockOneLogs[0].address),
     },
   });
   expect(events[1]).toMatchObject({
     sourceId: "singleTopic",
     log: {
-      address: blockOneLogs[0].address,
+      address: checksumAddress(blockOneLogs[0].address),
     },
   });
   expect(events[2]).toMatchObject({

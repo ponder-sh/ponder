@@ -435,21 +435,9 @@ export class IndexingService extends Emittery<IndexingEvents> {
                   eventName: abiItemMeta.safeName,
                   chainId: event.chainId,
                   args: decodedLog.args ?? {},
-                  log: {
-                    ...event.log,
-                    address: checksumAddress(event.log.address),
-                  },
-                  block: {
-                    ...event.block,
-                    miner: checksumAddress(event.block.miner),
-                  },
-                  transaction: {
-                    ...event.transaction,
-                    from: checksumAddress(event.transaction.from),
-                    to: event.transaction.to
-                      ? checksumAddress(event.transaction.to)
-                      : event.transaction.to,
-                  },
+                  log: event.log,
+                  block: event.block,
+                  transaction: event.transaction,
                 },
               });
             } catch (err) {
