@@ -139,10 +139,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
     });
   };
 
-  publish = async () => {
-    this.indexingStore.publish();
-  };
-
   /**
    * Registers a new set of indexing functions and/or a new schema, cancels
    * the current event processing mutex & event queue, drops and re-creates
