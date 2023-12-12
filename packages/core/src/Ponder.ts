@@ -297,7 +297,6 @@ export class Ponder {
         : new PostgresIndexingStore({
             common: this.common,
             pool: database.indexing.pool,
-            isReadOnly: true,
           });
 
     this.serverService = new ServerService({

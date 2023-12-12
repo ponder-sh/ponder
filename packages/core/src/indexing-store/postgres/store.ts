@@ -47,14 +47,7 @@ export class PostgresIndexingStore implements IndexingStore {
   schema?: Schema;
   namespaceVersion: string;
 
-  constructor({
-    common,
-    pool,
-  }: {
-    common: Common;
-    pool: Pool;
-    isReadOnly?: boolean;
-  }) {
+  constructor({ common, pool }: { common: Common; pool: Pool }) {
     this.namespaceVersion = `ponder_index_${new Date().getTime()}`;
     this.common = common;
     this.db = new Kysely({
