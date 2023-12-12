@@ -771,48 +771,39 @@ export class PostgresIndexingStore implements IndexingStore {
         encodeBigInts: false,
       });
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
+      const isDeleted = await this.db.transaction().execute(async (tx) => {
+        // If the latest version has effectiveFromCheckpoint equal to current checkpoint,
+        // this row was created within the same indexing function, and we can delete it.
+        let deletedRow = await tx
+          .deleteFrom(table)
+          .where(
+            "id",
+            this.idColumnComparator({ tableName, schema: this.schema }),
+            formattedId,
+          )
+          .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
+          .where("effectiveToCheckpoint", "=", "latest")
+          .returning(["id"])
+          .executeTakeFirst();
 
-      const isDeleted = await this.writerDB
-        .transaction()
-        .execute(async (tx) => {
-          // If the latest version has effectiveFromCheckpoint equal to current checkpoint,
-          // this row was created within the same indexing function, and we can delete it.
-          let deletedRow = await tx
-            .deleteFrom(table)
+        // If we did not take the shortcut above, update the latest record
+        // setting effectiveToCheckpoint to the current checkpoint.
+        if (!deletedRow) {
+          deletedRow = await tx
+            .updateTable(table)
+            .set({ effectiveToCheckpoint: encodedCheckpoint })
             .where(
               "id",
-              this.idColumnComparator({
-                tableName,
-                schema: this.schema,
-              }),
+              this.idColumnComparator({ tableName, schema: this.schema }),
               formattedId,
             )
-            .where("effectiveFromCheckpoint", "=", encodedCheckpoint)
             .where("effectiveToCheckpoint", "=", "latest")
             .returning(["id"])
             .executeTakeFirst();
+        }
 
-          // If we did not take the shortcut above, update the latest record
-          // setting effectiveToCheckpoint to the current checkpoint.
-          if (!deletedRow) {
-            deletedRow = await tx
-              .updateTable(table)
-              .set({ effectiveToCheckpoint: encodedCheckpoint })
-              .where(
-                "id",
-                this.idColumnComparator({
-                  tableName,
-                  schema: this.schema,
-                }),
-                formattedId,
-              )
-              .where("effectiveToCheckpoint", "=", "latest")
-              .returning(["id"])
-              .executeTakeFirst();
-          }
-
-          return !!deletedRow;
-        });
+        return !!deletedRow;
+      });
 
       return isDeleted;
     });
