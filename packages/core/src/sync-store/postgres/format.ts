@@ -155,7 +155,7 @@ export function rpcToPostgresLog(log: RpcLog): Omit<InsertableLog, "chainId"> {
 }
 
 type RpcRequestResultsTable = {
-  blockNumber: bigint;
+  blockNumber: bigint | null;
   chainId: number;
   request: string;
   result: string;

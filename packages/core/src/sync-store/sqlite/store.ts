@@ -785,7 +785,7 @@ export class SqliteSyncStore implements SyncStore {
     request,
     result,
   }: {
-    blockNumber: bigint;
+    blockNumber: bigint | null;
     chainId: number;
     request: string;
     result: string;
@@ -796,7 +796,7 @@ export class SqliteSyncStore implements SyncStore {
       .insertInto("rpcRequestResults")
       .values({
         request,
-        blockNumber: encodeAsText(blockNumber),
+        blockNumber: !blockNumber ? null : encodeAsText(blockNumber),
         chainId,
         result,
       })
@@ -811,7 +811,7 @@ export class SqliteSyncStore implements SyncStore {
     chainId,
     request,
   }: {
-    blockNumber: bigint;
+    blockNumber: bigint | null;
     chainId: number;
     request: string;
   }) => {
@@ -820,7 +820,11 @@ export class SqliteSyncStore implements SyncStore {
     const rpcRequestResult = await this.db
       .selectFrom("rpcRequestResults")
       .selectAll()
-      .where("blockNumber", "=", encodeAsText(blockNumber))
+      .where(
+        "blockNumber",
+        "=",
+        !blockNumber ? null : encodeAsText(blockNumber),
+      )
       .where("chainId", "=", chainId)
       .where("request", "=", request)
       .executeTakeFirst();
@@ -828,7 +832,9 @@ export class SqliteSyncStore implements SyncStore {
     const result = rpcRequestResult
       ? {
           ...rpcRequestResult,
-          blockNumber: decodeToBigInt(rpcRequestResult.blockNumber),
+          blockNumber: !rpcRequestResult.blockNumber
+            ? null
+            : decodeToBigInt(rpcRequestResult.blockNumber),
         }
       : null;
 
