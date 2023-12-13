@@ -23,13 +23,11 @@ import {
   zeroCheckpoint,
 } from "@/utils/checkpoint.js";
 import { formatShortDate } from "@/utils/date.js";
-import { prettyPrint } from "@/utils/print.js";
 import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
 import { wait } from "@/utils/wait.js";
 
 import { buildDatabaseModels } from "./model.js";
 import { ponderActions, type ReadOnlyClient } from "./ponderActions.js";
-import { addUserStackTrace } from "./trace.js";
 import { ponderTransport } from "./transport.js";
 
 type IndexingEvents = {
@@ -92,6 +90,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
   private eventsProcessedToCheckpoint: Checkpoint = zeroCheckpoint;
 
+  private previousIndexingCheckpoint: Checkpoint = zeroCheckpoint;
   private currentIndexingCheckpoint: Checkpoint = zeroCheckpoint;
   private hasError = false;
 
@@ -204,6 +203,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
     // When we call indexingStore.reload() above, the indexing store is dropped.
     // Set the latest processed timestamp to zero accordingly.
     this.eventsProcessedToCheckpoint = zeroCheckpoint;
+    this.previousIndexingCheckpoint = zeroCheckpoint;
     this.currentIndexingCheckpoint = zeroCheckpoint;
     this.common.metrics.ponder_indexing_latest_processed_timestamp.set(0);
   };
@@ -501,7 +501,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }) => {
     const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
       task,
-      queue,
     }) => {
       // This is a hack to ensure that the eventsProcessed method is called and updates
       // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
@@ -523,52 +522,53 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
           // The "setup" event should use the contract start block number for contract calls.
           // TODO: Consider implications of using 0 as the timestamp here.
+          this.previousIndexingCheckpoint = zeroCheckpoint;
           this.currentIndexingCheckpoint = zeroCheckpoint;
 
-          try {
-            this.common.logger.trace({
-              service: "indexing",
-              msg: `Started indexing function (event="${fullEventName}", block=${event.blockNumber})`,
-            });
+          // try {
+          this.common.logger.trace({
+            service: "indexing",
+            msg: `Started indexing function (event="${fullEventName}", block=${event.blockNumber})`,
+          });
 
-            // Running user code here!
-            await indexingFunction({
-              context: { db: this.db, ...this.contexts[event.chainId] },
-            });
+          // Running user code here!
+          await indexingFunction({
+            context: { db: this.db, ...this.contexts[event.chainId] },
+          });
 
-            this.common.logger.trace({
-              service: "indexing",
-              msg: `Completed indexing function (event="${fullEventName}", block=${event.blockNumber})`,
-            });
+          this.common.logger.trace({
+            service: "indexing",
+            msg: `Completed indexing function (event="${fullEventName}", block=${event.blockNumber})`,
+          });
 
-            const labels = {
-              network: event.networkName,
-              contract: event.contractName,
-              event: "setup",
-            };
-            this.common.metrics.ponder_indexing_processed_events.inc(labels);
-          } catch (error_) {
-            // Remove all remaining tasks from the queue.
-            queue.clear();
+          const labels = {
+            network: event.networkName,
+            contract: event.contractName,
+            event: "setup",
+          };
+          this.common.metrics.ponder_indexing_processed_events.inc(labels);
+          // } catch (error_) {
+          //   // Remove all remaining tasks from the queue.
+          //   queue.clear();
 
-            this.hasError = true;
-            this.common.metrics.ponder_indexing_has_error.set(1);
+          //   this.hasError = true;
+          //   this.common.metrics.ponder_indexing_has_error.set(1);
 
-            this.common.logger.trace({
-              service: "indexing",
-              msg: `Failed while running indexing function (event="setup")`,
-            });
+          //   this.common.logger.trace({
+          //     service: "indexing",
+          //     msg: `Failed while running indexing function (event="setup")`,
+          //   });
 
-            const error = error_ as Error & { meta: string };
-            addUserStackTrace(error, this.common.options);
+          //   const error = error_ as Error & { meta: string };
+          //   addUserStackTrace(error, this.common.options);
 
-            this.common.logger.error({
-              service: "indexing",
-              msg: `Error while processing "setup" event: ${error.message}`,
-              error,
-            });
-            this.common.errors.submitUserError();
-          }
+          //   this.common.logger.error({
+          //     service: "indexing",
+          //     msg: `Error while processing "setup" event: ${error.message}`,
+          //     error,
+          //   });
+          //   this.common.errors.submitUserError();
+          // }
 
           break;
         }
@@ -584,12 +584,19 @@ export class IndexingService extends Emittery<IndexingEvents> {
               `Internal: Indexing function not found for ${fullEventName}`,
             );
 
+          // NOTE does this do a shallow memory copy
+          this.previousIndexingCheckpoint = structuredClone(
+            this.currentIndexingCheckpoint,
+          );
           this.currentIndexingCheckpoint = {
             blockTimestamp: Number(event.block.timestamp),
             chainId: event.chainId,
             blockNumber: Number(event.block.number),
             logIndex: event.log.logIndex,
           };
+
+          // console.log("previous", this.previousIndexingCheckpoint);
+          // console.log("current", this.currentIndexingCheckpoint);
 
           try {
             this.common.logger.trace({
@@ -615,7 +622,8 @@ export class IndexingService extends Emittery<IndexingEvents> {
             });
           } catch (error_) {
             // Remove all remaining tasks from the queue.
-            queue.clear();
+            // queue.clear();
+            queue.pause();
 
             this.hasError = true;
             this.common.metrics.ponder_indexing_has_error.set(1);
@@ -626,12 +634,12 @@ export class IndexingService extends Emittery<IndexingEvents> {
             });
 
             const error = error_ as Error & { meta?: string };
-            addUserStackTrace(error, this.common.options);
-            if (error.meta) {
-              error.meta += `\nEvent args:\n${prettyPrint(event.args)}`;
-            } else {
-              error.meta = `Event args:\n${prettyPrint(event.args)}`;
-            }
+            // addUserStackTrace(error, this.common.options);
+            // if (error.meta) {
+            //   error.meta += `\nEvent args:\n${prettyPrint(event.args)}`;
+            // } else {
+            //   error.meta = `Event args:\n${prettyPrint(event.args)}`;
+            // }
 
             this.common.logger.error({
               service: "indexing",
@@ -640,7 +648,15 @@ export class IndexingService extends Emittery<IndexingEvents> {
               )}:`,
               error,
             });
-            this.common.errors.submitUserError();
+            // this.common.errors.submitUserError();
+
+            console.log("before");
+            await this.indexingStore.revert({
+              safeCheckpoint: this.previousIndexingCheckpoint,
+            });
+            console.log("after");
+            queue.addTask(task, { priority: 1, retry: true });
+            queue.start();
           }
 
           const labels = {
