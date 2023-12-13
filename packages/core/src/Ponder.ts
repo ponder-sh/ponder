@@ -74,7 +74,7 @@ export class Ponder {
     this.buildService = new BuildService({ common: this.common });
   }
 
-  async setupInitial() {
+  private async setupBuildService() {
     this.common.logger.debug({
       service: "app",
       msg: `Started using config file: ${path.relative(
@@ -101,7 +101,7 @@ export class Ponder {
     return config;
   }
 
-  async setupPrepare({
+  private async setupCoreServices({
     config,
     syncStore,
     indexingStore,
@@ -229,9 +229,9 @@ export class Ponder {
     syncStore?: SyncStore;
     indexingStore?: IndexingStore;
   } = {}) {
-    const config = await this.setupInitial();
+    const config = await this.setupBuildService();
     if (!config) return false;
-    await this.setupPrepare({ config, syncStore, indexingStore });
+    await this.setupCoreServices({ config, syncStore, indexingStore });
     return true;
   }
 
@@ -247,7 +247,7 @@ export class Ponder {
     this.serverService.registerDevRoutes();
     await this.serverService.start();
 
-    await this.syncServiceStart();
+    await this.startSyncServices();
   }
 
   async start() {
@@ -264,10 +264,10 @@ export class Ponder {
     await this.buildService.kill();
     await this.serverService.start();
 
-    await this.syncServiceStart();
+    await this.startSyncServices();
   }
 
-  private async syncServiceStart() {
+  private async startSyncServices() {
     try {
       await Promise.all(
         this.syncServices.map(async ({ historical, realtime }) => {
@@ -440,10 +440,12 @@ export class Ponder {
         // Clear all listeners. Will be added back in setup.
         await this.reload();
 
-        await this.setupPrepare({ config });
+        await this.setupCoreServices({ config });
         // NOTE: We know we are in dev mode if the build service is receiving events. Build events are disabled in production.
         await this.dev();
       } else {
+        // If the build service emits the "newConfig" event with undefined, it means there was an error
+        // while building or validating the config on a hot reload.
         await this.indexingService.kill();
         await Promise.all(
           this.syncServices.map(async ({ realtime, historical }) => {
@@ -468,6 +470,8 @@ export class Ponder {
         await this.indexingService.reset({ schema });
         await this.indexingService.processEvents();
       } else {
+        // If the build service emits the "newSchema" event with undefined, it means there was an error
+        // while building or validating the schema on a hot reload.
         await this.indexingService.kill();
       }
     });
