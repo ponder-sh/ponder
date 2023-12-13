@@ -50,7 +50,7 @@ cli
 
     const isSetupSuccessful = await ponder.setup();
     if (!isSetupSuccessful) return;
-    await ponder.start();
+    await ponder.dev();
   });
 
 cli
@@ -90,7 +90,7 @@ cli
 
     const isSetupSuccessful = await ponder.setup();
     if (!isSetupSuccessful) return;
-    await ponder.start();
+    await ponder.codegen();
   });
 
 cli
