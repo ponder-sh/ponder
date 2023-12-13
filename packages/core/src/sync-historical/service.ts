@@ -29,6 +29,7 @@ import {
   BlockProgressTracker,
   getChunks,
   intervalDifference,
+  intervalIntersection,
   intervalSum,
   ProgressTracker,
 } from "@/utils/interval.js";
@@ -176,7 +177,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
         if (sourceIsLogFilter(source)) {
           // Log filter
-
           if (!isHistoricalSyncRequired) {
             this.logFilterProgressTrackers[source.id] = new ProgressTracker({
               target: [startBlock, finalizedBlockNumber],
@@ -253,7 +253,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           });
         } else {
           // Factory
-
           if (!isHistoricalSyncRequired) {
             this.factoryChildAddressProgressTrackers[source.id] =
               new ProgressTracker({
@@ -352,9 +351,9 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
           this.factoryLogFilterProgressTrackers[source.id] =
             factoryLogFilterProgressTracker;
 
-          // Manually add factory log filter tasks for any intervals where the
-          // child address tasks are completed, but the child log filter tasks are not,
-          // because these won't be added automatically by the factory child address tasks.
+          // Only add factory log filter tasks for any intervals where the
+          // child address tasks are completed, but the factory log filter tasks are not,
+          // because these won't be added automatically by child address tasks.
           const requiredFactoryLogFilterIntervals =
             factoryLogFilterProgressTracker.getRequired();
           const missingFactoryLogFilterIntervals = intervalDifference(
@@ -697,8 +696,15 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
         [fromBlock, toBlock],
       );
     if (isUpdated) {
+      // It's possible for the factory log filter to have already completed some or
+      // all of the block interval here. To avoid duplicates, only add intervals that
+      // are still marked as required.
+      const requiredIntervals = intervalIntersection(
+        [[prevCheckpoint + 1, newCheckpoint]],
+        this.factoryLogFilterProgressTrackers[factory.id].getRequired(),
+      );
       const factoryLogFilterChunks = getChunks({
-        intervals: [[prevCheckpoint + 1, newCheckpoint]],
+        intervals: requiredIntervals,
         maxChunkSize:
           factory.maxBlockRange ?? this.network.defaultMaxBlockRange,
       });
@@ -756,7 +762,6 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
 
     for (const logInterval of logIntervals) {
       const { startBlock, endBlock, logs, transactionHashes } = logInterval;
-
       (this.blockCallbacks[endBlock] ||= []).push(async (block) => {
         await this.syncStore.insertFactoryLogFilterInterval({
           chainId: factory.chainId,
