@@ -189,7 +189,6 @@ export class SqliteIndexingStore implements IndexingStore {
               .updateTable(table)
               .set({ effectiveToCheckpoint: "latest" })
               .where("effectiveToCheckpoint", ">=", encodedCheckpoint)
-              // .where("effectiveToCheckpoint", "!=", "latest")
               .execute();
           }),
         );
