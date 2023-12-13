@@ -459,28 +459,26 @@ export class PostgresIndexingStore implements IndexingStore {
 
         // If the latest version has an earlier effectiveFromCheckpoint than the update,
         // we need to update the latest version AND insert a new version.
-        const [, row] = await Promise.all([
-          tx
-            .updateTable(table)
-            .where(
-              "id",
-              this.idColumnComparator({ tableName, schema: this.schema }),
-              formattedId,
-            )
-            .where("effectiveToCheckpoint", "=", "latest")
-            .set({ effectiveToCheckpoint: encodedCheckpoint })
-            .execute(),
-          tx
-            .insertInto(table)
-            .values({
-              ...latestRow,
-              ...updateRow,
-              effectiveFromCheckpoint: encodedCheckpoint,
-              effectiveToCheckpoint: "latest",
-            })
-            .returningAll()
-            .executeTakeFirstOrThrow(),
-        ]);
+        await tx
+          .updateTable(table)
+          .where(
+            "id",
+            this.idColumnComparator({ tableName, schema: this.schema }),
+            formattedId,
+          )
+          .where("effectiveToCheckpoint", "=", "latest")
+          .set({ effectiveToCheckpoint: encodedCheckpoint })
+          .execute();
+        const row = await tx
+          .insertInto(table)
+          .values({
+            ...latestRow,
+            ...updateRow,
+            effectiveFromCheckpoint: encodedCheckpoint,
+            effectiveToCheckpoint: "latest",
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow();
 
         return row;
       });
@@ -569,28 +567,26 @@ export class PostgresIndexingStore implements IndexingStore {
 
             // If the latest version has an earlier effectiveFromCheckpoint than the update,
             // we need to update the latest version AND insert a new version.
-            const [, row] = await Promise.all([
-              tx
-                .updateTable(table)
-                .where(
-                  "id",
-                  this.idColumnComparator({ tableName, schema: this.schema }),
-                  formattedId,
-                )
-                .where("effectiveToCheckpoint", "=", "latest")
-                .set({ effectiveToCheckpoint: encodedCheckpoint })
-                .execute(),
-              tx
-                .insertInto(table)
-                .values({
-                  ...latestRow,
-                  ...updateRow,
-                  effectiveFromCheckpoint: encodedCheckpoint,
-                  effectiveToCheckpoint: "latest",
-                })
-                .returningAll()
-                .executeTakeFirstOrThrow(),
-            ]);
+            await tx
+              .updateTable(table)
+              .where(
+                "id",
+                this.idColumnComparator({ tableName, schema: this.schema }),
+                formattedId,
+              )
+              .where("effectiveToCheckpoint", "=", "latest")
+              .set({ effectiveToCheckpoint: encodedCheckpoint })
+              .execute();
+            const row = await tx
+              .insertInto(table)
+              .values({
+                ...latestRow,
+                ...updateRow,
+                effectiveFromCheckpoint: encodedCheckpoint,
+                effectiveToCheckpoint: "latest",
+              })
+              .returningAll()
+              .executeTakeFirstOrThrow();
 
             return row;
           }),
@@ -685,28 +681,26 @@ export class PostgresIndexingStore implements IndexingStore {
 
         // If the latest version has an earlier effectiveFromCheckpoint than the update,
         // we need to update the latest version AND insert a new version.
-        const [, row] = await Promise.all([
-          tx
-            .updateTable(table)
-            .where(
-              "id",
-              this.idColumnComparator({ tableName, schema: this.schema }),
-              formattedId,
-            )
-            .where("effectiveToCheckpoint", "=", "latest")
-            .set({ effectiveToCheckpoint: encodedCheckpoint })
-            .execute(),
-          tx
-            .insertInto(table)
-            .values({
-              ...latestRow,
-              ...updateRow,
-              effectiveFromCheckpoint: encodedCheckpoint,
-              effectiveToCheckpoint: "latest",
-            })
-            .returningAll()
-            .executeTakeFirstOrThrow(),
-        ]);
+        await tx
+          .updateTable(table)
+          .where(
+            "id",
+            this.idColumnComparator({ tableName, schema: this.schema }),
+            formattedId,
+          )
+          .where("effectiveToCheckpoint", "=", "latest")
+          .set({ effectiveToCheckpoint: encodedCheckpoint })
+          .execute();
+        const row = await tx
+          .insertInto(table)
+          .values({
+            ...latestRow,
+            ...updateRow,
+            effectiveFromCheckpoint: encodedCheckpoint,
+            effectiveToCheckpoint: "latest",
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow();
 
         return row;
       });

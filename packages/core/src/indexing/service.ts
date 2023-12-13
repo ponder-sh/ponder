@@ -333,18 +333,26 @@ export class IndexingService extends Emittery<IndexingEvents> {
         const registeredSelectorsBySourceId: { [sourceId: string]: Hex[] } = {};
         for (const source of this.sources) {
           sourcesById[source.id] = source;
-          registeredSelectorsBySourceId[source.id] = Object.keys(
-            this.indexingFunctions![source.contractName],
-          )
-            .filter((name) => name !== "setup")
-            .map((safeEventName) => {
-              const abiItemMeta = source.events.bySafeName[safeEventName];
-              if (!abiItemMeta)
-                throw new Error(
-                  `Invariant violation: No abiItemMeta found for ${source.contractName}:${safeEventName}`,
-                );
-              return abiItemMeta.selector;
-            });
+
+          const indexingFunctions =
+            this.indexingFunctions![source.contractName];
+          if (indexingFunctions) {
+            registeredSelectorsBySourceId[source.id] = Object.keys(
+              indexingFunctions,
+            )
+              .filter((name) => name !== "setup")
+              .map((safeEventName) => {
+                const abiItemMeta = source.events.bySafeName[safeEventName];
+                if (!abiItemMeta)
+                  throw new Error(
+                    `Invariant violation: No abiItemMeta found for ${source.contractName}:${safeEventName}`,
+                  );
+                return abiItemMeta.selector;
+              });
+          } else {
+            // It's possible for no indexing functions to be registered for a source.
+            registeredSelectorsBySourceId[source.id] = [];
+          }
         }
 
         const iterator = this.syncGatewayService.getEvents({
