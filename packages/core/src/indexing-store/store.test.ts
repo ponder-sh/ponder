@@ -903,7 +903,7 @@ test("revert() deletes versions newer than the safe timestamp", async (context) 
     data: { name: "Bobby" },
   });
 
-  await indexingStore.revert({ safeCheckpoint: createCheckpoint(12) });
+  await indexingStore.revert({ checkpoint: createCheckpoint(12) });
 
   const pets = await indexingStore.findMany({ tableName: "Pet" });
   expect(pets.length).toBe(1);
@@ -930,7 +930,7 @@ test("revert() updates versions that only existed during the safe timestamp to l
     id: "id1",
   });
 
-  await indexingStore.revert({ safeCheckpoint: createCheckpoint(10) });
+  await indexingStore.revert({ checkpoint: createCheckpoint(10) });
 
   const pets = await indexingStore.findMany({ tableName: "Pet" });
   expect(pets.length).toBe(1);

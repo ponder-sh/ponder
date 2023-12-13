@@ -166,36 +166,34 @@ export class SqliteIndexingStore implements IndexingStore {
     });
   };
 
-  revert = async ({ safeCheckpoint }: { safeCheckpoint: Checkpoint }) => {
+  /**
+   * Revert any changes that occurred during or after the specified checkpoint.
+   */
+  revert = async ({ checkpoint }: { checkpoint: Checkpoint }) => {
     return this.wrap({ method: "revert" }, async () => {
-      console.log("hi");
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
           Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
             const table = `${tableName}_versioned`;
-            const encodedCheckpoint = encodeCheckpoint(safeCheckpoint);
+            const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-            console.log(1);
-            // Delete any versions that are newer than the safe checkpoint.
+            // Delete any versions that are newer than or equal to the safe checkpoint.
             await tx
               .deleteFrom(table)
-              .where("effectiveFromCheckpoint", ">", encodedCheckpoint)
+              .where("effectiveFromCheckpoint", ">=", encodedCheckpoint)
               .execute();
-            console.log(2);
 
             // Now, any versions with effectiveToCheckpoint greater than or equal
             // to the safe checkpoint are the new latest version.
-            console.log({ table });
             await tx
               .updateTable(table)
-              .where("effectiveToCheckpoint", ">=", encodedCheckpoint)
               .set({ effectiveToCheckpoint: "latest" })
+              .where("effectiveToCheckpoint", ">=", encodedCheckpoint)
+              // .where("effectiveToCheckpoint", "!=", "latest")
               .execute();
-            console.log(table, "finished");
           }),
         );
       });
-      console.log("bye");
     });
   };
 
