@@ -547,22 +547,6 @@ export class Ponder {
         return;
       }
 
-      // Clear all the metrics for the sources.
-      syncServiceForChainId.sources.forEach(({ networkName, contractName }) => {
-        this.common.metrics.ponder_historical_total_blocks.set(
-          { network: networkName, contract: contractName },
-          0,
-        );
-        this.common.metrics.ponder_historical_completed_blocks.set(
-          { network: networkName, contract: contractName },
-          0,
-        );
-        this.common.metrics.ponder_historical_cached_blocks.set(
-          { network: networkName, contract: contractName },
-          0,
-        );
-      });
-
       await this.syncStore.deleteRealtimeData({
         chainId,
         fromBlock: BigInt(0),

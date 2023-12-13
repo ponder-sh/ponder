@@ -476,6 +476,22 @@ export class HistoricalSyncService extends Emittery<HistoricalSyncEvents> {
     this.queue.clear();
     await this.onIdle();
 
+    // Clear all the metrics for the sources.
+    this.sources.forEach(({ networkName, contractName }) => {
+      this.common.metrics.ponder_historical_total_blocks.set(
+        { network: networkName, contract: contractName },
+        0,
+      );
+      this.common.metrics.ponder_historical_completed_blocks.set(
+        { network: networkName, contract: contractName },
+        0,
+      );
+      this.common.metrics.ponder_historical_cached_blocks.set(
+        { network: networkName, contract: contractName },
+        0,
+      );
+    });
+
     this.common.logger.debug({
       service: "historical",
       msg: `Killed historical sync service (network=${this.network.name})`,
