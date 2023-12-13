@@ -1,7 +1,7 @@
 import { E_CANCELED, Mutex } from "async-mutex";
 import Emittery from "emittery";
 import type { Abi, Address, Client, Hex } from "viem";
-import { createClient, decodeEventLog } from "viem";
+import { checksumAddress, createClient, decodeEventLog } from "viem";
 
 import type { IndexingFunctions } from "@/build/functions.js";
 import type { Network } from "@/config/networks.js";
@@ -25,6 +25,7 @@ import {
 import { formatShortDate } from "@/utils/date.js";
 import { prettyPrint } from "@/utils/print.js";
 import { createQueue, type Queue, type Worker } from "@/utils/queue.js";
+import { getErrorMessage } from "@/utils/request.js";
 import { wait } from "@/utils/wait.js";
 
 import { buildDatabaseModels } from "./model.js";
@@ -56,7 +57,9 @@ type SetupTask = {
   };
 };
 type LogEventTask = { kind: "LOG"; event: LogEvent };
-type IndexingFunctionTask = SetupTask | LogEventTask;
+type IndexingFunctionTask = (SetupTask | LogEventTask) & {
+  _retryCount?: number;
+};
 type IndexingFunctionQueue = Queue<IndexingFunctionTask>;
 
 export class IndexingService extends Emittery<IndexingEvents> {
@@ -246,7 +249,7 @@ export class IndexingService extends Emittery<IndexingEvents> {
 
         // Unsafe events have been processed, must revert the indexing store and update
         // eventsProcessedToTimestamp accordingly (case 3).
-        await this.indexingStore.revert({ safeCheckpoint });
+        await this.indexingStore.revert({ checkpoint: safeCheckpoint });
 
         this.eventsProcessedToCheckpoint = safeCheckpoint;
         this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
@@ -501,7 +504,6 @@ export class IndexingService extends Emittery<IndexingEvents> {
   }) => {
     const indexingFunctionWorker: Worker<IndexingFunctionTask> = async ({
       task,
-      queue,
     }) => {
       // This is a hack to ensure that the eventsProcessed method is called and updates
       // the UI when using SQLite. It also allows the process to GC and handle SIGINT events.
@@ -549,25 +551,36 @@ export class IndexingService extends Emittery<IndexingEvents> {
             this.common.metrics.ponder_indexing_processed_events.inc(labels);
           } catch (error_) {
             // Remove all remaining tasks from the queue.
-            queue.clear();
-
-            this.hasError = true;
-            this.common.metrics.ponder_indexing_has_error.set(1);
-
-            this.common.logger.trace({
-              service: "indexing",
-              msg: `Failed while running indexing function (event="setup")`,
-            });
+            queue.pause();
 
             const error = error_ as Error & { meta: string };
-            addUserStackTrace(error, this.common.options);
 
-            this.common.logger.error({
-              service: "indexing",
-              msg: `Error while processing "setup" event: ${error.message}`,
-              error,
-            });
-            this.common.errors.submitUserError();
+            if (task._retryCount !== undefined && task._retryCount >= 2) {
+              queue.clear();
+              this.hasError = true;
+              this.common.metrics.ponder_indexing_has_error.set(1);
+
+              addUserStackTrace(error, this.common.options);
+
+              this.common.logger.error({
+                service: "indexing",
+                msg: `Error while processing "setup" event: ${error.message}`,
+                error,
+              });
+              this.common.errors.submitUserError();
+            } else {
+              this.common.logger.warn({
+                service: "indexing",
+                msg: `Indexing function failed, retrying... (event=${fullEventName}, error=${getErrorMessage(
+                  error,
+                )})`,
+              });
+              await this.indexingStore.revert({
+                checkpoint: this.currentIndexingCheckpoint,
+              });
+              queue.addTask(task, { priority: 1, retry: true });
+              queue.start();
+            }
           }
 
           break;
@@ -613,45 +626,56 @@ export class IndexingService extends Emittery<IndexingEvents> {
               service: "indexing",
               msg: `Completed indexing function (event="${fullEventName}", block=${event.block.number})`,
             });
+
+            const labels = {
+              network: event.networkName,
+              contract: event.contractName,
+              event: event.eventName,
+            };
+            this.common.metrics.ponder_indexing_processed_events.inc(labels);
+            this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
+              this.currentIndexingCheckpoint.blockTimestamp,
+            );
           } catch (error_) {
             // Remove all remaining tasks from the queue.
-            queue.clear();
-
-            this.hasError = true;
-            this.common.metrics.ponder_indexing_has_error.set(1);
-
-            this.common.logger.trace({
-              service: "indexing",
-              msg: `Failed while running indexing function (event="${fullEventName}", block=${event.block.number})`,
-            });
+            queue.pause();
 
             const error = error_ as Error & { meta?: string };
-            addUserStackTrace(error, this.common.options);
-            if (error.meta) {
-              error.meta += `\nEvent args:\n${prettyPrint(event.args)}`;
+
+            if (task._retryCount !== undefined && task._retryCount >= 2) {
+              queue.clear();
+              this.hasError = true;
+              this.common.metrics.ponder_indexing_has_error.set(1);
+
+              addUserStackTrace(error, this.common.options);
+              if (error.meta) {
+                error.meta += `\nEvent args:\n${prettyPrint(event.args)}`;
+              } else {
+                error.meta = `Event args:\n${prettyPrint(event.args)}`;
+              }
+
+              this.common.logger.error({
+                service: "indexing",
+                msg: `Error while processing "${fullEventName}" event at block ${Number(
+                  event.block.number,
+                )}:`,
+                error,
+              });
+              this.common.errors.submitUserError();
             } else {
-              error.meta = `Event args:\n${prettyPrint(event.args)}`;
+              this.common.logger.warn({
+                service: "indexing",
+                msg: `Indexing function failed, retrying... (event=${fullEventName}, block=${Number(
+                  event.block.number,
+                )}, error=${getErrorMessage(error)})`,
+              });
+              await this.indexingStore.revert({
+                checkpoint: this.currentIndexingCheckpoint,
+              });
+              queue.addTask(task, { priority: 1, retry: true });
+              queue.start();
             }
-
-            this.common.logger.error({
-              service: "indexing",
-              msg: `Error while processing "${fullEventName}" event at block ${Number(
-                event.block.number,
-              )}:`,
-              error,
-            });
-            this.common.errors.submitUserError();
           }
-
-          const labels = {
-            network: event.networkName,
-            contract: event.contractName,
-            event: event.eventName,
-          };
-          this.common.metrics.ponder_indexing_processed_events.inc(labels);
-          this.common.metrics.ponder_indexing_latest_processed_timestamp.set(
-            this.currentIndexingCheckpoint.blockTimestamp,
-          );
 
           break;
         }
@@ -727,7 +751,7 @@ const buildContexts = (
         ...contexts[source.chainId].contracts,
         [source.contractName]: {
           abi: source.abi,
-          address,
+          address: address ? checksumAddress(address) : address,
           startBlock: source.startBlock,
           endBlock: source.endBlock,
           maxBlockRange: source.maxBlockRange,

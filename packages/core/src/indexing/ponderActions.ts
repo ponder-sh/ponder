@@ -29,13 +29,19 @@ import type { Prettify } from "@/types/utils.js";
 
 export type PonderActions = {
   getBalance: (
-    args: Omit<GetBalanceParameters, "blockTag" | "blockNumber">,
+    args: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> & {
+      cache?: "immutable";
+    },
   ) => Promise<GetBalanceReturnType>;
   getBytecode: (
-    args: Omit<GetBytecodeParameters, "blockTag" | "blockNumber">,
+    args: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> & {
+      cache?: "immutable";
+    },
   ) => Promise<GetBytecodeReturnType>;
   getStorageAt: (
-    args: Omit<GetStorageAtParameters, "blockTag" | "blockNumber">,
+    args: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> & {
+      cache?: "immutable";
+    },
   ) => Promise<GetStorageAtReturnType>;
   multicall: <
     TContracts extends ContractFunctionConfig[],
@@ -44,7 +50,9 @@ export type PonderActions = {
     args: Omit<
       MulticallParameters<TContracts, TAllowFailure>,
       "blockTag" | "blockNumber"
-    >,
+    > & {
+      cache?: "immutable";
+    },
   ) => Promise<MulticallReturnType<TContracts, TAllowFailure>>;
   readContract: <
     const TAbi extends Abi | readonly unknown[],
@@ -53,7 +61,9 @@ export type PonderActions = {
     args: Omit<
       ReadContractParameters<TAbi, TFunctionName>,
       "blockTag" | "blockNumber"
-    >,
+    > & {
+      cache?: "immutable";
+    },
   ) => Promise<ReadContractReturnType<TAbi, TFunctionName>>;
 };
 
@@ -73,51 +83,78 @@ export const ponderActions =
   >(
     client: Client<TTransport, TChain, TAccount>,
   ): PonderActions => ({
-    getBalance: (
-      args: Omit<GetBalanceParameters, "blockTag" | "blockNumber">,
-    ): Promise<GetBalanceReturnType> =>
+    getBalance: ({
+      cache,
+      ...args
+    }: Omit<GetBalanceParameters, "blockTag" | "blockNumber"> & {
+      cache?: "immutable";
+    }): Promise<GetBalanceReturnType> =>
       viemGetBalance(client, {
         ...args,
-        blockNumber: getCurrentBlockNumber(),
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: getCurrentBlockNumber() }),
       }),
-    getBytecode: (
-      args: Omit<GetBytecodeParameters, "blockTag" | "blockNumber">,
-    ): Promise<GetBytecodeReturnType> =>
+    getBytecode: ({
+      cache,
+      ...args
+    }: Omit<GetBytecodeParameters, "blockTag" | "blockNumber"> & {
+      cache?: "immutable";
+    }): Promise<GetBytecodeReturnType> =>
       viemGetBytecode(client, {
         ...args,
-        blockNumber: getCurrentBlockNumber(),
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: getCurrentBlockNumber() }),
       }),
-    getStorageAt: (
-      args: Omit<GetStorageAtParameters, "blockTag" | "blockNumber">,
-    ): Promise<GetStorageAtReturnType> =>
+    getStorageAt: ({
+      cache,
+      ...args
+    }: Omit<GetStorageAtParameters, "blockTag" | "blockNumber"> & {
+      cache?: "immutable";
+    }): Promise<GetStorageAtReturnType> =>
       viemGetStorageAt(client, {
         ...args,
-        blockNumber: getCurrentBlockNumber(),
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: getCurrentBlockNumber() }),
       }),
     multicall: <
       TContracts extends ContractFunctionConfig[],
       TAllowFailure extends boolean = true,
-    >(
-      args: Omit<
-        MulticallParameters<TContracts, TAllowFailure>,
-        "blockTag" | "blockNumber"
-      >,
-    ): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
+    >({
+      cache,
+      ...args
+    }: Omit<
+      MulticallParameters<TContracts, TAllowFailure>,
+      "blockTag" | "blockNumber"
+    > & {
+      cache?: "immutable";
+    }): Promise<MulticallReturnType<TContracts, TAllowFailure>> =>
       viemMulticall(client, {
         ...args,
-        blockNumber: getCurrentBlockNumber(),
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: getCurrentBlockNumber() }),
       }),
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
     readContract: <
       const TAbi extends Abi | readonly unknown[],
       TFunctionName extends string,
-    >(
-      args: Omit<
-        ReadContractParameters<TAbi, TFunctionName>,
-        "blockTag" | "blockNumber"
-      >,
-    ): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
+    >({
+      cache,
+      ...args
+    }: Omit<
+      ReadContractParameters<TAbi, TFunctionName>,
+      "blockTag" | "blockNumber"
+    > & {
+      cache?: "immutable";
+    }): Promise<ReadContractReturnType<TAbi, TFunctionName>> =>
       viemReadContract(client, {
         ...args,
-        blockNumber: getCurrentBlockNumber(),
+        ...(cache === "immutable"
+          ? { blockTag: "latest" }
+          : { blockNumber: getCurrentBlockNumber() }),
       } as ReadContractParameters<TAbi, TFunctionName>),
   });

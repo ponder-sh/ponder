@@ -961,8 +961,14 @@ test.concurrent(
       id: "id1",
       data: { name: "Bobby" },
     });
+    await indexingStore.create({
+      tableName: "Person",
+      checkpoint: createCheckpoint(12),
+      id: "id2",
+      data: { name: "Kevin" },
+    });
 
-    await indexingStore.revert({ safeCheckpoint: createCheckpoint(12) });
+    await indexingStore.revert({ checkpoint: createCheckpoint(12) });
 
     const pets = await indexingStore.findMany({ tableName: "Pet" });
     expect(pets.length).toBe(1);
@@ -982,7 +988,7 @@ test.concurrent(
 
     await indexingStore.create({
       tableName: "Pet",
-      checkpoint: createCheckpoint(10),
+      checkpoint: createCheckpoint(9),
       id: "id1",
       data: { name: "Skip" },
     });
@@ -992,7 +998,7 @@ test.concurrent(
       id: "id1",
     });
 
-    await indexingStore.revert({ safeCheckpoint: createCheckpoint(10) });
+    await indexingStore.revert({ checkpoint: createCheckpoint(10) });
 
     const pets = await indexingStore.findMany({ tableName: "Pet" });
     expect(pets.length).toBe(1);

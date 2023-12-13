@@ -105,7 +105,8 @@ export function createQueue<TTask, TContext = undefined, TReturn = void>({
 
     let retryTimeout: number | undefined = undefined;
     if (taskOptions?.retry) {
-      task._retryCount = !task._retryCount ? 0 : task._retryCount + 1;
+      task._retryCount =
+        task._retryCount === undefined ? 0 : task._retryCount + 1;
 
       if (task._retryCount >= TASK_RETRY_TIMEOUT.length) {
         retryTimeout = TASK_RETRY_TIMEOUT[task._retryCount - 1];

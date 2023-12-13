@@ -312,7 +312,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
   const { syncStore } = context;
 
   const factoryCriteria = {
-    address: checksumAddress("0xfactory"),
+    address: "0xfactory",
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
@@ -323,7 +323,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
     logs: [
       {
         ...blockOneLogs[0],
-        address: checksumAddress("0xfactory"),
+        address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
           "0x000000000000000000000000child10000000000000000000000000000000000",
@@ -333,7 +333,7 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
       },
       {
         ...blockOneLogs[1],
-        address: checksumAddress("0xfactory"),
+        address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
           "0x000000000000000000000000child30000000000000000000000000000000000",
@@ -354,8 +354,8 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
   for await (const page of iterator) results.push(...page);
 
   expect(results).toMatchObject([
-    checksumAddress("0xchild10000000000000000000000000000000000"),
-    checksumAddress("0xchild30000000000000000000000000000000000"),
+    "0xchild10000000000000000000000000000000000",
+    "0xchild30000000000000000000000000000000000",
   ]);
 
   iterator = syncStore.getFactoryChildAddresses({
@@ -368,8 +368,8 @@ test("getFactoryChildAddresses gets child addresses for topic location", async (
   for await (const page of iterator) results.push(...page);
 
   expect(results).toMatchObject([
-    checksumAddress("0xchild20000000000000000000000000000000000"),
-    checksumAddress("0xchild40000000000000000000000000000000000"),
+    "0xchild20000000000000000000000000000000000",
+    "0xchild40000000000000000000000000000000000",
   ]);
 });
 
@@ -377,7 +377,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
   const { syncStore } = context;
 
   const factoryCriteria = {
-    address: checksumAddress("0xfactory"),
+    address: "0xfactory",
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "offset32",
@@ -388,7 +388,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
     logs: [
       {
         ...blockOneLogs[0],
-        address: checksumAddress("0xfactory"),
+        address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
         ],
@@ -397,7 +397,7 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
       },
       {
         ...blockOneLogs[1],
-        address: checksumAddress("0xfactory"),
+        address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
         ],
@@ -417,8 +417,8 @@ test("getFactoryChildAddresses gets child addresses for offset location", async 
   for await (const page of iterator) results.push(...page);
 
   expect(results).toMatchObject([
-    checksumAddress("0xchild10000000000000000000000000000000000"),
-    checksumAddress("0xchild20000000000000000000000000000000000"),
+    "0xchild10000000000000000000000000000000000",
+    "0xchild20000000000000000000000000000000000",
   ]);
 });
 
@@ -426,7 +426,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
   const { syncStore } = context;
 
   const factoryCriteria = {
-    address: checksumAddress("0xfactory"),
+    address: "0xfactory",
     eventSelector:
       "0x0000000000000000000000000000000000000000000factoryeventsignature",
     childAddressLocation: "topic1",
@@ -437,7 +437,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
     logs: [
       {
         ...blockOneLogs[0],
-        address: checksumAddress("0xfactory"),
+        address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
           "0x000000000000000000000000child10000000000000000000000000000000000",
@@ -446,7 +446,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
       },
       {
         ...blockOneLogs[1],
-        address: checksumAddress("0xfactory"),
+        address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
           "0x000000000000000000000000child20000000000000000000000000000000000",
@@ -465,9 +465,7 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
   let results = [];
   for await (const page of iterator) results.push(...page);
 
-  expect(results).toMatchObject([
-    checksumAddress("0xchild10000000000000000000000000000000000"),
-  ]);
+  expect(results).toMatchObject(["0xchild10000000000000000000000000000000000"]);
 
   iterator = syncStore.getFactoryChildAddresses({
     chainId: 1,
@@ -479,8 +477,8 @@ test("getFactoryChildAddresses respects upToBlockNumber argument", async (contex
   for await (const page of iterator) results.push(...page);
 
   expect(results).toMatchObject([
-    checksumAddress("0xchild10000000000000000000000000000000000"),
-    checksumAddress("0xchild20000000000000000000000000000000000"),
+    "0xchild10000000000000000000000000000000000",
+    "0xchild20000000000000000000000000000000000",
   ]);
 });
 
@@ -1055,7 +1053,9 @@ test("getLogEvents returns log events", async (context) => {
 
   expect(events[0].log).toMatchInlineSnapshot(`
     {
-      "address": "0x15D4c048F83bd7e37d49eA4C83a07267Ec4203dA",
+      "address": "${checksumAddress(
+        "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      )}",
       "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
       "blockNumber": 15495110n,
       "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
@@ -1118,7 +1118,9 @@ test("getLogEvents returns log events", async (context) => {
 
   expect(events[1].log).toMatchInlineSnapshot(`
     {
-      "address": "0x72D4C048f83bd7E37D49eA4C83a07267ec4203dA",
+      "address": "${checksumAddress(
+        "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      )}",
       "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
       "blockNumber": 15495110n,
       "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
@@ -1201,7 +1203,7 @@ test("getLogEvents filters on log filter with one address", async (context) => {
       {
         id: "singleAddress",
         chainId: 1,
-        criteria: { address: checksumAddress(blockOneLogs[0].address) },
+        criteria: { address: blockOneLogs[0].address },
       },
     ],
   });
@@ -1237,10 +1239,7 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
         id: "multipleAddress",
         chainId: 1,
         criteria: {
-          address: [
-            checksumAddress(blockOneLogs[0].address),
-            checksumAddress(blockOneLogs[1].address),
-          ],
+          address: [blockOneLogs[0].address, blockOneLogs[1].address],
         },
       },
     ],
@@ -1366,7 +1365,7 @@ test("getLogEvents filters on simple factory", async (context) => {
     logs: [
       {
         ...blockOneLogs[0],
-        address: checksumAddress("0xfactory"),
+        address: "0xfactory",
         topics: [
           "0x0000000000000000000000000000000000000000000factoryeventsignature",
           "0x000000000000000000000000child10000000000000000000000000000000000",
@@ -1382,7 +1381,7 @@ test("getLogEvents filters on simple factory", async (context) => {
     transactions: blockTwoTransactions,
     logs: blockTwoLogs.map((l) => ({
       ...l,
-      address: checksumAddress("0xchild10000000000000000000000000000000000"),
+      address: "0xchild10000000000000000000000000000000000",
     })),
   });
 
@@ -1394,7 +1393,7 @@ test("getLogEvents filters on simple factory", async (context) => {
         id: "simple",
         chainId: 1,
         criteria: {
-          address: checksumAddress("0xfactory"),
+          address: "0xfactory",
           eventSelector:
             "0x0000000000000000000000000000000000000000000factoryeventsignature",
           childAddressLocation: "topic1",
@@ -1477,7 +1476,7 @@ test("getLogEvents filters on multiple filters", async (context) => {
       {
         id: "singleAddress", // This should match blockOneLogs[0]
         chainId: 1,
-        criteria: { address: checksumAddress(blockOneLogs[0].address) },
+        criteria: { address: blockOneLogs[0].address },
       },
       {
         id: "singleTopic", // This should match blockOneLogs[0] AND blockTwoLogs[0]
