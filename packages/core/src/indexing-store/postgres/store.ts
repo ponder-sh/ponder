@@ -181,18 +181,21 @@ export class PostgresIndexingStore implements IndexingStore {
     });
   };
 
-  revert = async ({ safeCheckpoint }: { safeCheckpoint: Checkpoint }) => {
+  /**
+   * Revert any changes that occurred during or after the specified checkpoint.
+   */
+  revert = async ({ checkpoint }: { checkpoint: Checkpoint }) => {
     return this.wrap({ method: "revert" }, async () => {
       await this.db.transaction().execute(async (tx) => {
         await Promise.all(
           Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
             const table = `${tableName}_versioned`;
-            const encodedCheckpoint = encodeCheckpoint(safeCheckpoint);
+            const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
             // Delete any versions that are newer than the safe checkpoint.
             await tx
               .deleteFrom(table)
-              .where("effectiveFromCheckpoint", ">", encodedCheckpoint)
+              .where("effectiveFromCheckpoint", ">=", encodedCheckpoint)
               .execute();
 
             // Now, any versions with effectiveToCheckpoint greater than or equal

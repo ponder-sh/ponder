@@ -4,9 +4,7 @@ import { custom, maxUint256 } from "viem";
 import type { Network } from "@/config/networks.js";
 import type { SyncStore } from "@/sync-store/store.js";
 import { toLowerCase } from "@/utils/lowercase.js";
-import { TASK_RETRY_TIMEOUT } from "@/utils/queue.js";
 import { request as requestHelper } from "@/utils/request.js";
-import { wait } from "@/utils/wait.js";
 
 export const ponderTransport = ({
   network,
@@ -68,9 +66,7 @@ export const ponderTransport = ({
 
           if (cachedResult?.result) return cachedResult.result;
           else {
-            const response = await requestWithRetry(() =>
-              requestHelper(network, { body }),
-            );
+            const response = await requestHelper(network, { body });
             await syncStore.insertRpcRequestResult({
               blockNumber: blockNumber,
               chainId: chain!.id,
@@ -80,21 +76,10 @@ export const ponderTransport = ({
             return response;
           }
         } else {
-          return await requestWithRetry(() => requestHelper(network, { body }));
+          return await requestHelper(network, { body });
         }
       },
     });
     return c({ chain });
   };
-};
-
-const requestWithRetry = async (request: () => Promise<any>) => {
-  for (let i = 0; i <= TASK_RETRY_TIMEOUT.length; i++) {
-    if (i > 0) await wait(TASK_RETRY_TIMEOUT[i - 1]);
-    try {
-      return await request();
-    } catch (err) {
-      if (i === TASK_RETRY_TIMEOUT.length) throw err;
-    }
-  }
 };
