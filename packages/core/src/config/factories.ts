@@ -1,5 +1,4 @@
 import type { AbiEvent } from "abitype";
-import type { RpcLog } from "viem";
 import { getEventSelector } from "viem";
 
 import { toLowerCase } from "@/utils/lowercase.js";
@@ -58,47 +57,4 @@ export function buildFactoryCriteria({
     eventSelector,
     childAddressLocation: `offset${offset}`,
   } satisfies FactoryCriteria;
-}
-
-export function getAddressFromFactoryEventLog({
-  criteria,
-  log,
-}: {
-  criteria: FactoryCriteria;
-  log: RpcLog;
-}) {
-  const { childAddressLocation } = criteria;
-
-  if (childAddressLocation.startsWith("topic")) {
-    const childAddressTopic = Number(childAddressLocation.substring(5, 6));
-    const topic = log.topics[childAddressTopic];
-    if (topic === undefined) {
-      throw new Error(
-        `Invalid log for factory criteria: Not enough topic values, expected at least ${childAddressTopic}`,
-      );
-    }
-    const start = 2 + 12 * 2;
-    const end = start + 20 * 2;
-
-    return ("0x" + topic.slice(start, end)) as `0x${string}`;
-  }
-
-  if (childAddressLocation.startsWith("offset")) {
-    const childAddressOffset = Number(childAddressLocation.substring(6));
-    const start = 2 + 12 * 2 + childAddressOffset * 2;
-    const end = start + 20 * 2;
-    if (log.data.length < end) {
-      throw new Error(
-        `Invalid log for factory criteria: Data size too small, expected at least ${
-          end / 2 - 1
-        } bytes`,
-      );
-    }
-
-    return ("0x" + log.data.slice(start, end)) as `0x${string}`;
-  }
-
-  throw new Error(
-    `Invalid child address location identifier: ${childAddressLocation}`,
-  );
 }
