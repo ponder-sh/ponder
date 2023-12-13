@@ -303,11 +303,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       let matchedLogs: RpcLog[];
 
       if (!this.sources.some(sourceIsFactory)) {
+        const logFilters = this.sources.map((s) => s.criteria);
         // If there are no factory contracts, we can attempt to skip calling eth_getLogs by
         // checking if the block logsBloom matches any of the log filters.
         const doesBlockHaveLogFilterLogs = isMatchedLogInBloomFilter({
           bloom: newBlockWithTransactions.logsBloom!,
-          logFilters: this.sources.map((s) => s.criteria),
+          logFilters,
         });
 
         if (!doesBlockHaveLogFilterLogs) {
@@ -318,12 +319,30 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
           logs = [];
           matchedLogs = [];
         } else {
+          // We can only safely filter logs by address if all sources specify an address
+          const canFilterByAddress = logFilters.every(
+            (filter) => filter.address !== undefined,
+          );
+          const addresses = canFilterByAddress
+            ? logFilters
+                .flatMap((filter) => filter.address)
+                .filter(
+                  (address): address is Exclude<typeof address, undefined> =>
+                    address !== undefined,
+                )
+            : undefined;
+
           // Block (maybe) contains logs matching the registered log filters.
           const stopClock = startClock();
           logs = await request(this.network, {
             body: {
               method: "eth_getLogs",
-              params: [{ blockHash: newBlock.hash }],
+              params: [
+                {
+                  blockHash: newBlock.hash,
+                  address: addresses,
+                },
+              ],
             },
             fetchOptions: { signal },
           });
@@ -332,10 +351,7 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
             stopClock(),
           );
 
-          matchedLogs = filterLogs({
-            logs,
-            logFilters: this.sources.map((s) => s.criteria),
-          });
+          matchedLogs = filterLogs({ logs, logFilters });
         }
       } else {
         // The app has factory contracts.
