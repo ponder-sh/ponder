@@ -11,11 +11,11 @@ import {
 
 test("getRpcUrlsForClient handles default RPC URL", async () => {
   const rpcUrls = await getRpcUrlsForClient({
-    transport: http("http://localhost:8545"),
+    transport: http(),
     chain: mainnet,
   });
 
-  expect(rpcUrls).toMatchObject(["http://localhost:8545"]);
+  expect(rpcUrls).toMatchObject(["https://cloudflare-eth.com"]);
 });
 
 test("getRpcUrlsForClient should handle an http transport", async () => {
@@ -64,10 +64,10 @@ test("getRequestForTransport should handle an http transport", async () => {
 });
 
 test("getRequestForTransport should handle a websocket transport", async () => {
-  const ws = { type: "webSocket", getSocket: () => {} };
+  const ws = { type: "webSocket", getSocket: () => Promise.resolve(true) };
 
   const spy = vi.spyOn(ws, "getSocket");
-  spy.mockReturnValue();
+  spy.mockReturnValue(Promise.resolve(true));
 
   const request = await getRequestForTransport({
     transport: () => ({ value: ws }) as any,

@@ -6,10 +6,12 @@ import { buildSources } from "./sources.js";
 
 const event0 = parseAbiItem("event Event0(bytes32 indexed arg)");
 const event1 = parseAbiItem("event Event1()");
-const event1Overloaded = parseAbiItem("event Event1(bytes32)");
+const event1Overloaded = parseAbiItem("event Event1(bytes32 indexed)");
 
 const address1 = "0x0000000000000000000000000000000000000001";
 const bytes1 =
+  "0x0000000000000000000000000000000000000000000000000000000000000001";
+const bytes2 =
   "0x0000000000000000000000000000000000000000000000000000000000000001";
 
 test("buildSources() builds topics for multiple events", () => {
@@ -56,7 +58,7 @@ test("buildSources() for duplicate event", () => {
         network: { mainnet: {} },
         abi: [event1, event1Overloaded],
         filter: {
-          event: ["Event1()", "Event1(bytes32)"],
+          event: ["Event1()", "Event1(bytes32 indexed)"],
         },
         address: address1,
         startBlock: 16370000,
@@ -132,6 +134,40 @@ test("buildSources() builds topics for event with args", () => {
   expect(sources[0].criteria.topics).toMatchObject([
     getEventSelector(event0),
     bytes1,
+    null,
+    null,
+  ]);
+});
+
+test("buildSources() builds topics for event with unnamed parameters", () => {
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
+      },
+    },
+    contracts: {
+      a: {
+        network: { mainnet: {} },
+        abi: [event1Overloaded],
+        filter: {
+          event: "Event1",
+          args: [[bytes1, bytes2]],
+        },
+        address: address1,
+        startBlock: 16370000,
+        endBlock: 16370020,
+        maxBlockRange: 10,
+      },
+    },
+  });
+
+  const sources = buildSources({ config });
+
+  expect(sources[0].criteria.topics).toMatchObject([
+    getEventSelector(event1Overloaded),
+    [bytes1, bytes2],
     null,
     null,
   ]);
