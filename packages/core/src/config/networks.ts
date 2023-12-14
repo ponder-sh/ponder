@@ -244,14 +244,20 @@ export async function getRequestForTransport(parameters: {
     case "http": {
       const url = transport.url ?? parameters.chain.rpcUrls.default.http[0];
 
-      if (!url) throw Error("Unable to find a http transport URL");
+      if (!url)
+        throw Error(
+          `Validation failed: Unable to find a http transport URL (network=${parameters.chain.name}). Commonly caused by unset env vars.`,
+        );
 
       return (options) => rpc.http(url, options);
     }
     case "webSocket": {
       const socket = await transport.getSocket();
 
-      if (!socket) throw Error("Unable to find a websocket transport url");
+      if (!socket)
+        throw Error(
+          `Validation failed: Unable to find a websocket transport url (network=${parameters.chain.name}). Commonly caused by unset env vars.`,
+        );
 
       return (options) => rpc.webSocketAsync(socket, options);
     }
@@ -263,7 +269,7 @@ export async function getRequestForTransport(parameters: {
     }
     default: {
       throw Error(
-        `Unknown transport "${transport.type}" used. Please use "http", "websocket", or "fallback"`,
+        `Validation failed: Unknown transport "${transport.type}" used. Please use "http", "websocket", or "fallback" (network=${parameters.chain.name})`,
       );
     }
   }
