@@ -30,8 +30,8 @@ export function Home() {
               Rapidly build an API for any EVM smart contract
             </h1>
             <p>
-              Ponder is an open-source framework that makes it easy to build
-              robust, performant, and maintainable web backends for crypto apps.
+              Ponder is an open-source backend framework for building robust,
+              performant, and maintainable crypto apps
             </p>
           </div>
 
@@ -83,9 +83,10 @@ export function Home() {
               <div className="p-2 rounded-[4px] mb-5 bg-neutral-200 dark:bg-neutral-800">
                 <ServerStackIcon />
               </div>
-              <CardTitle>Local dev server</CardTitle>
+              <CardTitle>Powerful local dev server</CardTitle>
               <CardDescription>
-                Get instant feedback with hot reloading
+                Build incredibly fast & stay unblocked with{" "}
+                <strong>hot reloading</strong>
               </CardDescription>
             </CardHeader>
           </Card>
@@ -95,9 +96,9 @@ export function Home() {
               <div className="p-2 rounded-[4px] mb-5 bg-neutral-200 dark:bg-neutral-800">
                 <ShieldCheckIcon />
               </div>
-              <CardTitle>Built for app developers</CardTitle>
+              <CardTitle>Fast & lean</CardTitle>
               <CardDescription>
-                Install NPM libs and make network requests
+                Sync <strong>~10x faster</strong> than Graph Protocol subgraphs
               </CardDescription>
             </CardHeader>
           </Card>
@@ -109,7 +110,8 @@ export function Home() {
               </div>
               <CardTitle>Type safe</CardTitle>
               <CardDescription>
-                End-to-end type safety & autocomplete, no codegen required
+                End-to-end type safety & autocomplete with{" "}
+                <strong>no codegen</strong>
               </CardDescription>
             </CardHeader>
           </Card>
@@ -121,7 +123,9 @@ export function Home() {
               </div>
               <CardTitle>One-click deploys</CardTitle>
               <CardDescription>
-                Deploy anywhere that runs Node.js, with zero downtime
+                Deploy anywhere that runs Node.js with{" "}
+                <strong>zero downtime</strong> &{" "}
+                <strong>horizontal scaling</strong>
               </CardDescription>
             </CardHeader>
           </Card>
