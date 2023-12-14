@@ -4,4 +4,4 @@
 "eslint-config-ponder": minor
 ---
 
-Released v0.1! Please read the [migration guide](https://ponder.sh/migrate-to-0.1).
+Released v0.1.0! Please read the [migration guide](https://ponder.sh/docs/migration-guide).
