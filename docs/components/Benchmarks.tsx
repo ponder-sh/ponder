@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 import { Card, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import GraphLogo from "../public/graph.svg";
-import { cn } from "@/lib/utils";
 
 export function Benchmarks({ flat = false }: { flat?: boolean }) {
   return (
