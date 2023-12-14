@@ -5,7 +5,7 @@ export const validateConfig = async ({
 }: {
   config: Config;
 }): Promise<void> => {
-  Object.values(config.contracts).forEach((contract) => {
+  Object.entries(config.contracts).forEach(([contractName, contract]) => {
     if (typeof contract.network === "string") {
       // shortcut
       const network = config.networks[contract.network];
