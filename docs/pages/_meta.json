@@ -5,13 +5,17 @@
     "theme": {
       "breadcrumb": false,
       "sidebar": false,
-      "toc": false,
-      "footer": true
+      "toc": false
     }
   },
   "docs": {
     "title": "Documentation",
-    "type": "page"
+    "type": "page",
+    "theme": {
+      "breadcrumb": true,
+      "sidebar": true,
+      "toc": true
+    }
   },
   "blog": {
     "title": "Blog",
