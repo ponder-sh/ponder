@@ -1,5 +1,11 @@
 # create-ponder
 
+## 0.1.0
+
+### Minor Changes
+
+- [#437](https://github.com/ponder-sh/ponder/pull/437) [`df822e4ddad0a3c4002fa0efc0b758b1b7853f1c`](https://github.com/ponder-sh/ponder/commit/df822e4ddad0a3c4002fa0efc0b758b1b7853f1c) Thanks [@0xOlias](https://github.com/0xOlias)! - Released v0.1.0! Please read the [migration guide](https://ponder.sh/docs/migration-guide).
+
 ## 0.0.95
 
 ## 0.0.94
