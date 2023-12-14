@@ -117,7 +117,7 @@ type P = {
   /**
    * Primitive `string` column type.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#foreign-key
    *
    * @example
    * import { p } from '@ponder/core'
@@ -132,7 +132,7 @@ type P = {
   /**
    * Primitive `int` column type.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#foreign-key
    *
    * @example
    * import { p } from '@ponder/core'
@@ -147,7 +147,7 @@ type P = {
   /**
    * Primitive `float` column type.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#foreign-key
    *
    * @example
    * import { p } from '@ponder/core'
@@ -163,7 +163,7 @@ type P = {
   /**
    * Primitive `bytes` column type.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#foreign-key
    *
    * @example
    * import { p } from '@ponder/core'
@@ -178,7 +178,7 @@ type P = {
   /**
    * Primitive `boolean` column type.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#foreign-key
    *
    * @example
    * import { p } from '@ponder/core'
@@ -194,7 +194,7 @@ type P = {
   /**
    * Primitive `bigint` column type.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#foreign-key
    *
    * @example
    * import { p } from '@ponder/core'
@@ -209,7 +209,7 @@ type P = {
   /**
    * Custom defined allowable value column type.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#enum
    *
    * @param type Enum defined elsewhere in the schema with `p.createEnum()`.
    *
@@ -226,7 +226,7 @@ type P = {
   /**
    * One-to-one column type.`one` columns don't exist in the database. They are only present when querying data from the GraphQL API.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#one-to-one
    *
    * @param reference Reference column to be resolved.
    *
@@ -248,7 +248,7 @@ type P = {
   /**
    * Many-to-one column type. `many` columns don't exist in the database. They are only present when querying data from the GraphQL API.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#one-to-many
    *
    * @param reference Reference column that references the `id` column of the current table.
    *
@@ -270,7 +270,7 @@ type P = {
   /**
    * Create an Enum type for the database.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#tables
    *
    * @example
    * export default createSchema({
@@ -285,7 +285,7 @@ type P = {
   /**
    * Create a database table.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#tables
    *
    * @example
    * export default createSchema({
@@ -300,7 +300,7 @@ type P = {
 /**
  * Create a database schema.
  *
- * - Docs: [TODO:KYLE]
+ * - Docs: https://ponder.sh//docs/guides/design-your-schema#tables
  *
  * @example
  * export default createSchema({

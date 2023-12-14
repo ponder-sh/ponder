@@ -18,7 +18,7 @@ type Optional<
         /**
          * Mark the column as optional.
          *
-         * - Docs: [TODO:KYLE]
+         * - Docs: https://ponder.sh//docs/guides/design-your-schema#list
          *
          * @example
          * import { p } from '@ponder/core'
@@ -34,7 +34,7 @@ type Optional<
         /**
          * Mark the column as a foreign key.
          *
-         * - Docs: [TODO:KYLE]
+         * - Docs: https://ponder.sh//docs/guides/design-your-schema#foreign-key
          *
          * @param references Table that this column is a key of.
          *
@@ -90,7 +90,7 @@ type List<
       /**
        * Mark the column as optional.
        *
-       * - Docs: [TODO:KYLE]
+       * - Docs: https://ponder.sh//docs/guides/design-your-schema#list
        *
        * @example
        * import { p } from '@ponder/core'
@@ -137,7 +137,7 @@ type References<TScalar extends Scalar, TOptional extends boolean> = <
       /**
        * Mark the column as optional.
        *
-       * - Docs: [TODO:KYLE]
+       * - Docs: https://ponder.sh//docs/guides/design-your-schema#list
        *
        * @example
        * import { p } from '@ponder/core'
@@ -182,7 +182,7 @@ export type EmptyModifier<TScalar extends Scalar> = InternalColumn<
   /**
    * Mark the column as optional.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#list
    *
    * @example
    * import { p } from '@ponder/core'
@@ -198,7 +198,7 @@ export type EmptyModifier<TScalar extends Scalar> = InternalColumn<
   /**
    * Mark the column as a list.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#list
    *
    * @example
    * import { p } from '@ponder/core'
@@ -214,7 +214,7 @@ export type EmptyModifier<TScalar extends Scalar> = InternalColumn<
   /**
    * Mark the column as a foreign key.
    *
-   * - Docs: [TODO:KYLE]
+   * - Docs: https://ponder.sh//docs/guides/design-your-schema#foreign-key
    *
    * @param references Table that this column is a key of.
    *
@@ -264,7 +264,7 @@ export type _Enum<
         /**
          * Mark the column as optional.
          *
-         * - Docs: [TODO:KYLE]
+         * - Docs: https://ponder.sh//docs/guides/design-your-schema#list
          *
          * @example
          * import { p } from '@ponder/core'
@@ -285,7 +285,7 @@ export type _Enum<
         /**
          * Mark the column as a list.
          *
-         * - Docs: [TODO:KYLE]
+         * - Docs: https://ponder.sh//docs/guides/design-your-schema#list
          *
          * @example
          * import { p } from '@ponder/core'
