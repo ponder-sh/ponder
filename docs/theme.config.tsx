@@ -81,6 +81,9 @@ const config: DocsThemeConfig = {
           ...defaultSeoProps.openGraph,
           description: frontMatter.description,
           title: frontMatter.title,
+          ...(frontMatter.image
+            ? { images: [{ url: frontMatter.image }] }
+            : {}),
         },
         titleTemplate: `%s – Ponder`,
       };
