@@ -1,14 +1,16 @@
 import path from "node:path";
 import process from "node:process";
 
+import type { GraphQLSchema } from "graphql";
+
+import type { IndexingFunctions } from "@/build/functions.js";
 import { BuildService } from "@/build/service.js";
 import { CodegenService } from "@/codegen/service.js";
 import type { Config } from "@/config/config.js";
 import { buildDatabase } from "@/config/database.js";
-import { buildNetwork, type Network } from "@/config/networks.js";
+import { type Network } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
 import type { Source } from "@/config/sources.js";
-import { buildSources } from "@/config/sources.js";
 import { UserErrorService } from "@/errors/service.js";
 import { IndexingService } from "@/indexing/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
@@ -16,6 +18,7 @@ import { SqliteIndexingStore } from "@/indexing-store/sqlite/store.js";
 import { type IndexingStore } from "@/indexing-store/store.js";
 import { LoggerService } from "@/logger/service.js";
 import { MetricsService } from "@/metrics/service.js";
+import type { Schema } from "@/schema/types.js";
 import { ServerService } from "@/server/service.js";
 import { SyncGateway } from "@/sync-gateway/service.js";
 import { HistoricalSyncService } from "@/sync-historical/service.js";
@@ -40,6 +43,9 @@ export class Ponder {
 
   // Derived config
   sources: Source[] = undefined!;
+  schema: Schema = undefined!;
+  graphqlSchema: GraphQLSchema = undefined!;
+  indexingFunctions: IndexingFunctions = undefined!;
 
   // Sync services
   syncStore: SyncStore = undefined!;
@@ -86,31 +92,69 @@ export class Ponder {
     // Initialize the Vite server and Vite Node runner.
     await this.buildService.setup();
 
+    // NOTE:KYLE update this comment
     // Load the config file so that we can create initial versions of all services.
     // If `config` is undefined, there was an error loading the config. For now,
     // we can just exit. No need to call `this.kill()` because no services are set up.
+
     const config = await this.buildService.loadConfig();
     if (!config) {
       this.common.logger.fatal({
         service: "app",
-        msg: `Config validation failed, killing app`,
+        msg: `Config build failed: killing app`,
       });
       await this.buildService.kill();
       return;
     }
-    return config;
+
+    const schema = await this.buildService.loadSchema();
+    if (!schema) {
+      this.common.logger.fatal({
+        service: "app",
+        msg: `Schema build failed: killing app`,
+      });
+      await this.buildService.kill();
+      return;
+    }
+
+    const indexingFunctions = await this.buildService.loadIndexingFunctions();
+    if (!indexingFunctions) {
+      this.common.logger.fatal({
+        service: "app",
+        msg: `Indexing function build failed: killing app`,
+      });
+      await this.buildService.kill();
+      return;
+    }
+
+    return { ...config, ...schema, indexingFunctions };
   }
 
   private async setupCoreServices({
     config,
+    sources,
+    networks,
+    schema,
+    graphqlSchema,
+    indexingFunctions,
     syncStore,
     indexingStore,
   }: {
     config: Config;
+    sources: Source[];
+    networks: Network[];
+    schema: Schema;
+    graphqlSchema: GraphQLSchema;
+    indexingFunctions: IndexingFunctions;
     // These options are only used for testing.
     syncStore?: SyncStore;
     indexingStore?: IndexingStore;
   }) {
+    this.sources = sources;
+    this.schema = schema;
+    this.graphqlSchema = graphqlSchema;
+    this.indexingFunctions = indexingFunctions;
+
     const database = buildDatabase({ common: this.common, config });
     this.syncStore =
       syncStore ??
@@ -132,16 +176,7 @@ export class Ponder {
             pool: database.indexing.pool,
           }));
 
-    this.sources = buildSources({ config });
-
-    const networksToSync = (
-      await Promise.all(
-        Object.entries(config.networks).map(
-          async ([networkName, network]) =>
-            await buildNetwork({ networkName, network, common: this.common }),
-        ),
-      )
-    ).filter((network) => {
+    const networksToSync = networks.filter((network) => {
       const hasSources = this.sources.some(
         (source) => source.networkName === network.name,
       );
@@ -203,18 +238,27 @@ export class Ponder {
       sources: this.sources,
     });
 
-    // Once all services have been successfully created & started
-    // using the initial config, register service dependencies.
-    this.registerServiceDependencies();
-
     // One-time setup for some services.
     await this.syncStore.migrateUp();
     this.serverService.setup();
 
-    // Finally, load the schema + indexing functions which will trigger
-    // the indexing service to reload (for the first time).
-    await this.buildService.loadIndexingFunctions();
-    await this.buildService.loadSchema();
+    this.codegenService.generateGraphqlSchemaFile({
+      graphqlSchema: this.graphqlSchema,
+    });
+    this.serverService.reloadGraphqlSchema({
+      graphqlSchema: this.graphqlSchema,
+    });
+
+    // Start the indexing service
+    await this.indexingService.reset({
+      indexingFunctions: this.indexingFunctions,
+      schema: this.schema,
+    });
+    await this.indexingService.processEvents();
+
+    // Once all services have been successfully created & started
+    // using the initial config, register service dependencies.
+    this.registerServiceDependencies();
   }
 
   /**
@@ -229,9 +273,9 @@ export class Ponder {
     syncStore?: SyncStore;
     indexingStore?: IndexingStore;
   } = {}) {
-    const config = await this.setupBuildService();
-    if (!config) return false;
-    await this.setupCoreServices({ config, syncStore, indexingStore });
+    const build = await this.setupBuildService();
+    if (!build) return false;
+    await this.setupCoreServices({ ...build, syncStore, indexingStore });
     return true;
   }
 
@@ -322,7 +366,10 @@ export class Ponder {
     // Kill the build service here to avoid hot reloads.
     await this.buildService.kill();
 
-    const database = buildDatabase({ common: this.common, config });
+    const database = buildDatabase({
+      common: this.common,
+      config: config.config,
+    });
     this.indexingStore =
       database.indexing.kind === "sqlite"
         ? new SqliteIndexingStore({
@@ -429,8 +476,8 @@ export class Ponder {
   }
 
   private registerServiceDependencies() {
-    this.buildService.on("newConfig", async ({ config }) => {
-      if (config) {
+    this.buildService.on("newConfig", async (build) => {
+      if (build) {
         this.common.errors.hasUserError = false;
         this.common.logger.info({
           service: "app",
@@ -440,7 +487,12 @@ export class Ponder {
         // Clear all listeners. Will be added back in setup.
         await this.reload();
 
-        await this.setupCoreServices({ config });
+        await this.setupCoreServices({
+          ...build,
+          schema: this.schema,
+          graphqlSchema: this.graphqlSchema,
+          indexingFunctions: this.indexingFunctions,
+        });
         // NOTE: We know we are in dev mode if the build service is receiving events. Build events are disabled in production.
         await this.dev();
       } else {
@@ -456,18 +508,22 @@ export class Ponder {
       }
     });
 
-    this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
-      if (schema && graphqlSchema) {
+    this.buildService.on("newSchema", async (build) => {
+      if (build) {
         this.common.errors.hasUserError = false;
         this.common.logger.info({
           service: "app",
           msg: "Reloading ponder with new schema",
         });
 
-        this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
-        this.serverService.reloadGraphqlSchema({ graphqlSchema });
+        this.codegenService.generateGraphqlSchemaFile({
+          graphqlSchema: build.graphqlSchema,
+        });
+        this.serverService.reloadGraphqlSchema({
+          graphqlSchema: build.graphqlSchema,
+        });
 
-        await this.indexingService.reset({ schema });
+        await this.indexingService.reset({ schema: build.schema });
         await this.indexingService.processEvents();
       } else {
         // If the build service emits the "newSchema" event with undefined, it means there was an error

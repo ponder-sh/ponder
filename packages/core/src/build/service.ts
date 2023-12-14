@@ -11,6 +11,8 @@ import { installSourcemapsSupport } from "vite-node/source-map";
 import { normalizeModuleId, toFilePath } from "vite-node/utils";
 
 import type { Config } from "@/config/config.js";
+import { buildNetwork, type Network } from "@/config/networks.js";
+import { buildSources, type Source } from "@/config/sources.js";
 import { validateConfig } from "@/config/validate.js";
 import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
@@ -26,9 +28,11 @@ import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 type BuildServiceEvents = {
-  newConfig: { config?: Config };
+  newConfig:
+    | { config: Config; sources: Source[]; networks: Network[] }
+    | undefined;
   newIndexingFunctions: { indexingFunctions: IndexingFunctions };
-  newSchema: { schema?: Schema; graphqlSchema?: GraphQLSchema };
+  newSchema: { schema: Schema; graphqlSchema: GraphQLSchema } | undefined;
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
@@ -172,8 +176,15 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
     try {
       await validateConfig({ config });
-      this.emit("newConfig", { config });
-      return config;
+      const sources = buildSources({ config });
+      const networks = await Promise.all(
+        Object.entries(config.networks).map(
+          async ([networkName, network]) =>
+            await buildNetwork({ networkName, network, common: this.common }),
+        ),
+      );
+      this.emit("newConfig", { config, sources, networks });
+      return { config, sources, networks };
     } catch (error_) {
       const error = error_ as Error;
       error.stack = undefined;
@@ -183,7 +194,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       });
 
       this.common.errors.submitUserError();
-      this.emit("newConfig", {});
+      this.emit("newConfig", undefined);
       return undefined;
     }
   }
@@ -211,7 +222,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       });
 
       this.common.errors.submitUserError();
-      this.emit("newSchema", {});
+      this.emit("newSchema", undefined);
       return undefined;
     }
   }
@@ -266,6 +277,8 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     this.emit("newIndexingFunctions", {
       indexingFunctions: result.indexingFunctions,
     });
+
+    return result.indexingFunctions;
   }
 
   private async executeFile(file: string) {
