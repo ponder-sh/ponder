@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import GraphLogo from "../public/graph.svg";
 
 import {
   CommandLineIcon,
@@ -137,11 +138,13 @@ export function Home() {
               <div className="flex flex-col px-4 md:px-8 pt-6 md:pt-8">
                 <CardTitle className="mb-6">Benchmarks</CardTitle>
                 <div className="flex flex-row justify-start mb-3 gap-3 w-full">
-                  <div className="h-[30px] w-[12%] bg-ponder rounded-[4px]" />
+                  <div className="h-[33px] w-[calc((100%-68px)/10.8)] bg-ponder rounded-[4px]" />
                   <p className="pt-[2px]">31s</p>
                 </div>
                 <div className="flex flex-row justify-start mb-5 gap-3 w-full">
-                  <div className="h-[31px] w-[calc(100%-68px)] bg-neutral-400 dark:bg-neutral-700 rounded-[4px]" />
+                  <div className="h-[34px] w-[calc(100%-68px)] bg-neutral-400 dark:bg-neutral-700 rounded-[4px] flex items-center">
+                    <GraphLogo className="ml-[10px]" />
+                  </div>
                   <p className="pt-[2px]">5m 28s</p>
                 </div>
               </div>
