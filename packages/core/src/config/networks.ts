@@ -246,7 +246,7 @@ export async function getRequestForTransport(parameters: {
 
       if (!url)
         throw Error(
-          `Validation failed: Unable to find a http transport URL (network=${parameters.chain.name})`,
+          `Validation failed: Unable to find a http transport URL (network=${parameters.chain.name}). Commonly caused by unset env vars.`,
         );
 
       return (options) => rpc.http(url, options);
@@ -256,7 +256,7 @@ export async function getRequestForTransport(parameters: {
 
       if (!socket)
         throw Error(
-          `Validation failed: Unable to find a websocket transport url (network=${parameters.chain.name})`,
+          `Validation failed: Unable to find a websocket transport url (network=${parameters.chain.name}). Commonly caused by unset env vars.`,
         );
 
       return (options) => rpc.webSocketAsync(socket, options);

@@ -1,3 +1,4 @@
+import { CompiledQuery } from "kysely";
 import { beforeEach, expect, test } from "vitest";
 
 import { setupIndexingStore } from "@/_test/setup.js";
@@ -37,6 +38,40 @@ test("reload() binds the schema", async (context) => {
   await indexingStore.reload({ schema });
 
   expect(indexingStore.schema).toBe(schema);
+});
+
+// TODO: remove this test once we properly build a separate read-only store.
+test("publish() creates views", async (context) => {
+  const { indexingStore } = context;
+  await indexingStore.reload({ schema });
+
+  await indexingStore.publish();
+
+  if (indexingStore.kind === "sqlite") {
+    const { rows } = await indexingStore.db.executeQuery<any>(
+      CompiledQuery.raw(`SELECT * FROM sqlite_master`),
+    );
+    const petView = rows.find((r) => r.type === "view" && r.name === "Pet");
+    expect(petView).toBeTruthy();
+    const personView = rows.find(
+      (r) => r.type === "view" && r.name === "Person",
+    );
+    expect(personView).toBeTruthy();
+  } else {
+    const { rows } = await indexingStore.db.executeQuery<any>(
+      CompiledQuery.raw(
+        `SELECT table_name, table_schema FROM information_schema.views;`,
+      ),
+    );
+    const petView = rows.find(
+      (r) => r.table_name === "Pet" && r.table_schema === "public",
+    );
+    expect(petView).toBeTruthy();
+    const personView = rows.find(
+      (r) => r.table_name === "Person" && r.table_schema === "public",
+    );
+    expect(personView).toBeTruthy();
+  }
 });
 
 test("create() inserts a record that is effective after specified checkpoint", async (context) => {

@@ -166,6 +166,34 @@ export class SqliteIndexingStore implements IndexingStore {
     });
   };
 
+  publish = async () => {
+    return this.wrap({ method: "publish" }, async () => {
+      await this.db.transaction().execute(async (tx) => {
+        // Create views for the latest version of each table.
+        await Promise.all(
+          Object.entries(this.schema!.tables).map(
+            async ([tableName, columns]) => {
+              await tx.schema.dropView(tableName).ifExists().execute();
+
+              const columnNames = Object.entries(columns)
+                .filter(([, c]) => !isOneColumn(c) && !isManyColumn(c))
+                .map(([name]) => name);
+              await tx.schema
+                .createView(tableName)
+                .as(
+                  tx
+                    .selectFrom(`${tableName}_versioned`)
+                    .select(columnNames)
+                    .where("effectiveToCheckpoint", "=", "latest"),
+                )
+                .execute();
+            },
+          ),
+        );
+      });
+    });
+  };
+
   /**
    * Revert any changes that occurred during or after the specified checkpoint.
    */
