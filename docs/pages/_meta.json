@@ -1,9 +1,22 @@
 {
   "index": {
-    "title": "Introduction"
+    "title": "Home",
+    "display": "hidden",
+    "theme": {
+      "layout": "raw"
+    }
   },
-  "compared-to-subgraphs": "Compared to subgraphs",
-  "getting-started": "Getting started",
-  "guides": "Guides",
-  "api-reference": "API reference"
+  "docs": {
+    "title": "Documentation",
+    "type": "page",
+    "theme": {
+      "breadcrumb": true,
+      "sidebar": true,
+      "toc": true
+    }
+  },
+  "blog": {
+    "title": "Blog",
+    "type": "page"
+  }
 }

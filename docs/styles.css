@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CODE COLUMNS STYLES */
+.code-columns {
+  display: flex;
+  flex-direction: row;
+  gap: 0rem 1.5rem;
+  margin-top: 1.5rem;
+}
+.code-columns > div {
+  width: calc(50% - 0.75rem);
+  margin-top: 0rem;
+}
+@media (max-width: 768px) {
+  .code-columns {
+    flex-direction: column;
+  }
+  .code-columns > div {
+    width: unset;
+  }
+}
+
+/* EXCALIDRAW DIAGRAM */
+.excalidraw {
+  width: 100%;
+  height: unset;
+  margin-top: 24px;
+  margin-bottom: 8px;
+}
+.dark .excalidraw {
+  filter: invert(100%) hue-rotate(180deg);
+}
+.dark .excalidraw path:first-of-type {
+  fill: #eee;
+}
+
+/* PONDER LOGO */
+.logo {
+  height: 16px;
+}
+.dark .logo path:first-of-type {
+  fill: #fffbf5;
+}
+
+/* TELEGRAM LOGO */
+.dark .telegram path:first-of-type {
+  fill: #fffbf5;
+}
+
+/* CAPTION */
+.caption {
+  color: #6b7280;
+  font-size: smaller;
+}
+.dark .caption {
+  color: #737373;
+}
+.caption > p {
+  line-height: 1.5rem;
+}
+
+/* SEARCHBAR SPACING OVERRIDES */
+.nextra-search {
+  margin-right: 8px;
+}
+@media (max-width: 768px) {
+  .nextra-search {
+    margin-right: 0px;
+  }
+}
+
+/* MAIN CONTENT OVERRIDES */
+/* .nextra-content {
+  justify-content: start;
+} */
+.nextra-content > main {
+  /* max-width: 80ch; */
+  font-size: 18px;
+}
+
+/* LINK OVERRIDES */
+a {
+  font-weight: 500;
+}
+.nx-underline {
+  text-decoration-line: none;
+}
+.nx-underline:hover {
+  text-decoration-line: underline;
+  text-decoration-thickness: auto;
+}
+
+.hero-texture {
+  background:
+    radial-gradient(
+      91.96% 91.96% at 50% 91.96%,
+      rgba(0, 0, 0, 0) 0%,
+      #fff 100%
+    ),
+    url("/hero-texture.png") lightgray 50% / cover no-repeat;
+}
+
+.dark .hero-texture {
+  background:
+    radial-gradient(
+      91.96% 91.96% at 50% 91.96%,
+      rgba(0, 0, 0, 0) -20%,
+      #111 100%
+    ),
+    url("/hero-texture.png") lightgray 50% / cover no-repeat;
+}

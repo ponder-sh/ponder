@@ -1,0 +1,309 @@
+---
+description: "API reference for the GraphQL query"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Query the GraphQL API
+
+<Callout type="info">
+  This guide assumes you have a working knowledge of GraphQL query syntax. For a
+  general overview of GraphQL, please refer to the
+  [documentation](https://graphql.org/learn/).
+</Callout>
+
+Ponder uses your `ponder.schema.ts` file to generate a GraphQL API for your app. With the dev server running, open `http://localhost:42069` in your browser to use the [GraphiQL](https://github.com/graphql/graphiql/tree/main/packages/graphiql#graphiql) interface. GraphiQL is a useful tool for exploring your schema and testing queries during development.
+
+## Schema generation
+
+Ponder creates a **singular** and a **plural** query field for each table in your schema. For example, if your schema contains a `Person` table, Ponder will create a `person` and a `persons` field on the root `Query` type. The singular query field returns a single record (or null), while the plural query field returns a list of records.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Person: p.createTable({
+    id: p.int(),
+    name: p.string(),
+    age: p.int().optional(),
+  }),
+}));
+```
+
+{/* prettier-ignore */}
+```graphql filename="Generated schema"
+type Person {
+  id: Int!
+  name: String!
+  age: Int
+}
+
+type Query {
+  person(
+    id: Int!,
+    timestamp: Int
+  ): Person
+  persons(
+    skip: Int = 0,
+    first: Int = 100,
+    orderBy: String = "id",
+    orderDirection: String = "asc",
+    where: PersonFilter,
+    timestamp: Int
+  ): [Person!]!
+}
+```
+
+</div>
+
+## Filtering
+
+The GraphQL API supports filtering through the `where` argument. The `where` argument type contains filter options for every column defined on your table. Here are the filter options available for each field type.
+
+| Filter option              | Available for column types                    | _Include records where \{column\}..._     |
+| :------------------------- | :-------------------------------------------- | :---------------------------------------- |
+| `{column}`                 | All                                           | **equals** the value                      |
+| `{column}_not`             | All                                           | **does not equal** the value              |
+| `{column}_in`              | All primitives and enums                      | **is one of** the values                  |
+| `{column}_not_in`          | All primitives and enums                      | **is not one of** the values              |
+| `{column}_gt`              | Numeric primitives (`int`, `float`, `bigint`) | is **greater than** the value             |
+| `{column}_lt`              | Numeric primitives                            | is **less than** the value                |
+| `{column}_gte`             | Numeric primitives                            | is **greater than or equal to** the value |
+| `{column}_lte`             | Numeric primitives                            | is **less than or equal to** the value    |
+| `{column}_contains`        | String primitives (`string`, `bytes`)         | **contains** the substring                |
+| `{column}_not_contains`    | String primitives                             | **does not contain** the substring        |
+| `{column}_starts_with`     | String primitives                             | **starts with** the substring             |
+| `{column}_not_starts_with` | String primitives                             | **does not start with** the substring     |
+| `{column}_ends_with`       | String primitives                             | **ends with** the substring               |
+| `{column}_not_ends_with`   | String primitives                             | **does not end with** the substring       |
+| `{column}_has`             | Lists of primitives and enums                 | **has** the value as an element           |
+| `{column}_not_has`         | Lists of primitives and enums                 | **does not have** the value as an element |
+
+For all following examples, assume these records exist in your database.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```json filename="Person data"
+[
+  { "id": 1, "name": "Barry", "age": 57 },
+  { "id": 2, "name": "Lucile", "age": 32 },
+  { "id": 3, "name": "Sally", "age": 22 },
+  { "id": 4, "name": "Pablo", "age": 71 },
+]
+```
+
+<div></div>
+
+</div>
+
+Get all `Person` records with an `age` greater than `32`:
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(where: { age_gt: 32 }) {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Barry", "age": 57 },
+    { "name": "Pablo", "age": 71 },
+  ]
+}
+```
+
+</div>
+
+Get all `Person` records with a `name` that does not end with `"y"`:
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(where: { name_not_ends_with: "y" }) {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Lucile", "age": 32 },
+    { "name": "Pablo", "age": 71 },
+  ]
+}
+```
+
+</div>
+
+## Pagination
+
+The GraphQL API supports pagination through the `first` and `skip` arguments.
+
+| Pagination option | Default | Max  |
+| :---------------- | :------ | :--- |
+| `first`           | 100     | 1000 |
+| `skip`            | 0       | 5000 |
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(first: 2, skip: 1) {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Lucile", "age": 32 },
+    { "name": "Sally", "age": 22 },
+  ]
+}
+```
+
+</div>
+
+<Callout type="warning">
+  The default and max `first` and `skip` values are also applied to [virtual
+  fields](/guides/design-your-schema#one-to-many-relationships). If you find
+  youself needing to paginate through more than 1000 items in a virtual field,
+  strongly consider writing a new query that fetches those items at the root
+  level.
+</Callout>
+
+## Sorting
+
+Use the `orderBy` and `orderDirection` arguments to sort records by a column. String primitive (`string`, `bytes`) values are sorted lexicographically.
+
+| Pagination option | Default |
+| :---------------- | :------ |
+| `orderBy`         | `"id"`  |
+| `orderDirection`  | `"asc"` |
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(orderBy: "age", orderDirection: "desc") {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Pablo", "age": 71 },
+    { "name": "Barry", "age": 57 },
+    { "name": "Lucile", "age": 32 },
+    { "name": "Sally", "age": 22 },
+  ]
+}
+```
+
+</div>
+
+## Time-travel queries
+
+Using time-travel queries, you can query the state of your app's database at any point in history. To construct a time-travel query, pass a Unix timestamp to the `timestamp` argument on any of the root query types.
+
+| Time-travel option | Default                |
+| :----------------- | :--------------------- |
+| `timestamp`        | `undefined` ("latest") |
+
+In this example, consider that only Pablo had been added to the database at the specified timestamp, and his age at that time was 42. The other records were inserted later.
+
+<div className="code-columns">
+
+{/* prettier-ignore */}
+```graphql filename="Query"
+query {
+  persons(timestamp: 1689910567) {
+    name
+    age
+  }
+}
+```
+
+{/* prettier-ignore */}
+```json filename="Result"
+{
+  "persons": [
+    { "name": "Pablo", "age": 42 },
+  ]
+}
+```
+
+</div>
+
+## Relationship fields
+
+<Callout type="info">
+  See the [Define your
+  schema](/guides/design-your-schema#one-to-many-relationships) guide for a
+  detailed overview of how to define relationships in your schema.
+</Callout>
+
+When you define a column in your schema using `p.one(){:ts}` and `p.many(){:ts}`, Ponder automatically creates a .
+
+Fields created by `p.many(){:ts}` are very similar to the top-level plural query field, except they are automatically filtered by the parent entity ID.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts" {6}
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Person: p.createTable({
+    id: p.int(),
+    dogs: p.many("Pet.ownerId"),
+  }),
+  Pet: p.createTable({
+    id: p.string(),
+    name: p.string(),
+    ownerId: p.int().references("Person.id"),
+  }),
+}));
+```
+
+{/* prettier-ignore */}
+```graphql filename="Generated schema"
+type Person {
+  id: Int!
+  pets(
+    skip: Int = 0,
+    first: Int = 100,
+    orderBy: String = "id",
+    orderDirection: String = "asc",
+    # This automatically has { ownerId: person.id } applied
+    where: PetFilter, 
+    timestamp: Int
+  ): [Pet!]!
+}
+```
+
+</div>

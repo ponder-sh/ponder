@@ -1,0 +1,11 @@
+{
+  "introducing-ponder": {
+    "title": "Introducing Ponder",
+    "theme": {
+      "breadcrumb": true,
+      "sidebar": false,
+      "toc": true,
+      "footer": true
+    }
+  }
+}

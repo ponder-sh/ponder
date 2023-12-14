@@ -1,0 +1,601 @@
+---
+description: "A guide to create and update records"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Create & update records
+
+Ponder's store API is inspired by the [Prisma Client API](https://www.prisma.io/docs/reference/api-reference/prisma-client-reference#model-queries). The store currently supports the following methods:
+
+- [`create`](/guides/create-update-records#create)
+- [`update`](/guides/create-update-records#update)
+- [`upsert`](/guides/create-update-records#upsert)
+- [`delete`](/guides/create-update-records#delete)
+- [`findUnique`](/guides/create-update-records#findunique)
+- [`findMany`](/guides/create-update-records#findmany)
+- [`createMany`](/guides/create-update-records#createmany)
+- [`updateMany`](/guides/create-update-records#updatemany)
+
+## `create`
+
+Insert a new records into the store.
+
+### Options
+
+| name     | type                              |                                |
+| :------- | :-------------------------------- | :----------------------------- |
+| **id**   | `string \| number \| bigint{:ts}` | ID of the new record           |
+| **data** | `TRecord{:ts}`                    | Data required for a new record |
+
+### Returns
+
+`Promise<TRecord>{:ts}`
+
+### Examples
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Token: p.createTable({
+    id: p.int(),
+    mintedBy: p.string(),
+    mintedAt: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+ponder.on("Blitmap:Mint", async ({ event, context }) => {
+  const { Token } = context.db;
+
+  const token = await Token.create({
+    id: event.args.tokenId,
+    data: {
+      mintedBy: event.args.to,
+      mintedAt: event.block.timestamp,
+    },
+  });
+  // { id: 7777, mintedBy: "0x7Df1...", mintedAt: 1679507353 }
+});
+```
+
+</div>
+
+## `update`
+
+Update an record that already exists.
+
+### Options
+
+| name                | type                                                    |                                   |
+| :------------------ | :------------------------------------------------------ | :-------------------------------- |
+| **id**              | `string \| number \| bigint{:ts}`                       | ID of the updated record          |
+| **data**            | `Partial<TRecord>{:ts}`                                 | Data to update                    |
+| **data** (function) | `(args: { current: TRecord }) => Partial<TRecord>{:ts}` | Function returning data to update |
+
+### Returns
+
+`Promise<TRecord>{:ts}`
+
+### Examples
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Token: p.createTable({
+    id: p.int(),
+    mintedBy: p.string(),
+    metadataUpdatedAt: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+ponder.on("Blitmap:MetadataUpdate", async ({ event, context }) => {
+  const { Token } = context.db;
+
+  const token = await Token.update({
+    id: event.args.tokenId,
+    data: {
+      metadataUpdatedAt: event.block.timestamp,
+    },
+  });
+  // { id: 7777, mintedBy: "0x1bA3...", updatedAt: 1679507354 }
+});
+```
+
+</div>
+
+#### Update function
+
+You can optionally pass a function to the `data` field that receives the current record as an argument and returns the update object. This is useful for updates that depend on the current record, like an incrementing count or balance.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Account: p.createTable({
+    id: p.int(),
+    balance: p.bigint(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+ponder.on("ERC20:Transfer", async ({ event, context }) => {
+  const { Account } = context.db;
+
+  const recipient = await Account.update({
+    id: event.args.to,
+    data: ({ current }) => ({
+      balance: current.balance + event.args.value,
+    }),
+  });
+  // { id: "0x5D92..", balance: 11800000005n }
+});
+```
+
+</div>
+
+## `upsert`
+
+Update a record if one already exists with the specified `id`, or create a new record.
+
+### Options
+
+| name                  | type                                                    |                                      |
+| :-------------------- | :------------------------------------------------------ | :----------------------------------- |
+| **id**                | `string \| number \| bigint{:ts}`                       | ID of the record to create or update |
+| **create**            | `TRecord{:ts}`                                          | Data required for a new record       |
+| **update**            | `Partial<TRecord>{:ts}`                                 | Data to update                       |
+| **update** (function) | `(args: { current: TRecord }) => Partial<TRecord>{:ts}` | Function returning data to update    |
+
+### Returns
+
+`Promise<TRecord>{:ts}`
+
+### Examples
+
+Upsert can be useful for events like the ERC721 `Transfer` event, which is emitted when a token is minted _and_ whenever a token is transferred.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Token: p.createTable({
+    id: p.int(),
+    mintedBy: p.string().references("Account.id")
+    ownedBy: p.string().references("Account.id")
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+ponder.on("Blitmap:Transfer", async ({ event, context }) => {
+  const { Token } = context.db;
+
+  const token = await Token.upsert({
+    id: event.args.tokenId,
+    create: {
+      mintedBy: event.args.to,
+      ownedBy: event.args.to,
+    },
+    update: {
+      ownedBy: event.args.to,
+    },
+  });
+  // { id: 7777, mintedBy: "0x1bA3...", ownedBy: "0x7F4d..." }
+});
+```
+
+</div>
+
+#### Update function
+
+You can optionally pass a function to the `update` field that receives the current record as an argument and returns the update object. This is useful for updates that depend on the current record, like an incrementing count or balance.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Token: p.createTable({
+    id: p.int(),
+    ownedBy: p.string().references("Account.id"),
+    transferCount: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+ponder.on("Blitmap:Transfer", async ({ event, context }) => {
+  const { Token } = context.db;
+
+  const token = await Token.upsert({
+    id: event.args.tokenId,
+    create: {
+      ownedBy: event.args.to,
+      transferCount: 0,
+    },
+    update: ({ current }) => ({
+      ownedBy: event.args.to,
+      transferCount: current.transferCount + 1,
+    }),
+  });
+  // { id: 7777, ownedBy: "0x7F4d...", transferCount: 1 }
+});
+```
+
+</div>
+
+## `delete`
+
+`delete` deletes a record by `id`.
+
+### Options
+
+| name   | type                              |                            |
+| :----- | :-------------------------------- | :------------------------- |
+| **id** | `string \| number \| bigint{:ts}` | ID of the record to delete |
+
+### Returns
+
+`Promise<boolean>{:ts}` (`true{:ts}` if the record was deleted, `false{:ts}` if it was not found)
+
+### Examples
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+await Player.create({ id: "Jim", age: 34 });
+
+const isDeleted = await Player.delete({ id: "Jim" });
+// true
+
+const jim = await Player.findUnique({ id: "Jim" });
+// null
+```
+
+</div>
+
+## `findUnique`
+
+`findUnique` finds and returns a record by `id`.
+
+### Options
+
+| name   | type                              |                                     |
+| :----- | :-------------------------------- | :---------------------------------- |
+| **id** | `string \| number \| bigint{:ts}` | ID of the record to find and return |
+
+### Returns
+
+`Promise<TRecord | null>{:ts}`
+
+### Examples
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+await Player.create({ id: "Jim", age: 34 });
+
+const jim = await Player.findUnique({ id: "Jim" });
+// { id: "Jim", age: 34 }
+
+const sara = await Player.findUnique({ id: "Sara" });
+// null
+```
+
+</div>
+
+## `findMany`
+
+`findMany` returns a list of records according to the filter, sort, and pagination options you provide. Note that `findMany` offers programmatic access to the functionality exposed by the autogenerated [GraphQL API](/guides/query-the-graphql-api).
+
+### Options
+
+| name        | type                                      |                                          |
+| :---------- | :---------------------------------------- | :--------------------------------------- |
+| **where**   | `WhereInput<TRecord> \| undefined{:ts}`   | Filter matching records to return        |
+| **orderBy** | `OrderByInput<TRecord> \| undefined{:ts}` | Sort applied to the list                 |
+| **skip**    | `number \| undefined{:ts}`                | Number of records to skip (SQL `OFFSET`) |
+| **take**    | `number \| undefined{:ts}`                | Number of records to take (SQL `LIMIT`)  |
+
+### Returns
+
+`Promise<TRecord[]>{:ts}`
+
+### Examples
+
+#### Filtering
+
+Filter the result list by passing a `where` option containing a field name, filter condition, and value. The `where` option is typed according to the filter conditions available for each field.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+await Player.create({ id: "Jim", age: 34 });
+await Player.create({ id: "Andrew", age: 19 });
+await Player.create({ id: "Janet", age: 56 });
+
+const players = await Player.findMany();
+// [
+//   { id: "Jim", age: 34 },
+//   { id: "Andrew", age: 19 },
+//   { id: "Janet", age: 56 }
+// ]
+
+const players = await Player.findMany({
+  where: {
+    id: {
+      startsWith: "J",
+    },
+  },
+});
+// [
+//   { id: "Jim", age: 34 },
+//   { id: "Janet", age: 56 }
+// ]
+```
+
+</div>
+
+If you provide multiple filters, they will be combined with a logical `AND`.
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+await Player.create({ id: "Jim", age: 34 });
+await Player.create({ id: "Andrew", age: 19 });
+await Player.create({ id: "Janet", age: 56 });
+
+const players = await Player.findMany({
+  where: {
+    id: { contains: "e" }
+    age: { gt: 30 }
+  }
+});
+// [
+//   { id: "Janet", age: 56 }
+// ]
+```
+
+</div>
+
+#### Sorting
+
+Sort the result list by passing an `orderBy` option containing a field name and sort direction (`"asc"{:ts}` or `"desc"{:ts}`).
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+await Player.create({ id: "Jim", age: 34 });
+await Player.create({ id: "Andrew", age: 19 });
+await Player.create({ id: "Janet", age: 56 });
+
+const players = await Player.findMany({
+  orderBy: {
+    age: "asc",
+  },
+});
+// [
+//   { id: "Andrew", age: 19 },
+//   { id: "Jim", age: 34 },
+//   { id: "Janet", age: 56 }
+// ]
+```
+
+</div>
+
+#### Pagination
+
+Paginate through the result list using the `skip` and `take` options.
+
+<Callout type="warning">
+  Avoid using `findMany` to return result lists that require pagination. (If you
+  need this, please reach out so we can better support your use case.)
+</Callout>
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+await Player.create({ id: "Jim", age: 34 });
+await Player.create({ id: "Andrew", age: 19 });
+await Player.create({ id: "Janet", age: 56 });
+await Player.create({ id: "Polly", age: 29 });
+
+const players = await Player.findMany({
+  orderBy: { age: "desc" },
+  skip: 1,
+  take: 2,
+});
+// [
+//   { id: "Jim", age: 34 },
+//   { id: "Polly", age: 29 }
+// ]
+```
+
+</div>
+
+## `createMany`
+
+`createMany` inserts multiple records into the store in a single operation. It returns a list of the created records.
+
+### Options
+
+| name     | type             |                           |
+| :------- | :--------------- | :------------------------ |
+| **data** | `TRecord[]{:ts}` | List of records to create |
+
+### Returns
+
+`Promise<TRecord[]>{:ts}`
+
+### Examples
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+await Player.createMany({
+  data: [
+    { id: "Jim", age: 34 },
+    { id: "Andrew", age: 19 },
+    { id: "Janet", age: 56 },
+  ],
+});
+
+const players = await Player.findMany();
+// [
+//   { id: "Jim", age: 34 },
+//   { id: "Andrew", age: 19 },
+//   { id: "Janet", age: 56 }
+// ]
+```
+
+</div>
+
+## `updateMany`
+
+`updateMany` updates multiple records in a single operation using the same update logic. Like the `update` method, `updateMany` also optionally accepts an [update function](/guides/create-update-records#update-function).
+
+### Options
+
+| name                | type                                                    |                                       |
+| :------------------ | :------------------------------------------------------ | :------------------------------------ |
+| **where**           | `WhereInput<TRecord>{:ts}`                              | Filter matching records to be updated |
+| **data**            | `Partial<TRecord>{:ts}`                                 | Data to update                        |
+| **data** (function) | `(args: { current: TRecord }) => Partial<TRecord>{:ts}` | Function returning data to update     |
+
+### Returns
+
+`Promise<TRecord[]>{:ts}`
+
+### Examples
+
+<div className="code-columns">
+
+```ts filename="ponder.schema.ts"
+import { createSchema } from "@ponder/core";
+
+export default createSchema((p) => ({
+  Player: p.createTable({
+    id: p.string(),
+    age: p.int(),
+  }),
+}));
+```
+
+```ts filename="src/index.ts"
+await Player.create({ id: "Jim", age: 34 });
+await Player.create({ id: "Andrew", age: 19 });
+await Player.create({ id: "Janet", age: 56 });
+
+await Player.updateMany({
+  where: {
+    id: {
+      startsWith: "J",
+    },
+  },
+  data: {
+    age: 50,
+  },
+});
+
+const players = await Player.findMany();
+// [
+//   { id: "Jim", age: 50 },
+//   { id: "Andrew", age: 19 },
+//   { id: "Janet", age: 50 }
+// ]
+```
+
+</div>

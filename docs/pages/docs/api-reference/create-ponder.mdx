@@ -1,0 +1,53 @@
+---
+description: "API reference for create-ponder CLI tool"
+---
+
+import { Tabs, Tab } from "nextra/components";
+
+# Create Ponder API
+
+This command line tool creates a new project directory with `package.json`, `ponder.config.ts`, `ponder.schema.ts`, and other configuration files.
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tab>
+```
+pnpm create ponder {...options}
+```
+</Tab>
+  <Tab>
+```
+yarn create ponder {...options}
+```
+</Tab>
+  <Tab>
+```
+npm create ponder@latest {...options}
+```
+</Tab>
+</Tabs>
+
+## Options
+
+| option                      | description                                       |
+| :-------------------------- | :------------------------------------------------ |
+| `--from-etherscan <url>`    | Link to a contract page on Etherscan              |
+| `--from-subgraph-id <id>`   | Subgraph ID, an IPFS content hash like `"Qmb..."` |
+| `--etherscan-api-key <key>` | Etherscan API key to use with `--from-etherscan`  |
+| `--dir <path>`              | Path to use for the project root                  |
+
+## Templates
+
+Templates help get you started faster by copying contract addresses, ABIs, and deployment blocks from an existing source.
+
+### Etherscan contract link
+
+The `--from-etherscan` option accepts a link to an Etherscan contract page. See [here](https://github.com/ponder-sh/ponder/blob/main/packages/create-ponder/src/helpers/getEtherscanChainId.ts) for a full list of supported Etherscan deployments.
+
+![Etherscan contract link screenshot](/etherscan-link.png)
+
+### Subgraph ID
+
+The `--from-subgraph-id` option accepts a deployment ID for a subgraph that has been deployed to the hosted service. This template will copy `schema.graphql` as well as the addresses, ABIs, and start blocks for each event source defined in the subgraph's `subgraph.yaml`.
+
+![Subgraph ID screenshot](/subgraph-id.png)

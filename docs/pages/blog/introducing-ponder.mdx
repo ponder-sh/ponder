@@ -1,0 +1,107 @@
+---
+description: "Introducing Ponder"
+---
+
+import { Bleed } from "nextra-theme-docs";
+import Image from "next/image";
+import { Benchmarks } from "@/components/Benchmarks";
+
+# Introducing Ponder
+
+We’re excited to publish `v0.1.0`, Ponder's first stable release.
+
+<Bleed>![Ponder cover image](/og-blue.png)</Bleed>
+
+## What is Ponder?
+
+**Ponder is an open-source backend framework for crypto apps.**
+
+With Ponder, you can rapidly build & deploy an API that serves custom data from smart contracts on any EVM blockchain.
+
+- Ponder uses familiar web development patterns, including a local dev server with hot reloading.
+- In our initial benchmarks, Ponder is **~10-15x faster than Graph Protocol subgraphs**.
+- Ponder is **MIT-licensed** and has been open-source since the first commit.
+
+## Why build a backend framework?
+
+Many developers have quietly accepted that **you need traditional backend web services to build great crypto apps** – particularly for indexing.
+
+The standard RPC, subgraphs, and out-of-the-box API endpoints are great for getting started, but fall short as applications mature and new requirements appear. When this happens, developers often roll their own web backend, which gives them the flexibility to write custom server-side code.
+
+Unfortunately, engineering teams across the industry are reinventing the wheel on common problems (reorgs, RPC error handling, etc) in closed-source repositories where best practices remain siloed.
+
+We built Ponder because **this is a framework-shaped problem**. In our view, subgraphs have remained relevant (despite painful drawbacks) because they were the only indexing tool that offered the productivity & ecosystem benefits of an open-source framework.
+
+In certain domains, open-source frameworks can give developers much more leverage than “closed-source platform, open-source SDK” solutions. We're building a power tool that devs can use to solve their own unique problems, not point solutions for common scenarios.
+
+Today, we’re laser-focused on indexing because it’s the biggest pain point at this layer of the stack. Over time, Ponder will introduce patterns for notifications & alerts, side effects (e.g. call the Stripe API), automated transactions, authentication, end-to-end testing, and more.
+
+## What makes Ponder special?
+
+Ponder moves the needle in three areas: a focus on application developers, the local dev server, and performance.
+
+### Built for app developers
+
+Many blockchain indexing tools force developers out of standard practices like git workflows, local development, and serverless-style deployments.
+
+**Ponder is built for application developers**. If you understand the basics of Ethereum and can write some TypeScript, you’ll be productive with Ponder in a matter of minutes. (So, data analysts, protocol developers, and researchers can use Ponder too.)
+
+Your code runs in a JavaScript runtime (Node.js) where you can import NPM packages, make HTTP requests, and connect to databases. This makes it easy to do things that are painful in constrained environments like WebAssembly sandboxes, SQL engines, and EVM runtimes.
+
+Increasingly, crypto apps run on multiple chains. Ponder natively supports this – just add another RPC URL, and your indexing functions will start processing data from that chain. Once indexed, you can aggregate and query data across any number of chains.
+
+### Local development
+
+It’s so hard to run a subgraph locally that devs often deploy to the hosted service _just to run their code_. This creates long feedback loops and errors that are painful to debug.
+
+**Ponder is designed from the ground up for local development**. The dev server has hot reloading for every file in your project and descriptive error logs that keep you unblocked.
+
+<Bleed>![Ponder dev server hot reloading](/hot-reloading.gif)</Bleed>
+
+Ponder’s type safety and editor autocomplete is very thorough, and works without any codegen or build step. If your code passes the type checker, it will usually run without error.
+
+When you’re ready to deploy to production, Ponder makes it easy with zero-downtime deployments, horizontal scaling, and observability via Prometheus metrics and structured logs.
+
+### Performance
+
+Long feedback loops are the kiss of death for developer productivity, and unfortunately they're commonplace in blockchain indexing tools.
+
+**Ponder is fast and lean.** In our initial benchmarks, Ponder indexed an ERC20 contract ~10x faster than the Graph Node from a cold start and 15x faster fully cached.
+
+<Bleed>
+  <Benchmarks flat />
+</Bleed>
+
+Ponder also used fewer resources — 35x less disk space and 35% fewer RPC credits.
+
+Most of our performance work to date has focused on avoiding unnecessary work through caching and smarter algorithms. Internally, Ponder has a flexible & modular architecture that makes it easy to profile and optimize each service independently.
+
+**Why not Rust?** Our profiling found that Ponder tends to be bottlenecked by network and database I/O. It’s a 2023 _Rewrite-it-in-Rust_ narrative violation, but TypeScript is often just as fast as Rust or WASM under these workloads. Nonetheless, we’re open and excited about moving hot paths to native code where it makes sense.
+
+There’s still a lot of room for improvement — we’ve really only scratched the surface on performance.
+
+## Get started
+
+To get started, open up the [docs](https://ponder.sh) and run `npm create ponder`.
+
+- [Documentation](/docs/getting-started)
+- [GitHub repo ↗](https://github.com/ponder-sh/ponder)
+- [Telegram chat ↗](https://t.me/ponder_sh)
+- [Twitter ↗](https://x.com/ponder_sh)
+
+## Join us
+
+**We’re hiring founding engineers in New York City** to build the [framework-defined infrastructure](https://vercel.com/blog/framework-defined-infrastructure) company for crypto. If this work sounds exciting to you, we’d love to chat — send us an email (jobs@ponder.sh) with a link to something you’ve built.
+
+We’re also excited to collaborate on open-source contributions. If you’re interested, introduce yourself in the Telegram chat and we’ll work with you to find a good first issue/project.
+
+## What’s next?
+
+We’re truly just getting started. Upcoming work that we're excited about:
+
+1. Direct database access to run SQL queries against indexed data
+2. Concurrent & cached indexing functions (solves today’s #1 dev experience problem)
+3. New sync options that bypass the standard RPC for better performance
+4. Run indexing functions in the browser for faster real-time updates\*
+
+\*We’re _particularly_ excited about trust-minimized indexing in the browser. In this scheme, the user’s browser will fetch a historical snapshot, verify it, and continue indexing in real-time directly against an Ethereum node. As a developer, you’ll write your indexing functions once, and they’ll run both server-side and in the browser (it’s all JavaScript!). This pattern has the potential to eliminate painful code duplication, simplify client-server state management, and minimize latency. There’s lots of work to do before this becomes a reality, but the door is open.

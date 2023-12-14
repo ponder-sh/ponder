@@ -172,11 +172,11 @@ If you're interested in contributing to Ponder, please read the [contribution gu
 
 Ponder is MIT-licensed open-source software.
 
-[ci-badge]: https://github.com/0xOlias/ponder/actions/workflows/main.yml/badge.svg
-[ci-url]: https://github.com/0xOlias/ponder/actions/workflows/main.yml
+[ci-badge]: https://github.com/ponder-sh/ponder/actions/workflows/main.yml/badge.svg
+[ci-url]: https://github.com/ponder-sh/ponder/actions/workflows/main.yml
 [tg-badge]: https://img.shields.io/endpoint?color=neon&logo=telegram&label=Chat&url=https%3A%2F%2Fmogyo.ro%2Fquart-apis%2Ftgmembercount%3Fchat_id%3Dponder_sh
 [tg-url]: https://t.me/ponder_sh
 [license-badge]: https://img.shields.io/npm/l/@ponder/core?label=License
-[license-url]: https://github.com/0xOlias/ponder/blob/main/LICENSE
+[license-url]: https://github.com/ponder-sh/ponder/blob/main/LICENSE
 [version-badge]: https://img.shields.io/npm/v/@ponder/core
-[version-url]: https://github.com/0xOlias/ponder/releases
+[version-url]: https://github.com/ponder-sh/ponder/releases

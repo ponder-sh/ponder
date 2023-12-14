@@ -8,13 +8,13 @@ import TelegramLogo from "./public/telegram.svg";
 const config: DocsThemeConfig = {
   logo: <PonderLogo className="logo" />,
   project: {
-    link: "https://github.com/0xOlias/ponder",
+    link: "https://github.com/ponder-sh/ponder",
   },
   chat: {
     link: "https://t.me/ponder_sh",
     icon: <TelegramLogo className="telegram" />,
   },
-  docsRepositoryBase: "https://github.com/0xOlias/ponder/tree/main/docs",
+  docsRepositoryBase: "https://github.com/ponder-sh/ponder/tree/main/docs",
   sidebar: {
     defaultMenuCollapseLevel: 2,
   },
@@ -42,6 +42,16 @@ const config: DocsThemeConfig = {
     <>
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <meta httpEquiv="Content-Language" content="en" />
+      <meta
+        name="theme-color"
+        content="#ffffff"
+        media="(prefers-color-scheme: light)"
+      />
+      <meta
+        name="theme-color"
+        content="#111111"
+        media="(prefers-color-scheme: dark)"
+      />
     </>
   ),
   useNextSeoProps() {
@@ -76,7 +86,7 @@ const config: DocsThemeConfig = {
       };
     return {
       ...defaultSeoProps,
-      title: "Ponder: The Blockchain Backend Framework",
+      title: "Ponder – A backend framework for crypto apps",
     };
   },
 };

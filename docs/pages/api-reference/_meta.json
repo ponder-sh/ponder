@@ -1,6 +1,0 @@
-{
-  "ponder-config": "ponder.config.ts",
-  "schema-graphql": "schema.graphql",
-  "indexing-functions": "Indexing functions",
-  "create-ponder": "Create Ponder"
-}

@@ -1,0 +1,37 @@
+---
+description: "A guide to Ponder log levels"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Logging
+
+Ponder produces logs to help you understand and debug your application. To change the log level, set the `PONDER_LOG_LEVEL` environment variable. Each level includes logs from all levels above it.
+
+{/* prettier-ignore */}
+```js filename=".env.local"
+PONDER_LOG_LEVEL = "debug"
+```
+
+| Log level        | Example                                           |
+| :--------------- | :------------------------------------------------ |
+| `silent`         |                                                   |
+| `error`          | Unrecoverable RPC error, SQL constraint violation |
+| `warn`           | Reorg reconciliation, malformed config            |
+| `info` (default) | Indexing progress, real-time block processing     |
+| `debug`          | Internal service lifecycle events                 |
+| `trace`          | Query-level database logs                         |
+
+Logs produced by your code in `src/` (e.g. `console.log` statements) will always be written to the console. Note that Ponder _does_ catch **errors** thrown by your code and emits an `error` log including the error message and stack trace.
+
+## Console output
+
+Ponder writes pretty-printed logs to the console. During development, there is an auto-updating TUI built with [Ink](https://github.com/vadimdemedes/ink).
+
+![Dev server logs screenshot](/logs.gif)
+
+<div className="caption">Dev server terminal UI (v0.0.75).</div>
+
+## Log files
+
+Ponder also writes `trace`-level logs as structured JSON to a file at `.ponder/logs/{timestamp}.log`. Each file contains all the logs produced during a single run of the Ponder process (`ponder dev` or `ponder start`), named using the process start timestamp.
