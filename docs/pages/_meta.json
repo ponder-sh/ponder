@@ -3,9 +3,7 @@
     "title": "Home",
     "display": "hidden",
     "theme": {
-      "breadcrumb": false,
-      "sidebar": false,
-      "toc": false
+      "layout": "raw"
     }
   },
   "docs": {
