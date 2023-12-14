@@ -11,6 +11,12 @@ const withNextra = require("nextra")({
 module.exports = withNextra({
   redirects() {
     return [
+      // Temp redirect before we build a `blog/` TOC page.
+      {
+        source: "/blog",
+        destination: "/blog/introducing-ponder",
+        permanent: false,
+      },
       // Redirects from before docs pages including `docs/` path prefix.
       {
         source: "/api-reference/:slug*",
