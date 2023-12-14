@@ -608,6 +608,22 @@ export class Ponder {
 
       this.syncGatewayService.resetCheckpoints({ chainId });
 
+      // Clear all the metrics for the sources.
+      syncServiceForChainId.sources.forEach(({ networkName, contractName }) => {
+        this.common.metrics.ponder_historical_total_blocks.set(
+          { network: networkName, contract: contractName },
+          0,
+        );
+        this.common.metrics.ponder_historical_completed_blocks.set(
+          { network: networkName, contract: contractName },
+          0,
+        );
+        this.common.metrics.ponder_historical_cached_blocks.set(
+          { network: networkName, contract: contractName },
+          0,
+        );
+      });
+
       // Reload the sync services for the specific chain by killing, setting up, and then starting again.
       await syncServiceForChainId.realtime.kill();
       await syncServiceForChainId.historical.kill();
