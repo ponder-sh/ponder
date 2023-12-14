@@ -42,7 +42,9 @@ export class Ponder {
   buildService: BuildService;
 
   // Derived config
+  config: Config = undefined!;
   sources: Source[] = undefined!;
+  networks: Network[] = undefined!;
   schema: Schema = undefined!;
   graphqlSchema: GraphQLSchema = undefined!;
   indexingFunctions: IndexingFunctions = undefined!;
@@ -126,35 +128,28 @@ export class Ponder {
       return;
     }
 
-    return { ...config, ...schema, indexingFunctions };
+    this.config = config.config;
+    this.sources = config.sources;
+    this.networks = config.networks;
+    this.schema = schema.schema;
+    this.graphqlSchema = schema.graphqlSchema;
+    this.indexingFunctions = indexingFunctions;
+
+    return true;
   }
 
   private async setupCoreServices({
-    config,
-    sources,
-    networks,
-    schema,
-    graphqlSchema,
-    indexingFunctions,
     syncStore,
     indexingStore,
   }: {
-    config: Config;
-    sources: Source[];
-    networks: Network[];
-    schema: Schema;
-    graphqlSchema: GraphQLSchema;
-    indexingFunctions: IndexingFunctions;
     // These options are only used for testing.
     syncStore?: SyncStore;
     indexingStore?: IndexingStore;
-  }) {
-    this.sources = sources;
-    this.schema = schema;
-    this.graphqlSchema = graphqlSchema;
-    this.indexingFunctions = indexingFunctions;
-
-    const database = buildDatabase({ common: this.common, config });
+  } = {}) {
+    const database = buildDatabase({
+      common: this.common,
+      config: this.config,
+    });
     this.syncStore =
       syncStore ??
       (database.sync.kind === "sqlite"
@@ -175,7 +170,7 @@ export class Ponder {
             pool: database.indexing.pool,
           }));
 
-    const networksToSync = networks.filter((network) => {
+    const networksToSync = this.networks.filter((network) => {
       const hasSources = this.sources.some(
         (source) => source.networkName === network.name,
       );
@@ -272,9 +267,10 @@ export class Ponder {
     syncStore?: SyncStore;
     indexingStore?: IndexingStore;
   } = {}) {
-    const build = await this.setupBuildService();
-    if (!build) return false;
-    await this.setupCoreServices({ ...build, syncStore, indexingStore });
+    const success = await this.setupBuildService();
+    if (!success) return false;
+
+    await this.setupCoreServices({ syncStore, indexingStore });
     return true;
   }
 
@@ -486,12 +482,11 @@ export class Ponder {
         // Clear all listeners. Will be added back in setup.
         await this.reload();
 
-        await this.setupCoreServices({
-          ...build,
-          schema: this.schema,
-          graphqlSchema: this.graphqlSchema,
-          indexingFunctions: this.indexingFunctions,
-        });
+        this.config = build.config;
+        this.sources = build.sources;
+        this.networks = build.networks;
+
+        await this.setupCoreServices();
         // NOTE: We know we are in dev mode if the build service is receiving events. Build events are disabled in production.
         await this.dev();
       } else {
@@ -515,6 +510,9 @@ export class Ponder {
           msg: "Reloading ponder with new schema",
         });
 
+        this.schema = build.schema;
+        this.graphqlSchema = build.graphqlSchema;
+
         this.codegenService.generateGraphqlSchemaFile({
           graphqlSchema: build.graphqlSchema,
         });
@@ -535,6 +533,8 @@ export class Ponder {
       "newIndexingFunctions",
       async ({ indexingFunctions }) => {
         this.common.errors.hasUserError = false;
+
+        this.indexingFunctions = indexingFunctions;
 
         await this.indexingService.reset({ indexingFunctions });
         await this.indexingService.processEvents();
