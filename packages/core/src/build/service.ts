@@ -178,7 +178,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       const error = error_ as Error;
       error.stack = undefined;
       this.common.logger.error({
-        service: "build",
+        service: "config",
         error,
       });
 
@@ -206,7 +206,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       const error = error_ as Error;
       error.stack = undefined;
       this.common.logger.error({
-        service: "build",
+        service: "schema",
         error,
       });
 

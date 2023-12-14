@@ -8,158 +8,186 @@ import {
 } from "./utils.js";
 
 export const validateSchema = ({ schema }: { schema: Schema }): void => {
-  // validate enums
+  // Validate enums
   Object.entries(schema.enums).forEach(([name, _enum]) => {
-    validateTableOrColumnName(name);
+    validateTableOrColumnName(name, "Enum");
 
     // Make sure values aren't the same
     const set = new Set<string>();
 
     for (const val of _enum) {
-      if (val in set) throw Error("Enum contains duplicate values");
+      if (val in set)
+        throw Error(
+          `Validation error: Enum contains duplicate values (enum=${name})`,
+        );
       set.add(val);
     }
   });
 
-  // validate tables
+  // Validate tables
   Object.entries(schema.tables).forEach(([name, table]) => {
-    validateTableOrColumnName(name);
+    validateTableOrColumnName(name, "Table");
 
-    if (Array.isArray(table)) {
-      // Enum
+    // Validate the id column
 
-      // Make sure values aren't the same
-      const set = new Set<(typeof table)[number]>();
+    if (table.id === undefined)
+      throw Error(
+        `Validation error: Table doesn't contain an "id" column (table=${name})`,
+      );
 
-      for (const val of table) {
-        if (val in set) throw Error("ITEnum contains duplicate values");
-        set.add(val);
-      }
-    } else {
-      // Table
+    // NOTE: This is a to make sure the user didn't override the ID type
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const type = table.id.type;
+    if (
+      type !== "bigint" &&
+      type !== "string" &&
+      type !== "bytes" &&
+      type !== "int"
+    )
+      throw Error(
+        `Validation error: "id" column cannot be type "${type}" (table=${name})`,
+      );
 
-      // Check the id property
+    if (isEnumColumn(table.id))
+      throw Error(
+        `Validation error: "id" column cannot be type "enum" (table=${name})`,
+      );
 
-      if (table.id === undefined)
-        throw Error('Table doesn\'t contain an "id" field');
+    if (isOneColumn(table.id))
+      throw Error(
+        `Validation error: "id" column cannot be type "one" (table=${name})`,
+      );
 
-      // NOTE: This is a to make sure the user didn't override the ID type
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      const type = table.id.type;
-      if (
-        isEnumColumn(table.id) ||
-        isOneColumn(table.id) ||
-        isManyColumn(table.id) ||
-        isReferenceColumn(table.id) ||
-        (type !== "bigint" &&
-          type !== "string" &&
-          type !== "bytes" &&
-          type !== "int")
-      )
-        throw Error('"id" is not of the correct type');
-      // NOTE: This is a to make sure the user didn't override the optional type
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      if (table.id.optional === true) throw Error('"id" cannot be optional');
-      // NOTE: This is a to make sure the user didn't override the list type
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      if (table.id.list === true) throw Error('"id" cannot be a list');
-      // NOTE: This is a to make sure the user didn't override the reference type
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      if (table.id.references) throw Error('"id" cannot be a reference');
+    if (isManyColumn(table.id))
+      throw Error(
+        `Validation error: "id" column cannot be type "many" (table=${name})`,
+      );
 
-      Object.entries(table).forEach(([columnName, column]) => {
-        if (columnName === "id") return;
+    if (isReferenceColumn(table.id))
+      throw Error(
+        `Validation error: "id" column cannot be type "reference" (table=${name})`,
+      );
 
-        validateTableOrColumnName(columnName);
+    // NOTE: This is a to make sure the user didn't override the optional type
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    if (table.id.optional === true)
+      throw Error(
+        `Validation error: "id" column cannot be optional (table=${table})`,
+      );
+    // NOTE: This is a to make sure the user didn't override the list type
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    if (table.id.list === true)
+      throw Error(`Validation error: "id" cannot be a list (table=${table})`);
 
-        if (isOneColumn(column)) {
-          if (
-            Object.keys(table)
-              .filter((c) => c !== columnName)
-              .every((c) => c !== column.referenceColumn) === undefined
-          )
-            throw Error("One column doesn't reference a valid column");
+    // Validate all other columns
+    Object.entries(table).forEach(([columnName, column]) => {
+      if (columnName === "id") return;
 
-          if (
-            !isReferenceColumn(
-              Object.entries(table).find(
-                ([c]) => c === column.referenceColumn,
-              )![1],
-            )
-          )
-            throw Error("One column doesn't reference a reference column");
-        } else if (isManyColumn(column)) {
-          if (
-            Object.keys(schema.tables)
-              .filter((_name) => _name !== name)
-              .every((_name) => _name !== column.referenceTable)
-          )
-            throw Error("Many column doesn't reference a valid table");
+      validateTableOrColumnName(columnName, "Column");
 
-          if (
-            (
-              Object.entries(schema.tables).find(
-                ([tableName]) => tableName === column.referenceTable,
-              )![1] as Record<string, unknown>
-            )[column.referenceColumn as string] === undefined
-          )
-            throw Error("Many column doesn't reference a valid column");
-        } else if (isEnumColumn(column)) {
-          if (
-            Object.entries(schema.enums).every(
-              ([_name]) => _name !== column.type,
-            )
-          )
-            throw Error("Column doesn't reference a valid enum");
-        } else if (isReferenceColumn(column)) {
-          if (
-            Object.keys(schema.tables).every(
-              (_name) => `${_name}.id` !== column.references,
-            )
-          )
-            throw Error("Column doesn't reference a valid table");
-
-          const referencingTables = Object.entries(schema.tables).filter(
-            ([name]) => name === referencedTableName(column.references),
+      if (isOneColumn(column)) {
+        if (
+          Object.keys(table)
+            .filter((c) => c !== columnName)
+            .every((c) => c !== column.referenceColumn) === undefined
+        )
+          throw Error(
+            `Validation error: "one" column doesn't reference a valid column (table=${name} column=${columnName} reference=${column.referenceColumn})`,
           );
 
-          for (const [, referencingTable] of referencingTables) {
-            if (
-              Array.isArray(referencingTable) ||
-              (referencingTable as { id: NonReferenceColumn }).id.type !==
-                column.type
-            )
-              throw Error(
-                "Column type doesn't match the referenced table id type",
-              );
-          }
-
-          if (column.list)
-            throw Error("Columns can't be both refernce and list types");
-        } else {
-          // Non reference column
-          if (
-            column.type !== "bigint" &&
-            column.type !== "string" &&
-            column.type !== "boolean" &&
-            column.type !== "int" &&
-            column.type !== "float" &&
-            column.type !== "bytes"
+        if (
+          !isReferenceColumn(
+            Object.entries(table).find(
+              ([c]) => c === column.referenceColumn,
+            )![1],
           )
-            throw Error("Column is not a valid type");
+        )
+          throw Error(
+            `Validation error: "one" column doesn't reference a "reference" column (table=${name} column=${columnName} reference=${column.referenceColumn})`,
+          );
+      } else if (isManyColumn(column)) {
+        if (
+          Object.keys(schema.tables)
+            .filter((_name) => _name !== name)
+            .every((_name) => _name !== column.referenceTable)
+        )
+          throw Error(
+            `Validation error: "many" column doesn't reference a valid table (table=${name} column=${columnName} reference=${column.referenceTable})`,
+          );
+
+        if (
+          (
+            Object.entries(schema.tables).find(
+              ([tableName]) => tableName === column.referenceTable,
+            )![1] as Record<string, unknown>
+          )[column.referenceColumn as string] === undefined
+        )
+          throw Error(
+            `Validation error: "many" column doesn't reference a valid column (table=${name} column=${columnName} referenceTable=${column.referenceTable}) referenceColumn=${column.referenceColumn}`,
+          );
+      } else if (isEnumColumn(column)) {
+        if (
+          Object.entries(schema.enums).every(([_name]) => _name !== column.type)
+        )
+          throw Error(
+            `Validation error: "enum" column doesn't reference a valid enum (table=${name} column=${columnName} type=${column.type})`,
+          );
+      } else if (isReferenceColumn(column)) {
+        if (
+          Object.keys(schema.tables).every(
+            (_name) => `${_name}.id` !== column.references,
+          )
+        )
+          throw Error(
+            `Validation error: Column with the "reference" modifier does not reference a valid table (table=${name} column=${columnName} reference=${column.references})`,
+          );
+
+        const referencingTables = Object.entries(schema.tables).filter(
+          ([name]) => name === referencedTableName(column.references),
+        );
+
+        for (const [, referencingTable] of referencingTables) {
+          if (
+            Array.isArray(referencingTable) ||
+            (referencingTable as { id: NonReferenceColumn }).id.type !==
+              column.type
+          )
+            throw Error(
+              `Validation error: Column with the "reference" modifier does not match the type of the referenced table's "id" column (table=${name} column=${columnName} type=${column.type} reference=${column.references})`,
+            );
         }
-      });
-    }
+
+        if (column.list)
+          throw Error(
+            `Validation error: Column cannot have both the "reference" and "list" modifier (table=${name} column=${columnName})`,
+          );
+      } else {
+        // Non reference column
+        if (
+          column.type !== "bigint" &&
+          column.type !== "string" &&
+          column.type !== "boolean" &&
+          column.type !== "int" &&
+          column.type !== "float" &&
+          column.type !== "bytes"
+        )
+          throw Error(
+            `Validation error: Column is not a valid type (table=${name} column=${columnName} type=${column.type})`,
+          );
+      }
+    });
   });
 };
 
-const validateTableOrColumnName = (key: string) => {
-  if (key === "") throw Error("Table to column name can't be an empty string");
+const validateTableOrColumnName = (key: string, type: string) => {
+  if (key === "")
+    throw Error(`Validation error: ${type} name can't be an empty string`);
 
   if (!/^[a-z|A-Z|0-9]+$/.test(key))
-    throw Error("Table or column name contains an invalid character");
+    throw Error(
+      `Validation error: ${type} name contains an invalid character (name=${key})`,
+    );
 };
