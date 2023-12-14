@@ -574,9 +574,7 @@ export class Ponder {
       await this.indexingService.processEvents();
     });
 
-    this.indexingService.on("eventsProcessed", ({ toCheckpoint }) => {
-      if (this.serverService.isHistoricalIndexingComplete) return;
-
+    this.indexingService.on("eventsProcessed", async ({ toCheckpoint }) => {
       // If a batch of events are processed AND the historical sync is complete AND
       // the new toTimestamp is greater than the historical sync completion timestamp,
       // historical event processing is complete, and the server should begin responding as healthy.
@@ -586,6 +584,7 @@ export class Ponder {
           this.syncGatewayService.historicalSyncCompletedAt
       ) {
         this.serverService.setIsHistoricalIndexingComplete();
+        await this.indexingStore.publish();
       }
     });
 

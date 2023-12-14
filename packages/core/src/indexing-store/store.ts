@@ -83,7 +83,10 @@ export interface IndexingStore {
   schema?: Schema;
 
   reload(options?: { schema?: Schema }): Promise<void>;
+
   kill(): Promise<void>;
+
+  publish(): Promise<void>;
 
   revert(options: { checkpoint: Checkpoint }): Promise<void>;
 

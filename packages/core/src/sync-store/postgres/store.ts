@@ -1,5 +1,4 @@
 import {
-  CompiledQuery,
   type ExpressionBuilder,
   Kysely,
   Migrator,
@@ -50,38 +49,16 @@ export class PostgresSyncStore implements SyncStore {
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({
-    common,
-    pool,
-    databaseSchema,
-  }: {
-    common: Common;
-    pool: pg.Pool;
-    databaseSchema?: string;
-  }) {
+  constructor({ common, pool }: { common: Common; pool: pg.Pool }) {
     this.common = common;
     this.db = new Kysely<SyncStoreTables>({
-      dialect: new PostgresDialect({
-        pool,
-        onCreateConnection: databaseSchema
-          ? async (connection) => {
-              await connection.executeQuery(
-                CompiledQuery.raw(
-                  `CREATE SCHEMA IF NOT EXISTS ${databaseSchema}`,
-                ),
-              );
-              await connection.executeQuery(
-                CompiledQuery.raw(`SET search_path = ${databaseSchema}`),
-              );
-            }
-          : undefined,
-      }),
+      dialect: new PostgresDialect({ pool }),
     });
 
     this.migrator = new Migrator({
       db: this.db,
       provider: migrationProvider,
-      migrationTableSchema: databaseSchema ?? "public",
+      migrationTableSchema: "public",
     });
   }
 
