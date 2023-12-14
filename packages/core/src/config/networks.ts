@@ -110,8 +110,14 @@ export function getDefaultMaxBlockRange({
     .filter((url): url is string => url !== undefined)
     .some((url) => url.includes("quiknode"));
 
+  const isCloudflare = rpcUrls
+    .filter((url): url is string => url !== undefined)
+    .some((url) => url.includes("cloudflare-eth"));
+
   if (isQuickNode) {
     maxBlockRange = Math.min(maxBlockRange, 10_000);
+  } else if (isCloudflare) {
+    maxBlockRange = Math.min(maxBlockRange, 800);
   }
 
   return maxBlockRange;
@@ -178,10 +184,11 @@ export async function getRpcUrlsForClient(parameters: {
     pollingInterval: 4_000, // default viem value
   });
   const transport = { ...config, ...value } as Client["transport"];
+
   async function getRpcUrlsForTransport(transport: Client["transport"]) {
     switch (transport.type) {
       case "http": {
-        return [transport.url as string | undefined];
+        return [transport.url ?? parameters.chain.rpcUrls.default.http[0]];
       }
       case "webSocket": {
         try {
@@ -235,10 +242,17 @@ export async function getRequestForTransport(parameters: {
 
   switch (transport.type) {
     case "http": {
-      return (options) => rpc.http(transport.url, options);
+      const url = transport.url ?? parameters.chain.rpcUrls.default.http[0];
+
+      if (!url) throw Error("Unable to find a http transport URL");
+
+      return (options) => rpc.http(url, options);
     }
     case "webSocket": {
       const socket = await transport.getSocket();
+
+      if (!socket) throw Error("Unable to find a websocket transport url");
+
       return (options) => rpc.webSocketAsync(socket, options);
     }
     case "fallback": {

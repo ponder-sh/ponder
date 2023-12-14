@@ -56,7 +56,6 @@ type OnComplete<TTask, TContext = undefined, TReturn = void> = (arg: {
  * - An onError callback that is called _within_ the failed task scope,
  *   allowing the user to retry/add more tasks without the queue going idle.
  * - An onComplete callback that is called _within_ the completed task scope.
- * - A configurable retry scheme using `node-retry`.
  */
 export function createQueue<TTask, TContext = undefined, TReturn = void>({
   worker,
