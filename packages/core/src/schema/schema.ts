@@ -117,7 +117,7 @@ type P = {
   /**
    * Primitive `string` column type.
    *
-   * - Docs: https://ponder.sh/docs/guides/design-your-schema#foreign-key
+   * - Docs: https://ponder.sh/docs/guides/design-your-schema#primitives
    *
    * @example
    * import { p } from '@ponder/core'
@@ -132,7 +132,7 @@ type P = {
   /**
    * Primitive `int` column type.
    *
-   * - Docs: https://ponder.sh/docs/guides/design-your-schema#foreign-key
+   * - Docs: https://ponder.sh/docs/guides/design-your-schema#primitives
    *
    * @example
    * import { p } from '@ponder/core'
@@ -147,7 +147,7 @@ type P = {
   /**
    * Primitive `float` column type.
    *
-   * - Docs: https://ponder.sh/docs/guides/design-your-schema#foreign-key
+   * - Docs: https://ponder.sh/docs/guides/design-your-schema#primitives
    *
    * @example
    * import { p } from '@ponder/core'
@@ -163,7 +163,7 @@ type P = {
   /**
    * Primitive `bytes` column type.
    *
-   * - Docs: https://ponder.sh/docs/guides/design-your-schema#foreign-key
+   * - Docs: https://ponder.sh/docs/guides/design-your-schema#primitives
    *
    * @example
    * import { p } from '@ponder/core'
@@ -178,7 +178,7 @@ type P = {
   /**
    * Primitive `boolean` column type.
    *
-   * - Docs: https://ponder.sh/docs/guides/design-your-schema#foreign-key
+   * - Docs: https://ponder.sh/docs/guides/design-your-schema#primitives
    *
    * @example
    * import { p } from '@ponder/core'
@@ -194,7 +194,7 @@ type P = {
   /**
    * Primitive `bigint` column type.
    *
-   * - Docs: https://ponder.sh/docs/guides/design-your-schema#foreign-key
+   * - Docs: https://ponder.sh/docs/guides/design-your-schema#primitives
    *
    * @example
    * import { p } from '@ponder/core'

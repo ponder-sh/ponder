@@ -18,7 +18,7 @@ type Optional<
         /**
          * Mark the column as optional.
          *
-         * - Docs: https://ponder.sh/docs/guides/design-your-schema#list
+         * - Docs: https://ponder.sh/docs/guides/design-your-schema#optional
          *
          * @example
          * import { p } from '@ponder/core'
@@ -90,7 +90,7 @@ type List<
       /**
        * Mark the column as optional.
        *
-       * - Docs: https://ponder.sh/docs/guides/design-your-schema#list
+       * - Docs: https://ponder.sh/docs/guides/design-your-schema#optional
        *
        * @example
        * import { p } from '@ponder/core'
@@ -137,7 +137,7 @@ type References<TScalar extends Scalar, TOptional extends boolean> = <
       /**
        * Mark the column as optional.
        *
-       * - Docs: https://ponder.sh/docs/guides/design-your-schema#list
+       * - Docs: https://ponder.sh/docs/guides/design-your-schema#optional
        *
        * @example
        * import { p } from '@ponder/core'
@@ -182,7 +182,7 @@ export type EmptyModifier<TScalar extends Scalar> = InternalColumn<
   /**
    * Mark the column as optional.
    *
-   * - Docs: https://ponder.sh/docs/guides/design-your-schema#list
+   * - Docs: https://ponder.sh/docs/guides/design-your-schema#optional
    *
    * @example
    * import { p } from '@ponder/core'
@@ -264,7 +264,7 @@ export type _Enum<
         /**
          * Mark the column as optional.
          *
-         * - Docs: https://ponder.sh/docs/guides/design-your-schema#list
+         * - Docs: https://ponder.sh/docs/guides/design-your-schema#optional
          *
          * @example
          * import { p } from '@ponder/core'
