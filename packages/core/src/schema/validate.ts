@@ -18,7 +18,7 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
     for (const val of _enum) {
       if (val in set)
         throw Error(
-          `Validation error: Enum contains duplicate values (enum=${name})`,
+          `Validation failed: Enum contains duplicate values (enum=${name})`,
         );
       set.add(val);
     }
@@ -32,7 +32,7 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
 
     if (table.id === undefined)
       throw Error(
-        `Validation error: Table doesn't contain an "id" column (table=${name})`,
+        `Validation failed: Table doesn't contain an "id" column (table=${name})`,
       );
 
     // NOTE: This is a to make sure the user didn't override the ID type
@@ -46,27 +46,27 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
       type !== "int"
     )
       throw Error(
-        `Validation error: "id" column cannot be type "${type}" (table=${name})`,
+        `Validation failed: "id" column cannot be type "${type}" (table=${name})`,
       );
 
     if (isEnumColumn(table.id))
       throw Error(
-        `Validation error: "id" column cannot be type "enum" (table=${name})`,
+        `Validation failed: "id" column cannot be type "enum" (table=${name})`,
       );
 
     if (isOneColumn(table.id))
       throw Error(
-        `Validation error: "id" column cannot be type "one" (table=${name})`,
+        `Validation failed: "id" column cannot be type "one" (table=${name})`,
       );
 
     if (isManyColumn(table.id))
       throw Error(
-        `Validation error: "id" column cannot be type "many" (table=${name})`,
+        `Validation failed: "id" column cannot be type "many" (table=${name})`,
       );
 
     if (isReferenceColumn(table.id))
       throw Error(
-        `Validation error: "id" column cannot be type "reference" (table=${name})`,
+        `Validation failed: "id" column cannot be type "reference" (table=${name})`,
       );
 
     // NOTE: This is a to make sure the user didn't override the optional type
@@ -74,13 +74,13 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
     // @ts-ignore
     if (table.id.optional === true)
       throw Error(
-        `Validation error: "id" column cannot be optional (table=${table})`,
+        `Validation failed: "id" column cannot be optional (table=${table})`,
       );
     // NOTE: This is a to make sure the user didn't override the list type
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     if (table.id.list === true)
-      throw Error(`Validation error: "id" cannot be a list (table=${table})`);
+      throw Error(`Validation failed: "id" cannot be a list (table=${table})`);
 
     // Validate all other columns
     Object.entries(table).forEach(([columnName, column]) => {
@@ -95,7 +95,7 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
             .every((c) => c !== column.referenceColumn) === undefined
         )
           throw Error(
-            `Validation error: "one" column doesn't reference a valid column (table=${name} column=${columnName} reference=${column.referenceColumn})`,
+            `Validation failed: "one" column doesn't reference a valid column (table=${name} column=${columnName} reference=${column.referenceColumn})`,
           );
 
         if (
@@ -106,7 +106,7 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
           )
         )
           throw Error(
-            `Validation error: "one" column doesn't reference a "reference" column (table=${name} column=${columnName} reference=${column.referenceColumn})`,
+            `Validation failed: "one" column doesn't reference a "reference" column (table=${name} column=${columnName} reference=${column.referenceColumn})`,
           );
       } else if (isManyColumn(column)) {
         if (
@@ -115,7 +115,7 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
             .every((_name) => _name !== column.referenceTable)
         )
           throw Error(
-            `Validation error: "many" column doesn't reference a valid table (table=${name} column=${columnName} reference=${column.referenceTable})`,
+            `Validation failed: "many" column doesn't reference a valid table (table=${name} column=${columnName} reference=${column.referenceTable})`,
           );
 
         if (
@@ -126,14 +126,14 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
           )[column.referenceColumn as string] === undefined
         )
           throw Error(
-            `Validation error: "many" column doesn't reference a valid column (table=${name} column=${columnName} referenceTable=${column.referenceTable}) referenceColumn=${column.referenceColumn}`,
+            `Validation failed: "many" column doesn't reference a valid column (table=${name} column=${columnName} referenceTable=${column.referenceTable}) referenceColumn=${column.referenceColumn}`,
           );
       } else if (isEnumColumn(column)) {
         if (
           Object.entries(schema.enums).every(([_name]) => _name !== column.type)
         )
           throw Error(
-            `Validation error: "enum" column doesn't reference a valid enum (table=${name} column=${columnName} type=${column.type})`,
+            `Validation failed: "enum" column doesn't reference a valid enum (table=${name} column=${columnName} type=${column.type})`,
           );
       } else if (isReferenceColumn(column)) {
         if (
@@ -142,7 +142,7 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
           )
         )
           throw Error(
-            `Validation error: Column with the "reference" modifier does not reference a valid table (table=${name} column=${columnName} reference=${column.references})`,
+            `Validation failed: Column with the "reference" modifier does not reference a valid table (table=${name} column=${columnName} reference=${column.references})`,
           );
 
         const referencingTables = Object.entries(schema.tables).filter(
@@ -156,13 +156,13 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
               column.type
           )
             throw Error(
-              `Validation error: Column with the "reference" modifier does not match the type of the referenced table's "id" column (table=${name} column=${columnName} type=${column.type} reference=${column.references})`,
+              `Validation failed: Column with the "reference" modifier does not match the type of the referenced table's "id" column (table=${name} column=${columnName} type=${column.type} reference=${column.references})`,
             );
         }
 
         if (column.list)
           throw Error(
-            `Validation error: Column cannot have both the "reference" and "list" modifier (table=${name} column=${columnName})`,
+            `Validation failed: Column cannot have both the "reference" and "list" modifier (table=${name} column=${columnName})`,
           );
       } else {
         // Non reference column
@@ -175,7 +175,7 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
           column.type !== "bytes"
         )
           throw Error(
-            `Validation error: Column is not a valid type (table=${name} column=${columnName} type=${column.type})`,
+            `Validation failed: Column is not a valid type (table=${name} column=${columnName} type=${column.type})`,
           );
       }
     });
@@ -184,10 +184,10 @@ export const validateSchema = ({ schema }: { schema: Schema }): void => {
 
 const validateTableOrColumnName = (key: string, type: string) => {
   if (key === "")
-    throw Error(`Validation error: ${type} name can't be an empty string`);
+    throw Error(`Validation failed: ${type} name can't be an empty string`);
 
   if (!/^[a-z|A-Z|0-9]+$/.test(key))
     throw Error(
-      `Validation error: ${type} name contains an invalid character (name=${key})`,
+      `Validation failed: ${type} name contains an invalid character (name=${key})`,
     );
 };
