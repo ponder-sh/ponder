@@ -30,9 +30,7 @@ export function Benchmarks({ flat = false }: { flat?: boolean }) {
           </div>
 
           <div className="grid grid-cols-5">
-            <div className="col-span-1 py-2 pl-4 md:pl-8 text-sm border-neutral-200 dark:border-neutral-50/20 border-b text-neutral-500">
-              Benchmark
-            </div>
+            <div className="col-span-1 py-2 pl-4 md:pl-8 text-sm border-neutral-200 dark:border-neutral-50/20 border-b text-neutral-500"></div>
             <div className="col-span-1 py-2 pl-3 text-sm border-neutral-200 dark:border-neutral-50/20 border-b">
               Sync (No Cache)
             </div>
@@ -80,7 +78,7 @@ export function Benchmarks({ flat = false }: { flat?: boolean }) {
           </div>
         </div>
 
-        <div className="flex flex-col lg:max-w-[25ch] p-4 md:p-8">
+        <div className="flex flex-col lg:max-w-[22ch] p-4 md:p-6">
           <p className="text-sm mb-4 text-neutral-700 dark:text-neutral-200">
             Benchmarks index the Rocket Pool ERC20 token contract on mainnet
             from block 18,600,000 to 18,718,056 (latest) on an M1 MacBook Pro (8
