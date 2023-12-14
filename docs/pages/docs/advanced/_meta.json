@@ -1,5 +1,6 @@
 {
   "logging": "Logging",
   "telemetry": "Telemetry",
-  "metrics": "Metrics"
+  "metrics": "Metrics",
+  "foundry": "Developing with Foundry"
 }
