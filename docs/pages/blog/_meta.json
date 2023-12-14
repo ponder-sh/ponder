@@ -2,9 +2,9 @@
   "introducing-ponder": {
     "title": "Introducing Ponder",
     "theme": {
-      "breadcrumb": false,
-      "sidebar": false,
-      "toc": false,
+      "breadcrumb": true,
+      "sidebar": true,
+      "toc": true,
       "footer": true
     }
   }
