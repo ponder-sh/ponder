@@ -92,10 +92,9 @@ export class Ponder {
     // Initialize the Vite server and Vite Node runner.
     await this.buildService.setup();
 
-    // NOTE:KYLE update this comment
-    // Load the config file so that we can create initial versions of all services.
-    // If `config` is undefined, there was an error loading the config. For now,
-    // we can just exit. No need to call `this.kill()` because no services are set up.
+    // Build and load dependencies so that we can create initial versions of all services.
+    // If any are undefined, there was an error in config, schema, or indexing functions.
+    // For now, we can just exit. No need to call `this.kill()` because no services are set up.
 
     const config = await this.buildService.loadConfig();
     if (!config) {
