@@ -417,9 +417,9 @@ export class Ponder {
     this.uiService.kill();
 
     await Promise.all([
-      this.indexingService.kill(),
-      this.buildService.kill(),
-      this.serverService.kill(),
+      await this.indexingService.kill(),
+      await this.buildService.kill(),
+      await this.serverService.kill(),
       await this.common.telemetry.kill(),
     ]);
 
