@@ -1,4 +1,4 @@
-import { hexToBigInt, hexToNumber, toHex } from "viem";
+import { checksumAddress, hexToBigInt, hexToNumber, toHex } from "viem";
 import { beforeEach, expect, test } from "vitest";
 
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/_test/constants.js";
 import { setupSyncStore } from "@/_test/setup.js";
 import type { FactoryCriteria, LogFilterCriteria } from "@/config/sources.js";
+import { maxCheckpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 beforeEach((context) => setupSyncStore(context));
 
@@ -1041,8 +1042,8 @@ test("getLogEvents returns log events", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
   });
   const events = [];
@@ -1052,7 +1053,9 @@ test("getLogEvents returns log events", async (context) => {
 
   expect(events[0].log).toMatchInlineSnapshot(`
     {
-      "address": "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      "address": "${checksumAddress(
+        "0x15d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      )}",
       "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
       "blockNumber": 15495110n,
       "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
@@ -1115,7 +1118,9 @@ test("getLogEvents returns log events", async (context) => {
 
   expect(events[1].log).toMatchInlineSnapshot(`
     {
-      "address": "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      "address": "${checksumAddress(
+        "0x72d4c048f83bd7e37d49ea4c83a07267ec4203da",
+      )}",
       "blockHash": "0xebc3644804e4040c0a74c5a5bbbc6b46a71a5d4010fe0c92ebb2fdf4a43ea5dd",
       "blockNumber": 15495110n,
       "data": "0x0000000000000000000000000000000000000000000000000000002b3b6fb3d0",
@@ -1192,8 +1197,8 @@ test("getLogEvents filters on log filter with one address", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "singleAddress",
@@ -1205,7 +1210,7 @@ test("getLogEvents filters on log filter with one address", async (context) => {
   const events = [];
   for await (const page of iterator) events.push(...page.events);
 
-  expect(events[0].log.address).toBe(blockOneLogs[0].address);
+  expect(events[0].log.address).toBe(checksumAddress(blockOneLogs[0].address));
   expect(events).toHaveLength(1);
 });
 
@@ -1227,8 +1232,8 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "multipleAddress",
@@ -1245,13 +1250,13 @@ test("getLogEvents filters on log filter with multiple addresses", async (contex
   expect(events[0]).toMatchObject({
     sourceId: "multipleAddress",
     log: {
-      address: blockOneLogs[0].address,
+      address: checksumAddress(blockOneLogs[0].address),
     },
   });
   expect(events[1]).toMatchObject({
     sourceId: "multipleAddress",
     log: {
-      address: blockOneLogs[1].address,
+      address: checksumAddress(blockOneLogs[1].address),
     },
   });
   expect(events).toHaveLength(2);
@@ -1275,8 +1280,8 @@ test("getLogEvents filters on log filter with single topic", async (context) => 
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "singleTopic",
@@ -1323,8 +1328,8 @@ test("getLogEvents filters on log filter with multiple topics", async (context) 
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "multipleTopics",
@@ -1381,8 +1386,8 @@ test("getLogEvents filters on simple factory", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     factories: [
       {
         id: "simple",
@@ -1424,8 +1429,8 @@ test("getLogEvents filters on fromBlock", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "fromBlock",
@@ -1465,8 +1470,8 @@ test("getLogEvents filters on multiple filters", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       {
         id: "singleAddress", // This should match blockOneLogs[0]
@@ -1488,13 +1493,13 @@ test("getLogEvents filters on multiple filters", async (context) => {
   expect(events[0]).toMatchObject({
     sourceId: "singleAddress",
     log: {
-      address: blockOneLogs[0].address,
+      address: checksumAddress(blockOneLogs[0].address),
     },
   });
   expect(events[1]).toMatchObject({
     sourceId: "singleTopic",
     log: {
-      address: blockOneLogs[0].address,
+      address: checksumAddress(blockOneLogs[0].address),
     },
   });
   expect(events[2]).toMatchObject({
@@ -1505,7 +1510,7 @@ test("getLogEvents filters on multiple filters", async (context) => {
   });
 });
 
-test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
+test("getLogEvents filters on fromCheckpoint (inclusive)", async (context) => {
   const { syncStore } = context;
 
   await syncStore.insertRealtimeBlock({
@@ -1523,8 +1528,11 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: hexToNumber(blockTwo.timestamp!),
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: {
+      ...zeroCheckpoint,
+      blockTimestamp: hexToNumber(blockTwo.timestamp!),
+    },
+    toCheckpoint: maxCheckpoint,
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
   });
   const events = [];
@@ -1534,7 +1542,7 @@ test("getLogEvents filters on fromTimestamp (inclusive)", async (context) => {
   expect(events).toHaveLength(1);
 });
 
-test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
+test("getLogEvents filters on toCheckpoint (inclusive)", async (context) => {
   const { syncStore } = context;
 
   await syncStore.insertRealtimeBlock({
@@ -1552,8 +1560,11 @@ test("getLogEvents filters on toTimestamp (inclusive)", async (context) => {
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: hexToNumber(blockOne.timestamp!),
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: {
+      ...maxCheckpoint,
+      blockTimestamp: hexToNumber(blockOne.timestamp!),
+    },
     logFilters: [{ id: "noFilter", chainId: 1, criteria: {} }],
   });
   const events = [];
@@ -1584,8 +1595,8 @@ test("getLogEvents returns no events if includeEventSelectors is an empty array"
   });
 
   const iterator = syncStore.getLogEvents({
-    fromTimestamp: 0,
-    toTimestamp: Number.MAX_SAFE_INTEGER,
+    fromCheckpoint: zeroCheckpoint,
+    toCheckpoint: maxCheckpoint,
     logFilters: [
       { id: "noFilter", chainId: 1, criteria: {}, includeEventSelectors: [] },
     ],

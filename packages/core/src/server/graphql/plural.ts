@@ -15,6 +15,7 @@ import {
 
 import type { Schema } from "@/schema/types.js";
 import { isEnumColumn, isManyColumn, isOneColumn } from "@/schema/utils.js";
+import { maxCheckpoint } from "@/utils/checkpoint.js";
 
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
@@ -27,7 +28,7 @@ type PluralArgs = {
   orderBy?: string;
   orderDirection?: "asc" | "desc";
 };
-type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
+export type PluralResolver = GraphQLFieldResolver<Source, Context, PluralArgs>;
 
 const operators = {
   universal: ["", "_not"],
@@ -122,9 +123,13 @@ export const buildPluralField = ({
 
     const { timestamp, where, skip, first, orderBy, orderDirection } = args;
 
+    const checkpoint = timestamp
+      ? { ...maxCheckpoint, blockTimestamp: timestamp }
+      : undefined; // Latest.
+
     return await store.findMany({
       tableName: tableName,
-      timestamp: timestamp ? timestamp : undefined,
+      checkpoint,
       where: where ? buildWhereObject({ where }) : undefined,
       skip: skip,
       take: first,

@@ -16,9 +16,11 @@ import {
 } from "@/config/sources.js";
 import type { Common } from "@/Ponder.js";
 import type { SyncStore } from "@/sync-store/store.js";
+import type { Checkpoint } from "@/utils/checkpoint.js";
 import { poll } from "@/utils/poll.js";
 import { createQueue, type Queue } from "@/utils/queue.js";
 import { range } from "@/utils/range.js";
+import { getErrorMessage, request, requestWithRetry } from "@/utils/request.js";
 import { startClock } from "@/utils/timer.js";
 
 import { isMatchedLogInBloomFilter } from "./bloom.js";
@@ -30,9 +32,9 @@ import {
 } from "./format.js";
 
 type RealtimeSyncEvents = {
-  realtimeCheckpoint: { blockTimestamp: number; blockNumber: number };
-  finalityCheckpoint: { blockTimestamp: number; blockNumber: number };
-  shallowReorg: { commonAncestorBlockTimestamp: number };
+  realtimeCheckpoint: Checkpoint;
+  finalityCheckpoint: Checkpoint;
+  shallowReorg: Checkpoint;
   deepReorg: { detectedAtBlockNumber: number; minimumDepth: number };
 };
 
@@ -80,11 +82,14 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     this.blocks = [];
 
     // Fetch the latest block, and remote chain Id for the network.
-    const [latestBlock, rpcChainId] = await Promise.all([
-      this.getLatestBlock(),
-      this.network.client.getChainId(),
+    const [latestBlock, rpcChainId_] = await Promise.all([
+      requestWithRetry(() => this.getLatestBlock(undefined)),
+      requestWithRetry(() =>
+        request(this.network, { body: { method: "eth_chainId" } }),
+      ),
     ]);
     const latestBlockNumber = hexToNumber(latestBlock.number);
+    const rpcChainId = hexToNumber(rpcChainId_);
 
     if (rpcChainId !== this.network.chainId)
       this.common.logger.warn({
@@ -149,9 +154,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
     // Fetch the block at the finalized block number.
     const stopClock = startClock();
-    const finalizedBlock = await this.network.client.request({
-      method: "eth_getBlockByNumber",
-      params: [numberToHex(this.finalizedBlockNumber), false],
+    const finalizedBlock = await request(this.network, {
+      body: {
+        method: "eth_getBlockByNumber",
+        params: [numberToHex(this.finalizedBlockNumber), false],
+      },
     });
     if (!finalizedBlock) throw new Error(`Unable to fetch finalized block`);
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
@@ -200,12 +207,15 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
     await this.queue.onIdle();
   };
 
-  private getLatestBlock = async () => {
+  private getLatestBlock = async (signal: AbortSignal | undefined) => {
     // Fetch the latest block for the network.
     const stopClock = startClock();
-    const latestBlock_ = await this.network.client.request({
-      method: "eth_getBlockByNumber",
-      params: ["latest", true],
+    const latestBlock_ = await request(this.network, {
+      body: {
+        method: "eth_getBlockByNumber",
+        params: ["latest", true],
+      },
+      fetchOptions: { signal },
     });
     if (!latestBlock_) throw new Error(`Unable to fetch latest block`);
     this.common.metrics.ponder_realtime_rpc_request_duration.observe(
@@ -216,32 +226,33 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
   };
 
   // This method is only public for to support the tests.
-  addNewLatestBlock = async () => {
+  addNewLatestBlock = async (signal: AbortSignal | undefined = undefined) => {
     try {
-      const block = await this.getLatestBlock();
+      const block = await this.getLatestBlock(signal);
       const priority = Number.MAX_SAFE_INTEGER - hexToNumber(block.number);
       this.queue.addTask(block, { priority });
     } catch (error) {
       // Do nothing, log the error. Might consider a retry limit here after which the service should die.
-      this.common.logger.error({
+      const message = getErrorMessage(error as Error);
+      this.common.logger.warn({
         service: "realtime",
-        msg: "Error while fetching latest block",
-        error: error as Error,
+        msg: `Error while fetching latest block (error=${message})`,
       });
     }
   };
 
   private buildQueue = () => {
     const queue = createQueue<RealtimeBlockTask>({
-      worker: async ({ task }: { task: RealtimeBlockTask }) => {
-        await this.blockTaskWorker(task);
+      worker: async ({ task, signal }) => {
+        await this.blockTaskWorker({ block: task, signal });
       },
       options: { concurrency: 1, autoStart: false },
       onError: ({ error, task }) => {
-        this.common.logger.error({
+        const message = getErrorMessage(error);
+
+        this.common.logger.warn({
           service: "realtime",
-          msg: `Realtime sync task failed (network=${this.network.name})`,
-          error,
+          msg: `Realtime sync task failed (network=${this.network.name}, error=${message})`,
           network: this.network.name,
           hash: task.hash,
           parentHash: task.parentHash,
@@ -250,14 +261,20 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         });
 
         // Default to a retry (uses the retry options passed to the queue).
-        // queue.addTask(task, { retry: true });
+        queue.addTask(task, { retry: true });
       },
     });
 
     return queue;
   };
 
-  private blockTaskWorker = async (block: BlockWithTransactions) => {
+  private blockTaskWorker = async ({
+    block,
+    signal,
+  }: {
+    block: BlockWithTransactions;
+    signal: AbortSignal;
+  }) => {
     const previousHeadBlock = this.blocks[this.blocks.length - 1];
 
     // If no block is passed, fetch the latest block.
@@ -304,9 +321,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         } else {
           // Block (maybe) contains logs matching the registered log filters.
           const stopClock = startClock();
-          logs = await this.network.client.request({
-            method: "eth_getLogs",
-            params: [{ blockHash: newBlock.hash }],
+          logs = await request(this.network, {
+            body: {
+              method: "eth_getLogs",
+              params: [{ blockHash: newBlock.hash }],
+            },
+            fetchOptions: { signal },
           });
           this.common.metrics.ponder_realtime_rpc_request_duration.observe(
             { method: "eth_getLogs", network: this.network.name },
@@ -322,9 +342,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         // The app has factory contracts.
         // Don't attempt to skip calling eth_getLogs, just call it every time.
         const stopClock = startClock();
-        logs = await this.network.client.request({
-          method: "eth_getLogs",
-          params: [{ blockHash: newBlock.hash }],
+        logs = await request(this.network, {
+          body: {
+            method: "eth_getLogs",
+            params: [{ blockHash: newBlock.hash }],
+          },
+          fetchOptions: { signal },
         });
         this.common.metrics.ponder_realtime_rpc_request_duration.observe(
           { method: "eth_getLogs", network: this.network.name },
@@ -419,8 +442,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       }
 
       this.emit("realtimeCheckpoint", {
-        blockNumber: hexToNumber(newBlockWithTransactions.number),
         blockTimestamp: hexToNumber(newBlockWithTransactions.timestamp),
+        chainId: this.network.chainId,
+        blockNumber: hexToNumber(newBlockWithTransactions.number),
       });
 
       // Add this block the local chain.
@@ -473,8 +497,9 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
         this.finalizedBlockNumber = newFinalizedBlock.number;
 
         this.emit("finalityCheckpoint", {
-          blockNumber: newFinalizedBlock.number,
           blockTimestamp: newFinalizedBlock.timestamp,
+          chainId: this.network.chainId,
+          blockNumber: newFinalizedBlock.number,
         });
 
         this.common.logger.debug({
@@ -506,9 +531,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
       const missingBlockRequests = missingBlockNumbers.map((number) => {
         return limit(async () => {
           const stopClock = startClock();
-          const block = await this.network.client.request({
-            method: "eth_getBlockByNumber",
-            params: [numberToHex(number), true],
+          const block = await request(this.network, {
+            body: {
+              method: "eth_getBlockByNumber",
+              params: [numberToHex(number), true],
+            },
+            fetchOptions: { signal },
           });
           if (!block) {
             throw new Error(`Failed to fetch block number: ${number}`);
@@ -597,9 +625,11 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
         // Also add a new latest block, so we don't have to wait for the next poll to
         // start fetching any newer blocks on the canonical chain.
-        await this.addNewLatestBlock();
+        await this.addNewLatestBlock(signal);
         this.emit("shallowReorg", {
-          commonAncestorBlockTimestamp: commonAncestorBlock.timestamp,
+          blockTimestamp: commonAncestorBlock.timestamp,
+          chainId: this.network.chainId,
+          blockNumber: commonAncestorBlock.number,
         });
 
         this.common.logger.info({
@@ -612,9 +642,12 @@ export class RealtimeSyncService extends Emittery<RealtimeSyncEvents> {
 
       // If the parent block is not present in our local chain, keep traversing up the canonical chain.
       const stopClock = startClock();
-      const parentBlock_ = await this.network.client.request({
-        method: "eth_getBlockByHash",
-        params: [canonicalBlock.parentHash, true],
+      const parentBlock_ = await request(this.network, {
+        body: {
+          method: "eth_getBlockByHash",
+          params: [canonicalBlock.parentHash, true],
+        },
+        fetchOptions: { signal },
       });
       this.common.metrics.ponder_realtime_rpc_request_duration.observe(
         {

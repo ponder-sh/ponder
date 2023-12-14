@@ -4,29 +4,31 @@ import path from "node:path";
 import Emittery from "emittery";
 import { glob } from "glob";
 import type { GraphQLSchema } from "graphql";
-// @ts-ignore
-import type { ViteDevServer } from "vite";
-// @ts-ignore
-import type { ViteNodeRunner } from "vite-node/client";
-// @ts-ignore
-import type { ViteNodeServer } from "vite-node/server";
+import { createServer, type ViteDevServer } from "vite";
+import { ViteNodeRunner } from "vite-node/client";
+import { ViteNodeServer } from "vite-node/server";
+import { installSourcemapsSupport } from "vite-node/source-map";
+import { normalizeModuleId, toFilePath } from "vite-node/utils";
 
 import type { Config } from "@/config/config.js";
+import { validateConfig } from "@/config/validate.js";
 import type { Common } from "@/Ponder.js";
 import type { Schema } from "@/schema/types.js";
+import { validateSchema } from "@/schema/validate.js";
 import { buildGqlSchema } from "@/server/graphql/schema.js";
 
 import {
   type IndexingFunctions,
   validateIndexingFunctions,
 } from "./functions.js";
+import { vitePluginPonder } from "./plugin.js";
 import type { ViteNodeError } from "./stacktrace.js";
 import { parseViteNodeError } from "./stacktrace.js";
 
 type BuildServiceEvents = {
-  newConfig: { config: Config };
+  newConfig: { config?: Config };
   newIndexingFunctions: { indexingFunctions: IndexingFunctions };
-  newSchema: { schema: Schema; graphqlSchema: GraphQLSchema };
+  newSchema: { schema?: Schema; graphqlSchema?: GraphQLSchema };
 };
 
 export class BuildService extends Emittery<BuildServiceEvents> {
@@ -47,12 +49,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
   }
 
   async setup() {
-    const { createServer } = await import("vite");
-    const { ViteNodeServer } = await import("vite-node/server");
-    const { installSourcemapsSupport } = await import("vite-node/source-map");
-    const { ViteNodeRunner } = await import("vite-node/client");
-    const { toFilePath, normalizeModuleId } = await import("vite-node/utils");
-
     const viteLogger = {
       warnedMessages: new Set<string>(),
       loggedErrors: new WeakSet<Error>(),
@@ -84,32 +80,7 @@ export class BuildService extends Emittery<BuildServiceEvents> {
       publicDir: false,
       customLogger: viteLogger,
       server: { hmr: false },
-      plugins: [
-        {
-          name: "ponder:hmr",
-          transform: (code_) => {
-            let code = code_;
-
-            // Matches `import { ponder } from "@/generated";` with whitespaces and newlines.
-            const regex =
-              /import\s+\{\s*ponder\s*\}\s+from\s+(['"])@\/generated\1\s*;?/g;
-            if (regex.test(code)) {
-              // Add shim object to collect user functions.
-              const shimHeader = `
-                export let ponder = {
-                  fns: [],
-                  on(name, fn) {
-                    this.fns.push({ name, fn });
-                  },
-                };
-              `;
-              code = `${shimHeader}\n${code.replace(regex, "")}`;
-            }
-
-            return code;
-          },
-        },
-      ],
+      plugins: [vitePluginPonder()],
     });
 
     // This is Vite boilerplate (initializes the Rollup container).
@@ -199,11 +170,22 @@ export class BuildService extends Emittery<BuildServiceEvents> {
 
     const config = result.exports.default as Config;
 
-    // TODO: Validate config lol
+    try {
+      await validateConfig({ config });
+      this.emit("newConfig", { config });
+      return config;
+    } catch (error_) {
+      const error = error_ as Error;
+      error.stack = undefined;
+      this.common.logger.error({
+        service: "build",
+        error,
+      });
 
-    this.emit("newConfig", { config });
-
-    return config;
+      this.common.errors.submitUserError();
+      this.emit("newConfig", {});
+      return undefined;
+    }
   }
 
   async loadSchema() {
@@ -216,11 +198,22 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     const schema = result.exports.default as Schema;
     const graphqlSchema = buildGqlSchema(schema);
 
-    // TODO: Validate schema lol
+    try {
+      validateSchema({ schema });
+      this.emit("newSchema", { schema, graphqlSchema });
+      return { schema, graphqlSchema };
+    } catch (error_) {
+      const error = error_ as Error;
+      error.stack = undefined;
+      this.common.logger.error({
+        service: "build",
+        error,
+      });
 
-    this.emit("newSchema", { schema, graphqlSchema });
-
-    return { schema, graphqlSchema };
+      this.common.errors.submitUserError();
+      this.emit("newSchema", {});
+      return undefined;
+    }
   }
 
   async loadIndexingFunctions({ files: files_ }: { files?: string[] } = {}) {
@@ -310,6 +303,6 @@ export class BuildService extends Emittery<BuildServiceEvents> {
     });
 
     // TODO: Fix this error handling approach.
-    this.common.errors.submitUserError({ error });
+    this.common.errors.submitUserError();
   }
 }

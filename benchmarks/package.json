@@ -1,19 +1,20 @@
 {
   "name": "ponder-benchmarks",
   "private": true,
+  "type": "module",
   "scripts": {
-    "bench:ponder": "tsup-node && anvil --fork-url $ANVIL_FORK_URL --fork-block-number $ANVIL_FORK_BLOCK_NUMBER && node dist/ponder.mjs",
-    "bench:ponder:ci": "tsup-node && node dist/ponder.mjs",
-    "bench:subgraph": "export $(grep -v '^#' .env.local | xargs) && rm -rf data/ && docker-compose up --detach && tsup-node && (node dist/subgraph.mjs || true) && docker-compose down",
-    "bench:subgraph:ci": "tsup-node && node dist/subgraph.mjs"
+    "bench:ponder": "bun src/ponder.ts",
+    "bench:ponder:ci": "tsup-node && node dist/ponder.js",
+    "bench:subgraph": "./run-subgraph.sh",
+    "bench:subgraph:ci": "tsup-node && node dist/subgraph.js"
   },
   "devDependencies": {
     "@graphprotocol/graph-cli": "0.61.0",
     "@graphprotocol/graph-ts": "^0.31.0",
     "@ponder/core": "workspace:*",
     "@types/node": "^20.10.0",
+    "eslint-config-ponder": "workspace:*",
     "execa": "^8.0.1",
-    "parse-prometheus-text-format": "^1.1.1",
     "tsup": "^8.0.1",
     "typescript": "^5.3.2",
     "viem": "1.19.9"

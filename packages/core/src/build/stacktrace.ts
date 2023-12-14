@@ -114,7 +114,7 @@ export function parseViteNodeError(error: Error): ViteNodeError {
   }
 
   resolvedError.stack = `${resolvedError.name}: ${resolvedError.message}\n${resolvedError.stack}`;
-  if (codeFrame) resolvedError.stack = `${resolvedError.stack}\n${codeFrame}`;
+  if (codeFrame) resolvedError.stack += `\n${codeFrame}`;
 
   return resolvedError;
 }

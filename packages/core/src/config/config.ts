@@ -93,13 +93,13 @@ export type ContractFilter<
   TFactoryEvent extends AbiEvent | undefined,
 > = (
   | {
-      address?: `0x${string}` | readonly `0x${string}`[];
+      address: `0x${string}` | readonly `0x${string}`[];
       factory?: never;
     }
   | {
       address?: never;
       /** Factory contract configuration. */
-      factory?: {
+      factory: {
         /** Address of the factory contract that creates this contract. */
         address: `0x${string}`;
         /** ABI event that announces the creation of a new instance of this contract. */
@@ -110,6 +110,7 @@ export type ContractFilter<
           : string;
       };
     }
+  | {}
 ) & {
   /** Block number at which to start indexing events (inclusive). Default: `0`. */
   startBlock?: number;
@@ -126,7 +127,6 @@ export type ContractFilter<
       ?
           | {
               event: readonly SafeEventNames<FilterAbiEvents<TAbi>>[number][];
-              args?: never;
             }
           | {
               event: SafeEventNames<FilterAbiEvents<TAbi>>[number];
@@ -145,7 +145,11 @@ export type ContractFilter<
                 > extends infer _abiEvent extends AbiEvent
                   ? _abiEvent
                   : AbiEvent
-              >;
+              > extends infer e
+                ? e extends readonly []
+                  ? never
+                  : e
+                : never;
             }
       : never;
 };
@@ -192,8 +196,8 @@ export type Network = {
   transport: Transport;
   /** Polling frequency (in ms). Default: `1_000`. */
   pollingInterval?: number;
-  /** Maximum concurrency of RPC requests during the historical sync. Default: `10`. */
-  maxRpcRequestConcurrency?: number;
+  /** Maximum concurrency of tasks during the historical sync. Default: `20`. */
+  maxHistoricalTaskConcurrency?: number;
 };
 
 type Option = {
@@ -212,78 +216,54 @@ export type Config = {
 };
 
 /**
- * Validates type of config, and returns a strictly typed, resolved config.
+ * Create a Ponder config.
+ *
+ * - Docs: [TODO:KYLE]
+ *
+ * @example
+ * export default createConfig({
+ *   networks: {
+ *     mainnet: { chainId: 1, transport: http(process.env.PONDER_RPC_URL_1) },
+ *   },
+ *   contracts: {
+ *     ERC20: {
+ *       abi: ERC20Abi,
+ *       network: "mainnet",
+ *       address: "0x123...",
+ *       startBlock: 1500,
+ *     },
+ *   },
+ * })
  */
 export const createConfig = <
-  const TConfig extends {
-    database?: Database;
-    networks: Record<string, Network>;
-    contracts: {
-      [ContractName in keyof TConfig["contracts"]]: Contract<
-        keyof TConfig["networks"] & string,
-        TConfig["contracts"][ContractName]["abi"],
-        TConfig["contracts"][ContractName] extends {
-          event: infer _event extends string;
-        }
-          ? _event
-          : string,
-        TConfig["contracts"][ContractName] extends {
-          factory: {
-            event: infer _event extends AbiEvent;
-          };
-        }
-          ? _event
-          : undefined
-      >;
-    };
-    options?: Option;
+  const TNetworks extends Record<string, Network>,
+  const TContracts extends {
+    [ContractName in keyof TContracts]: Contract<
+      keyof TNetworks & string,
+      TContracts[ContractName]["abi"],
+      TContracts[ContractName]["filter"] extends {
+        event: infer _event extends string;
+      }
+        ? _event
+        : string,
+      TContracts[ContractName] extends {
+        factory: {
+          event: infer _event extends AbiEvent;
+        };
+      }
+        ? _event
+        : undefined
+    >;
   },
->(
-  config: TConfig,
-): TConfig => {
-  // convert to an easier type to use
-  const contracts = config.contracts as Record<
-    string,
-    Contract<string, AbiEvent[], string, AbiEvent>
-  >;
-
-  Object.values(contracts).forEach((contract) => {
-    if (typeof contract.network === "string") {
-      // shortcut
-      const network = config.networks[contract.network];
-      if (!network)
-        throw Error('Contract network does not match a network in "networks"');
-
-      // Validate the address / factory data
-      const resolvedFactory = "factory" in contract && contract.factory;
-      const resolvedAddress = "address" in contract && contract.address;
-      if (resolvedFactory && resolvedAddress)
-        throw Error("Factory and address cannot both be defined");
-    } else {
-      Object.entries(contract.network).forEach(
-        ([networkName, contractOverride]) => {
-          if (!contractOverride) return;
-
-          // Make sure network matches an element in config.networks
-          const network = config.networks[networkName];
-          if (!network)
-            throw Error(
-              'Contract network does not match a network in "networks"',
-            );
-
-          // Validate the address / factory data
-          const resolvedFactory =
-            ("factory" in contractOverride && contractOverride.factory) ||
-            ("factory" in contract && contract.factory);
-          const resolvedAddress =
-            ("address" in contractOverride && contractOverride.address) ||
-            ("address" in contract && contract.address);
-          if (resolvedFactory && resolvedAddress)
-            throw Error("Factory and address cannot both be defined");
-        },
-      );
-    }
-  });
-
-  return config;
-};
+>(config: {
+  database?: Database;
+  networks: TNetworks;
+  contracts: TContracts &
+    Record<string, Contract<string, Abi, string, AbiEvent>>;
+  options?: Option;
+}): {
+  database?: Database;
+  networks: TNetworks;
+  contracts: TContracts;
+  options?: Option;
+} => config;

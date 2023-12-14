@@ -60,7 +60,8 @@ const App = (ui: UiState) => {
     port,
     historicalSyncStats,
     isHistoricalSyncComplete,
-    realtimeSyncNetworks,
+    // TODO: Consider adding realtime back into the UI in some manner.
+    // realtimeSyncNetworks,
     processedEventCount,
     indexingError,
   } = ui;
@@ -94,7 +95,7 @@ const App = (ui: UiState) => {
           {historicalSyncStats.map(({ contract, network, rate, eta }, idx) => (
             <Box flexDirection="column" key={idx}>
               <Text>
-                {contract} <Text color="blueBright">{network}</Text>
+                {contract} <Text dimColor>({network})</Text>
               </Text>
               <HistoricalBar key={idx} rate={rate} eta={eta} />
             </Box>
@@ -106,7 +107,7 @@ const App = (ui: UiState) => {
       <IndexingBar ui={ui} />
       <Text> </Text>
 
-      {realtimeSyncNetworks.length > 0 && (
+      {/* {realtimeSyncNetworks.length > 0 && (
         <Box flexDirection="column">
           <Text bold={true}>Realtime sync </Text>
           {realtimeSyncNetworks.map(({ name, isConnected }) => (
@@ -119,7 +120,7 @@ const App = (ui: UiState) => {
           ))}
           <Text> </Text>
         </Box>
-      )}
+      )} */}
 
       {processedEventCount > 0 && (
         <Box flexDirection="column">
@@ -127,7 +128,6 @@ const App = (ui: UiState) => {
           <Box flexDirection="row">
             <Text>Server live at http://localhost:{port}</Text>
           </Box>
-          <Text> </Text>
         </Box>
       )}
     </Box>

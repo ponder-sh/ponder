@@ -1,4 +1,3 @@
-import type Sqlite from "better-sqlite3";
 import {
   type ExpressionBuilder,
   Kysely,
@@ -7,7 +6,13 @@ import {
   SqliteDialect,
   type Transaction as KyselyTransaction,
 } from "kysely";
-import type { Hex, RpcBlock, RpcLog, RpcTransaction } from "viem";
+import {
+  checksumAddress,
+  type Hex,
+  type RpcBlock,
+  type RpcLog,
+  type RpcTransaction,
+} from "viem";
 
 import type {
   FactoryCriteria,
@@ -19,13 +24,16 @@ import type { Block } from "@/types/block.js";
 import type { Log } from "@/types/log.js";
 import type { Transaction } from "@/types/transaction.js";
 import type { NonNull } from "@/types/utils.js";
+import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { decodeToBigInt, encodeAsText } from "@/utils/encoding.js";
+import { ensureDirExists } from "@/utils/exists.js";
 import {
   buildFactoryFragments,
   buildLogFilterFragments,
 } from "@/utils/fragments.js";
 import { intervalIntersectionMany, intervalUnion } from "@/utils/interval.js";
 import { range } from "@/utils/range.js";
+import { BetterSqlite3, improveSqliteErrors } from "@/utils/sqlite.js";
 import { wait } from "@/utils/wait.js";
 
 import type { SyncStore } from "../store.js";
@@ -45,10 +53,14 @@ export class SqliteSyncStore implements SyncStore {
   db: Kysely<SyncStoreTables>;
   migrator: Migrator;
 
-  constructor({ common, db }: { common: Common; db: Sqlite.Database }) {
+  constructor({ common, file }: { common: Common; file: string }) {
     this.common = common;
+    ensureDirExists(file);
+    const database = new BetterSqlite3(file);
+    improveSqliteErrors(database);
+    database.pragma("journal_mode = WAL");
     this.db = new Kysely<SyncStoreTables>({
-      dialect: new SqliteDialect({ database: db }),
+      dialect: new SqliteDialect({ database }),
     });
 
     this.migrator = new Migrator({
@@ -74,7 +86,7 @@ export class SqliteSyncStore implements SyncStore {
     const { error } = await this.migrator.migrateToLatest();
     if (error) throw error;
 
-    this.record("migrateUp", start);
+    this.record("migrateUp", performance.now() - start);
   };
 
   insertLogFilterInterval = async ({
@@ -124,7 +136,7 @@ export class SqliteSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertLogFilterInterval", start);
+    this.record("insertLogFilterInterval", performance.now() - start);
   };
 
   getLogFilterIntervals = async ({
@@ -242,7 +254,7 @@ export class SqliteSyncStore implements SyncStore {
     });
 
     const intersectionIntervals = intervalIntersectionMany(fragmentIntervals);
-    this.record("getLogFilterIntervals", start);
+    this.record("getLogFilterIntervals", performance.now() - start);
     return intersectionIntervals;
   };
 
@@ -265,7 +277,7 @@ export class SqliteSyncStore implements SyncStore {
       }
     });
 
-    this.record("insertFactoryChildAddressLogs", start);
+    this.record("insertFactoryChildAddressLogs", performance.now() - start);
   };
 
   async *getFactoryChildAddresses({
@@ -279,7 +291,8 @@ export class SqliteSyncStore implements SyncStore {
     factory: FactoryCriteria;
     pageSize?: number;
   }) {
-    const start = performance.now();
+    let queryExecutionTime = 0;
+
     const { address, eventSelector, childAddressLocation } = factory;
 
     const selectChildAddressExpression =
@@ -303,7 +316,9 @@ export class SqliteSyncStore implements SyncStore {
         query = query.where("blockNumber", ">", cursor);
       }
 
+      const start = performance.now();
       const batch = await query.execute();
+      queryExecutionTime += performance.now() - start;
 
       const lastRow = batch[batch.length - 1];
       if (lastRow) {
@@ -317,7 +332,7 @@ export class SqliteSyncStore implements SyncStore {
       if (batch.length < pageSize) break;
     }
 
-    this.record("getFactoryChildAddresses", start);
+    this.record("getFactoryChildAddresses", queryExecutionTime);
   }
 
   insertFactoryLogFilterInterval = async ({
@@ -368,7 +383,7 @@ export class SqliteSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertFactoryLogFilterInterval", start);
+    this.record("insertFactoryLogFilterInterval", performance.now() - start);
   };
 
   getFactoryLogFilterIntervals = async ({
@@ -497,7 +512,7 @@ export class SqliteSyncStore implements SyncStore {
 
     const intersectionIntervals = intervalIntersectionMany(fragmentIntervals);
 
-    this.record("getFactoryLogFilterIntervals", start);
+    this.record("getFactoryLogFilterIntervals", performance.now() - start);
 
     return intersectionIntervals;
   };
@@ -539,7 +554,7 @@ export class SqliteSyncStore implements SyncStore {
       }
     });
 
-    this.record("insertRealtimeBlock", start);
+    this.record("insertRealtimeBlock", performance.now() - start);
   };
 
   insertRealtimeInterval = async ({
@@ -577,7 +592,7 @@ export class SqliteSyncStore implements SyncStore {
       });
     });
 
-    this.record("insertRealtimeInterval", start);
+    this.record("insertRealtimeInterval", performance.now() - start);
   };
 
   deleteRealtimeData = async ({
@@ -685,7 +700,7 @@ export class SqliteSyncStore implements SyncStore {
         .execute();
     });
 
-    this.record("deleteRealtimeData", start);
+    this.record("deleteRealtimeData", performance.now() - start);
   };
 
   /** SYNC HELPER METHODS */
@@ -788,7 +803,7 @@ export class SqliteSyncStore implements SyncStore {
       .onConflict((oc) => oc.doUpdateSet({ result }))
       .execute();
 
-    this.record("insertRpcRequestResult", start);
+    this.record("insertRpcRequestResult", performance.now() - start);
   };
 
   getRpcRequestResult = async ({
@@ -817,20 +832,20 @@ export class SqliteSyncStore implements SyncStore {
         }
       : null;
 
-    this.record("getRpcRequestResult", start);
+    this.record("getRpcRequestResult", performance.now() - start);
 
     return result;
   };
 
   async *getLogEvents({
-    fromTimestamp,
-    toTimestamp,
+    fromCheckpoint,
+    toCheckpoint,
     logFilters = [],
     factories = [],
     pageSize = 10_000,
   }: {
-    fromTimestamp: number;
-    toTimestamp: number;
+    fromCheckpoint: Checkpoint;
+    toCheckpoint: Checkpoint;
     logFilters?: {
       id: string;
       chainId: number;
@@ -849,7 +864,7 @@ export class SqliteSyncStore implements SyncStore {
     }[];
     pageSize: number;
   }) {
-    const start = performance.now();
+    let queryExecutionTime = 0;
 
     const sourceIds = [
       ...logFilters.map((f) => f.id),
@@ -924,107 +939,46 @@ export class SqliteSyncStore implements SyncStore {
         "transactions.value as tx_value",
         "transactions.v as tx_v",
       ])
-      .where("blocks.timestamp", ">=", encodeAsText(fromTimestamp))
-      .where("blocks.timestamp", "<=", encodeAsText(toTimestamp))
-      .orderBy("blocks.timestamp", "asc")
-      .orderBy("logs.chainId", "asc")
-      .orderBy("blocks.number", "asc")
-      .orderBy("logs.logIndex", "asc");
+      .where((eb) => this.buildCheckpointCmprs(eb, ">", fromCheckpoint))
+      .where((eb) => this.buildCheckpointCmprs(eb, "<=", toCheckpoint));
 
-    const buildLogFilterCmprs = ({
-      eb,
-      logFilter,
-    }: {
-      eb: ExpressionBuilder<any, any>;
-      logFilter: (typeof logFilters)[number];
-    }) => {
-      const exprs = [];
-
-      exprs.push(eb("source_id", "=", logFilter.id));
-      exprs.push(eb("logs.chainId", "=", logFilter.chainId));
-
-      if (logFilter.criteria.address) {
-        // If it's an array of length 1, collapse it.
-        const address =
-          Array.isArray(logFilter.criteria.address) &&
-          logFilter.criteria.address.length === 1
-            ? logFilter.criteria.address[0]
-            : logFilter.criteria.address;
-        if (Array.isArray(address)) {
-          exprs.push(eb.or(address.map((a) => eb("logs.address", "=", a))));
-        } else {
-          exprs.push(eb("logs.address", "=", address));
-        }
-      }
-
-      if (logFilter.criteria.topics) {
-        for (const idx_ of range(0, 4)) {
-          const idx = idx_ as 0 | 1 | 2 | 3;
-          // If it's an array of length 1, collapse it.
-          const raw = logFilter.criteria.topics[idx] ?? null;
-          if (raw === null) continue;
-          const topic = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
-          if (Array.isArray(topic)) {
-            exprs.push(eb.or(topic.map((a) => eb(`logs.topic${idx}`, "=", a))));
-          } else {
-            exprs.push(eb(`logs.topic${idx}`, "=", topic));
-          }
-        }
-      }
-
-      if (logFilter.fromBlock)
-        exprs.push(
-          eb("blocks.number", ">=", encodeAsText(logFilter.fromBlock)),
+    // Get total count of matching logs, grouped by log filter and event selector.
+    const eventCountsQuery = baseQuery
+      .clearSelect()
+      .select([
+        "source_id",
+        "logs.topic0",
+        this.db.fn.count("logs.id").as("count"),
+      ])
+      .where((eb) => {
+        // NOTE: Not adding the includeEventSelectors clause here.
+        const logFilterCmprs = logFilters.map((logFilter) =>
+          eb.and(this.buildLogFilterCmprs({ eb, logFilter })),
         );
-      if (logFilter.toBlock)
-        exprs.push(eb("blocks.number", "<=", encodeAsText(logFilter.toBlock)));
 
-      return exprs;
-    };
+        const factoryCmprs = factories.map((factory) =>
+          eb.and(this.buildFactoryCmprs({ eb, factory })),
+        );
 
-    const buildFactoryCmprs = ({
-      eb,
-      factory,
-    }: {
-      eb: ExpressionBuilder<any, any>;
-      factory: (typeof factories)[number];
-    }) => {
-      const exprs = [];
+        return eb.or([...logFilterCmprs, ...factoryCmprs]);
+      })
+      .groupBy(["source_id", "logs.topic0"]);
 
-      exprs.push(eb("source_id", "=", factory.id));
-      exprs.push(eb("logs.chainId", "=", factory.chainId));
-
-      const selectChildAddressExpression =
-        buildFactoryChildAddressSelectExpression({
-          childAddressLocation: factory.criteria.childAddressLocation,
-        });
-
-      exprs.push(
-        eb(
-          "logs.address",
-          "in",
-          eb
-            .selectFrom("logs")
-            .select(selectChildAddressExpression.as("childAddress"))
-            .where("chainId", "=", factory.chainId)
-            .where("address", "=", factory.criteria.address)
-            .where("topic0", "=", factory.criteria.eventSelector),
-        ),
-      );
-
-      if (factory.fromBlock)
-        exprs.push(eb("blocks.number", ">=", encodeAsText(factory.fromBlock)));
-      if (factory.toBlock)
-        exprs.push(eb("blocks.number", "<=", encodeAsText(factory.toBlock)));
-
-      return exprs;
-    };
+    // Fetch the event counts once and include it in every response.
+    const start = performance.now();
+    const eventCountsRaw = await eventCountsQuery.execute();
+    const eventCounts = eventCountsRaw.map((c) => ({
+      sourceId: String(c.source_id),
+      selector: c.topic0 as Hex,
+      count: Number(c.count),
+    }));
+    queryExecutionTime += performance.now() - start;
 
     // Get full log objects, including the includeEventSelectors clause.
     const includedLogsBaseQuery = baseQuery
       .where((eb) => {
         const logFilterCmprs = logFilters.map((logFilter) => {
-          const exprs = buildLogFilterCmprs({ eb, logFilter });
+          const exprs = this.buildLogFilterCmprs({ eb, logFilter });
           if (logFilter.includeEventSelectors) {
             exprs.push(
               eb.or(
@@ -1038,7 +992,7 @@ export class SqliteSyncStore implements SyncStore {
         });
 
         const factoryCmprs = factories.map((factory) => {
-          const exprs = buildFactoryCmprs({ eb, factory });
+          const exprs = this.buildFactoryCmprs({ eb, factory });
           if (factory.includeEventSelectors) {
             exprs.push(
               eb.or(
@@ -1058,73 +1012,15 @@ export class SqliteSyncStore implements SyncStore {
       .orderBy("blocks.number", "asc")
       .orderBy("logs.logIndex", "asc");
 
-    // Get total count of matching logs, grouped by log filter and event selector.
-    const eventCountsQuery = baseQuery
-      .clearSelect()
-      .select([
-        "source_id",
-        "logs.topic0",
-        this.db.fn.count("logs.id").as("count"),
-      ])
-      .where((eb) => {
-        // NOTE: Not adding the includeEventSelectors clause here.
-        const logFilterCmprs = logFilters.map((logFilter) =>
-          eb.and(buildLogFilterCmprs({ eb, logFilter })),
-        );
-
-        const factoryCmprs = factories.map((factory) =>
-          eb.and(buildFactoryCmprs({ eb, factory })),
-        );
-
-        return eb.or([...logFilterCmprs, ...factoryCmprs]);
-      })
-      .groupBy(["source_id", "logs.topic0"]);
-
-    // Fetch the event counts once and include it in every response.
-    const eventCountsRaw = await eventCountsQuery.execute();
-    const eventCounts = eventCountsRaw.map((c) => ({
-      sourceId: String(c.source_id),
-      selector: c.topic0 as Hex,
-      count: Number(c.count),
-    }));
-
-    let cursor:
-      | {
-          timestamp: BigIntText;
-          chainId: number;
-          blockNumber: BigIntText;
-          logIndex: number;
-        }
-      | undefined = undefined;
+    let cursorCheckpoint: Checkpoint | undefined = undefined;
 
     while (true) {
+      const start = performance.now();
       let query = includedLogsBaseQuery.limit(pageSize);
-      if (cursor) {
-        // See this comment for an explanation of the cursor logic.
-        // https://stackoverflow.com/a/38017813
-        // This is required to avoid skipping logs that have the same timestamp.
-        query = query.where(({ eb, and, or }) => {
-          const { timestamp, chainId, blockNumber, logIndex } = cursor!;
-          return and([
-            eb("blocks.timestamp", ">=", timestamp),
-            or([
-              eb("blocks.timestamp", ">", timestamp),
-              and([
-                eb("logs.chainId", ">=", chainId),
-                or([
-                  eb("logs.chainId", ">", chainId),
-                  and([
-                    eb("blocks.number", ">=", blockNumber),
-                    or([
-                      eb("blocks.number", ">", blockNumber),
-                      eb("logs.logIndex", ">", logIndex),
-                    ]),
-                  ]),
-                ]),
-              ]),
-            ]),
-          ]);
-        });
+      if (cursorCheckpoint !== undefined) {
+        query = query.where((eb) =>
+          this.buildCheckpointCmprs(eb, ">", cursorCheckpoint!),
+        );
       }
 
       const requestedLogs = await query.execute();
@@ -1138,11 +1034,11 @@ export class SqliteSyncStore implements SyncStore {
           sourceId: row.source_id,
           chainId: row.log_chainId,
           log: {
-            address: row.log_address,
+            address: checksumAddress(row.log_address),
             blockHash: row.log_blockHash,
             blockNumber: decodeToBigInt(row.log_blockNumber),
             data: row.log_data,
-            id: row.log_id,
+            id: row.log_id as Log["id"],
             logIndex: Number(row.log_logIndex),
             removed: false,
             topics: [
@@ -1164,7 +1060,7 @@ export class SqliteSyncStore implements SyncStore {
             gasUsed: decodeToBigInt(row.block_gasUsed),
             hash: row.block_hash,
             logsBloom: row.block_logsBloom,
-            miner: row.block_miner,
+            miner: checksumAddress(row.block_miner),
             mixHash: row.block_mixHash,
             nonce: row.block_nonce,
             number: decodeToBigInt(row.block_number),
@@ -1180,14 +1076,14 @@ export class SqliteSyncStore implements SyncStore {
           transaction: {
             blockHash: row.tx_blockHash,
             blockNumber: decodeToBigInt(row.tx_blockNumber),
-            from: row.tx_from,
+            from: checksumAddress(row.tx_from),
             gas: decodeToBigInt(row.tx_gas),
             hash: row.tx_hash,
             input: row.tx_input,
             nonce: Number(row.tx_nonce),
             r: row.tx_r,
             s: row.tx_s,
-            to: row.tx_to,
+            to: row.tx_to ? checksumAddress(row.tx_to) : row.tx_to,
             transactionIndex: Number(row.tx_transactionIndex),
             value: decodeToBigInt(row.tx_value),
             v: decodeToBigInt(row.tx_v),
@@ -1213,10 +1109,12 @@ export class SqliteSyncStore implements SyncStore {
                   : row.tx_type === "0x7e"
                     ? {
                         type: "deposit",
-                        maxFeePerGas: decodeToBigInt(row.tx_maxFeePerGas),
-                        maxPriorityFeePerGas: decodeToBigInt(
-                          row.tx_maxPriorityFeePerGas,
-                        ),
+                        maxFeePerGas: row.tx_maxFeePerGas
+                          ? decodeToBigInt(row.tx_maxFeePerGas)
+                          : undefined,
+                        maxPriorityFeePerGas: row.tx_maxPriorityFeePerGas
+                          ? decodeToBigInt(row.tx_maxPriorityFeePerGas)
+                          : undefined,
                       }
                     : {
                         type: row.tx_type,
@@ -1231,34 +1129,198 @@ export class SqliteSyncStore implements SyncStore {
         };
       });
 
-      const lastRow = requestedLogs[requestedLogs.length - 1];
-      if (lastRow) {
-        cursor = {
-          timestamp: lastRow.block_timestamp!,
-          chainId: lastRow.log_chainId,
-          blockNumber: lastRow.block_number!,
-          logIndex: lastRow.log_logIndex,
+      const lastEvent = events[events.length - 1];
+      if (lastEvent) {
+        cursorCheckpoint = {
+          blockTimestamp: Number(lastEvent.block.timestamp),
+          chainId: lastEvent.chainId,
+          blockNumber: Number(lastEvent.block.number),
+          logIndex: lastEvent.log.logIndex,
         };
       }
 
-      const lastEventBlockTimestamp = lastRow?.block_timestamp;
-      const pageEndsAtTimestamp = lastEventBlockTimestamp
-        ? Number(decodeToBigInt(lastEventBlockTimestamp))
-        : toTimestamp;
+      queryExecutionTime += performance.now() - start;
 
       yield {
         events,
         metadata: {
-          pageEndsAtTimestamp,
           counts: eventCounts,
+          pageEndCheckpoint: cursorCheckpoint
+            ? cursorCheckpoint
+            : zeroCheckpoint,
         },
       };
 
       if (events.length < pageSize) break;
     }
 
-    this.record("getLogEvents", start);
+    this.record("getLogEvents", queryExecutionTime);
   }
+
+  /**
+   * Builds an expression that filters for events that are greater or
+   * less than the provided checkpoint. If the log index is not specific,
+   * the expression will use a block-level granularity.
+   */
+  private buildCheckpointCmprs = (
+    eb: ExpressionBuilder<any, any>,
+    op: ">" | ">=" | "<" | "<=",
+    checkpoint: Checkpoint,
+  ) => {
+    const { and, or } = eb;
+
+    const { blockTimestamp, chainId, blockNumber, logIndex } = checkpoint;
+
+    const operand = op.startsWith(">") ? (">" as const) : ("<" as const);
+    const operandOrEquals = `${operand}=` as const;
+    const isInclusive = op.endsWith("=");
+
+    // If the execution index is not defined, the checkpoint is at block granularity.
+    // Include (or exclude) all events in the block.
+    if (logIndex === undefined) {
+      return and([
+        eb("blocks.timestamp", operandOrEquals, encodeAsText(blockTimestamp)),
+        or([
+          eb("blocks.timestamp", operand, encodeAsText(blockTimestamp)),
+          and([
+            eb("logs.chainId", operandOrEquals, chainId),
+            or([
+              eb("logs.chainId", operand, chainId),
+              eb(
+                "blocks.number",
+                isInclusive ? operandOrEquals : operand,
+                encodeAsText(blockNumber),
+              ),
+            ]),
+          ]),
+        ]),
+      ]);
+    }
+
+    // Otherwise, apply the filter down to the log index.
+    return and([
+      eb("blocks.timestamp", operandOrEquals, encodeAsText(blockTimestamp)),
+      or([
+        eb("blocks.timestamp", operand, encodeAsText(blockTimestamp)),
+        and([
+          eb("logs.chainId", operandOrEquals, chainId),
+          or([
+            eb("logs.chainId", operand, chainId),
+            and([
+              eb("blocks.number", operandOrEquals, encodeAsText(blockNumber)),
+              or([
+                eb("blocks.number", operand, encodeAsText(blockNumber)),
+                eb(
+                  "logs.logIndex",
+                  isInclusive ? operandOrEquals : operand,
+                  logIndex,
+                ),
+              ]),
+            ]),
+          ]),
+        ]),
+      ]),
+    ]);
+  };
+
+  private buildLogFilterCmprs = ({
+    eb,
+    logFilter,
+  }: {
+    eb: ExpressionBuilder<any, any>;
+    logFilter: {
+      id: string;
+      chainId: number;
+      criteria: LogFilterCriteria;
+      fromBlock?: number;
+      toBlock?: number;
+    };
+  }) => {
+    const exprs = [];
+
+    exprs.push(eb("source_id", "=", logFilter.id));
+    exprs.push(eb("logs.chainId", "=", logFilter.chainId));
+
+    if (logFilter.criteria.address) {
+      // If it's an array of length 1, collapse it.
+      const address =
+        Array.isArray(logFilter.criteria.address) &&
+        logFilter.criteria.address.length === 1
+          ? logFilter.criteria.address[0]
+          : logFilter.criteria.address;
+      if (Array.isArray(address)) {
+        exprs.push(eb.or(address.map((a) => eb("logs.address", "=", a))));
+      } else {
+        exprs.push(eb("logs.address", "=", address));
+      }
+    }
+
+    if (logFilter.criteria.topics) {
+      for (const idx_ of range(0, 4)) {
+        const idx = idx_ as 0 | 1 | 2 | 3;
+        // If it's an array of length 1, collapse it.
+        const raw = logFilter.criteria.topics[idx] ?? null;
+        if (raw === null) continue;
+        const topic = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
+        if (Array.isArray(topic)) {
+          exprs.push(eb.or(topic.map((a) => eb(`logs.topic${idx}`, "=", a))));
+        } else {
+          exprs.push(eb(`logs.topic${idx}`, "=", topic));
+        }
+      }
+    }
+
+    if (logFilter.fromBlock)
+      exprs.push(eb("blocks.number", ">=", encodeAsText(logFilter.fromBlock)));
+    if (logFilter.toBlock)
+      exprs.push(eb("blocks.number", "<=", encodeAsText(logFilter.toBlock)));
+
+    return exprs;
+  };
+
+  private buildFactoryCmprs = ({
+    eb,
+    factory,
+  }: {
+    eb: ExpressionBuilder<any, any>;
+    factory: {
+      id: string;
+      chainId: number;
+      criteria: FactoryCriteria;
+      fromBlock?: number;
+      toBlock?: number;
+    };
+  }) => {
+    const exprs = [];
+
+    exprs.push(eb("source_id", "=", factory.id));
+    exprs.push(eb("logs.chainId", "=", factory.chainId));
+
+    const selectChildAddressExpression =
+      buildFactoryChildAddressSelectExpression({
+        childAddressLocation: factory.criteria.childAddressLocation,
+      });
+
+    exprs.push(
+      eb(
+        "logs.address",
+        "in",
+        eb
+          .selectFrom("logs")
+          .select(selectChildAddressExpression.as("childAddress"))
+          .where("chainId", "=", factory.chainId)
+          .where("address", "=", factory.criteria.address)
+          .where("topic0", "=", factory.criteria.eventSelector),
+      ),
+    );
+
+    if (factory.fromBlock)
+      exprs.push(eb("blocks.number", ">=", encodeAsText(factory.fromBlock)));
+    if (factory.toBlock)
+      exprs.push(eb("blocks.number", "<=", encodeAsText(factory.toBlock)));
+
+    return exprs;
+  };
 
   private transaction = async <U>(
     callback: (tx: KyselyTransaction<SyncStoreTables>) => Promise<U>,
@@ -1273,10 +1335,10 @@ export class SqliteSyncStore implements SyncStore {
     });
   };
 
-  private record(methodName: string, start: number) {
+  private record(methodName: string, duration: number) {
     this.common.metrics.ponder_sync_store_method_duration.observe(
       { method: methodName },
-      performance.now() - start,
+      duration,
     );
   }
 }

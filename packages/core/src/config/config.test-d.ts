@@ -1,9 +1,11 @@
+import type { Abi, AbiEvent } from "abitype";
 import type { ParseAbiItem } from "viem";
 import { http } from "viem";
 import { assertType, test } from "vitest";
 
 import type {
   FilterAbiEvents,
+  Network,
   RecoverAbiEvent,
   SafeEventNames,
 } from "./config.js";
@@ -11,7 +13,7 @@ import { createConfig } from "./config.js";
 
 type Event0 = ParseAbiItem<"event Event0(bytes32 indexed arg)">;
 type Event1 = ParseAbiItem<"event Event1()">;
-type Event1Overloaded = ParseAbiItem<"event Event1(bytes32)">;
+type Event1Overloaded = ParseAbiItem<"event Event1(bytes32 indexed)">;
 type Func = ParseAbiItem<"function func()">;
 
 test("FilterAbiEvents", () => {
@@ -34,7 +36,7 @@ test("SafeEventNames overloaded", () => {
     // ^?
     [Event1, Event1Overloaded]
   >;
-  assertType<a>(["Event1()", "Event1(bytes32)"] as const);
+  assertType<a>(["Event1()", "Event1(bytes32 indexed)"] as const);
 });
 
 test("RecoverAbiEvent", () => {
@@ -97,6 +99,68 @@ test("createConfig() network shortcut", () => {
   assertType<typeof config.contracts.c.network>("" as "mainnet");
 });
 
+test("createConfig() network weak type", () => {
+  const config = createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
+      },
+    } as Record<string, Network>,
+    contracts: {
+      c: {
+        network: "mainnet",
+        abi: [],
+      },
+    },
+  });
+
+  assertType<keyof typeof config.networks>("" as string);
+});
+
+test("createConfig() abi weak type", () => {
+  createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
+      },
+    } as Record<string, Network>,
+    contracts: {
+      c: {
+        network: "mainnet",
+        abi: [] as Abi,
+        filter: {
+          event: "Event0",
+          args: { arg: ["0x0"] },
+        },
+      },
+    },
+  });
+});
+
+test("createConfig() factory event weak type", () => {
+  createConfig({
+    networks: {
+      mainnet: {
+        chainId: 1,
+        transport: http("http://127.0.0.1:8545"),
+      },
+    } as Record<string, Network>,
+    contracts: {
+      c: {
+        network: "mainnet",
+        abi: [] as Abi,
+        factory: {
+          address: "0x1",
+          event: {} as AbiEvent,
+          parameter: "rg",
+        },
+      },
+    },
+  });
+});
+
 test("createConfig() events", () => {
   const config = createConfig({
     networks: {
@@ -118,7 +182,7 @@ test("createConfig() events", () => {
   );
 });
 
-test.skip("createConfig() has strict arg types for event", () => {
+test("createConfig() has strict arg types for event", () => {
   createConfig({
     networks: {
       mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
@@ -130,6 +194,24 @@ test.skip("createConfig() has strict arg types for event", () => {
         filter: {
           event: "Event0",
           args: { arg: ["0x0"] },
+        },
+      },
+    },
+  });
+});
+
+test("createConfig() filter with unnamed parameters", () => {
+  createConfig({
+    networks: {
+      mainnet: { chainId: 1, transport: http("http://127.0.0.1:8545") },
+    },
+    contracts: {
+      c: {
+        network: "mainnet",
+        abi: [] as unknown as [Event1Overloaded],
+        filter: {
+          event: "Event1",
+          args: ["0x0"],
         },
       },
     },

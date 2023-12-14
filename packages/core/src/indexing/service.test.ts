@@ -1,24 +1,30 @@
-import { checksumAddress, getEventSelector, http } from "viem";
+import { checksumAddress, getEventSelector, zeroAddress } from "viem";
+import { rpc } from "viem/utils";
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { usdcContractConfig } from "@/_test/constants.js";
 import { setupIndexingStore, setupSyncStore } from "@/_test/setup.js";
+import { anvil } from "@/_test/utils.js";
 import type { IndexingFunctions } from "@/build/functions.js";
+import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import { createSchema } from "@/schema/schema.js";
 import type { SyncGateway } from "@/sync-gateway/service.js";
+import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 
 import { IndexingService } from "./service.js";
 
 beforeEach((context) => setupIndexingStore(context));
 beforeEach((context) => setupSyncStore(context));
 
-const networks = {
-  mainnet: {
+const networks: Pick<Network, "url" | "request" | "chainId" | "name">[] = [
+  {
+    request: (options) => rpc.http(anvil.rpcUrls.default.http[0], options),
+    url: anvil.rpcUrls.default.http[0],
     chainId: 1,
-    transport: http(),
+    name: "mainnet",
   },
-};
+];
 
 const sources: Source[] = [
   {
@@ -37,6 +43,10 @@ const schema = createSchema((p) => ({
     id: p.string(),
     timestamp: p.int(),
   }),
+  Supply: p.createTable({
+    id: p.string(),
+    supply: p.bigint(),
+  }),
 }));
 
 const transferIndexingFunction = vi.fn(async ({ event, context }) => {
@@ -48,11 +58,33 @@ const transferIndexingFunction = vi.fn(async ({ event, context }) => {
   });
 });
 
+const readContractTransferIndexingFunction = vi.fn(
+  async ({ event, context }) => {
+    const totalSupply = await context.client.readContract({
+      abi: usdcContractConfig.abi,
+      functionName: "totalSupply",
+      address: usdcContractConfig.address,
+    });
+
+    await context.db.Supply.create({
+      id: event.log.id,
+      data: {
+        supply: totalSupply,
+      },
+    });
+  },
+);
+
 const transferSelector = getEventSelector(usdcContractConfig.abi[1]);
 
 const indexingFunctions: IndexingFunctions = {
   _meta_: {},
   USDC: { Transfer: transferIndexingFunction },
+};
+
+const readContractIndexingFunctions: IndexingFunctions = {
+  _meta_: {},
+  USDC: { Transfer: readContractTransferIndexingFunction },
 };
 
 const transferLog = {
@@ -62,24 +94,32 @@ const transferLog = {
     "0x000000000000000000000000c908b3848960114091a1bcf9d649e27b25385642",
   ],
   data: "0x0000000000000000000000000000000000000000000000000007e9657c20364d",
+  address: zeroAddress,
 };
 
 const getEvents = vi.fn(async function* getEvents({
-  // fromTimestamp,
-  toTimestamp,
+  // fromCheckpoint,
+  toCheckpoint,
 }) {
   yield {
     events: [
       {
         sourceId: "USDC_mainnet",
         chainId: 1,
-        log: { id: String(toTimestamp), ...transferLog },
-        block: { timestamp: BigInt(toTimestamp) },
-        transaction: {},
+        log: { id: String(toCheckpoint.blockTimestamp), ...transferLog },
+        block: {
+          timestamp: BigInt(toCheckpoint.blockTimestamp),
+          number: 16375000n,
+          miner: zeroAddress,
+        },
+        transaction: {
+          from: zeroAddress,
+          to: zeroAddress,
+        },
       },
     ],
     metadata: {
-      pageEndsAtTimestamp: toTimestamp,
+      pageEndCheckpoint: toCheckpoint,
       counts: [
         {
           sourceId: "USDC_mainnet",
@@ -93,13 +133,17 @@ const getEvents = vi.fn(async function* getEvents({
 
 const syncGatewayService = {
   getEvents,
-  checkpoint: 0,
+  checkpoint: zeroCheckpoint,
 } as unknown as SyncGateway;
+
+function createCheckpoint(index: number): Checkpoint {
+  return { ...zeroCheckpoint, blockTimestamp: index, blockNumber: index };
+}
 
 beforeEach(() => {
   // Restore getEvents to the initial implementation.
   vi.restoreAllMocks();
-  syncGatewayService.checkpoint = 0;
+  syncGatewayService.checkpoint = zeroCheckpoint;
 });
 
 test("processEvents() calls getEvents with sequential timestamp ranges", async (context) => {
@@ -118,23 +162,25 @@ test("processEvents() calls getEvents with sequential timestamp ranges", async (
 
   expect(getEvents).not.toHaveBeenCalled();
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 0,
-      toTimestamp: 10,
+      fromCheckpoint: zeroCheckpoint,
+      toCheckpoint: checkpoint10,
     }),
   );
 
-  syncGatewayService.checkpoint = 50;
+  const checkpoint50 = createCheckpoint(50);
+  syncGatewayService.checkpoint = checkpoint50;
   await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 11,
-      toTimestamp: 50,
+      fromCheckpoint: checkpoint10,
+      toCheckpoint: checkpoint50,
     }),
   );
 
@@ -153,11 +199,15 @@ test("processEvents() calls indexing functions with correct arguments", async (c
     networks,
   });
 
-  await service.reset({ schema, indexingFunctions });
+  try {
+    await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
-  await service.processEvents();
-
+    const checkpoint10 = createCheckpoint(10);
+    syncGatewayService.checkpoint = checkpoint10;
+    await service.processEvents();
+  } catch (error) {
+    console.log(error);
+  }
   expect(transferIndexingFunction).toHaveBeenCalledWith(
     expect.objectContaining({
       event: {
@@ -167,12 +217,12 @@ test("processEvents() calls indexing functions with correct arguments", async (c
           to: checksumAddress("0xc908b3848960114091a1bcf9d649e27b25385642"),
           value: 2226946920429133n,
         },
-        log: { id: "10", ...transferLog },
-        block: { timestamp: 10n },
-        transaction: {},
+        log: { id: "10", ...transferLog, address: zeroAddress },
+        block: { timestamp: 10n, number: 16375000n, miner: zeroAddress },
+        transaction: { from: zeroAddress, to: zeroAddress },
       },
       context: expect.objectContaining({
-        db: { TransferEvent: expect.anything() },
+        db: { TransferEvent: expect.anything(), Supply: expect.anything() },
         network: { name: "mainnet", chainId: 1 },
         client: expect.anything(),
         contracts: { USDC: expect.anything() },
@@ -197,7 +247,8 @@ test("processEvents() model methods insert data into the indexing store", async 
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const transferEvents = await indexingStore.findMany({
@@ -222,7 +273,8 @@ test("processEvents() updates event count metrics", async (context) => {
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const matchedEventsMetric = (
@@ -258,6 +310,129 @@ test("processEvents() updates event count metrics", async (context) => {
   await service.kill();
 });
 
+test("processEvents() client.readContract", async (context) => {
+  const { common, syncStore, indexingStore } = context;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+  });
+
+  await service.reset({
+    schema,
+    indexingFunctions: readContractIndexingFunctions,
+  });
+
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+  await service.processEvents();
+
+  const supplyEvents = await indexingStore.findMany({
+    tableName: "Supply",
+  });
+  expect(supplyEvents.length).toBe(1);
+
+  await service.kill();
+});
+
+test("processEvents() client.readContract handles errors", async (context) => {
+  const { common, syncStore, indexingStore } = context;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+  });
+
+  const spy = vi.spyOn(networks[0], "request");
+  spy.mockRejectedValueOnce(new Error("Unexpected error!"));
+
+  await service.reset({
+    schema,
+    indexingFunctions: readContractIndexingFunctions,
+  });
+
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+  await service.processEvents();
+
+  const supplyEvents = await indexingStore.findMany({
+    tableName: "Supply",
+  });
+  expect(supplyEvents.length).toBe(1);
+
+  await service.kill();
+});
+
+test("processEvents() retries indexing functions", async (context) => {
+  const { common, syncStore, indexingStore } = context;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+  });
+
+  const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
+
+  await service.reset({ schema, indexingFunctions });
+
+  transferIndexingFunction.mockImplementationOnce(() => {
+    throw new Error("User error!");
+  });
+
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+  await service.processEvents();
+
+  expect(transferIndexingFunction).toHaveBeenCalledTimes(2);
+  expect(indexingStoreRevertSpy).toHaveBeenCalledOnce();
+
+  await service.kill();
+});
+
+test("processEvents() handles errors", async (context) => {
+  const { common, syncStore, indexingStore } = context;
+
+  const service = new IndexingService({
+    common,
+    syncStore,
+    indexingStore,
+    syncGatewayService,
+    sources,
+    networks,
+  });
+
+  const indexingStoreRevertSpy = vi.spyOn(indexingStore, "revert");
+
+  await service.reset({ schema, indexingFunctions });
+
+  transferIndexingFunction.mockImplementation(() => {
+    throw new Error("User error!");
+  });
+
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
+  await service.processEvents();
+
+  expect(transferIndexingFunction).toHaveBeenCalledTimes(4);
+  expect(indexingStoreRevertSpy).toHaveBeenCalledTimes(3);
+
+  expect(common.errors.hasUserError).toBe(true);
+
+  await service.kill();
+});
+
 test("reset() reloads the indexing store", async (context) => {
   const { common, syncStore, indexingStore } = context;
 
@@ -272,7 +447,8 @@ test("reset() reloads the indexing store", async (context) => {
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const transferEvents = await indexingStore.findMany({
@@ -304,7 +480,8 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const latestProcessedTimestampMetric = (
@@ -338,12 +515,16 @@ test("handleReorg() reverts the indexing store", async (context) => {
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  const checkpoint6 = createCheckpoint(6);
+  await service.handleReorg(checkpoint6);
 
-  expect(indexingStoreRevertSpy).toHaveBeenLastCalledWith({ safeTimestamp: 6 });
+  expect(indexingStoreRevertSpy).toHaveBeenLastCalledWith({
+    checkpoint: checkpoint6,
+  });
 
   await service.kill();
 });
@@ -364,16 +545,20 @@ test("handleReorg() does nothing if there is a user error", async (context) => {
 
   await service.reset({ schema, indexingFunctions });
 
-  transferIndexingFunction.mockImplementationOnce(() => {
+  transferIndexingFunction.mockImplementation(() => {
     throw new Error("User error!");
   });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  const checkpoint6 = createCheckpoint(6);
+  await service.handleReorg(checkpoint6);
 
-  expect(indexingStoreRevertSpy).not.toHaveBeenCalled();
+  expect(indexingStoreRevertSpy).not.toHaveBeenCalledWith({
+    checkpoint: checkpoint6,
+  });
 
   await service.kill();
 });
@@ -392,26 +577,30 @@ test("handleReorg() processes the correct range of events after a reorg", async 
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 0,
-      toTimestamp: 10,
+      fromCheckpoint: zeroCheckpoint,
+      toCheckpoint: checkpoint10,
     }),
   );
 
   // This simulates a scenario where there was a reorg back to 6
   // and the new latest block is 9.
-  syncGatewayService.checkpoint = 9;
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  const checkpoint9 = createCheckpoint(9);
+  syncGatewayService.checkpoint = checkpoint9;
+
+  const checkpoint6 = createCheckpoint(6);
+  await service.handleReorg(checkpoint6);
   await service.processEvents();
 
   expect(getEvents).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      fromTimestamp: 7,
-      toTimestamp: 9,
+      fromCheckpoint: checkpoint6,
+      toCheckpoint: checkpoint9,
     }),
   );
 
@@ -432,7 +621,8 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 
   await service.reset({ schema, indexingFunctions });
 
-  syncGatewayService.checkpoint = 10;
+  const checkpoint10 = createCheckpoint(10);
+  syncGatewayService.checkpoint = checkpoint10;
   await service.processEvents();
 
   const latestProcessedTimestampMetric = (
@@ -442,8 +632,11 @@ test("handleReorg() updates ponder_handlers_latest_processed_timestamp metric", 
 
   // This simulates a scenario where there was a reorg back to 6
   // and the new latest block is 9.
-  syncGatewayService.checkpoint = 9;
-  await service.handleReorg({ commonAncestorTimestamp: 6 });
+  const checkpoint9 = createCheckpoint(9);
+  syncGatewayService.checkpoint = checkpoint9;
+
+  const checkpoint6 = createCheckpoint(6);
+  await service.handleReorg(checkpoint6);
 
   const latestProcessedTimestampMetricAfterReorg = (
     await common.metrics.ponder_indexing_latest_processed_timestamp.get()

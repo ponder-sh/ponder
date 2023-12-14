@@ -11,8 +11,12 @@ export function validateIndexingFunctions(rawIndexingFunctions: {
   for (const fileFns of Object.values(rawIndexingFunctions)) {
     for (const [eventKey, fn] of Object.entries(fileFns)) {
       const [sourceName, eventName] = eventKey.split(":");
-      if (!sourceName || !eventName)
-        throw new Error(`Invalid event name: ${eventKey}`);
+      if (!sourceName || !eventName) {
+        return {
+          indexingFunctions: null,
+          error: new Error(`Invalid event name: ${eventKey}`),
+        } as const;
+      }
 
       indexingFunctions[sourceName] ||= {};
 

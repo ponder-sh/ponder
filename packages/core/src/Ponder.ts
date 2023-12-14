@@ -3,9 +3,12 @@ import process from "node:process";
 
 import { BuildService } from "@/build/service.js";
 import { CodegenService } from "@/codegen/service.js";
+import type { Config } from "@/config/config.js";
 import { buildDatabase } from "@/config/database.js";
 import { buildNetwork, type Network } from "@/config/networks.js";
 import { type Options } from "@/config/options.js";
+import type { Source } from "@/config/sources.js";
+import { buildSources } from "@/config/sources.js";
 import { UserErrorService } from "@/errors/service.js";
 import { IndexingService } from "@/indexing/service.js";
 import { PostgresIndexingStore } from "@/indexing-store/postgres/store.js";
@@ -22,9 +25,6 @@ import { SqliteSyncStore } from "@/sync-store/sqlite/store.js";
 import { type SyncStore } from "@/sync-store/store.js";
 import { TelemetryService } from "@/telemetry/service.js";
 import { UiService } from "@/ui/service.js";
-
-import type { Source } from "./config/sources.js";
-import { buildSources } from "./config/sources.js";
 
 export type Common = {
   options: Options;
@@ -74,14 +74,7 @@ export class Ponder {
     this.buildService = new BuildService({ common: this.common });
   }
 
-  async setup({
-    syncStore,
-    indexingStore,
-  }: {
-    // These options are only used for testing.
-    syncStore?: SyncStore;
-    indexingStore?: IndexingStore;
-  } = {}) {
+  private async setupBuildService() {
     this.common.logger.debug({
       service: "app",
       msg: `Started using config file: ${path.relative(
@@ -98,44 +91,68 @@ export class Ponder {
     // we can just exit. No need to call `this.kill()` because no services are set up.
     const config = await this.buildService.loadConfig();
     if (!config) {
+      this.common.logger.fatal({
+        service: "app",
+        msg: `Config validation failed, killing app`,
+      });
       await this.buildService.kill();
       return;
     }
+    return config;
+  }
 
+  private async setupCoreServices({
+    config,
+    syncStore,
+    indexingStore,
+  }: {
+    config: Config;
+    // These options are only used for testing.
+    syncStore?: SyncStore;
+    indexingStore?: IndexingStore;
+  }) {
     const database = buildDatabase({ common: this.common, config });
     this.syncStore =
       syncStore ??
-      (database.kind === "sqlite"
-        ? new SqliteSyncStore({ common: this.common, db: database.db })
-        : new PostgresSyncStore({ common: this.common, pool: database.pool }));
-
+      (database.sync.kind === "sqlite"
+        ? new SqliteSyncStore({ common: this.common, file: database.sync.file })
+        : new PostgresSyncStore({
+            common: this.common,
+            pool: database.sync.pool,
+          }));
     this.indexingStore =
       indexingStore ??
-      (database.kind === "sqlite"
-        ? new SqliteIndexingStore({ common: this.common, db: database.db })
+      (database.indexing.kind === "sqlite"
+        ? new SqliteIndexingStore({
+            common: this.common,
+            file: database.indexing.file,
+          })
         : new PostgresIndexingStore({
             common: this.common,
-            pool: database.pool,
+            pool: database.indexing.pool,
           }));
 
     this.sources = buildSources({ config });
 
-    const networksToSync = Object.entries(config.networks)
-      .map(([networkName, network]) =>
-        buildNetwork({ networkName, network, common: this.common }),
+    const networksToSync = (
+      await Promise.all(
+        Object.entries(config.networks).map(
+          async ([networkName, network]) =>
+            await buildNetwork({ networkName, network, common: this.common }),
+        ),
       )
-      .filter((network) => {
-        const hasSources = this.sources.some(
-          (source) => source.networkName === network.name,
-        );
-        if (!hasSources) {
-          this.common.logger.warn({
-            service: "app",
-            msg: `No contracts found (network=${network.name})`,
-          });
-        }
-        return hasSources;
-      });
+    ).filter((network) => {
+      const hasSources = this.sources.some(
+        (source) => source.networkName === network.name,
+      );
+      if (!hasSources) {
+        this.common.logger.warn({
+          service: "app",
+          msg: `No contracts found (network=${network.name})`,
+        });
+      }
+      return hasSources;
+    });
 
     this.syncServices = networksToSync.map((network) => {
       const sourcesForNetwork = this.sources.filter(
@@ -172,7 +189,7 @@ export class Ponder {
       indexingStore: this.indexingStore,
       syncGatewayService: this.syncGatewayService,
       sources: this.sources,
-      networks: config.networks,
+      networks: networksToSync,
     });
 
     this.serverService = new ServerService({
@@ -192,12 +209,30 @@ export class Ponder {
 
     // One-time setup for some services.
     await this.syncStore.migrateUp();
-    await this.serverService.start();
+    this.serverService.setup();
 
     // Finally, load the schema + indexing functions which will trigger
     // the indexing service to reload (for the first time).
     await this.buildService.loadIndexingFunctions();
     await this.buildService.loadSchema();
+  }
+
+  /**
+   * Setup Ponder services
+   * @returns True if setup was successful
+   */
+  async setup({
+    syncStore,
+    indexingStore,
+  }: {
+    // These options are only used for testing.
+    syncStore?: SyncStore;
+    indexingStore?: IndexingStore;
+  } = {}) {
+    const config = await this.setupBuildService();
+    if (!config) return false;
+    await this.setupCoreServices({ config, syncStore, indexingStore });
+    return true;
   }
 
   async dev() {
@@ -210,16 +245,9 @@ export class Ponder {
       },
     });
     this.serverService.registerDevRoutes();
+    await this.serverService.start();
 
-    await Promise.all(
-      this.syncServices.map(async ({ historical, realtime }) => {
-        const blockNumbers = await realtime.setup();
-        await historical.setup(blockNumbers);
-
-        historical.start();
-        await realtime.start();
-      }),
-    );
+    await this.startSyncServices();
   }
 
   async start() {
@@ -234,16 +262,32 @@ export class Ponder {
 
     // If not using `dev`, can kill the build service here to avoid hot reloads.
     await this.buildService.kill();
+    await this.serverService.start();
 
-    await Promise.all(
-      this.syncServices.map(async ({ historical, realtime }) => {
-        const blockNumbers = await realtime.setup();
-        await historical.setup(blockNumbers);
+    await this.startSyncServices();
+  }
 
-        historical.start();
-        await realtime.start();
-      }),
-    );
+  private async startSyncServices() {
+    try {
+      await Promise.all(
+        this.syncServices.map(async ({ historical, realtime }) => {
+          const blockNumbers = await realtime.setup();
+          await historical.setup(blockNumbers);
+
+          historical.start();
+          await realtime.start();
+        }),
+      );
+    } catch (error_) {
+      const error = error_ as Error;
+      error.stack = undefined;
+      this.common.logger.fatal({
+        service: "app",
+        msg: `Failed to fetch initial realtime data. (Hint: Most likely the result of an incapable RPC provider)`,
+        error,
+      });
+      this.kill();
+    }
   }
 
   async codegen() {
@@ -280,11 +324,14 @@ export class Ponder {
 
     const database = buildDatabase({ common: this.common, config });
     this.indexingStore =
-      database.kind === "sqlite"
-        ? new SqliteIndexingStore({ common: this.common, db: database.db })
+      database.indexing.kind === "sqlite"
+        ? new SqliteIndexingStore({
+            common: this.common,
+            file: database.indexing.file,
+          })
         : new PostgresIndexingStore({
             common: this.common,
-            pool: database.pool,
+            pool: database.indexing.pool,
           });
 
     this.serverService = new ServerService({
@@ -292,6 +339,7 @@ export class Ponder {
       indexingStore: this.indexingStore,
     });
 
+    this.serverService.setup();
     await this.serverService.start();
 
     const { schema, graphqlSchema } = schemaResult;
@@ -311,6 +359,9 @@ export class Ponder {
     });
   }
 
+  /**
+   * Shutdown sequence.
+   */
   async kill() {
     this.syncGatewayService.clearListeners();
 
@@ -346,24 +397,83 @@ export class Ponder {
     });
   }
 
+  /**
+   * Very similar to `kill()`, but don't kill the ui service or build service.
+   */
+  private async reload() {
+    this.buildService.clearListeners();
+    this.syncServices.forEach(({ historical, realtime }) => {
+      historical.clearListeners();
+      realtime.clearListeners();
+    });
+    this.serverService.clearListeners();
+    this.indexingService.clearListeners();
+    this.common.metrics.resetMetrics();
+    this.syncGatewayService.clearListeners();
+
+    await Promise.all([
+      await this.indexingService.kill(),
+      await this.serverService.kill(),
+      await this.common.telemetry.kill(),
+    ]);
+
+    await Promise.all(
+      this.syncServices.map(async ({ realtime, historical }) => {
+        await realtime.kill();
+        await historical.kill();
+      }),
+    );
+
+    await this.indexingStore.kill();
+    await this.syncStore.kill();
+  }
+
   private registerServiceDependencies() {
-    this.buildService.on("newConfig", async () => {
-      this.common.logger.fatal({
-        service: "build",
-        msg: "Detected change in ponder.config.ts",
-      });
-      await this.kill();
+    this.buildService.on("newConfig", async ({ config }) => {
+      if (config) {
+        this.common.errors.hasUserError = false;
+        this.common.logger.info({
+          service: "app",
+          msg: "Reloading ponder with new config",
+        });
+
+        // Clear all listeners. Will be added back in setup.
+        await this.reload();
+
+        await this.setupCoreServices({ config });
+        // NOTE: We know we are in dev mode if the build service is receiving events. Build events are disabled in production.
+        await this.dev();
+      } else {
+        // If the build service emits the "newConfig" event with undefined, it means there was an error
+        // while building or validating the config on a hot reload.
+        await this.indexingService.kill();
+        await Promise.all(
+          this.syncServices.map(async ({ realtime, historical }) => {
+            await realtime.kill();
+            await historical.kill();
+          }),
+        );
+      }
     });
 
     this.buildService.on("newSchema", async ({ schema, graphqlSchema }) => {
-      this.common.errors.hasUserError = false;
+      if (schema && graphqlSchema) {
+        this.common.errors.hasUserError = false;
+        this.common.logger.info({
+          service: "app",
+          msg: "Reloading ponder with new schema",
+        });
 
-      this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
+        this.codegenService.generateGraphqlSchemaFile({ graphqlSchema });
+        this.serverService.reloadGraphqlSchema({ graphqlSchema });
 
-      this.serverService.reloadGraphqlSchema({ graphqlSchema });
-
-      await this.indexingService.reset({ schema });
-      await this.indexingService.processEvents();
+        await this.indexingService.reset({ schema });
+        await this.indexingService.processEvents();
+      } else {
+        // If the build service emits the "newSchema" event with undefined, it means there was an error
+        // while building or validating the schema on a hot reload.
+        await this.indexingService.kill();
+      }
     });
 
     this.buildService.on(
@@ -377,39 +487,26 @@ export class Ponder {
     );
 
     this.syncServices.forEach(({ network, historical, realtime }) => {
-      const { chainId } = network;
-
-      historical.on("historicalCheckpoint", ({ blockTimestamp }) => {
-        this.syncGatewayService.handleNewHistoricalCheckpoint({
-          chainId,
-          timestamp: blockTimestamp,
-        });
+      historical.on("historicalCheckpoint", (checkpoint) => {
+        this.syncGatewayService.handleNewHistoricalCheckpoint(checkpoint);
       });
 
       historical.on("syncComplete", () => {
         this.syncGatewayService.handleHistoricalSyncComplete({
-          chainId,
+          chainId: network.chainId,
         });
       });
 
-      realtime.on("realtimeCheckpoint", ({ blockTimestamp }) => {
-        this.syncGatewayService.handleNewRealtimeCheckpoint({
-          chainId,
-          timestamp: blockTimestamp,
-        });
+      realtime.on("realtimeCheckpoint", (checkpoint) => {
+        this.syncGatewayService.handleNewRealtimeCheckpoint(checkpoint);
       });
 
-      realtime.on("finalityCheckpoint", ({ blockTimestamp }) => {
-        this.syncGatewayService.handleNewFinalityCheckpoint({
-          chainId,
-          timestamp: blockTimestamp,
-        });
+      realtime.on("finalityCheckpoint", (checkpoint) => {
+        this.syncGatewayService.handleNewFinalityCheckpoint(checkpoint);
       });
 
-      realtime.on("shallowReorg", ({ commonAncestorBlockTimestamp }) => {
-        this.syncGatewayService.handleReorg({
-          commonAncestorTimestamp: commonAncestorBlockTimestamp,
-        });
+      realtime.on("shallowReorg", (checkpoint) => {
+        this.syncGatewayService.handleReorg(checkpoint);
       });
     });
 
@@ -417,12 +514,12 @@ export class Ponder {
       await this.indexingService.processEvents();
     });
 
-    this.syncGatewayService.on("reorg", async ({ commonAncestorTimestamp }) => {
-      await this.indexingService.handleReorg({ commonAncestorTimestamp });
+    this.syncGatewayService.on("reorg", async (checkpoint) => {
+      await this.indexingService.handleReorg(checkpoint);
       await this.indexingService.processEvents();
     });
 
-    this.indexingService.on("eventsProcessed", ({ toTimestamp }) => {
+    this.indexingService.on("eventsProcessed", ({ toCheckpoint }) => {
       if (this.serverService.isHistoricalIndexingComplete) return;
 
       // If a batch of events are processed AND the historical sync is complete AND
@@ -430,7 +527,8 @@ export class Ponder {
       // historical event processing is complete, and the server should begin responding as healthy.
       if (
         this.syncGatewayService.historicalSyncCompletedAt &&
-        toTimestamp >= this.syncGatewayService.historicalSyncCompletedAt
+        toCheckpoint.blockTimestamp >=
+          this.syncGatewayService.historicalSyncCompletedAt
       ) {
         this.serverService.setIsHistoricalIndexingComplete();
       }
@@ -449,22 +547,6 @@ export class Ponder {
         return;
       }
 
-      // Clear all the metrics for the sources.
-      syncServiceForChainId.sources.forEach(({ networkName, contractName }) => {
-        this.common.metrics.ponder_historical_total_blocks.set(
-          { network: networkName, contract: contractName },
-          0,
-        );
-        this.common.metrics.ponder_historical_completed_blocks.set(
-          { network: networkName, contract: contractName },
-          0,
-        );
-        this.common.metrics.ponder_historical_cached_blocks.set(
-          { network: networkName, contract: contractName },
-          0,
-        );
-      });
-
       await this.syncStore.deleteRealtimeData({
         chainId,
         fromBlock: BigInt(0),
@@ -476,8 +558,19 @@ export class Ponder {
       await syncServiceForChainId.realtime.kill();
       await syncServiceForChainId.historical.kill();
 
-      const blockNumbers = await syncServiceForChainId.realtime.setup();
-      await syncServiceForChainId.historical.setup(blockNumbers);
+      try {
+        const blockNumbers = await syncServiceForChainId.realtime.setup();
+        await syncServiceForChainId.historical.setup(blockNumbers);
+      } catch (error_) {
+        const error = error_ as Error;
+        error.stack = undefined;
+        this.common.logger.fatal({
+          service: "app",
+          msg: `Failed to fetch initial realtime data`,
+          error,
+        });
+        this.kill();
+      }
 
       await syncServiceForChainId.realtime.start();
       syncServiceForChainId.historical.start();

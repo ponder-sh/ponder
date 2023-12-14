@@ -37,14 +37,12 @@
   },
   "dependencies": {
     "@babel/code-frame": "^7.23.4",
-    "@jridgewell/trace-mapping": "^0.3.20",
     "abitype": "^0.10.2",
     "async-mutex": "^0.4.0",
     "better-sqlite3": "^9.1.1",
     "cac": "^6.7.14",
     "conf": "^12.0.0",
     "cors": "^2.8.5",
-    "data-uri-to-buffer": "6.0.1",
     "detect-package-manager": "^3.0.1",
     "dotenv": "^16.3.1",
     "emittery": "^1.0.1",
@@ -56,6 +54,7 @@
     "http-terminator": "^3.2.0",
     "ink": "^4.4.1",
     "kysely": "^0.26.3",
+    "magic-string": "^0.30.5",
     "p-limit": "^5.0.0",
     "p-queue": "^7.4.1",
     "pg": "^8.11.3",
@@ -65,8 +64,8 @@
     "react": "^18.2.0",
     "retry": "^0.13.1",
     "stacktrace-parser": "^0.1.10",
-    "vite": "^4.5.0",
-    "vite-node": "^0.34.6"
+    "vite": "^5.0.7",
+    "vite-node": "^1.0.2"
   },
   "devDependencies": {
     "@types/babel__code-frame": "^7.0.6",
@@ -84,7 +83,7 @@
     "tsup": "^8.0.1",
     "typescript": "^5.3.2",
     "viem": "^1.0.0",
-    "vitest": "^0.34.6"
+    "vitest": "^1.0.2"
   },
   "engines": {
     "node": ">=18"

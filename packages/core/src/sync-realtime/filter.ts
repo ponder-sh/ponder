@@ -1,6 +1,7 @@
-import type { Address, Hex, RpcLog } from "viem";
+import { type Address, type Hex, type RpcLog } from "viem";
 
 import type { Topics } from "@/config/sources.js";
+import { toLowerCase } from "@/utils/lowercase.js";
 
 export function filterLogs({
   logs,
@@ -32,11 +33,13 @@ export function isLogMatchedByFilter({
   address?: Address | Address[];
   topics?: Topics;
 }) {
+  const logAddress = toLowerCase(log.address);
+
   if (address !== undefined && address.length > 0) {
     if (Array.isArray(address)) {
-      if (!address.includes(log.address)) return false;
+      if (!address.includes(logAddress)) return false;
     } else {
-      if (log.address !== address) return false;
+      if (logAddress !== address) return false;
     }
   }
 

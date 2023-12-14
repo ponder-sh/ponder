@@ -5,6 +5,7 @@ import { setupIndexingStore } from "@/_test/setup.js";
 import type { IndexingStore } from "@/indexing-store/store.js";
 import type { Common } from "@/Ponder.js";
 import { createSchema } from "@/schema/schema.js";
+import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
 import { range } from "@/utils/range.js";
 
 import { buildGqlSchema } from "./graphql/schema.js";
@@ -57,6 +58,7 @@ const setup = async ({
   await indexingStore.reload({ schema: s });
 
   const service = new ServerService({ common, indexingStore });
+  service.setup();
   await service.start();
   service.reloadGraphqlSchema({ graphqlSchema });
 
@@ -72,7 +74,7 @@ const setup = async ({
   const createTestEntity = async ({ id }: { id: number }) => {
     await indexingStore.create({
       tableName: "TestEntity",
-      timestamp: 0,
+      checkpoint: zeroCheckpoint,
       id: String(id),
       data: {
         string: String(id),
@@ -100,7 +102,7 @@ const setup = async ({
   }) => {
     await indexingStore.create({
       tableName: "EntityWithBigIntId",
-      timestamp: 0,
+      checkpoint: zeroCheckpoint,
       id,
       data: {
         testEntityId,
@@ -111,7 +113,7 @@ const setup = async ({
   const createEntityWithIntId = async ({ id }: { id: number }) => {
     await indexingStore.create({
       tableName: "EntityWithIntId",
-      timestamp: 0,
+      checkpoint: zeroCheckpoint,
       id,
     });
   };
@@ -124,6 +126,10 @@ const setup = async ({
     createEntityWithIntId,
   };
 };
+
+function createCheckpoint(index: number): Checkpoint {
+  return { ...zeroCheckpoint, blockTimestamp: index };
+}
 
 // Graphql routes.
 test("serves all scalar types correctly", async (context) => {
@@ -1351,7 +1357,7 @@ test("serves singular entity versioned at specified timestamp", async (context) 
   await createTestEntity({ id: 1 });
   await indexingStore.update({
     tableName: "TestEntity",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: String(1),
     data: {
       string: "updated",
@@ -1395,7 +1401,7 @@ test("serves plural entities versioned at specified timestamp", async (context) 
 
   await indexingStore.update({
     tableName: "TestEntity",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: String(1),
     data: {
       string: "updated",
@@ -1403,7 +1409,7 @@ test("serves plural entities versioned at specified timestamp", async (context) 
   });
   await indexingStore.update({
     tableName: "TestEntity",
-    timestamp: 15,
+    checkpoint: createCheckpoint(15),
     id: String(2),
     data: {
       string: "updated",
@@ -1534,7 +1540,7 @@ test.skip("serves derived entities versioned at provided timestamp", async (cont
 
   await indexingStore.update({
     tableName: "EntityWithBigIntId",
-    timestamp: 10,
+    checkpoint: createCheckpoint(10),
     id: BigInt(0),
     data: {
       testEntity: "2",

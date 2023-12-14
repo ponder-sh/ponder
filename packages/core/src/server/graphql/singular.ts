@@ -7,6 +7,7 @@ import {
 } from "graphql";
 
 import type { BaseColumn, ID, Schema } from "@/schema/types.js";
+import { maxCheckpoint } from "@/utils/checkpoint.js";
 
 import type { Context, Source } from "./schema.js";
 import { tsTypeToGqlScalar } from "./schema.js";
@@ -32,10 +33,14 @@ const buildSingularField = ({
 
     if (id === undefined) return null;
 
+    const checkpoint = timestamp
+      ? { ...maxCheckpoint, blockTimestamp: timestamp }
+      : undefined; // Latest.
+
     const entityInstance = await store.findUnique({
       tableName: tableName,
       id,
-      timestamp,
+      checkpoint,
     });
 
     return entityInstance;

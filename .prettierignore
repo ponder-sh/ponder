@@ -4,6 +4,7 @@ LICENSE
 **/.next
 **/dist
 .gitignore
+.gitmodules
 .prettierignore
 Dockerfile
 *.Dockerfile
@@ -11,5 +12,6 @@ Dockerfile
 **/_dot_gitignore
 **/_dot_env.example
 **/_dot_env.local
+**/with-foundry/**
 *.png
 *.gif

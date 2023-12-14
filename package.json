@@ -1,9 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "bench:ponder": "pnpm --filter \"./benchmarks\" bench:ponder",
     "bench:ponder:ci": "pnpm --filter \"./benchmarks\" bench:ponder:ci",
-    "bench:subgraph": "pnpm --filter \"./benchmarks\" bench:subgraph",
     "bench:subgraph:ci": "pnpm --filter \"./benchmarks\" bench:subgraph:ci",
     "build": "pnpm --filter \"./packages/**\" --parallel build",
     "changeset:release": "pnpm build && changeset publish",
