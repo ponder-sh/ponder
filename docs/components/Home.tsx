@@ -9,8 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import GraphLogo from "../public/graph.svg";
 
+import GraphLogo from "../public/graph.svg";
 import {
   CommandLineIcon,
   CursorArrowRaysIcon,
