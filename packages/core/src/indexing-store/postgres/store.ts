@@ -1,10 +1,4 @@
-import {
-  CompiledQuery,
-  Kysely,
-  PostgresDialect,
-  sql,
-  WithSchemaPlugin,
-} from "kysely";
+import { Kysely, PostgresDialect, sql, WithSchemaPlugin } from "kysely";
 
 import type { Common } from "@/Ponder.js";
 import type { Scalar, Schema } from "@/schema/types.js";
@@ -41,35 +35,28 @@ export class PostgresIndexingStore implements IndexingStore {
   private common: Common;
 
   db: Kysely<any>;
-  private readerDB: Kysely<any>;
-  private writerDB: Kysely<any>;
-
   schema?: Schema;
-  namespaceVersion: string;
+
+  private databaseSchemaName: string;
 
   constructor({ common, pool }: { common: Common; pool: Pool }) {
-    this.namespaceVersion = `ponder_index_${new Date().getTime()}`;
+    this.databaseSchemaName = `ponder_${new Date().getTime()}`;
     this.common = common;
-    this.db = new Kysely({
-      dialect: new PostgresDialect({
-        pool,
-      }),
+
+    this.common.logger.debug({
+      msg: `Using schema '${this.databaseSchemaName}'`,
+      service: "indexing",
     });
 
-    this.readerDB = this.db.withPlugin(new WithSchemaPlugin("public"));
-    this.writerDB = this.db.withPlugin(
-      new WithSchemaPlugin(this.namespaceVersion),
+    this.db = new Kysely({ dialect: new PostgresDialect({ pool }) }).withPlugin(
+      new WithSchemaPlugin(this.databaseSchemaName),
     );
   }
 
   kill = async () => {
     return this.wrap({ method: "kill" }, async () => {
       try {
-        await Promise.all([
-          this.writerDB.destroy(),
-          this.readerDB.destroy(),
-          this.db.destroy(),
-        ]);
+        await this.db.destroy();
       } catch (e) {
         const error = e as Error;
         if (error.message !== "Called end on pool more than once") {
@@ -93,25 +80,9 @@ export class PostgresIndexingStore implements IndexingStore {
       // Set the new schema.
       if (schema) this.schema = schema;
 
-      await this.writerDB.transaction().execute(async (tx) => {
-        // Drop and create current schema if it exists. This effectively reloads the schema.
-        const result = await tx.executeQuery(
-          CompiledQuery.raw(
-            `SELECT nspname FROM pg_namespace WHERE nspname LIKE 'ponder_index_%'`,
-          ),
-        );
-        await Promise.all(
-          (result.rows as { nspname: string }[]).filter(async (r) => {
-            await tx.schema
-              .dropSchema(r.nspname)
-              .ifExists()
-              .cascade()
-              .execute();
-          }),
-        );
-
+      await this.db.transaction().execute(async (tx) => {
         await tx.schema
-          .createSchema(this.namespaceVersion)
+          .createSchema(this.databaseSchemaName)
           .ifNotExists()
           .execute();
 
@@ -120,6 +91,12 @@ export class PostgresIndexingStore implements IndexingStore {
           Object.entries(this.schema!.tables).map(
             async ([tableName, columns]) => {
               const table = `${tableName}_versioned`;
+
+              // Drop existing table with the same name if it exists.
+              // Note that "cascade" here will drop the views in the public schema
+              // if the current schema has been published.
+              await tx.schema.dropTable(table).ifExists().cascade().execute();
+
               let tableBuilder = tx.schema.createTable(table);
 
               Object.entries(columns).forEach(([columnName, column]) => {
@@ -178,25 +155,58 @@ export class PostgresIndexingStore implements IndexingStore {
               );
 
               await tableBuilder.execute();
-              const viewBuilder = tx.schema
-                .withSchema("public")
-                .createView(table)
-                .orReplace()
-                .as(
-                  tx
-                    .withSchema(this.namespaceVersion)
-                    .selectFrom(table)
-                    .selectAll(),
-                );
-              await viewBuilder.execute();
             },
           ),
         );
       });
+    });
+  };
 
-      this.common.logger.debug({
-        msg: `Connected to namespace: ${this.namespaceVersion}`,
-        service: "indexing",
+  publish = async () => {
+    return this.wrap({ method: "publish" }, async () => {
+      await this.db.transaction().execute(async (tx) => {
+        // Create views in the public schema pointing at tables in the private schema.
+        await Promise.all(
+          Object.entries(this.schema!.tables).map(
+            async ([tableName, columns]) => {
+              await tx.schema
+                .withSchema("public")
+                .dropView(`${tableName}_versioned`)
+                .ifExists()
+                .execute();
+              await tx.schema
+                .withSchema("public")
+                .createView(`${tableName}_versioned`)
+                .as(
+                  tx
+                    .withSchema(this.databaseSchemaName)
+                    .selectFrom(`${tableName}_versioned`)
+                    .selectAll(),
+                )
+                .execute();
+
+              const columnNames = Object.entries(columns)
+                .filter(([, c]) => !isOneColumn(c) && !isManyColumn(c))
+                .map(([name]) => name);
+              await tx.schema
+                .withSchema("public")
+                .dropView(tableName)
+                .ifExists()
+                .execute();
+              await tx.schema
+                .withSchema("public")
+                .createView(tableName)
+                .as(
+                  tx
+                    .withSchema(this.databaseSchemaName)
+                    .selectFrom(`${tableName}_versioned`)
+                    .select(columnNames)
+                    .where("effectiveToCheckpoint", "=", "latest"),
+                )
+                .execute();
+            },
+          ),
+        );
       });
     });
   };
@@ -206,7 +216,7 @@ export class PostgresIndexingStore implements IndexingStore {
    */
   revert = async ({ checkpoint }: { checkpoint: Checkpoint }) => {
     return this.wrap({ method: "revert" }, async () => {
-      await this.writerDB.transaction().execute(async (tx) => {
+      await this.db.transaction().execute(async (tx) => {
         await Promise.all(
           Object.keys(this.schema?.tables ?? {}).map(async (tableName) => {
             const table = `${tableName}_versioned`;
@@ -247,7 +257,7 @@ export class PostgresIndexingStore implements IndexingStore {
         encodeBigInts: false,
       });
 
-      let query = this.readerDB
+      let query = this.db
         .selectFrom(table)
         .selectAll()
         .where(
@@ -294,7 +304,7 @@ export class PostgresIndexingStore implements IndexingStore {
   }) => {
     return this.wrap({ method: "findMany", tableName }, async () => {
       const table = `${tableName}_versioned`;
-      let query = this.readerDB.selectFrom(table).selectAll();
+      let query = this.db.selectFrom(table).selectAll();
 
       if (checkpoint === "latest") {
         query = query.where("effectiveToCheckpoint", "=", "latest");
@@ -363,7 +373,7 @@ export class PostgresIndexingStore implements IndexingStore {
       const createRow = formatRow({ id, ...data }, false);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const row = await this.writerDB
+      const row = await this.db
         .insertInto(table)
         .values({
           ...createRow,
@@ -402,7 +412,7 @@ export class PostgresIndexingStore implements IndexingStore {
 
       const rows = await Promise.all(
         chunkedRows.map((c) =>
-          this.writerDB.insertInto(table).values(c).returningAll().execute(),
+          this.db.insertInto(table).values(c).returningAll().execute(),
         ),
       );
 
@@ -431,7 +441,7 @@ export class PostgresIndexingStore implements IndexingStore {
       });
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const row = await this.writerDB.transaction().execute(async (tx) => {
+      const row = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRow = await tx
           .selectFrom(table)
@@ -531,7 +541,7 @@ export class PostgresIndexingStore implements IndexingStore {
       const table = `${tableName}_versioned`;
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const rows = await this.writerDB.transaction().execute(async (tx) => {
+      const rows = await this.db.transaction().execute(async (tx) => {
         // Get all IDs that match the filter.
         let latestRowsQuery = tx
           .selectFrom(table)
@@ -649,7 +659,7 @@ export class PostgresIndexingStore implements IndexingStore {
       const createRow = formatRow({ id, ...create }, false);
       const encodedCheckpoint = encodeCheckpoint(checkpoint);
 
-      const row = await this.writerDB.transaction().execute(async (tx) => {
+      const row = await this.db.transaction().execute(async (tx) => {
         // Find the latest version of this instance.
         const latestRow = await tx
           .selectFrom(table)

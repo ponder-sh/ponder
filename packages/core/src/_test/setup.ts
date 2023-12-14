@@ -16,7 +16,7 @@ import { TelemetryService } from "@/telemetry/service.js";
 import pg from "@/utils/pg.js";
 
 import { FORK_BLOCK_NUMBER, vitalik } from "./constants.js";
-import { poolId, testClient } from "./utils.js";
+import { testClient } from "./utils.js";
 
 /**
  * Inject an isolated sync store into the test context.
@@ -63,20 +63,29 @@ export async function setupSyncStore(
   options = { migrateUp: true },
 ) {
   if (process.env.DATABASE_URL) {
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    const databaseSchema = `vitest_pool_${process.pid}_${poolId}`;
-    context.syncStore = new PostgresSyncStore({
-      common: context.common,
-      pool,
-      databaseSchema,
+    const testClient = new pg.Client({
+      connectionString: process.env.DATABASE_URL,
     });
+    await testClient.connect();
+
+    const randomSuffix = randomBytes(10).toString("hex");
+    const databaseName = `vitest_sync_${randomSuffix}`;
+    const databaseUrl = new URL(process.env.DATABASE_URL);
+    databaseUrl.pathname = `/${databaseName}`;
+    const connectionString = databaseUrl.toString();
+
+    const pool = new pg.Pool({ connectionString });
+    await testClient.query(`CREATE DATABASE "${databaseName}"`);
+
+    context.syncStore = new PostgresSyncStore({ common: context.common, pool });
 
     if (options.migrateUp) await context.syncStore.migrateUp();
 
     return async () => {
       try {
-        await pool.query(`DROP SCHEMA IF EXISTS "${databaseSchema}" CASCADE`);
         await context.syncStore.kill();
+        await testClient.query(`DROP DATABASE "${databaseName}"`);
+        await testClient.end();
       } catch (e) {
         // This fails in end-to-end tests where the pool has
         // already been shut down during the Ponder instance kill() method.
@@ -112,17 +121,15 @@ export async function setupIndexingStore(context: TestContext) {
     });
     await testClient.connect();
     // Create a random database to isolate the tests.
-    const databaseSchema = `vitest_pool_${process.pid}_${randomBytes(
-      10,
-    ).toString("hex")}`;
+    const randomSuffix = randomBytes(10).toString("hex");
+    const databaseName = `vitest_indexing_${randomSuffix}`;
+    const databaseUrl = new URL(process.env.DATABASE_URL);
+    databaseUrl.pathname = `/${databaseName}`;
+    const connectionString = databaseUrl.toString();
 
-    const dbURL = new URL(process.env.DATABASE_URL);
-    dbURL.pathname = `/${databaseSchema}`;
-    const pool = new pg.Pool({
-      connectionString: dbURL.toString(),
-    });
+    const pool = new pg.Pool({ connectionString });
+    await testClient.query(`CREATE DATABASE "${databaseName}"`);
 
-    await testClient.query(`CREATE DATABASE "${databaseSchema}"`);
     context.indexingStore = new PostgresIndexingStore({
       common: context.common,
       pool,
@@ -131,7 +138,7 @@ export async function setupIndexingStore(context: TestContext) {
     return async () => {
       try {
         await context.indexingStore.kill();
-        await testClient.query(`DROP DATABASE "${databaseSchema}"`);
+        await testClient.query(`DROP DATABASE "${databaseName}"`);
         await testClient.end();
       } catch (e) {
         // This fails in end-to-end tests where the pool has
