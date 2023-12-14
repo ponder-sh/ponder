@@ -12,7 +12,9 @@
     "ponder-examples-project-friendtech",
     "ponder-examples-project-uniswap-v3-flash",
     "ponder-examples-reference-erc20",
-    "ponder-examples-reference-erc721"
+    "ponder-examples-reference-erc721",
+    "ponder-examples-with-foundry",
+    "ponder-examples-with-nextjs"
   ],
   "linked": [],
   "access": "public",
