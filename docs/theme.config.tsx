@@ -76,7 +76,7 @@ const config: DocsThemeConfig = {
       };
     return {
       ...defaultSeoProps,
-      title: "Ponder: The Blockchain Backend Framework",
+      title: "Ponder – A backend framework for crypto apps",
     };
   },
 };
