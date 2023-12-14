@@ -218,7 +218,7 @@ export type Config = {
 /**
  * Create a Ponder config.
  *
- * - Docs: https://ponder.sh//docs/api-reference/config
+ * - Docs: https://ponder.sh/docs/api-reference/config
  *
  * @example
  * export default createConfig({
