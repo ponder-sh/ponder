@@ -3,7 +3,7 @@
     "title": "Introducing Ponder",
     "theme": {
       "breadcrumb": true,
-      "sidebar": true,
+      "sidebar": false,
       "toc": true,
       "footer": true
     }

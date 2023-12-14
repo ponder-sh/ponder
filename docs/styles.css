@@ -106,7 +106,7 @@ a {
   background:
     radial-gradient(
       91.96% 91.96% at 50% 91.96%,
-      rgba(0, 0, 0, 0) -50%,
+      rgba(0, 0, 0, 0) -20%,
       #111 100%
     ),
     url("/hero-texture.png") lightgray 50% / cover no-repeat;
