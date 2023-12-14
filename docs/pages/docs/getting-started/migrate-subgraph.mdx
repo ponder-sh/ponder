@@ -1,0 +1,139 @@
+---
+description: "A guide for migrating a Graph Protocol subgraph to Ponder"
+---
+
+import { Steps, Tabs, Tab } from "nextra/components";
+import { Callout } from "nextra-theme-docs";
+
+# Migrate a Graph Protocol subgraph
+
+<Steps>
+
+### Create a Ponder project
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tab>
+```
+pnpm create ponder
+```
+</Tab>
+  <Tab>
+```
+yarn create ponder
+```
+</Tab>
+  <Tab>
+```
+npm create ponder@latest
+```
+</Tab>
+</Tabs>
+
+First, enter a project name. Then select the **Subgraph ID** template option and paste in your subgraph's deployment ID:
+
+![Subgraph ID screenshot](/subgraph-id.png)
+
+<div className="caption">
+  [MakerDAO's
+  subgraph](https://thegraph.com/hosted-service/subgraph/protofire/makerdao-governance)
+  on the Graph Protocol's hosted service.
+</div>
+
+The newly generated Ponder app will copy the subgraph's `schema.graphql` as well as the addresses, ABIs, and start blocks for each event source defined in `subgraph.yaml`. Then, it will create a project directory, install dependencies, and initialize a git repository.
+
+### Start the development server
+
+Just like Next.js and Vite, Ponder has a development server that automatically reloads when you save changes in any project file. It also prints `console.log` statements and errors encountered while running your code.
+
+First, `cd` into your project directory, then start the server.
+
+{/* prettier-ignore */}
+<Tabs items={["pnpm", "yarn", "npm"]}>
+  <Tab>
+```
+pnpm dev
+```
+</Tab>
+  <Tab>
+```
+yarn dev
+```
+</Tab>
+  <Tab>
+```
+npm run dev
+```
+</Tab>
+</Tabs>
+
+### Add an RPC URL
+
+Ponder fetches data using the standard Ethereum RPC API. To get started, you'll need an RPC URL from a provider like Alchemy or Infura.
+
+Open up `.env.local` and paste in RPC URLs for any networks that your project uses:
+
+{/* prettier-ignore */}
+```js filename=".env.local"
+PONDER_RPC_URL_1 = "https://eth-mainnet.g.alchemy.com/v2/..."
+```
+
+### Write indexing functions
+
+Open any file in the `src/` directory. Ponder indexing functions are very similar to subgraph mapping functions, with some key differences. You will need to refactor your code, but because the local dev server has hot reloading, you'll get instant feedback on your changes.
+
+See [tips for migrating mapping functions](/getting-started/migrate-subgraph#tips-for-migrating-mapping-functions) for more details.
+
+### Query the GraphQL API
+
+As you migrate your indexing functions and start inserting data, open the GraphiQL interface at `http://localhost:42069/graphql` to explore your GraphQL API locally. Any changes you make to your `ponder.schema.ts` file will be reflected here.
+
+</Steps>
+
+## Tips for migrating mapping functions
+
+### Functions run in Node.js, not WebAssembly
+
+You can import NPM packages, debug with `console.log`, and use normal JavaScript types like `string` and `number`.
+
+### Database models & contracts are injected, not imported
+
+In a Graph Protocol subgraph mapping file, entity models and contract factories are imported:
+
+```ts filename="mapping.ts (Graph Protocol)"
+import { Token, Wallet } from "../generated/schema";
+import { MyNftContract } from "../generated/MyNftContract/MyNftContract";
+
+export function handleTransfer(event) {
+  // Get an entity object
+  const token = Token.load(event.params.id);
+
+  // Bind and call a contract
+  const tokenUri = MyNftContract.bind("0x137...01a2").tokenURI(token.id);
+
+  // ...
+}
+```
+
+With Ponder, these objects are injected as properties of `context`.
+
+```ts filename="src/MyNftContract.ts"
+import { ponder } from "@/generated";
+
+ponder.on("MyNftContract:Transfer", async ({ event, context }) => {
+  // Get a database record
+  const token = await context.db.Token.findUnique({ id: event.args.id });
+
+  // Call a contract read function
+  const tokenUri = await context.client.readContract({
+    abi: context.contracts.MyNftContract.abi,
+    address: context.contracts.MyNftContract.address,
+    functionName: "tokenURI",
+    args: [event.args.tokenId],
+  });
+
+  // ...
+});
+```
+
+See the [Create & update records](/guides/create-update-records) and [Read contract data](/guides/read-contract-data) guides for more details.

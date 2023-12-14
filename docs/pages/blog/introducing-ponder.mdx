@@ -1,0 +1,61 @@
+---
+description: "Introducing Ponder"
+---
+
+import { Bleed } from "nextra-theme-docs";
+import Image from "next/image";
+
+# Introducing Ponder
+
+We’re excited to announce the stable release of Ponder.
+
+## What is Ponder?
+
+Ponder is an open-source framework that makes it easy to build robust, performant, and maintainable web backends for crypto apps. With Ponder, you can rapidly build & deploy an API that serves data from smart contracts on any EVM blockchain.
+
+Here’s a two minute video where I build a Ponder app for the ERC-4337 entrypoint contract.
+
+TODO video embed
+
+## Why build a backend framework?
+
+Thanks to step-change improvements in frontend (wagmi, RainbowKit) and smart contract development (Foundry), **the web backend is often the most painful part of building a crypto app**.
+
+Many developers have (quietly) accepted that to build excellent crypto app experiences, you need a traditional web backend to solve certain problems – particularly around indexing. The standard RPC, subgraphs, and out-of-the-box API endpoints are great for getting started, but fall short as applications mature and new requirements appear.
+
+When this happens, developers often roll their own web backend, which gives them the flexibility to write custom server-side code. Unfortunately, engineering teams across the industry are reinventing the wheel on common problems (reorgs, RPC error handling, etc) in closed-source repositories where best practices remain siloed.
+
+We built Ponder because **this is a framework-shaped problem**. In our view, subgraphs have remained relevant (despite painful drawbacks) because they were the only indexing tool that offered the productivity & ecosystem benefits of a framework.
+
+Ponder has been **open-source since the first commit**. We’re confident that a well-executed open-source framework will win over the long term against “closed-source platform, open-source SDK” approaches.
+
+Today, we’re laser-focused on indexing because it’s the biggest pain point at this layer of the stack. Over time, Ponder will introduce patterns for notifications & alerts, side effects (e.g. call the Stripe API), automated transactions, authentication, end-to-end testing, and more.
+
+## What makes Ponder special?
+
+We wanted to highlight three areas where Ponder moves the needle: a focus on application developers, the local dev server, and performance.
+
+### Built for app developers
+
+**Ponder is built for application & web developers**. If you understand the basics of Ethereum and can write some TypeScript, you’ll be productive with Ponder in a matter of minutes. (So, data analysts, protocol developers, and researchers can use Ponder too.)
+
+In a Ponder app, your code runs in a JavaScript runtime (Node.js) where you can import NPM packages, make HTTP requests, and connect to databases. This makes it easy to do things that are painful in constrained environments like WebAssembly sandboxes, SQL engines, and EVM runtimes.
+
+Increasingly, crypto apps run on multiple chains. Ponder natively supports this – just add another RPC URL, and your indexing functions will start processing data from that chain. Once indexed, you can query and aggregate data across any number of chains.
+
+### Local development
+
+Ponder was **designed from the ground up for local development**. The dev server has hot reloading for every file in your project, end-to-end type safety with no codegen, and descriptive error logs that keep you productive.
+
+It’s so difficult to run a Graph Protocol subgraph locally that it’s common for devs to deploy to the hosted service _just to get feedback on their code_. With Ponder’s dev server, your code runs as soon as you save a change to your file.
+
+<Bleed>
+  <Image
+    src={"/hot-reloading.gif"}
+    layout={"responsive"}
+    height={175}
+    width={175}
+    alt={`A cute animal!`}
+    unoptimized={true}
+  />
+</Bleed>

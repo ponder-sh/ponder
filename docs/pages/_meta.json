@@ -1,10 +1,20 @@
 {
   "index": {
-    "title": "Introduction"
+    "title": "Home",
+    "display": "hidden",
+    "theme": {
+      "breadcrumb": false,
+      "sidebar": false,
+      "toc": false,
+      "footer": true
+    }
   },
-  "migration-guide": "Migration guide",
-  "compared-to-subgraphs": "Compared to subgraphs",
-  "getting-started": "Getting started",
-  "guides": "Guides",
-  "api-reference": "API reference"
+  "docs": {
+    "title": "Documentation",
+    "type": "page"
+  },
+  "blog": {
+    "title": "Blog",
+    "type": "page"
+  }
 }

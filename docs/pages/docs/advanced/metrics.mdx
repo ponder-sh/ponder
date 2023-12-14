@@ -1,0 +1,38 @@
+---
+description: "A guide to Ponder metrics"
+---
+
+import { Callout } from "nextra-theme-docs";
+
+# Metrics 🚧
+
+This page is under construction.
+
+<Callout type="warning">
+  Metrics are not part of the public API, so these are subject to change without
+  notice. Do not rely on these metrics for anything important (yet).
+</Callout>
+
+Ponder apps publish Prometheus metrics at the `/metrics` path.
+
+| name                                       | description                                                                     | type      |
+| :----------------------------------------- | :------------------------------------------------------------------------------ | --------- |
+| ponder_historical_rpc_request_duration     | Duration of RPC requests completed during the historical sync                   | histogram |
+| ponder_historical_total_blocks             | Number of blocks required for the historical sync                               | gauge     |
+| ponder_historical_cached_blocks            | Number of blocks that were found in the cache for the historical sync           | gauge     |
+| ponder_historical_completed_blocks         | Number of blocks that have been processed for the historical sync               | gauge     |
+| ponder_historical_completion_rate          | Completion rate (0 to 1) of the historical sync                                 | gauge     |
+| ponder_historical_completion_eta           | Estimated number of milliseconds remaining to complete the historical sync      | gauge     |
+| ponder_realtime_is_connected               | Boolean (0 or 1) indicating if the historical sync service is connected         | gauge     |
+| ponder_realtime_latest_block_number        | Block number of the latest synced block                                         | gauge     |
+| ponder_realtime_latest_block_timestamp     | Block timestamp of the latest synced block                                      | gauge     |
+| ponder_realtime_rpc_request_duration       | Duration of RPC requests completed during the realtime sync                     | histogram |
+| ponder_indexing_matched_events             | Number of available events for all log filters                                  | gauge     |
+| ponder_indexing_handled_events             | Number of available events for which there is an indexing function registered   | gauge     |
+| ponder_indexing_processed_events           | Number of available events that have been processed                             | gauge     |
+| ponder_indexing_has_error                  | Boolean (0 or 1) indicating if an error was encountered while running user code | gauge     |
+| ponder_indexing_latest_processed_timestamp | Block timestamp of the latest processed event                                   | gauge     |
+| ponder_server_port                         | Port that the server is listening on                                            | gauge     |
+| ponder_server_request_size                 | Size of HTTP requests received by the server                                    | histogram |
+| ponder_server_response_size                | Size of HTTP responses served the server                                        | histogram |
+| ponder_server_response_duration            | Duration of HTTP responses served the server                                    | histogram |
