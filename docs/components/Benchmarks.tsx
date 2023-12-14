@@ -86,7 +86,7 @@ export function Benchmarks({ flat = false }: { flat?: boolean }) {
             950MB/s network connection.
           </p>
           <Link
-            href="https://github.com/0xOlias/ponder/tree/main/benchmarks#readme"
+            href="https://github.com/ponder-sh/ponder/tree/main/benchmarks#readme"
             target="_blank"
             className="text-sm text-ponder hover:text-ponder-50/90"
           >

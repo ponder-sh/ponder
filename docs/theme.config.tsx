@@ -8,13 +8,13 @@ import TelegramLogo from "./public/telegram.svg";
 const config: DocsThemeConfig = {
   logo: <PonderLogo className="logo" />,
   project: {
-    link: "https://github.com/0xOlias/ponder",
+    link: "https://github.com/ponder-sh/ponder",
   },
   chat: {
     link: "https://t.me/ponder_sh",
     icon: <TelegramLogo className="telegram" />,
   },
-  docsRepositoryBase: "https://github.com/0xOlias/ponder/tree/main/docs",
+  docsRepositoryBase: "https://github.com/ponder-sh/ponder/tree/main/docs",
   sidebar: {
     defaultMenuCollapseLevel: 2,
   },

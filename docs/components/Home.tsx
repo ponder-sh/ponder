@@ -67,7 +67,7 @@ export function Home() {
                   ])}
                 >
                   <Link
-                    href="https://github.com/0xOlias/ponder"
+                    href="https://github.com/ponder-sh/ponder"
                     target="_blank"
                   >
                     View on GitHub
