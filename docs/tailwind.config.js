@@ -17,7 +17,7 @@ module.exports = {
     },
     extend: {
       colors: {
-        ponder: "2AA3B1",
+        ponder: "#2AA3B1",
         "ponder-50": "#39DFF2",
         "ponder-100": "#35CDDF",
         "ponder-200": "#30BCCC",

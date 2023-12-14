@@ -1,10 +1,14 @@
-import { Button } from "@/components/ui/button";
+import { Slot } from "@radix-ui/react-slot";
+import Link from "next/link";
+
+import { buttonDefaults } from "@/components/ui/button";
 import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 import {
   CommandLineIcon,
@@ -16,8 +20,8 @@ import {
 export function Home() {
   return (
     <main className="w-full max-w-full relative">
-      <div className="max-w-[1120px] mx-auto px-6 mt-8">
-        <Card className="w-full flex flex-col justify-between md:flex-row gap-8 p-4 mb-4 md:p-8 md:mb-8">
+      <div className="max-w-[1120px] mx-auto px-6 mt-4 md:mt-16">
+        <div className="w-full flex flex-col justify-between md:flex-row gap-8 p-4 mb-4 md:p-8 md:mb-8 rounded-lg text-neutral-950 shadow-sm dark:text-neutral-50 hero-texture bg-contain">
           <div className="flex flex-col items-start space-y-1.5 max-w-[540px]">
             <p className="pb-4 text-neutral-500 dark:text-neutral-400">
               Introducing Ponder
@@ -34,27 +38,49 @@ export function Home() {
           <div className="flex flex-row justify-center items-end w-full md:w-[unset]">
             <div className="w-full md:w-[unset] space-y-4">
               <div className="flex flex-row gap-4">
-                <Button className="flex-grow md:px-10">Get started</Button>
-                <Button variant="secondary" className="flex-grow">
-                  Why Ponder?
-                </Button>
+                <Slot
+                  className={cn([
+                    buttonDefaults,
+                    "h-10 px-4 py-2",
+                    "flex-grow md:px-10 text-neutral-50 bg-ponder hover:bg-ponder-200/90",
+                  ])}
+                >
+                  <Link href="/docs/getting-started">Get started</Link>
+                </Slot>
+                <Slot
+                  className={cn([
+                    buttonDefaults,
+                    "h-10 px-4 py-2",
+                    "text-neutral-900 dark:text-neutral-50 bg-white bg-opacity-20 hover:bg-opacity-30",
+                  ])}
+                >
+                  <Link href="/blog/introducing-ponder">Why Ponder?</Link>
+                </Slot>
               </div>
               <div className="flex flex-row justify-center">
-                <Button
-                  variant="outline"
-                  className="flex-grow bg-transparent dark:bg-transparent"
+                <Slot
+                  className={cn([
+                    buttonDefaults,
+                    "h-10 px-4 py-2",
+                    "flex-grow border text-neutral-900 dark:text-neutral-50 border-neutral-200/30 hover:bg-neutral-100/30",
+                  ])}
                 >
-                  View on GitHub
-                </Button>
+                  <Link
+                    href="https://github.com/0xOlias/ponder"
+                    target="_blank"
+                  >
+                    View on GitHub
+                  </Link>
+                </Slot>
               </div>
             </div>
           </div>
-        </Card>
+        </div>
 
         <div className="flex justify-between flex-wrap gap-y-4">
           <Card className="w-[calc(25%-12px)] max-lg:w-[calc(50%-8px)] max-sm:w-full">
             <CardHeader className="items-start">
-              <div className="p-2 rounded-[4px] mb-5 bg-neutral-100 dark:bg-neutral-800">
+              <div className="p-2 rounded-[4px] mb-5 bg-neutral-200 dark:bg-neutral-800">
                 <ServerStackIcon />
               </div>
               <CardTitle>Local dev server</CardTitle>
@@ -66,7 +92,7 @@ export function Home() {
 
           <Card className="w-[calc(25%-12px)] max-lg:w-[calc(50%-8px)] max-sm:w-full">
             <CardHeader className="items-start">
-              <div className="p-2 rounded-[4px] mb-5 bg-neutral-100 dark:bg-neutral-800">
+              <div className="p-2 rounded-[4px] mb-5 bg-neutral-200 dark:bg-neutral-800">
                 <ShieldCheckIcon />
               </div>
               <CardTitle>Built for app developers</CardTitle>
@@ -78,7 +104,7 @@ export function Home() {
 
           <Card className="w-[calc(25%-12px)] max-lg:w-[calc(50%-8px)] max-sm:w-full">
             <CardHeader className="items-start">
-              <div className="p-2 rounded-[4px] mb-5 bg-neutral-100 dark:bg-neutral-800">
+              <div className="p-2 rounded-[4px] mb-5 bg-neutral-200 dark:bg-neutral-800">
                 <CommandLineIcon />
               </div>
               <CardTitle>Type safe</CardTitle>
@@ -90,7 +116,7 @@ export function Home() {
 
           <Card className="w-[calc(25%-12px)] max-lg:w-[calc(50%-8px)] max-sm:w-full">
             <CardHeader className="items-start">
-              <div className="p-2 rounded-[4px] mb-5 bg-neutral-100 dark:bg-neutral-800">
+              <div className="p-2 rounded-[4px] mb-5 bg-neutral-200 dark:bg-neutral-800">
                 <CursorArrowRaysIcon />
               </div>
               <CardTitle>One-click deploys</CardTitle>
@@ -100,34 +126,6 @@ export function Home() {
             </CardHeader>
           </Card>
         </div>
-
-        <div className="flex flex-row justify-between pt-12 max-sm:pt-0">
-          <div className="max-w-[400px] flex flex-col items-start space-y-8">
-            <Button>Muahahaha</Button>
-
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/ponder-white.svg" className="h-12" alt="Ponder logo" />
-            <p className="font-medium text-[20px]">
-              A backend framework for crypto apps
-            </p>
-            <div className="flex flex-row justify-start space-x-4">
-              <a
-                className="px-5 leading-9 rounded-full bg-ponder-400 border border-ponder-800 hover:bg-ponder-800"
-                href="/getting-started/new-project"
-              >
-                Get started
-              </a>
-              <a
-                className="px-5 leading-9 bg-red-700 rounded-full"
-                href="/why-ponder"
-              >
-                Why Ponder?
-              </a>
-            </div>
-          </div>
-          <div className="flex flex-col space-y-8">CODE BLOCK</div>
-        </div>
-        <div className="flex flex-row justify-between pt-12 max-sm:pt-0"></div>
       </div>
     </main>
   );

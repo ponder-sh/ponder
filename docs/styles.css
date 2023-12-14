@@ -37,6 +37,9 @@
 }
 
 /* PONDER LOGO */
+.logo {
+  height: 16px;
+}
 .dark .logo path:first-of-type {
   fill: #fffbf5;
 }
@@ -78,4 +81,24 @@ a {
 .nx-underline:hover {
   text-decoration-line: underline;
   text-decoration-thickness: auto;
+}
+
+.hero-texture {
+  background:
+    radial-gradient(
+      91.96% 91.96% at 50% 91.96%,
+      rgba(0, 0, 0, 0) 0%,
+      #fff 100%
+    ),
+    url("/hero-texture.png") lightgray 50% / cover no-repeat;
+}
+
+.dark .hero-texture {
+  background:
+    radial-gradient(
+      91.96% 91.96% at 50% 91.96%,
+      rgba(0, 0, 0, 0) -50%,
+      #111 100%
+    ),
+    url("/hero-texture.png") lightgray 50% / cover no-repeat;
 }
