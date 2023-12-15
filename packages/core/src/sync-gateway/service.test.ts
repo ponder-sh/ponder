@@ -1,9 +1,8 @@
-import { rpc } from "viem/utils";
+import { zeroAddress } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { usdcContractConfig } from "@/_test/constants.js";
 import { setupSyncStore } from "@/_test/setup.js";
-import { publicClient } from "@/_test/utils.js";
+import { getNetworks, getSources } from "@/_test/utils.js";
 import type { Network } from "@/config/networks.js";
 import type { Source } from "@/config/sources.js";
 import { type Checkpoint, zeroCheckpoint } from "@/utils/checkpoint.js";
@@ -12,46 +11,25 @@ import { SyncGateway } from "./service.js";
 
 beforeEach((context) => setupSyncStore(context));
 
-const mainnet: Network = {
-  name: "mainnet",
-  chainId: 1,
-  request: (options) =>
-    rpc.http(publicClient.chain.rpcUrls.default.http[0], options),
-  url: publicClient.chain.rpcUrls.default.http[0],
-  pollingInterval: 1_000,
-  defaultMaxBlockRange: 3,
-  finalityBlockCount: 10,
-  maxHistoricalTaskConcurrency: 20,
-};
-
-const optimism: Network = {
+const mainnet = await getNetworks().then((n) => n[0]);
+const optimism = {
   ...mainnet,
   name: "optimism",
   chainId: 10,
-} as const;
+} as const satisfies Network;
 
-const networks = [mainnet, optimism];
+const networks = [mainnet, optimism] as const satisfies Network[];
 
-const usdcLogFilter = {
-  ...usdcContractConfig,
-  id: `USDC_${mainnet.name}`,
-  contractName: "USDC",
-  networkName: mainnet.name,
-  criteria: { address: usdcContractConfig.address },
-  startBlock: 16369950,
-  type: "logFilter",
-} as const;
-
-const sources: Source[] = [
-  usdcLogFilter,
+const _sources = getSources(zeroAddress);
+const sources = [
+  _sources[0],
   {
-    ...usdcLogFilter,
-    id: `USDC_${optimism.name}`,
-    contractName: "USDC",
+    ..._sources[0],
+    id: `Erc20_${optimism.name}`,
     networkName: optimism.name,
     chainId: optimism.chainId,
   },
-];
+] as const satisfies Source[];
 
 function createCheckpoint(checkpoint: Partial<Checkpoint>): Checkpoint {
   return { ...zeroCheckpoint, ...checkpoint };
